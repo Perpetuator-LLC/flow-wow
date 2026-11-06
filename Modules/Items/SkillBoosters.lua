@@ -19,14 +19,9 @@ local SKILLS = {
     "First Aid", "Cooking", "Fishing", "Lockpicking",
 }
 
--- rank, max for a skill from the skills window (nil if not learned).
-local function skill(name)
-    if not GetNumSkillLines then return nil end
-    for i = 1, GetNumSkillLines() do
-        local n, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
-        if not isHeader and n == name then return rank or 0, maxRank or 0 end
-    end
-end
+-- rank, max for a skill (nil if not learned). Shared lookup that works on
+-- both newer and classic clients.
+local function skill(name) return ns.api.Skill(name) end
 
 -- Parses an item's tooltip. Returns { skill, amount, cap } or nil.
 local cache = {}

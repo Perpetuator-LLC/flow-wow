@@ -173,6 +173,13 @@ local NOT_PROFESSIONS = { ["Riding"] = true }
 -- Returns list, and whether a profession section was collapsed (unreadable).
 local function professionSkills()
     local out, collapsed = {}, false
+    -- Newer clients (Forever): the profession API.
+    if GetProfessions and GetProfessionInfo then
+        for _, p in ipairs(ns.api.Professions()) do
+            if not p.other and not NOT_PROFESSIONS[p.name] then out[#out + 1] = p end
+        end
+        return out, false
+    end
     if not GetNumSkillLines then return out, true end
     local section
     for i = 1, GetNumSkillLines() do

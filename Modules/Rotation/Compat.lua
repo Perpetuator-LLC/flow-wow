@@ -197,11 +197,42 @@ function A.ProfessionTarget(level)
 end
 
 -- Skill rank and max from the skills window; nil if you don't have it.
+-- Your professions: { { name, rank, max, primary } }. Uses the newer
+-- profession API where it exists (Forever), else the classic skills window.
+-- (Reading only the classic API made Flow miss professions you'd learned.)
+function A.Professions()
+    local out = {}
+    if GetProfessions and GetProfessionInfo then
+        local list = { GetProfessions() }
+        for i = 1, 6 do
+            local idx = list[i]
+            if idx then
+                local name, _, rank, max = GetProfessionInfo(idx)
+                if name then out[#out + 1] = { name = name, rank = rank or 0, max = max or 0, primary = i <= 2 } end
+            end
+        end
+        if #out > 0 then return out end
+    end
+    if GetNumSkillLines then
+        local section
+        for i = 1, GetNumSkillLines() do
+            local n, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
+            if isHeader then section = n
+            elseif section == "Professions" or section == "Secondary Skills" then
+                out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, primary = section == "Professions" }
+            elseif n then
+                -- Other sections (weapons etc.) aren't professions, but keep
+                -- them findable by name for A.Skill.
+                out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, other = true }
+            end
+        end
+    end
+    return out
+end
+
 function A.Skill(name)
-    if not GetNumSkillLines then return nil end
-    for i = 1, GetNumSkillLines() do
-        local n, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
-        if not isHeader and n == name then return rank or 0, maxRank or 0 end
+    for _, p in ipairs(A.Professions()) do
+        if p.name == name then return p.rank, p.max end
     end
 end
 
