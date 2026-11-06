@@ -63,7 +63,7 @@ local function line(c, x1, y1, x2, y2, color, alpha)
         lines[nLines] = l
     end
     local w, h = c:GetWidth(), c:GetHeight()
-    l:SetThickness(2 / canvasScale())  -- thin, solid line
+    l:SetThickness(2.5 / canvasScale())  -- thin, solid, fully opaque: the exact route colour
     l:SetColorTexture(color[1], color[2], color[3], alpha or 0.9)
     l:SetStartPoint("TOPLEFT", c, x1 * w, -y1 * h)
     l:SetEndPoint("TOPLEFT", c, x2 * w, -y2 * h)
@@ -202,7 +202,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
             if px and not pinsOnly then
                 -- From you to the first stop: brighter, so it's clear where to go now.
                 local first = (i == 1)
-                line(c, px, py, x, y, first and theme().route or color, first and 1 or (alpha or 0.95))
+                line(c, px, py, x, y, first and theme().route or color, alpha or 1)
                 legs[#legs + 1] = { px, py, x, y, color = { 1, 1, 1 }, alpha = first and 1 or 0.9 }  -- chevrons are white on every leg
             end
             px, py = x, y
@@ -225,7 +225,7 @@ end
 -- Route panel: the trip plan as a routed quest log. It takes over the game's
 -- quest log area on the right of the map when that's open, otherwise it sits
 -- just outside the map on the right, so it never covers the map itself.
--- The orange "Flow route" bar at its top rolls it up (showing the default
+-- (The Flow Router is opened and closed with the square map button; the old
 -- quest log / map again) and brings it back. Same numbers and colours as the
 -- map pins; hover a row to preview, click to choose.
 -------------------------------------------------------------------------------
@@ -310,7 +310,7 @@ local function buildButton()
     b:SetScript("OnEnter", function(self)
         self:Draw()
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("Flow route")
+        GameTooltip:AddLine("Flow Router")
         GameTooltip:AddLine(collapsed() and "Open Flow's route list (closes the quest log)."
             or "Close Flow's route list.", 1, 1, 1, true)
         GameTooltip:Show()
@@ -400,7 +400,7 @@ local function buildList()
     f.hint:SetPoint("TOPLEFT", 8, -6)
     f.hint:SetPoint("TOPRIGHT", -8, -6)
     f.hint:SetJustifyH("LEFT")
-    f.hint:SetText("Click a stop to follow that route. Hover to preview it on the map.")
+    f.hint:SetText("|cffffd200Flow Router|r  Click a stop to open it; ^ goes there first.")
 
     local function choice(y, mode, text, tip)
         local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -465,6 +465,16 @@ local function buildList()
     end)
     hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.showHidden = hc
+
+    -- Show the route on the map (lines, points, chevrons); off = the list only.
+    local rc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    rc:SetSize(20, 20)
+    rc:SetPoint("TOPLEFT", 170, -58)
+    rc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rc.label:SetPoint("LEFT", rc, "RIGHT", 2, 0)
+    rc.label:SetText("Show route on map")
+    rc:SetScript("OnClick", function(self) ns.db.nav.mapLines = self:GetChecked() and true or false; M:Redraw() end)
+    f.showLines = rc
     hc:Hide(); hc.label:Hide()  -- hidden stops are always listed now
 
     -- Route sorting (XpValue.lua): three modes, one row of radios.
@@ -619,7 +629,7 @@ local function updateList()
     place()
     list:Show()
     local hidden = collapsed()
-    list.toggle.text:SetText("Flow route")
+    list.toggle.text:SetText("Flow Router")
     list.toggle.state:SetText(hidden and "show" or "hide")
     list.toggle.pm:SetTexture(hidden and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
     list.bg:SetShown(not hidden)
@@ -635,6 +645,7 @@ local function updateList()
     list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
     list.profs:SetChecked(ns.db.nav.professions ~= false)
     local chosen = ns.nav.selection and ns.nav.selection.first
+    list.showLines:SetChecked(ns.db.nav.mapLines ~= false)
     for _, rb in ipairs(list.sorts) do
         rb:SetChecked(ns.xpValue:Mode() == rb.mode)
         if rb.mode == "selected" then
@@ -719,7 +730,7 @@ function M:Redraw()
     legs = {}
     nLines, nPins = 0, 0
     local mapID = WorldMapFrame:GetMapID()
-    if mapID then
+    if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the

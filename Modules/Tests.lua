@@ -299,3 +299,11 @@ ns:Register("test", "lists: quest stops show a quest icon", function(t)
     s = ns.nav:FormatStop(1, { key = "buy:2901", kind = "merchant", text = "Buy a Mining Pick" }, "2")
     t:ok(s:find("QuestIcon", 1, true) == nil, "not a quest: no quest icon")
 end)
+
+ns:Register("test", "bags: profession materials name every profession that uses them", function(t)
+    local rule = ns:Get("disposition", "professionMaterial")
+    if not ns.api.Skill("Blacksmithing") then t:ok(true) return end
+    local v = rule.check({ id = 2835, classID = 7, subclassID = 7 })  -- Rough Stone
+    t:ok(v and v.reason:find("Blacksmithing: Rough Sharpening Stone", 1, true) ~= nil,
+        "Rough Stone kept for Blacksmithing (" .. tostring(v and v.reason) .. ")")
+end)

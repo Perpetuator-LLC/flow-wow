@@ -119,6 +119,8 @@ function D:Describe(bag, slot, link)
     }
 end
 
+-- Rules whose "keep" is a fallback, not a reason worth listing with others.
+local GENERIC = { notGear = true, unneededGear = true }
 local sorted
 local function rules()
     if not sorted then
@@ -135,11 +137,30 @@ function D:Decide(bag, slot, link)
     if cache[key] then return cache[key] end
     local item = self:Describe(bag, slot, link)
     if not item then return nil end
-    for _, e in ipairs(rules()) do
+    local list = rules()
+    for idx, e in ipairs(list) do
         local ok, v = pcall(e.r.check, item)
         if ok and v then
             v.rule = e.key
             v.item = item
+            -- Keeping it: list every reason, not just the first (Linen Cloth
+            -- can be for a class quest AND First Aid bandages).
+            if v.action == "keep" and v.reason and not GENERIC[e.key] then
+                local reasons, seen = { v.reason }, { [v.reason] = true }
+                for j = idx + 1, #list do
+                    local e2 = list[j]
+                    if not GENERIC[e2.key] then
+                        local ok2, w = pcall(e2.r.check, item)
+                        if ok2 and w and w.action == "keep" and w.reason and not seen[w.reason] then
+                            reasons[#reasons + 1] = w.reason
+                            seen[w.reason] = true
+                            v.icon = v.icon or w.icon
+                        end
+                    end
+                end
+                v.reasons = reasons
+                v.reason = table.concat(reasons, "; ")
+            end
             cache[key] = v
             return v
         end
@@ -201,23 +222,32 @@ end)
 -- Materials your professions use: exact recipes once you've opened that
 -- profession's window, otherwise by kind of material.
 reg("professionMaterial", 25, function(i)
-    local usedBy = ns.reagents and ns.reagents:UsedBy(i.id)
-    if usedBy then
-        for prof, recipe in pairs(usedBy) do
-            if ns.api.Skill(prof) then
-                return { action = "keep", icon = PROF_ICON[prof],
-                    reason = "for " .. prof .. (type(recipe) == "string" and (": " .. recipe) or "") }
-            end
+    -- Every profession you have that uses it (recipes you've seen in a
+    -- profession window, Flow's levelling guides, then by kind of material).
+    local found, order = {}, {}
+    local function add(prof, what)
+        if not ns.api.Skill(prof) or found[prof] then return end
+        found[prof] = what or true
+        order[#order + 1] = prof
+    end
+    for prof, recipe in pairs(ns.reagents and ns.reagents:UsedBy(i.id) or {}) do
+        add(prof, type(recipe) == "string" and recipe or nil)
+    end
+    for prof, g in ns:Each("profGuide") do
+        for _, step in ipairs(g.steps or {}) do
+            if step.mats and step.mats[i.id] then add(prof, step.recipe) end
         end
     end
     if i.classID == 7 and MATERIAL[i.subclassID] then
-        for _, prof in ipairs(MATERIAL[i.subclassID]) do
-            if ns.api.Skill(prof) then
-                return { action = "keep", icon = PROF_ICON[prof],
-                    reason = string.format("%s for %s", MATERIAL_NAME[i.subclassID] or "material", prof) }
-            end
-        end
+        for _, prof in ipairs(MATERIAL[i.subclassID]) do add(prof, MATERIAL_NAME[i.subclassID]) end
     end
+    if #order == 0 then return nil end
+    local parts = {}
+    for _, prof in ipairs(order) do
+        local what = found[prof]
+        parts[#parts + 1] = "for " .. prof .. (type(what) == "string" and (": " .. what) or "")
+    end
+    return { action = "keep", icon = PROF_ICON[order[1]], reason = table.concat(parts, "; ") }
 end)
 
 -- Gear you should wear now.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.1
+- Items kept for several reasons list them all (e.g. Linen Cloth: the Redemption class quest; for
+  First Aid: Linen Bandage). Profession materials name every profession of yours that uses them,
+  including from Flow's levelling guides.
+- Flow Router (the map drawer, renamed): "Show route on map" switch (off = the list only).
+- Route lines on the map are fully opaque and a touch thicker, so they show the exact route colour
+  (epic purple for Most XP first).
+
 ## 0.33.0
 - After-fight heal prompt: only after fights of 15 s or more, for 10 s, and never once you target
   an enemy (you're pulling: attacks first). It was offering Holy Light before attacks at nearly

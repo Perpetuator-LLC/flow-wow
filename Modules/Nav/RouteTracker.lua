@@ -61,7 +61,7 @@ local function build()
     if not p or p[1] ~= "TOPLEFT" then C_Timer.After(0, pinTop) end
     local o = ns.theme.arrow
 
-    -- Header (same style as the map's Flow route bar).
+    -- Header (same style as the Flow Router on the map).
     local h = CreateFrame("Button", nil, f)
     h:SetHeight(24)
     h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
