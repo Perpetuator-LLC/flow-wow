@@ -293,8 +293,28 @@ function N:Collect()
         end
         list = kept
     end
-    goals = list
+    -- Stops you hid (right-click on the map) stay out of the route; they're
+    -- kept in N.hiddenGoals so the map panel can list and unhide them.
+    local hidden = ns.db.nav.hidden or {}
+    local shown, hiddenGoals = {}, {}
+    for _, g in ipairs(list) do
+        if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
+    end
+    N.hiddenGoals = hiddenGoals
+    goals = shown
     N.planDirty = true
+end
+
+function N:Hide(key)
+    if not key then return end
+    ns.db.nav.hidden = ns.db.nav.hidden or {}
+    ns.db.nav.hidden[key] = true
+    self:Collect()
+end
+
+function N:Unhide(key)
+    if ns.db.nav.hidden then ns.db.nav.hidden[key] = nil end
+    self:Collect()
 end
 
 function N:Mode() return (ns.db.nav and ns.db.nav.mode) or "optimal" end

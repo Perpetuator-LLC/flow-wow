@@ -88,9 +88,15 @@ local function pin(c, x, y, label, color, stop)
             M:Preview(nil)
             GameTooltip:Hide()
         end)
-        p:SetScript("OnClick", function(self)
-            ns.nav:Select(self.stop.goal.key)
+        p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        p:SetScript("OnClick", function(self, button)
             M:Preview(nil)
+            if button == "RightButton" then
+                ns.nav:Hide(self.stop.goal.key)
+                ns:Print("hid " .. (self.stop.goal.text or "that stop") .. " (map panel: Show hidden stops to undo)")
+                return
+            end
+            ns.nav:Select(self.stop.goal.key)
             ns:Print("route updated: " .. (self.stop.goal.text or "?") .. " first")
         end)
         pins[nPins] = p
@@ -265,6 +271,25 @@ local function buildList()
     pc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.profs = pc
 
+    -- Show hidden stops (greyed out at the end of the list; click to unhide).
+    local hc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    hc:SetSize(20, 20)
+    hc:SetPoint("TOPLEFT", 170, -82)
+    hc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hc.label:SetPoint("LEFT", hc, "RIGHT", 2, 0)
+    hc.label:SetText("Show hidden stops")
+    hc:SetScript("OnClick", function(self)
+        ns.db.nav.showHidden = self:GetChecked() and true or false
+        M:Redraw()
+    end)
+    hc:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Right-click any stop (here or on the map) to hide it. Tick this to see hidden ones and click one to bring it back.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.showHidden = hc
+
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.title:SetPoint("TOPLEFT", 8, -106)
     f.title:SetPoint("TOPRIGHT", -8, -106)
@@ -288,6 +313,7 @@ local function buildList()
         r.text:SetJustifyH("LEFT")
         r.text:SetWordWrap(false)
         r:SetScript("OnEnter", function(self)
+            if self.isHidden then return end  -- hidden stops have no route to preview
             hoverKey = self.key
             M:Preview(self.key)
         end)
@@ -295,9 +321,17 @@ local function buildList()
             hoverKey = nil
             M:Preview(nil)
         end)
-        r:SetScript("OnClick", function(self)
-            ns.nav:Select(self.key)
+        r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        r:SetScript("OnClick", function(self, button)
             M:Preview(nil)
+            if self.isHidden then
+                ns.nav:Unhide(self.key)        -- either click brings it back
+            elseif button == "RightButton" then
+                ns.nav:Hide(self.key)
+            else
+                ns.nav:Select(self.key)
+            end
+            M:Redraw()
         end)
         f.rows[i] = r
     end
@@ -328,6 +362,8 @@ local function updateList()
     local showProfs = not hidden and mode == "optimal"
     list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
     list.profs:SetChecked(ns.db.nav.professions ~= false)
+    list.showHidden:SetShown(not hidden); list.showHidden.label:SetShown(not hidden)
+    list.showHidden:SetChecked(ns.db.nav.showHidden == true)
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -339,14 +375,22 @@ local function updateList()
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
     local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 130) / ROW_H))
+    -- Route stops first, then (if ticked) hidden stops, greyed out.
+    local hiddenGoals = (ns.db.nav.showHidden and ns.nav.hiddenGoals) or {}
     for i = 1, MAX_ROWS do
         local r, s = list.rows[i], plan[i]
+        local h = (not s) and hiddenGoals[i - #plan] or nil
         if s and i <= fit then
             local col = ns.nav:StopColor(i, s.goal)
             if s.goal.key == hoverKey then col = theme().hover end
-            r.key = s.goal.key
+            r.key, r.isHidden = s.goal.key, false
             r.text:SetText(string.format("|cff%s%s|r %s", col.hex, labels[i], s.goal.text or s.goal.title or "?"))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
+            r:Show()
+        elseif h and i <= fit then
+            r.key, r.isHidden = h.key, true
+            r.text:SetText("|cff777777(hidden) " .. (h.text or h.title or "?") .. "|r")
+            r.leg:SetText("|cff777777click to show|r")
             r:Show()
         else
             r:Hide()
