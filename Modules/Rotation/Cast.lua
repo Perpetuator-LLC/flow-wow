@@ -258,8 +258,8 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     if not fight then return end
     local seen = {}
     for spell, n in pairs(fight.seen) do seen[#seen + 1] = spell .. " x" .. n end
-    ns:Log("cast", string.format("fight end (%.0f s): button got %d click(s) (%d key-down), %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
-        GetTime() - fight.at, fight.clicks, fight.downs, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
+    ns:Log("cast", string.format("fight end (%.0f s): key pressed %d time(s), button got %d click(s) (%d key-down), %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
+        GetTime() - fight.at, fight.keys or 0, fight.clicks, fight.downs, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
         fight.empty, fight.ticks, tostring(E.lastError)))
     fight = nil
 end)
@@ -367,3 +367,37 @@ local function showHandle()
 end
 ns:On("MODIFIER_STATE_CHANGED", showHandle)
 ns:On("PLAYER_REGEN_DISABLED", function() if handle then handle.moving = false; handle:Hide() end end)
+
+-------------------------------------------------------------------------------
+-- Key check: a listener that sees your Flow key go down (and passes it on
+-- untouched), so the fight record can say, press by press, whether the key
+-- arrived, what it was bound to right then, and whether the button then got
+-- the click. ("Key does nothing" with the binding looking right otherwise.)
+-------------------------------------------------------------------------------
+
+local spy = CreateFrame("Frame", nil, UIParent)
+local lastSpyAt, spyLogged = 0, 0
+local clicksAtPress = 0
+-- Only when keys can be passed on: a keyboard frame that can't would eat every key.
+if spy.SetPropagateKeyboardInput then
+    spy:SetPropagateKeyboardInput(true)
+    spy:EnableKeyboard(true)
+end
+spy:SetScript("OnKeyDown", function(_, key)
+    local mine = ns.db and ns.db.cast and ns.db.cast.key
+    if not mine or key ~= mine:match("[^-]+$") then return end
+    lastSpyAt = GetTime()
+    clicksAtPress = fight and fight.clicks or 0
+    if fight then fight.keys = (fight.keys or 0) + 1 end
+    if spyLogged < 6 then
+        spyLogged = spyLogged + 1
+        local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+        ns:Log("cast", string.format("key %s pressed: bound to %s, button %s, focus %s",
+            tostring(key), tostring(GetBindingAction(mine, true)), btn and (btn:IsShown() and "shown" or "hidden") or "missing",
+            focus and (focus:GetName() or "a text box") or "none"))
+        C_Timer.After(0.3, function()
+            if fight and fight.clicks == clicksAtPress then ns:Log("cast", "  ...and the button did NOT get the click") end
+        end)
+    end
+end)
+ns:On("PLAYER_REGEN_DISABLED", function() spyLogged = 0 end)

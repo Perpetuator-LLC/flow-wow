@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.3
+- Cast key check: each press of your Flow key is logged in the fight record (what it was bound
+  to at that moment, whether a text box had the keyboard, and whether the button then got the
+  click), to find why the key sometimes does nothing.
+
 ## 0.35.2
 - Party: forming a group as leader no longer builds a party route from everyone's quests and
   switches you onto it (it flooded the tracker and map). You get a one-line hint instead; others
