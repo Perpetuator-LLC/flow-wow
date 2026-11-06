@@ -59,7 +59,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **Skill books**: tells you to hold "+N skill" items until the last points before a cap.
 
 ### Progress advice
-- **Advice list** (the orange "!" button): spells to train, items to equip, professions behind
+- **Advice list** (the round spyglass button with a count): spells to train, items to equip, professions behind
   your level, talents, skipped quests, and habits from your best fights. Rows that are places
   route you there.
 - **Training and professions**: trainer reminders, profession targets for your level, and spec

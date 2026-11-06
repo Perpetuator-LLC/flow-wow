@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.2
+- The advice button is now a round minimap-style spyglass with an orange count bubble, and it pulses
+  briefly when something important appears.
+
 ## 0.17.1
 - The map route list no longer covers the map: it takes over the quest log area (or sits just
   right of the map) as a routed quest list, with an orange "Hide / Show Flow route" bar to roll

@@ -17,7 +17,7 @@ local topics = {
         "/flow rot why - why each spell is or isn't suggested",
         "/flow rot on|off|unlock|lock|stats|known|reset",
     } },
-    { "advice", 30, "Advice (orange ! button)", {
+    { "advice", 30, "Advice (round spyglass button with a count)", {
         "Hover for ways to improve, click to print. Also /flow advice.",
     } },
     { "nav", 40, "Arrow", {

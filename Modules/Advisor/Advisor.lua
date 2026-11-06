@@ -45,16 +45,65 @@ end
 
 local function buildButton()
     local b = CreateFrame("Button", "FlowAdviceButton", UIParent)
-    b:SetSize(26, 26)
+    -- A round, minimap-style button: an icon in a gold ring, with a small
+    -- orange count bubble. Pulses gently when new important advice appears.
+    b:SetSize(34, 34)
     b:SetFrameStrata("HIGH")
     local p = ns.db.advisor.point
     if p then b:SetPoint(p[1], UIParent, p[2], p[3], p[4])
-    else b:SetPoint("CENTER", UIParent, "CENTER", 48, -160) end
-    b.bg = b:CreateTexture(nil, "BACKGROUND")
-    b.bg:SetAllPoints()
-    b.bg:SetColorTexture(1.0, 0.65, 0.0, 0.9)
-    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    b.text:SetPoint("CENTER")
+    else b:SetPoint("CENTER", UIParent, "CENTER", 52, -160) end
+
+    b.back = b:CreateTexture(nil, "BACKGROUND")
+    b.back:SetSize(26, 26)
+    b.back:SetPoint("CENTER")
+    b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    b.back:SetVertexColor(0, 0, 0, 0.85)
+
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(21, 21)
+    b.icon:SetPoint("CENTER")
+    b.icon:SetTexture("Interface\\Icons\\INV_Misc_Spyglass_02")
+    if b.icon.SetMask then
+        pcall(b.icon.SetMask, b.icon, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    else
+        b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
+    -- The standard minimap-button ring (sits offset to the top left by design).
+    b.ring = b:CreateTexture(nil, "OVERLAY")
+    b.ring:SetSize(56, 56)
+    b.ring:SetPoint("TOPLEFT", -1, 1)
+    b.ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetSize(30, 30)
+    b.hl:SetPoint("CENTER")
+    b.hl:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    b.hl:SetBlendMode("ADD")
+
+    -- Count bubble (bottom right).
+    b.badge = CreateFrame("Frame", nil, b)
+    b.badge:SetSize(18, 18)
+    b.badge:SetPoint("CENTER", b, "BOTTOMRIGHT", -3, 4)
+    b.badge:SetFrameLevel(b:GetFrameLevel() + 3)
+    b.badge.bg = b.badge:CreateTexture(nil, "BACKGROUND")
+    b.badge.bg:SetAllPoints()
+    b.badge.bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    local o = ns.theme and ns.theme.arrow or { 0.9, 0.62, 0 }
+    b.badge.bg:SetVertexColor(o[1], o[2], o[3], 1)
+    b.text = b.badge:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    b.text:SetPoint("CENTER", 0, 0)
+    b.text:SetTextColor(1, 1, 1)
+
+    local pulse = b:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local a = pulse:CreateAnimation("Alpha")
+    a:SetFromAlpha(1)
+    a:SetToAlpha(0.45)
+    a:SetDuration(0.6)
+    pulse.anim = a
+    b.pulse = pulse
+    b:SetScript("OnMouseDown", function(self) self.pulse:Stop(); self:SetAlpha(1) end)
     b:SetMovable(true)
     b:RegisterForDrag("LeftButton")
     b:SetScript("OnDragStart", function(self) if IsShiftKeyDown() then self:StartMoving() end end)
@@ -83,7 +132,15 @@ function Adv:Refresh()
     items = self:Collect()
     if not button then return end
     if ns.db.advisor.enabled and #items > 0 then
-        button.text:SetText("!" .. #items)
+        button.text:SetText(#items > 99 and "99+" or tostring(#items))
+        -- Pulse a few times when something important (an upgrade, training,
+        -- a capped profession) shows up that wasn't there before.
+        local top = items[1] and items[1].importance or 0
+        if top >= 60 and top > (self.lastTop or 0) then
+            button.pulse:Play()
+            C_Timer.After(4, function() button.pulse:Stop(); button:SetAlpha(1) end)
+        end
+        self.lastTop = top
         button:Show()
     else
         button:Hide()
