@@ -101,6 +101,31 @@ local function npcPoints(names)
     return #mine > 0 and mine or all, #mine > 0
 end
 
+-- What an item costs at a vendor (copper): the price you last saw there,
+-- else the guide's estimate. Buy stops carry it as `cost`, so the route
+-- lists them as blocked until you can pay (Nav.lua).
+function SP.Price(id)
+    local seen = ns.db.prices and ns.db.prices[id]
+    if seen then return seen end
+    local s = src(id)
+    return s and s.price
+end
+
+local function recordPrices()
+    if not (GetMerchantNumItems and GetMerchantItemInfo) then return end
+    ns.db.prices = ns.db.prices or {}
+    for i = 1, GetMerchantNumItems() do
+        local _, _, price, qty = GetMerchantItemInfo(i)
+        local id = GetMerchantItemID and GetMerchantItemID(i)
+        if not id and GetMerchantItemLink then
+            local link = GetMerchantItemLink(i)
+            id = link and tonumber(link:match("item:(%d+)"))
+        end
+        if id and price and price > 0 then ns.db.prices[id] = math.ceil(price / math.max(qty or 1, 1)) end
+    end
+end
+ns:On("MERCHANT_SHOW", function() C_Timer.After(0.3, function() pcall(recordPrices) end) end)
+
 local function vendorPoints(itemId)
     local item = ns.quests:QuestieGet("GetItem", itemId)
     local spawns, names = {}, {}
@@ -169,6 +194,9 @@ end
 -------------------------------------------------------------------------------
 
 function SP:Targets()
+    -- Professions switched off (map list, arrow menu): no profession stops at all,
+    -- not even for quests that ask for a skill, nor tools to buy.
+    if ns.db.nav.professions == false then return {} end
     local out = {}
     for _, q in ipairs(ns.quests.LogEntries and ns.quests.LogEntries() or {}) do
         for _, o in ipairs(q.objectives or {}) do
@@ -269,7 +297,7 @@ local function planProfession(prof, t, out)
         toolMissing = itemName(g.tool)
         watched[g.tool] = true
         local pts, _, sellers = vendorPoints(g.tool)
-        add({ key = "buy:" .. g.tool, kind = "merchant", points = pts, npcs = sellers,
+        add({ key = "buy:" .. g.tool, kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(g.tool),
               text = "Buy a " .. toolMissing,
               details = { "Needed for " .. prof .. "." },
               blockedBy = #pts == 0 and ("Flow doesn't know who sells a " .. toolMissing .. " (try a trade supplies vendor)") or nil })
@@ -364,6 +392,7 @@ local function planProfession(prof, t, out)
         elseif s and s.vendor then
             local pts, _, sellers = vendorPoints(id)
             add({ key = "buy:" .. id, kind = "merchant", points = pts, npcs = sellers,
+                  cost = SP.Price(id) and SP.Price(id) * n or nil,
                   text = string.format("Buy %d %s", n, name),
                   blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil })
         else

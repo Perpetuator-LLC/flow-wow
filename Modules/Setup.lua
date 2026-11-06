@@ -64,7 +64,7 @@ ns:Register("setupItem", "stamps", {
 
 ns:Register("setupItem", "colorblind", {
     order = 75, label = "Colour-blind route colours",
-    why = "Off: green route, yellow preview, blue and red. On: orange, purple and sky blue, easier for the common kinds of colour blindness.",
+    why = "Route colours that stay apart for the common kinds of colour blindness (same meaning: route colour = order mode, yellow = preview, hover = stop under the mouse).",
     isOn = function() return ns.theme:ColorBlind() end,
     set = function(on) ns.theme:SetColorBlind(on) end,
     suggested = false, default = false,

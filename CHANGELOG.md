@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.28.0
+- Route and arrow share one colour, and it shows the order mode: purple (epic) = Most XP first,
+  blue (rare) = Shortest path, gold (artifact) = From selected stop. Previewed route yellow,
+  yours grey meanwhile, hovered stop red. Colour-blind palette keeps the same roles.
+- Map drawer: the "Flow route" bar at the top is gone (the square map button does it); hidden
+  stops are always listed (greyed, click to bring back).
+- Profession stops (skill plan, tools to buy) follow "Include professions": off means none.
+- Buying stops carry a price (guide estimate until you've seen it at a vendor, then the real
+  one) and are listed as blocked until you can pay.
+- Flow Tracker docks under Questie's tracker and opens downward.
+- Splash: 1 s.
+
 ## 0.27.0
 - Route order has three modes (map list, arrow menu): Most XP first (default), Shortest path,
   From selected stop. Clicking a stop on the world map selects it; picking one of the other two

@@ -1,9 +1,9 @@
 -- World map overlay: your route as numbered checkpoints and lines.
 --   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
---   colours (Theme.lua; two palettes, /flow settings "Colour-blind route colours"):
---     standard:    your route green, a previewed route yellow, your route
---                  while previewing blue, the stop under your mouse red
---     colour-blind: orange, purple, sky blue, light purple
+--   colours (Theme.lua): the route and arrow colour shows the order mode
+--     (purple = Most XP first, blue = Shortest path, gold = From selected stop);
+--     a previewed route is yellow and yours turns grey meanwhile; the stop
+--     under your mouse is red. /flow settings has a colour-blind palette.
 --   Hover a checkpoint (or a place in the advice list) to preview the route
 --   that starts there; click it to make that your route (the arrow follows).
 
@@ -85,7 +85,7 @@ local function pin(c, x, y, label, color, stop, top)
             GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
             for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
             local c2 = theme().proposed
-            GameTooltip:AddLine((ns.theme:ColorBlind() and "Purple" or "Yellow") .. ": your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
+            GameTooltip:AddLine("Yellow: your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
@@ -381,11 +381,12 @@ local function buildList()
     end)
     t:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.toggle = t
+    t:Hide()  -- the square map button opens and closes the drawer now
 
     -- How to use it, and which route to follow.
     f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.hint:SetPoint("TOPLEFT", 8, -30)
-    f.hint:SetPoint("TOPRIGHT", -8, -30)
+    f.hint:SetPoint("TOPLEFT", 8, -6)
+    f.hint:SetPoint("TOPRIGHT", -8, -6)
     f.hint:SetJustifyH("LEFT")
     f.hint:SetText("Click a stop to follow that route. Hover to preview it on the map.")
 
@@ -409,15 +410,15 @@ local function buildList()
         cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return cb
     end
-    f.modeQuests = choice(-44, "quests", "Follow current quests",
+    f.modeQuests = choice(-20, "quests", "Follow current quests",
         "Only the quests already in your log: their objectives, then turn-ins.")
-    f.modeOptimal = choice(-62, "optimal", "Follow optimal path",
+    f.modeOptimal = choice(-38, "optimal", "Follow optimal path",
         "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")
 
     -- Include professions (trainers to learn/raise them, and skill-up stops).
     local pc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     pc:SetSize(20, 20)
-    pc:SetPoint("TOPLEFT", 26, -82)
+    pc:SetPoint("TOPLEFT", 26, -58)
     pc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pc.label:SetPoint("LEFT", pc, "RIGHT", 2, 0)
     pc.label:SetText("Include professions")
@@ -452,6 +453,7 @@ local function buildList()
     end)
     hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.showHidden = hc
+    hc:Hide(); hc.label:Hide()  -- hidden stops are always listed now
 
     -- Route sorting (XpValue.lua): three modes, one row of radios.
     f.sorts = {}
@@ -463,7 +465,7 @@ local function buildList()
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
         rb:SetSize(20, 20)
-        rb:SetPoint("TOPLEFT", sdef[3], -102)
+        rb:SetPoint("TOPLEFT", sdef[3], -78)
         rb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         rb.label:SetPoint("LEFT", rb, "RIGHT", 1, 0)
         rb.label:SetText(sdef[2])
@@ -479,16 +481,16 @@ local function buildList()
     end
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -126)
-    f.title:SetPoint("TOPRIGHT", -8, -126)
+    f.title:SetPoint("TOPLEFT", 8, -102)
+    f.title:SetPoint("TOPRIGHT", -8, -102)
     f.title:SetJustifyH("LEFT")
 
     f.rows = {}
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -144 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -144 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -120 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -120 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -575,8 +577,6 @@ local function updateList()
     local showProfs = not hidden and mode == "optimal"
     list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
     list.profs:SetChecked(ns.db.nav.professions ~= false)
-    list.showHidden:SetShown(not hidden); list.showHidden.label:SetShown(not hidden)
-    list.showHidden:SetChecked(ns.db.nav.showHidden == true)
     for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Mode() == rb.mode) end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
@@ -590,11 +590,11 @@ local function updateList()
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 150) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 126) / ROW_H))
     -- Route stops first, then blocked stops (lock + reason), then (if
     -- ticked) hidden stops, greyed out.
     local blocked = ns.nav.blockedGoals or {}
-    local hiddenGoals = (ns.db.nav.showHidden and ns.nav.hiddenGoals) or {}
+    local hiddenGoals = ns.nav.hiddenGoals or {}  -- always listed, greyed out
     -- One list of rows: route stops, then blocked, then hidden. Blocked and
     -- hidden rows always get room (up to half the list), so a full route
     -- can't push them out of sight.

@@ -858,6 +858,12 @@ end
 
 local function update()
     local cfg = ns.db.nav
+    -- Route colour follows the order mode (purple / blue / gold): recolour on change.
+    if cfg.sorter ~= N.lastSorter then
+        N.lastSorter = cfg.sorter
+        ns.theme:UpdateRoute()
+        if ns.mapOverlay and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
+    end
     if not cfg.enabled then frame:Hide(); if ns.minimapPin then ns.minimapPin:Hide() end return end
     local p = N:PlayerPos()
     if not p then frame:Hide() return end

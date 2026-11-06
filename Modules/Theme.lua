@@ -7,24 +7,27 @@ local function rgb(hex)
              tonumber(hex:sub(5, 6), 16) / 255, hex = hex }
 end
 
--- Route colours on the map and the nav arrow come in two palettes:
---   standard     green = your route, yellow = a route you're previewing,
---                blue = your route while you preview another, red = hovered stop
---   colourblind  Okabe-Ito: orange route, purple preview, sky blue while
---                previewing, light purple hover. Stays distinct for the common
---                kinds of colour blindness. (/flow settings, or /flow colors)
+-- Route colours (map lines, pins, the nav arrow, the minimap dot). The route
+-- and the arrow share one colour, and it tells you the order mode:
+--   Most XP first       epic purple
+--   Shortest path       rare blue
+--   From selected stop  artifact gold-orange
+-- Previewing another route: it's yellow, and yours turns grey. The stop
+-- under your mouse is red.
+-- Colour-blind palette (/flow settings): Okabe-Ito equivalents that stay
+-- apart for the common kinds of colour blindness.
 local PALETTES = {
     standard = {
-        route    = rgb("3CC83C"),  -- green: your current route
+        modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), selected = rgb("E6CC80") },
         proposed = rgb("FFD800"),  -- yellow: a route you're previewing
-        changed  = rgb("3C8CFF"),  -- blue: your route while previewing; quest pickups (!N)
+        changed  = rgb("9A9A9A"),  -- grey: your route while previewing another
         hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
     },
     colorblind = {
-        route    = rgb("E69F00"),  -- orange
-        proposed = rgb("A97BFF"),  -- purple
-        changed  = rgb("56B4E9"),  -- sky blue
-        hover    = rgb("D9C2FF"),  -- light purple
+        modes    = { xp = rgb("CC79A7"), distance = rgb("0072B2"), selected = rgb("E69F00") },
+        proposed = rgb("F0E442"),
+        changed  = rgb("9A9A9A"),
+        hover    = rgb("D55E00"),
     },
 }
 
@@ -34,19 +37,29 @@ ns.theme = {
     muted    = rgb("BBBBBB"),
 }
 
--- Copies a palette's route colours into ns.theme (the tables are shared, so
--- code that kept a reference sees the change too).
+local function set(self, k, c)
+    if self[k] then
+        self[k][1], self[k][2], self[k][3], self[k].hex = c[1], c[2], c[3], c.hex
+    else
+        self[k] = { c[1], c[2], c[3], hex = c.hex }
+    end
+end
+
+-- Route colour from the order mode (call after the mode changes).
+function ns.theme:UpdateRoute()
+    local p = PALETTES[self.palette or "standard"]
+    local mode = ns.db and ns.db.nav and ns.db.nav.sorter or "xp"
+    set(self, "route", p.modes[mode] or p.modes.xp)
+    self.current = self.route  -- older name
+end
+
+-- Copies a palette's colours into ns.theme (the tables are shared, so code
+-- that kept a reference sees the change too).
 function ns.theme:UsePalette(name)
     local p = PALETTES[name] or PALETTES.standard
-    for k, c in pairs(p) do
-        if self[k] then
-            self[k][1], self[k][2], self[k][3], self[k].hex = c[1], c[2], c[3], c.hex
-        else
-            self[k] = { c[1], c[2], c[3], hex = c.hex }
-        end
-    end
-    self.current = self.route  -- older name
     self.palette = PALETTES[name] and name or "standard"
+    for k, c in pairs(p) do if k ~= "modes" then set(self, k, c) end end
+    self:UpdateRoute()
 end
 ns.theme:UsePalette("standard")
 

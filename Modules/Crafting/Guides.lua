@@ -48,8 +48,9 @@ ns:Register("itemSource", 2672, { name = "Stringy Wolf Meat", drops = { "Young W
 ns:Register("itemSource", 769,  { name = "Chunk of Boar Meat", drops = { "Stonetusk Boar", "Rockhide Boar", "Small Crag Boar" } })
 
 -- Tools.
-ns:Register("itemSource", 5956, { name = "Blacksmith Hammer", vendor = true })
-ns:Register("itemSource", 2901, { name = "Mining Pick", vendor = true })
+-- price: copper, approximate; replaced by the real price once you've seen it at a vendor.
+ns:Register("itemSource", 5956, { name = "Blacksmith Hammer", vendor = true, price = 18 })
+ns:Register("itemSource", 2901, { name = "Mining Pick", vendor = true, price = 16 })
 
 -------------------------------------------------------------------------------
 -- Professions

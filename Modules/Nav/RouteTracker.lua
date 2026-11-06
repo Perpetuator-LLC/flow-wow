@@ -145,10 +145,11 @@ local function build()
     return f
 end
 
--- Docked on Questie's tracker (default when Questie is there): one column.
--- The two headers sit together; Flow's list opens upward from its header,
--- Questie's opens downward from its own, and only one is open at a time
--- (or neither). Move Questie's tracker and Flow's follows.
+-- Docked under Questie's tracker (default when Questie is there): one
+-- column. Flow's header hangs from the bottom of Questie's tracker and its
+-- list opens downward; only one of the two is open at a time (or neither).
+-- Move Questie's tracker and Flow's follows; when Questie's opens, Flow's
+-- header moves down with it.
 -- /flow tracker undock puts it back where you dragged it.
 local function questieFrame()
     if db().dock == false then return nil end
@@ -157,17 +158,8 @@ local function questieFrame()
 end
 
 local function layout(q)
-    local h, b = frame.header, frame.body
     local docked = q ~= nil
     if frame.docked ~= docked then
-        h:ClearAllPoints(); b:ClearAllPoints()
-        if docked then
-            h:SetPoint("BOTTOMLEFT"); h:SetPoint("BOTTOMRIGHT")
-            b:SetPoint("BOTTOMLEFT", h, "TOPLEFT", 0, 0); b:SetPoint("BOTTOMRIGHT", h, "TOPRIGHT", 0, 0)
-        else
-            h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
-            b:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, 0); b:SetPoint("TOPRIGHT", h, "BOTTOMRIGHT", 0, 0)
-        end
         frame.docked = docked
         frame:ClearAllPoints()
         if not docked then
@@ -178,7 +170,7 @@ local function layout(q)
     end
     if docked then
         frame:ClearAllPoints()
-        frame:SetPoint("BOTTOMLEFT", q, "TOPLEFT", 0, 2)
+        frame:SetPoint("TOPLEFT", q, "BOTTOMLEFT", 0, -2)
         frame:SetWidth(math.max(220, math.min(360, q:GetWidth())))
     else
         frame:SetWidth(260)
@@ -273,7 +265,7 @@ ns.commands.tracker = function(arg)
     elseif arg == "dock" or arg == "undock" then
         db().dock = (arg == "dock")
         RT:Refresh()
-        ns:Print(arg == "dock" and "Flow Tracker docked on Questie's tracker." or "Flow Tracker undocked (Shift-drag its header to move it).")
+        ns:Print(arg == "dock" and "Flow Tracker docked under Questie's tracker." or "Flow Tracker undocked (Shift-drag its header to move it).")
     elseif arg == "questie" or arg == "flow" then
         RT:Open(arg)
     else
@@ -282,7 +274,7 @@ ns.commands.tracker = function(arg)
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Your next stops on screen, docked on top of Questie's tracker: one column, one open at a time (or neither).",
+    "Your next stops on screen, docked under Questie's tracker: one column, one open at a time (or neither).",
     "Click a stop to open it (quest log or map); right-click for a menu. Change the route on the world map.",
     "/flow tracker on|off|flow|questie|dock|undock",
 } })
