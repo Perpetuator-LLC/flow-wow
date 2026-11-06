@@ -112,6 +112,7 @@ function D:Describe(bag, slot, link)
     if quality == nil then return nil end  -- not loaded yet
     return {
         bag = bag, slot = slot, link = link, id = tonumber(link:match("item:(%d+)")),
+        name = link:match("%[(.-)%]"),
         quality = quality, minLevel = minLevel or 0, sellPrice = sellPrice or 0, classID = classID,
         subclassID = subclassID,
         bound = self:IsBound(bag, slot),
@@ -193,6 +194,31 @@ end)
 
 reg("unsellable", 2, function(i)
     if i.sellPrice <= 0 and i.quality ~= 0 then return { action = "keep", reason = "vendors won't buy it" } end
+end)
+
+-- Profession tools (Mining Pick, Blacksmith Hammer, Skinning Knife, fishing
+-- poles...): kept while you have or plan that profession, whatever their
+-- gear score says (several are weapons on paper).
+local TOOLS = {
+    [2901] = "Mining", [5956] = "Blacksmithing", [6219] = "Engineering", [7005] = "Skinning",
+    [6256] = "Fishing", [6365] = "Fishing", [6366] = "Fishing", [6367] = "Fishing", [12225] = "Fishing",
+    [19022] = "Fishing", [19970] = "Fishing", [12709] = "Skinning", [19901] = "Skinning",
+}
+local TOOL_NAMES = { { "Mining Pick", "Mining" }, { "Blacksmith Hammer", "Blacksmithing" },
+    { "Skinning Knife", "Skinning" }, { "Fishing Pole", "Fishing" }, { "Arclight Spanner", "Engineering" } }
+D.TOOLS = TOOLS
+
+reg("professionTool", 3, function(i)
+    local prof = TOOLS[i.id]
+    if not prof and i.name then
+        for _, t in ipairs(TOOL_NAMES) do if i.name:find(t[1], 1, true) then prof = t[2] break end end
+    end
+    if not prof then return nil end
+    local planned = false
+    for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end
+    if ns.api.Skill(prof) or planned then
+        return { action = "keep", icon = PROF_ICON[prof], reason = "tool for " .. prof }
+    end
 end)
 
 -- Quest items (classID 12).

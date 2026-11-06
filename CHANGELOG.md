@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.4
+- Flow Seller never suggests selling a profession tool (Mining Pick, Blacksmith Hammer, Skinning
+  Knife, fishing poles, Arclight Spanner) while you have or plan that profession; bags show the
+  profession icon with "tool for Mining".
+
 ## 0.35.3
 - Cast key check: each press of your Flow key is logged in the fight record (what it was bound
   to at that moment, whether a text box had the keyboard, and whether the button then got the

@@ -365,3 +365,16 @@ ns:Register("test", "caves: entrances are learned once per spot", function(t)
     t:eq(#ns.db.nav.entrances, 2, "two entrances")
     ns.db.nav.entrances = saved
 end)
+
+ns:Register("test", "bags: profession tools are kept", function(t)
+    local rule = ns:Get("disposition", "professionTool")
+    if ns.api.Skill("Mining") then
+        local v = rule.check({ id = 2901, name = "Mining Pick" })
+        t:eq(v and v.action, "keep", "Mining Pick kept while you mine")
+    end
+    if ns.api.Skill("Blacksmithing") then
+        local v = rule.check({ id = 99990, name = "Blacksmith Hammer" })
+        t:eq(v and v.action, "keep", "a hammer by name too")
+    end
+    t:eq(rule.check({ id = 99991, name = "Rusty Sword" }), nil, "not a tool")
+end)
