@@ -1,12 +1,17 @@
--- Vendor panel: next to the merchant window, Flow lists what it would sell
--- (from the item decisions in Disposition.lua) and sells it in batches of
--- 12 when you click. 12 is how many items the merchant's buyback tab keeps,
--- so everything in a batch can still be bought back:
---   * click "Buy back" next to an item to get it back right away, and Flow
---     will never sell that item again (it learns from you);
---   * then sell the next 12, or close.
--- Items marked AH (auction house) or DE (disenchant) are never sold here;
--- the panel only counts them.
+-- Vendor drawer: next to the merchant window.
+--   [x] Sell all junk      every grey item, however many (on by default)
+--   Also vendor (up to 12) gear and items with a lower Flow score than what
+--                          you have for every role and gear set, not needed
+--                          for a quest, not worth the auction house, not for
+--                          disenchanting or crafting (see Disposition.lua).
+--                          Each has its own Sell button.
+--   Sell All               junk first, then up to 12 of the proposed items,
+--                          so the proposed ones are the last sold and stay in
+--                          the merchant's 12-slot buyback tab.
+--   Sold this visit        each with "Buy back"; buying back teaches Flow to
+--                          never sell that item again.
+-- Buttons grey out when there's nothing left, and the drawer folds away when
+-- there's nothing to sell or buy back, leaving the normal vendor window.
 
 local _, ns = ...
 local D = ns.disposition
@@ -14,10 +19,9 @@ local V = {}
 ns.vendor = V
 
 local BATCH = 12
-local ROWS = 12
 local panel
-local mode = "list"    -- "list" = about to sell, "sold" = just sold (buyback view)
-local soldBatch = {}
+local sold = {}         -- this visit: { { link, id, price } } (non-junk, can be bought back)
+local junkSold = 0
 
 local CC = C_Container
 local function stackCount(bag, slot)
@@ -34,9 +38,9 @@ local function money(c)
     return GetCoinTextureString and GetCoinTextureString(math.floor(c)) or tostring(c)
 end
 
--- What Flow would sell now, junk first, then most valuable first.
+-- junk = all grey items; proposed = other items Flow would vendor (best value first).
 function V:Candidates()
-    local list, ah, de = {}, 0, 0
+    local junk, proposed, ah, de = {}, {}, 0, 0
     D:EachBagItem(function(bag, slot, link)
         local v = D:Decide(bag, slot, link)
         if not v then return end
@@ -44,19 +48,16 @@ function V:Candidates()
         if v.action == "sell" and v.item.sellPrice > 0 then
             local count, locked = stackCount(bag, slot)
             if not locked then
-                list[#list + 1] = { bag = bag, slot = slot, link = link, id = v.item.id,
-                    junk = v.item.quality == 0, price = v.item.sellPrice * count, reason = v.reason }
+                local e = { bag = bag, slot = slot, link = link, id = v.item.id,
+                            price = v.item.sellPrice * count, reason = v.reason }
+                if v.item.quality == 0 then junk[#junk + 1] = e else proposed[#proposed + 1] = e end
             end
         end
     end)
-    table.sort(list, function(a, b)
-        if a.junk ~= b.junk then return a.junk end
-        return a.price > b.price
-    end)
-    return list, ah, de
+    table.sort(proposed, function(a, b) return a.price > b.price end)
+    return junk, proposed, ah, de
 end
 
--- Buyback slot holding this item (matched by item ID; newest first).
 local function buybackIndex(link)
     local id = tonumber(link:match("item:(%d+)"))
     for i = (GetNumBuybackItems and GetNumBuybackItems() or 0), 1, -1 do
@@ -65,141 +66,218 @@ local function buybackIndex(link)
     end
 end
 
+local function canSell() return MerchantFrame and MerchantFrame:IsShown() end
+
+local function sellOne(e)
+    if not canSell() then return end
+    useItem(e.bag, e.slot)
+    sold[#sold + 1] = { link = e.link, id = e.id, price = e.price }
+    while #sold > BATCH do table.remove(sold, 1) end  -- older ones left the buyback tab
+end
+
 -------------------------------------------------------------------------------
--- Panel
+-- Drawer UI
 -------------------------------------------------------------------------------
+
+local ROW_H = 22
+
+local function makeRow(parent)
+    local r = CreateFrame("Frame", nil, parent)
+    r:SetSize(316, 20)
+    r:EnableMouse(true)
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetSize(18, 18)
+    r.icon:SetPoint("LEFT")
+    r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.name:SetPoint("LEFT", r.icon, "RIGHT", 4, 0)
+    r.name:SetWidth(150)
+    r.name:SetJustifyH("LEFT")
+    r.name:SetWordWrap(false)
+    r.price = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.price:SetPoint("RIGHT", -74, 0)
+    r.btn = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+    r.btn:SetSize(68, 18)
+    r.btn:SetPoint("RIGHT")
+    r.btn:GetFontString():SetFontObject("GameFontHighlightSmall")
+    r:SetScript("OnEnter", function(self)
+        if not self.link then return end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetHyperlink(self.link)
+        if self.reason then GameTooltip:AddLine("Flow: " .. self.reason, 1, 0.82, 0.25, true) end
+        GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return r
+end
 
 local function build()
     local f = CreateFrame("Frame", "FlowVendorPanel", UIParent)
-    f:SetSize(330, 90 + ROWS * 22)
+    f:SetWidth(340)
     f:SetFrameStrata("HIGH")
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.92)
+    f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.94)
     local top = f:CreateTexture(nil, "BORDER")
     top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(2)
-    top:SetColorTexture(1, 0.82, 0.25, 0.9)
+    local o = ns.theme.arrow
+    top:SetColorTexture(o[1], o[2], o[3], 0.95)
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOPLEFT", 10, -10)
+    f.title:SetText("Flow: sell")
 
-    f.rows = {}
-    for i = 1, ROWS do
-        local r = CreateFrame("Frame", nil, f)
-        r:SetSize(310, 20)
-        r:SetPoint("TOPLEFT", 10, -30 - (i - 1) * 22)
-        r.icon = r:CreateTexture(nil, "ARTWORK")
-        r.icon:SetSize(18, 18)
-        r.icon:SetPoint("LEFT")
-        r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.name:SetPoint("LEFT", r.icon, "RIGHT", 4, 0)
-        r.name:SetWidth(170)
-        r.name:SetJustifyH("LEFT")
-        r.price = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.price:SetPoint("RIGHT", -70, 0)
-        r.back = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
-        r.back:SetSize(66, 18)
-        r.back:SetPoint("RIGHT")
-        r.back:SetText("Buy back")
-        r.back:GetFontString():SetFontObject("GameFontHighlightSmall")
-        r:SetScript("OnEnter", function(self)
-            if not self.link then return end
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:SetHyperlink(self.link)
-            if self.reason then GameTooltip:AddLine("Flow: " .. self.reason, 1, 0.82, 0.25) end
-            GameTooltip:Show()
-        end)
-        r:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        r:EnableMouse(true)
-        f.rows[i] = r
-    end
+    f.junk = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    f.junk:SetSize(22, 22)
+    f.junk:SetPoint("TOPLEFT", 8, -28)
+    f.junkLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.junkLabel:SetPoint("LEFT", f.junk, "RIGHT", 2, 0)
+    f.junk:SetScript("OnClick", function(self)
+        ns.db.sell.junkAll = self:GetChecked() and true or false
+        V:Refresh()
+    end)
+    f.junk:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Sells every grey item with Sell All, not just 12.", 1, 1, 1, true)
+        GameTooltip:AddLine("Junk is sold first, so your proposed items are the ones that stay in the buyback tab.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    f.junk:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    f.footer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.footer:SetPoint("BOTTOMLEFT", 10, 38)
-    f.footer:SetWidth(310)
+    f.propHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.propHeader:SetJustifyH("LEFT")
+    f.propHeader:SetWidth(320)
+    f.soldHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.soldHeader:SetJustifyH("LEFT")
+    f.soldHeader:SetWidth(320)
+    f.footer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.footer:SetJustifyH("LEFT")
+    f.footer:SetWidth(320)
 
-    f.sell = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.sell:SetSize(150, 24)
-    f.sell:SetPoint("BOTTOMLEFT", 10, 10)
+    f.propRows, f.soldRows = {}, {}
+    for i = 1, BATCH do f.propRows[i] = makeRow(f); f.soldRows[i] = makeRow(f) end
+
+    f.sellAll = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.sellAll:SetSize(200, 24)
+    f.sellAll:SetPoint("BOTTOMLEFT", 10, 10)
+    f.sellAll:SetScript("OnClick", function() V:SellAll() end)
     f.close = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.close:SetSize(80, 24)
     f.close:SetPoint("BOTTOMRIGHT", -10, 10)
     f.close:SetText("Close")
     f.close:SetScript("OnClick", function() f:Hide() end)
-
-    f.sell:SetScript("OnClick", function()
-        if mode == "sold" then mode = "list"; V:Refresh() return end
-        V:SellBatch()
-    end)
     f:Hide()
     return f
 end
 
-local function setRow(r, e, showBack)
-    if not e then r:Hide() return end
-    r.link, r.reason = e.link, e.reason
-    local get = (C_Item and C_Item.GetItemIcon) or GetItemIcon
-    r.icon:SetTexture(get and get(e.link))
-    r.name:SetText(e.link)
-    r.price:SetText(money(e.price))
-    r.back:SetShown(showBack and not e.boughtBack)
-    r.back:SetScript("OnClick", function()
-        local i = buybackIndex(e.link)
-        if not i then ns:Print("couldn't find that item in the buyback tab") return end
-        BuybackItem(i)
-        e.boughtBack = true
-        if e.id then ns.db.sell.never[e.id] = true end
-        D:Invalidate()
-        ns:Print(e.link .. " bought back. Flow won't sell it again.")
-        r.back:Hide()
-    end)
-    r:Show()
-end
-
 function V:Refresh()
-    if not panel or not panel:IsShown() then return end
-    local rows = panel.rows
-    if mode == "sold" then
-        local total = 0
-        for _, e in ipairs(soldBatch) do total = total + e.price end
-        panel.title:SetText(string.format("Flow sold %d item(s) for %s", #soldBatch, money(total)))
-        for i = 1, ROWS do setRow(rows[i], soldBatch[i], true) end
-        local left = #(self:Candidates())
-        panel.footer:SetText("Changed your mind? Buy back anything above (Flow learns not to sell it).")
-        panel.sell:SetText(left > 0 and string.format("Next batch (%d left)", left) or "Done")
-        panel.sell:SetEnabled(left > 0)
-        return
+    if not panel or not canSell() then return end
+    local junk, proposed, ah, de = self:Candidates()
+    local f = panel
+
+    -- Nothing to sell and nothing to buy back: fold away (normal vendor view).
+    if #junk == 0 and #proposed == 0 and #sold == 0 then f:Hide() return end
+    f:Show()
+
+    local junkValue = 0
+    for _, e in ipairs(junk) do junkValue = junkValue + e.price end
+    local junkOn = ns.db.sell.junkAll ~= false
+    f.junk:SetChecked(junkOn)
+    f.junk:SetEnabled(#junk > 0)
+    f.junkLabel:SetText(#junk > 0 and string.format("Sell all junk: %d item(s), %s", #junk, money(junkValue))
+        or ("|cff888888No junk|r" .. (junkSold > 0 and string.format(" (sold %d)", junkSold) or "")))
+
+    local y = -58
+    f.propHeader:ClearAllPoints()
+    f.propHeader:SetPoint("TOPLEFT", 10, y)
+    f.propHeader:SetText(#proposed > 0
+        and string.format("Also vendor (%d%s): lower Flow score than your gear for every role and set; not needed for quests, AH, DE or crafting",
+            math.min(BATCH, #proposed), #proposed > BATCH and (" of " .. #proposed) or "")
+        or "|cff888888Nothing else to vendor.|r")
+    y = y - (f.propHeader:GetStringHeight() + 6)
+
+    local batchValue = junkOn and junkValue or 0
+    for i = 1, BATCH do
+        local r, e = f.propRows[i], proposed[i]
+        if e then
+            r:ClearAllPoints(); r:SetPoint("TOPLEFT", 10, y); y = y - ROW_H
+            r.link, r.reason = e.link, e.reason
+            local get = (C_Item and C_Item.GetItemIcon) or GetItemIcon
+            r.icon:SetTexture(get and get(e.link))
+            r.name:SetText(e.link)
+            r.price:SetText(money(e.price))
+            r.btn:SetText("Sell")
+            r.btn:Show()
+            r.btn:SetScript("OnClick", function() sellOne(e); C_Timer.After(0.3, function() V:Refresh() end) end)
+            r:Show()
+            batchValue = batchValue + e.price
+        else
+            r:Hide()
+        end
     end
-    local list, ah, de = self:Candidates()
-    panel.title:SetText(#list > 0 and string.format("Flow would sell %d item(s)", #list) or "Nothing to sell")
-    local batchTotal = 0
-    for i = 1, ROWS do
-        setRow(rows[i], list[i], false)
-        if list[i] and i <= BATCH then batchTotal = batchTotal + list[i].price end
+
+    -- Sold this visit (can still be bought back).
+    if #sold > 0 then
+        y = y - 6
+        f.soldHeader:ClearAllPoints()
+        f.soldHeader:SetPoint("TOPLEFT", 10, y)
+        f.soldHeader:SetText("Sold this visit (buy back from the vendor's buyback tab):")
+        f.soldHeader:Show()
+        y = y - 16
+    else
+        f.soldHeader:Hide()
     end
-    local extra = {}
-    if ah > 0 then extra[#extra + 1] = ah .. " for the auction house (AH)" end
-    if de > 0 then extra[#extra + 1] = de .. " to disenchant (DE)" end
-    panel.footer:SetText((#extra > 0 and ("Kept, marked in your bags: " .. table.concat(extra, ", ") .. ". ") or "")
-        .. "Hover an item to see why.")
-    panel.sell:SetText(#list > 0 and string.format("Sell %d for %s", math.min(BATCH, #list), money(batchTotal)) or "Nothing to sell")
-    panel.sell:SetEnabled(#list > 0)
+    for i = 1, BATCH do
+        local r, e = f.soldRows[i], sold[#sold - i + 1]   -- newest first
+        if e then
+            r:ClearAllPoints(); r:SetPoint("TOPLEFT", 10, y); y = y - ROW_H
+            r.link, r.reason = e.link, nil
+            local get = (C_Item and C_Item.GetItemIcon) or GetItemIcon
+            r.icon:SetTexture(get and get(e.link))
+            r.name:SetText(e.link)
+            r.price:SetText(money(e.price))
+            r.btn:SetText("Buy back")
+            r.btn:SetScript("OnClick", function()
+                local idx = buybackIndex(e.link)
+                if not idx then ns:Print("that item is no longer in the buyback tab") return end
+                BuybackItem(idx)
+                if e.id then ns.db.sell.never[e.id] = true end
+                for k, s in ipairs(sold) do if s == e then table.remove(sold, k) break end end
+                D:Invalidate()
+                ns:Print(e.link .. " bought back. Flow won't sell it again.")
+                C_Timer.After(0.3, function() V:Refresh() end)
+            end)
+            r:Show()
+        else
+            r:Hide()
+        end
+    end
+
+    local kept = {}
+    if ah > 0 then kept[#kept + 1] = ah .. " for the auction house" end
+    if de > 0 then kept[#kept + 1] = de .. " to disenchant" end
+    y = y - 6
+    f.footer:ClearAllPoints()
+    f.footer:SetPoint("TOPLEFT", 10, y)
+    f.footer:SetText((#kept > 0 and ("Kept: " .. table.concat(kept, ", ") .. ". ") or "") .. "Hover an item to see why.")
+    y = y - (f.footer:GetStringHeight() + 44)
+    f:SetHeight(-y)
+
+    local anything = (junkOn and #junk > 0) or #proposed > 0
+    f.sellAll:SetEnabled(anything)
+    f.sellAll:SetText(anything and ("Sell All: " .. money(batchValue)) or "Nothing to sell")
 end
 
--- Runs from the button click (a real click: some clients require one).
-function V:SellBatch()
-    if not (MerchantFrame and MerchantFrame:IsShown()) then return end
-    local list = self:Candidates()
-    wipe(soldBatch)
-    for i = 1, math.min(BATCH, #list) do
-        local e = list[i]
-        useItem(e.bag, e.slot)
-        soldBatch[#soldBatch + 1] = e
+-- Junk first (all of it, if ticked), then up to 12 proposed items. Runs from
+-- a click (some clients require a real click to sell).
+function V:SellAll()
+    if not canSell() then return end
+    local junk, proposed = self:Candidates()
+    if ns.db.sell.junkAll ~= false then
+        for _, e in ipairs(junk) do useItem(e.bag, e.slot); junkSold = junkSold + 1 end
     end
-    mode = "sold"
+    for i = 1, math.min(BATCH, #proposed) do sellOne(proposed[i]) end
     D:Invalidate()
-    self:Refresh()
+    C_Timer.After(0.4, function() V:Refresh() end)
 end
 
 ns:On("MERCHANT_SHOW", function()
@@ -207,27 +285,26 @@ ns:On("MERCHANT_SHOW", function()
     panel = panel or build()
     panel:ClearAllPoints()
     panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
-    mode = "list"
-    wipe(soldBatch)
+    wipe(sold); junkSold = 0
     D:Invalidate()
-    panel:Show()
     V:Refresh()
 end)
 
 ns:On("MERCHANT_CLOSED", function() if panel then panel:Hide() end end)
 ns:On("BAG_UPDATE_DELAYED", function()
-    if panel and panel:IsShown() then D:Invalidate(); V:Refresh() end
+    if panel and canSell() then D:Invalidate(); V:Refresh() end
 end)
 
 ns:OnLoad(function(saved)
     if saved.sell.enabled == nil then saved.sell.enabled = true end
+    if saved.sell.junkAll == nil then saved.sell.junkAll = true end
 end)
 
 ns.commands.sell = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
         ns.db.sell.enabled = (arg == "on")
-        ns:Print("vendor panel " .. arg)
+        ns:Print("vendor drawer " .. arg)
     elseif arg == "forget" then
         wipe(ns.db.sell.never)
         D:Invalidate()
@@ -235,7 +312,7 @@ ns.commands.sell = function(arg)
     else
         local n = 0
         for _ in pairs(ns.db.sell.never) do n = n + 1 end
-        ns:Print(string.format("vendor panel %s; %d item(s) on your never-sell list. /flow sell on|off|forget",
+        ns:Print(string.format("vendor drawer %s; %d item(s) on your never-sell list. /flow sell on|off|forget",
             ns.db.sell.enabled and "on" or "off", n))
     end
 end

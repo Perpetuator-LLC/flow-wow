@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0
+- Vendor drawer: "Sell all junk" (every grey item, on by default) plus up to 12 proposed items with
+  their own Sell buttons; Sell All sells junk first so the proposed ones stay in the buyback tab;
+  "Sold this visit" with Buy back; buttons grey out and the drawer folds away when done.
+- Hearthstone reminder when you rest at an inn that isn't your home (once per inn; stronger when
+  most of your route is in that zone). `/flow hearth on|off`.
+- Nicer "Flow route" bar on the map panel.
+
 ## 0.18.0
 - First-run setup table (`/flow setup`): auto loot, nameplates, instant quest text, auto-placing new
   spells, max zoom, chat timestamps, combat log file, cast key, Questie. Tick and Apply.
