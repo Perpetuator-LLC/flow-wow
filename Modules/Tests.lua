@@ -173,7 +173,7 @@ end)
 
 ns:Register("test", "gear: shields are never Retribution upgrades", function(t)
     if select(2, UnitClass("player")) ~= "PALADIN" then t:ok(true) return end
-    local item = { equipLoc = "INVTYPE_SHIELD", stats = { RESISTANCE0_NAME = 500 } }
+    local item = { equipLoc = "INVTYPE_SHIELD", slots = { 17 }, stats = { RESISTANCE0_NAME = 500 } }
     local scores = ns.gear:Score(item)
     local diff = ns.gear:RoleDiff(item, "dps", scores)
     t:ok(diff <= 0, "dps diff not positive (" .. tostring(diff) .. ")")
