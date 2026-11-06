@@ -321,10 +321,21 @@ local function buildList()
         r.text:SetWordWrap(false)
         r:SetScript("OnEnter", function(self)
             if self.isHidden then return end  -- hidden stops have no route to preview
+            if self.blocked then
+                local g = self.blocked
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
+                GameTooltip:AddLine("Blocked: " .. (g.blockedBy or "?"), 1, 0.45, 0.45, true)
+                for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
+                GameTooltip:AddLine("It joins the route by itself once that's sorted. Right-click hides it.", 0.6, 0.6, 0.6, true)
+                GameTooltip:Show()
+                return
+            end
             hoverKey = self.key
             M:Preview(self.key)
         end)
         r:SetScript("OnLeave", function()
+            GameTooltip:Hide()
             hoverKey = nil
             M:Preview(nil)
         end)
@@ -333,6 +344,9 @@ local function buildList()
             M:Preview(nil)
             if self.isHidden then
                 ns.nav:Unhide(self.key)        -- either click brings it back
+            elseif self.blocked then
+                if button == "RightButton" then ns.nav:Hide(self.key)
+                else ns:Print((self.blocked.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked")) end
             elseif button == "RightButton" then
                 ns.nav:Hide(self.key)
             else
@@ -377,24 +391,36 @@ local function updateList()
         return
     end
     local following = ns.party and ns.party:Following()
-    list.title:SetText(string.format("%s: %d stops, about %d yd",
-        following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0))
+    local nBlocked = ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
+    list.title:SetText(string.format("%s: %d stops, about %d yd%s",
+        following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0,
+        nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
     local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 130) / ROW_H))
-    -- Route stops first, then (if ticked) hidden stops, greyed out.
+    -- Route stops first, then blocked stops (lock + reason), then (if
+    -- ticked) hidden stops, greyed out.
+    local blocked = ns.nav.blockedGoals or {}
     local hiddenGoals = (ns.db.nav.showHidden and ns.nav.hiddenGoals) or {}
     for i = 1, MAX_ROWS do
         local r, s = list.rows[i], plan[i]
-        local h = (not s) and hiddenGoals[i - #plan] or nil
+        local b = (not s) and blocked[i - #plan] or nil
+        local h = (not s and not b) and hiddenGoals[i - #plan - #blocked] or nil
         if s and i <= fit then
             local col = ns.nav:StopColor(i, s.goal)
             if s.goal.key == hoverKey then col = theme().hover end
-            r.key, r.isHidden = s.goal.key, false
+            r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
+        elseif b and i <= fit then
+            r.key, r.isHidden, r.blocked = b.key, false, b
+            local text, why = ns.nav:FormatBlocked(b)
+            r.text:SetText(text)
+            r.leg:SetText(why)
+            r:Show()
         elseif h and i <= fit then
+            r.blocked = nil
             r.key, r.isHidden = h.key, true
             r.text:SetText("|cff777777(hidden) " .. (h.text or h.title or "?") .. "|r")
             r.leg:SetText("|cff777777click to show|r")

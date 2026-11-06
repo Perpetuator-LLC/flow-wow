@@ -78,6 +78,8 @@ ns.theme.kinds = {
     merchant     = { color = rgb("D4AF37"), icon = "Interface\\GossipFrame\\VendorGossipIcon", label = "Merchant" },
     hearth       = { color = rgb("E0E0E0"), icon = "Interface\\Icons\\INV_Misc_Rune_01", label = "Hearthstone" },
     skill        = { color = rgb("57C785"), icon = "Interface\\Icons\\Trade_Fishing", label = "Skill-up" },
+    gather       = { color = rgb("B5651D"), icon = "Interface\\Icons\\Trade_Mining", label = "Gather (mine, herbs)" },
+    craft        = { color = rgb("CFCFCF"), icon = "Interface\\Icons\\Trade_BlackSmithing", label = "Craft / smelt" },
     waypoint     = { color = rgb("56B4E9"), icon = "Interface\\Minimap\\MinimapArrow", label = "Your waypoint" },
     party        = { color = rgb("56B4E9"), icon = "Interface\\FriendsFrame\\UI-Toast-FriendOnlineIcon", label = "Party route" },
 }

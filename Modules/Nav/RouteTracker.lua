@@ -93,14 +93,21 @@ local function build()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints(); r.hl:SetColorTexture(1, 1, 1, 0.08)
         r:SetScript("OnClick", function(self, button)
             if not self.key then return end
-            if button == "RightButton" then ns.nav:Hide(self.key) else ns.nav:Select(self.key) end
+            if button == "RightButton" then ns.nav:Hide(self.key)
+            elseif self.blocked then ns:Print((self.blocked.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked"))
+            else ns.nav:Select(self.key) end
         end)
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             GameTooltip:AddLine(self.goal.text or self.goal.title or "?", 1, 1, 1, true)
             for _, d in ipairs(self.goal.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
-            GameTooltip:AddLine("Click: go here first. Right-click: hide.", 0.6, 0.6, 0.6)
+            if self.blocked then
+                GameTooltip:AddLine("Blocked: " .. (self.blocked.blockedBy or "?"), 1, 0.45, 0.45, true)
+                GameTooltip:AddLine("Joins the route by itself once that's sorted. Right-click: hide.", 0.6, 0.6, 0.6, true)
+            else
+                GameTooltip:AddLine("Click: go here first. Right-click: hide.", 0.6, 0.6, 0.6)
+            end
             GameTooltip:Show()
         end)
         r:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -117,18 +124,28 @@ function RT:Refresh()
     local open = db().open == "flow"
     local plan = ns.nav and ns.nav.plan or {}
     local h = frame.header
-    h.text:SetText(string.format("Flow Tracker  |cff888888%d stops|r", #plan))
+    local nBlocked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
+    h.text:SetText(string.format("Flow Tracker  |cff888888%d stops|r%s", #plan,
+        nBlocked > 0 and string.format("  |cffff7070%d blocked|r", nBlocked) or ""))
     h.pm:SetTexture(open and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
     frame.body:SetShown(open)
     local shown = 0
     if open then
         local labels = ns.nav:PlanLabels(plan)
+        local blocked = ns.nav.blockedGoals or {}
         for i = 1, ROWS do
             local r, s = frame.rows[i], plan[i]
+            local bl = (not s) and blocked[i - #plan] or nil
             if s then
                 local col = ns.nav:StopColor(i, s.goal)
-                r.key, r.goal = s.goal.key, s.goal
+                r.key, r.goal, r.blocked = s.goal.key, s.goal, nil
                 r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
+                r:Show()
+                shown = i
+            elseif bl then
+                r.key, r.goal, r.blocked = bl.key, bl, bl
+                local text, why = ns.nav:FormatBlocked(bl)
+                r.text:SetText(text .. "  " .. why)
                 r:Show()
                 shown = i
             else
@@ -136,7 +153,7 @@ function RT:Refresh()
             end
         end
         if shown == 0 then
-            frame.rows[1].key, frame.rows[1].goal = nil, nil
+            frame.rows[1].key, frame.rows[1].goal, frame.rows[1].blocked = nil, nil, nil
             frame.rows[1].text:SetText("|cff888888Nothing on your route right now.|r")
             frame.rows[1]:Show()
             shown = 1

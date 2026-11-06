@@ -285,15 +285,18 @@ function N:Collect()
             ns:Print("nav goal " .. key .. ": " .. tostring(found))
         end
     end
-    -- Stops that cost money you don't have (a goal with `cost`, in copper)
-    -- are skipped and remembered in ns.db.nav.deferred. When your money
-    -- reaches the cost (PLAYER_MONEY below) they come back and are planned
-    -- like any other stop: by distance and weight, so a trainer you're
+    -- Blocked stops stay off the route but are listed (with a lock and the
+    -- reason) on the map list and the tracker:
+    --   goal.blockedBy = "needs Mining"     set by the goal's provider
+    --   goal.cost = copper                  blocked while you have less money
+    -- Money-blocked stops are remembered in ns.db.nav.deferred. When your
+    -- money reaches the cost (PLAYER_MONEY below) they come back and are
+    -- planned like any other stop: by distance and weight, so a trainer you're
     -- standing near (say, after a hearth) goes to the top by itself.
     local money = GetMoney and GetMoney() or 0
     local deferred = ns.db.nav.deferred or {}
     ns.db.nav.deferred = deferred
-    local present, kept, deferredGoals = {}, {}, {}
+    local present, kept, blockedGoals = {}, {}, {}
     for _, g in ipairs(list) do
         present[g.key] = true
         if g.cost and g.cost > money then
@@ -302,20 +305,20 @@ function N:Collect()
                     g.title or g.text or g.key, N:Coin(g.cost), N:Coin(money)))
             end
             deferred[g.key] = { text = g.title or g.text, cost = g.cost, since = deferred[g.key] and deferred[g.key].since or time() }
-            deferredGoals[#deferredGoals + 1] = g
-        else
-            if deferred[g.key] then
-                ns:Print((g.title or g.text or g.key) .. ": you have the money now, back on the route.")
-                deferred[g.key] = nil
-                g.details = g.details or {}
-                table.insert(g.details, 1, "Skipped earlier for lack of money; you can afford it now.")
-            end
-            kept[#kept + 1] = g
+            g.blockedBy = string.format("needs %s (you have %s)", N:Coin(g.cost), N:Coin(money))
+            g.blockIcon = "Interface\MoneyFrame\UI-GoldIcon"
+        elseif deferred[g.key] then
+            ns:Print((g.title or g.text or g.key) .. ": you have the money now, back on the route.")
+            deferred[g.key] = nil
+            g.details = g.details or {}
+            table.insert(g.details, 1, "Skipped earlier for lack of money; you can afford it now.")
         end
+        if g.blockedBy then blockedGoals[#blockedGoals + 1] = g else kept[#kept + 1] = g end
     end
     -- Gone altogether (trained elsewhere, no longer needed): forget it.
     for key in pairs(deferred) do if not present[key] then deferred[key] = nil end end
-    N.deferredGoals = deferredGoals
+    N.blockedGoals = blockedGoals
+    N.deferredGoals = blockedGoals  -- older name
     list = kept
     -- Route mode: "quests" = only quests already in your log (their objectives
     -- and turn-ins), plus your waypoint and the party route; "optimal" (default)
@@ -433,6 +436,13 @@ end
 --   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colour: route colour (green) = where the arrow points now, blue = quest pickup,
 --           sky blue = your waypoint, bluish green = the rest of the route
+-- A blocked stop for lists: lock (or coin) icon, greyed text, and the reason.
+local LOCK = "Interface\Buttons\LockButton-Locked-Up"
+function N:FormatBlocked(goal)
+    return string.format("|T%s:12:12|t |cff9a9a9a%s|r", goal.blockIcon or LOCK, goal.text or goal.title or "?"),
+           "|cffff7070" .. (goal.blockedBy or "blocked") .. "|r"
+end
+
 function N:PlanLabels(plan)
     local out, pickups = {}, 0
     for i, s in ipairs(plan or {}) do
@@ -598,6 +608,10 @@ end
 -- change, and every few seconds as you move.
 local plan, planAt = nil, 0
 local function choose(p)
+    -- "Do it where you stand" stops (e.g. crafting with no station) follow you.
+    for _, goal in ipairs(goals) do
+        if goal.anywhere then goal.points = { { cont = p.cont, wx = p.wx, wy = p.wy, map = p.map, x = p.x, y = p.y } } end
+    end
     local ranked = {}
     for _, goal in ipairs(goals) do
         local pt, d = nearestPoint(goal, p)
@@ -859,6 +873,7 @@ local function scheduleCollect()
         pcall(N.Collect, N)
     end)
 end
+N.RequestCollect = scheduleCollect  -- other modules: re-plan soon (throttled)
 
 -- Money changed: re-plan only when it crosses a skipped stop's cost (so it
 -- comes back) or drops below a planned stop's cost (so it's skipped).
@@ -952,8 +967,8 @@ ns.commands.nav = function(arg)
         -- The route itself (also saved in the diagnostics for Claude to check).
         local free, max = ns.quests:FreeSlots()
         print(string.format("  quest log: %d free of %d; bound to %s", free, max, tostring(GetBindLocation and GetBindLocation())))
-        for key, d in pairs(cfg.deferred or {}) do
-            print(string.format("  skipped until you have %s: %s [%s]", N:Coin(d.cost), tostring(d.text), key))
+        for _, g in ipairs(N.blockedGoals or {}) do
+            print(string.format("  blocked: %s - %s [%s]", tostring(g.text or g.title), tostring(g.blockedBy), g.key))
         end
         local nHidden = 0
         for _ in pairs(cfg.hidden or {}) do nHidden = nHidden + 1 end

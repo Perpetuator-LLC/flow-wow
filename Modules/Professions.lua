@@ -155,4 +155,8 @@ ns:Register("setupItem", "professions", {
     action = "Choose...", run = function() P:Open() end,
 })
 
-ns.commands.professions = function() P:Open() end
+ns.commands.professions = function(arg)
+    if (arg or ""):lower():find("^plan") then return ns.skillPlan:Explain() end
+    P:Open()
+end
+ns.commands.prof = ns.commands.professions

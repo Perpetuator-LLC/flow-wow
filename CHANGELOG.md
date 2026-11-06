@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.25.0
+- Blocked stops are shown, not hidden: a lock (or coin) and the reason, e.g. "needs 1s (you have
+  40c)", "needs Mining", "needs a Blacksmith Hammer". In the map route list, the Flow Tracker
+  (header counts them) and `/flow nav why`. They join the route by themselves once sorted.
+- Profession skill planner. "Raise your Blacksmithing skill to 20" no longer sends you to the
+  trainer: Flow works out what to make (most skill per material at your skill), what that
+  needs minus what's in your bags, and how to get the rest (smelt ore you carry, mine the
+  veins on this map, kill the mobs that drop it, buy it). Those become route stops mixed with
+  your quests by distance, re-planned as your bags and skills change. Planned crafting
+  professions behind your level get optional stops the same way.
+- Data: Blacksmithing, Mining, First Aid, Cooking brackets and material sources (Guides.lua,
+  from public levelling guides; approximate). Opening a profession window records your real
+  recipes, colours and reagents, which win over the guide data.
+- `/flow prof plan` explains the plan (also in diagnostics).
+
 ## 0.24.0
 - Route colours back to green (your route) and yellow (a route you preview); your route turns blue
   while previewing and the stop under the mouse is red. "Colour-blind route colours" in

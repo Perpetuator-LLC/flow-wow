@@ -24,6 +24,9 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `fightProbe` | any | `{ start, tick, finish, events = { EVENT = fn(fight, ...) } }` | Profiler: what gets recorded per fight |
 | `advisor` | any | `{ check = fn() -> { {importance, text, improves}, ... } }` | Advice button, `/flow advice` |
 | `gearAnalyzer` | any | `fn(item) -> bonus{dps,heal,tank}, notes` | Gear scores, quest reward badges |
+| `profGuide` | profession name | `{ kind = "craft"|"gather", tool, steps = { {recipe, item, learn, yellow, green, grey, mats, station} }, nodes }` | Skill planner (`Modules/Crafting/SkillPlan.lua`) |
+| `itemSource` | item ID | `{ name, gather, objects, node, skill, yield }` or `{ smelt = {from, n, skill} }` or `{ drops = {npc names} }` or `{ vendor = true }` | Skill planner: where materials come from |
+| `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
 `ns.commands.name = fn(args)` gives `/flow name`.

@@ -82,6 +82,7 @@ local function objectSpawns(db, points, id)
     if obj then addSpawns(points, obj.spawns) end
     return obj and obj.name
 end
+ns.quests.LogEntries = questLog  -- shared with SkillPlan.lua
 
 ns:Register("navGoal", "questie", {
     collect = function()
@@ -114,7 +115,10 @@ ns:Register("navGoal", "questie", {
                 if not q.complete then
                     for i, obj in ipairs(q.objectives) do
                         local od = quest.ObjectiveData and quest.ObjectiveData[i]
-                        if not obj.finished and od then
+                        -- "Raise your X skill to N": planned by SkillPlan.lua (gather,
+                        -- smelt, craft), not by walking to the trainer.
+                        local skillObj = ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
+                        if not obj.finished and od and not skillObj then
                             local points, verb, what, elite = {}, nil, nil, false
                             if od.Type == "monster" then
                                 what = npcSpawns(db, points, od.Id); verb = "Kill"
@@ -249,7 +253,7 @@ ns:Register("navGoal", "errands", {
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
         for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
-            if rank and rank + 10 < target and rank < max then
+            if rank and rank + 10 < target and rank < max and not (ns.skillPlan and ns.skillPlan:Handles(p.name)) then
                 for _, spot in ipairs(ns.places:SpotsFor(p.name)) do
                     local points = {}
                     for _, npc in ipairs(spot.npcs or {}) do
