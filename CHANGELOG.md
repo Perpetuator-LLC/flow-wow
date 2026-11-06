@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.3
+- Removed the Questie button from the Flow Tracker header; the two trackers still work as an
+  accordion through their own headers. Splash fades out in 300 ms.
+
 ## 0.22.2
 - Load splash: the two gold bars count down how long it stays (top empties left to right, bottom
   right to left); when they're empty the splash is gone.

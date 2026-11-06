@@ -4,9 +4,8 @@
 --
 -- Accordion with Questie's tracker: only one is open at a time, and both can
 -- be collapsed. On first run Flow opens its tracker and collapses Questie's.
--- The bright "Questie" button on Flow's header (always there) switches to
--- Questie's tracker; opening Questie's (from its own header too) collapses
--- Flow's. Uses Questie's own Collapse/Expand, nothing is hidden by force.
+-- Opening Questie's tracker (its own header) collapses Flow's; opening Flow's
+-- collapses Questie's. Uses Questie's own Collapse/Expand, nothing is hidden by force.
 
 local _, ns = ...
 local RT = {}
@@ -77,25 +76,6 @@ local function build()
     f:SetMovable(true); f:SetClampedToScreen(true)
     f.header = h
 
-    -- Bright switch to Questie's tracker (always there when Questie is).
-    local q = CreateFrame("Button", nil, h)
-    q:SetSize(92, 18); q:SetPoint("RIGHT", h.pm, "LEFT", -6, 0)
-    q.bg = q:CreateTexture(nil, "BACKGROUND"); q.bg:SetAllPoints()
-    local u = ns.theme.user
-    q.bg:SetColorTexture(u[1], u[2], u[3], 0.95)
-    q.text = q:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); q.text:SetPoint("CENTER")
-    q.text:SetText("Questie")
-    q:SetScript("OnClick", function()
-        RT:Open(db().open == "questie" and "none" or "questie")
-    end)
-    q:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Switch to Questie's tracker (Flow's collapses). Click again to collapse it.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    q:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.questie = q
-
     f.body = CreateFrame("Frame", nil, f)
     f.body:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, 0)
     f.body:SetPoint("TOPRIGHT", h, "BOTTOMRIGHT", 0, 0)
@@ -139,8 +119,6 @@ function RT:Refresh()
     local h = frame.header
     h.text:SetText(string.format("Flow Tracker  |cff888888%d stops|r", #plan))
     h.pm:SetTexture(open and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
-    frame.questie:SetShown(questieTracker() ~= nil)
-    frame.questie.text:SetText(db().open == "questie" and "Questie (open)" or "Questie")
     frame.body:SetShown(open)
     local shown = 0
     if open then
