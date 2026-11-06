@@ -161,6 +161,7 @@ end
 -------------------------------------------------------------------------------
 
 function P:Active() return state.joined end
+function P:InGroup() return channel() ~= nil end
 -- True when the arrow and plan should use the party route.
 function P:Following() return state.joined and state.following end
 function P:Stops() return state.stops end
@@ -406,13 +407,16 @@ local function onRoster()
         return
     end
     if not inGroup then
-        -- Just joined or formed a group: ask for a route, share our quests,
-        -- and if we lead and nobody has a route yet, make one.
+        -- Just joined or formed a group: ask for a route and share our quests.
+        -- Never switch you onto a party route by itself: as leader you get a
+        -- one-line hint; others get the usual prompt when a route is shared.
         inGroup = true
         send("Q|0")
         P:SendQuests()
         C_Timer.After(AUTO_SHARE_DELAY, function()
-            if channel() and not state.joined and not offer and isLeader() then P:Share(true) end
+            if channel() and not state.joined and not offer and isLeader() then
+                ns:Print("in a group: share a party route with /flow party share (or right-click the arrow). Your own route stays as it is.")
+            end
         end)
         return
     end

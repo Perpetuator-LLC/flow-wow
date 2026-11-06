@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.2
+- Party: forming a group as leader no longer builds a party route from everyone's quests and
+  switches you onto it (it flooded the tracker and map). You get a one-line hint instead; others
+  still get the join prompt when someone shares one.
+- Right-click menu, in a group: Your own route / Party route, Share a party route, Leave it.
+
 ## 0.35.1
 - Forever blocks measuring nameplates on screen, so the arrow no longer tries to point at visible
   quest mobs (it logged an error each time); the ring stays.

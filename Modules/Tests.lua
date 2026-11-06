@@ -188,6 +188,7 @@ ns:Register("test", "menu: one choice ticked per group", function(t)
     end
     t:eq(ticked.Route, 1, "route")
     t:eq(ticked.Order, 1, "order")
+    if ticked.Party then t:eq(ticked.Party, 1, "party: your route or the party route") end
 end)
 
 ns:Register("test", "tooltip: stop details render", function(t)

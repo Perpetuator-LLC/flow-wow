@@ -129,7 +129,7 @@ function Menu:RouteItems()
             nav:Collect()
         end
     end
-    return {
+    local items = {
         { title = true, text = "Route" },
         { text = "Follow current quests", radio = true, checked = mode == "quests", func = setRoute("quests", profs) },
         { text = "Optimal with professions", radio = true, checked = mode == "optimal" and profs, func = setRoute("optimal", true) },
@@ -145,4 +145,21 @@ function Menu:RouteItems()
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
     }
+    -- In a group: your own route or the shared party route (never switched
+    -- for you), share one, or leave it.
+    local P = ns.party
+    if P and P:InGroup() then
+        local following = P:Following()
+        items[#items + 1] = { sep = true }
+        items[#items + 1] = { title = true, text = "Party" }
+        items[#items + 1] = { text = "Your own route", radio = true, checked = not following,
+            func = function() if following then P:SetFollowing(false) end end }
+        if P:Active() then
+            items[#items + 1] = { text = "Party route", radio = true, checked = following, func = function() P:SetFollowing(true) end }
+            items[#items + 1] = { text = "Leave the party route", func = function() P:Leave() end }
+        else
+            items[#items + 1] = { text = "Share a party route", func = function() P:Share() end }
+        end
+    end
+    return items
 end
