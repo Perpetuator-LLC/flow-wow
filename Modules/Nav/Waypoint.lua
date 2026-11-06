@@ -25,7 +25,7 @@ end
 
 function W:Set(map, x, y, note)
     -- On a shared party route, a waypoint becomes a shared stop at the front.
-    if ns.party and ns.party:Active() then
+    if ns.party and ns.party:Following() then
         ns.party:AddFront(map, x, y, note or "Waypoint", nil, "waypoint")
         ns:Print(string.format("added %.1f, %.1f to the front of the shared route", x * 100, y * 100))
         return

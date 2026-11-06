@@ -55,6 +55,7 @@ function Q:IsCompleted(id)
 end
 
 function Q:InLog(id) return inLog[id] == true end
+function Q:LogIds() return inLog end  -- { [questID] = true }
 function Q:CompletedIds() return completed end
 
 ns:On("PLAYER_LOGIN", function() loadCompleted(); loadLog() end)

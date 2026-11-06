@@ -332,7 +332,7 @@ end
 function N:Select(key)
     -- On a shared party route, choosing edits the shared route instead:
     -- a shared stop moves to the front; anything else is added at the front.
-    if key and ns.party and ns.party:Active() then
+    if key and ns.party and ns.party:Following() then
         local id = key:match("^party:(.+)$")
         if id then
             ns.party:MoveFirst(id)
@@ -368,7 +368,7 @@ function N:Options(sel)
     if not first and not tour and self.selection then self.selection = nil end
     -- Shared party route: its stops come first, in the shared order (their
     -- deps chain), before your own goals.
-    if ns.party and ns.party:Active() then
+    if ns.party and ns.party:Following() then
         local partyFirst
         for _, s in ipairs(ns.party:Stops()) do
             local k = "party:" .. s.id

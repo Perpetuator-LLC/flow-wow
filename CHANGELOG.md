@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+- Joining a group asks automatically: follow the party route or keep yours. Party and personal
+  routes are separate; switch any time with the toggle under the arrow.
+- Forming a group as leader makes a party route by itself: quests members share come first
+  (members exchange quest lists), otherwise your current route.
+
 ## 0.16.0
 - Name: Flow (unfettered).
 - Shared party routes: `/flow party share`; party members join with one click and anyone can

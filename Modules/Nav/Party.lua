@@ -1,16 +1,22 @@
--- Shared party route. Everyone in the party who has Flow can share one route
--- and edit it; nobody owns it.
---   /flow party share   share your current trip plan with the party
---   (others get a Join prompt; /flow party join also works)
---   Editing while joined, by anyone: click a checkpoint or advice row (moves
---   it to the front, or adds it), set a waypoint (added at the front),
---   arrive at a stop (it's removed for everyone).
---   /flow party leave   go back to your own route
+-- Party routes. Your own route and the party route are always separate:
+-- you can follow the party route or your own, switch any time (toggle under
+-- the arrow, or /flow party mine|follow), and the party never changes your
+-- own route.
 --
--- Sync: every edit bumps a counter and sends the whole route over the hidden
--- addon channel. The highest counter wins; on a tie, the alphabetically
--- later name wins. So everyone ends up with the same route without anyone
--- owning it.
+-- How it starts:
+--   * Joining a group: Flow asks the party for its route; if there is one you
+--     get a popup: "Follow party route" or "Keep my route".
+--   * Forming a group: if you're the leader and nobody shares a route within
+--     a few seconds, Flow shares one: objectives and turn-ins of quests party
+--     members have in common first (the best guess at what the party is
+--     doing), otherwise your current route. Members exchange quest lists so
+--     that guess can be made.
+--   * /flow party share shares your route by hand.
+--
+-- Editing: anyone following the party route can choose stops (map
+-- checkpoints, trip list, advice rows), add waypoints, and clears a stop by
+-- reaching it. Every edit is numbered and sent to everyone; the newest edit
+-- wins (ties: the later name), so nobody owns it.
 
 local _, ns = ...
 local P = {}
@@ -18,11 +24,14 @@ ns.party = P
 
 local PREFIX = "FlowWoW"
 local MAX_STOPS = 15
+local AUTO_SHARE_DELAY = 4
 
-local state = { joined = false, clock = 0, editor = "", stops = {} }
+local state = { joined = false, following = false, clock = 0, editor = "", stops = {} }
 local offer          -- latest route shared by someone while you're not joined
 local incoming = {}  -- sender -> { clock, total, stops }
+local members = {}   -- name -> { quests = { [id] = true } }
 local counter = 0
+local inGroup = false
 
 local function me() return UnitName("player") or "?" end
 
@@ -31,6 +40,12 @@ local function channel()
     if IsInRaid and IsInRaid() then return "RAID" end
     if IsInGroup and IsInGroup() then return "PARTY" end
     if GetNumPartyMembers and GetNumPartyMembers() > 0 then return "PARTY" end
+end
+
+local function isLeader()
+    if UnitIsGroupLeader then return UnitIsGroupLeader("player") end
+    if IsPartyLeader then return IsPartyLeader() end
+    return false
 end
 
 local function send(msg)
@@ -65,10 +80,14 @@ end
 
 local function changed()
     if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end
+    if P.RefreshToggle then P:RefreshToggle() end
 end
 
 -------------------------------------------------------------------------------
--- Sending and receiving
+-- Messages
+--   B|clock|n  S|clock|i|stop  E|clock   whole route (begin / stop / end)
+--   Q|0                                  "send me your route" (just joined)
+--   L|part|parts|id,id,...               my quest log (for the party guess)
 -------------------------------------------------------------------------------
 
 function P:Broadcast()
@@ -79,7 +98,22 @@ function P:Broadcast()
     send(string.format("E|%d", state.clock))
 end
 
--- Newer edit wins; ties go to the later name.
+local lastQuestSend = 0
+function P:SendQuests()
+    if not channel() or GetTime() - lastQuestSend < 2 then return end
+    lastQuestSend = GetTime()
+    local ids = {}
+    for id in pairs(ns.quests:LogIds()) do ids[#ids + 1] = tostring(id) end
+    -- Split into parts that fit an addon message.
+    local parts, cur = {}, {}
+    for _, id in ipairs(ids) do
+        cur[#cur + 1] = id
+        if #table.concat(cur, ",") > 200 then parts[#parts + 1] = table.concat(cur, ","); cur = {} end
+    end
+    parts[#parts + 1] = table.concat(cur, ",")
+    for i, p in ipairs(parts) do send(string.format("L|%d|%d|%s", i, #parts, p)) end
+end
+
 local function newer(clock, editor)
     return clock > state.clock or (clock == state.clock and editor > state.editor)
 end
@@ -103,21 +137,40 @@ local function received(sender, msg)
             if newer(inc.clock, sender) then
                 state.stops, state.clock, state.editor = stops, inc.clock, sender
                 changed()
-                ns:Print(sender .. " updated the shared route (" .. #stops .. " stops)")
+                if state.following then
+                    ns:Print(sender .. " updated the party route (" .. #stops .. " stops)")
+                end
             end
         else
             offer = { clock = inc.clock, editor = sender, stops = stops }
             P:ShowPrompt(sender, #stops)
         end
     elseif kind == "Q" then
-        -- Someone asked for the current route (just joined the group).
         if state.joined then P:Broadcast() end
+        P:SendQuests()
+    elseif kind == "L" then
+        local part, parts, list = rest:match("^(%d+)|(%d+)|(.*)$")
+        members[sender] = members[sender] or { quests = {} }
+        if tonumber(part) == 1 then members[sender].quests = {} end
+        for id in (list or ""):gmatch("%d+") do members[sender].quests[tonumber(id)] = true end
     end
 end
 
 -------------------------------------------------------------------------------
--- Editing (any member)
+-- State
 -------------------------------------------------------------------------------
+
+function P:Active() return state.joined end
+-- True when the arrow and plan should use the party route.
+function P:Following() return state.joined and state.following end
+function P:Stops() return state.stops end
+
+function P:SetFollowing(on)
+    if not state.joined then return end
+    state.following = on and true or false
+    changed()
+    ns:Print(on and "following the party route" or "following your own route (the party route is kept; switch back any time)")
+end
 
 local function edit(fn)
     fn(state.stops)
@@ -128,9 +181,6 @@ local function edit(fn)
     changed()
 end
 
-function P:Active() return state.joined end
-function P:Stops() return state.stops end
-
 function P:MoveFirst(id)
     edit(function(stops)
         for i, s in ipairs(stops) do
@@ -139,14 +189,12 @@ function P:MoveFirst(id)
     end)
 end
 
--- Adds a place at the front of the shared route.
 function P:AddFront(map, x, y, label, level, kind)
     edit(function(stops)
         table.insert(stops, 1, { id = newId(), map = map, x = x, y = y, label = label, level = level, kind = kind })
     end)
 end
 
--- One of your own goals -> shared stop (uses its spot closest to you).
 function P:AddGoal(goal)
     local p = ns.nav:PlayerPos()
     local best, bd
@@ -165,50 +213,93 @@ function P:Done(id)
     end)
 end
 
--- Share your current trip plan as the party route.
-function P:Share()
-    if not channel() then ns:Print("you're not in a group") return end
+-------------------------------------------------------------------------------
+-- Building a party route
+-------------------------------------------------------------------------------
+
+local function questOf(key) return tonumber(key:match("^(%d+):")) end
+
+-- Stops for a party route, and why: quests party members share come first.
+function P:EstimateStops()
+    local p = ns.nav:PlayerPos()
+    if not p then return {}, "no position" end
+    local goals = {}
+    for _, g in ipairs(ns.nav:Goals()) do
+        if not g.key:find("^party:") and g.key ~= "user:wp" then goals[#goals + 1] = g end
+    end
+    local counts = {}
+    for id in pairs(ns.quests:LogIds()) do counts[id] = 1 end
+    for _, m in pairs(members) do
+        for id in pairs(m.quests) do counts[id] = (counts[id] or 0) + 1 end
+    end
+    local common, shared = {}, {}
+    for _, g in ipairs(goals) do
+        local q = questOf(g.key)
+        if q and (counts[q] or 0) >= 2 then common[g.key] = true; shared[q] = true end
+    end
+    local plan, why
+    if next(common) then
+        local n = 0
+        for _ in pairs(shared) do n = n + 1 end
+        plan = ns.planner:Plan(p, goals, { tour = common })
+        why = n .. " quest(s) you share come first"
+    else
+        plan = ns.planner:Plan(p, goals, {})
+        why = "your current route (no shared quests yet)"
+    end
     local stops = {}
-    for _, s in ipairs(ns.nav.plan or {}) do
+    for _, s in ipairs(plan or {}) do
         local pt = s.point
-        if pt and pt.map and pt.x and #stops < MAX_STOPS and not s.goal.key:find("^party:") then
+        if pt and pt.map and pt.x and #stops < MAX_STOPS then
             stops[#stops + 1] = { id = newId(), map = pt.map, x = pt.x, y = pt.y,
                 label = s.goal.text or s.goal.title, level = s.goal.level, kind = "shared" }
         end
     end
-    if #stops == 0 then ns:Print("nothing in your trip plan to share yet") return end
-    state.joined = true
+    return stops, why
+end
+
+function P:Share(auto)
+    if not channel() then ns:Print("you're not in a group") return end
+    local stops, why = self:EstimateStops()
+    if #stops == 0 then
+        if not auto then ns:Print("nothing to share yet") end
+        return
+    end
+    state.joined, state.following = true, true
     edit(function(st)
         wipe(st)
         for _, s in ipairs(stops) do st[#st + 1] = s end
     end)
-    ns:Print("shared your route with the party (" .. #stops .. " stops). Anyone can edit it.")
+    ns:Print(string.format("%s the party route: %d stops; %s. Anyone can edit it.",
+        auto and "made" or "shared", #stops, why))
 end
 
-function P:Join()
-    if not offer then ns:Print("no shared route to join yet") return end
+function P:Join(follow)
+    if not offer then ns:Print("no party route to join yet") return end
     state.joined = true
+    state.following = follow ~= false
     state.stops, state.clock, state.editor = offer.stops, offer.clock, offer.editor
     offer = nil
     if self.prompt then self.prompt:Hide() end
     changed()
-    ns:Print("joined the shared route. Your edits go to everyone in it.")
+    ns:Print(state.following and "following the party route. Switch back to yours any time (under the arrow)."
+        or "kept your own route. The party route is there if you want it (under the arrow).")
 end
 
 function P:Leave(quiet)
-    state.joined = false
+    state.joined, state.following = false, false
     wipe(state.stops)
     changed()
-    if not quiet then ns:Print("left the shared route; back to your own plan") end
+    if not quiet then ns:Print("left the party route; back to your own") end
 end
 
 -------------------------------------------------------------------------------
--- Navigation: shared stops are goals, in the shared order, before your own.
+-- Navigation: party stops are goals only while you follow the party route.
 -------------------------------------------------------------------------------
 
 ns:Register("navGoal", "party", {
     collect = function()
-        if not state.joined then return nil end
+        if not P:Following() then return nil end
         local out, prev = {}, nil
         for i, s in ipairs(state.stops) do
             local key = "party:" .. s.id
@@ -216,8 +307,8 @@ ns:Register("navGoal", "party", {
                 key = key, weight = 0.5, level = s.level,
                 points = { { map = s.map, x = s.x, y = s.y } },
                 title = s.label, text = "Party: " .. (s.label or "stop " .. i),
-                details = { "Shared route stop " .. i .. " of " .. #state.stops .. ".",
-                            "Anyone in the party can move it, add stops, or reach it to clear it." },
+                details = { "Party route stop " .. i .. " of " .. #state.stops .. ".",
+                            "Anyone following it can move it, add stops, or reach it to clear it." },
                 deps = prev and { prev } or nil,
             }
             prev = key
@@ -227,35 +318,62 @@ ns:Register("navGoal", "party", {
 })
 
 -------------------------------------------------------------------------------
--- Join prompt
+-- UI: join prompt and the party/mine toggle under the arrow
 -------------------------------------------------------------------------------
+
+local function button(parent, text, w)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(w, 22)
+    b:SetText(text)
+    return b
+end
 
 function P:ShowPrompt(sender, n)
     if not self.prompt then
         local f = CreateFrame("Frame", "FlowPartyPrompt", UIParent)
-        f:SetSize(320, 74)
+        f:SetSize(340, 78)
         f:SetPoint("TOP", 0, -200)
         f:SetFrameStrata("DIALOG")
         f.bg = f:CreateTexture(nil, "BACKGROUND")
         f.bg:SetAllPoints()
         f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.92)
+        local top = f:CreateTexture(nil, "BORDER")
+        top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(2)
+        local c = ns.theme.user
+        top:SetColorTexture(c[1], c[2], c[3], 0.9)
         f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         f.text:SetPoint("TOP", 0, -10)
-        f.text:SetWidth(300)
-        local join = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        join:SetSize(110, 22)
-        join:SetPoint("BOTTOMLEFT", 40, 10)
-        join:SetText("Join")
-        join:SetScript("OnClick", function() P:Join() end)
-        local no = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        no:SetSize(110, 22)
-        no:SetPoint("BOTTOMRIGHT", -40, 10)
-        no:SetText("Not now")
-        no:SetScript("OnClick", function() f:Hide() end)
+        f.text:SetWidth(320)
+        local follow = button(f, "Follow party route", 140)
+        follow:SetPoint("BOTTOMLEFT", 20, 10)
+        follow:SetScript("OnClick", function() P:Join(true) end)
+        local mine = button(f, "Keep my route", 140)
+        mine:SetPoint("BOTTOMRIGHT", -20, 10)
+        mine:SetScript("OnClick", function() P:Join(false) end)
         self.prompt = f
     end
-    self.prompt.text:SetText(string.format("%s shared a route (%d stops).\nJoin it? Anyone in it can edit it.", sender, n))
+    self.prompt.text:SetText(string.format("%s's party route: %d stops.\nFollow it? You can switch back to your own any time.", sender, n))
     self.prompt:Show()
+end
+
+function P:RefreshToggle()
+    local arrow = _G.FlowNavArrow
+    if not arrow then return end
+    if not self.toggle then
+        local t = CreateFrame("Button", nil, arrow)
+        t:SetSize(140, 16)
+        t:SetPoint("TOP", arrow, "BOTTOM", 0, -34)
+        t.text = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        t.text:SetAllPoints()
+        t:SetScript("OnClick", function() P:SetFollowing(not state.following) end)
+        self.toggle = t
+    end
+    if not state.joined then self.toggle:Hide() return end
+    local c = ns.theme.user
+    self.toggle.text:SetText(state.following
+        and string.format("|cff%sParty route|r  (click: my route)", c.hex)
+        or "My route  |cff888888(click: party route)|r")
+    self.toggle:Show()
 end
 
 -------------------------------------------------------------------------------
@@ -278,35 +396,61 @@ ns:On("CHAT_MSG_ADDON", function(prefix, msg, _, sender)
 end)
 
 local lastRoster = 0
-ns:On("GROUP_ROSTER_UPDATE", function()
-    if not channel() then
-        if state.joined then P:Leave(true); ns:Print("left the group, so the shared route ended") end
+local function onRoster()
+    local nowIn = channel() ~= nil
+    if not nowIn then
+        if state.joined then P:Leave(true); ns:Print("left the group, so the party route ended") end
+        inGroup = false
+        wipe(members)
+        offer = nil
         return
     end
-    -- New members: joined players re-share (throttled); a newcomer asks.
+    if not inGroup then
+        -- Just joined or formed a group: ask for a route, share our quests,
+        -- and if we lead and nobody has a route yet, make one.
+        inGroup = true
+        send("Q|0")
+        P:SendQuests()
+        C_Timer.After(AUTO_SHARE_DELAY, function()
+            if channel() and not state.joined and not offer and isLeader() then P:Share(true) end
+        end)
+        return
+    end
+    -- Someone else joined: re-share (throttled) so they get the prompt.
     if GetTime() - lastRoster < 5 then return end
     lastRoster = GetTime()
-    if state.joined then P:Broadcast() else send("Q|0") end
-end)
+    if state.joined then P:Broadcast() end
+    P:SendQuests()
+end
+
+ns:On("GROUP_ROSTER_UPDATE", onRoster)
+ns:On("PARTY_MEMBERS_CHANGED", onRoster)  -- older clients
+ns:On("PLAYER_ENTERING_WORLD", function() C_Timer.After(2, onRoster) end)
+ns:On("QUEST_ACCEPTED", function() P:SendQuests() end)
+ns:On("QUEST_TURNED_IN", function() P:SendQuests() end)
 
 ns.commands.party = function(arg)
     arg = (arg or ""):lower()
-    if arg == "share" then P:Share()
-    elseif arg == "join" then P:Join()
+    if arg == "share" then P:Share(false)
+    elseif arg == "join" or arg == "follow" then
+        if state.joined then P:SetFollowing(true) else P:Join(true) end
+    elseif arg == "mine" then P:SetFollowing(false)
     elseif arg == "leave" then P:Leave()
     else
         if state.joined then
-            ns:Print(string.format("on a shared route: %d stops, last edit by %s.", #state.stops, state.editor))
+            ns:Print(string.format("party route: %d stops, last edit by %s. You're following %s.",
+                #state.stops, state.editor, state.following and "the party route" or "your own route"))
         elseif offer then
-            ns:Print(offer.editor .. " shared a route: /flow party join")
+            ns:Print(offer.editor .. " shared a party route: /flow party join")
         else
-            ns:Print("no shared route. /flow party share sends yours to the group.")
+            ns:Print("no party route.")
         end
-        print("  /flow party share|join|leave")
+        print("  /flow party share|follow|mine|leave")
     end
 end
 
 ns:Register("help", "party", { order = 45, title = "Party routes", lines = {
-    "/flow party share - share your route; party members get a Join prompt",
-    "Anyone on it can edit: click checkpoints/advice rows, set waypoints, reach stops. /flow party leave",
+    "Joining a group asks if you want to follow the party route; your own route always stays separate.",
+    "Forming a group as leader makes one (shared quests first). Toggle under the arrow: party / mine.",
+    "/flow party share|follow|mine|leave",
 } })
