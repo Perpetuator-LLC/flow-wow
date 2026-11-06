@@ -33,6 +33,12 @@ This is the World of Warcraft addon. It is a separate project from Flow Engine. 
     per fight type (boss, several enemies, elite, normal).
   - Commands: `/flow rot on|off|lock|unlock|stats|known|debug|reset` (`known` lists the spells
     Flow thinks you have).
+- **Cast button and key** (`Modules/Rotation/Cast.lua`, `Modules/Settings.lua`, `Bindings.xml`):
+  the suggestion icon sits on a secure button. A click, or the key set in `/flow settings`, casts
+  the suggestion. The key uses an override binding: Flow shows any conflict and never changes your
+  own bindings. In combat WoW freezes what secure buttons cast, so the key keeps the spell from
+  the pull, or Blizzard's one-button assistant spell if the client has one, and a "key:" icon
+  shows it.
 - **Fight profiler** (`Modules/Fight/`): records every fight: damage, healing, threat, damage
   taken, what you cast, your opener, and whether you followed the suggestion. Fights are
   labelled by type: boss, several enemies, elite or normal. After 6 comparable fights of a type,

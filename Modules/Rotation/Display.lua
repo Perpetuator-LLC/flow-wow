@@ -73,7 +73,9 @@ local function buildIcon(cfg)
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
 
-    ns:MakeMovable(f, cfg)  -- hold Shift and drag
+    -- Position and moving are handled by the secure cast button underneath
+    -- (Modules/Rotation/Cast.lua): the icon is anchored to it.
+    f:EnableMouse(false)
     f:Hide()
     return f
 end
@@ -216,6 +218,7 @@ end
 
 ns:OnLoad(function(saved)
     icon = buildIcon(saved.rotation)
+    E.icon = icon  -- for the cast button (Cast.lua)
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", onUpdate)
 end)

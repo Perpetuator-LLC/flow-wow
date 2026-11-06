@@ -119,7 +119,7 @@ local function show()
     token = token + 1
     local mine = token
     local name = UnitName("player") or "friend"
-    frame.sub:SetText(string.format("ready, %s   |cff888888v%s  ·  /flow help|r", name, version()))
+    frame.sub:SetText(string.format("ready, %s   |cff888888v%s  ·  /flow help  ·  /flow settings|r", name, version()))
     local ok, s = pcall(status)
     frame.status:SetText(ok and s or "")
     frame.fadeOut:Stop()

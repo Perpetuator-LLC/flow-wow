@@ -2,7 +2,7 @@
 ## Title: Flow
 ## Notes: Sooth's personal everything-mod.
 ## Author: Sooth
-## Version: 0.10.0
+## Version: 0.11.0
 ## SavedVariables: FlowDB
 ## OptionalDeps: Questie, QuestieDB
 
@@ -20,6 +20,7 @@ Modules\Fight\FightTypes.lua
 # Features
 Modules\Help.lua
 Modules\Splash.lua
+Modules\Settings.lua
 Modules\Chat.lua
 Modules\Spec.lua
 Modules\Trainer.lua
@@ -32,6 +33,7 @@ Modules\Gear\QuestRewards.lua
 Modules\Items\SkillBoosters.lua
 Modules\Rotation\Engine.lua
 Modules\Rotation\Display.lua
+Modules\Rotation\Cast.lua
 Modules\Fight\Profiler.lua
 Modules\CombatLogFile.lua
 Modules\Nav\Nav.lua

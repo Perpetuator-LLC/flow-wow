@@ -1,0 +1,4 @@
+<Bindings>
+    <Binding name="CLICK FlowCastButton:LeftButton" header="FLOW">
+    </Binding>
+</Bindings>
