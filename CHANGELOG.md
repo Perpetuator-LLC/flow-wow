@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.26.0
+- Map: a square Flow button above the game's quest log button opens and closes the route list.
+  The quest log and Flow's list share the slot: one or the other, or neither.
+- Map: a line from you to your first stop, and small chevrons crawling along the route to show
+  which way it runs (and when a leg goes out and back). The stop you hover (on the map or in the
+  list) is drawn bigger, in the hover colour with a white ring, on top of everything.
+- Map list: blocked and hidden stops always get rows (up to half the list), so a full route no
+  longer pushes them out of sight. Rows show a tooltip with the stop's details.
+- Most XP first (new default; "Most XP first" on the map list, `/flow nav xp on|off`): still the
+  shortest path, but quest stops are weighed by XP and level. Quests 3+ levels above you wait;
+  more XP is worth a longer walk; quests about to go grey come a little sooner. Quest tooltips
+  show XP (real from your log where the game gives it, else an estimate) and a note.
+- Splash: 0.618 s.
+- Flow Tracker hangs from its top-left corner, so collapsing folds it up into the header.
+
 ## 0.25.0
 - Blocked stops are shown, not hidden: a lock (or coin) and the reason, e.g. "needs 1s (you have
   40c)", "needs Mining", "needs a Blacksmith Hammer". In the map route list, the Flow Tracker

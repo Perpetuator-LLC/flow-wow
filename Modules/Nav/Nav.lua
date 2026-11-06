@@ -340,6 +340,8 @@ function N:Collect()
         if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
     end
     N.hiddenGoals = hiddenGoals
+    -- XP-first sorting (XpValue.lua): weights by XP and quest level; also adds XP to tooltips.
+    if ns.xpValue then pcall(ns.xpValue.Apply, ns.xpValue, shown) end
     goals = shown
     N.planDirty = true
 end
@@ -926,6 +928,9 @@ ns.commands.nav = function(arg)
         cfg.professions = (v ~= "off")
         N:Collect()
         ns:Print("professions on the route: " .. (cfg.professions and "on" or "off"))
+    elseif arg == "xp" or arg == "xp on" or arg == "xp off" or arg == "distance" then
+        ns.xpValue:Set(arg ~= "xp off" and arg ~= "distance")
+        ns:Print("route sorting: " .. (ns.xpValue:On() and "most XP first" or "shortest path"))
     elseif arg == "unhide" or arg == "hidden" then
         -- Bring back every stop you hid (right-click), or list them.
         local n = 0

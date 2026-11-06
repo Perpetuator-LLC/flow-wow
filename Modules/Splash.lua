@@ -8,7 +8,7 @@ local _, ns = ...
 local GOLD = { 1.0, 0.82, 0.25 }
 local BAR_W = 460      -- width of the two gold bars
 local INTRO = 0.15     -- seconds for the bars to sweep in
-local SHOW_TIME = 0.25  -- seconds the bars count down (whole splash is about 0.5 s)
+local SHOW_TIME = 0.368 -- seconds the bars count down (whole splash: 0.15 + 0.368 + 0.1 = 0.618 s)
 local frame
 
 local function version()

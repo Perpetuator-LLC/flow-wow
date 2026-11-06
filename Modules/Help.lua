@@ -31,6 +31,8 @@ local topics = {
         "/flow nav quests|optimal - follow only current quests, or the optimal path (also on the map panel)",
         "/flow nav professions on|off - trainer and skill-up stops; /flow nav why - what the route is made of",
         "/flow prof plan - how Flow plans to raise your professions (what to make, materials, where from)",
+        "/flow nav xp on|off - most XP first (default) or shortest path; hover a quest stop for its XP",
+        "Map: the square button above the game's quest log button opens and closes Flow's route list (one or the other, or neither)",
         "/flow nav on|off|learn|forget",
     } },
     { "quests", 50, "Quests", {

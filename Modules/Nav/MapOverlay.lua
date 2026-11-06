@@ -57,7 +57,7 @@ local function line(c, x1, y1, x2, y2, color, alpha)
     l:Show()
 end
 
-local function pin(c, x, y, label, color, stop)
+local function pin(c, x, y, label, color, stop, top)
     nPins = nPins + 1
     local p = pins[nPins]
     if not p then
@@ -107,7 +107,11 @@ local function pin(c, x, y, label, color, stop)
     end
     p.stop = stop
     p:SetParent(c)
-    p:SetFrameLevel(2000)
+    -- The hovered stop: bigger, white ring, above every other pin and line.
+    p:SetFrameLevel(top and 2100 or 2000)
+    p:SetSize(top and 18 or 11, top and 18 or 11)
+    p.edge:SetVertexColor(top and 1 or 0, top and 1 or 0, top and 1 or 0, top and 1 or 0.9)
+    p.text:SetFontObject(top and "GameFontNormal" or "GameFontHighlightSmall")
     p:SetScale(1 / canvasScale())
     p:ClearAllPoints()
     local s = p:GetScale()
@@ -120,26 +124,85 @@ end
 -- Draws one route as a thin, unbroken line through round points. Stops on
 -- another map are skipped, and the line joins the ones on this map.
 -- Each point's label carries the stop's type icon and number ("[icon] 3 [9]").
-local function drawRoute(c, mapID, plan, color, withPins, alpha)
-    if not plan then return end
-    local pos = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
-    local px, py
-    if pos then px, py = pos:GetXY() end
-    local labels = ns.nav:PlanLabels(plan)
-    for i, s in ipairs(plan) do
-        local x, y = toMap(s.point, mapID)
-        if x then
-            if px then line(c, px, py, x, y, color, alpha or 0.95) end
-            px, py = x, y
-            if withPins then
-                local pc = color
-                if s.goal.key == hoverKey then pc = theme().hover end
-                local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
-                local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
-                pin(c, x, y, icon .. labels[i], pc, s)
+-- Direction: small chevrons travel along each leg ("marching ants"), so you
+-- can see which way the route runs, and when a leg goes out and back.
+-- Legs are kept from the last draw; only the chevrons move (cheap).
+local legs, ants, nAnts = {}, {}, 0
+local antPhase = 0
+local ANT_GAP = 46    -- screen pixels between chevrons
+local ANT_SIZE = 4
+
+local function antLine()
+    nAnts = nAnts + 1
+    local l = ants[nAnts]
+    if not l then l = host:CreateLine(nil, "OVERLAY", nil, 7); ants[nAnts] = l end
+    return l
+end
+
+local function drawAnts()
+    local c = canvas()
+    if not (c and host) then return end
+    local old = nAnts
+    nAnts = 0
+    local w, h, sc = c:GetWidth(), c:GetHeight(), canvasScale()
+    local gap, size = ANT_GAP / sc, ANT_SIZE / sc
+    for _, leg in ipairs(legs) do
+        local x1, y1, x2, y2 = leg[1] * w, -leg[2] * h, leg[3] * w, -leg[4] * h
+        local dx, dy = x2 - x1, y2 - y1
+        local len = math.sqrt(dx * dx + dy * dy)
+        if len > gap * 0.6 then
+            local ux, uy = dx / len, dy / len
+            local d = (antPhase * gap) % gap
+            local col = leg.color
+            while d < len and nAnts < 400 do
+                local cx, cy = x1 + ux * d, y1 + uy * d
+                -- ">" pointing along the leg: two arms back from the tip.
+                for side = -1, 1, 2 do
+                    local l = antLine()
+                    l:SetThickness(1.6 / sc)
+                    l:SetColorTexture(col[1], col[2], col[3], leg.alpha or 0.95)
+                    l:SetStartPoint("TOPLEFT", c, cx - ux * size + side * uy * size * 0.8, cy - uy * size - side * ux * size * 0.8)
+                    l:SetEndPoint("TOPLEFT", c, cx + ux * size * 0.4, cy + uy * size * 0.4)
+                    l:Show()
+                end
+                d = d + gap
             end
         end
     end
+    for i = nAnts + 1, old do ants[i]:Hide() end
+end
+
+-- Draws one route as a thin, unbroken line through round points, starting
+-- at you. Stops on another map are skipped, and the line joins the ones on
+-- this map. Each point's label carries the stop's type icon and number.
+local function drawRoute(c, mapID, plan, color, withPins, alpha)
+    if not plan then return end
+    local px, py = toMap(ns.nav:PlayerPos(), mapID)
+    local labels = ns.nav:PlanLabels(plan)
+    local hovered
+    for i, s in ipairs(plan) do
+        local x, y = toMap(s.point, mapID)
+        if x then
+            if px then
+                -- From you to the first stop: brighter, so it's clear where to go now.
+                local first = (i == 1)
+                line(c, px, py, x, y, first and theme().route or color, first and 1 or (alpha or 0.95))
+                legs[#legs + 1] = { px, py, x, y, color = first and { 1, 1, 1 } or color, alpha = first and 1 or (alpha or 0.95) }
+            end
+            px, py = x, y
+            if withPins then
+                local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
+                local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
+                if s.goal.key == hoverKey then
+                    hovered = { x, y, icon .. labels[i], s }
+                else
+                    pin(c, x, y, icon .. labels[i], color, s)
+                end
+            end
+        end
+    end
+    -- The stop you're pointing at (here or in the list) goes on top of everything.
+    if hovered then pin(c, hovered[1], hovered[2], hovered[3], theme().hover, hovered[4], true) end
 end
 
 -------------------------------------------------------------------------------
@@ -157,17 +220,107 @@ local ROW_H = 18
 
 local function collapsed() return ns.db.nav.mapListCollapsed == true end
 
+-- The game's quest log side panel and Flow's route drawer share one slot:
+-- only one is open at a time, and both can be closed (like the trackers).
+-- Flow's square button sits just above the game's own side-panel button.
+local function sidePanelOpen()
+    local q = QuestMapFrame
+    return q and q:IsShown() and q:GetWidth() > 100 or false
+end
+
+local selfToggling = false
+local function setSidePanel(open)
+    if sidePanelOpen() == open then return end
+    selfToggling = true
+    if WorldMapFrame.HandleUserActionToggleSidePanel then
+        pcall(WorldMapFrame.HandleUserActionToggleSidePanel, WorldMapFrame)
+    elseif WorldMapFrame.SidePanelToggle and WorldMapFrame.SidePanelToggle.Click then
+        pcall(WorldMapFrame.SidePanelToggle.Click, WorldMapFrame.SidePanelToggle)
+    end
+    selfToggling = false
+end
+
+function M:SetDrawer(open)
+    ns.db.nav.mapListCollapsed = not open
+    setSidePanel(open)  -- open: make room (the drawer covers the panel); closed: both closed
+    M:Redraw()
+end
+
+local button
+local function buildButton()
+    local blizz = WorldMapFrame.SidePanelToggle
+    local b = CreateFrame("Button", "FlowMapDrawerButton", WorldMapFrame)
+    local w, h = 32, 32
+    if blizz and blizz.GetSize then
+        local bw, bh = blizz:GetSize()
+        if bw and bw > 10 then w, h = bw, bh end
+    end
+    b:SetSize(w, h)
+    if blizz then
+        b:SetPoint("BOTTOM", blizz, "TOP", 0, 4)
+    else
+        b:SetPoint("BOTTOMRIGHT", WorldMapFrame, "BOTTOMRIGHT", -6, 46)
+    end
+    b:SetFrameStrata("HIGH")
+    b:SetFrameLevel((blizz and blizz:GetFrameLevel() or 10) + 5)
+    b.bg = b:CreateTexture(nil, "BACKGROUND")
+    b.bg:SetAllPoints()
+    b.edge = {}
+    for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
+                           { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local t = b:CreateTexture(nil, "BORDER")
+        t:SetPoint(pts[1]); t:SetPoint(pts[2])
+        if i <= 2 then t:SetHeight(1) else t:SetWidth(1) end
+        b.edge[i] = t
+    end
+    -- A chevron drawn with two lines: "<" opens the drawer, ">" closes it.
+    b.arms = { b:CreateLine(nil, "ARTWORK"), b:CreateLine(nil, "ARTWORK") }
+    for _, l in ipairs(b.arms) do l:SetThickness(2) end
+    function b:Draw()
+        local open = not collapsed()
+        local c = theme().route
+        local hot = self:IsMouseOver()
+        self.bg:SetColorTexture(open and c[1] * 0.25 or 0.05, open and c[2] * 0.25 or 0.05, open and c[3] * 0.25 or 0.08, 0.92)
+        for _, t in ipairs(self.edge) do t:SetColorTexture(c[1], c[2], c[3], hot and 1 or 0.75) end
+        local dir = open and 1 or -1   -- points right when open (push it away), left when closed
+        local s = math.min(self:GetWidth(), self:GetHeight()) * 0.18
+        for i, l in ipairs(self.arms) do
+            l:SetStartPoint("CENTER", self, -dir * s * 0.6, (i == 1 and 1 or -1) * s)
+            l:SetEndPoint("CENTER", self, dir * s * 0.6, 0)
+            l:SetColorTexture(1, 1, 1, hot and 1 or 0.85)
+        end
+    end
+    b:SetScript("OnClick", function() M:SetDrawer(collapsed()) end)
+    b:SetScript("OnEnter", function(self)
+        self:Draw()
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("Flow route")
+        GameTooltip:AddLine(collapsed() and "Open Flow's route list (closes the quest log)."
+            or "Close Flow's route list.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self) self:Draw(); GameTooltip:Hide() end)
+    -- The game's own button: opening the quest log closes Flow's drawer.
+    if blizz and blizz.HookScript then
+        blizz:HookScript("OnClick", function()
+            if selfToggling then return end
+            ns.db.nav.mapListCollapsed = true
+            M:Redraw()
+        end)
+    end
+    return b
+end
+
 local function place()
     list:ClearAllPoints()
     local q = QuestMapFrame
     if q and q:IsShown() and q:GetWidth() > 100 then
-        -- Take over the quest log area.
-        -- The "Flow route" header sits just above the quest log; open, the
-        -- drawer covers the quest log; rolled up, the quest log shows again.
-        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 26)
+        -- Cover the quest log slot exactly (the quest log is "closed" while
+        -- the drawer is open).
+        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 0)
         list:SetPoint("BOTTOMRIGHT", q, "BOTTOMRIGHT", 0, 0)
     else
-        -- Dock outside, to the right of the map.
+        -- No side panel on this client: dock outside, to the right of the map.
         list:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", 2, 0)
         list:SetSize(300, math.max(200, WorldMapFrame:GetHeight()))
     end
@@ -215,8 +368,7 @@ local function buildList()
     t.hl:SetAllPoints()
     t.hl:SetColorTexture(o[1], o[2], o[3], 0.12)
     t:SetScript("OnClick", function()
-        ns.db.nav.mapListCollapsed = not collapsed()
-        M:Redraw()
+        M:SetDrawer(collapsed())
     end)
     t:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -297,17 +449,33 @@ local function buildList()
     hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.showHidden = hc
 
+    -- XP-first sorting (XpValue.lua), on by default.
+    local xc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    xc:SetSize(20, 20)
+    xc:SetPoint("TOPLEFT", 26, -102)
+    xc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    xc.label:SetPoint("LEFT", xc, "RIGHT", 2, 0)
+    xc.label:SetText("Most XP first  |cff888888(off = shortest path)|r")
+    xc:SetScript("OnClick", function(self) ns.xpValue:Set(self:GetChecked() and true or false); M:Redraw() end)
+    xc:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Still the shortest path, but quests are weighed by XP and level: more XP is worth a longer walk, and quests 3+ levels above you wait until you are ready. Hover a stop to see its XP.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    xc:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.xpFirst = xc
+
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -106)
-    f.title:SetPoint("TOPRIGHT", -8, -106)
+    f.title:SetPoint("TOPLEFT", 8, -126)
+    f.title:SetPoint("TOPRIGHT", -8, -126)
     f.title:SetJustifyH("LEFT")
 
     f.rows = {}
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -124 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -124 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -144 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -144 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -332,6 +500,12 @@ local function buildList()
                 return
             end
             hoverKey = self.key
+            if self.goal then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(self.goal.text or self.goal.title or "?", 1, 1, 1, true)
+                for _, dl in ipairs(self.goal.details or {}) do GameTooltip:AddLine(dl, 0.8, 0.8, 0.8, true) end
+                GameTooltip:Show()
+            end
             M:Preview(self.key)
         end)
         r:SetScript("OnLeave", function()
@@ -361,10 +535,15 @@ end
 
 local function updateList()
     list = list or buildList()
+    button = button or buildButton()
+    button:Draw()
     local plan = ns.nav.plan
     -- Keep the panel up even with an empty route, so the mode can be switched back.
     plan = plan or {}
     if not ns.nav:PlayerPos() then list:Hide() return end
+    -- Drawer open but the slot closed (e.g. map reopened): make room again.
+    if not collapsed() and QuestMapFrame and not sidePanelOpen() and not InCombatLockdown() then setSidePanel(true) end
+    if collapsed() then list:Hide() return end
     place()
     list:Show()
     local hidden = collapsed()
@@ -385,6 +564,7 @@ local function updateList()
     list.profs:SetChecked(ns.db.nav.professions ~= false)
     list.showHidden:SetShown(not hidden); list.showHidden.label:SetShown(not hidden)
     list.showHidden:SetChecked(ns.db.nav.showHidden == true)
+    list.xpFirst:SetChecked(ns.xpValue:On())
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -397,31 +577,42 @@ local function updateList()
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 130) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 150) / ROW_H))
     -- Route stops first, then blocked stops (lock + reason), then (if
     -- ticked) hidden stops, greyed out.
     local blocked = ns.nav.blockedGoals or {}
     local hiddenGoals = (ns.db.nav.showHidden and ns.nav.hiddenGoals) or {}
+    -- One list of rows: route stops, then blocked, then hidden. Blocked and
+    -- hidden rows always get room (up to half the list), so a full route
+    -- can't push them out of sight.
+    local entries = {}
+    local extras = #blocked + #hiddenGoals
+    local reserve = math.min(extras, math.floor(fit / 2))
+    for i, s in ipairs(plan) do
+        if i > fit - reserve then break end
+        entries[#entries + 1] = { stop = s, i = i }
+    end
+    for _, b in ipairs(blocked) do entries[#entries + 1] = { blocked = b } end
+    for _, h in ipairs(hiddenGoals) do entries[#entries + 1] = { hidden = h } end
     for i = 1, MAX_ROWS do
-        local r, s = list.rows[i], plan[i]
-        local b = (not s) and blocked[i - #plan] or nil
-        local h = (not s and not b) and hiddenGoals[i - #plan - #blocked] or nil
-        if s and i <= fit then
-            local col = ns.nav:StopColor(i, s.goal)
-            if s.goal.key == hoverKey then col = theme().hover end
+        local r, e = list.rows[i], entries[i]
+        if e and i <= fit and e.stop then
+            local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
-            r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
+            r.goal = s.goal
+            r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
-        elseif b and i <= fit then
+        elseif e and i <= fit and e.blocked then
+            local b = e.blocked
             r.key, r.isHidden, r.blocked = b.key, false, b
             local text, why = ns.nav:FormatBlocked(b)
             r.text:SetText(text)
             r.leg:SetText(why)
             r:Show()
-        elseif h and i <= fit then
-            r.blocked = nil
-            r.key, r.isHidden = h.key, true
+        elseif e and i <= fit and e.hidden then
+            local h = e.hidden
+            r.key, r.isHidden, r.blocked = h.key, true, nil
             r.text:SetText("|cff777777(hidden) " .. (h.text or h.title or "?") .. "|r")
             r.leg:SetText("|cff777777click to show|r")
             r:Show()
@@ -443,6 +634,7 @@ function M:Redraw()
     -- Reuse frames in place and only hide leftovers afterwards: hiding the
     -- pin under the mouse would fire OnLeave and make previews flicker.
     local oldLines, oldPins = nLines, nPins
+    legs = {}
     nLines, nPins = 0, 0
     local mapID = WorldMapFrame:GetMapID()
     if mapID then
@@ -458,6 +650,15 @@ function M:Redraw()
     end
     for i = nLines + 1, oldLines do lines[i]:Hide() end
     for i = nPins + 1, oldPins do pins[i]:Hide() end
+    drawAnts()
+    if not host.antsOn then
+        host.antsOn = true
+        host:SetScript("OnUpdate", function(_, dt)
+            antPhase = antPhase + dt * 0.6   -- chevrons crawl along the route
+            host.antT = (host.antT or 0) + dt
+            if host.antT > 0.05 then host.antT = 0; drawAnts() end
+        end)
+    end
     updateList()
 end
 

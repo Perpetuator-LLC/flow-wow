@@ -45,6 +45,18 @@ local function build()
     f:SetFrameStrata("MEDIUM")
     local p = db().point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -60, -230) end
+    -- Always hang from the top-left corner, so collapsing shrinks it up into
+    -- the header instead of towards its middle. (Older saves used other anchors.)
+    local function pinTop()
+        local l, tp = f:GetLeft(), f:GetTop()
+        if not (l and tp) then return end
+        local s = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l * s, tp * s)
+        db().point = { "TOPLEFT", "BOTTOMLEFT", l * s, tp * s }
+    end
+    f.pinTop = pinTop
+    if not p or p[1] ~= "TOPLEFT" then C_Timer.After(0, pinTop) end
     local o = ns.theme.arrow
 
     -- Header (same style as the map's Flow route bar).
@@ -70,8 +82,7 @@ local function build()
     h:SetScript("OnDragStart", function() if IsShiftKeyDown() then f:StartMoving() end end)
     h:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
-        local a, _, b, x, y = f:GetPoint()
-        db().point = { a, b, x, y }
+        f.pinTop()
     end)
     f:SetMovable(true); f:SetClampedToScreen(true)
     f.header = h
