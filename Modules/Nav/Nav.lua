@@ -1008,7 +1008,7 @@ local function showPanel()
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
     panel:ClearAllPoints()
-    panel:SetPoint("TOP", frame, "BOTTOM", 0, -24)
+    panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- below the text, so hovering the text doesn't land on it
     panel:Show()
 end
 
@@ -1046,10 +1046,12 @@ local function buildArrow()
             end
             for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
             ns.menu:Open(items)
-        elseif panel and panel:IsShown() then
+        elseif panel and panel:IsShown() and not panel.byHover then
             panel:Hide()
         else
+            -- A click keeps it open (a hover-opened panel becomes pinned).
             showPanel()
+            panel.byHover = false
         end
     end)
     -- The text under the arrow (stop name, distance) clicks like the arrow:
@@ -1083,10 +1085,25 @@ local function buildArrow()
         end
         GameTooltip:Show()
     end
-    f:SetScript("OnEnter", tip)
-    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.textHit:SetScript("OnEnter", function() tip(f) end)
-    f.textHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- In the area (ring showing): hovering opens the full panel, and leaving
+    -- closes it again unless you clicked it open. Elsewhere: a tooltip, and a
+    -- click opens the panel.
+    local function enter(owner)
+        if N.arrived and current and not (panel and panel:IsShown()) then
+            showPanel()
+            panel.byHover = true
+        elseif not (N.arrived and panel and panel:IsShown()) then
+            tip(owner)
+        end
+    end
+    local function leave()
+        GameTooltip:Hide()
+        if panel and panel.byHover then panel:Hide(); panel.byHover = false end
+    end
+    f:SetScript("OnEnter", function() enter(f) end)
+    f:SetScript("OnLeave", leave)
+    f.textHit:SetScript("OnEnter", function() enter(f) end)
+    f.textHit:SetScript("OnLeave", leave)
     f:Hide()
     return f
 end

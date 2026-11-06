@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.7
+- Arrow: in a quest area (the ring is showing), hovering the arrow or its text opens the full
+  panel and moving away closes it; click to keep it open. Elsewhere hover shows a tooltip and a
+  click opens the panel, as before.
+
 ## 0.35.6
 - Fixed: "Buy a Mining Pick" (and "needs a Mining Pick") stayed after you bought one: Flow only
   looked for the classic item ID. Tools now count by ID or name, in your bags or equipped.
