@@ -287,6 +287,29 @@ end
 
 function N:Goals() return goals end
 
+-- Shared look for route stops (trip plan, world map pins, map list):
+--   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
+--   colour: orange = where the arrow points now, blue = quest pickup,
+--           sky blue = your waypoint, bluish green = the rest of the route
+function N:PlanLabels(plan)
+    local out, pickups = {}, 0
+    for i, s in ipairs(plan or {}) do
+        local isPickup = s.goal.key:find("^pickup:") ~= nil
+        if isPickup then pickups = pickups + 1 end
+        out[i] = (isPickup and ("!" .. pickups) or tostring(i))
+            .. (s.goal.level and string.format(" [%d]", s.goal.level) or "")
+    end
+    return out
+end
+
+function N:StopColor(i, goal)
+    local T = ns.theme
+    if goal.key == "user:wp" then return T.user end
+    if goal.key:find("^pickup:") then return T.changed end
+    if i == 1 then return T.arrow end
+    return T.current
+end
+
 -------------------------------------------------------------------------------
 -- Choosing the route. N.selection = { first = goal key, tour = { [key] = true } }
 --   first : the stop you picked (from the map, the advice list, or right-click)
@@ -473,9 +496,12 @@ local function showPanel()
         lines[#lines + 1] = " "
         lines[#lines + 1] = string.format("|cffffd200Trip plan|r (%d stops, about %d yd):",
             #N.plan, N.plan[#N.plan].cum or 0)
+        local labels = N:PlanLabels(N.plan)
         for i, s in ipairs(N.plan) do
             if i > 10 then lines[#lines + 1] = "  ..."; break end
-            lines[#lines + 1] = string.format("  %d. %s |cff888888(+%d yd)|r", i, s.goal.text or s.goal.title or "?", s.leg or 0)
+            local hex = N:StopColor(i, s.goal).hex
+            lines[#lines + 1] = string.format("  |cff%s%s|r %s |cff888888(+%d yd)|r",
+                hex, labels[i], s.goal.text or s.goal.title or "?", s.leg or 0)
         end
         if N.plan.dropped and #N.plan.dropped > 0 then
             lines[#lines + 1] = "|cff888888Skipped as too far out of the way: " .. table.concat(N.plan.dropped, ", ") .. "|r"

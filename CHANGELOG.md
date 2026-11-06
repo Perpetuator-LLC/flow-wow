@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.0
+- Fixed: the cast key did nothing on some clients. `/flow key test` shows what your key does.
+- Route adds a class-trainer stop by itself when you level into new spells.
+- Trip plan is colour-coded (orange = next stop, blue = quest pickups, sky blue = your waypoint)
+  and listed beside the world map; hover a row to preview, click to choose.
+- README banner.
+
 ## 0.14.0
 - Choose your route: click a place in the advice list or a checkpoint on the world map. Picking a
   quest pickup (`!N`) routes you through all the pickups first.

@@ -114,27 +114,89 @@ local function drawRoute(c, mapID, plan, color, withPins)
     local pos = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
     local px, py
     if pos then px, py = pos:GetXY() end
-    local pickups = 0
+    local labels = ns.nav:PlanLabels(plan)
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
         if x then
             if px then line(c, px, py, x, y, color, 0.9) end
             px, py = x, y
             if withPins then
-                local isPickup = s.goal.key:find("^pickup:") ~= nil
-                if isPickup then pickups = pickups + 1 end
-                local label = (isPickup and ("!" .. pickups) or tostring(i))
-                    .. (s.goal.level and string.format(" [%d]", s.goal.level) or "")
-                local pc = color
-                if isPickup then pc = theme().changed end
+                local pc = ns.nav:StopColor(i, s.goal)
                 if s.goal.key == hoverKey then pc = theme().hover end
-                if s.goal.key == "user:wp" then pc = theme().user end
-                pin(c, x, y, label, pc, s)
+                pin(c, x, y, labels[i], pc, s)
             end
         else
             px, py = nil, nil  -- off this map: break the line
         end
     end
+end
+
+-------------------------------------------------------------------------------
+-- Trip plan list beside the map: same numbers and colours as the pins.
+-- Hover a row to preview, click to choose.
+-------------------------------------------------------------------------------
+
+local list
+local LIST_ROWS = 12
+
+local function buildList()
+    local f = CreateFrame("Frame", "FlowMapTripList", WorldMapFrame)
+    f:SetSize(250, 28 + LIST_ROWS * 16)
+    f:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer or WorldMapFrame, "BOTTOMLEFT", 8, 8)
+    f:SetFrameStrata("HIGH")
+    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
+    f.bg:SetColorTexture(0, 0, 0, 0.7)
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.title:SetPoint("TOPLEFT", 8, -6)
+    f.rows = {}
+    for i = 1, LIST_ROWS do
+        local r = CreateFrame("Button", nil, f)
+        r:SetSize(236, 15)
+        r:SetPoint("TOPLEFT", 8, -22 - (i - 1) * 16)
+        r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+        r.hl:SetAllPoints()
+        r.hl:SetColorTexture(1, 1, 1, 0.1)
+        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        r.text:SetAllPoints()
+        r.text:SetJustifyH("LEFT")
+        r.text:SetWordWrap(false)
+        r:SetScript("OnEnter", function(self)
+            hoverKey = self.key
+            M:Preview(self.key)
+        end)
+        r:SetScript("OnLeave", function()
+            hoverKey = nil
+            M:Preview(nil)
+        end)
+        r:SetScript("OnClick", function(self)
+            ns.nav:Select(self.key)
+            M:Preview(nil)
+        end)
+        f.rows[i] = r
+    end
+    return f
+end
+
+local function updateList()
+    list = list or buildList()
+    local plan = ns.nav.plan
+    if not plan or #plan == 0 then list:Hide() return end
+    list.title:SetText(string.format("Flow trip plan: %d stops, about %d yd", #plan, plan[#plan].cum or 0))
+    local labels = ns.nav:PlanLabels(plan)
+    for i = 1, LIST_ROWS do
+        local r, s = list.rows[i], plan[i]
+        if s then
+            local col = ns.nav:StopColor(i, s.goal)
+            if s.goal.key == hoverKey then col = theme().hover end
+            r.key = s.goal.key
+            r.text:SetText(string.format("|cff%s%s|r %s", col.hex, labels[i], s.goal.text or s.goal.title or "?"))
+            r:Show()
+        else
+            r:Hide()
+        end
+    end
+    list:Show()
 end
 
 function M:Redraw()
@@ -164,6 +226,7 @@ function M:Redraw()
     end
     for i = nLines + 1, oldLines do lines[i]:Hide() end
     for i = nPins + 1, oldPins do pins[i]:Hide() end
+    updateList()
 end
 
 function M:Preview(key)
@@ -190,6 +253,7 @@ ns.commands.map = function(arg)
         if arg == "off" then
             for i = 1, nLines do lines[i]:Hide() end
             for i = 1, nPins do pins[i]:Hide() end
+            if list then list:Hide() end
         end
         ns:Print("route on the world map " .. arg)
     else
