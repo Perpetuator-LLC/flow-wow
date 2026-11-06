@@ -89,3 +89,26 @@ ns.commands.spec = function(arg)
         print("  /flow spec dps|heal|tank|auto to choose which role gear advice favours")
     end
 end
+
+-- /flow talents: this client's talent trees (tab, tier, column, ranks), so
+-- the talent plan can be written for Forever's real trees. Also in the
+-- diagnostics snapshot.
+ns.commands.talents = function()
+    if not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then
+        ns:Print("this client has no classic talent API" .. (C_ClassTalents and " (it has C_ClassTalents)" or ""))
+        return
+    end
+    local tabs = GetNumTalentTabs() or 0
+    ns:Print(string.format("talents: %d tab(s), %d point(s) to spend", tabs,
+        UnitCharacterPoints and UnitCharacterPoints("player") or 0))
+    for tab = 1, tabs do
+        local name = GetTalentTabInfo and GetTalentTabInfo(tab)
+        if type(name) == "number" then name = select(2, GetTalentTabInfo(tab)) end
+        print(string.format("  tab %d: %s", tab, tostring(name)))
+        for i = 1, GetNumTalents(tab) or 0 do
+            local tname, _, tier, column, rank, maxRank = GetTalentInfo(tab, i)
+            print(string.format("    %d.%d %s  tier %s col %s  %s/%s", tab, i, tostring(tname),
+                tostring(tier), tostring(column), tostring(rank), tostring(maxRank)))
+        end
+    end
+end

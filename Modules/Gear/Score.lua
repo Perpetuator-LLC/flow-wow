@@ -95,17 +95,70 @@ end
 -- Returns diff, and what it was compared with.
 local OFFHAND = { INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true, INVTYPE_WEAPONOFFHAND = true }
 
+-- One-hander + shield vs a two-hander. While you wear a two-hander, a
+-- one-hander alone looks weak against it (and a shield alone even more): it
+-- only replaces it together with an off-hand. So it's valued as a pair with
+-- the best partner in your bags for that role (a shield / off-hand for a
+-- one-hander, a one-hander for a shield). Returns score, link of the partner.
+local MAIN_1H = { INVTYPE_WEAPON = true, INVTYPE_WEAPONMAINHAND = true }
+local OFF = { INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true, INVTYPE_WEAPONOFFHAND = true }
+G.MAIN_1H, G.OFF = MAIN_1H, OFF
+
+local partnerCache, partnerAt = {}, 0
+function G:BestPartner(item, role, bagItems)
+    -- Bag scan cached for 2 s (bag icons ask once per item and role).
+    local group = MAIN_1H[item.equipLoc] and "off" or "main"
+    if not bagItems then
+        if GetTime() - partnerAt > 2 then wipe(partnerCache); partnerAt = GetTime() end
+        local c = partnerCache[role .. group]
+        if c then return c[1], c[2] end
+    end
+    local want = MAIN_1H[item.equipLoc] and OFF or (OFF[item.equipLoc] and MAIN_1H) or nil
+    if not want then return nil end
+    local best, bestLink
+    local function consider(link)
+        local other = self:Describe(link)
+        if other and want[other.equipLoc] and self:CanUse(other) and (other.minLevel or 0) <= UnitLevel("player") then
+            local s = (self:Score(other))[role]
+            if not best or s > best then best, bestLink = s, link end
+        end
+    end
+    if bagItems then
+        for _, link in ipairs(bagItems) do consider(link) end
+    elseif ns.disposition and ns.disposition.EachBagItem then
+        ns.disposition:EachBagItem(function(_, _, link) consider(link) end)
+    end
+    if not bagItems then partnerCache[role .. group] = { best, bestLink } end
+    return best, bestLink
+end
+
+local function wearingTwoHander(self, role)
+    local mh = self:CompareLink(role, 16)
+    local mhItem = mh and self:Describe(mh)
+    return mhItem and mhItem.equipLoc == "INVTYPE_2HWEAPON"
+end
+
 function G:RoleDiff(item, role, scores)
     local base, what = self:EquippedScore(item, role)
-    local diff = scores[role] - base
-    -- Class data can say a role doesn't use an off-hand (Retribution uses
-    -- two-handers): then shields/off-hands are never upgrades for it.
     local d = ns:ClassData()
     local rules = d and d.roleRules and d.roleRules[role]
+    -- Against a two-hander, a one-hander or shield counts as a pair (see
+    -- BestPartner); a role that doesn't use off-hands keeps the one-hander alone.
+    local pairBonus, cmp = 0, what
+    if (MAIN_1H[item.equipLoc] or OFF[item.equipLoc]) and not (rules and rules.noOffhand) and wearingTwoHander(self, role) then
+        local ps, plink = self:BestPartner(item, role)
+        if ps then
+            pairBonus = ps
+            what = (what or "?") .. " (as a pair with " .. plink .. ")"
+        end
+    end
+    local diff = scores[role] + pairBonus - base
+    -- Class data can say a role doesn't use an off-hand (Retribution uses
+    -- two-handers): then shields/off-hands are never upgrades for it.
     if rules and rules.noOffhand and OFFHAND[item.equipLoc] then
         return math.min(diff, 0), what
     end
-    if diff < 0.5 and (what == nil or not what:find(" %+ ")) and self:Dominates(item, what) then
+    if diff < 0.5 and pairBonus == 0 and (cmp == nil or not cmp:find(" %+ ")) and self:Dominates(item, cmp) then
         diff = 0.5  -- counts as an upgrade
     end
     return diff, what

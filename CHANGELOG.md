@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.1
+- Gear: while you wear a two-hander, a one-hander or shield is valued as a pair with the best
+  partner in your bags (a shield for a one-hander, a one-hander for a shield), shown as "as a
+  pair with ...". Retribution, which uses no off-hand, keeps comparing the one-hander alone.
+- `/flow talents` (and the diagnostics) list this client's talent trees, for writing the
+  talent plan.
+
 ## 0.34.0
 - Crafting materials no profession of yours uses (learned or planned) are offered for sale (plain)
   or the auction house (better quality). Materials for planned professions are kept, e.g. Linen
