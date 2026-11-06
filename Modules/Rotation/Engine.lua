@@ -156,6 +156,8 @@ local function priorityFor(def, ctx)
 end
 
 local function ruleReady(self, rule, ctx)
+    -- No buff nagging in inns and cities (resting): you rebuff on the way out.
+    if rule.kind == "buff" and not ctx.inCombat and IsResting and IsResting() then return false end
     if not self:Knows(rule.spell) then return false end
     if rule.when then
         -- One failing check (e.g. a buff the game hides in combat) skips that
@@ -183,6 +185,18 @@ function E:Choose()
     if def.heals then
         local h = self:HealDecision(ctx, def.heals)
         if h then h.fightType = ctx.fightType; return h end
+    end
+
+    -- Right after a real fight: offer a heal for a few seconds. Flow can't see
+    -- your health in Forever, so it's a prompt, gone once you heal, fight
+    -- again, or after 12 s.
+    if not ctx.inCombat and self.afterFight and GetTime() < self.afterFight then
+        for _, spell in ipairs(def.afterFightHeals or { "Holy Light", "Flash of Light" }) do
+            if self:Knows(spell) and self:Ready(spell) then
+                return { spell = spell, kind = "heal", fightType = ctx.fightType,
+                         reason = "After the fight: top up if you're hurt (Flow can't see your health)" }
+            end
+        end
     end
 
     local list = priorityFor(def, ctx)
@@ -328,3 +342,17 @@ ns.commands.rot = function(arg)
         ns:Print("/flow rot guide|why|on|off|lock|unlock|stats|known|debug|reset")
     end
 end
+
+-- After-fight heal window (see Choose): opens when a fight of 6 s or more
+-- ends, closes when you cast a heal or start another fight.
+local fightStart
+ns:On("PLAYER_REGEN_DISABLED", function() fightStart = GetTime(); E.afterFight = nil end)
+ns:On("PLAYER_REGEN_ENABLED", function()
+    if fightStart and GetTime() - fightStart >= 6 then E.afterFight = GetTime() + 12 end
+    fightStart = nil
+end)
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not E.afterFight then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if name == "Holy Light" or name == "Flash of Light" then E.afterFight = nil end
+end)

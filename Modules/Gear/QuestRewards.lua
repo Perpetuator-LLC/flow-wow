@@ -1,21 +1,12 @@
--- Badges on quest reward choices so you can pick at a glance:
---   spec icons (Retribution / Holy / Protection, role-coloured rim) = best upgrade for that role
---   (classes without spec icons show D / H / T letters instead)
---   gold coin = nothing is an upgrade for any role: take this one to sell
---               (highest vendor price)
--- One item can carry several badges. A badge is only shown for a role if
--- that choice actually beats what you wear for that role.
+-- Marks on quest reward choices so you can pick at a glance:
+--   spec badge (bottom of the icon) = one icon per spec with an arrow above:
+--     up = better than what that spec wears, down = worse, flat = about the
+--     same (Gear/SpecBadge.lua, the same marks as in your bags)
+--   gold coin (top left) = nothing is an upgrade for any spec: take this one
+--     to sell (highest vendor price)
 
 local _, ns = ...
 local G = ns.gear
-
-local BADGE = {
-    dps  = { 1.0, 0.25, 0.25, "D" },
-    heal = { 0.25, 0.9, 0.25, "H" },
-    tank = { 0.25, 0.55, 1.0, "T" },
-    sell = { 1.0, 0.65, 0.0, "$" },
-}
-local ORDER = { "dps", "heal", "tank", "sell" }
 
 local function rewardButton(i)
     local frame = QuestInfoRewardsFrame
@@ -29,47 +20,24 @@ local function rewardButton(i)
     return _G["QuestInfoRewardsFrameQuestInfoItem" .. i] or _G["QuestInfoItem" .. i]
 end
 
-local function badgesFor(button)
-    if button.flowBadges then return button.flowBadges end
-    local list = {}
+-- Per button: the shared spec badge (Gear/SpecBadge.lua) at the bottom of the
+-- item icon, and a gold coin at its top left for "take this one to sell".
+local function marksFor(button)
+    if button.flowMarks then return button.flowMarks end
     local anchor = button.Icon or _G[(button:GetName() or "") .. "IconTexture"] or button
-    for idx, key in ipairs(ORDER) do
-        local c = BADGE[key]
-        local f = CreateFrame("Frame", nil, button)
-        f:SetSize(14, 14)
-        f:SetFrameLevel(button:GetFrameLevel() + 5)
-        f.bg = f:CreateTexture(nil, "OVERLAY")
-        f.bg:SetAllPoints()
-        f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        f.text:SetPoint("CENTER", 0, 0)
-        if key == "sell" then
-            -- Same gold coin as the bag icons.
-            f.bg:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
-        else
-            -- Spec icon (Retribution / Holy / Protection) in a role-coloured rim;
-            -- the letter only if the class has no icon.
-            f.bg:SetColorTexture(c[1], c[2], c[3], 0.95)
-            local path = ns:RoleIconPath(key)
-            if path then
-                f.icon = f:CreateTexture(nil, "ARTWORK")
-                f.icon:SetPoint("TOPLEFT", 1, -1)
-                f.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-                f.icon:SetTexture(path)
-                f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            else
-                f.text:SetText(c[4])
-            end
-        end
-        f:Hide()
-        f.key = key
-        list[idx] = f
-    end
-    list.anchor = anchor
-    button.flowBadges = list
-    return list
+    local m = {}
+    m.specs = ns:SpecBadge(button, 10)
+    m.specs:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 1, 1)
+    m.coin = button:CreateTexture(nil, "OVERLAY", nil, 7)
+    m.coin:SetTexture("Interface\MoneyFrame\UI-GoldIcon")
+    m.coin:SetSize(14, 14)
+    m.coin:SetPoint("TOPLEFT", anchor, "TOPLEFT", -2, 2)
+    m.coin:Hide()
+    button.flowMarks = m
+    return m
 end
 
--- Clear badges from every reward button: buttons get reused between quests,
+-- Clear marks from every reward button: buttons get reused between quests,
 -- sometimes for fixed (non-choice) rewards.
 local function hideAll()
     local buttons = {}
@@ -80,42 +48,29 @@ local function hideAll()
         if b then buttons[#buttons + 1] = b end
     end
     for _, b in ipairs(buttons) do
-        for _, f in ipairs(b.flowBadges or {}) do f:Hide() end
+        if b.flowMarks then b.flowMarks.specs:Hide(); b.flowMarks.coin:Hide() end
     end
 end
 
--- Returns { [choiceIndex] = { role = true, ... } }, missingInfo
+-- For each choice: its comparison (diffs per spec), and which one to take to
+-- sell when none is an upgrade for any spec. Returns choices, sellIndex, missingInfo.
 local function pick(n)
-    local best = {}       -- role -> { i, diff }
-    local sell            -- { i, price }
-    local missing = false
+    local choices, sell, missing, anyUp = {}, nil, false, false
     for i = 1, n do
         local link = GetQuestItemLink("choice", i)
         local c = link and G:Compare(link)
         if link and not c then missing = true end
         if c then
+            choices[i] = c
             if c.canUse then
                 for _, role in ipairs(G.ROLES) do
-                    local d = c.diffs[role]
-                    if d >= 0.5 and (not best[role] or d > best[role].diff) then
-                        best[role] = { i = i, diff = d }
-                    end
+                    if ns.SpecTrend(c.diffs[role]) == "up" then anyUp = true end
                 end
             end
-            if not sell or c.item.sellPrice > sell.price then
-                sell = { i = i, price = c.item.sellPrice }
-            end
+            if not sell or c.item.sellPrice > sell.price then sell = { i = i, price = c.item.sellPrice } end
         end
     end
-    local marks = {}
-    local any = false
-    for role, b in pairs(best) do
-        marks[b.i] = marks[b.i] or {}
-        marks[b.i][role] = true
-        any = true
-    end
-    if not any and sell then marks[sell.i] = { sell = true } end
-    return marks, missing
+    return choices, (not anyUp and sell) and sell.i or nil, missing
 end
 
 local retried = false
@@ -126,21 +81,14 @@ local function update()
     -- buttons but the choice APIs below don't describe it.
     if not (QuestFrame and QuestFrame:IsShown()) then return end
     local n = GetNumQuestChoices and GetNumQuestChoices() or 0
-    if n < 2 then return end  -- nothing to choose between
-    local marks, missing = pick(n)
-    for i, roles in pairs(marks) do
+    if n < 1 then return end
+    local choices, sellIndex, missing = pick(n)
+    for i, c in pairs(choices) do
         local b = rewardButton(i)
         if b then
-            local list = badgesFor(b)
-            local x = 0
-            for _, f in ipairs(list) do
-                if roles[f.key] then
-                    f:ClearAllPoints()
-                    f:SetPoint("TOPLEFT", list.anchor, "TOPLEFT", x - 2, 2)
-                    f:Show()
-                    x = x + 15
-                end
-            end
+            local m = marksFor(b)
+            if c.canUse then m.specs:Set(c.diffs) else m.specs:Hide() end
+            m.coin:SetShown(i == sellIndex and n > 1)
         end
     end
     -- Item info may not be loaded the first time; try once more shortly.
@@ -149,7 +97,6 @@ local function update()
         C_Timer.After(0.5, function() pcall(update) end)
     end
 end
-
 local function schedule()
     retried = false
     C_Timer.After(0, function() pcall(update) end)

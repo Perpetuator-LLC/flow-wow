@@ -26,9 +26,24 @@ local function macroFor(s)
     return "/cast " .. s.spell
 end
 
+-- Points the secure button at the suggestion. Spells use the "spell" button
+-- type: Forever ignores macro-type secure buttons (the fight record showed
+-- every key press arriving with the right macro, and nothing cast). Only
+-- Attack still goes through a macro (/startattack never toggles it off).
 local function setMacro(text, spell)
     if InCombatLockdown() or text == macro then return end
-    btn:SetAttribute("macrotext", text)
+    if spell and spell ~= "Attack" and spell ~= "Auto Attack" then
+        btn:SetAttribute("type", "spell")
+        btn:SetAttribute("spell", spell)
+        btn:SetAttribute("unit", text:find("@player", 1, true) and "player" or nil)
+    elseif spell then
+        btn:SetAttribute("type", "macro")
+        btn:SetAttribute("macrotext", text)
+        btn:SetAttribute("unit", nil)
+    else
+        btn:SetAttribute("type", nil)
+        btn:SetAttribute("spell", nil)
+    end
     macro, lockedSpell = text, spell
 end
 
@@ -239,8 +254,8 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     if not fight then return end
     local seen = {}
     for spell, n in pairs(fight.seen) do seen[#seen + 1] = spell .. " x" .. n end
-    ns:Log("cast", string.format("fight end (%.0f s): button got %d click(s) (%d key-down), suggested %s; nothing %d of %d ticks; last error %s",
-        GetTime() - fight.at, fight.clicks, fight.downs, #seen > 0 and table.concat(seen, ", ") or "nothing",
+    ns:Log("cast", string.format("fight end (%.0f s): button got %d click(s) (%d key-down), %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
+        GetTime() - fight.at, fight.clicks, fight.downs, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
         fight.empty, fight.ticks, tostring(E.lastError)))
     fight = nil
 end)
@@ -267,4 +282,20 @@ ns:OnLoad(function()
         local s = E.current
         if s then fight.seen[s.spell] = (fight.seen[s.spell] or 0) + 1 else fight.empty = fight.empty + 1 end
     end)
+end)
+
+-- During a fight, the game's own complaints (out of range, not ready, no
+-- target...) and failed casts go into the fight record too (first few).
+local function complain(what)
+    if not fight then return end
+    fight.errors = (fight.errors or 0) + 1
+    if fight.errors <= 5 then ns:Log("cast", "game said: " .. tostring(what)) end
+end
+ns:On("UI_ERROR_MESSAGE", function(_, msg) complain(ns.api.Safe(msg)) end)
+ns:On("UNIT_SPELLCAST_FAILED", function(unit, _, spellID)
+    if unit == "player" then complain("cast failed: " .. tostring(ns.api.SpellInfo(ns.api.Safe(spellID) or 0))) end
+end)
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not fight then return end
+    fight.casts = (fight.casts or 0) + 1
 end)

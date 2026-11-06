@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.31.0
+- Cast key and icon: Forever ignores macro-type secure buttons (fight records showed every press
+  arriving with the right spell, and nothing cast). The button now uses the "spell" type; only
+  Attack still uses /startattack. Fight records also log the game's own errors and casts.
+- After a fight of 6 s or more, the icon offers Holy Light for up to 12 s (Flow can't see your
+  health in Forever, so it's a prompt; it goes when you heal or fight again).
+- No buff reminders while resting (inns, cities); everywhere else they keep coming.
+- One spec badge everywhere items are marked (bags, quest reward choices, vendor drawer): an icon
+  per spec with an arrow drawn right above it (up better, down worse, flat about the same). Quest
+  rewards used to show plain coloured squares.
+- Tests: spec badge, after-fight heal (15 in all).
+
 ## 0.30.1
 - Route: a quest's turn-in now comes along with its objectives (it used to fall off the end of
   the 14 nearest stops, so the route stopped at the last objective).

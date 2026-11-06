@@ -223,3 +223,28 @@ ns:Register("test", "planner: a quest's turn-in comes along with its objectives"
     t:ok(at["7:done"] ~= nil, "turn-in planned although it's the farthest stop")
     t:ok(at["7:1"] and at["7:done"] and at["7:1"] < at["7:done"], "after its objective")
 end)
+
+ns:Register("test", "spec badge: better / worse / same per spec", function(t)
+    t:eq(ns.SpecTrend(1.2), "up", "better"); t:eq(ns.SpecTrend(-3), "down", "worse")
+    t:eq(ns.SpecTrend(0.2), "same", "about the same"); t:eq(ns.SpecTrend(nil), nil, "no score")
+    local b = ns:SpecBadge(UIParent, 10)
+    b:Set({ dps = 2, heal = -2, tank = 0 })
+    t:ok(b:IsShown(), "shown with scores")
+    t:ok(b.slots.dps.arrow.l1:IsShown() and not b.slots.dps.arrow.bar:IsShown(), "dps: arrow")
+    t:ok(b.slots.tank.arrow.bar:IsShown(), "tank: flat bar")
+    b:Set(nil)
+    t:ok(not b:IsShown(), "hidden without scores")
+    b:Hide()
+end)
+
+ns:Register("test", "rotation: heal prompt right after a fight", function(t)
+    local E = ns.rotation
+    if not E:Knows("Holy Light") then t:ok(true) return end
+    local old = E.afterFight
+    E.afterFight = GetTime() + 5
+    local s = InCombatLockdown() and nil or E:Choose()
+    E.afterFight = old
+    if InCombatLockdown() then t:ok(true) return end
+    t:eq(s and s.spell, "Holy Light", "suggests a heal")
+    t:eq(s and s.kind, "heal", "as a heal")
+end)

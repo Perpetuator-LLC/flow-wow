@@ -15,7 +15,6 @@ local BADGE = {
     ah   = { "AH", 0.4, 0.8, 1.0 },
     de   = { "DE", 0.75, 0.5, 1.0 },
 }
-local ROLE_RGB = { dps = { 1, 0.25, 0.25 }, heal = { 0.25, 0.9, 0.25 }, tank = { 0.25, 0.55, 1 } }
 
 local function marks(button)
     if button.flowMarks then return button.flowMarks end
@@ -30,41 +29,10 @@ local function marks(button)
         m.arrow:SetColorTexture(0.2, 1, 0.2, 0.9)
         m.arrow:SetSize(8, 8)
     end
-    -- Bottom row: a small icon per spec (Retribution / Holy / Protection,
-    -- role-coloured rim) with an arrow above it: up = better than what that
-    -- spec wears, down = worse, flat bar = about the same. One glance tells
-    -- you whether it's an upgrade across the board or for one spec only.
-    m.dots = {}
-    local SIZE = 10
-    for i, role in ipairs({ "dps", "heal", "tank" }) do
-        local d = CreateFrame("Frame", nil, m)
-        d:SetSize(SIZE, SIZE)
-        d:SetPoint("BOTTOMRIGHT", -1 - (3 - i) * (SIZE + 2), 1)
-        d.rim = d:CreateTexture(nil, "BACKGROUND")
-        d.rim:SetAllPoints()
-        d.rim:SetColorTexture(ROLE_RGB[role][1], ROLE_RGB[role][2], ROLE_RGB[role][3], 1)
-        d.icon = d:CreateTexture(nil, "ARTWORK")
-        d.icon:SetPoint("TOPLEFT", 1, -1)
-        d.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-        local path = ns:RoleIconPath(role)
-        if path then d.icon:SetTexture(path); d.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else d.icon:Hide() end
-        d.up = d:CreateTexture(nil, "OVERLAY")
-        d.up:SetSize(SIZE, 8)
-        d.up:SetPoint("BOTTOM", d, "TOP", 0, 0)
-        d.up:SetTexture("Interface\Buttons\Arrow-Up-Up")
-        d.up:SetVertexColor(0.3, 1, 0.3)
-        d.down = d:CreateTexture(nil, "OVERLAY")
-        d.down:SetSize(SIZE, 8)
-        d.down:SetPoint("BOTTOM", d, "TOP", 0, 0)
-        d.down:SetTexture("Interface\Buttons\Arrow-Down-Up")
-        d.down:SetVertexColor(1, 0.3, 0.3)
-        d.same = d:CreateTexture(nil, "OVERLAY")
-        d.same:SetSize(SIZE - 2, 2)
-        d.same:SetPoint("BOTTOM", d, "TOP", 0, 2)
-        d.same:SetColorTexture(0.8, 0.8, 0.8, 0.9)
-        d:Hide()
-        m.dots[role] = d
-    end
+    -- Bottom: the spec badge (Gear/SpecBadge.lua): an icon per spec with an
+    -- arrow right above it (better / worse / same as that spec's gear).
+    m.specs = ns:SpecBadge(m, 10)
+    m.specs:SetPoint("BOTTOMRIGHT", -1, 1)
     m.badge = m:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     m.badge:SetPoint("TOPRIGHT", -2, -2)
     -- Gold coin for "sell".
@@ -86,7 +54,7 @@ local function clear(button)
     local m = button.flowMarks
     if not m then return end
     m.arrow:Hide()
-    for _, d in pairs(m.dots) do d:Hide() end
+    m.specs:Hide()
     m.badge:SetText("")
     m.coin:Hide()
     m.keep:Hide()
@@ -100,19 +68,7 @@ local function paint(button, bag, slot)
     local m = marks(button)
     m.arrow:SetShown(v.action == "equip")
     local g = v.item.gear
-    local main = ns:LevelingRole()
-    for role, d in pairs(m.dots) do
-        local show = g ~= nil and g.canUse and g.diffs and g.diffs[role] ~= nil
-        d:SetShown(show)
-        if show then
-            local diff = g.diffs[role]
-            d.up:SetShown(diff >= 0.5)
-            d.down:SetShown(diff <= -0.5)
-            d.same:SetShown(diff > -0.5 and diff < 0.5)
-            -- Your levelling spec stands out; the others are dimmer.
-            d:SetAlpha(role == main and 1 or 0.75)
-        end
-    end
+    if g and g.canUse then m.specs:Set(g.diffs) else m.specs:Hide() end
     m.coin:SetShown(v.action == "sell")
     if v.action == "keep" and v.icon then
         m.keep:SetTexture(v.icon)
@@ -196,7 +152,7 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Green arrow = equip now, dots = better for another role, $ sell, AH auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Green arrow = equip now, spec icons with arrows = better / worse / same per spec, $ sell, AH auction house, DE disenchant.")
     end
 end
 

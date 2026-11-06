@@ -49,7 +49,8 @@ function V:Candidates()
             local count, locked = stackCount(bag, slot)
             if not locked then
                 local e = { bag = bag, slot = slot, link = link, id = v.item.id,
-                            price = v.item.sellPrice * count, reason = v.reason }
+                            price = v.item.sellPrice * count, reason = v.reason,
+                            diffs = v.item.gear and v.item.gear.canUse and v.item.gear.diffs or nil }
                 if v.item.quality == 0 then junk[#junk + 1] = e else proposed[#proposed + 1] = e end
             end
         end
@@ -103,6 +104,9 @@ local function makeRow(parent)
     r.btn:SetSize(68, 18)
     r.btn:SetPoint("RIGHT")
     r.btn:GetFontString():SetFontObject("GameFontHighlightSmall")
+    -- Gear: the same spec badge as in your bags (Gear/SpecBadge.lua).
+    r.specs = ns:SpecBadge(r, 9)
+    r.specs:SetPoint("LEFT", r, "LEFT", 176, 0)
     r:SetScript("OnEnter", function(self)
         if not self.link then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -211,6 +215,7 @@ function V:Refresh()
             local get = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
             r.icon:SetTexture(get and id and get(id) or nil)
             r.name:SetText(e.link)
+            if e.diffs then r.specs:Set(e.diffs) else r.specs:Hide() end
             r.price:SetText(money(e.price))
             r.btn:SetText("Sell")
             r.btn:Show()
@@ -243,6 +248,7 @@ function V:Refresh()
             local get = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
             r.icon:SetTexture(get and id and get(id) or nil)
             r.name:SetText(e.link)
+            if e.diffs then r.specs:Set(e.diffs) else r.specs:Hide() end
             r.price:SetText(money(e.price))
             r.btn:SetText("Buy back")
             r.btn:SetScript("OnClick", function()
