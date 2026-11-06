@@ -194,17 +194,49 @@ local function buildList()
     t:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.toggle = t
 
+    -- How to use it, and which route to follow.
+    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.hint:SetPoint("TOPLEFT", 8, -30)
+    f.hint:SetPoint("TOPRIGHT", -8, -30)
+    f.hint:SetJustifyH("LEFT")
+    f.hint:SetText("Click a stop to follow that route. Hover to preview it on the map.")
+
+    local function choice(y, mode, text, tip)
+        local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+        cb:SetSize(20, 20)
+        cb:SetPoint("TOPLEFT", 6, y)
+        cb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        cb.label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+        cb.label:SetText(text)
+        cb.mode = mode
+        cb:SetScript("OnClick", function()
+            ns.nav:SetMode(mode)
+            M:Redraw()
+        end)
+        cb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(tip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        return cb
+    end
+    f.modeQuests = choice(-44, "quests", "Follow current quests",
+        "Only the quests already in your log: their objectives, then turn-ins.")
+    f.modeOptimal = choice(-62, "optimal", "Follow optimal path",
+        "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")
+
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -30)
-    f.title:SetPoint("TOPRIGHT", -8, -30)
+    f.title:SetPoint("TOPLEFT", 8, -86)
+    f.title:SetPoint("TOPRIGHT", -8, -86)
     f.title:SetJustifyH("LEFT")
 
     f.rows = {}
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -48 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -48 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -104 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -104 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -236,13 +268,21 @@ end
 local function updateList()
     list = list or buildList()
     local plan = ns.nav.plan
-    if not plan or #plan == 0 then list:Hide() return end
+    -- Keep the panel up even with an empty route, so the mode can be switched back.
+    plan = plan or {}
+    if not ns.nav:PlayerPos() then list:Hide() return end
     place()
     list:Show()
     local hidden = collapsed()
     list.toggle.text:SetText(hidden and "Show Flow route  (+)" or "Hide Flow route  (-)")
     list.bg:SetShown(not hidden)
     list.title:SetShown(not hidden)
+    list.hint:SetShown(not hidden)
+    list.modeQuests:SetShown(not hidden); list.modeQuests.label:SetShown(not hidden)
+    list.modeOptimal:SetShown(not hidden); list.modeOptimal.label:SetShown(not hidden)
+    local mode = ns.nav:Mode()
+    list.modeQuests:SetChecked(mode == "quests")
+    list.modeOptimal:SetChecked(mode == "optimal")
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -250,9 +290,10 @@ local function updateList()
     end
     local following = ns.party and ns.party:Following()
     list.title:SetText(string.format("%s: %d stops, about %d yd",
-        following and "Party route" or "Your route", #plan, plan[#plan].cum or 0))
+        following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0))
+    if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 54) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 110) / ROW_H))
     for i = 1, MAX_ROWS do
         local r, s = list.rows[i], plan[i]
         if s and i <= fit then

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.3
+- Map route panel: "Click a stop to follow that route" hint, and a choice between **Follow current
+  quests** (only quests in your log) and **Follow optimal path** (also pickups, trainers, skill-ups).
+  Also `/flow nav quests|optimal`.
+
 ## 0.17.2
 - The advice button is now a round minimap-style spyglass with an orange count bubble, and it pulses
   briefly when something important appears.

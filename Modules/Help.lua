@@ -27,6 +27,7 @@ local topics = {
         "World map: numbered checkpoints with levels \"3 [9]\", quest pickups \"!2\". Hover to preview",
         "  (yellow), click to choose. Advice list rows with an arrow do the same. /flow map on|off",
         "Waypoint: Ctrl- or Alt-click the world map, or /flow way <x> <y> [note]; /flow way clear",
+        "/flow nav quests|optimal - follow only current quests, or the optimal path (also on the map panel)",
         "/flow nav on|off|learn|forget",
     } },
     { "quests", 50, "Quests", {

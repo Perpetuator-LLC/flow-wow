@@ -281,8 +281,27 @@ function N:Collect()
             ns:Print("nav goal " .. key .. ": " .. tostring(found))
         end
     end
+    -- Route mode: "quests" = only quests already in your log (their objectives
+    -- and turn-ins), plus your waypoint and the party route; "optimal" (default)
+    -- = everything worth doing: pickups, trainers, fishing/gathering too.
+    if N:Mode() == "quests" then
+        local kept = {}
+        for _, g in ipairs(list) do
+            if g.key:find("^%d+:") or g.key == "user:wp" or g.key:find("^party:") then
+                kept[#kept + 1] = g
+            end
+        end
+        list = kept
+    end
     goals = list
     N.planDirty = true
+end
+
+function N:Mode() return (ns.db.nav and ns.db.nav.mode) or "optimal" end
+
+function N:SetMode(mode)
+    ns.db.nav.mode = (mode == "quests") and "quests" or "optimal"
+    self:Collect()
 end
 
 function N:Goals() return goals end
@@ -695,6 +714,9 @@ ns.commands.nav = function(arg)
     if arg == "on" or arg == "off" then
         cfg.enabled = (arg == "on")
         ns:Print("navigation arrow " .. arg)
+    elseif arg == "quests" or arg == "optimal" then
+        N:SetMode(arg)
+        ns:Print(arg == "quests" and "following your current quests only" or "following the optimal path (quests, pickups, trainers, skill-ups)")
     elseif arg == "learn" then
         cfg.learn = not cfg.learn
         ns:Print("trail learning " .. (cfg.learn and "on" or "off"))
