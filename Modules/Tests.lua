@@ -304,7 +304,8 @@ ns:Register("test", "bags: profession materials name every profession that uses 
     local rule = ns:Get("disposition", "professionMaterial")
     if not ns.api.Skill("Blacksmithing") then t:ok(true) return end
     local v = rule.check({ id = 2835, classID = 7, subclassID = 7 })  -- Rough Stone
-    t:ok(v and v.reason:find("Blacksmithing: Rough Sharpening Stone", 1, true) ~= nil,
+    -- Your own profession window wins over the guide (Forever has its own recipes).
+    t:ok(v and v.reason:find("for Blacksmithing", 1, true) ~= nil,
         "Rough Stone kept for Blacksmithing (" .. tostring(v and v.reason) .. ")")
 end)
 

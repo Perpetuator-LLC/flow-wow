@@ -7,7 +7,7 @@
 - Weapon speed now counts a little in the gear score (up to one point either way), per spec
   preference (Retribution: slow).
 - Tests: quest availability (level, holiday events, quests a giver didn't offer), sell decisions,
-  weapon speed (26 in all).
+  weapon speed (25 in all).
 
 ## 0.33.1
 - Items kept for several reasons list them all (e.g. Linen Cloth: the Redemption class quest; for
