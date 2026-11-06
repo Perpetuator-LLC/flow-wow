@@ -1,9 +1,12 @@
--- First-run setup: a table of recommended settings. Each row shows what the
--- setting is now and what Flow suggests; tick the ones you want and click
--- "Apply selected". Shown once the first time Flow loads; /flow setup
--- reopens it. Rows are registered, so features can add their own:
---   ns:Register("setupItem", key, { order, label, why, now = fn() -> text,
---       suggested = "text", isSet = fn() -> bool, apply = fn(), action = "Set..." })
+-- Setup table (/flow setup; opens once on first run). Each row is a setting
+-- with a tick box showing its CURRENT state (ticked = on). Change any of them
+-- and click Apply: it turns things on or off to match. Quick picks:
+--   All / None / Flow suggests / WoW default / Reset (back to current)
+-- Rows are registered, so features can add their own:
+--   ns:Register("setupItem", key, { order, label, why, available = fn,
+--       isOn = fn() -> bool, set = fn(on), suggested = bool, default = bool })
+--   or an action row: { order, label, why, now = fn() -> text, action = "Set...", run = fn }
+--   or an info row:   { order, label, why, now = fn() -> text, info = true }
 -- Rows whose setting this client doesn't have are left out.
 
 local _, ns = ...
@@ -15,71 +18,73 @@ local function cvar(name)
     if ok then return v end
 end
 
-local function cvarRow(key, order, label, why, name, want, wantText, nowText)
+local function cvarDefault(name)
+    local ok, v = pcall(GetCVarDefault, name)
+    if ok then return v end
+end
+
+-- An on/off CVar row.
+local function cvarRow(key, order, label, why, name, onValue, offValue, suggested)
     ns:Register("setupItem", key, {
         order = order, label = label, why = why,
         available = function() return cvar(name) ~= nil end,
-        now = function() return nowText(cvar(name)) end,
-        suggested = wantText,
-        isSet = function() return cvar(name) == want end,
-        apply = function() SetCVar(name, want) end,
+        isOn = function() return cvar(name) == onValue end,
+        set = function(on) SetCVar(name, on and onValue or offValue) end,
+        suggested = suggested,
+        default = function() return cvarDefault(name) == onValue end,
     })
 end
 
-local onOff = function(v) return v == "1" and "on" or "off" end
-
 cvarRow("autoLoot", 10, "Auto loot", "Loot everything with one click instead of picking each item.",
-    "autoLootDefault", "1", "on", onOff)
+    "autoLootDefault", "1", "0", true)
 cvarRow("enemyPlates", 20, "Enemy nameplates", "Flow's quest marks (skull, diamond) sit on nameplates.",
-    "nameplateShowEnemies", "1", "on", onOff)
+    "nameplateShowEnemies", "1", "0", true)
 cvarRow("friendPlates", 30, "Friendly nameplates", "Shows Flow's star on NPCs your quests mention.",
-    "nameplateShowFriends", "1", "on", onOff)
+    "nameplateShowFriends", "1", "0", true)
 cvarRow("instantQuest", 40, "Instant quest text", "Quest text appears at once instead of scrolling.",
-    "instantQuestText", "1", "on", onOff)
+    "instantQuestText", "1", "0", true)
 cvarRow("autoPush", 50, "Auto-place new spells on bars",
-    "The game drops newly learned spells into empty bar slots. Off if you place spells yourself.",
-    "AutoPushSpellToActionBar", "0", "off", onOff)
+    "The game drops newly learned spells into empty bar slots. Leave off if you place spells yourself.",
+    "AutoPushSpellToActionBar", "1", "0", false)
 
 ns:Register("setupItem", "zoom", {
     order = 60, label = "Max camera zoom", why = "See more around you while questing.",
-    now = function() return ns.camera:IsOn() and "max" or "game default" end,
-    suggested = "max",
-    isSet = function() return ns.camera:IsOn() end,
-    apply = function() ns.camera:Set(true) end,
+    isOn = function() return ns.camera:IsOn() end,
+    set = function(on) ns.camera:Set(on) end,
+    suggested = true, default = false,
 })
 
 ns:Register("setupItem", "stamps", {
     order = 70, label = "Chat timestamps", why = "See when each chat line arrived.",
-    now = function() local v = cvar("showTimestamps"); return (v and v ~= "none") and "on" or "off" end,
-    suggested = "on",
-    isSet = function() local v = cvar("showTimestamps"); return v ~= nil and v ~= "none" end,
-    apply = function() SetCVar("showTimestamps", "%H:%M:%S ") end,
+    isOn = function() local v = cvar("showTimestamps"); return v ~= nil and v ~= "none" end,
+    set = function(on) SetCVar("showTimestamps", on and "%H:%M:%S " or "none") end,
+    suggested = true,
+    default = function() local d = cvarDefault("showTimestamps"); return d ~= nil and d ~= "none" end,
 })
 
 ns:Register("setupItem", "combatLog", {
     order = 80, label = "Combat log file every session",
     why = "Lets Claude analyse your fights and tune Flow's rotation (tools\\analyze-combatlog.ps1).",
-    now = function() return ns.db.log and ns.db.log.auto and "on" or "off" end,
-    suggested = "on",
-    isSet = function() return ns.db.log and ns.db.log.auto end,
-    apply = function() ns.db.log.auto = true; if LoggingCombat then pcall(LoggingCombat, true) end end,
+    isOn = function() return ns.db.log and ns.db.log.auto == true end,
+    set = function(on)
+        ns.db.log.auto = on
+        if LoggingCombat then pcall(LoggingCombat, on) end
+    end,
+    suggested = true, default = false,
 })
 
 ns:Register("setupItem", "castKey", {
     order = 90, label = "Flow cast key", why = "One key that casts Flow's suggestion.",
     now = function() return ns.db.cast.key and ns.cast:KeyLabel() or "not set" end,
-    suggested = "a key you like",
-    isSet = function() return ns.db.cast.key ~= nil end,
     action = "Set...",
-    apply = function() if ns.settings then ns.settings:Open() end end,
+    run = function() if ns.settings then ns.settings:Open() end end,
 })
 
 ns:Register("setupItem", "questie", {
-    order = 100, label = "Questie + QuestieDB", why = "Quest and NPC locations for the arrow, map route and missed quests.",
+    order = 100, label = "Questie + QuestieDB",
+    why = "Quest and NPC locations for the arrow, map route and missed quests. Install it yourself (CurseForge app).",
     now = function() return ns.quests:Source() and ns.quests:Source().label == "Questie" and "installed" or "not found" end,
-    suggested = "installed",
-    isSet = function() return ns.quests:Source() and ns.quests:Source().label == "Questie" end,
-    info = true,  -- can't be applied from here
+    info = true,
 })
 
 -------------------------------------------------------------------------------
@@ -97,11 +102,25 @@ local function rows()
     return list
 end
 
+local function val(v) if type(v) == "function" then return v() end return v end
+
+local function button(parent, text, w)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(w, 22)
+    b:SetText(text)
+    return b
+end
+
+local function each(fn)
+    for _, row in ipairs(frame.rows) do if row.check then fn(row) end end
+end
+
 local function build()
     local list = rows()
     local f = CreateFrame("Frame", "FlowSetup", UIParent)
-    f:SetSize(560, 110 + #list * 26)
-    f:SetPoint("CENTER", 0, 60)
+    f:SetSize(580, 128 + #list * 26)
+    local p = ns.db.setup.point
+    if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("CENTER", 0, 60) end
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(true)
     tinsert(UISpecialFrames, "FlowSetup")
@@ -115,89 +134,112 @@ local function build()
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -14)
-    title:SetText("Welcome to Flow: recommended settings")
+    title:SetText("Flow settings")
     local sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     sub:SetPoint("TOPLEFT", 16, -36)
-    sub:SetText("Tick what you want and click Apply. Hover a row for why. Reopen any time with /flow setup.")
+    sub:SetText("Ticked = on. Change what you like and click Apply. Hover a row for why. /flow setup reopens this.")
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
 
     local function header(text, x)
         local h = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         h:SetPoint("TOPLEFT", x, -58)
         h:SetText(text)
     end
-    header("Setting", 44); header("Now", 300); header("Flow suggests", 400)
+    header("Setting", 48); header("Now", 320); header("Flow suggests", 400)
 
     f.rows = {}
     for i, r in ipairs(list) do
-        local y = -74 - (i - 1) * 26
+        local item = r.item
         local row = CreateFrame("Frame", nil, f)
-        row:SetPoint("TOPLEFT", 12, y)
-        row:SetSize(536, 24)
+        row:SetPoint("TOPLEFT", 12, -74 - (i - 1) * 26)
+        row:SetSize(556, 24)
         row:EnableMouse(true)
         row:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(r.item.label)
-            GameTooltip:AddLine(r.item.why or "", 1, 1, 1, true)
+            GameTooltip:AddLine(item.label)
+            GameTooltip:AddLine(item.why or "", 1, 1, 1, true)
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        if r.item.action then
-            local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-            b:SetSize(56, 20)
-            b:SetPoint("LEFT", 0, 0)
-            b:SetText(r.item.action)
-            b:SetScript("OnClick", function() r.item.apply() end)
-        elseif not r.item.info then
+        if item.isOn then
             row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
             row.check:SetSize(22, 22)
-            row.check:SetPoint("LEFT", 2, 0)
+            row.check:SetPoint("LEFT", 6, 0)
+            row.check:SetScript("OnClick", function() S:RefreshText() end)
         end
         row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        row.label:SetPoint("LEFT", 32, 0)
-        row.label:SetText(r.item.label)
+        row.label:SetPoint("LEFT", 36, 0)
+        row.label:SetText(item.label)
         row.now = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.now:SetPoint("LEFT", 288, 0)
+        row.now:SetPoint("LEFT", 308, 0)
         row.want = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         row.want:SetPoint("LEFT", 388, 0)
-        row.want:SetText(r.item.suggested or "")
-        row.item = r.item
+        if item.isOn then row.want:SetText(item.suggested and "on" or "off") end
+        if item.action then
+            -- Own column on the right, clear of the text.
+            local b = button(row, item.action, 70)
+            b:SetPoint("RIGHT", -4, 0)
+            b:SetScript("OnClick", function() item.run() end)
+        end
+        row.item = item
         f.rows[#f.rows + 1] = row
     end
 
-    local apply = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    apply:SetSize(140, 24)
-    apply:SetPoint("BOTTOMRIGHT", -110, 12)
-    apply:SetText("Apply selected")
+    -- Quick picks + apply.
+    local x = 12
+    local function pick(text, w, fn)
+        local b = button(f, text, w)
+        b:SetPoint("BOTTOMLEFT", x, 12)
+        x = x + w + 4
+        b:SetScript("OnClick", function() fn(); S:RefreshText() end)
+    end
+    pick("All", 50, function() each(function(r) r.check:SetChecked(true) end) end)
+    pick("None", 56, function() each(function(r) r.check:SetChecked(false) end) end)
+    pick("Flow suggests", 104, function() each(function(r) r.check:SetChecked(r.item.suggested and true or false) end) end)
+    pick("WoW default", 96, function() each(function(r) r.check:SetChecked(val(r.item.default) and true or false) end) end)
+    pick("Reset", 60, function() each(function(r) r.check:SetChecked(r.item.isOn() and true or false) end) end)
+
+    local apply = button(f, "Apply", 90)
+    apply:SetPoint("BOTTOMRIGHT", -12, 12)
     apply:SetScript("OnClick", function()
         if InCombatLockdown() then ns:Print("can't change settings in combat") return end
         local n = 0
-        for _, row in ipairs(f.rows) do
-            if row.check and row.check:GetChecked() and not row.item.isSet() then
-                pcall(row.item.apply); n = n + 1
-            end
-        end
+        each(function(r)
+            local want = r.check:GetChecked() and true or false
+            if want ~= (r.item.isOn() and true or false) then pcall(r.item.set, want); n = n + 1 end
+        end)
         ns.db.setup.done = true
-        ns:Print(n .. " setting(s) applied. /flow setup to change them later.")
+        ns:Print(n .. " setting(s) changed.")
         S:Refresh()
     end)
-    local close = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    close:SetSize(90, 24)
-    close:SetPoint("BOTTOMRIGHT", -12, 12)
-    close:SetText("Not now")
-    close:SetScript("OnClick", function() ns.db.setup.done = true; f:Hide() end)
     f:Hide()
     return f
 end
 
+-- Updates the "Now" column (and marks rows you've changed but not applied).
+function S:RefreshText()
+    if not frame then return end
+    for _, row in ipairs(frame.rows) do
+        local item = row.item
+        if item.isOn then
+            local on = item.isOn() and true or false
+            local pending = row.check:GetChecked() ~= on
+            row.now:SetText((on and "on" or "off") .. (pending and "  |cffffd200(will change)|r" or ""))
+        elseif item.now then
+            local ok, t = pcall(item.now)
+            row.now:SetText(ok and t or "?")
+        end
+    end
+end
+
+-- Tick boxes back to the current state of each setting.
 function S:Refresh()
     if not frame then return end
     for _, row in ipairs(frame.rows) do
-        local ok, now = pcall(row.item.now)
-        local set = row.item.isSet() and true or false
-        row.now:SetText((ok and now or "?") .. (set and "  |cff66ff66(done)|r" or ""))
-        -- Pre-tick what isn't set yet.
-        if row.check then row.check:SetChecked(not set) end
+        if row.check then row.check:SetChecked(row.item.isOn() and true or false) end
     end
+    self:RefreshText()
 end
 
 function S:Open()
@@ -208,18 +250,21 @@ end
 
 ns:OnLoad(function(saved)
     saved.setup = saved.setup or {}
-    -- The old first-run prompt (settings window) is replaced by this table.
     if saved.settings then saved.settings.prompted = true end
 end)
 
+-- First run only.
 ns:On("PLAYER_ENTERING_WORLD", function()
     if ns.db.setup.done then return end
     C_Timer.After(7, function()
-        if not InCombatLockdown() and not ns.db.setup.done then S:Open() end
+        if not InCombatLockdown() and not ns.db.setup.done then
+            ns.db.setup.done = true
+            S:Open()
+        end
     end)
 end)
 
 ns.commands.setup = function() S:Open() end
 ns:Register("help", "setup", { order = 4, title = "Setup", lines = {
-    "/flow setup - recommended settings table (auto loot, nameplates, zoom, cast key...)",
+    "/flow setup - settings table: auto loot, nameplates, zoom, timestamps, combat log, cast key...",
 } })

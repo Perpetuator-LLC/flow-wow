@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20.0
+- Hearthstone: no more pop-up. While levelling, the route gets a "Set hearthstone" stop at the
+  local inn when yours is set elsewhere (`/flow hearth off` to stop).
+- Hide any stop: right-click it on the map or in the route list. "Show hidden stops" lists them
+  greyed out; click one to bring it back.
+- Setup table: tick boxes show each setting's current state; Apply turns things on or off to
+  match. Quick picks: All, None, Flow suggests, WoW default, Reset. The Set button has its own column.
+
 ## 0.19.1
 - Spec icons (Retribution, Holy, Protection) replace DPS / Heal / Tank words, dots and letters in
   tooltips, bag icons and quest reward badges.
