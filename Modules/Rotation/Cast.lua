@@ -218,3 +218,53 @@ function C:Test()
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "
         .. tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")))
 end
+
+-------------------------------------------------------------------------------
+-- Fight record for the diagnostics ("[cast]" lines in the log): what was
+-- suggested at the pull, what the key was set to, whether the button got
+-- your clicks / key presses, and what Flow suggested during the fight.
+-------------------------------------------------------------------------------
+
+local fight
+ns:On("PLAYER_REGEN_DISABLED", function()
+    local key = ns.db.cast.key
+    fight = { at = GetTime(), ticks = 0, empty = 0, seen = {}, clicks = 0, downs = 0 }
+    ns:Log("cast", string.format("fight start: suggestion %s, key %s -> %s, button %s, macro %q, keydown %s",
+        tostring(E.current and E.current.spell), tostring(key),
+        tostring(key and GetBindingAction(key, true)), tostring(btn and btn:IsShown()),
+        tostring(macro), tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown"))))
+end)
+
+ns:On("PLAYER_REGEN_ENABLED", function()
+    if not fight then return end
+    local seen = {}
+    for spell, n in pairs(fight.seen) do seen[#seen + 1] = spell .. " x" .. n end
+    ns:Log("cast", string.format("fight end (%.0f s): button got %d click(s) (%d key-down), suggested %s; nothing %d of %d ticks; last error %s",
+        GetTime() - fight.at, fight.clicks, fight.downs, #seen > 0 and table.concat(seen, ", ") or "nothing",
+        fight.empty, fight.ticks, tostring(E.lastError)))
+    fight = nil
+end)
+
+ns:OnLoad(function()
+    if not btn then return end
+    btn:HookScript("PostClick", function(_, button, down)
+        if fight then
+            fight.clicks = fight.clicks + 1
+            if down then fight.downs = fight.downs + 1 end
+            if fight.clicks == 1 then
+                ns:Log("cast", string.format("first press in fight: %s down=%s macro %q", tostring(button), tostring(down), tostring(macro)))
+            end
+        end
+    end)
+    local acc = 0
+    local sampler = CreateFrame("Frame")
+    sampler:SetScript("OnUpdate", function(_, dt)
+        if not fight then return end
+        acc = acc + dt
+        if acc < 0.5 then return end
+        acc = 0
+        fight.ticks = fight.ticks + 1
+        local s = E.current
+        if s then fight.seen[s.spell] = (fight.seen[s.spell] or 0) + 1 else fight.empty = fight.empty + 1 end
+    end)
+end)

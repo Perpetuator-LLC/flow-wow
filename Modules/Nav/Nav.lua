@@ -552,6 +552,7 @@ function N:Select(key)
     local tour
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
+    ns.db.nav.selectedKey = key  -- kept across /reload
     -- Choosing a stop switches to "From selected stop"; clearing goes back.
     if key then ns.db.nav.sorter = "selected"
     elseif ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
@@ -669,8 +670,11 @@ function N:Options(sel)
         if not next(tour) then tour = nil end
     end
     if present["user:wp"] then first = "user:wp" end
-    if not first and not tour and self.selection then
+    -- (Not in the first seconds after login: quest data may not be in yet, and
+    -- a stop chosen before the reload would be dropped too early.)
+    if not first and not tour and self.selection and GetTime() - (N.loadedAt or 0) > 20 then
         self.selection = nil  -- the chosen stop is done: back to the usual sorting
+        ns.db.nav.selectedKey = nil
         if ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
     end
     -- Default (nothing chosen): pick up the quests in this hub before heading
@@ -1064,6 +1068,13 @@ ns:OnLoad(function(saved)
     saved.nav.graphs = saved.nav.graphs or {}
     if saved.nav.enabled == nil then saved.nav.enabled = true end
     if saved.nav.learn == nil then saved.nav.learn = true end
+    -- Restore the stop you chose before the reload ("From selected stop").
+    N.loadedAt = GetTime()
+    if saved.nav.sorter == "selected" then
+        if saved.nav.selectedKey then N.selection = { first = saved.nav.selectedKey }
+        else saved.nav.sorter = saved.nav.baseSorter or "xp" end
+    end
+    ns.theme:UpdateRoute()
     frame = buildArrow()
     local acc, collectAcc = 0, 0
     local driver = CreateFrame("Frame")

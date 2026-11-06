@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.0
+- Bags: gear shows a small icon per spec along the bottom with an arrow above each: up = better
+  than that spec's gear, down = worse, flat bar = about the same (your levelling spec brighter).
+  The sell coin and keep icons moved to the top right.
+- "From selected stop" survives /reload: the chosen stop is saved, the radio and route colour
+  come back as they were.
+- Cast diagnostics: each fight logs what was suggested at the pull, what the key was set to,
+  whether the button received your clicks or key presses, and what Flow suggested during the
+  fight ("[cast]" lines), to find why the key doesn't cast.
+
 ## 0.29.1
 - Splash: 2 s.
 - "Hide this stop" in the menus is now "Move on (hide this for now)".
