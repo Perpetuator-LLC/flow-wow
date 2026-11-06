@@ -27,6 +27,21 @@ ns:Register("trainerNames", "alliance-elwynn", {
                           "Lord Grayson Shadowbreaker" },
 })
 
+-- NPC IDs (stable since vanilla) so Questie can be asked directly. The
+-- lookup checks the name matches, so a wrong ID is ignored, not followed.
+ns:Register("npcIds", "alliance-elwynn", {
+    ["Smith Argus"] = 514, ["Michelle Belle"] = 2329, ["Tomas"] = 1430, ["Lee Brown"] = 1651,
+    ["Herbalist Pomeroy"] = 1218, ["Gelman Stonehand"] = 5513, ["Therum Deepforge"] = 5511,
+    ["Brother Sammuel"] = 925, ["Brother Wilhelm"] = 927, ["Lord Grayson Shadowbreaker"] = 928,
+    ["Arthur the Faithful"] = 5491,
+})
+
+local function npcId(name)
+    for _, t in ns:Each("npcIds") do
+        if t[name] then return t[name] end
+    end
+end
+
 -- Where to raise a gathering/secondary skill. objects = Questie object IDs
 -- (with the skill needed), npcs = stand near this NPC (e.g. the fishing
 -- trainer at Crystal Lake). Unverified IDs; extend per zone as needed.
@@ -62,13 +77,25 @@ local function remember(kind)
     ns.db.places[name] = { map = p.map, x = p.x, y = p.y, kind = kind }
 end
 
--- Map points for an NPC name: learned spot first, then Questie spawns.
+-- Names Flow wanted to route to but couldn't place (for /flow nav why).
+P.missing = {}
+
+-- Map points for an NPC name: where you've talked to them before, then
+-- Questie by NPC ID (name checked), then Questie by name.
 function P:Points(name)
     local points = {}
     local spot = ns.db.places[name]
     if spot then points[#points + 1] = { map = spot.map, x = spot.x, y = spot.y } end
-    local found = ns.quests.NPCsByName and ns.quests:NPCsByName({ name })
-    local npc = found and found[name]
+    local npc
+    local id = npcId(name)
+    if id and ns.quests.QuestieGet then
+        local n = ns.quests:QuestieGet("GetNPC", id)
+        if n and n.name == name then npc = n end
+    end
+    if not npc then
+        local found = ns.quests.NPCsByName and ns.quests:NPCsByName({ name })
+        npc = found and found[name] or nil
+    end
     if npc and npc.spawns then
         for areaId, list in pairs(npc.spawns) do
             local map = ns.quests:UiMapForArea(areaId)
@@ -79,6 +106,7 @@ function P:Points(name)
             end
         end
     end
+    self.missing[name] = (#points == 0) or nil
     return points
 end
 

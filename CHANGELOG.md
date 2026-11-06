@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.5
+- Profession and class trainers are found by NPC ID (with a name check) as well as by name, and
+  Questie zones fall back to matching the game's own map names, so trainer stops show up.
+- "Include professions" on the map panel (and `/flow nav professions on|off`).
+- `/flow nav why`: what the route is made of and which places Flow couldn't find.
+
 ## 0.17.4
 - Seal of Righteousness is suggested again a few seconds before it runs out (Forever's Judgement no
   longer uses it up), and Blessing of Might when it has under 30s left out of combat.

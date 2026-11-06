@@ -28,6 +28,7 @@ local topics = {
         "  (yellow), click to choose. Advice list rows with an arrow do the same. /flow map on|off",
         "Waypoint: Ctrl- or Alt-click the world map, or /flow way <x> <y> [note]; /flow way clear",
         "/flow nav quests|optimal - follow only current quests, or the optimal path (also on the map panel)",
+        "/flow nav professions on|off - trainer and skill-up stops; /flow nav why - what the route is made of",
         "/flow nav on|off|learn|forget",
     } },
     { "quests", 50, "Quests", {

@@ -714,6 +714,36 @@ ns.commands.nav = function(arg)
     if arg == "on" or arg == "off" then
         cfg.enabled = (arg == "on")
         ns:Print("navigation arrow " .. arg)
+    elseif arg:find("^professions") then
+        local v = arg:match("^professions%s+(%a+)")
+        cfg.professions = (v ~= "off")
+        N:Collect()
+        ns:Print("professions on the route: " .. (cfg.professions and "on" or "off"))
+    elseif arg == "why" then
+        -- What the route is made of, and what Flow wanted but couldn't place.
+        ns:Print(string.format("route: mode %s, professions %s, Questie %s",
+            N:Mode(), cfg.professions ~= false and "on" or "off",
+            ns.quests:Source() and ns.quests:Source().label or "not found"))
+        local byProvider = {}
+        for _, g in ipairs(goals) do
+            local placed = g.points and #g.points > 0
+            local b = byProvider[g.provider] or { n = 0, placed = 0 }
+            b.n = b.n + 1
+            if placed then b.placed = b.placed + 1 end
+            byProvider[g.provider] = b
+        end
+        for prov, b in pairs(byProvider) do
+            print(string.format("  %s: %d goal(s), %d with a location", prov, b.n, b.placed))
+        end
+        local missing = {}
+        for name in pairs(ns.places.missing or {}) do missing[#missing + 1] = name end
+        if #missing > 0 then
+            print("  couldn't find on the map: " .. table.concat(missing, ", "))
+            print("  (talk to them once and Flow remembers where they stand)")
+        end
+        local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
+        print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")
     elseif arg == "quests" or arg == "optimal" then
         N:SetMode(arg)
         ns:Print(arg == "quests" and "following your current quests only" or "following the optimal path (quests, pickups, trainers, skill-ups)")

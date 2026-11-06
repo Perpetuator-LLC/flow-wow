@@ -134,12 +134,39 @@ function Q:QuestieGet(fname, id)
     if ok and type(r) == "table" then return r end
 end
 
+-- Fallback: find the map with the same name as the zone, among the zones of
+-- the continent you're on. (For clients where Questie's zone table differs.)
+local byName = {}
+local function mapByZoneName(areaId)
+    if not (C_Map and C_Map.GetAreaInfo and C_Map.GetBestMapForUnit and C_Map.GetMapInfo) then return nil end
+    local name = C_Map.GetAreaInfo(areaId)
+    if not name then return nil end
+    if byName[name] ~= nil then return byName[name] or nil end
+    local map = C_Map.GetBestMapForUnit("player")
+    local info = map and C_Map.GetMapInfo(map)
+    -- Walk up to the continent.
+    while info and info.mapType and Enum.UIMapType and info.mapType > Enum.UIMapType.Continent and info.parentMapID do
+        info = C_Map.GetMapInfo(info.parentMapID)
+    end
+    local found = false
+    if info and C_Map.GetMapChildrenInfo then
+        for _, child in ipairs(C_Map.GetMapChildrenInfo(info.mapID, nil, true) or {}) do
+            if child.name == name then found = child.mapID break end
+        end
+    end
+    byName[name] = found
+    return found or nil
+end
+
 function Q:UiMapForArea(areaId)
-    if not QuestieLoader then return nil end
-    local ok, zdb = pcall(QuestieLoader.ImportModule, QuestieLoader, "ZoneDB")
-    if not ok or not zdb or type(zdb.GetUiMapIdByAreaId) ~= "function" then return nil end
-    local ok2, map = pcall(zdb.GetUiMapIdByAreaId, zdb, areaId)
-    if ok2 then return map end
+    if QuestieLoader then
+        local ok, zdb = pcall(QuestieLoader.ImportModule, QuestieLoader, "ZoneDB")
+        if ok and zdb and type(zdb.GetUiMapIdByAreaId) == "function" then
+            local ok2, map = pcall(zdb.GetUiMapIdByAreaId, zdb, areaId)
+            if ok2 and map then return map end
+        end
+    end
+    return mapByZoneName(areaId)
 end
 
 local function zoneIdOf(spawns)

@@ -226,17 +226,37 @@ local function buildList()
     f.modeOptimal = choice(-62, "optimal", "Follow optimal path",
         "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")
 
+    -- Include professions (trainers to learn/raise them, and skill-up stops).
+    local pc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    pc:SetSize(20, 20)
+    pc:SetPoint("TOPLEFT", 26, -82)
+    pc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    pc.label:SetPoint("LEFT", pc, "RIGHT", 2, 0)
+    pc.label:SetText("Include professions")
+    pc:SetScript("OnClick", function(self)
+        ns.db.nav.professions = self:GetChecked() and true or false
+        ns.nav:Collect()
+        M:Redraw()
+    end)
+    pc:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Trainers for professions you plan or have capped, and fishing / mining stops when a skill is behind your level.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    pc:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.profs = pc
+
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -86)
-    f.title:SetPoint("TOPRIGHT", -8, -86)
+    f.title:SetPoint("TOPLEFT", 8, -106)
+    f.title:SetPoint("TOPRIGHT", -8, -106)
     f.title:SetJustifyH("LEFT")
 
     f.rows = {}
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -104 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -104 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -124 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -124 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -283,6 +303,10 @@ local function updateList()
     local mode = ns.nav:Mode()
     list.modeQuests:SetChecked(mode == "quests")
     list.modeOptimal:SetChecked(mode == "optimal")
+    -- Professions only matter on the optimal path.
+    local showProfs = not hidden and mode == "optimal"
+    list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
+    list.profs:SetChecked(ns.db.nav.professions ~= false)
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -293,7 +317,7 @@ local function updateList()
         following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 110) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 130) / ROW_H))
     for i = 1, MAX_ROWS do
         local r, s = list.rows[i], plan[i]
         if s and i <= fit then
