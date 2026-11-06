@@ -170,7 +170,8 @@ end
 
 -- Expected crafts per step to go from rank to target: at each point, the
 -- step with the most skill per material.
-local function simulate(prof, steps, rank, target)
+local simulate
+function simulate(prof, steps, rank, target)
     local crafts, order = {}, {}
     local guard = 0
     while rank < target and guard < 600 do
@@ -506,3 +507,5 @@ function SP:Explain()
         print(string.format("  stop: %s%s", g.text or g.key, g.blockedBy and ("  [blocked: " .. g.blockedBy .. "]") or ""))
     end
 end
+
+SP._simulate = simulate  -- for /flow test

@@ -82,10 +82,7 @@ local function pin(c, x, y, label, color, stop, top)
             M:Preview(hoverKey)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             local g = self.stop.goal
-            GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
-            for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
-            local c2 = theme().proposed
-            GameTooltip:AddLine("Yellow: your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
+            ns.nav:FillTooltip(GameTooltip, g, "Yellow line: your route if you go here first. Click: go here first. Right-click: hide.")
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
@@ -485,6 +482,12 @@ local function buildList()
     f.title:SetPoint("TOPRIGHT", -8, -102)
     f.title:SetJustifyH("LEFT")
 
+    -- Each row: [^] handle, then the stop.
+    --   ^ handle    route from this stop (like clicking it on the map);
+    --               hovering it previews that route
+    --   row hover   the stop's details (quest objectives and text)
+    --   row click   open it (quest details, closing this drawer)
+    --   right-click menu
     f.rows = {}
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
@@ -494,52 +497,89 @@ local function buildList()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
+        r.go = CreateFrame("Button", nil, r)
+        r.go:SetSize(ROW_H - 2, ROW_H - 2)
+        r.go:SetPoint("LEFT", 0, 0)
+        r.go.bg = r.go:CreateTexture(nil, "BACKGROUND")
+        r.go.bg:SetAllPoints()
+        r.go.arms = { r.go:CreateLine(nil, "ARTWORK"), r.go:CreateLine(nil, "ARTWORK") }
+        for k, l in ipairs(r.go.arms) do
+            l:SetThickness(2)
+            l:SetStartPoint("CENTER", r.go, (k == 1 and -1 or 1) * 4, -2)
+            l:SetEndPoint("CENTER", r.go, 0, 3)
+        end
+        function r.go:Paint(hot)
+            local c = theme().route
+            self.bg:SetColorTexture(c[1], c[2], c[3], hot and 0.55 or 0.18)
+            for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, hot and 1 or 0.8) end
+        end
+        r.go:Paint(false)
+        r.go:SetScript("OnEnter", function(self)
+            self:Paint(true)
+            local row = self:GetParent()
+            hoverKey = row.key
+            M:Preview(row.key)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("Go here first")
+            GameTooltip:AddLine("Routes from this stop (order: From selected stop). Shown in the preview colour on the map.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        r.go:SetScript("OnLeave", function(self)
+            self:Paint(false)
+            hoverKey = nil
+            M:Preview(nil)
+            GameTooltip:Hide()
+        end)
+        r.go:SetScript("OnClick", function(self)
+            local row = self:GetParent()
+            M:Preview(nil)
+            if row.key then ns.nav:Select(row.key) end
+            M:Redraw()
+        end)
         r.leg = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         r.leg:SetPoint("RIGHT", 0, 0)
         r.leg:SetJustifyH("RIGHT")
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetPoint("LEFT", 0, 0)
+        r.text:SetPoint("LEFT", r.go, "RIGHT", 5, 0)
         r.text:SetPoint("RIGHT", r.leg, "LEFT", -6, 0)
         r.text:SetJustifyH("LEFT")
         r.text:SetWordWrap(false)
         r:SetScript("OnEnter", function(self)
-            if self.isHidden then return end  -- hidden stops have no route to preview
-            if self.blocked then
-                local g = self.blocked
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
-                GameTooltip:AddLine("Blocked: " .. (g.blockedBy or "?"), 1, 0.45, 0.45, true)
-                for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
-                GameTooltip:AddLine("It joins the route by itself once that's sorted. Right-click hides it.", 0.6, 0.6, 0.6, true)
-                GameTooltip:Show()
-                return
-            end
-            hoverKey = self.key
-            if self.goal then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(self.goal.text or self.goal.title or "?", 1, 1, 1, true)
-                for _, dl in ipairs(self.goal.details or {}) do GameTooltip:AddLine(dl, 0.8, 0.8, 0.8, true) end
-                GameTooltip:Show()
-            end
-            M:Preview(self.key)
+            local g = self.blocked or self.goal
+            if not g then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            local footer
+            if self.isHidden then footer = "Hidden. Click to bring it back."
+            elseif self.blocked then footer = "Joins the route by itself once that's sorted. Right-click: menu."
+            else footer = "Click: open it. ^: go here first. Right-click: menu." end
+            ns.nav:FillTooltip(GameTooltip, g, footer)
+            GameTooltip:Show()
+            if not (self.isHidden or self.blocked) then hoverKey = self.key; M:Redraw() end
         end)
         r:SetScript("OnLeave", function()
             GameTooltip:Hide()
-            hoverKey = nil
-            M:Preview(nil)
+            if hoverKey then hoverKey = nil; M:Redraw() end
         end)
         r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         r:SetScript("OnClick", function(self, button)
             M:Preview(nil)
+            local g = self.blocked or self.goal
             if self.isHidden then
                 ns.nav:Unhide(self.key)        -- either click brings it back
+            elseif button == "RightButton" and g then
+                local items = {
+                    { title = true, text = g.text or g.title or "This stop" },
+                    { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
+                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { sep = true },
+                }
+                for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+                ns.menu:Open(items)
             elseif self.blocked then
-                if button == "RightButton" then ns.nav:Hide(self.key)
-                else ns:Print((self.blocked.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked")) end
-            elseif button == "RightButton" then
-                ns.nav:Hide(self.key)
-            else
-                ns.nav:Select(self.key)
+                ns:Print((g.text or "that stop") .. ": " .. (g.blockedBy or "blocked"))
+            elseif g then
+                ns.nav:OpenStop(g)
             end
             M:Redraw()
         end)
@@ -613,19 +653,22 @@ local function updateList()
             local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.goal = s.goal
+            r.go:Show()
             r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
         elseif e and i <= fit and e.blocked then
             local b = e.blocked
-            r.key, r.isHidden, r.blocked = b.key, false, b
+            r.key, r.isHidden, r.blocked, r.goal = b.key, false, b, b
+            r.go:Hide()
             local text, why = ns.nav:FormatBlocked(b)
             r.text:SetText(text)
             r.leg:SetText(why)
             r:Show()
         elseif e and i <= fit and e.hidden then
             local h = e.hidden
-            r.key, r.isHidden, r.blocked = h.key, true, nil
+            r.key, r.isHidden, r.blocked, r.goal = h.key, true, nil, h
+            r.go:Hide()
             r.text:SetText("|cff777777(hidden) " .. (h.text or h.title or "?") .. "|r")
             r.leg:SetText("|cff777777click to show|r")
             r:Show()

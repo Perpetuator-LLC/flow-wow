@@ -572,11 +572,68 @@ local function questLogIndex(id)
     end
 end
 
+-- One readable tooltip for any stop (map pins, map list, tracker, minimap):
+--   title (gold) with the stop type icon and level
+--   WHAT TO DO: the objective or task, large and white
+--   quest objectives with progress (done ones green), the quest text (short)
+--   details from the stop's provider, XP, blocked reason
+--   footer hint (grey)
+local function questText(id)
+    local q = ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", id)
+    local d = q and (q.Description or q.objectivesText)
+    if type(d) == "table" then d = table.concat(d, " ") end
+    if type(d) == "string" and d ~= "" then return d end
+end
+
+function N:FillTooltip(tt, goal, footer)
+    local kind = ns.theme.kinds[self:StopKind(goal)]
+    local icon = kind and string.format("|T%s:16:16|t ", kind.icon) or ""
+    local title = goal.title or goal.text or "?"
+    tt:AddLine(icon .. title .. (goal.level and string.format("  |cff999999[%d]|r", goal.level) or ""), 1, 0.82, 0.25, true)
+    -- What to do: the line your eyes should land on.
+    local task = goal.text or title
+    if goal.title and task:sub(1, #goal.title + 2) == goal.title .. ": " then task = task:sub(#goal.title + 3) end
+    tt:AddLine(" ")
+    tt:AddLine(task, 1, 1, 1, true)
+    if goal.blockedBy then tt:AddLine("Blocked: " .. goal.blockedBy, 1, 0.45, 0.45, true) end
+    local id = tonumber(goal.key:match("^(%d+):")) or tonumber(goal.key:match("^pickup:(%d+)$"))
+    if id then
+        local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id)
+        if objs and #objs > 0 then
+            tt:AddLine(" ")
+            for _, o in ipairs(objs) do
+                if o.text then
+                    if o.finished then tt:AddLine("  " .. o.text, 0.4, 0.9, 0.4, true)
+                    else tt:AddLine("  " .. o.text, 0.85, 0.85, 0.85, true) end
+                end
+            end
+        end
+        local text = questText(id)
+        if text then
+            if #text > 260 then text = text:sub(1, 257) .. "..." end
+            tt:AddLine(" ")
+            tt:AddLine(text, 0.7, 0.7, 0.7, true)
+        end
+    end
+    local first = true
+    for _, d in ipairs(goal.details or {}) do
+        if not d:find("^Quest: ") and not d:find("^Objective: ") then
+            if first then tt:AddLine(" "); first = false end
+            if d:find("^XP: ") then tt:AddLine(d, 0.64, 0.21, 0.93, true)
+            else tt:AddLine(d, 0.8, 0.8, 0.8, true) end
+        end
+    end
+    if footer then tt:AddLine(" "); tt:AddLine(footer, 0.55, 0.55, 0.55, true) end
+end
+
 function N:OpenStop(goal)
     if not goal then return end
     local id = tonumber(goal.key:match("^(%d+):"))
     local idx = id and questLogIndex(id)
     if idx then
+        -- The quest details open in the map's side panel: fold Flow's drawer away so they show.
+        ns.db.nav.mapListCollapsed = true
+        if ns.mapOverlay and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
         if QuestMapFrame_OpenToQuestDetails then
             if pcall(QuestMapFrame_OpenToQuestDetails, id) then return end
         end
@@ -761,16 +818,45 @@ end
 
 local frame, panel
 
+-- The arrow's panel (left-click the arrow). Built so your eyes land on the
+-- task first:
+--   [hero]  a band in the route colour: stop icon, TYPE in small caps,
+--           the task in large white text, distance and direction on the right
+--   then    quest name, objectives, details (small), the trip plan (smaller)
 local function buildPanel()
     local f = CreateFrame("Frame", "FlowNavPanel", UIParent)
-    f:SetSize(300, 140)
+    f:SetSize(340, 140)
     f:SetFrameStrata("DIALOG")
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0, 0, 0, 0.8)
+    f.bg:SetColorTexture(0.04, 0.04, 0.07, 0.92)
+
+    local h = CreateFrame("Frame", nil, f)
+    h:SetPoint("TOPLEFT", 0, 0)
+    h:SetPoint("TOPRIGHT", 0, 0)
+    h:SetHeight(64)
+    h.bg = h:CreateTexture(nil, "BACKGROUND")
+    h.bg:SetAllPoints()
+    h.bar = h:CreateTexture(nil, "BORDER")
+    h.bar:SetPoint("TOPLEFT"); h.bar:SetPoint("BOTTOMLEFT"); h.bar:SetWidth(5)
+    h.icon = h:CreateTexture(nil, "ARTWORK")
+    h.icon:SetSize(36, 36)
+    h.icon:SetPoint("LEFT", 14, 0)
+    h.label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    h.label:SetPoint("TOPLEFT", h.icon, "TOPRIGHT", 10, 2)
+    h.dist = h:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    h.dist:SetPoint("TOPRIGHT", -10, -8)
+    h.dist:SetJustifyH("RIGHT")
+    h.task = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    h.task:SetPoint("TOPLEFT", h.label, "BOTTOMLEFT", 0, -3)
+    h.task:SetPoint("RIGHT", -10, 0)
+    h.task:SetJustifyH("LEFT")
+    h.task:SetWordWrap(true)
+    f.hero = h
+
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.text:SetPoint("TOPLEFT", 10, -10)
-    f.text:SetPoint("BOTTOMRIGHT", -10, 10)
+    f.text:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 12, -8)
+    f.text:SetPoint("RIGHT", -12, 0)
     f.text:SetJustifyH("LEFT")
     f.text:SetJustifyV("TOP")
     f:EnableMouse(true)
@@ -783,30 +869,49 @@ local function showPanel()
     if not current then return end
     panel = panel or buildPanel()
     local g = current.goal
-    local lines = { "|cffffd200" .. (g.title or g.text or "Next goal") .. "|r" }
-    for _, l in ipairs(g.details or {}) do lines[#lines + 1] = l end
-    lines[#lines + 1] = " "
-    lines[#lines + 1] = string.format("%d yd away (%s)", current.d, N.how == "path"
-        and "following a trail you've walked before" or "straight line: no known trail yet")
+    local h = panel.hero
+    local c = ns.theme.route
+    h.bg:SetColorTexture(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35, 0.95)
+    h.bar:SetColorTexture(c[1], c[2], c[3], 1)
+    local kind = ns.theme.kinds[N:StopKind(g)]
+    h.icon:SetTexture(kind and kind.icon or "Interface\Icons\INV_Misc_Map_01")
+    h.label:SetText(((kind and kind.label) or "Next stop"):upper())
+    h.label:SetTextColor(c[1] + (1 - c[1]) * 0.5, c[2] + (1 - c[2]) * 0.5, c[3] + (1 - c[3]) * 0.5)
+    local task = g.text or g.title or "Next stop"
+    if g.title and task:sub(1, #g.title + 2) == g.title .. ": " then task = task:sub(#g.title + 3) end
+    h.task:SetText(task)
+    h.dist:SetText(string.format("%d yd", current.d or 0))
+    h:SetHeight(math.max(64, h.task:GetStringHeight() + h.label:GetStringHeight() + 26))
+
+    local lines = {}
+    if g.title and g.title ~= task then lines[#lines + 1] = "|cffffd200" .. g.title .. "|r" end
+    if g.blockedBy then lines[#lines + 1] = "|cffff7070Blocked: " .. g.blockedBy .. "|r" end
+    for _, l in ipairs(g.details or {}) do
+        if not l:find("^Quest: ") and not l:find("^Objective: ") then lines[#lines + 1] = "|cffcccccc" .. l .. "|r" end
+    end
+    lines[#lines + 1] = "|cff888888" .. (N.how == "path" and "Following a trail you've walked before."
+        or "Straight line: no known trail yet.") .. "|r"
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
         lines[#lines + 1] = " "
-        lines[#lines + 1] = string.format("|cffffd200Trip plan|r (%d stops, about %d yd):",
-            #N.plan, N.plan[#N.plan].cum or 0)
+        lines[#lines + 1] = string.format("|cffffd200Then|r |cff888888(%d stops, about %d yd)|r",
+            #N.plan - 1, N.plan[#N.plan].cum or 0)
         local labels = N:PlanLabels(N.plan)
         for i, s in ipairs(N.plan) do
-            if i > 10 then lines[#lines + 1] = "  ..."; break end
-            lines[#lines + 1] = "  " .. N:FormatStop(i, s.goal, labels[i])
-                .. string.format(" |cff888888(+%d yd)|r", s.leg or 0)
+            if i > 1 then
+                if i > 10 then lines[#lines + 1] = "  ..."; break end
+                lines[#lines + 1] = "  " .. N:FormatStop(i, s.goal, labels[i])
+                    .. string.format(" |cff888888(+%d yd)|r", s.leg or 0)
+            end
         end
         if N.plan.dropped and #N.plan.dropped > 0 then
             lines[#lines + 1] = "|cff888888Skipped as too far out of the way: " .. table.concat(N.plan.dropped, ", ") .. "|r"
         end
-        lines[#lines + 1] = "Right-click the arrow to skip ahead to the next stop."
     end
-    lines[#lines + 1] = "|cff888888Click this panel to close.|r"
+    lines[#lines + 1] = " "
+    lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click this panel to close.|r"
     panel.text:SetText(table.concat(lines, "\n"))
-    panel:SetHeight(math.max(80, panel.text:GetStringHeight() + 24))
+    panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
     panel:ClearAllPoints()
     panel:SetPoint("TOP", frame, "BOTTOM", 0, -24)
     panel:Show()

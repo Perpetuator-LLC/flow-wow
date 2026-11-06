@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.29.0
+- Fixed: the spell suggestion (icon and cast key) stopped. Forever hides your buffs from addons
+  (often in combat) and reading them threw an error that stopped every suggestion. Now Flow
+  remembers the seals, blessings and auras you cast and uses that when buffs are hidden, and one
+  failing check only skips its own rule.
+- Fixed: vendor drawer icons (wrong icon call).
+- Map list rows: an up-arrow handle on the left routes from that stop (hover it to preview).
+  Clicking the row opens it (quest details; the drawer folds away so they show). Hovering shows
+  the details right there. Right-click for a menu.
+- One readable tooltip for every stop (map pins, map list, tracker): title and level, the task
+  in white, objectives with progress, a short quest text, details, XP, then a hint.
+- Arrow panel: the task now has a band of its own in the route colour (icon, type, the task in
+  large text, distance), then the rest.
+- Self-tests: `/flow test` (13 tests: registry, skill objectives and planning, XP, route colour,
+  planner order and dependencies, blocked labels, buff memory, gear rule, menu, tooltip). They
+  also run on every /reload into the diagnostics.
+
 ## 0.28.1
 - Flow Tracker: Shift-drag its header to move it, even when docked (dragging undocks it). Drop
   it just under Questie's tracker to dock it again.

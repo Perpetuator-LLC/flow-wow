@@ -99,8 +99,9 @@ local function remember(name)
     end
 end
 A.RememberCast = remember
+A._castMemory = cast  -- for /flow test
 
-local function fromMemory(match)
+local function fromMemory(match)  -- also A._fromMemory (tests)
     local now = GetTime()
     for name, c in pairs(cast) do
         local hit
@@ -109,6 +110,7 @@ local function fromMemory(match)
     end
     return false, 0
 end
+A._fromMemory = fromMemory
 
 -- Finds a helpful aura on unit. match is an exact name or a function(name).
 -- Returns found, secondsRemaining (math.huge for no expiry). When the game

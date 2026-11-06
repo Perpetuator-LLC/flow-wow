@@ -64,6 +64,7 @@ function D:Snapshot(reason)
         { "party", function() c.party("") end },
         { "gear why", function() c.gear("why") end },
         { "prof plan", function() c.professions("plan") end },
+        { "tests", function() c.test("") end },
     }
     for _, chk in ipairs(checks) do
         if chk[2] then

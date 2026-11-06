@@ -146,14 +146,9 @@ local function build()
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:AddLine(self.goal.text or self.goal.title or "?", 1, 1, 1, true)
-            for _, d in ipairs(self.goal.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
-            if self.blocked then
-                GameTooltip:AddLine("Blocked: " .. (self.blocked.blockedBy or "?"), 1, 0.45, 0.45, true)
-                GameTooltip:AddLine("Joins the route by itself once that's sorted. Right-click: menu.", 0.6, 0.6, 0.6, true)
-            else
-                GameTooltip:AddLine("Click: open it. Right-click: menu. (Change the route on the world map.)", 0.6, 0.6, 0.6, true)
-            end
+            ns.nav:FillTooltip(GameTooltip, self.goal, self.blocked
+                and "Joins the route by itself once that's sorted. Right-click: menu."
+                or "Click: open it. Right-click: menu. (Change the route on the world map.)")
             GameTooltip:Show()
         end)
         r:SetScript("OnLeave", function() GameTooltip:Hide() end)

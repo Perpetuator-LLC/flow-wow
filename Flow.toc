@@ -2,7 +2,7 @@
 ## Title: Flow (unfettered)
 ## Notes: Levelling companion: rotation and heal advice, route planner, gear and bag sorting, quest help.
 ## Author: Sooth
-## Version: 0.28.1
+## Version: 0.29.0
 ## SavedVariables: FlowDB
 ## OptionalDeps: Questie, QuestieDB
 
@@ -70,3 +70,6 @@ Modules\Advisor\Builtins.lua
 Classes\Paladin\Data.lua
 Classes\Paladin\Spells.lua
 Classes\Paladin\Rotation.lua
+
+# Self-tests (/flow test; also saved in the diagnostics on every /reload)
+Modules\Tests.lua
