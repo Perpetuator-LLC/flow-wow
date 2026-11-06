@@ -126,11 +126,15 @@ ns:Register("navGoal", "questie", {
                             elseif od.Type == "item" then
                                 local item = call(db, "GetItem", od.Id)
                                 verb = "Collect"; what = item and item.name
+                                -- Elite only if EVERY mob that drops it is elite (one elite
+                                -- among normal kobolds doesn't make the objective elite).
+                                local anyNormal, anyElite = false, false
                                 for _, npcId in ipairs(item and item.npcDrops or {}) do
                                     npcSpawns(db, points, npcId)
                                     local npcRaw = call(db, "GetNPC", npcId)
-                                    if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
+                                    if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
                                 end
+                                elite = anyElite and not anyNormal
                                 for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, points, objId) end
                             end
                             if verb and #points > 0 then

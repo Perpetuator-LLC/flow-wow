@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.23.0
+- Fixed: the vendor drawer didn't appear (it checked the vendor window before the game showed it).
+- Auto-sell junk when you open a vendor, no confirmation (on by default; /flow setup).
+- First-run setup now opens 30 seconds after login, well after the splash.
+- Fixed: a shield could show as a DPS upgrade with a lower score ("better in every stat" compared
+  it with a two-hander). That rule now only compares like with like, and Retribution never treats
+  shields or off-hands as DPS upgrades.
+- Armor counts more for DPS and Heal while levelling.
+- Fixed: Kobold Candles and Gold Dust Exchange were marked [Elite]; an objective is elite only if
+  every mob that drops the item is elite.
+- `/flow gear why` (and the diagnostics) show each bag item's stats, scores and comparisons.
+
 ## 0.22.3
 - Removed the Questie button from the Flow Tracker header; the two trackers still work as an
   accordion through their own headers. Splash fades out in 300 ms.

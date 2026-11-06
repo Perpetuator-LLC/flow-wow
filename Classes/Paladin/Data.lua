@@ -47,7 +47,7 @@ ns:Register("class", "PALADIN", {
             ITEM_MOD_MASTERY_RATING_SHORT = 0.6,
             ITEM_MOD_VERSATILITY = 0.6,
             ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 3.0,
-            RESISTANCE0_NAME = 0.05,   -- armor keeps you questing longer between heals
+            RESISTANCE0_NAME = 0.07,   -- armor keeps you questing longer between heals
         },
         heal = {
             ITEM_MOD_INTELLECT_SHORT = 1.0,
@@ -61,7 +61,7 @@ ns:Register("class", "PALADIN", {
             ITEM_MOD_MASTERY_RATING_SHORT = 0.5,
             ITEM_MOD_VERSATILITY = 0.5,
             ITEM_MOD_STRENGTH_SHORT = 0.05,
-            RESISTANCE0_NAME = 0.04,
+            RESISTANCE0_NAME = 0.07,   -- survival matters for healers while levelling too
         },
         tank = {
             ITEM_MOD_STAMINA_SHORT = 1.0,
@@ -84,6 +84,12 @@ ns:Register("class", "PALADIN", {
     -- Items to hold for class quests (item ID -> why, and until which level).
     keepItems = {
         [2589] = { why = "keep 10 for the Redemption class quest at level 12", untilLevel = 14 },  -- Linen Cloth
+    },
+
+    -- Per-role gear rules. Retribution levels with a two-hander, so shields
+    -- and off-hand items are never DPS upgrades.
+    roleRules = {
+        dps = { noOffhand = true },
     },
 
     -- Preferred weapon speed per role (see the weaponSpeed analyzer).

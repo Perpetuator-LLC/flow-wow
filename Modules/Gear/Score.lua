@@ -70,6 +70,13 @@ function G:Dominates(item, otherLink)
     if not otherLink:find("item:") then return false end
     local other = self:Describe(otherLink)
     if not other then return false end
+    -- Only like with like (a belt vs a belt). A shield vs a two-hander isn't
+    -- comparable this way: plain weapons may report no stats at all, which
+    -- made any shield look "better in every stat".
+    local same = item.equipLoc == other.equipLoc
+        or (item.equipLoc == "INVTYPE_CHEST" and other.equipLoc == "INVTYPE_ROBE")
+        or (item.equipLoc == "INVTYPE_ROBE" and other.equipLoc == "INVTYPE_CHEST")
+    if not same then return false end
     local better = false
     local keys = {}
     for k in pairs(item.stats) do keys[k] = true end
@@ -86,9 +93,18 @@ end
 
 -- Score difference for one role, against what this item would replace.
 -- Returns diff, and what it was compared with.
+local OFFHAND = { INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true, INVTYPE_WEAPONOFFHAND = true }
+
 function G:RoleDiff(item, role, scores)
     local base, what = self:EquippedScore(item, role)
     local diff = scores[role] - base
+    -- Class data can say a role doesn't use an off-hand (Retribution uses
+    -- two-handers): then shields/off-hands are never upgrades for it.
+    local d = ns:ClassData()
+    local rules = d and d.roleRules and d.roleRules[role]
+    if rules and rules.noOffhand and OFFHAND[item.equipLoc] then
+        return math.min(diff, 0), what
+    end
     if diff < 0.5 and (what == nil or not what:find(" %+ ")) and self:Dominates(item, what) then
         diff = 0.5  -- counts as an upgrade
     end
@@ -302,7 +318,32 @@ ns.commands.gear = function(raw)
     raw = raw or ""
     local arg = raw:lower()
     local g = ns.db.gear
-    if arg == "on" or arg == "off" then
+    if arg == "why" then
+        -- Every gear item in your bags: its stats, Flow score per role, and the
+        -- difference against what it's compared with (also in diagnostics).
+        ns:Print("gear check (bags):")
+        local numSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
+        local linkOf = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
+        for bag = 0, 4 do
+            for slot = 1, (numSlots and numSlots(bag) or 0) do
+                local link = linkOf(bag, slot)
+                local item = link and G:Describe(link)
+                if item then
+                    local scores = G:Score(item)
+                    local stats = {}
+                    for k, v in pairs(item.stats) do
+                        stats[#stats + 1] = k:gsub("ITEM_MOD_", ""):gsub("_SHORT", ""):gsub("RESISTANCE0_NAME", "ARMOR") .. "=" .. v
+                    end
+                    print(string.format("  %s (%s) stats: %s", link, item.equipLoc, table.concat(stats, " ")))
+                    for _, role in ipairs(ROLES) do
+                        local diff, what = G:RoleDiff(item, role, scores)
+                        print(string.format("    %s: score %.1f, diff %+.1f vs %s", role, scores[role], diff, tostring(what or "empty")))
+                    end
+                end
+            end
+        end
+        return
+    elseif arg == "on" or arg == "off" then
         g.enabled = (arg == "on")
         ns:Print("gear scores " .. arg)
     elseif arg:find("^sets") or arg:find("^set ") or arg:find("^save") or arg:find("^forget") then
