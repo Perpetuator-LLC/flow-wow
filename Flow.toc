@@ -2,12 +2,13 @@
 ## Title: Flow
 ## Notes: Sooth's personal everything-mod.
 ## Author: Sooth
-## Version: 0.13.0
+## Version: 0.14.0
 ## SavedVariables: FlowDB
 ## OptionalDeps: Questie, QuestieDB
 
 # Core: event bus, registries, slash command
 Core.lua
+Modules\Theme.lua
 
 # Learned from your combat log files (written by tools/analyze-combatlog.ps1)
 Learned\CombatLog.lua
@@ -44,6 +45,8 @@ Modules\Nav\Nav.lua
 Modules\Nav\Places.lua
 Modules\Nav\Planner.lua
 Modules\Nav\Goals.lua
+Modules\Nav\Waypoint.lua
+Modules\Nav\MapOverlay.lua
 Modules\Advisor\Advisor.lua
 Modules\Advisor\Builtins.lua
 

@@ -29,6 +29,14 @@ local function dist(ax, ay, bx, by)
     return sqrt(dx * dx + dy * dy)
 end
 
+-- Options for the plan being built (set by P:Plan):
+--   first = goal key that must be the first stop (your choice)
+--   tour  = { [key] = true } stops that must all come before anything else
+--           (e.g. "pick up all these quests first")
+local OPT = {}
+
+local function forced(key) return OPT.first == key or (OPT.tour and OPT.tour[key]) end
+
 local function candidates(p, goals)
     local stops = {}
     for _, g in ipairs(goals) do
@@ -45,11 +53,20 @@ local function candidates(p, goals)
             stops[#stops + 1] = { goal = g, key = g.key, points = keep, near = pts[1].d }
         end
     end
-    table.sort(stops, function(a, b) return a.near * (a.goal.weight or 1) < b.near * (b.goal.weight or 1) end)
+    -- Chosen stops always make the cut; the rest by (weighted) nearness.
+    table.sort(stops, function(a, b)
+        local fa, fb = forced(a.key) and 1 or 0, forced(b.key) and 1 or 0
+        if fa ~= fb then return fa > fb end
+        return a.near * (a.goal.weight or 1) < b.near * (b.goal.weight or 1)
+    end)
 
     local kept, keptKeys, allKeys = {}, {}, {}
     for _, s in ipairs(stops) do allKeys[s.key] = true end
-    for i = 1, math.min(MAX_STOPS, #stops) do kept[i] = stops[i]; keptKeys[stops[i].key] = true end
+    for i = 1, #stops do
+        if i <= MAX_STOPS or forced(stops[i].key) then
+            kept[#kept + 1] = stops[i]; keptKeys[stops[i].key] = true
+        end
+    end
     -- A turn-in whose objectives didn't make the cut would be planned too
     -- early; leave it out until they're in range.
     local out = {}
@@ -83,12 +100,18 @@ end
 local function valid(order)
     local pos = {}
     for i, s in ipairs(order) do pos[s.key] = i end
+    if OPT.first and pos[OPT.first] and pos[OPT.first] ~= 1 then return false end
+    local lastTour, firstOther = 0, math.huge
     for i, s in ipairs(order) do
         for _, dep in ipairs(s.goal.deps or {}) do
             if pos[dep] and pos[dep] > i then return false end
         end
+        if OPT.tour then
+            if OPT.tour[s.key] or s.key == OPT.first then lastTour = i
+            elseif i < firstOther then firstOther = i end
+        end
     end
-    return true
+    return lastTour < firstOther
 end
 
 local function greedy(p, stops)
@@ -96,12 +119,19 @@ local function greedy(p, stops)
     for _, s in ipairs(stops) do remaining[#remaining + 1] = s end
     local x, y = p.wx, p.wy
     while #remaining > 0 do
-        local left = {}
-        for _, s in ipairs(remaining) do left[s.key] = true end
+        local left, tourLeft, firstLeft = {}, false, false
+        for _, s in ipairs(remaining) do
+            left[s.key] = true
+            if OPT.tour and OPT.tour[s.key] then tourLeft = true end
+            if s.key == OPT.first then firstLeft = true end
+        end
         local bestI, bestScore
         for i, s in ipairs(remaining) do
             local ready = true
             for _, dep in ipairs(s.goal.deps or {}) do if left[dep] then ready = false end end
+            -- Your chosen stop first, then the rest of the tour, then the others.
+            if firstLeft and s.key ~= OPT.first then ready = false end
+            if tourLeft and not (OPT.tour[s.key] or s.key == OPT.first) then ready = false end
             if ready then
                 local bd
                 for _, pt in ipairs(s.points) do
@@ -164,7 +194,7 @@ local function prune(p, order)
     local i = 1
     while i <= #order do
         local s = order[i]
-        if s.goal.optional then
+        if s.goal.optional and not forced(s.key) then
             local o = copy(order)
             table.remove(o, i)
             local _, withLegs = walk(p, order)
@@ -186,7 +216,8 @@ local function prune(p, order)
 end
 
 -- Returns the trip: { { goal, point, leg, cum }, ..., dropped = { text } }
-function P:Plan(p, goals)
+function P:Plan(p, goals, opts)
+    OPT = opts or {}
     local stops = candidates(p, goals)
     if #stops == 0 then return nil end
     local order = improve(p, greedy(p, stops))

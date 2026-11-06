@@ -285,6 +285,63 @@ function N:Collect()
     N.planDirty = true
 end
 
+function N:Goals() return goals end
+
+-------------------------------------------------------------------------------
+-- Choosing the route. N.selection = { first = goal key, tour = { [key] = true } }
+--   first : the stop you picked (from the map, the advice list, or right-click)
+--   tour  : stops that must all come before anything else (picking one of the
+--           "!" quest pickups puts all pickups first: !3 -> the other pickups
+--           -> then the normal plan)
+-- Your own waypoint (Waypoint.lua) is always first when set.
+-------------------------------------------------------------------------------
+
+N.planVersion = 0
+
+function N:PickupKeys()
+    local t, any = {}, false
+    for _, g in ipairs(goals) do
+        if g.provider == "pickups" then t[g.key] = true; any = true end
+    end
+    return any and t or nil
+end
+
+function N:Select(key)
+    local tour
+    if key and key:find("^pickup:") then tour = self:PickupKeys() end
+    self.selection = key and { first = key, tour = tour } or nil
+    self.planDirty = true
+    pinnedKey = nil
+end
+
+function N:ClearSelection() self:Select(nil) end
+
+-- The constraints for planning, dropping any that refer to finished goals.
+function N:Options(sel)
+    sel = sel or self.selection or {}
+    local present = {}
+    for _, g in ipairs(goals) do present[g.key] = true end
+    local first = sel.first and present[sel.first] and sel.first or nil
+    local tour
+    if sel.tour then
+        tour = {}
+        for k in pairs(sel.tour) do if present[k] then tour[k] = true end end
+        if not next(tour) then tour = nil end
+    end
+    if present["user:wp"] then first = "user:wp" end
+    if not first and not tour and self.selection then self.selection = nil end
+    return { first = first, tour = tour }
+end
+
+-- A plan as if you had picked this stop (for previews on the map / advice list).
+function N:PlanFor(key)
+    local p = self:PlayerPos()
+    if not (p and ns.planner) then return nil end
+    local tour = key and key:find("^pickup:") and self:PickupKeys() or nil
+    local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, self:Options({ first = key, tour = tour }))
+    return ok and result or nil
+end
+
 -- The plan: the whole trip in order (see Planner.lua). Re-planned when goals
 -- change, and every few seconds as you move.
 local plan, planAt = nil, 0
@@ -304,10 +361,11 @@ local function choose(p)
 
     local now = GetTime()
     if ns.planner and (N.planDirty or not plan or now - planAt > 8) then
-        local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals)
+        local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, N:Options())
         plan = ok and result or nil
         if not ok then N.lastError = "planner: " .. tostring(result) end
         planAt, N.planDirty = now, false
+        N.planVersion = N.planVersion + 1
     end
     N.plan = plan
     if plan and plan[1] then
@@ -463,7 +521,7 @@ local function buildArrow()
             if #ranked > 1 and current then
                 for i, r in ipairs(ranked) do
                     if r.goal.key == current.goal.key then
-                        pinnedKey = ranked[(i % #ranked) + 1].goal.key
+                        N:Select(ranked[(i % #ranked) + 1].goal.key)
                         break
                     end
                 end
@@ -511,6 +569,11 @@ local function update()
     end
 
     local g = choice.goal
+    -- Your own waypoint clears itself when you get there.
+    if g.key == "user:wp" and choice.d < 10 and ns.waypoint then
+        ns.waypoint:Clear()
+        ns:Print("arrived at your waypoint")
+    end
     frame.text:SetText(g.text or g.title or "Next goal")
     if choice.d < ARRIVED * 2 then
         frame.sub:SetText("You're here")
@@ -519,7 +582,8 @@ local function update()
         frame.sub:SetText(string.format("%d yd%s%s", choice.d,
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length) or ""))
-        frame.arrow:SetVertexColor(1, 0.82, 0)
+        local c = ns.theme.arrow
+        frame.arrow:SetVertexColor(c[1], c[2], c[3])
     end
     frame:Show()
     if panel and panel:IsShown() then showPanel() end

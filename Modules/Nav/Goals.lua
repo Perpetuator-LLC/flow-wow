@@ -97,7 +97,7 @@ ns:Register("navGoal", "questie", {
                     who = objectSpawns(db, turnPoints, id) or who
                 end
                 local turnIn = {
-                    key = q.id .. ":done", weight = 0.8, points = turnPoints,
+                    key = q.id .. ":done", weight = 0.8, points = turnPoints, level = quest.level,
                     title = q.title,
                     text = "Turn in: " .. (q.title or "quest"),
                     details = { (q.complete and "Quest complete. " or "After the objectives. ")
@@ -123,7 +123,7 @@ ns:Register("navGoal", "questie", {
                             if verb and #points > 0 then
                                 table.insert(turnIn.deps, q.id .. ":" .. i)
                                 goals[#goals + 1] = {
-                                    key = q.id .. ":" .. i, points = points, title = q.title,
+                                    key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
                                     text = (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
                                     details = {
                                         "Quest: " .. (q.title or "?"),
@@ -164,7 +164,7 @@ ns:Register("navGoal", "pickups", {
         for _, q in ipairs(list) do
             if (q.level or 0) >= level - 4 and q.starter and q.starter.spawns then
                 goals[#goals + 1] = {
-                    key = "pickup:" .. q.id, weight = 0.9,
+                    key = "pickup:" .. q.id, weight = 0.9, level = q.level,
                     points = spawnPoints(q.starter.spawns),
                     title = q.name,
                     text = "Pick up: " .. (q.name or "quest"),

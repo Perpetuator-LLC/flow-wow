@@ -44,6 +44,7 @@ ns:Register("advisor", "trainer", {
                     text = string.format("Train %s%s at your class trainer", s.name,
                         s.sub ~= "" and (" (" .. s.sub .. ")") or ""),
                     improves = info and info.improves or { "Stronger rank" },
+                    goalKey = "train:class",
                 }
                 listed[s.name] = true
             end
@@ -210,11 +211,11 @@ ns:Register("advisor", "professions", {
             if p.max > 0 and p.rank >= p.max and p.max < 300 then
                 out[#out + 1] = { importance = 60,
                     text = string.format("%s is capped at %d/%d: train the next tier", p.name, p.rank, p.max),
-                    improves = { "Professions" } }
+                    improves = { "Professions" }, goalKey = "train:" .. p.name }
             elseif p.rank + 15 < target then
                 out[#out + 1] = { importance = 30,
                     text = string.format("%s is %d; aim for about %d at level %d", p.name, p.rank, target, level),
-                    improves = { "Professions" } }
+                    improves = { "Professions" }, goalKey = "skill:" .. p.name }
             end
         end
         -- Planned professions (class data) you haven't learned yet.
@@ -226,7 +227,7 @@ ns:Register("advisor", "professions", {
                     text = string.format("Learn %s%s%s", p.name,
                         #who > 0 and (" from " .. table.concat(who, " or ")) or "",
                         p.optional and " (optional)" or ""),
-                    improves = { "Professions" } }
+                    improves = { "Professions" }, goalKey = "train:" .. p.name }
                 primaries = primaries + 1  -- don't also say "no professions yet"
             end
         end
@@ -270,20 +271,21 @@ ns:Register("advisor", "missedQuests", {
         local list = ns.quests:Missed() or {}
         local level = UnitLevel("player")
         local out = {}
-        for i = 1, math.min(5, #list) do
+        for i = 1, math.min(10, #list) do
             local q = list[i]
             local worthIt = (q.level or 0) >= level - 4
             out[#out + 1] = {
                 importance = worthIt and 55 or 15,
+                goalKey = "pickup:" .. q.id,
                 text = string.format("Skipped quest: %s (level %d) from %s%s", q.name or "?", q.level or 0,
                     q.starter and q.starter.name or "?",
                     q.starter and q.starter.zoneId and (" in " .. ns.quests:ZoneName(q.starter.zoneId)) or ""),
                 improves = { worthIt and "XP" or "Completion" },
             }
         end
-        if #list > 5 then
+        if #list > 10 then
             out[#out + 1] = { importance = 14,
-                text = string.format("...and %d more skipped quests: /flow missed", #list - 5) }
+                text = string.format("...and %d more skipped quests: /flow missed", #list - 10) }
         end
         return out
     end,

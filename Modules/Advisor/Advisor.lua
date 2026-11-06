@@ -63,14 +63,14 @@ local function buildButton()
         local a, _, r, x, y = self:GetPoint()
         ns.db.advisor.point = { a, r, x, y }
     end)
-    b:SetScript("OnClick", function() Adv:Print() end)
+    b:SetScript("OnClick", function() Adv:TogglePanel() end)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Flow: ways to improve")
         for i = 1, math.min(10, #items) do
             GameTooltip:AddLine(i .. ". " .. line(items[i]), 1, 1, 1, true)
         end
-        GameTooltip:AddLine("Click to print. Shift-drag to move.", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine("Click to open the list (pick a place to route there). Shift-drag to move.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -88,6 +88,7 @@ function Adv:Refresh()
     else
         button:Hide()
     end
+    self:FillPanel()
 end
 
 -- Many events fire in bursts; refresh once things settle.
@@ -135,4 +136,117 @@ ns.commands.advice = function(arg)
         Adv:Refresh()
         Adv:Print()
     end
+end
+
+-------------------------------------------------------------------------------
+-- Advice panel (click the ! button). Rows that are places (quests to pick up,
+-- trainers, skill spots) have an arrow: hover to preview that route on the
+-- world map, click to make it your route. Picking a "!" quest pickup routes
+-- you through all the pickups first, then the rest of your plan.
+-------------------------------------------------------------------------------
+
+local panel
+local ROWS = 16
+
+local function buildPanel()
+    local f = CreateFrame("Frame", "FlowAdvicePanel", UIParent)
+    f:SetSize(440, 46 + ROWS * 20)
+    f:SetFrameStrata("DIALOG")
+    local p = ns.db.advisor.panelPoint
+    if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("CENTER", 0, 80) end
+    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
+    f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.92)
+    local top = f:CreateTexture(nil, "BORDER")
+    top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(2)
+    top:SetColorTexture(1, 0.65, 0, 0.9)
+    ns:MakeMovable(f, setmetatable({}, { __newindex = function(_, k, v)
+        if k == "point" then ns.db.advisor.panelPoint = v end end }), true)
+    f:EnableMouse(true)
+    tinsert(UISpecialFrames, "FlowAdvicePanel")
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOPLEFT", 12, -10)
+    f.title:SetText("Flow: ways to improve")
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
+    f.rows = {}
+    for i = 1, ROWS do
+        local r = CreateFrame("Button", nil, f)
+        r:SetSize(416, 18)
+        r:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 20)
+        r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+        r.hl:SetAllPoints()
+        r.hl:SetColorTexture(1, 1, 1, 0.08)
+        r.go = r:CreateTexture(nil, "OVERLAY")
+        r.go:SetSize(14, 14)
+        r.go:SetPoint("LEFT")
+        r.go:SetTexture("Interface\Minimap\MinimapArrow")
+        r.go:SetRotation(-math.pi / 2)
+        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        r.text:SetPoint("LEFT", 18, 0)
+        r.text:SetWidth(396)
+        r.text:SetJustifyH("LEFT")
+        r.text:SetWordWrap(false)
+        r:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(self.item.text, 1, 1, 1, true)
+            if self.item.improves then GameTooltip:AddLine("Improves: " .. table.concat(self.item.improves, ", "), 0.7, 0.7, 0.7) end
+            if self.goal then
+                GameTooltip:AddLine("Click to go here first. Open your map to see the route.", 1, 0.65, 0)
+                if ns.mapOverlay then ns.mapOverlay:Preview(self.item.goalKey) end
+            end
+            GameTooltip:Show()
+        end)
+        r:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+            if ns.mapOverlay then ns.mapOverlay:Preview(nil) end
+        end)
+        r:SetScript("OnClick", function(self)
+            if not self.goal then return end
+            ns.nav:Select(self.item.goalKey)
+            ns:Print("route updated: " .. (self.goal.text or self.item.text) .. " first")
+        end)
+        f.rows[i] = r
+    end
+    f:Hide()
+    return f
+end
+
+local function goalFor(key)
+    if not (key and ns.nav) then return nil end
+    for _, g in ipairs(ns.nav:Goals()) do
+        if g.key == key and g.points and #g.points > 0 then return g end
+    end
+end
+
+function Adv:FillPanel()
+    if not (panel and panel:IsShown()) then return end
+    local pickup = 0
+    for i = 1, ROWS do
+        local r, item = panel.rows[i], items[i]
+        if item then
+            r.item = item
+            r.goal = goalFor(item.goalKey)
+            local label = item.text
+            if item.goalKey and item.goalKey:find("^pickup:") then
+                pickup = pickup + 1
+                local c = ns.theme and ns.theme.changed
+                label = string.format("|cff%s!%d|r %s", c and c.hex or "0072B2", pickup, label)
+            end
+            r.text:SetText(label)
+            r.go:SetShown(r.goal ~= nil)
+            if r.goal then local c = ns.theme.arrow; r.go:SetVertexColor(c[1], c[2], c[3]) end
+            r:Show()
+        else
+            r:Hide()
+        end
+    end
+end
+
+function Adv:TogglePanel()
+    panel = panel or buildPanel()
+    if panel:IsShown() then panel:Hide() return end
+    self:Refresh()
+    panel:Show()
+    self:FillPanel()
 end
