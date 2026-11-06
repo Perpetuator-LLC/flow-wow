@@ -6,7 +6,7 @@
   you back to one dot. In the area, when one of the quest's mobs or NPCs has a nameplate on
   screen, the arrow points straight at it ("There: Kobold Vermin").
 - Hover the arrow, ring or its text for the stop's details (quest progress...).
-- Heals from the cast key always land on you (unless you target a friend). Presses and the
+- Heals from the cast key always land on you, whatever you have targeted. Presses and the
   game's errors in the 15 s after a fight are recorded too.
 - "Choose your professions" no longer shows once you've learned two main professions.
 - Tests: quest area, professions advice (19 in all).
