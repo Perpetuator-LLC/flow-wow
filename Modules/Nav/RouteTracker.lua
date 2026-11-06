@@ -191,6 +191,6 @@ ns.commands.tracker = function(arg)
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Your next stops on screen. Header: click to open/collapse; the blue Questie button switches trackers.",
+    "Your next stops on screen. Header: click to open/collapse; opening one tracker collapses the other.",
     "Click a stop to go there first, right-click to hide it. /flow tracker on|off|flow|questie",
 } })
