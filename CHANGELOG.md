@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0
+- First-run setup table (`/flow setup`): auto loot, nameplates, instant quest text, auto-placing new
+  spells, max zoom, chat timestamps, combat log file, cast key, Questie. Tick and Apply.
+- Key binding mode (`/flow bind`): hover a button and press a key; changes are listed and only
+  saved on Save. Ctrl+Z undo, Esc cancel (asks first with more than 3 changes; Esc again returns).
+- Auto-placed spells: Flow says when the game puts a new spell on your bars and marks those bars
+  (hover the book icon); `/flow autoplace` lists them.
+
 ## 0.17.6
 - Diagnostics Claude can read from disk: Flow logs its errors and takes a snapshot of its checks on
   every `/reload` and logout (saved with Flow's data). `/flow dump` captures one on demand;

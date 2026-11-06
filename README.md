@@ -66,6 +66,8 @@ Flow for WoW is a separate project from Flow Engine.
   advice (`/flow spec`).
 
 ### Quality of life
+- **Setup table** on first run (`/flow setup`), **key binding mode** with save/undo/cancel
+  (`/flow bind`), and a heads-up when the game auto-places new spells on your bars.
 - A load splash, `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move any
   Flow element.
 
