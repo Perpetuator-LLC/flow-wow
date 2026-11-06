@@ -21,7 +21,7 @@ local topics = {
         "Hover for a quick list; click to open it. Rows with an arrow route you there. /flow advice prints it.",
     } },
     { "nav", 40, "Arrow", {
-        "Plans your whole trip: objectives, turn-ins (after their objectives), quests to pick up,",
+        "Plans your whole trip: objectives, turn-ins (after their objectives), quests to accept,",
         "trainers, and fishing/gathering when it is on the way. Click for the full plan.",
         "Left-click: details. Right-click: next goal. Learns trails as you walk.",
         "Right-click a stop on the map or in the route list to hide it; \"Show hidden stops\" brings it back.",

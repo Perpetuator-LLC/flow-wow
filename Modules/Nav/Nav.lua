@@ -440,11 +440,22 @@ function N:Options(sel)
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
+-- Previews are cached until the main route is re-planned (goals changed or
+-- every few seconds), so hovering checkpoints doesn't re-plan every frame.
+local previewCache, previewVersion = {}, -1
 function N:PlanFor(key)
+    if previewVersion ~= self.planVersion then
+        wipe(previewCache)
+        previewVersion = self.planVersion
+    end
+    local cacheKey = key or "-"
+    local hit = previewCache[cacheKey]
+    if hit ~= nil then return hit or nil end
     local p = self:PlayerPos()
     if not (p and ns.planner) then return nil end
     local tour = key and key:find("^pickup:") and self:PickupKeys() or nil
     local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, self:Options({ first = key, tour = tour }))
+    previewCache[cacheKey] = (ok and result) or false
     return ok and result or nil
 end
 

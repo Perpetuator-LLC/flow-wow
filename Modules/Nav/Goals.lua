@@ -178,7 +178,7 @@ ns:Register("navGoal", "pickups", {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
                     points = spawnPoints(q.starter.spawns),
                     title = q.name,
-                    text = "Pick up: " .. (q.name or "quest"),
+                    text = "Accept: " .. (q.name or "quest"),
                     details = { string.format("Level %d quest from %s.", q.level or 0, q.starter.name or "?"),
                                 "You haven't done it yet and it's still worth the XP." },
                 }
