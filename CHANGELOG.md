@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.0
+- Route colours back to green (your route) and yellow (a route you preview); your route turns blue
+  while previewing and the stop under the mouse is red. "Colour-blind route colours" in
+  /flow settings and /flow setup switches to orange / purple / sky blue.
+- Splash is gone in about half a second.
+- `/flow nav unhide` brings back every stop you hid; `/flow nav hidden` lists them.
+- Stops that cost money you don't have (class training) are skipped and remembered. They
+  come back on the route by themselves once you can pay, planned by distance like any other
+  stop, so the trainer goes to the top when you're near it (e.g. after a hearth).
+  `/flow nav why` lists what was skipped. If you can afford only some spells, the stop says so.
+
 ## 0.23.0
 - Fixed: the vendor drawer didn't appear (it checked the vendor window before the game showed it).
 - Auto-sell junk when you open a vendor, no confirmation (on by default; /flow setup).

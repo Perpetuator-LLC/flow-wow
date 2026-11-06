@@ -46,6 +46,7 @@ local function refresh()
     frame.keyValue:SetText(label(ns.db.cast.key))
     frame.clear:SetEnabled(ns.db.cast.key ~= nil)
     if frame.zoom and ns.camera then frame.zoom:SetChecked(ns.camera:IsOn()) end
+    if frame.colorblind then frame.colorblind:SetChecked(ns.theme:ColorBlind()) end
 end
 
 local function stopCapture(msg)
@@ -75,7 +76,7 @@ end
 
 local function build()
     local f = CreateFrame("Frame", "FlowSettings", UIParent)
-    f:SetSize(420, 300)
+    f:SetSize(420, 330)
     local p = ns.db.settings.point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("CENTER", 0, 120) end
     f:SetFrameStrata("DIALOG")
@@ -139,6 +140,24 @@ local function build()
         ns.camera:Set(self:GetChecked() and true or false)
     end)
     f.zoom = zoom
+
+    -- Row: colour-blind route colours (Theme.lua). Off = green route, yellow preview.
+    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    cb:SetSize(24, 24)
+    cb:SetPoint("TOPLEFT", 12, -234)
+    local cbLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    cbLabel:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+    cbLabel:SetText("Colour-blind route colours  |cff888888(orange / purple)|r")
+    cb:SetScript("OnClick", function(self) ns.theme:SetColorBlind(self:GetChecked() and true or false) end)
+    cb:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Route colours on the map and arrow")
+        GameTooltip:AddLine("Off: green = your route, yellow = a route you preview, blue = your route while previewing, red = stop under the mouse.", 1, 1, 1, true)
+        GameTooltip:AddLine("On: orange, purple, sky blue and light purple, which stay apart for the common kinds of colour blindness.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.colorblind = cb
 
     f.confirm = button(f, "Use it anyway", 120)
     f.confirm:SetPoint("BOTTOMLEFT", 16, 14)

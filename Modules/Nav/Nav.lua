@@ -267,6 +267,10 @@ local function nearestPoint(goal, p)
     return best, bestD
 end
 
+function N:Coin(c)
+    return GetCoinTextureString and GetCoinTextureString(c or 0) or ((c or 0) .. "c")
+end
+
 function N:Collect()
     local list = {}
     for key, provider in ns:Each("navGoal") do
@@ -281,6 +285,38 @@ function N:Collect()
             ns:Print("nav goal " .. key .. ": " .. tostring(found))
         end
     end
+    -- Stops that cost money you don't have (a goal with `cost`, in copper)
+    -- are skipped and remembered in ns.db.nav.deferred. When your money
+    -- reaches the cost (PLAYER_MONEY below) they come back and are planned
+    -- like any other stop: by distance and weight, so a trainer you're
+    -- standing near (say, after a hearth) goes to the top by itself.
+    local money = GetMoney and GetMoney() or 0
+    local deferred = ns.db.nav.deferred or {}
+    ns.db.nav.deferred = deferred
+    local present, kept, deferredGoals = {}, {}, {}
+    for _, g in ipairs(list) do
+        present[g.key] = true
+        if g.cost and g.cost > money then
+            if not deferred[g.key] then
+                ns:Print(string.format("skipping %s for now: it costs %s and you have %s. It comes back on the route once you can pay.",
+                    g.title or g.text or g.key, N:Coin(g.cost), N:Coin(money)))
+            end
+            deferred[g.key] = { text = g.title or g.text, cost = g.cost, since = deferred[g.key] and deferred[g.key].since or time() }
+            deferredGoals[#deferredGoals + 1] = g
+        else
+            if deferred[g.key] then
+                ns:Print((g.title or g.text or g.key) .. ": you have the money now, back on the route.")
+                deferred[g.key] = nil
+                g.details = g.details or {}
+                table.insert(g.details, 1, "Skipped earlier for lack of money; you can afford it now.")
+            end
+            kept[#kept + 1] = g
+        end
+    end
+    -- Gone altogether (trained elsewhere, no longer needed): forget it.
+    for key in pairs(deferred) do if not present[key] then deferred[key] = nil end end
+    N.deferredGoals = deferredGoals
+    list = kept
     -- Route mode: "quests" = only quests already in your log (their objectives
     -- and turn-ins), plus your waypoint and the party route; "optimal" (default)
     -- = everything worth doing: pickups, trainers, fishing/gathering too.
@@ -395,7 +431,7 @@ end
 
 -- Shared look for route stops (trip plan, world map pins, map list):
 --   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
---   colour: orange = where the arrow points now, blue = quest pickup,
+--   colour: route colour (green) = where the arrow points now, blue = quest pickup,
 --           sky blue = your waypoint, bluish green = the rest of the route
 function N:PlanLabels(plan)
     local out, pickups = {}, 0
@@ -432,7 +468,7 @@ function N:StopColor(i, goal)
     return k and k.color or ns.theme.current
 end
 
--- "icon number text" for lists: the number is orange for the stop the arrow
+-- "icon number text" for lists: the number is in the route colour for the stop the arrow
 -- points at now, grey for the rest; the text takes the kind's colour.
 function N:FormatStop(i, goal, label)
     local kindName = self:StopKind(goal)
@@ -442,7 +478,7 @@ function N:FormatStop(i, goal, label)
     local prof = goal.key:match("^train:(.+)$") or goal.key:match("^skill:(.+)$")
     if prof and ns.disposition and ns.disposition.PROF_ICON[prof] then path = ns.disposition.PROF_ICON[prof] end
     local icon = path and string.format("|T%s:13:13|t ", path) or ""
-    local numColor = (i == 1) and ns.theme.arrow.hex or "999999"
+    local numColor = (i == 1) and ns.theme.route.hex or "999999"
     local textColor = kind and kind.color.hex or "ffffff"
     return string.format("%s|cff%s%s|r |cff%s%s|r", icon, numColor, label or tostring(i),
         textColor, goal.text or goal.title or "?")
@@ -803,7 +839,7 @@ local function update()
         frame.sub:SetText(string.format("%d yd%s%s", choice.d,
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length) or ""))
-        local c = ns.theme.arrow
+        local c = ns.theme.route
         frame.arrow:SetVertexColor(c[1], c[2], c[3])
     end
     frame:Show()
@@ -823,6 +859,18 @@ local function scheduleCollect()
         pcall(N.Collect, N)
     end)
 end
+
+-- Money changed: re-plan only when it crosses a skipped stop's cost (so it
+-- comes back) or drops below a planned stop's cost (so it's skipped).
+ns:On("PLAYER_MONEY", function()
+    local money = GetMoney()
+    for _, d in pairs(ns.db.nav.deferred or {}) do
+        if d.cost and d.cost <= money then scheduleCollect() return end
+    end
+    for _, g in ipairs(goals or {}) do
+        if g.cost and g.cost > money then scheduleCollect() return end
+    end
+end)
 
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}
@@ -863,6 +911,19 @@ ns.commands.nav = function(arg)
         cfg.professions = (v ~= "off")
         N:Collect()
         ns:Print("professions on the route: " .. (cfg.professions and "on" or "off"))
+    elseif arg == "unhide" or arg == "hidden" then
+        -- Bring back every stop you hid (right-click), or list them.
+        local n = 0
+        for _ in pairs(cfg.hidden or {}) do n = n + 1 end
+        if arg == "hidden" then
+            ns:Print(n .. " hidden stop(s):")
+            for _, g in ipairs(N.hiddenGoals or {}) do ns:Print("  " .. (g.text or g.title or g.key)) end
+            ns:Print("/flow nav unhide brings them all back")
+        else
+            cfg.hidden = {}
+            N:Collect()
+            ns:Print(n .. " hidden stop(s) back on the route.")
+        end
     elseif arg == "why" then
         -- What the route is made of, and what Flow wanted but couldn't place.
         ns:Print(string.format("route: mode %s, professions %s, Questie %s",
@@ -891,6 +952,12 @@ ns.commands.nav = function(arg)
         -- The route itself (also saved in the diagnostics for Claude to check).
         local free, max = ns.quests:FreeSlots()
         print(string.format("  quest log: %d free of %d; bound to %s", free, max, tostring(GetBindLocation and GetBindLocation())))
+        for key, d in pairs(cfg.deferred or {}) do
+            print(string.format("  skipped until you have %s: %s [%s]", N:Coin(d.cost), tostring(d.text), key))
+        end
+        local nHidden = 0
+        for _ in pairs(cfg.hidden or {}) do nHidden = nHidden + 1 end
+        if nHidden > 0 then print(string.format("  hidden by you: %d stop(s) (/flow nav unhide)", nHidden)) end
         local labels = N:PlanLabels(N.plan or {})
         for i, s in ipairs(N.plan or {}) do
             if i > 25 then print("  ...") break end

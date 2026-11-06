@@ -1,10 +1,9 @@
 -- World map overlay: your route as numbered checkpoints and lines.
 --   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
---   colours (Theme.lua, colour-blind safe):
---     current route  bluish green      quest pickups (!N)  blue
---     preview route  yellow            hovered checkpoint  reddish purple
---     while previewing, your current route turns blue and the yellow lines
---     show the alternative, so you can compare.
+--   colours (Theme.lua; two palettes, /flow settings "Colour-blind route colours"):
+--     standard:    your route green, a previewed route yellow, your route
+--                  while previewing blue, the stop under your mouse red
+--     colour-blind: orange, purple, sky blue, light purple
 --   Hover a checkpoint (or a place in the advice list) to preview the route
 --   that starts there; click it to make that your route (the arrow follows).
 
@@ -85,7 +84,7 @@ local function pin(c, x, y, label, color, stop)
             GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
             for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
             local c2 = theme().proposed
-            GameTooltip:AddLine("Purple: your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
+            GameTooltip:AddLine((ns.theme:ColorBlind() and "Purple" or "Yellow") .. ": your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
@@ -423,9 +422,9 @@ function M:Redraw()
     if mapID then
         local T = theme()
         if previewKey then
-            -- Points stay those of your current route (orange, dimmed); the
-            -- purple line shows the route if you picked the hovered place.
-            drawRoute(c, mapID, ns.nav.plan, T.route, true, 0.35)
+            -- Your current route turns blue (sky blue when colour-blind) and
+            -- the yellow (purple) line shows the route if you picked the hovered place.
+            drawRoute(c, mapID, ns.nav.plan, T.changed, true, 0.6)
             drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false, 0.95)
         else
             drawRoute(c, mapID, ns.nav.plan, T.route, true)

@@ -277,9 +277,26 @@ ns:Register("navGoal", "errands", {
         -- Class trainer, when spells are waiting (appears by itself when you
         -- level up into new spells). The trainer you last used, else the
         -- known class trainers for your class (Places.lua data + Questie).
-        local waiting = 0
+        -- Cost: what you can pay for, cheapest first. If you can't afford any
+        -- of it, the goal carries `cost` and the route skips it until you can
+        -- (Nav.lua remembers skipped stops and brings them back by itself).
+        local waiting, costs, unknownCost = 0, {}, false
         local ok, items = pcall(ns:Get("advisor", "trainer").check)
-        if ok and items then waiting = #items end
+        if ok and items then
+            waiting = #items
+            for _, it in ipairs(items) do
+                if it.cost then costs[#costs + 1] = it.cost else unknownCost = true end
+            end
+        end
+        table.sort(costs)
+        local money = GetMoney and GetMoney() or 0
+        local canPay, spend = 0, 0
+        for _, c in ipairs(costs) do
+            if spend + c <= money then canPay, spend = canPay + 1, spend + c end
+        end
+        local total = 0
+        for _, c in ipairs(costs) do total = total + c end
+        local coin = function(c) return GetCoinTextureString and GetCoinTextureString(c) or (c .. "c") end
         if waiting > 0 then
             local _, class = UnitClass("player")
             local names = ns.db.trainer and ns.db.trainer.npc and { ns.db.trainer.npc }
@@ -290,11 +307,18 @@ ns:Register("navGoal", "errands", {
                 for _, pt in ipairs(ns.places:Points(n)) do points[#points + 1] = pt end
             end
             if #points > 0 then
+                local text = string.format("Train %d spell(s) at your class trainer", waiting)
+                if not unknownCost and canPay < waiting and canPay > 0 then
+                    text = string.format("Train %d of %d spell(s) at your class trainer (money for %d)", canPay, waiting, canPay)
+                end
                 out[#out + 1] = {
                     key = "train:class", weight = 1.0, points = points,
                     title = "Class training",
-                    text = string.format("Train %d spell(s) at your class trainer", waiting),
-                    details = { "New spells or ranks are waiting: " .. table.concat(names, " / ") .. "." },
+                    text = text,
+                    -- Nothing affordable (and every cost known): the cheapest is what it takes.
+                    cost = (not unknownCost and canPay == 0 and #costs > 0) and costs[1] or nil,
+                    details = { "New spells or ranks are waiting: " .. table.concat(names, " / ") .. ".",
+                                #costs > 0 and ("Cost: " .. coin(total) .. (unknownCost and " plus spells Flow hasn't seen priced" or "")) or nil },
                 }
             end
         end

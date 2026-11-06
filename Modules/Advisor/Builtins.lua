@@ -45,6 +45,7 @@ ns:Register("advisor", "trainer", {
                         s.sub ~= "" and (" (" .. s.sub .. ")") or ""),
                     improves = info and info.improves or { "Stronger rank" },
                     goalKey = "train:class",
+                    cost = s.cost,  -- copper, from your last visit (route skips it until you can pay)
                 }
                 listed[s.name] = true
             end

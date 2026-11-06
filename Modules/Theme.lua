@@ -1,5 +1,4 @@
--- Colours used across Flow. Okabe-Ito palette: safe for the common kinds of
--- colour blindness. Swap the values here to re-theme everything.
+-- Colours used across Flow. Swap the values here to re-theme everything.
 
 local _, ns = ...
 
@@ -8,19 +7,59 @@ local function rgb(hex)
              tonumber(hex:sub(5, 6), 16) / 255, hex = hex }
 end
 
--- Map and arrow: orange = your route (same as the arrow), purple = a route
--- you're previewing. Orange and purple stay distinct for the common kinds
--- of colour blindness. Stop types get their own colours + icons in lists.
+-- Route colours on the map and the nav arrow come in two palettes:
+--   standard     green = your route, yellow = a route you're previewing,
+--                blue = your route while you preview another, red = hovered stop
+--   colourblind  Okabe-Ito: orange route, purple preview, sky blue while
+--                previewing, light purple hover. Stays distinct for the common
+--                kinds of colour blindness. (/flow settings, or /flow colors)
+local PALETTES = {
+    standard = {
+        route    = rgb("3CC83C"),  -- green: your current route
+        proposed = rgb("FFD800"),  -- yellow: a route you're previewing
+        changed  = rgb("3C8CFF"),  -- blue: your route while previewing; quest pickups (!N)
+        hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
+    },
+    colorblind = {
+        route    = rgb("E69F00"),  -- orange
+        proposed = rgb("A97BFF"),  -- purple
+        changed  = rgb("56B4E9"),  -- sky blue
+        hover    = rgb("D9C2FF"),  -- light purple
+    },
+}
+
 ns.theme = {
-    route    = rgb("E69F00"),  -- orange: your current route on the map
-    current  = rgb("E69F00"),  -- (same; kept for older code)
-    proposed = rgb("A97BFF"),  -- purple: a route you're previewing
-    changed  = rgb("0072B2"),  -- blue: quest pickups (!N) in the advice list
-    arrow    = rgb("E69F00"),  -- orange: the nav arrow
-    hover    = rgb("D9C2FF"),  -- light purple: the point under your mouse
+    arrow    = rgb("E69F00"),  -- orange: Flow's accent colour on panels and buttons
     user     = rgb("56B4E9"),  -- sky blue: your own waypoint
     muted    = rgb("BBBBBB"),
 }
+
+-- Copies a palette's route colours into ns.theme (the tables are shared, so
+-- code that kept a reference sees the change too).
+function ns.theme:UsePalette(name)
+    local p = PALETTES[name] or PALETTES.standard
+    for k, c in pairs(p) do
+        if self[k] then
+            self[k][1], self[k][2], self[k][3], self[k].hex = c[1], c[2], c[3], c.hex
+        else
+            self[k] = { c[1], c[2], c[3], hex = c.hex }
+        end
+    end
+    self.current = self.route  -- older name
+    self.palette = PALETTES[name] and name or "standard"
+end
+ns.theme:UsePalette("standard")
+
+function ns.theme:ColorBlind() return self.palette == "colorblind" end
+function ns.theme:SetColorBlind(on)
+    ns.db.colorblind = on and true or false
+    self:UsePalette(on and "colorblind" or "standard")
+    if ns.mapOverlay and ns.mapOverlay.Redraw then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
+end
+
+ns:OnLoad(function(saved)
+    ns.theme:UsePalette(saved.colorblind and "colorblind" or "standard")
+end)
 
 -- Stop types on the route: a colour AND an icon each, so colour is never
 -- the only cue. (Quests yellow, dailies blue, kills red were chosen by the

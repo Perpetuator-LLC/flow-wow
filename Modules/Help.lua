@@ -24,7 +24,7 @@ local topics = {
         "Plans your whole trip: objectives, turn-ins (after their objectives), quests to accept,",
         "trainers, and fishing/gathering when it is on the way. Click for the full plan.",
         "Left-click: details. Right-click: next goal. Learns trails as you walk.",
-        "Right-click a stop on the map or in the route list to hide it; \"Show hidden stops\" brings it back.",
+        "Right-click a stop on the map or in the route list to hide it. To undo: tick \"Show hidden stops\" under the map list and click one, or /flow nav unhide (all of them; /flow nav hidden lists them).",
         "World map: numbered checkpoints with levels \"3 [9]\", quest pickups \"!2\". Hover to preview",
         "  (yellow), click to choose. Advice list rows with an arrow do the same. /flow map on|off",
         "Waypoint: Ctrl- or Alt-click the world map, or /flow way <x> <y> [note]; /flow way clear",

@@ -7,8 +7,8 @@ local _, ns = ...
 
 local GOLD = { 1.0, 0.82, 0.25 }
 local BAR_W = 460      -- width of the two gold bars
-local INTRO = 0.7      -- seconds for the bars to sweep in
-local SHOW_TIME = 4.5  -- seconds the bars take to count down to empty
+local INTRO = 0.15     -- seconds for the bars to sweep in
+local SHOW_TIME = 0.25  -- seconds the bars count down (whole splash is about 0.5 s)
 local frame
 
 local function version()
@@ -100,7 +100,7 @@ local function build()
     local a = fadeIn:CreateAnimation("Alpha")
     a:SetFromAlpha(0)
     a:SetToAlpha(1)
-    a:SetDuration(0.8)
+    a:SetDuration(0.15)
     a:SetSmoothing("OUT")
     fadeIn:SetToFinalAlpha(true)
     f.fadeIn = fadeIn
@@ -109,7 +109,7 @@ local function build()
     local b = fadeOut:CreateAnimation("Alpha")
     b:SetFromAlpha(1)
     b:SetToAlpha(0)
-    b:SetDuration(0.3)  -- disappears in 300 ms once the bars are empty
+    b:SetDuration(0.1)  -- gone 100 ms after the bars empty
     b:SetSmoothing("IN")
     fadeOut:SetToFinalAlpha(true)
     fadeOut:SetScript("OnFinished", function() f:Hide() end)

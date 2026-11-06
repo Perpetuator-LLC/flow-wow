@@ -62,6 +62,14 @@ ns:Register("setupItem", "stamps", {
     default = function() local d = cvarDefault("showTimestamps"); return d ~= nil and d ~= "none" end,
 })
 
+ns:Register("setupItem", "colorblind", {
+    order = 75, label = "Colour-blind route colours",
+    why = "Off: green route, yellow preview, blue and red. On: orange, purple and sky blue, easier for the common kinds of colour blindness.",
+    isOn = function() return ns.theme:ColorBlind() end,
+    set = function(on) ns.theme:SetColorBlind(on) end,
+    suggested = false, default = false,
+})
+
 ns:Register("setupItem", "combatLog", {
     order = 80, label = "Combat log file every session",
     why = "Lets Claude analyse your fights and tune Flow's rotation (tools\\analyze-combatlog.ps1).",
