@@ -205,8 +205,10 @@ function V:Refresh()
         if e then
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 10, y); y = y - ROW_H
             r.link, r.reason = e.link, e.reason
-            local get = (C_Item and C_Item.GetItemIcon) or GetItemIcon
-            r.icon:SetTexture(get and get(e.link))
+            -- C_Item.GetItemIcon wants an item location, not a link: use the by-ID call.
+            local id = e.link and tonumber(e.link:match("item:(%d+)"))
+            local get = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+            r.icon:SetTexture(get and id and get(id) or nil)
             r.name:SetText(e.link)
             r.price:SetText(money(e.price))
             r.btn:SetText("Sell")
@@ -235,8 +237,10 @@ function V:Refresh()
         if e then
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 10, y); y = y - ROW_H
             r.link, r.reason = e.link, nil
-            local get = (C_Item and C_Item.GetItemIcon) or GetItemIcon
-            r.icon:SetTexture(get and get(e.link))
+            -- C_Item.GetItemIcon wants an item location, not a link: use the by-ID call.
+            local id = e.link and tonumber(e.link:match("item:(%d+)"))
+            local get = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+            r.icon:SetTexture(get and id and get(id) or nil)
             r.name:SetText(e.link)
             r.price:SetText(money(e.price))
             r.btn:SetText("Buy back")

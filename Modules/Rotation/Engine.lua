@@ -157,7 +157,13 @@ end
 
 local function ruleReady(self, rule, ctx)
     if not self:Knows(rule.spell) then return false end
-    if rule.when and not rule.when(ctx) then return false end
+    if rule.when then
+        -- One failing check (e.g. a buff the game hides in combat) skips that
+        -- rule only, instead of stopping every suggestion.
+        local ok, w = pcall(rule.when, ctx)
+        if not ok then self.lastError, self.lastErrorAt = tostring(w), GetTime() return false end
+        if not w then return false end
+    end
     return self:Ready(rule.spell, rule.target and "target" or nil)
 end
 

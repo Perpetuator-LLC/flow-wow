@@ -84,15 +84,47 @@ function A.Description(spell)
     end
 end
 
+-- Your own buffs from what you cast, for when the game won't let addons read
+-- auras (Forever hides them, often in combat: "Auras cannot be accessed when
+-- secret"). Seals and blessings are timed; auras last until changed.
+local DURATION = { ["^Seal of"] = 30, ["^Blessing of"] = 300, [" Aura$"] = math.huge }
+local cast = {}   -- [spell name] = { at, ends }
+local function remember(name)
+    for pat, d in pairs(DURATION) do
+        if name:find(pat) then
+            if pat == " Aura$" then for n in pairs(cast) do if n:find(pat) then cast[n] = nil end end end
+            cast[name] = { at = GetTime(), ends = GetTime() + d }
+            return
+        end
+    end
+end
+A.RememberCast = remember
+
+local function fromMemory(match)
+    local now = GetTime()
+    for name, c in pairs(cast) do
+        local hit
+        if type(match) == "function" then hit = match(name) else hit = (name == match) end
+        if hit and c.ends > now then return true, c.ends - now end
+    end
+    return false, 0
+end
+
 -- Finds a helpful aura on unit. match is an exact name or a function(name).
--- Returns found, secondsRemaining (math.huge for no expiry).
+-- Returns found, secondsRemaining (math.huge for no expiry). When the game
+-- refuses to show auras, falls back to what you cast (player only).
 function A.Buff(unit, match)
     for i = 1, 40 do
         local name, expires
         if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-            local a = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+            local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")
+            if not ok then
+                if unit == "player" then return fromMemory(match) end
+                return false, 0
+            end
             if not a then break end
             name, expires = Safe(a.name), Safe(a.expirationTime)
+            if name == nil and unit == "player" then return fromMemory(match) end
         else
             local n, _, _, _, _, e = UnitBuff(unit, i)
             if not n then break end
@@ -249,3 +281,11 @@ function A.Casting()
     name, endMs = Safe(name), Safe(endMs)
     if name then return name, endMs and ((endMs / 1000) - GetTime()) or 0 end
 end
+
+-- Feeds A.Buff's fallback: your successful casts.
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" then return end
+    local id = A.Safe(spellID)
+    local name = id and A.SpellInfo(id)
+    if type(name) == "string" then A.RememberCast(name) end
+end)
