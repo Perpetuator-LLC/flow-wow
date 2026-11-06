@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.0
+- Caves: Flow marks trail points you walk indoors and learns entrances (where you go from
+  outdoors to indoors). A stop inside is no longer pointed at in a straight line (that led on top
+  of the cave, e.g. Book Return): the arrow follows your trail in, or heads for the entrance
+  ("it's inside: entrance first"). Needs one walk in to learn the cave.
+- Map points work like rows in the Flow Router list: hover = details (highlighted in place),
+  click = open it, right-click = menu. Only the ^ handle in the list previews or changes the route.
+- Cast key: Attack uses the spell button too, so pressing the key on an enemy starts auto attack.
+- Diagnostics: whether this client gives addons heights (for up/down hints).
+
 ## 0.34.1
 - Gear: while you wear a two-hander, a one-hander or shield is valued as a pair with the best
   partner in your bags (a shield for a one-hander, a one-hander for a shield), shown as "as a

@@ -89,31 +89,42 @@ local function pin(c, x, y, label, color, stop, top)
         p.bg:SetTexture(CIRCLE)
         p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         p.text:SetPoint("LEFT", p, "RIGHT", 3, 0)
+        -- Like a row in the Flow Router list: hover = the stop's details (and
+        -- it's highlighted), click = open it, right-click = menu. Previewing
+        -- and changing the route is only the ^ handle in the list.
         p:SetScript("OnEnter", function(self)
             hoverKey = self.stop.goal.key
-            M:Preview(hoverKey)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            local g = self.stop.goal
             ns.nav:ClickCursor(true)
-            ns.nav:FillTooltip(GameTooltip, g, "Orange line: your route if you go here first. Click: go here first. Right-click: hide.")
+            ns.nav:FillTooltip(GameTooltip, self.stop.goal, "Click: open it. Right-click: menu. (^ in the Flow Router list: go here first.)")
             GameTooltip:Show()
+            -- Highlight in place (redrawing would move the point under the mouse).
+            self:SetSize(18, 18); self.edge:SetVertexColor(1, 1, 1, 1)
+            self:SetFrameLevel(self:GetFrameLevel() + 100)
         end)
-        p:SetScript("OnLeave", function()
+        p:SetScript("OnLeave", function(self)
             ns.nav:ClickCursor(false)
             hoverKey = nil
-            M:Preview(nil)
             GameTooltip:Hide()
+            self:SetSize(11, 11); self.edge:SetVertexColor(0, 0, 0, 0.9)
+            self:SetFrameLevel(math.max(1, self:GetFrameLevel() - 100))
         end)
         p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         p:SetScript("OnClick", function(self, button)
-            M:Preview(nil)
+            local g = self.stop.goal
             if button == "RightButton" then
-                ns.nav:Hide(self.stop.goal.key)
-                ns:Print("hid " .. (self.stop.goal.text or "that stop") .. " (map panel: Show hidden stops to undo)")
+                local items = {
+                    { title = true, text = g.text or g.title or "This stop" },
+                    { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+                    { sep = true },
+                }
+                for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+                ns.menu:Open(items)
                 return
             end
-            ns.nav:Select(self.stop.goal.key)
-            ns:Print("route updated: " .. (self.stop.goal.text or "?") .. " first")
+            ns.nav:OpenStop(g)
         end)
         pins[nPins] = p
     end

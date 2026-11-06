@@ -156,6 +156,10 @@ local function apiReport(arg)
     print("  quest waypoints: " .. has(C_QuestLog and C_QuestLog.GetNextWaypoint)
         .. ", equipment manager: " .. has(C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs))
     print("  your health: " .. shown(UnitHealth("player")) .. ", facing: " .. shown(GetPlayerFacing and GetPlayerFacing()))
+    -- Heights: does this client give addons a height (z)? Needed for up/down hints.
+    local okP, y, x, z = pcall(UnitPosition, "player")
+    print("  position: " .. (okP and (shown(y) .. ", " .. shown(x) .. ", height " .. shown(z)) or "not available")
+        .. ", indoors: " .. tostring(IsIndoors and IsIndoors()))
     if UnitExists("target") then print("  target health: " .. shown(UnitHealth("target"))) end
     print("  /flow api combatlog on|off|auto")
 end

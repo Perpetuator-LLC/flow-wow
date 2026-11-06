@@ -26,22 +26,18 @@ local function macroFor(s)
     return "/cast " .. s.spell
 end
 
--- Points the secure button at the suggestion. Spells use the "spell" button
--- type: Forever ignores macro-type secure buttons (the fight record showed
--- every key press arriving with the right macro, and nothing cast). Only
--- Attack still goes through a macro (/startattack never toggles it off).
+-- Points the secure button at the suggestion, as the "spell" button type:
+-- Forever ignores macro-type secure buttons (the fight records showed every
+-- press arriving with the right macro, and nothing cast). Attack too: Flow
+-- only suggests it while you're not swinging, so the press turns it on.
 local function setMacro(text, spell)
     if InCombatLockdown() or text == macro then return end
-    if spell and spell ~= "Attack" and spell ~= "Auto Attack" then
+    if spell then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", spell)
-        -- Heals land on you unless you target a friend: "player" as the unit.
+        -- Heals always on you: "player" as the unit.
         local heal = text:find("@player", 1, true) or ns.rotation.current and ns.rotation.current.kind == "heal"
         btn:SetAttribute("unit", heal and "player" or nil)
-    elseif spell then
-        btn:SetAttribute("type", "macro")
-        btn:SetAttribute("macrotext", text)
-        btn:SetAttribute("unit", nil)
     else
         btn:SetAttribute("type", nil)
         btn:SetAttribute("spell", nil)

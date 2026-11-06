@@ -354,3 +354,13 @@ ns:Register("test", "gear: only one-handers and off-hands pair up", function(t)
     t:eq(ns.gear:BestPartner({ equipLoc = "INVTYPE_WEAPON" }, "tank", {}), nil, "nothing in the bags: no partner")
     t:ok(ns.gear.MAIN_1H.INVTYPE_WEAPON and ns.gear.OFF.INVTYPE_SHIELD, "one-hander and shield are a pair")
 end)
+
+ns:Register("test", "caves: entrances are learned once per spot", function(t)
+    local saved = ns.db.nav.entrances
+    ns.db.nav.entrances = {}
+    ns.nav:AddEntrance({ cont = 0, wx = 100, wy = 100, map = 1 })
+    ns.nav:AddEntrance({ cont = 0, wx = 110, wy = 105, map = 1 })   -- same entrance, a few yards on
+    ns.nav:AddEntrance({ cont = 0, wx = 400, wy = 100, map = 1 })   -- another one
+    t:eq(#ns.db.nav.entrances, 2, "two entrances")
+    ns.db.nav.entrances = saved
+end)

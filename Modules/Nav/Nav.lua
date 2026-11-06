@@ -160,7 +160,7 @@ local function link(g, a, b)
     table.insert(g.adj[b], a)
 end
 
-local lastNode, lastCont
+local lastNode, lastCont, lastIndoor
 local function record(p)
     if (UnitOnTaxi and UnitOnTaxi("player")) or (IsFlying and IsFlying()) then lastNode = nil return end
     local speed = A.Safe(GetUnitSpeed("player")) or 0
@@ -173,6 +173,12 @@ local function record(p)
         if d > MAX_EDGE then lastNode = nil end
     end
     local n = nearestNode(p.cont, p.wx, p.wy, SNAP) or addNode(p.cont, p.wx, p.wy)
+    -- Caves and buildings: trail points walked indoors are marked, and the
+    -- spot where you went from outdoors to indoors is kept as an entrance.
+    local indoor = IsIndoors and IsIndoors() or false
+    if n and indoor then g.indoor = g.indoor or {}; g.indoor[n] = true end
+    if indoor and lastIndoor == false then N:AddEntrance(p) end
+    lastIndoor = indoor
     if n and lastNode and n ~= lastNode then link(g, lastNode, n) end
     lastNode = n or lastNode
 end
@@ -638,6 +644,12 @@ function N:FillTooltip(tt, goal, footer)
     tt:AddLine(" ")
     tt:AddLine(task, 1, 1, 1, true)
     if goal.blockedBy then tt:AddLine("Blocked: " .. goal.blockedBy, 1, 0.45, 0.45, true) end
+    -- Inside a cave or building (learned from your trails): say so, the arrow
+    -- goes through the entrance.
+    local pt = goal.points and goal.points[1]
+    if pt and pt.wx and pt.cont and N:Inside(pt.cont, pt.wx, pt.wy) then
+        tt:AddLine("Inside (cave or building): the arrow takes you through the entrance.", 0.6, 0.8, 1, true)
+    end
     local id = tonumber(goal.key:match("^(%d+):")) or tonumber(goal.key:match("^pickup:(%d+)$"))
     if id then
         local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id)
@@ -809,10 +821,44 @@ end
 -- Decide where the arrow points: a trail point along a known path, or the
 -- goal itself. Returns wx, wy, how ("path"/"direct"), routeLength.
 local lastRouteAt = 0
+-- Entrances you've walked through (outdoors -> indoors), per continent.
+function N:AddEntrance(p)
+    local list = ns.db.nav.entrances or {}
+    ns.db.nav.entrances = list
+    for _, e in ipairs(list) do
+        if e.cont == p.cont and dist(e.wx, e.wy, p.wx, p.wy) < 30 then return end
+    end
+    list[#list + 1] = { cont = p.cont, wx = floor(p.wx), wy = floor(p.wy), map = p.map }
+end
+
+-- Is a point inside (a cave or building)? Known once you've walked there:
+-- an indoor trail point within 35 yd.
+function N:Inside(cont, wx, wy)
+    local g = graph(cont)
+    if not g.indoor then return false end
+    local n = nearestNode(cont, wx, wy, 35)
+    return n ~= nil and g.indoor[n] == true
+end
+
+-- Nearest known entrance to a point (within 250 yd).
+local function entranceNear(cont, wx, wy)
+    local best, bestD
+    for _, e in ipairs(ns.db.nav.entrances or {}) do
+        if e.cont == cont then
+            local d = dist(e.wx, e.wy, wx, wy)
+            if d < 250 and (not bestD or d < bestD) then best, bestD = e, d end
+        end
+    end
+    return best
+end
+
 local function steer(p, choice)
     local pt = choice.point
     local direct = choice.d
-    if direct < 80 then route = nil return pt.wx, pt.wy, "direct", direct end
+    -- A stop inside a cave while you're outside: never straight at it (that
+    -- leads on top of the cave). Follow a trail in, or head for the entrance.
+    local inside = not (IsIndoors and IsIndoors()) and N:Inside(p.cont, pt.wx, pt.wy)
+    if direct < 80 and not inside then route = nil return pt.wx, pt.wy, "direct", direct end
 
     local now = GetTime()
     local stale = not route or route.goalKey ~= choice.goal.key or route.cont ~= p.cont
@@ -829,13 +875,17 @@ local function steer(p, choice)
         local t, td = nearestNode(p.cont, pt.wx, pt.wy, 80)
         if s and t and s ~= t then
             local nodes, length = astar(p.cont, s, t)
-            if nodes and length + (td or 0) < direct * 4 then
+            if nodes and length + (td or 0) < direct * (inside and 20 or 4) then
                 route = { goalKey = choice.goal.key, cont = p.cont, nodes = nodes, idx = 1,
                           length = length + (td or 0) }
             end
         end
     end
-    if not route then return pt.wx, pt.wy, "direct", direct end
+    if not route then
+        local e = inside and entranceNear(p.cont, pt.wx, pt.wy)
+        if e and dist(p.wx, p.wy, e.wx, e.wy) > ARRIVED then return e.wx, e.wy, "entrance", direct end
+        return pt.wx, pt.wy, "direct", direct
+    end
 
     local g = graph(p.cont)
     -- Advance along the path; also jump ahead if a later point is already closer.
@@ -1189,7 +1239,8 @@ local function update()
     else
         frame.sub:SetText(string.format("%d yd%s%s", choice.d,
             (not facing and b) and (" " .. compass(b)) or "",
-            how == "path" and string.format(" (trail, %d yd walk)", length) or ""))
+            how == "path" and string.format(" (trail, %d yd walk)", length)
+                or (how == "entrance" and " (it's inside: entrance first)" or "")))
         frame.arrow:SetArrived(false)
     end
     local c = ns.theme.route
