@@ -256,7 +256,7 @@ end)
 -- First run only.
 ns:On("PLAYER_ENTERING_WORLD", function()
     if ns.db.setup.done then return end
-    C_Timer.After(7, function()
+    C_Timer.After(30, function()  -- well after the splash, so new players aren't swamped
         if not InCombatLockdown() and not ns.db.setup.done then
             ns.db.setup.done = true
             S:Open()

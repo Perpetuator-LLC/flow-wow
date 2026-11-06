@@ -66,7 +66,11 @@ local function buybackIndex(link)
     end
 end
 
-local function canSell() return MerchantFrame and MerchantFrame:IsShown() end
+-- The vendor is open from MERCHANT_SHOW until MERCHANT_CLOSED. (Checking the
+-- vendor window itself failed: it is shown just AFTER the event, so the
+-- drawer never appeared.)
+local merchantOpen = false
+local function canSell() return merchantOpen end
 
 local function sellOne(e)
     if not canSell() then return end
@@ -267,6 +271,23 @@ function V:Refresh()
     f.sellAll:SetText(anything and ("Sell All: " .. money(batchValue)) or "Nothing to sell")
 end
 
+-- Sell every grey item right away (no confirmation), when you open a vendor.
+-- Setting: "Auto-sell junk at vendors" in /flow setup (on by default).
+function V:SellJunk()
+    if not canSell() then return end
+    local junk = self:Candidates()
+    local value = 0
+    for _, e in ipairs(junk) do
+        useItem(e.bag, e.slot)
+        junkSold = junkSold + 1
+        value = value + e.price
+    end
+    if #junk > 0 then
+        ns:Print(string.format("sold %d junk item(s) for %s", #junk, money(value)))
+        D:Invalidate()
+    end
+end
+
 -- Junk first (all of it, if ticked), then up to 12 proposed items. Runs from
 -- a click (some clients require a real click to sell).
 function V:SellAll()
@@ -281,16 +302,25 @@ function V:SellAll()
 end
 
 ns:On("MERCHANT_SHOW", function()
+    merchantOpen = true
     if not ns.db.sell.enabled then return end
     panel = panel or build()
-    panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
     wipe(sold); junkSold = 0
     D:Invalidate()
-    V:Refresh()
+    -- Next frame, once the vendor window is on screen to anchor to.
+    C_Timer.After(0, function()
+        if not merchantOpen then return end
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
+        if ns.db.sell.autoJunk then V:SellJunk() end
+        V:Refresh()
+    end)
 end)
 
-ns:On("MERCHANT_CLOSED", function() if panel then panel:Hide() end end)
+ns:On("MERCHANT_CLOSED", function()
+    merchantOpen = false
+    if panel then panel:Hide() end
+end)
 ns:On("BAG_UPDATE_DELAYED", function()
     if panel and canSell() then D:Invalidate(); V:Refresh() end
 end)
@@ -298,7 +328,16 @@ end)
 ns:OnLoad(function(saved)
     if saved.sell.enabled == nil then saved.sell.enabled = true end
     if saved.sell.junkAll == nil then saved.sell.junkAll = true end
+    if saved.sell.autoJunk == nil then saved.sell.autoJunk = true end
 end)
+
+ns:Register("setupItem", "autoJunk", {
+    order = 15, label = "Auto-sell junk at vendors",
+    why = "Sells every grey item as soon as you open a vendor, with no confirmation.",
+    isOn = function() return ns.db.sell.autoJunk == true end,
+    set = function(on) ns.db.sell.autoJunk = on end,
+    suggested = true, default = false,
+})
 
 ns.commands.sell = function(arg)
     arg = (arg or ""):lower()
