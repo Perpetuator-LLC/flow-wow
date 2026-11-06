@@ -6,6 +6,28 @@ local _, ns = ...
 ns.ROLE_COLOR = { dps = "ff4040", heal = "40ff40", tank = "4090ff" }
 ns.ROLE_LABEL = { dps = "DPS", heal = "Heal", tank = "Tank" }
 
+-- Spec icon for a role (from class data), e.g. Retribution for dps.
+function ns:RoleIconPath(role)
+    local d = self:ClassData()
+    local s = d and d.specs and d.specs[role]
+    return s and s.icon
+end
+
+-- Inline icon for text ("|T...|t"), or the coloured role name if the class
+-- has no icon for it.
+function ns:RoleIcon(role, size)
+    local path = self:RoleIconPath(role)
+    if path then return string.format("|T%s:%d:%d:0:0:64:64:5:59:5:59|t", path, size or 14, size or 14) end
+    return string.format("|cff%s%s|r", ns.ROLE_COLOR[role] or "ffffff", ns.ROLE_LABEL[role] or role)
+end
+
+-- Spec name for a role, e.g. "Retribution" (falls back to DPS/Heal/Tank).
+function ns:RoleName(role)
+    local d = self:ClassData()
+    local s = d and d.specs and d.specs[role]
+    return s and s.name or ns.ROLE_LABEL[role]
+end
+
 function ns:ClassData()
     local _, class = UnitClass("player")
     return ns:Get("class", class)

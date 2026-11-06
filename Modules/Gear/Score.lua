@@ -205,7 +205,7 @@ local function addToTooltip(tooltip, link)
     -- Line 1: the item's own score per role.
     local parts, better = {}, {}
     for _, role in ipairs(ROLES) do
-        parts[#parts + 1] = string.format("|cff%s%s %d|r", ns.ROLE_COLOR[role], ns.ROLE_LABEL[role], scores[role] + 0.5)
+        parts[#parts + 1] = string.format("%s |cff%s%d|r", ns:RoleIcon(role), ns.ROLE_COLOR[role], scores[role] + 0.5)
     end
     tooltip:AddLine("Flow score  " .. table.concat(parts, "   "))
 
@@ -222,8 +222,7 @@ local function addToTooltip(tooltip, link)
             local label = (hasSet and (sets:SetFor(role) .. " set ") or "")
                 .. (what or "an empty slot")
             if not groups[label] then groups[label] = {}; order[#order + 1] = label end
-            table.insert(groups[label], string.format("|cff%s%s|r %s",
-                ns.ROLE_COLOR[role], ns.ROLE_LABEL[role], fmtDiff(diff)))
+            table.insert(groups[label], string.format("%s %s", ns:RoleIcon(role, 12), fmtDiff(diff)))
         end
     end
     for _, label in ipairs(order) do
@@ -235,7 +234,7 @@ local function addToTooltip(tooltip, link)
 
     if #inSets > 0 then
         local names = {}
-        for _, role in ipairs(inSets) do names[#names + 1] = ns.ROLE_LABEL[role] end
+        for _, role in ipairs(inSets) do names[#names + 1] = ns:RoleIcon(role, 12) .. " " .. ns:RoleName(role) end
         tooltip:AddLine("  |cffffd200Keep|r: part of your " .. table.concat(names, " / ") .. " set")
     elseif not worn then
         local main = ns:LevelingRole()
@@ -244,11 +243,11 @@ local function addToTooltip(tooltip, link)
         if better[main] then
             verdict = tooLow
                 and string.format("|cff66ff66Upgrade at level %d|r: keep it", item.minLevel)
-                or string.format("|cff66ff66Upgrade|r for %s: equip it", ns.ROLE_LABEL[main])
+                or string.format("|cff66ff66Upgrade|r for %s: equip it", ns:RoleIcon(main, 12) .. " " .. ns:RoleName(main))
         else
             local others = {}
             for _, role in ipairs(ROLES) do
-                if role ~= main and better[role] then others[#others + 1] = ns.ROLE_LABEL[role] end
+                if role ~= main and better[role] then others[#others + 1] = ns:RoleIcon(role, 12) .. " " .. ns:RoleName(role) end
             end
             if #others > 0 and ns.db.gear.keepOffspec then
                 verdict = "|cffffd200Keep|r: better for " .. table.concat(others, " / ")

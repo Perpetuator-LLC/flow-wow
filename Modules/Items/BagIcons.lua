@@ -1,6 +1,6 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   green arrow (top left)    = equip this now (better for your levelling role)
---   coloured dot (top right)  = better for another role (red DPS, green Heal, blue Tank)
+--   spec icons (top right)    = better for another role (Retribution / Holy / Protection icons, coloured rims)
 --   bottom left               = gold coin = sell, AH, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
 -- The item tooltip says what Flow would do and why.
@@ -29,12 +29,22 @@ local function marks(button)
         m.arrow:SetColorTexture(0.2, 1, 0.2, 0.9)
         m.arrow:SetSize(8, 8)
     end
+    -- Small spec icons (Retribution / Holy / Protection) with a role-coloured
+    -- rim, for "better for another role". Coloured squares if no icon.
     m.dots = {}
     for i, role in ipairs({ "dps", "heal", "tank" }) do
-        local d = m:CreateTexture(nil, "OVERLAY")
-        d:SetSize(6, 6)
-        d:SetPoint("TOPRIGHT", -2 - (i - 1) * 7, -2)
-        d:SetColorTexture(ROLE_RGB[role][1], ROLE_RGB[role][2], ROLE_RGB[role][3], 1)
+        local d = CreateFrame("Frame", nil, m)
+        d:SetSize(12, 12)
+        d:SetPoint("TOPRIGHT", -1 - (i - 1) * 13, -1)
+        d.rim = d:CreateTexture(nil, "BACKGROUND")
+        d.rim:SetAllPoints()
+        d.rim:SetColorTexture(ROLE_RGB[role][1], ROLE_RGB[role][2], ROLE_RGB[role][3], 1)
+        d.icon = d:CreateTexture(nil, "ARTWORK")
+        d.icon:SetPoint("TOPLEFT", 1, -1)
+        d.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        local path = ns:RoleIconPath(role)
+        if path then d.icon:SetTexture(path); d.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else d.icon:Hide() end
+        d:Hide()
         m.dots[role] = d
     end
     m.badge = m:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")

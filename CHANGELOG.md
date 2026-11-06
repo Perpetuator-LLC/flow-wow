@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1
+- Spec icons (Retribution, Holy, Protection) replace DPS / Heal / Tank words, dots and letters in
+  tooltips, bag icons and quest reward badges.
+- Fixed: an item at least as good in every stat (e.g. a belt with only more armor) is now an upgrade
+  for every role; armor also weighs more for DPS and Heal.
+
 ## 0.19.0
 - Vendor drawer: "Sell all junk" (every grey item, on by default) plus up to 12 proposed items with
   their own Sell buttons; Sell All sells junk first so the proposed ones stay in the buyback tab;

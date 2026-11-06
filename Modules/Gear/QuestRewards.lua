@@ -1,6 +1,6 @@
 -- Badges on quest reward choices so you can pick at a glance:
---   red D   = best upgrade for DPS
---   green H = best upgrade for Heal
+--   spec icons (Retribution / Holy / Protection, role-coloured rim) = best upgrade for that role
+--   (classes without spec icons show D / H / T letters instead)
 --   blue T  = best upgrade for Tank
 --   gold $  = nothing is an upgrade for any role: take this one to sell
 --              (highest vendor price)
@@ -47,8 +47,19 @@ local function badgesFor(button)
             -- Same gold coin as the bag icons.
             f.bg:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
         else
+            -- Spec icon (Retribution / Holy / Protection) in a role-coloured rim;
+            -- the letter only if the class has no icon.
             f.bg:SetColorTexture(c[1], c[2], c[3], 0.95)
-            f.text:SetText(c[4])
+            local path = ns:RoleIconPath(key)
+            if path then
+                f.icon = f:CreateTexture(nil, "ARTWORK")
+                f.icon:SetPoint("TOPLEFT", 1, -1)
+                f.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+                f.icon:SetTexture(path)
+                f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            else
+                f.text:SetText(c[4])
+            end
         end
         f:Hide()
         f.key = key

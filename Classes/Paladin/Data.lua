@@ -6,9 +6,9 @@ local _, ns = ...
 
 ns:Register("class", "PALADIN", {
     specs = {
-        dps  = { name = "Retribution" },
-        heal = { name = "Holy" },
-        tank = { name = "Protection" },
+        dps  = { name = "Retribution", icon = "Interface\\Icons\\Spell_Holy_AuraOfLight" },
+        heal = { name = "Holy", icon = "Interface\\Icons\\Spell_Holy_HolyBolt" },
+        tank = { name = "Protection", icon = "Interface\\Icons\\Spell_Holy_DevotionAura" },
     },
 
     -- Recommended spec while levelling, and why.

@@ -43,14 +43,14 @@ Flow for WoW is a separate project from Flow Engine.
 - **Quest markers on nameplates**: skull with your kill count, diamond with the count of an item
   a mob drops, star for NPCs to talk to; several per mob.
 - **Missed quests**: quests you skipped in zones you've quested in (`/flow missed`).
-- **Quest reward badges**: the best choice per role (D/H/T), or a gold coin on the best one to
+- **Quest reward badges**: the best choice per role (spec icons: Retribution, Holy, Protection), or a gold coin on the best one to
   sell.
 
 ### Gear and items
-- **Gear scores per role** in every tooltip (red DPS, green Heal, blue Tank), each compared with
+- **Gear scores per role** in every tooltip, shown with your spec icons (Retribution, Holy, Protection), each compared with
   what that item would replace, or with your gear set for that role (Equipment Manager or
   `/flow gear save`).
-- **Bag icons**: green arrow to equip now, role dots for other roles, gold coin to sell, AH,
+- **Bag icons**: green arrow to equip now, spec icons for other roles, gold coin to sell, AH,
   DE, a quest "!" for items your quests need, and profession icons for crafting materials.
   The tooltip says why.
 - **Selling**: at a vendor Flow lists what to sell and sells 12 at a time, which is the size
