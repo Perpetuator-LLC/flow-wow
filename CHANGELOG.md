@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.32.0
+- Arrow: anywhere in a quest's area counts as arrived (within 45 yd of any spawn of its mobs or
+  objects, not just the point the route picked), so it shows the ring there instead of pointing
+  you back to one dot. In the area, when one of the quest's mobs or NPCs has a nameplate on
+  screen, the arrow points straight at it ("There: Kobold Vermin").
+- Hover the arrow, ring or its text for the stop's details (quest progress...).
+- Heals from the cast key always land on you (unless you target a friend). Presses and the
+  game's errors in the 15 s after a fight are recorded too.
+- "Choose your professions" no longer shows once you've learned two main professions.
+- Tests: quest area, professions advice (19 in all).
+
 ## 0.31.1
 - Cast key: never locked to nothing for a fight. The fight records showed pulls with no
   suggestion, so the key did nothing all fight; now the class picks (Paladin: Judgement, or a

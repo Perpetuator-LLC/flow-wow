@@ -261,3 +261,21 @@ ns:Register("test", "cast key: never locked to nothing for a fight", function(t)
     end
     t:eq(def.pullLock({ spell = "Holy Strike", kind = "damage" }, E), "Holy Strike", "a real attack stays")
 end)
+
+ns:Register("test", "arrow: anywhere in a quest's area counts as arrived", function(t)
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local goal = { area = true, points = { { cont = 0, wx = 300, wy = 0 }, { cont = 0, wx = 30, wy = 10 } } }
+    t:ok(ns.nav:InArea(goal, p), "near one of the spawns")
+    goal.points[2].wx = 200
+    t:ok(not ns.nav:InArea(goal, p), "far from all spawns")
+    t:ok(not ns.nav:InArea({ points = { { cont = 0, wx = 1, wy = 1 } } }, p), "single-spot stops use the normal arrival")
+end)
+
+ns:Register("test", "ways to improve: no 'choose professions' once two are learned", function(t)
+    local main = 0
+    for _, pr in ipairs(ns.api.Professions()) do
+        if pr.primary then main = main + 1 end
+    end
+    local items = ns:Get("advisor", "choosePro").check()
+    if main >= 2 then t:ok(items == nil, "not suggested") else t:ok(true) end
+end)

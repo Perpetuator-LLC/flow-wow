@@ -121,8 +121,10 @@ ns:Register("navGoal", "questie", {
                         local skillObj = ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
                         if not obj.finished and od and not skillObj then
                             local points, verb, what, elite = {}, nil, nil, false
+                            local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
                             if od.Type == "monster" then
                                 what = npcSpawns(db, points, od.Id); verb = "Kill"
+                                if what then targets[#targets + 1] = what end
                                 -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
                                 local npcRaw = call(db, "GetNPC", od.Id)
                                 if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
@@ -135,7 +137,8 @@ ns:Register("navGoal", "questie", {
                                 -- among normal kobolds doesn't make the objective elite).
                                 local anyNormal, anyElite = false, false
                                 for _, npcId in ipairs(item and item.npcDrops or {}) do
-                                    npcSpawns(db, points, npcId)
+                                    local dropper = npcSpawns(db, points, npcId)
+                                    if dropper then targets[#targets + 1] = dropper end
                                     local npcRaw = call(db, "GetNPC", npcId)
                                     if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
                                 end
@@ -147,6 +150,7 @@ ns:Register("navGoal", "questie", {
                                 goals[#goals + 1] = {
                                     key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
                                     weight = elite and 1.6 or nil, elite = elite or nil,
+                                    npcs = #targets > 0 and targets or nil, area = true,
                                     kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                                     text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
                                     details = (function()

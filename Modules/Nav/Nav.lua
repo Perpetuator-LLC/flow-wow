@@ -1004,8 +1004,55 @@ local function buildArrow()
     f.textHit:SetSize(240, 34)
     f.textHit:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f.textHit:SetScript("OnClick", function(_, button) f:GetScript("OnClick")(f, button) end)
+    -- Hover the arrow (or ring, or its text): the stop's details, e.g. quest progress.
+    local function tip(owner)
+        if not current then return end
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        N:FillTooltip(GameTooltip, current.goal, N.arrived and "You're there. Click: details. Right-click: options."
+            or "Click: details and the trip. Right-click: options.")
+        GameTooltip:Show()
+    end
+    f:SetScript("OnEnter", tip)
+    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.textHit:SetScript("OnEnter", function() tip(f) end)
+    f.textHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     return f
+end
+
+-- In a quest's area: within AREA yards of any of its spawn points (objective
+-- stops only; a vendor or trainer is one spot).
+local AREA = 45
+function N:InArea(goal, p)
+    if not (goal and goal.area and p) then return false end
+    for _, pt in ipairs(goal.points or {}) do
+        if pt.wx and pt.cont == p.cont and dist(p.wx, p.wy, pt.wx, pt.wy) < AREA then return true end
+    end
+    return false
+end
+
+-- A nameplate on screen for one of the stop's mobs / NPCs (goal.npcs): the
+-- one nearest the middle of the screen. Returns { x, y (screen pixels), name }.
+function N:VisibleTarget(goal)
+    if not (goal and goal.npcs and C_NamePlate and C_NamePlate.GetNamePlates) then return nil end
+    local want = {}
+    for _, n in ipairs(goal.npcs) do want[n:lower()] = true end
+    local cx, cy = GetScreenWidth() * UIParent:GetEffectiveScale() / 2, GetScreenHeight() * UIParent:GetEffectiveScale() / 2
+    local best, bestD
+    for _, plate in ipairs(C_NamePlate.GetNamePlates() or {}) do
+        local unit = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+        local name = unit and A.Safe(UnitName(unit))
+        if name and want[name:lower()] and not UnitIsDead(unit) then
+            local x, y = plate:GetCenter()
+            if x then
+                local s = plate:GetEffectiveScale()
+                x, y = x * s, y * s
+                local d = (x - cx) ^ 2 + (y - cy) ^ 2
+                if not bestD or d < bestD then best, bestD = { x = x, y = y, name = name }, d end
+            end
+        end
+    end
+    return best
 end
 
 local function update()
@@ -1065,10 +1112,26 @@ local function update()
         ns:Print("reached a shared stop: " .. (g.title or "?"))
     end
     frame.text:SetText(g.text or g.title or "Next goal")
-    if choice.d < ARRIVED * 2 then
-        -- Arrived: the arrow turns into a pulsing ring in the route colour.
-        frame.sub:SetText("You're here")
-        frame.arrow:SetArrived(true)
+    -- Arrived: at the stop, or anywhere in a quest's area (near any spawn of
+    -- its mobs / objects, not just the one point the route picked). Then the
+    -- arrow is a pulsing ring - unless one of the quest's mobs or NPCs has a
+    -- nameplate on screen: then the arrow points straight at it.
+    local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
+    N.arrived = here
+    if here then
+        local tgt = N:VisibleTarget(g)
+        if tgt then
+            local ax, ay = frame:GetCenter()
+            local s = frame:GetEffectiveScale()
+            frame.arrow:SetArrived(false)
+            frame.arrow:SetRotation(atan2(-(tgt.x / s - ax), tgt.y / s - ay))
+            frame.arrow:Show()
+            frame.sub:SetText("There: " .. tgt.name)
+        else
+            frame.arrow:SetArrived(true)
+            frame.arrow:Show()
+            frame.sub:SetText(choice.d < ARRIVED * 2 and "You're here" or "You're in the area")
+        end
     else
         frame.sub:SetText(string.format("%d yd%s%s", choice.d,
             (not facing and b) and (" " .. compass(b)) or "",

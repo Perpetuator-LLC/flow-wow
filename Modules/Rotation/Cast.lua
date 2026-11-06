@@ -35,7 +35,9 @@ local function setMacro(text, spell)
     if spell and spell ~= "Attack" and spell ~= "Auto Attack" then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", spell)
-        btn:SetAttribute("unit", text:find("@player", 1, true) and "player" or nil)
+        -- Heals land on you unless you target a friend: "player" as the unit.
+        local heal = text:find("@player", 1, true) or ns.rotation.current and ns.rotation.current.kind == "heal"
+        btn:SetAttribute("unit", heal and "player" or nil)
     elseif spell then
         btn:SetAttribute("type", "macro")
         btn:SetAttribute("macrotext", text)
@@ -246,6 +248,7 @@ end
 -------------------------------------------------------------------------------
 
 local fight
+local afterUntil = 0   -- the after-fight heal window is recorded too (15 s after a fight)
 ns:On("PLAYER_REGEN_DISABLED", function()
     local key = ns.db.cast.key
     fight = { at = GetTime(), ticks = 0, empty = 0, seen = {}, clicks = 0, downs = 0 }
@@ -268,6 +271,10 @@ end)
 ns:OnLoad(function()
     if not btn then return end
     btn:HookScript("PostClick", function(_, button, down)
+        if not fight and GetTime() < afterUntil then
+            ns:Log("cast", string.format("after-fight press: %s down=%s spell %s unit %s", tostring(button), tostring(down),
+                tostring(btn:GetAttribute("spell")), tostring(btn:GetAttribute("unit"))))
+        end
         if fight then
             fight.clicks = fight.clicks + 1
             if down then fight.downs = fight.downs + 1 end
@@ -291,7 +298,10 @@ end)
 
 -- During a fight, the game's own complaints (out of range, not ready, no
 -- target...) and failed casts go into the fight record too (first few).
+-- (afterUntil: declared with `fight` above)
+ns:On("PLAYER_REGEN_ENABLED", function() afterUntil = GetTime() + 15 end)
 local function complain(what)
+    if not fight and GetTime() < afterUntil then ns:Log("cast", "after fight, game said: " .. tostring(what)) return end
     if not fight then return end
     fight.errors = (fight.errors or 0) + 1
     if fight.errors <= 5 then ns:Log("cast", "game said: " .. tostring(what)) end

@@ -144,6 +144,12 @@ ns:OnLoad(function(saved) saved.prof = saved.prof or {} end)
 ns:Register("advisor", "choosePro", {
     check = function()
         if ns.db.prof.chosen or UnitLevel("player") < 3 then return nil end
+        -- Already learned two main professions in game: that's a choice made.
+        local primaries = 0
+        for _, pr in ipairs(ns.api.Professions()) do
+            if IS_PRIMARY[pr.name] then primaries = primaries + 1 end
+        end
+        if primaries >= 2 then return nil end
         return { { importance = 45, text = "Choose your professions (Flow has a suggestion)",
                    improves = { "Professions" }, onClick = function() P:Open() end } }
     end,
