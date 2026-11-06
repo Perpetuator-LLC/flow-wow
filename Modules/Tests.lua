@@ -279,3 +279,10 @@ ns:Register("test", "ways to improve: no 'choose professions' once two are learn
     local items = ns:Get("advisor", "choosePro").check()
     if main >= 2 then t:ok(items == nil, "not suggested") else t:ok(true) end
 end)
+
+ns:Register("test", "cast key: the after-fight heal never becomes the fight's key", function(t)
+    local E = ns.rotation
+    local def = E:Definition()
+    if not (def and def.pullLock and E:Knows("Judgement")) then t:ok(true) return end
+    t:eq(def.pullLock({ spell = "Holy Light", kind = "heal" }, E), "Judgement", "heal at the pull: main attack")
+end)

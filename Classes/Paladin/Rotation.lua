@@ -148,6 +148,9 @@ ns:Register("rotation", "PALADIN", {
     -- The pull suggestion if it's a real attack; a seal only if you have none
     -- (Judgement needs one); otherwise Judgement, your main hit.
     pullLock = function(s, engine)
+        -- A heal suggested at the pull is the after-fight prompt from the last
+        -- fight: never lock the key to it for this one.
+        if s and (s.kind == "heal" or s.kind == "emergency") then s = nil end
         if s and s.kind ~= "buff" and s.spell ~= "Attack" and s.spell ~= "Auto Attack" then return s.spell end
         if s and s.spell:find("^Seal of") and not hasSeal() then return s.spell end
         for _, spell in ipairs({ "Judgement", "Judgment", "Crusader Strike", "Holy Strike" }) do

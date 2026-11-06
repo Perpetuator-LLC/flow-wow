@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.1
+- Cast key: a fight that starts while the after-fight heal is offered no longer locks the key
+  to Holy Light for the whole fight (seen in the fight records); it locks to Judgement.
+
 ## 0.32.0
 - Arrow: anywhere in a quest's area counts as arrived (within 45 yd of any spawn of its mobs or
   objects, not just the point the route picked), so it shows the ring there instead of pointing
