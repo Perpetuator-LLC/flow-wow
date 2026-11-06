@@ -6,6 +6,9 @@
 local _, ns = ...
 
 local GOLD = { 1.0, 0.82, 0.25 }
+local BAR_W = 460      -- width of the two gold bars
+local INTRO = 0.7      -- seconds for the bars to sweep in
+local SHOW_TIME = 4.5  -- seconds the bars take to count down to empty
 local frame
 
 local function version()
@@ -63,19 +66,22 @@ local function build()
     f.band:SetPoint("BOTTOMRIGHT", 0, 8)
     f.band:SetColorTexture(0, 0, 0, 0.45)
 
-    -- Thin golden lines that sweep out from the middle.
-    local function line(y)
+    -- Thin golden lines: they sweep out from the middle, then count down the
+    -- time the splash stays up. The top one empties left to right (pinned to
+    -- its right end), the bottom one right to left (pinned to its left end).
+    -- When both are empty, the splash is gone.
+    local function line(y, pin)
         local t = f:CreateTexture(nil, "ARTWORK")
         t:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9)
-        t:SetSize(460, 2)
-        t:SetPoint("CENTER", f, "TOP", 0, y)
+        t:SetSize(BAR_W, 2)
+        t:SetPoint(pin, f, "TOP", pin == "RIGHT" and BAR_W / 2 or -BAR_W / 2, y)
         local g = t:CreateAnimationGroup()
-        scaleAnim(g, 0.01, 1, 0.7)
+        scaleAnim(g, 0.01, 1, INTRO)
         t.sweep = g
         return t
     end
-    f.top = line(-18)
-    f.bottom = line(-122)
+    f.top = line(-18, "RIGHT")
+    f.bottom = line(-122, "LEFT")
 
     f.title = f:CreateFontString(nil, "OVERLAY")
     f.title:SetFont(STANDARD_TEXT_FONT, 46, "OUTLINE")
@@ -103,7 +109,7 @@ local function build()
     local b = fadeOut:CreateAnimation("Alpha")
     b:SetFromAlpha(1)
     b:SetToAlpha(0)
-    b:SetDuration(1.2)
+    b:SetDuration(0.35)
     b:SetSmoothing("IN")
     fadeOut:SetToFinalAlpha(true)
     fadeOut:SetScript("OnFinished", function() f:Hide() end)
@@ -124,13 +130,30 @@ local function show()
     frame.status:SetText(ok and s or "")
     frame.fadeOut:Stop()
     frame:SetAlpha(0)
+    frame.top:SetWidth(BAR_W)
+    frame.bottom:SetWidth(BAR_W)
     frame:Show()
     frame.fadeIn:Play()
     frame.top.sweep:Play()
     frame.bottom.sweep:Play()
     if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN then pcall(PlaySound, SOUNDKIT.IG_MAINMENU_OPEN) end
-    C_Timer.After(4.5, function()
-        if mine == token and frame:IsShown() then frame.fadeOut:Play() end
+
+    -- Count down: after the sweep-in, both bars shrink to nothing over
+    -- SHOW_TIME; then the splash fades out.
+    local t = 0
+    frame:SetScript("OnUpdate", function(self, dt)
+        if mine ~= token then self:SetScript("OnUpdate", nil) return end
+        t = t + dt
+        if t < INTRO then return end
+        local left = 1 - (t - INTRO) / SHOW_TIME
+        if left <= 0 then
+            self.top:SetWidth(0.1); self.bottom:SetWidth(0.1)
+            self:SetScript("OnUpdate", nil)
+            self.fadeOut:Play()
+            return
+        end
+        self.top:SetWidth(BAR_W * left)
+        self.bottom:SetWidth(BAR_W * left)
     end)
 end
 

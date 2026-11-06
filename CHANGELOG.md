@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.2
+- Load splash: the two gold bars count down how long it stays (top empties left to right, bottom
+  right to left); when they're empty the splash is gone.
+
 ## 0.22.1
 - Map: thin, unbroken route lines through small round points; your route is orange (like the
   arrow), a previewed route purple. Each point shows its stop-type icon.
