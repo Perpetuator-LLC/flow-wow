@@ -123,7 +123,12 @@ local function build()
         r:SetPoint("TOPRIGHT", -6, -4 - (i - 1) * 17)
         r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetAllPoints(); r.text:SetJustifyH("LEFT"); r.text:SetWordWrap(false)
+        r.open = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        r.open:SetPoint("RIGHT", 0, 0)
+        r.open:SetText("open")
+        r.open:Hide()
+        r.text:SetPoint("LEFT"); r.text:SetPoint("RIGHT", r.open, "LEFT", -4, 0)
+        r.text:SetHeight(16); r.text:SetJustifyH("LEFT"); r.text:SetWordWrap(false)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints(); r.hl:SetColorTexture(1, 1, 1, 0.08)
         r:SetScript("OnClick", function(self, button)
             if not self.goal then return end
@@ -146,12 +151,14 @@ local function build()
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            -- Clickable rows say so: hand cursor and an "open" hint.
+            if not self.blocked then self.open:Show(); ns.nav:ClickCursor(true) end
             ns.nav:FillTooltip(GameTooltip, self.goal, self.blocked
                 and "Joins the route by itself once that's sorted. Right-click: menu."
                 or "Click: open it. Right-click: menu. (Change the route on the world map.)")
             GameTooltip:Show()
         end)
-        r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        r:SetScript("OnLeave", function(self) GameTooltip:Hide(); self.open:Hide(); ns.nav:ClickCursor(false) end)
         f.rows[i] = r
     end
     return f

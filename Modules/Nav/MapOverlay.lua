@@ -94,10 +94,12 @@ local function pin(c, x, y, label, color, stop, top)
             M:Preview(hoverKey)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             local g = self.stop.goal
+            ns.nav:ClickCursor(true)
             ns.nav:FillTooltip(GameTooltip, g, "Orange line: your route if you go here first. Click: go here first. Right-click: hide.")
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
+            ns.nav:ClickCursor(false)
             hoverKey = nil
             M:Preview(nil)
             GameTooltip:Hide()
@@ -201,7 +203,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 -- From you to the first stop: brighter, so it's clear where to go now.
                 local first = (i == 1)
                 line(c, px, py, x, y, first and theme().route or color, first and 1 or (alpha or 0.95))
-                legs[#legs + 1] = { px, py, x, y, color = first and { 1, 1, 1 } or color, alpha = first and 1 or (alpha or 0.95) }
+                legs[#legs + 1] = { px, py, x, y, color = { 1, 1, 1 }, alpha = first and 1 or 0.9 }  -- chevrons are white on every leg
             end
             px, py = x, y
             if withPins then
@@ -478,7 +480,7 @@ local function buildList()
         rb:SetPoint("TOPLEFT", sdef[3], -78)
         rb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         rb.label:SetPoint("LEFT", rb, "RIGHT", 1, 0)
-        rb.label:SetText(sdef[2])
+        rb.label:SetText(ns.theme:ModeText(sdef[1], sdef[2]))
         rb.mode = sdef[1]
         rb:SetScript("OnClick", function() ns.xpValue:SetMode(sdef[1]); M:Redraw() end)
         rb:SetScript("OnEnter", function(self)
@@ -528,7 +530,7 @@ local function buildList()
         end
         r.go:Paint(false)
         r.go:SetScript("OnEnter", function(self)
-            self:Paint(true)
+            self:Paint(true); ns.nav:ClickCursor(true)
             local row = self:GetParent()
             hoverKey = row.key
             M:Preview(row.key)
@@ -538,7 +540,7 @@ local function buildList()
             GameTooltip:Show()
         end)
         r.go:SetScript("OnLeave", function(self)
-            self:Paint(false)
+            self:Paint(false); ns.nav:ClickCursor(false)
             hoverKey = nil
             M:Preview(nil)
             GameTooltip:Hide()
@@ -565,12 +567,14 @@ local function buildList()
             if self.isHidden then footer = "Hidden. Click to bring it back."
             elseif self.blocked then footer = "Joins the route by itself once that's sorted. Right-click: menu."
             else footer = "Click: open it. ^: go here first. Right-click: menu." end
+            if not self.blocked then ns.nav:ClickCursor(true) end
             ns.nav:FillTooltip(GameTooltip, g, footer)
             GameTooltip:Show()
             if not (self.isHidden or self.blocked) then hoverKey = self.key; M:Redraw() end
         end)
         r:SetScript("OnLeave", function()
             GameTooltip:Hide()
+            ns.nav:ClickCursor(false)
             if hoverKey then hoverKey = nil; M:Redraw() end
         end)
         r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -636,7 +640,7 @@ local function updateList()
         if rb.mode == "selected" then
             -- Greyed until you pick a stop (map click or the ^ handle), then "From selected".
             rb:SetEnabled(chosen and true or false)
-            rb.label:SetText(chosen and "From selected" or "|cff777777Select a waypoint|r")
+            rb.label:SetText(chosen and ns.theme:ModeText("selected", "From selected") or "|cff777777Select a waypoint|r")
         end
     end
     if hidden then

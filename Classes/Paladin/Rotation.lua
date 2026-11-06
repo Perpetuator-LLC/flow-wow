@@ -144,6 +144,18 @@ ns:Register("rotation", "PALADIN", {
     -- Self-heals, considered before anything else (see Engine HealDecision).
     heals = { "Flash of Light", "Holy Light", "Word of Glory" },
 
+    -- What the cast key stays on for a fight (it can't change in combat).
+    -- The pull suggestion if it's a real attack; a seal only if you have none
+    -- (Judgement needs one); otherwise Judgement, your main hit.
+    pullLock = function(s, engine)
+        if s and s.kind ~= "buff" and s.spell ~= "Attack" and s.spell ~= "Auto Attack" then return s.spell end
+        if s and s.spell:find("^Seal of") and not hasSeal() then return s.spell end
+        for _, spell in ipairs({ "Judgement", "Judgment", "Crusader Strike", "Holy Strike" }) do
+            if engine:Knows(spell) then return spell end
+        end
+        return s and s.spell
+    end,
+
     -- Default priority (first match wins).
     priority = join(buffs, melee, execute, singleTarget),
 

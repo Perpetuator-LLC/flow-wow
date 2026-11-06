@@ -438,6 +438,32 @@ function N:MakeHudArrow(parent)
     end
     function a:SetRotation(r) self.angle = r or 0; draw() end
     function a:SetVertexColor(r, g, b) self.r, self.g, self.b = r, g, b; draw() end
+    -- Arrived: chevron gone, the ring lights up in the route colour and pulses,
+    -- with a dot in the middle ("you're here").
+    a.center = a:CreateTexture(nil, "OVERLAY")
+    a.center:SetSize(10, 10)
+    a.center:SetPoint("CENTER")
+    a.center:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    a.center:Hide()
+    function a:SetArrived(on)
+        on = on and true or false
+        if self.arrived == on then return end
+        self.arrived = on
+        for i = 1, #CHEVRON do self.glow[i]:SetShown(not on); self.core[i]:SetShown(not on) end
+        self.spine:SetShown(not on); self.lead:SetShown(not on)
+        self.center:SetShown(on)
+        for _, d in ipairs(self.ring) do d:SetSize(on and 4 or 2, on and 4 or 2) end
+        if on then
+            self:SetScript("OnUpdate", function(me)
+                local pulse = 0.6 + 0.4 * math.sin(GetTime() * 4)
+                for _, d in ipairs(me.ring) do d:SetColorTexture(me.r, me.g, me.b, pulse) end
+                me.center:SetVertexColor(me.r, me.g, me.b, 0.5 + 0.5 * pulse)
+            end)
+        else
+            self:SetScript("OnUpdate", nil)
+            for _, d in ipairs(self.ring) do d:SetColorTexture(1, 1, 1, 0.22) end
+        end
+    end
     draw()
     return a
 end
@@ -584,6 +610,16 @@ local function questText(id)
     local d = q and (q.Description or q.objectivesText)
     if type(d) == "table" then d = table.concat(d, " ") end
     if type(d) == "string" and d ~= "" then return d end
+end
+
+-- Clickable things look clickable: the hand (interact) cursor while hovering
+-- anything a click does something for (route rows, map points...).
+function N:ClickCursor(on)
+    if on then
+        if SetCursor then pcall(SetCursor, "INTERACT_CURSOR") end
+    elseif ResetCursor then
+        ResetCursor()
+    end
 end
 
 function N:FillTooltip(tt, goal, footer)
@@ -1030,15 +1066,17 @@ local function update()
     end
     frame.text:SetText(g.text or g.title or "Next goal")
     if choice.d < ARRIVED * 2 then
+        -- Arrived: the arrow turns into a pulsing ring in the route colour.
         frame.sub:SetText("You're here")
-        frame.arrow:SetVertexColor(0.3, 1, 0.3)
+        frame.arrow:SetArrived(true)
     else
         frame.sub:SetText(string.format("%d yd%s%s", choice.d,
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length) or ""))
-        local c = ns.theme.route
-        frame.arrow:SetVertexColor(c[1], c[2], c[3])
+        frame.arrow:SetArrived(false)
     end
+    local c = ns.theme.route
+    frame.arrow:SetVertexColor(c[1], c[2], c[3])
     frame:Show()
     if panel and panel:IsShown() then showPanel() end
 end

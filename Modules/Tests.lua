@@ -248,3 +248,16 @@ ns:Register("test", "rotation: heal prompt right after a fight", function(t)
     t:eq(s and s.spell, "Holy Light", "suggests a heal")
     t:eq(s and s.kind, "heal", "as a heal")
 end)
+
+ns:Register("test", "cast key: never locked to nothing for a fight", function(t)
+    local E = ns.rotation
+    local def = E:Definition()
+    if not (def and def.pullLock) then t:ok(true) return end
+    local main = E:Knows("Judgement") and "Judgement" or nil
+    if main then
+        t:eq(def.pullLock(nil, E), main, "no suggestion at the pull: main attack")
+        t:eq(def.pullLock({ spell = "Blessing of Might", kind = "buff" }, E), main, "a blessing at the pull: main attack")
+        t:eq(def.pullLock({ spell = "Attack", kind = "damage" }, E), main, "auto attack at the pull: main attack")
+    end
+    t:eq(def.pullLock({ spell = "Holy Strike", kind = "damage" }, E), "Holy Strike", "a real attack stays")
+end)

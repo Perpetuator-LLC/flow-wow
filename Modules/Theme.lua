@@ -46,6 +46,14 @@ local function set(self, k, c)
     end
 end
 
+-- Colour of an order mode ("xp", "distance", "selected") in the current palette:
+-- menus and the map list colour their labels with it.
+function ns.theme:ModeColor(mode)
+    local p = PALETTES[self.palette or "standard"]
+    return p.modes[mode] or p.modes.xp
+end
+function ns.theme:ModeText(mode, text) return "|cff" .. self:ModeColor(mode).hex .. text .. "|r" end
+
 -- Route colour from the order mode (call after the mode changes).
 function ns.theme:UpdateRoute()
     local p = PALETTES[self.palette or "standard"]

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.31.1
+- Cast key: never locked to nothing for a fight. The fight records showed pulls with no
+  suggestion, so the key did nothing all fight; now the class picks (Paladin: Judgement, or a
+  seal if you have none).
+- Order modes coloured in menus and the map list: Most XP purple, Shortest blue, From selected
+  orange.
+- Clickable things look clickable: hand cursor on route rows, map points and the ^ handle; tracker
+  rows also show "open".
+- Arrived: the arrow turns into a pulsing ring with a dot in the middle.
+- Route chevrons are white on every leg.
+- Fixed: the advice list's go-arrow icon path (single backslashes).
+
 ## 0.31.0
 - Cast key and icon: Forever ignores macro-type secure buttons (fight records showed every press
   arriving with the right spell, and nothing cast). The button now uses the "spell" type; only

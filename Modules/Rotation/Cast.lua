@@ -203,8 +203,13 @@ ns:On("PLAYER_REGEN_DISABLED", function()
     if helper then
         setMacro("/cast " .. helper, helper)
     else
+        -- The key can't change during the fight, so lock it to something worth
+        -- pressing all fight: the class decides (pullLock), never nothing.
         local s = E.current
-        setMacro(macroFor(s), s and s.spell)
+        local def = E:Definition()
+        local spell = def and def.pullLock and def.pullLock(s, E) or (s and s.spell)
+        if spell and s and spell == s.spell then setMacro(macroFor(s), spell)
+        elseif spell then setMacro("/cast " .. spell, spell) end
     end
 end)
 
