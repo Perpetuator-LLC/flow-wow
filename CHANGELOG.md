@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.2
+- Moving the spell icon: hold Shift (out of combat) and a "drag to move" handle appears over it;
+  drag that. Dragging the secure button itself didn't work (it takes the press as a click).
+
 ## 0.32.1
 - Cast key: a fight that starts while the after-fight heal is offered no longer locks the key
   to Holy Light for the whole fight (seen in the fight records); it locks to Judgement.

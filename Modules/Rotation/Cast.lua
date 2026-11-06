@@ -109,7 +109,7 @@ local function build(cfg)
         local key = C:KeyLabel()
         GameTooltip:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 1, 1, 1)
         GameTooltip:AddLine("In combat the key stays on the spell it had when the fight started.", 0.7, 0.7, 0.7, true)
-        GameTooltip:AddLine("Shift-drag to move.", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -314,3 +314,60 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if unit ~= "player" or not fight then return end
     fight.casts = (fight.casts or 0) + 1
 end)
+
+-------------------------------------------------------------------------------
+-- Moving the icon: hold Shift (out of combat) and a "drag to move" handle
+-- appears over it. Dragging the secure button itself didn't work reliably
+-- (it takes the mouse press as a click), so the handle moves it instead.
+-------------------------------------------------------------------------------
+
+local handle
+local function buildHandle()
+    handle = CreateFrame("Frame", nil, UIParent)
+    handle:SetFrameStrata("DIALOG")
+    handle:EnableMouse(true)
+    handle.bg = handle:CreateTexture(nil, "BACKGROUND")
+    handle.bg:SetAllPoints()
+    handle.bg:SetColorTexture(0, 0, 0, 0.35)
+    handle.edge = {}
+    local o = ns.theme.arrow
+    for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
+                           { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local t = handle:CreateTexture(nil, "BORDER")
+        t:SetPoint(pts[1]); t:SetPoint(pts[2])
+        if i <= 2 then t:SetHeight(2) else t:SetWidth(2) end
+        t:SetColorTexture(o[1], o[2], o[3], 1)
+    end
+    handle.text = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    handle.text:SetPoint("TOP", handle, "BOTTOM", 0, -2)
+    handle.text:SetText("drag to move")
+    handle:SetScript("OnMouseDown", function()
+        if InCombatLockdown() then return end
+        btn:StartMoving()
+        handle.moving = true
+    end)
+    handle:SetScript("OnMouseUp", function()
+        if not handle.moving then return end
+        handle.moving = false
+        btn:StopMovingOrSizing()
+        local a, _, b, x, y = btn:GetPoint()
+        ns.db.rotation.point = { a, b, x, y }
+    end)
+    handle:Hide()
+end
+
+local function showHandle()
+    if not btn then return end
+    local want = IsShiftKeyDown() and not InCombatLockdown() and btn:IsShown()
+    if want and not handle then buildHandle() end
+    if not handle then return end
+    if want then
+        handle:ClearAllPoints()
+        handle:SetAllPoints(btn)
+        handle:Show()
+    elseif not handle.moving then
+        handle:Hide()
+    end
+end
+ns:On("MODIFIER_STATE_CHANGED", showHandle)
+ns:On("PLAYER_REGEN_DISABLED", function() if handle then handle.moving = false; handle:Hide() end end)
