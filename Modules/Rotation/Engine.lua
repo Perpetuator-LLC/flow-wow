@@ -175,6 +175,24 @@ local function suggest(rule, ctx, note)
              fightType = ctx.fightType }
 end
 
+-- The after-fight heal prompt. Flow can't see your health in Forever, so it
+-- only offers a heal when it's likely useful and never gets in the way:
+--   * only after a long fight (15 s or more), for 10 s
+--   * never in combat, and never once you target an enemy (you're pulling:
+--     attacks come first)
+--   * gone once you heal or fight again
+function E:AfterFightHeal(ctx, def, now)
+    now = now or GetTime()
+    if ctx.inCombat or ctx.hostile then return nil end
+    if not (self.afterFight and now < self.afterFight) then return nil end
+    for _, spell in ipairs(def and def.afterFightHeals or { "Holy Light", "Flash of Light" }) do
+        if self:Knows(spell) and self:Ready(spell) then
+            return { spell = spell, kind = "heal", fightType = ctx.fightType,
+                     reason = "After a long fight: top up if you're hurt (Flow can't see your health)" }
+        end
+    end
+end
+
 function E:Choose()
     local def = self:Definition()
     if not def then return nil end
@@ -187,17 +205,8 @@ function E:Choose()
         if h then h.fightType = ctx.fightType; return h end
     end
 
-    -- Right after a real fight: offer a heal for a few seconds. Flow can't see
-    -- your health in Forever, so it's a prompt, gone once you heal, fight
-    -- again, or after 12 s.
-    if not ctx.inCombat and self.afterFight and GetTime() < self.afterFight then
-        for _, spell in ipairs(def.afterFightHeals or { "Holy Light", "Flash of Light" }) do
-            if self:Knows(spell) and self:Ready(spell) then
-                return { spell = spell, kind = "heal", fightType = ctx.fightType,
-                         reason = "After the fight: top up if you're hurt (Flow can't see your health)" }
-            end
-        end
-    end
+    local h = self:AfterFightHeal(ctx, def)
+    if h then return h end
 
     local list = priorityFor(def, ctx)
     local i = 1
@@ -348,7 +357,7 @@ end
 local fightStart
 ns:On("PLAYER_REGEN_DISABLED", function() fightStart = GetTime(); E.afterFight = nil end)
 ns:On("PLAYER_REGEN_ENABLED", function()
-    if fightStart and GetTime() - fightStart >= 6 then E.afterFight = GetTime() + 12 end
+    if fightStart and GetTime() - fightStart >= 15 then E.afterFight = GetTime() + 10 end
     fightStart = nil
 end)
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)

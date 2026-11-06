@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.33.0
+- After-fight heal prompt: only after fights of 15 s or more, for 10 s, and never once you target
+  an enemy (you're pulling: attacks first). It was offering Holy Light before attacks at nearly
+  full health. Now tested rule by rule.
+- Dead: the arrow turns red and points back to your corpse ("Release your spirit" before that),
+  with the minimap dot on the corpse.
+- Quest stops show a quest icon in the tracker and route list: "!" to accept, "?" to turn in, a
+  grey "?" for objectives of quests you're on.
+- Hovering the ring lists every quest stop you're in the area for ("Also here").
+- Tests: 22.
+
 ## 0.32.2
 - Moving the spell icon: hold Shift (out of combat) and a "drag to move" handle appears over it;
   drag that. Dragging the secure button itself didn't work (it takes the press as a click).

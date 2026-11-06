@@ -237,16 +237,20 @@ ns:Register("test", "spec badge: better / worse / same per spec", function(t)
     b:Hide()
 end)
 
-ns:Register("test", "rotation: heal prompt right after a fight", function(t)
+ns:Register("test", "rotation: after-fight heal only when it can help", function(t)
     local E = ns.rotation
-    if not E:Knows("Holy Light") then t:ok(true) return end
-    local old = E.afterFight
-    E.afterFight = GetTime() + 5
-    local s = InCombatLockdown() and nil or E:Choose()
+    if not (E:Knows("Holy Light") and E:Ready("Holy Light")) then t:ok(true) return end
+    local def, now, old = E:Definition(), GetTime(), E.afterFight
+    E.afterFight = now + 5
+    local quiet = { inCombat = false, hostile = false }
+    local h = E:AfterFightHeal(quiet, def, now)
+    t:eq(h and h.kind, "heal", "offered right after a long fight")
+    t:eq(E:AfterFightHeal({ inCombat = false, hostile = true }, def, now), nil, "not when you target an enemy (attacks first)")
+    t:eq(E:AfterFightHeal({ inCombat = true, hostile = true }, def, now), nil, "not in combat")
+    t:eq(E:AfterFightHeal(quiet, def, now + 6), nil, "gone after the window")
+    E.afterFight = nil
+    t:eq(E:AfterFightHeal(quiet, def, now), nil, "not without a long fight")
     E.afterFight = old
-    if InCombatLockdown() then t:ok(true) return end
-    t:eq(s and s.spell, "Holy Light", "suggests a heal")
-    t:eq(s and s.kind, "heal", "as a heal")
 end)
 
 ns:Register("test", "cast key: never locked to nothing for a fight", function(t)
@@ -285,4 +289,13 @@ ns:Register("test", "cast key: the after-fight heal never becomes the fight's ke
     local def = E:Definition()
     if not (def and def.pullLock and E:Knows("Judgement")) then t:ok(true) return end
     t:eq(def.pullLock({ spell = "Holy Light", kind = "heal" }, E), "Judgement", "heal at the pull: main attack")
+end)
+
+ns:Register("test", "lists: quest stops show a quest icon", function(t)
+    local s = ns.nav:FormatStop(1, { key = "60:1", kind = "collect", text = "Kobold Candles: 1/8 Large Candle" }, "1")
+    t:ok(s:find("ActiveQuestIcon", 1, true) ~= nil, "objective: in-progress quest icon")
+    s = ns.nav:FormatStop(1, { key = "pickup:85", kind = "accept", text = "Accept: Lost Necklace" }, "!1")
+    t:ok(s:find("AvailableQuestIcon", 1, true) ~= nil, "accept: ! icon")
+    s = ns.nav:FormatStop(1, { key = "buy:2901", kind = "merchant", text = "Buy a Mining Pick" }, "2")
+    t:ok(s:find("QuestIcon", 1, true) == nil, "not a quest: no quest icon")
 end)

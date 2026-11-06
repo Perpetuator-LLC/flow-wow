@@ -524,6 +524,11 @@ function N:FormatStop(i, goal, label)
     local prof = goal.key:match("^train:(.+)$") or goal.key:match("^skill:(.+)$")
     if prof and ns.disposition and ns.disposition.PROF_ICON[prof] then path = ns.disposition.PROF_ICON[prof] end
     local icon = path and string.format("|T%s:13:13|t ", path) or ""
+    -- Objectives of a quest you're on: the game's in-progress "?" (grey) first,
+    -- so every quest stop shows a quest icon (accept "!" and turn-in "?" already do).
+    if goal.key:find("^%d+:%d+$") then
+        icon = "|TInterface\\GossipFrame\\ActiveQuestIcon:13:13:0:0:16:16:0:16:0:16:150:150:150|t" .. icon
+    end
     local numColor = (i == 1) and ns.theme.route.hex or "999999"
     local textColor = kind and kind.color.hex or "ffffff"
     return string.format("%s|cff%s%s|r |cff%s%s|r", icon, numColor, label or tostring(i),
@@ -1008,8 +1013,24 @@ local function buildArrow()
     local function tip(owner)
         if not current then return end
         GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
-        N:FillTooltip(GameTooltip, current.goal, N.arrived and "You're there. Click: details. Right-click: options."
-            or "Click: details and the trip. Right-click: options.")
+        N:FillTooltip(GameTooltip, current.goal, not N.arrived and "Click: details and the trip. Right-click: options." or nil)
+        -- In an area: every other quest stop you're in the area for, with progress.
+        if N.arrived then
+            local p = N:PlayerPos()
+            local first = true
+            for _, g in ipairs(goals) do
+                if g ~= current.goal and N:InArea(g, p) then
+                    if first then
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("Also here", 1, 0.82, 0.25)
+                        first = false
+                    end
+                    GameTooltip:AddLine(N:FormatStop(0, g, ""), 1, 1, 1, true)
+                end
+            end
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("You're there. Click: details. Right-click: options.", 0.55, 0.55, 0.55, true)
+        end
         GameTooltip:Show()
     end
     f:SetScript("OnEnter", tip)
@@ -1055,6 +1076,36 @@ function N:VisibleTarget(goal)
     return best
 end
 
+-- While you're dead: a red arrow to your corpse (as a ghost), or "Release
+-- your spirit" before that. Returns true when it took over the arrow.
+local CORPSE_RED = { 1, 0.2, 0.2 }
+function N:ShowCorpse(p)
+    frame.text:SetText("|cffff4040Your corpse|r")
+    local pos = UnitIsGhost("player") and C_DeathInfo and C_DeathInfo.GetCorpseMapPosition
+        and C_DeathInfo.GetCorpseMapPosition(p.map)
+    if not pos then
+        frame.sub:SetText(UnitIsGhost("player") and "On another map: follow the graveyard path" or "Release your spirit, then follow the red arrow")
+        frame.arrow:Hide()
+        frame:Show()
+        return true
+    end
+    local x, y = pos:GetXY()
+    local cont, wx, wy = N:ToWorld(p.map, x, y)
+    if not wx then return false end
+    local d = dist(p.wx, p.wy, wx, wy)
+    local b = bearing(p, wx, wy)
+    local facing = A.Safe(GetPlayerFacing and GetPlayerFacing())
+    frame.arrow:SetVertexColor(CORPSE_RED[1], CORPSE_RED[2], CORPSE_RED[3])
+    frame.arrow:SetArrived(d < ARRIVED * 2)
+    if b and facing then frame.arrow:SetRotation(-(b + facing)); frame.arrow:Show() end
+    frame.sub:SetText(d < ARRIVED * 2 and "Here: resurrect" or string.format("%d yd", d))
+    if ns.minimapPin then
+        pcall(ns.minimapPin.Update, ns.minimapPin, p, { cont = cont, wx = wx, wy = wy }, { text = "Your corpse" })
+    end
+    frame:Show()
+    return true
+end
+
 local function update()
     local cfg = ns.db.nav
     -- Route colour follows the order mode (purple / blue / gold): recolour on change.
@@ -1067,6 +1118,9 @@ local function update()
     local p = N:PlayerPos()
     if not p then frame:Hide() return end
     if cfg.learn then record(p) end
+
+    -- Dead: the arrow turns red and points back to your corpse.
+    if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then return end
 
     local choice = choose(p)
     current = choice
