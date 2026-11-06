@@ -224,9 +224,11 @@ end)
 reg("professionMaterial", 25, function(i)
     -- Every profession you have that uses it (recipes you've seen in a
     -- profession window, Flow's levelling guides, then by kind of material).
-    local found, order = {}, {}
+    local found, order, planned = {}, {}, {}
+    for _, p in ipairs(ns:ProfessionPlan() or {}) do planned[p.name] = true end
     local function add(prof, what)
-        if not ns.api.Skill(prof) or found[prof] then return end
+        -- Professions you have, and ones in your plan you haven't learned yet.
+        if not (ns.api.Skill(prof) or planned[prof]) or found[prof] then return end
         found[prof] = what or true
         order[#order + 1] = prof
     end
@@ -248,6 +250,17 @@ reg("professionMaterial", 25, function(i)
         parts[#parts + 1] = "for " .. prof .. (type(what) == "string" and (": " .. what) or "")
     end
     return { action = "keep", icon = PROF_ICON[order[1]], reason = table.concat(parts, "; ") }
+end)
+
+-- Crafting materials (trade goods) that none of your professions, learned
+-- or planned, use: sell the plain ones, auction the better ones. Quest and
+-- class-quest needs were checked before this.
+reg("unusedMaterial", 27, function(i)
+    if i.classID ~= 7 or i.sellPrice <= 0 then return nil end
+    if (i.quality or 1) >= 2 then
+        return { action = "ah", reason = "crafting material none of your professions use (worth more at the auction house)" }
+    end
+    return { action = "sell", reason = "crafting material none of your professions use" }
 end)
 
 -- Gear you should wear now.

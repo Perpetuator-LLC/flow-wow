@@ -307,3 +307,43 @@ ns:Register("test", "bags: profession materials name every profession that uses 
     t:ok(v and v.reason:find("Blacksmithing: Rough Sharpening Stone", 1, true) ~= nil,
         "Rough Stone kept for Blacksmithing (" .. tostring(v and v.reason) .. ")")
 end)
+
+ns:Register("test", "quests: availability (level, events, not offered)", function(t)
+    local Q = ns.quests
+    local me = UnitLevel("player")
+    t:ok(Q:Available({ Id = 999101, requiredLevel = 1 }), "low level, no requirements: available")
+    t:ok(not Q:Available({ Id = 999102, requiredLevel = me + 5 }), "requires a higher level: not available")
+    t:ok(not Q:Offered(999103, { zoneOrSort = -1003 }), "holiday quest with no event on: not offered")
+    ns.db.quests.notOffered = ns.db.quests.notOffered or {}
+    ns.db.quests.notOffered[999104] = time()
+    t:ok(not Q:Offered(999104), "quest giver didn't offer it recently: skipped")
+    ns.db.quests.notOffered[999104] = time() - 8 * 86400
+    t:ok(Q:Offered(999104), "after a week: tried again")
+    ns.db.quests.notOffered[999104] = nil
+end)
+
+ns:Register("test", "bags: sell decisions", function(t)
+    local function rule(k, item) return ns:Get("disposition", k).check(item) end
+    local v = rule("junk", { quality = 0, sellPrice = 5 })
+    t:eq(v and v.action, "sell", "grey items: sell")
+    v = rule("quest", { classID = 12 })
+    t:eq(v and v.action, "keep", "quest items: keep")
+    v = rule("unsellable", { quality = 1, sellPrice = 0 })
+    t:eq(v and v.action, "keep", "vendors won't buy it: keep")
+    ns.db.sell.never[999105] = true
+    v = rule("neverSell", { id = 999105 })
+    t:eq(v and v.action, "keep", "bought back once: never sold again")
+    ns.db.sell.never[999105] = nil
+    v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+    t:eq(v and v.action, "sell", "material nobody of yours uses: sell")
+    v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
+    t:eq(v and v.action, "ah", "better material: auction house")
+end)
+
+ns:Register("test", "gear: weapon speed tips the balance", function(t)
+    local B = ns.gear.SpeedBonus
+    t:ok(B(3.6, "slow") > 0, "slow weapon for a slow role: bonus")
+    t:ok(B(1.8, "slow") < 0, "fast weapon for a slow role: penalty")
+    t:ok(B(5, "slow") <= 1 and B(1, "slow") >= -1, "never more than one point")
+    t:eq(B(2.6, nil), 0, "no preference: no change")
+end)

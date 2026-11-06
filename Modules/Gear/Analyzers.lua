@@ -66,25 +66,41 @@ end
 -- abilities that deal "weapon damage" (Paladin Seals/Judgement, Warrior
 -- strikes) and for burst. Class data says which speed each role prefers:
 --   classData.weaponSpeed = { dps = { prefer = "slow", why = "..." } }
--- PLACEHOLDER: notes only, the value of speed isn't in the score yet.
+-- Counted in the score (G.SpeedBonus), a little: speed tips the balance.
 -------------------------------------------------------------------------------
+
+-- Score bonus per role for a weapon speed: up to +/-1 (about one point of the
+-- main stat), so speed tips the balance between similar weapons without
+-- outweighing real stats. slow = 3.3 s or more, fast = 2.0 s or less.
+function G.SpeedBonus(speed, prefer)
+    if not (speed and prefer) then return 0 end
+    local b
+    if prefer == "slow" then b = (speed - 2.6) / 1.0
+    elseif prefer == "fast" then b = (2.6 - speed) / 1.0
+    else b = -math.abs(speed - 2.6) / 1.2 end
+    return math.max(-1, math.min(1, b))
+end
 
 G:RegisterAnalyzer("weaponSpeed", function(item)
     if item.classID ~= 2 then return end
     local speed = tonumber(findLine(item, "Speed (%d+%.%d+)"))
     if not speed then return end
     local d = ns:ClassData()
-    local pref = d and d.weaponSpeed and d.weaponSpeed[ns:LevelingRole()]
+    local prefs = d and d.weaponSpeed or {}
+    local bonus = {}
+    for _, role in ipairs(G.ROLES) do
+        bonus[role] = G.SpeedBonus(speed, prefs[role] and prefs[role].prefer)
+    end
+    local role = ns:LevelingRole()
+    local pref = prefs[role]
     local feel = speed >= 3.3 and "slow" or (speed <= 2.0 and "fast" or "medium")
     local note = string.format("Speed %.2f (%s)", speed, feel)
     if pref then
-        if pref.prefer == feel then
-            note = note .. ": good for " .. ns.ROLE_LABEL[ns:LevelingRole()]
-        else
-            note = note .. ": " .. ns.ROLE_LABEL[ns:LevelingRole()] .. " prefers " .. pref.prefer
-        end
+        note = note .. (pref.prefer == feel and (": good for " .. ns:RoleName(role))
+            or (": " .. ns:RoleName(role) .. " prefers " .. pref.prefer))
+            .. string.format(" (%+.1f score)", bonus[role])
     end
-    return nil, { note .. " (not scored yet)" }
+    return bonus, { note }
 end)
 
 -- Gem sockets. PLACEHOLDER: counted and noted, not valued yet.

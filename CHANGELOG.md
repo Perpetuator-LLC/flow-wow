@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34.0
+- Crafting materials no profession of yours uses (learned or planned) are offered for sale (plain)
+  or the auction house (better quality). Materials for planned professions are kept, e.g. Linen
+  Cloth for First Aid before you've learned it.
+- Weapon speed now counts a little in the gear score (up to one point either way), per spec
+  preference (Retribution: slow).
+- Tests: quest availability (level, holiday events, quests a giver didn't offer), sell decisions,
+  weapon speed (26 in all).
+
 ## 0.33.1
 - Items kept for several reasons list them all (e.g. Linen Cloth: the Redemption class quest; for
   First Aid: Linen Bandage). Profession materials name every profession of yours that uses them,
