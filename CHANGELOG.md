@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.1
+- Forever blocks measuring nameplates on screen, so the arrow no longer tries to point at visible
+  quest mobs (it logged an error each time); the ring stays.
+- `/flow talents` reads the modern talent system (C_ClassTalents), which Forever uses.
+- Checked: this client gives addons no height (always 0), so no up/down hints; caves are learned
+  from your trails instead.
+
 ## 0.35.0
 - Caves: Flow marks trail points you walk indoors and learns entrances (where you go from
   outdoors to indoors). A stop inside is no longer pointed at in a straight line (that led on top

@@ -1105,6 +1105,9 @@ end
 -- A nameplate on screen for one of the stop's mobs / NPCs (goal.npcs): the
 -- one nearest the middle of the screen. Returns { x, y (screen pixels), name }.
 function N:VisibleTarget(goal)
+    -- Forever doesn't let addons measure nameplates ("restricted regions"):
+    -- after the first refusal, stop asking for this session.
+    if N.platesRestricted then return nil end
     if not (goal and goal.npcs and C_NamePlate and C_NamePlate.GetNamePlates) then return nil end
     local want = {}
     for _, n in ipairs(goal.npcs) do want[n:lower()] = true end
@@ -1114,7 +1117,8 @@ function N:VisibleTarget(goal)
         local unit = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
         local name = unit and A.Safe(UnitName(unit))
         if name and want[name:lower()] and not UnitIsDead(unit) then
-            local x, y = plate:GetCenter()
+            local okC, x, y = pcall(plate.GetCenter, plate)
+            if not okC then N.platesRestricted = true return nil end
             if x then
                 local s = plate:GetEffectiveScale()
                 x, y = x * s, y * s

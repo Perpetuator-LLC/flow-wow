@@ -112,3 +112,48 @@ ns.commands.talents = function()
         end
     end
 end
+
+-- Modern talents (C_ClassTalents / C_Traits): each node with its position,
+-- ranks and spell names. Used by /flow talents when the classic API is gone.
+local function dumpTraits()
+    local cfg = C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
+    if not cfg then ns:Print("talents: no active talent loadout yet (talents may unlock at a later level)") return end
+    local info = C_Traits.GetConfigInfo(cfg)
+    local unspent = 0
+    for _, treeID in ipairs(info and info.treeIDs or {}) do
+        local ok, currencies = pcall(C_Traits.GetTreeCurrencyInfo, cfg, treeID, false)
+        for _, c in ipairs(ok and currencies or {}) do unspent = unspent + (c.quantity or 0) end
+    end
+    ns:Print(string.format("talents (modern): config %s, unspent %d", tostring(cfg), unspent))
+    local n = 0
+    for _, treeID in ipairs(info and info.treeIDs or {}) do
+        for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID) or {}) do
+            local node = C_Traits.GetNodeInfo(cfg, nodeID)
+            if node and node.ID ~= 0 and (node.maxRanks or 0) > 0 then
+                local names = {}
+                for _, entryID in ipairs(node.entryIDs or {}) do
+                    local e = C_Traits.GetEntryInfo(cfg, entryID)
+                    local def = e and e.definitionID and C_Traits.GetDefinitionInfo(e.definitionID)
+                    local spell = def and (def.overrideName or (def.spellID and ns.api.SpellInfo(def.spellID)))
+                    names[#names + 1] = tostring(spell or ("entry " .. entryID))
+                end
+                n = n + 1
+                if n <= 120 then
+                    print(string.format("    node %d at %d,%d  %d/%d  %s", nodeID, node.posX or 0, node.posY or 0,
+                        node.currentRank or 0, node.maxRanks or 0, table.concat(names, " | ")))
+                end
+            end
+        end
+    end
+    if n > 120 then print(string.format("    ...and %d more nodes", n - 120)) end
+end
+
+local classicTalents = ns.commands.talents
+ns.commands.talents = function()
+    if not (GetNumTalentTabs and GetTalentInfo) and C_ClassTalents and C_Traits then
+        local ok, err = pcall(dumpTraits)
+        if not ok then ns:Print("talents: " .. tostring(err)) end
+        return
+    end
+    classicTalents()
+end
