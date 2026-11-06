@@ -227,7 +227,9 @@ ns:On("PLAYER_ENTERING_WORLD", function()
 end)
 
 ns.commands.settings = function() S:Open() end
-ns.commands.key = function() S:Open() end
+ns.commands.key = function(arg)
+    if (arg or ""):lower():match("^%s*test") then ns.cast:Test() else S:Open() end
+end
 ns:Register("help", "settings", { order = 5, title = "Settings", lines = {
-    "/flow settings (or /flow key) - set the key that casts Flow's suggestion",
+    "/flow settings (or /flow key) - set the key that casts Flow's suggestion; /flow key test - check it",
 } })

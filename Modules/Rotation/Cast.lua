@@ -66,8 +66,10 @@ local function build(cfg)
     local p = cfg.point
     if p then btn:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else btn:SetPoint("CENTER", UIParent, "CENTER", 0, -160) end
-    local down = GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")
-    btn:RegisterForClicks(down and "AnyDown" or "AnyUp")
+    -- Listen for both press and release: the secure button itself acts on the
+    -- one matching your "cast on key down" setting. (Registering only one
+    -- made key presses do nothing on some clients.)
+    btn:RegisterForClicks("AnyUp", "AnyDown")
     btn:SetAttribute("type", "macro")
     btn:SetAttribute("macrotext", "")
     -- Shift + drag moves it; make shift-clicks do nothing so moving never casts.
@@ -194,3 +196,25 @@ end)
 ns:On("PLAYER_REGEN_ENABLED", function()
     if pendingKey then C:ApplyKey() end
 end)
+
+-- Re-apply the key once the game has loaded its own bindings.
+ns:On("PLAYER_ENTERING_WORLD", function() C:ApplyKey() end)
+ns:On("UPDATE_BINDINGS", function()
+    if not InCombatLockdown() and ns.db.cast.key and GetBindingAction(ns.db.cast.key, true) == "" then
+        C:ApplyKey()
+    end
+end)
+
+-- /flow key test: what your key does right now.
+function C:Test()
+    local key = ns.db.cast.key
+    ns:Print("cast key check:")
+    print("  key: " .. (key and (self:KeyLabel() .. " (" .. key .. ")") or "not set (/flow settings)"))
+    if key then
+        print("  key is bound to: " .. tostring(GetBindingAction(key, true)))
+    end
+    print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
+        .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
+    print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "
+        .. tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")))
+end
