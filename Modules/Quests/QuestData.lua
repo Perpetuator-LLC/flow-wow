@@ -194,7 +194,7 @@ ns:Register("questSource", "questie", {
         return {
             id = id, name = q.name, level = q.level, minLevel = q.requiredLevel or 0,
             zoneId = (q.zoneOrSort and q.zoneOrSort > 0) and q.zoneOrSort or (starter and starter.zoneId),
-            starter = starter,
+            starter = starter, raw = q,
         }
     end,
     allIds = function()
@@ -208,14 +208,57 @@ ns:Register("questSource", "questie", {
         end
         return ids
     end,
-    -- Questie's own check: race, class, level, prerequisites, exclusive quests.
-    doable = function(id)
+    -- Flow's own availability check (Questie's IsDoable doesn't work on every
+    -- client), then Questie's if it answers.
+    doable = function(id, q, levelSlack)
+        q = q or Q:QuestieGet("GetQuest", id)
+        if q and not Q:Available(q, levelSlack) then return false end
         local db = questieDB()
         if type(db.IsDoable) ~= "function" then return nil end
         local ok, r = pcall(db.IsDoable, id)
-        if ok then return r end
+        if ok and r == false then return false end
+        return true
     end,
 })
+
+-- Can you pick this quest up now? Level, race, class, and the quests that
+-- must come first (all of preQuestGroup, any of preQuestSingle), and not
+-- blocked by a mutually exclusive quest you've done or are on.
+local band = bit and bit.band
+function Q:Available(q, levelSlack)
+    local level = UnitLevel("player")
+    if (q.requiredLevel or 0) > level + (levelSlack or 0) then return false end
+    if band then
+        local _, _, raceID = UnitRace("player")
+        local _, _, classID = UnitClass("player")
+        if q.requiredRaces and q.requiredRaces ~= 0 and raceID
+            and band(q.requiredRaces, 2 ^ (raceID - 1)) == 0 then return false end
+        if q.requiredClasses and q.requiredClasses ~= 0 and classID
+            and band(q.requiredClasses, 2 ^ (classID - 1)) == 0 then return false end
+    end
+    for _, pre in ipairs(q.preQuestGroup or {}) do
+        if not completed[pre] then return false end
+    end
+    local single = q.preQuestSingle or {}
+    if #single > 0 then
+        local any = false
+        for _, pre in ipairs(single) do if completed[pre] then any = true break end end
+        if not any then return false end
+    end
+    for _, ex in ipairs(q.exclusiveTo or {}) do
+        if completed[ex] or inLog[ex] then return false end
+    end
+    return true
+end
+
+-- Free quest log slots (the log has a limit; don't plan more pickups than fit).
+function Q:FreeSlots()
+    local max = (C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept())
+        or MAX_QUESTLOG_QUESTS or 20
+    local n = 0
+    for _ in pairs(inLog) do n = n + 1 end
+    return math.max(0, max - n), max
+end
 
 -- LibQuestDB-1.0 (MIT, also covers Forever-only quests by name/level).
 -- PLACEHOLDER: wire up once we confirm its API in game.
@@ -273,7 +316,7 @@ local function scan(src)
             if not completed[id] and not inLog[id] then
                 local q = src.get(id)
                 if q and q.zoneId and zones[q.zoneId] and (q.minLevel or 0) <= level then
-                    local doable = src.doable and src.doable(id)
+                    local doable = src.doable and src.doable(id, q.raw)
                     if doable ~= false then out[#out + 1] = q end
                 end
             end
@@ -387,7 +430,7 @@ local function scanQuestItems()
                     local zone = q.zoneOrSort and q.zoneOrSort > 0 and q.zoneOrSort
                     local classQuest = q.requiredClasses and q.requiredClasses ~= 0
                     if classQuest or (zone and zones[zone]) then
-                        local doable = src.doable and src.doable(id)
+                        local doable = src.doable and src.doable(id, q, UPCOMING_LEVELS)
                         if doable ~= false then addItems(map, q, id, false) end
                     end
                 end

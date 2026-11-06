@@ -11,17 +11,31 @@ ns.hearth = H
 
 -- Alliance levelling towns (classic IDs).
 for key, inn in pairs({
-    goldshire  = { name = "Innkeeper Farley", id = 295, town = "Goldshire", zone = "Elwynn Forest" },
-    sentinel   = { name = "Innkeeper Heather", id = 8931, town = "Sentinel Hill", zone = "Westfall" },
-    thelsamar  = { name = "Innkeeper Hearthstove", id = 6734, town = "Thelsamar", zone = "Loch Modan" },
-    lakeshire  = { name = "Innkeeper Brianna", id = 6727, town = "Lakeshire", zone = "Redridge Mountains" },
-    darkshire  = { name = "Innkeeper Trelayne", id = 6790, town = "Darkshire", zone = "Duskwood" },
+    goldshire  = { name = "Innkeeper Farley", id = 295, town = "Goldshire", inn = "Lion's Pride Inn", zone = "Elwynn Forest" },
+    sentinel   = { name = "Innkeeper Heather", id = 8931, town = "Sentinel Hill", inn = "Sentinel Hill Inn", zone = "Westfall" },
+    thelsamar  = { name = "Innkeeper Hearthstove", id = 6734, town = "Thelsamar", inn = "Stoutlager Inn", zone = "Loch Modan" },
+    lakeshire  = { name = "Innkeeper Brianna", id = 6727, town = "Lakeshire", inn = "Lakeshire Inn", zone = "Redridge Mountains" },
+    darkshire  = { name = "Innkeeper Trelayne", id = 6790, town = "Darkshire", inn = "Scarlet Raven Tavern", zone = "Duskwood" },
 }) do ns:Register("innkeeper", key, inn) end
 
 ns:Register("npcIds", "innkeepers", {
     ["Innkeeper Farley"] = 295, ["Innkeeper Heather"] = 8931, ["Innkeeper Hearthstove"] = 6734,
     ["Innkeeper Brianna"] = 6727, ["Innkeeper Trelayne"] = 6790,
 })
+
+-- Is the hearthstone already set at this inn? The game may report the town
+-- ("Goldshire") or the inn ("Lion's Pride Inn"); either counts.
+function H:BoundTo(inn, bind)
+    if not bind then return false end
+    local b = bind:lower()
+    for _, name in ipairs({ inn.town, inn.inn }) do
+        if name then
+            local n = name:lower()
+            if b == n or b:find(n, 1, true) or n:find(b, 1, true) then return true end
+        end
+    end
+    return false
+end
 
 ns:Register("navGoal", "hearth", {
     collect = function()
@@ -30,7 +44,7 @@ ns:Register("navGoal", "hearth", {
         local bind = GetBindLocation and GetBindLocation()
         if not zone or not bind then return nil end
         for key, inn in ns:Each("innkeeper") do
-            if inn.zone == zone and bind ~= inn.town then
+            if inn.zone == zone and not H:BoundTo(inn, bind) then
                 local points = ns.places:Points(inn.name)
                 if #points > 0 then
                     return { {

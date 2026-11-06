@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.21.0
+- Route planner: Flow checks quest availability itself (earlier quests in the chain done, race,
+  class, level). It no longer sends you to pick up quests you can't take yet.
+- Picks up the quests in the hub you're in before heading out (within ~250 yd), and never plans
+  more pickups than your quest log has room for.
+- Elite objectives are marked [Elite] and planned later.
+- Hearthstone stop recognises the inn name as well as the town.
+- `/flow nav why` (and the saved diagnostics) list the full planned route.
+
 ## 0.20.0
 - Hearthstone: no more pop-up. While levelling, the route gets a "Set hearthstone" stop at the
   local inn when yours is set elsewhere (`/flow hearth off` to stop).

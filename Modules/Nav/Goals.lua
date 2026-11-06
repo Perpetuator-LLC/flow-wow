@@ -109,27 +109,36 @@ ns:Register("navGoal", "questie", {
                     for i, obj in ipairs(q.objectives) do
                         local od = quest.ObjectiveData and quest.ObjectiveData[i]
                         if not obj.finished and od then
-                            local points, verb, what = {}, nil, nil
+                            local points, verb, what, elite = {}, nil, nil, false
                             if od.Type == "monster" then
                                 what = npcSpawns(db, points, od.Id); verb = "Kill"
+                                -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
+                                local npcRaw = call(db, "GetNPC", od.Id)
+                                if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
                             elseif od.Type == "object" then
                                 what = objectSpawns(db, points, od.Id); verb = "Use"
                             elseif od.Type == "item" then
                                 local item = call(db, "GetItem", od.Id)
                                 verb = "Collect"; what = item and item.name
-                                for _, npcId in ipairs(item and item.npcDrops or {}) do npcSpawns(db, points, npcId) end
+                                for _, npcId in ipairs(item and item.npcDrops or {}) do
+                                    npcSpawns(db, points, npcId)
+                                    local npcRaw = call(db, "GetNPC", npcId)
+                                    if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
+                                end
                                 for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, points, objId) end
                             end
                             if verb and #points > 0 then
                                 table.insert(turnIn.deps, q.id .. ":" .. i)
                                 goals[#goals + 1] = {
                                     key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
-                                    text = (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
-                                    details = {
-                                        "Quest: " .. (q.title or "?"),
-                                        "Objective: " .. (obj.text or "?"),
-                                        verb == "Collect" and what and ("Drops from mobs/objects near the arrow: " .. what) or nil,
-                                    },
+                                    weight = elite and 1.6 or nil, elite = elite or nil,
+                                    text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
+                                    details = (function()
+                                        local d = { "Quest: " .. (q.title or "?"), "Objective: " .. (obj.text or "?") }
+                                        if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
+                                        if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
+                                        return d
+                                    end)(),
                                 }
                             end
                         end
@@ -159,6 +168,8 @@ ns:Register("navGoal", "pickups", {
     collect = function()
         local list = ns.quests:Missed()
         if not list then return nil end
+        -- Quest log full: picking up more is pointless.
+        if ns.quests.FreeSlots and ns.quests:FreeSlots() == 0 then return nil end
         local level = UnitLevel("player")
         local goals = {}
         for _, q in ipairs(list) do

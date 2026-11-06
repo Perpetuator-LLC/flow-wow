@@ -360,11 +360,23 @@ end
 
 N.planVersion = 0
 
-function N:PickupKeys()
-    local t, any = {}, false
+-- Quest pickups near you ("this hub"), nearest first, capped at the free
+-- quest log slots. Walkthroughs grab every quest in a hub before heading out.
+local HUB_RADIUS = 250  -- yards
+function N:PickupKeys(radius)
+    local p = self:PlayerPos()
+    if not p then return nil end
+    local near = {}
     for _, g in ipairs(goals) do
-        if g.provider == "pickups" then t[g.key] = true; any = true end
+        if g.provider == "pickups" then
+            local _, d = nearestPoint(g, p)
+            if d and d <= (radius or HUB_RADIUS) then near[#near + 1] = { key = g.key, d = d } end
+        end
     end
+    table.sort(near, function(a, b) return a.d < b.d end)
+    local free = ns.quests.FreeSlots and ns.quests:FreeSlots() or 20
+    local t, any = {}, false
+    for i = 1, math.min(#near, free) do t[near[i].key] = true; any = true end
     return any and t or nil
 end
 
@@ -405,6 +417,11 @@ function N:Options(sel)
     end
     if present["user:wp"] then first = "user:wp" end
     if not first and not tour and self.selection then self.selection = nil end
+    -- Default (nothing chosen): pick up the quests in this hub before heading
+    -- out, like a walkthrough does, as long as your quest log has room.
+    if not tour and not sel.first and self:Mode() == "optimal" then
+        tour = self:PickupKeys()
+    end
     -- Shared party route: its stops come first, in the shared order (their
     -- deps chain), before your own goals.
     if ns.party and ns.party:Following() then
@@ -765,6 +782,16 @@ ns.commands.nav = function(arg)
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
         print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")
+        -- The route itself (also saved in the diagnostics for Claude to check).
+        local free, max = ns.quests:FreeSlots()
+        print(string.format("  quest log: %d free of %d; bound to %s", free, max, tostring(GetBindLocation and GetBindLocation())))
+        local labels = N:PlanLabels(N.plan or {})
+        for i, s in ipairs(N.plan or {}) do
+            if i > 25 then print("  ...") break end
+            print(string.format("  %s %s  +%d yd  [%s]", labels[i], s.goal.text or s.goal.title or "?", s.leg or 0, s.goal.key))
+        end
+        local p = N:PlayerPos()
+        if p then print(string.format("  you: map %d at %.1f, %.1f", p.map, p.x * 100, p.y * 100)) end
     elseif arg == "quests" or arg == "optimal" then
         N:SetMode(arg)
         ns:Print(arg == "quests" and "following your current quests only" or "following the optimal path (quests, pickups, trainers, skill-ups)")
