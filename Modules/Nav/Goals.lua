@@ -200,7 +200,7 @@ ns:Register("navGoal", "errands", {
         -- "Include professions" (map panel, /flow nav professions on|off).
         local includeProfs = ns.db.nav.professions ~= false
 
-        for _, p in ipairs(includeProfs and d and d.leveling.professions or {}) do
+        for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
             local why
             if not rank then why = "Learn " .. p.name
@@ -235,7 +235,7 @@ ns:Register("navGoal", "errands", {
         local target = A.ProfessionTarget(UnitLevel("player"))
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
-        for _, p in ipairs(includeProfs and d and d.leveling.professions or {}) do
+        for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
             if rank and rank + 10 < target and rank < max then
                 for _, spot in ipairs(ns.places:SpotsFor(p.name)) do

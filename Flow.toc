@@ -30,6 +30,7 @@ Modules\BindMode.lua
 Modules\AutoPush.lua
 Modules\Hearth.lua
 Modules\Spec.lua
+Modules\Professions.lua
 Modules\Trainer.lua
 Modules\QuestMarks.lua
 Modules\Quests\QuestData.lua

@@ -316,3 +316,56 @@ ns.commands.sell = function(arg)
             ns.db.sell.enabled and "on" or "off", n))
     end
 end
+
+-------------------------------------------------------------------------------
+-- Merchant stop on the route, only when it's worth it:
+--   what Flow would sell is worth at least ~5 silver per character level, or
+--   your bags are nearly full (3 or fewer free slots) and there's something
+--   to sell.
+-- It's an optional stop, so the planner only keeps it when a merchant is
+-- roughly on your way (and drops it otherwise). Merchants come from the ones
+-- you've visited (Flow remembers where) and the innkeepers it knows.
+-------------------------------------------------------------------------------
+
+local function freeBagSlots()
+    local free = 0
+    local fn = (CC and CC.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
+    if not fn then return 99 end
+    for bag = 0, 4 do
+        local n, bagType = fn(bag)
+        if (bagType or 0) == 0 then free = free + (n or 0) end
+    end
+    return free
+end
+
+ns:Register("navGoal", "merchant", {
+    collect = function()
+        if not (ns.db.sell and ns.db.sell.enabled) then return nil end
+        local junk, proposed = V:Candidates()
+        local count, value = #junk + #proposed, 0
+        for _, e in ipairs(junk) do value = value + e.price end
+        for _, e in ipairs(proposed) do value = value + e.price end
+        if count == 0 then return nil end
+        local free = freeBagSlots()
+        local worth = value >= UnitLevel("player") * 500 or free <= 3
+        if not worth then return nil end
+        local points = {}
+        for name, spot in pairs(ns.db.places or {}) do
+            if spot.kind == "vendor" then points[#points + 1] = { map = spot.map, x = spot.x, y = spot.y } end
+        end
+        for _, inn in ns:Each("innkeeper") do
+            for _, pt in ipairs(ns.places:Points(inn.name)) do points[#points + 1] = pt end
+        end
+        if #points == 0 then return nil end
+        return { {
+            key = "merchant", optional = true, weight = 1.2, points = points,
+            title = "Merchant",
+            text = string.format("Sell %d item(s) (%s) at a merchant", count, money(value)),
+            details = { free <= 3 and string.format("Your bags are nearly full (%d free).", free)
+                            or "Enough to sell to be worth a short detour.",
+                        "Only planned when a merchant is roughly on your way." },
+        } }
+    end,
+})
+
+ns:On("MERCHANT_CLOSED", function() if ns.nav then ns.nav:Collect() end end)

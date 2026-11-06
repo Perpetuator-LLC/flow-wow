@@ -259,6 +259,7 @@ local function buildPanel()
             if ns.mapOverlay then ns.mapOverlay:Preview(nil) end
         end)
         r:SetScript("OnClick", function(self)
+            if self.item.onClick then self.item.onClick() return end
             if not self.goal then return end
             ns.nav:Select(self.item.goalKey)
             ns:Print("route updated: " .. (self.goal.text or self.item.text) .. " first")
@@ -291,7 +292,7 @@ function Adv:FillPanel()
                 label = string.format("|cff%s!%d|r %s", c and c.hex or "0072B2", pickup, label)
             end
             r.text:SetText(label)
-            r.go:SetShown(r.goal ~= nil)
+            r.go:SetShown(r.goal ~= nil or item.onClick ~= nil)
             if r.goal then local c = ns.theme.arrow; r.go:SetVertexColor(c[1], c[2], c[3]) end
             r:Show()
         else

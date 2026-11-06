@@ -220,7 +220,7 @@ ns:Register("advisor", "professions", {
         end
         -- Planned professions (class data) you haven't learned yet.
         local d = ns:ClassData()
-        for _, p in ipairs(d and d.leveling.professions or {}) do
+        for _, p in ipairs(ns:ProfessionPlan()) do
             if not collapsed and not ns.api.Skill(p.name) then
                 local who = ns.places and ns.places:TrainersFor(p.name) or {}
                 out[#out + 1] = { importance = p.optional and 25 or 50,
