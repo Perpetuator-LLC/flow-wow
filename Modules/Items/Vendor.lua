@@ -132,7 +132,16 @@ local function build()
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOPLEFT", 10, -10)
-    f.title:SetText("Flow: sell")
+    f.title:SetText("Flow Seller")
+    -- The header opens and closes the drawer. It stays on screen at every
+    -- vendor, collapsed when there's nothing to sell, so you can see it's
+    -- working ("0 items to sell") and open it to check.
+    f.head = CreateFrame("Button", nil, f)
+    f.head:SetPoint("TOPLEFT"); f.head:SetPoint("TOPRIGHT"); f.head:SetHeight(28)
+    f.head.pm = f.head:CreateTexture(nil, "ARTWORK")
+    f.head.pm:SetSize(16, 16); f.head.pm:SetPoint("RIGHT", -8, 0)
+    f.head.hl = f.head:CreateTexture(nil, "HIGHLIGHT"); f.head.hl:SetAllPoints(); f.head.hl:SetColorTexture(1, 1, 1, 0.06)
+    f.head:SetScript("OnClick", function() V.visitCollapsed = not f.collapsed; V:Refresh() end)
 
     f.junk = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     f.junk:SetSize(22, 22)
@@ -182,8 +191,26 @@ function V:Refresh()
     local junk, proposed, ah, de = self:Candidates()
     local f = panel
 
-    -- Nothing to sell and nothing to buy back: fold away (normal vendor view).
-    if #junk == 0 and #proposed == 0 and #sold == 0 then f:Hide() return end
+    -- Collapsed (just the header) when there's nothing to sell or buy back,
+    -- unless you opened it this visit; open otherwise unless you closed it.
+    local nothing = #junk == 0 and #proposed == 0 and #sold == 0
+    local collapsed = V.visitCollapsed
+    if collapsed == nil then collapsed = nothing end
+    f.collapsed = collapsed
+    local nSell = (ns.db.sell.junkAll ~= false and #junk or 0) + #proposed
+    f.title:SetText(string.format("Flow Seller  |cff%s%d item%s to sell|r", nSell > 0 and "ffffff" or "888888",
+        nSell, nSell == 1 and "" or "s"))
+    f.head.pm:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+    local parts = { f.junk, f.junkLabel, f.propHeader, f.soldHeader, f.footer, f.sellAll, f.close }
+    for _, r in ipairs(f.propRows) do parts[#parts + 1] = r end
+    for _, r in ipairs(f.soldRows) do parts[#parts + 1] = r end
+    if collapsed then
+        for _, p in ipairs(parts) do p:Hide() end
+        f:SetHeight(30)
+        f:Show()
+        return
+    end
+    for _, p in ipairs({ f.junk, f.junkLabel, f.propHeader, f.soldHeader, f.footer, f.sellAll, f.close }) do p:Show() end
     f:Show()
 
     local junkValue = 0
@@ -321,6 +348,7 @@ ns:On("MERCHANT_SHOW", function()
     if not ns.db.sell.enabled then return end
     panel = panel or build()
     wipe(sold); junkSold = 0
+    V.visitCollapsed = nil  -- each visit starts open if there's something to sell, else collapsed
     D:Invalidate()
     -- Next frame, once the vendor window is on screen to anchor to.
     C_Timer.After(0, function()

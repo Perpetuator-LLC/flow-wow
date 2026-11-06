@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.5
+- Flow Seller (the vendor drawer) stays on screen at every vendor. With nothing to sell it's
+  collapsed to its header, "Flow Seller  0 items to sell"; click the header to open or close it.
+  With items to sell it opens as before.
+
 ## 0.35.4
 - Flow Seller never suggests selling a profession tool (Mining Pick, Blacksmith Hammer, Skinning
   Knife, fishing poles, Arclight Spanner) while you have or plan that profession; bags show the
