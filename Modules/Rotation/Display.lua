@@ -209,6 +209,7 @@ local function onUpdate(_, dt)
         if cfg.debug and s ~= E.lastError and now - (E.lastErrorAt or 0) > 5 then
             ns:Print("rotation error: " .. tostring(s))
         end
+        if s ~= E.lastError then ns:Log("rotation", s) end
         E.lastError, E.lastErrorAt = s, now
         s = nil
     end

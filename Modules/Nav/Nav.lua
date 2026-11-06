@@ -696,6 +696,7 @@ ns:OnLoad(function(saved)
         acc = 0
         local ok, err = pcall(update)
         if not ok then
+            if err ~= N.lastError then ns:Log("nav", err) end
             N.lastError = err
             if ns.db.rotation.debug then ns:Print("nav: " .. tostring(err)) end
         end

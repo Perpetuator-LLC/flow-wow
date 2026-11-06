@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.6
+- Diagnostics Claude can read from disk: Flow logs its errors and takes a snapshot of its checks on
+  every `/reload` and logout (saved with Flow's data). `/flow dump` captures one on demand;
+  `toolsead-diag.ps1` prints it.
+
 ## 0.17.5
 - Profession and class trainers are found by NPC ID (with a name check) as well as by name, and
   Questie zones fall back to matching the game's own map names, so trainer stops show up.
