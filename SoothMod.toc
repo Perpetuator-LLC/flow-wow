@@ -1,9 +1,0 @@
-## Interface: 16001
-## Title: SoothMod
-## Notes: Sooth's personal everything-mod.
-## Author: Sooth
-## Version: 0.1.0
-## SavedVariables: SoothModDB
-
-Core.lua
-Modules\Greeting.lua

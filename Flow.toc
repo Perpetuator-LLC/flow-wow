@@ -1,0 +1,48 @@
+## Interface: 16001
+## Title: Flow
+## Notes: Sooth's personal everything-mod.
+## Author: Sooth
+## Version: 0.10.0
+## SavedVariables: FlowDB
+## OptionalDeps: Questie, QuestieDB
+
+# Core: event bus, registries, slash command
+Core.lua
+
+# Learned from your combat log files (written by tools/analyze-combatlog.ps1)
+Learned\CombatLog.lua
+
+# Shared helpers
+Modules\Rotation\Compat.lua
+Modules\Rotation\Tracker.lua
+Modules\Fight\FightTypes.lua
+
+# Features
+Modules\Help.lua
+Modules\Splash.lua
+Modules\Chat.lua
+Modules\Spec.lua
+Modules\Trainer.lua
+Modules\QuestMarks.lua
+Modules\Quests\QuestData.lua
+Modules\Gear\Analyzers.lua
+Modules\Gear\Score.lua
+Modules\Gear\Sets.lua
+Modules\Gear\QuestRewards.lua
+Modules\Items\SkillBoosters.lua
+Modules\Rotation\Engine.lua
+Modules\Rotation\Display.lua
+Modules\Fight\Profiler.lua
+Modules\CombatLogFile.lua
+Modules\Nav\Nav.lua
+Modules\Nav\Places.lua
+Modules\Nav\Planner.lua
+Modules\Nav\Goals.lua
+Modules\Advisor\Advisor.lua
+Modules\Advisor\Builtins.lua
+
+# Classes: each folder registers its own data, spells and rotation.
+# Adding a class = adding a folder and listing its files here.
+Classes\Paladin\Data.lua
+Classes\Paladin\Spells.lua
+Classes\Paladin\Rotation.lua
