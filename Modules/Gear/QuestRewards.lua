@@ -41,10 +41,15 @@ local function badgesFor(button)
         f:SetFrameLevel(button:GetFrameLevel() + 5)
         f.bg = f:CreateTexture(nil, "OVERLAY")
         f.bg:SetAllPoints()
-        f.bg:SetColorTexture(c[1], c[2], c[3], 0.95)
         f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.text:SetPoint("CENTER", 0, 0)
-        f.text:SetText(c[4])
+        if key == "sell" then
+            -- Same gold coin as the bag icons.
+            f.bg:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+        else
+            f.bg:SetColorTexture(c[1], c[2], c[3], 0.95)
+            f.text:SetText(c[4])
+        end
         f:Hide()
         f.key = key
         list[idx] = f

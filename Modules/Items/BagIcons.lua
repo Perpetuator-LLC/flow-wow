@@ -1,7 +1,7 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   green arrow (top left)    = equip this now (better for your levelling role)
 --   coloured dot (top right)  = better for another role (red DPS, green Heal, blue Tank)
---   badge (bottom left)       = what Flow would do with it: $ sell, AH, DE
+--   bottom left               = what Flow would do with it: gold coin = sell, AH, DE
 -- /flow bags on|off
 
 local _, ns = ...
@@ -37,6 +37,12 @@ local function marks(button)
     end
     m.badge = m:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     m.badge:SetPoint("BOTTOMLEFT", 2, 2)
+    -- Gold coin for "sell".
+    m.coin = m:CreateTexture(nil, "OVERLAY")
+    m.coin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    m.coin:SetSize(14, 14)
+    m.coin:SetPoint("BOTTOMLEFT", 1, 1)
+    m.coin:Hide()
     button.flowMarks = m
     return m
 end
@@ -47,6 +53,7 @@ local function clear(button)
     m.arrow:Hide()
     for _, d in pairs(m.dots) do d:Hide() end
     m.badge:SetText("")
+    m.coin:Hide()
 end
 
 local function paint(button, bag, slot)
@@ -61,7 +68,8 @@ local function paint(button, bag, slot)
     for role, d in pairs(m.dots) do
         d:SetShown(g ~= nil and g.canUse and role ~= main and g.diffs[role] >= 0.5)
     end
-    local b = BADGE[v.action]
+    m.coin:SetShown(v.action == "sell")
+    local b = v.action ~= "sell" and BADGE[v.action]
     if b then
         m.badge:SetText(b[1])
         m.badge:SetTextColor(b[2], b[3], b[4])
