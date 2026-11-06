@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/flow-banner.svg" alt="Flow: World of Warcraft levelling companion" width="720"></p>
 
-# Flow: WoW Levelling Companion
+# Flow (unfettered) WoW Mod
 
 A levelling companion addon for **World of Warcraft: Forever**. It suggests what to press, plans
 your route, judges your gear, sorts your bags and learns from how you play. It started with the
