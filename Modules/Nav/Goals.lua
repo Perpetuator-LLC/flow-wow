@@ -249,18 +249,27 @@ ns:Register("navGoal", "errands", {
             end
         end
 
-        -- Class trainer, when the advisor has spells for you to train.
-        local npc = ns.db.trainer and ns.db.trainer.npc
-        if npc then
-            local waiting = 0
-            local ok, items = pcall(ns:Get("advisor", "trainer").check)
-            if ok and items then waiting = #items end
-            local points = waiting > 0 and ns.places:Points(npc) or {}
+        -- Class trainer, when spells are waiting (appears by itself when you
+        -- level up into new spells). The trainer you last used, else the
+        -- known class trainers for your class (Places.lua data + Questie).
+        local waiting = 0
+        local ok, items = pcall(ns:Get("advisor", "trainer").check)
+        if ok and items then waiting = #items end
+        if waiting > 0 then
+            local _, class = UnitClass("player")
+            local names = ns.db.trainer and ns.db.trainer.npc and { ns.db.trainer.npc }
+                or ns.places:TrainersFor("class:" .. class)
+            if ns.quests.NPCsByName then ns.quests:NPCsByName(names) end
+            local points = {}
+            for _, n in ipairs(names) do
+                for _, pt in ipairs(ns.places:Points(n)) do points[#points + 1] = pt end
+            end
             if #points > 0 then
                 out[#out + 1] = {
                     key = "train:class", weight = 1.0, points = points,
-                    title = "Class training", text = string.format("Train %d spell(s) at %s", waiting, npc),
-                    details = { "New spells or ranks are waiting at your class trainer." },
+                    title = "Class training",
+                    text = string.format("Train %d spell(s) at your class trainer", waiting),
+                    details = { "New spells or ranks are waiting: " .. table.concat(names, " / ") .. "." },
                 }
             end
         end

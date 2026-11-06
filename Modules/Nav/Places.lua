@@ -22,6 +22,9 @@ ns:Register("trainerNames", "alliance-elwynn", {
     ["Fishing"]       = { "Lee Brown" },
     ["Skinning"]      = { "Helene Peltskinner" },
     ["Herbalism"]     = { "Herbalist Pomeroy", "Nancy Songflower" },
+    -- Class trainers (Northshire, Goldshire, Stormwind Cathedral).
+    ["class:PALADIN"] = { "Brother Sammuel", "Brother Wilhelm", "Arthur the Faithful",
+                          "Lord Grayson Shadowbreaker" },
 })
 
 -- Where to raise a gathering/secondary skill. objects = Questie object IDs
