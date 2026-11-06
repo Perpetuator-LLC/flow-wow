@@ -81,14 +81,31 @@ local function build()
         RT:Open(db().open == "flow" and "none" or "flow")
     end)
     h:RegisterForDrag("LeftButton")  -- Shift-drag the header to move the tracker
+    -- Shift-drag the header to move it. Docked under Questie's tracker, the
+    -- drag undocks it; drop it just under Questie's tracker to dock again.
     h:SetScript("OnDragStart", function()
         if not IsShiftKeyDown() then return end
-        if f.docked then ns:Print("the Flow Tracker sits on Questie's tracker: move that one, or /flow tracker undock.") return end
+        if f.docked then
+            local l, tp = f:GetLeft(), f:GetTop()
+            db().dock = false
+            f.docked = false
+            if l and tp then
+                f:ClearAllPoints()
+                f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l, tp)
+            end
+        end
         f:StartMoving()
     end)
     h:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
-        if not f.docked then f.pinTop() end
+        f.pinTop()
+        local q = _G.Questie_BaseFrame
+        if q and q:IsShown() and q:GetLeft() and f:GetLeft()
+            and math.abs(f:GetLeft() - q:GetLeft()) < 40 and math.abs(f:GetTop() - q:GetBottom()) < 40 then
+            db().dock = true
+            ns:Print("Flow Tracker docked under Questie's tracker again.")
+            RT:Refresh()
+        end
     end)
     f:SetMovable(true); f:SetClampedToScreen(true)
     f.header = h
@@ -276,5 +293,5 @@ end
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
     "Your next stops on screen, docked under Questie's tracker: one column, one open at a time (or neither).",
     "Click a stop to open it (quest log or map); right-click for a menu. Change the route on the world map.",
-    "/flow tracker on|off|flow|questie|dock|undock",
+    "Shift-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock",
 } })

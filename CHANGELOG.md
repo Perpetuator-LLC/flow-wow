@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.28.1
+- Flow Tracker: Shift-drag its header to move it, even when docked (dragging undocks it). Drop
+  it just under Questie's tracker to dock it again.
+
 ## 0.28.0
 - Route and arrow share one colour, and it shows the order mode: purple (epic) = Most XP first,
   blue (rare) = Shortest path, gold (artifact) = From selected stop. Previewed route yellow,
