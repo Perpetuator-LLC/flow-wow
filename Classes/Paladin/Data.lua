@@ -47,7 +47,7 @@ ns:Register("class", "PALADIN", {
             ITEM_MOD_MASTERY_RATING_SHORT = 0.6,
             ITEM_MOD_VERSATILITY = 0.6,
             ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 3.0,
-            RESISTANCE0_NAME = 0.02,
+            RESISTANCE0_NAME = 0.05,   -- armor keeps you questing longer between heals
         },
         heal = {
             ITEM_MOD_INTELLECT_SHORT = 1.0,
@@ -61,11 +61,11 @@ ns:Register("class", "PALADIN", {
             ITEM_MOD_MASTERY_RATING_SHORT = 0.5,
             ITEM_MOD_VERSATILITY = 0.5,
             ITEM_MOD_STRENGTH_SHORT = 0.05,
-            RESISTANCE0_NAME = 0.01,
+            RESISTANCE0_NAME = 0.04,
         },
         tank = {
             ITEM_MOD_STAMINA_SHORT = 1.0,
-            RESISTANCE0_NAME = 0.08,
+            RESISTANCE0_NAME = 0.10,
             ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = 1.2,
             ITEM_MOD_DODGE_RATING_SHORT = 1.0,
             ITEM_MOD_PARRY_RATING_SHORT = 0.9,

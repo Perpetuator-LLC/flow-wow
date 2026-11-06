@@ -54,9 +54,45 @@ function G:Compare(link)
     local scores, notes = self:Score(item)
     local diffs = {}
     for _, role in ipairs(ROLES) do
-        diffs[role] = scores[role] - self:EquippedScore(item, role)
+        diffs[role] = self:RoleDiff(item, role, scores)
     end
     return { item = item, canUse = true, scores = scores, diffs = diffs, notes = notes }
+end
+
+-- "Simply better": at least as good in every stat (armor included) and
+-- better in at least one. Then it's an upgrade for every role, whatever the
+-- weights say (e.g. a belt with only more armor).
+function G:Dominates(item, otherLink)
+    if not otherLink then
+        -- Empty slot: anything with stats beats nothing.
+        return next(item.stats) ~= nil
+    end
+    if not otherLink:find("item:") then return false end
+    local other = self:Describe(otherLink)
+    if not other then return false end
+    local better = false
+    local keys = {}
+    for k in pairs(item.stats) do keys[k] = true end
+    for k in pairs(other.stats) do keys[k] = true end
+    for k in pairs(keys) do
+        if not k:find("^EMPTY_SOCKET_") then
+            local a, b = item.stats[k] or 0, other.stats[k] or 0
+            if a < b then return false end
+            if a > b then better = true end
+        end
+    end
+    return better
+end
+
+-- Score difference for one role, against what this item would replace.
+-- Returns diff, and what it was compared with.
+function G:RoleDiff(item, role, scores)
+    local base, what = self:EquippedScore(item, role)
+    local diff = scores[role] - base
+    if diff < 0.5 and (what == nil or not what:find(" %+ ")) and self:Dominates(item, what) then
+        diff = 0.5  -- counts as an upgrade
+    end
+    return diff, what
 end
 
 G.ROLES = ROLES
@@ -180,8 +216,7 @@ local function addToTooltip(tooltip, link)
     local groups, order = {}, {}
     for _, role in ipairs(ROLES) do
         local hasSet = sets and sets:Has(role)
-        local base, what = G:EquippedScore(item, role)
-        local diff = scores[role] - base
+        local diff, what = G:RoleDiff(item, role, scores)
         if diff >= 0.5 then better[role] = true end
         if not worn or hasSet then
             local label = (hasSet and (sets:SetFor(role) .. " set ") or "")
