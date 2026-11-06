@@ -289,6 +289,11 @@ ns.commands.rot = function(arg)
     elseif arg == "why" then
         ns:Print("rotation check:")
         for _, line in ipairs(E:Explain()) do print(line) end
+    elseif arg == "guide" then
+        local def = E:Definition()
+        if not (def and def.guide) then ns:Print("no rotation guide for your class yet") return end
+        ns:Print("your rotation (with the spells you have now):")
+        for _, line in ipairs(def.guide(E)) do print("  " .. line) end
     elseif arg == "known" then
         -- Check that the helper only sees spells you really have.
         local names = {}
@@ -314,6 +319,6 @@ ns.commands.rot = function(arg)
             print(string.format("  %s hits for %.1f dps (%d fights)", name, m.dps, m.n))
         end
     else
-        ns:Print("/flow rot on|off|lock|unlock|why|stats|known|debug|reset")
+        ns:Print("/flow rot guide|why|on|off|lock|unlock|stats|known|debug|reset")
     end
 end

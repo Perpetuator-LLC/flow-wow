@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.4
+- Seal of Righteousness is suggested again a few seconds before it runs out (Forever's Judgement no
+  longer uses it up), and Blessing of Might when it has under 30s left out of combat.
+- `/flow rot guide`: your rotation in plain words, using the spells you have.
+
 ## 0.17.3
 - Map route panel: "Click a stop to follow that route" hint, and a choice between **Follow current
   quests** (only quests in your log) and **Follow optimal path** (also pickups, trainers, skill-ups).

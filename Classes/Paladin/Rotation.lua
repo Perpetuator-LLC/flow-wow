@@ -13,6 +13,21 @@ local function hasSeal()
     return A.Buff("player", function(n) return n and n:find("^Seal of") end)
 end
 
+-- Seal missing or about to drop. In Forever, Judgement no longer uses up
+-- the seal, so it only ends by running out: refresh it just before that
+-- (a few seconds in combat; a little earlier right before a pull).
+local function needSeal(c)
+    local up, left = hasSeal()
+    if not up then return true end
+    return left < (c.inCombat and 3 or 8)
+end
+
+-- Blessing missing, or under 30 seconds left while you're out of combat.
+local function needBlessing()
+    local up, left = A.Buff("player", function(n) return n and n:find("^Blessing of") end)
+    return not up or left < 30
+end
+
 -- Only your own paladin auras count (not e.g. a hunter's Trueshot Aura).
 local PALADIN_AURAS = {
     ["Devotion Aura"] = true, ["Retribution Aura"] = true, ["Concentration Aura"] = true,
@@ -34,20 +49,20 @@ end
 local buffs = {
     { spell = "Devotion Aura", kind = "buff", reason = "No aura",
       when = function() return not hasAura() end },
-    { spell = "Blessing of Might", kind = "buff", reason = "No blessing",
-      when = function(c) return not c.inCombat and not hasBlessing() end },
+    { spell = "Blessing of Might", kind = "buff", reason = "Blessing missing or running out",
+      when = function(c) return not c.inCombat and needBlessing() end },
     -- Kings (Forever: baseline at 20) only if you don't have Might.
-    { spell = "Blessing of Kings", kind = "buff", reason = "No blessing",
+    { spell = "Blessing of Kings", kind = "buff", reason = "Blessing missing or running out",
       when = function(c)
-          return not c.inCombat and not hasBlessing() and not c.engine:Knows("Blessing of Might")
+          return not c.inCombat and needBlessing() and not c.engine:Knows("Blessing of Might")
       end },
     -- Tanks use Seal of Fury (Forever, level 10); everyone else Righteousness.
-    { spell = "Seal of Fury", kind = "buff", reason = "No seal (tanking)",
-      when = function(c) return c.role == "tank" and (c.hostile or c.inCombat) and not hasSeal() end },
-    { spell = "Seal of Righteousness", kind = "buff", reason = "No seal",
+    { spell = "Seal of Fury", kind = "buff", reason = "Seal missing or running out (tanking)",
+      when = function(c) return c.role == "tank" and (c.hostile or c.inCombat) and needSeal(c) end },
+    { spell = "Seal of Righteousness", kind = "buff", reason = "Seal missing or running out",
       when = function(c)
           local tankSeal = c.role == "tank" and c.engine:Knows("Seal of Fury")
-          return not tankSeal and (c.hostile or c.inCombat) and not hasSeal()
+          return not tankSeal and (c.hostile or c.inCombat) and needSeal(c)
       end },
 }
 
@@ -96,7 +111,36 @@ local function join(...)
     return out
 end
 
+-- Plain-language rotation for /flow rot guide, using only spells you know.
+local function guide(e)
+    local k = function(s) return e:Knows(s) end
+    local out = {}
+    local function add(s) out[#out + 1] = s end
+    add("Before a pull:")
+    if k("Devotion Aura") then add("  - Devotion Aura on (stays on; it's on your stance bar).") end
+    if k("Blessing of Might") then add("  - Blessing of Might (re-cast when under 30s left).") end
+    if k("Seal of Righteousness") then add("  - Seal of Righteousness, cast just before you pull.") end
+    add("Fight:")
+    if k("Judgement") then
+        add("  1. Judgement to open (in Forever it doesn't use up your seal), then again on every cooldown.")
+    end
+    add("  2. Auto attack: keep swinging (Flow suggests Attack if you aren't).")
+    if k("Holy Strike") then add("  3. Holy Strike on every cooldown.") end
+    if k("Seal of Righteousness") then add("  4. Refresh Seal of Righteousness when it has ~3s left.") end
+    if k("Hammer of Justice") then add("  - Hammer of Justice: stun a runner or buy time to heal.") end
+    if k("Consecration") then add("  - Several enemies: Consecration (full damage on up to 4).") end
+    add("Healing:")
+    if k("Holy Light") then
+        add("  - Holy Light between pulls, or mid-fight only when Flow flashes gold (heal now).")
+    end
+    if k("Divine Protection") then add("  - Divine Protection if a fight goes badly, then heal.") end
+    if k("Lay on Hands") then add("  - Lay on Hands: last resort.") end
+    return out
+end
+
 ns:Register("rotation", "PALADIN", {
+    guide = guide,
+
     -- Self-heals, considered before anything else (see Engine HealDecision).
     heals = { "Flash of Light", "Holy Light", "Word of Glory" },
 
