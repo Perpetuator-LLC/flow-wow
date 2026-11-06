@@ -161,7 +161,7 @@ local function build()
     for i = 1, BATCH do f.propRows[i] = makeRow(f); f.soldRows[i] = makeRow(f) end
 
     f.sellAll = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.sellAll:SetSize(200, 24)
+    f.sellAll:SetSize(230, 24)
     f.sellAll:SetPoint("BOTTOMLEFT", 10, 10)
     f.sellAll:SetScript("OnClick", function() V:SellAll() end)
     f.close = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -188,7 +188,8 @@ function V:Refresh()
     f.junk:SetChecked(junkOn)
     f.junk:SetEnabled(#junk > 0)
     f.junkLabel:SetText(#junk > 0 and string.format("Sell all junk: %d item(s), %s", #junk, money(junkValue))
-        or ("|cff888888No junk|r" .. (junkSold > 0 and string.format(" (sold %d)", junkSold) or "")))
+        or ("|cff888888No junk left|r" .. (junkSold > 0 and string.format(" |cff888888(%d grey item%s sold this visit)|r",
+            junkSold, junkSold == 1 and "" or "s") or "")))
 
     local y = -58
     f.propHeader:ClearAllPoints()
@@ -272,7 +273,11 @@ function V:Refresh()
 
     local anything = (junkOn and #junk > 0) or #proposed > 0
     f.sellAll:SetEnabled(anything)
-    f.sellAll:SetText(anything and ("Sell All: " .. money(batchValue)) or "Nothing to sell")
+    -- Say what it sells: how many items, and for how much (the coin icons alone
+    -- read like a count).
+    local nSell = (junkOn and #junk or 0) + math.min(BATCH, #proposed)
+    f.sellAll:SetText(anything and string.format("Sell %d item%s for %s", nSell, nSell == 1 and "" or "s", money(batchValue))
+        or "Nothing to sell")
 end
 
 -- Sell every grey item right away (no confirmation), when you open a vendor.

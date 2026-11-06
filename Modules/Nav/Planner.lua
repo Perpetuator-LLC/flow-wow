@@ -67,6 +67,22 @@ local function candidates(p, goals)
             kept[#kept + 1] = stops[i]; keptKeys[stops[i].key] = true
         end
     end
+    -- Turn-ins follow their quest: when every objective of a quest made the
+    -- cut, its turn-in comes too, even past MAX_STOPS (a few extra at most),
+    -- so the route finishes what it starts instead of stopping at the last
+    -- objective.
+    local extra = 0
+    for i = 1, #stops do
+        local s = stops[i]
+        local deps = s.goal.deps
+        if not keptKeys[s.key] and deps and #deps > 0 and extra < 8 then
+            local all = true
+            for _, dep in ipairs(deps) do
+                if allKeys[dep] and not keptKeys[dep] then all = false end
+            end
+            if all then kept[#kept + 1] = s; keptKeys[s.key] = true; extra = extra + 1 end
+        end
+    end
     -- A turn-in whose objectives didn't make the cut would be planned too
     -- early; leave it out until they're in range.
     local out = {}

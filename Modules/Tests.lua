@@ -208,3 +208,18 @@ ns:Register("test", "ways to improve: no quests to accept", function(t)
     end
     t:ok(true)
 end)
+
+ns:Register("test", "planner: a quest's turn-in comes along with its objectives", function(t)
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local goals = {}
+    for i = 1, 16 do
+        goals[#goals + 1] = { key = "near" .. i, text = "near", points = { { cont = 0, wx = i * 10, wy = 0 } } }
+    end
+    goals[#goals + 1] = { key = "7:1", text = "objective", points = { { cont = 0, wx = 5, wy = 5 } } }
+    goals[#goals + 1] = { key = "7:done", text = "turn in", deps = { "7:1" }, points = { { cont = 0, wx = 900, wy = 0 } } }
+    local plan = ns.planner:Plan(p, goals, {})
+    local at = {}
+    for i, s in ipairs(plan or {}) do at[s.goal.key] = i end
+    t:ok(at["7:done"] ~= nil, "turn-in planned although it's the farthest stop")
+    t:ok(at["7:1"] and at["7:done"] and at["7:1"] < at["7:done"], "after its objective")
+end)

@@ -225,6 +225,85 @@ ns:Register("questSource", "questie", {
 -- must come first (all of preQuestGroup, any of preQuestSingle), and not
 -- blocked by a mutually exclusive quest you've done or are on.
 local band = bit and bit.band
+-- Is a quest really on offer right now? No game API answers this, so Flow uses:
+--   * Questie's event calendar: event / holiday quests (Hallow's End...)
+--     only while Questie says the event is on. Quests sorted under a holiday
+--     with no calendar entry are treated as off.
+--   * what NPCs actually offer: when you talk to a quest giver, quests Flow
+--     expected from them but they don't offer are skipped for a week
+--     (ns.db.quests.notOffered). Covers events Questie doesn't know about.
+local HOLIDAY_SORTS = { [-22] = true, [-284] = true, [-364] = true, [-366] = true, [-369] = true,
+    [-370] = true, [-374] = true, [-375] = true, [-376] = true, [-1001] = true, [-1002] = true,
+    [-1003] = true, [-1004] = true, [-1005] = true, [-1006] = true, [-1007] = true, [-1008] = true }
+local NOT_OFFERED_DAYS = 7
+
+local eventSet, eventActive
+local function events()
+    if eventSet then return eventSet, eventActive end
+    if not (QuestieLoader and QuestieLoader.ImportModule) then return nil end
+    local ok, QE = pcall(QuestieLoader.ImportModule, QuestieLoader, "QuestieEvent")
+    if not ok or not QE then return nil end
+    local set = {}
+    for _, e in ipairs(QE.eventQuests or {}) do
+        local id = type(e) == "table" and (e[2] or e.questId)
+        if id then set[id] = true end
+    end
+    eventSet, eventActive = set, QE.activeQuests or {}
+    return eventSet, eventActive
+end
+
+function Q:Offered(id, q)
+    if not id then return true end
+    local set, active = events()
+    if set and set[id] and not active[id] then return false end
+    if q and HOLIDAY_SORTS[q.zoneOrSort or 0] and not (active and active[id]) then return false end
+    local no = ns.db.quests and ns.db.quests.notOffered and ns.db.quests.notOffered[id]
+    if no and time() - no < NOT_OFFERED_DAYS * 86400 then return false end
+    return true
+end
+
+-- At a quest giver: note which quests Flow expected but the NPC didn't offer.
+local function checkOffers()
+    local guid = ns.api.Safe(UnitGUID("npc"))
+    local npcId = guid and tonumber(guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)"))
+    if not npcId then return end
+    local npc = Q:QuestieGet("GetNPC", npcId)
+    if not npc or not npc.questStarts then return end
+    local offered, anyInfo = {}, false
+    if C_GossipInfo and C_GossipInfo.GetAvailableQuests then
+        for _, info in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
+            if info.questID then offered[info.questID] = true end
+            anyInfo = true
+        end
+    end
+    if GetNumAvailableQuests and GetAvailableTitle then
+        for i = 1, GetNumAvailableQuests() do
+            local title = GetAvailableTitle(i)
+            if title then offered[title] = true; anyInfo = true end
+        end
+    end
+    ns.db.quests.notOffered = ns.db.quests.notOffered or {}
+    for _, id in ipairs(npc.questStarts) do
+        local qd = Q:QuestieGet("GetQuest", id)
+        if qd and not completed[id] and not inLog[id] and Q:Available(qd) then
+            local name = qd.name
+            if offered[id] or (name and offered[name]) then
+                ns.db.quests.notOffered[id] = nil
+            elseif anyInfo or GetNumAvailableQuests then
+                -- The NPC talked to you and didn't offer it: not available now.
+                if not ns.db.quests.notOffered[id] then
+                    ns:Log("quests", "not offered by " .. tostring(npc.name) .. ": " .. tostring(name) .. " (" .. id .. ")")
+                end
+                ns.db.quests.notOffered[id] = time()
+            end
+        end
+    end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+end
+for _, ev in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING" }) do
+    ns:On(ev, function() C_Timer.After(0.2, function() pcall(checkOffers) end) end)
+end
+
 function Q:Available(q, levelSlack)
     local level = UnitLevel("player")
     if (q.requiredLevel or 0) > level + (levelSlack or 0) then return false end
@@ -245,6 +324,7 @@ function Q:Available(q, levelSlack)
         for _, pre in ipairs(single) do if completed[pre] then any = true break end end
         if not any then return false end
     end
+    if not Q:Offered(q.Id or q.id, q) then return false end  -- events, NPCs that don't offer it
     for _, ex in ipairs(q.exclusiveTo or {}) do
         if completed[ex] or inLog[ex] then return false end
     end

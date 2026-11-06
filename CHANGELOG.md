@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.1
+- Route: a quest's turn-in now comes along with its objectives (it used to fall off the end of
+  the 14 nearest stops, so the route stopped at the last objective).
+- Quests that aren't on offer stay off the route: event quests only while Questie says the event
+  is on (e.g. An Apple Treat after Hallow's End), and when you talk to a quest giver, quests Flow
+  expected but they don't offer are skipped for a week.
+- The text under the arrow clicks like the arrow (left: panel, right: menu).
+- Vendor drawer: the button says what it sells ("Sell 16 items for 1s 20c"), and the junk line
+  reads "No junk left (4 grey items sold this visit)".
+
 ## 0.30.0
 - Bags: gear shows a small icon per spec along the bottom with an arrow above each: up = better
   than that spec's gear, down = worse, flat bar = about the same (your levelling spec brighter).

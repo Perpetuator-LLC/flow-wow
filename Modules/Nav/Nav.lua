@@ -961,6 +961,13 @@ local function buildArrow()
             showPanel()
         end
     end)
+    -- The text under the arrow (stop name, distance) clicks like the arrow:
+    -- left = this panel, right = the menu.
+    f.textHit = CreateFrame("Button", nil, f)
+    f.textHit:SetPoint("TOP", f, "BOTTOM", 0, 0)
+    f.textHit:SetSize(240, 34)
+    f.textHit:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    f.textHit:SetScript("OnClick", function(_, button) f:GetScript("OnClick")(f, button) end)
     f:Hide()
     return f
 end
