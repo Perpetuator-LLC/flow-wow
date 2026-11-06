@@ -109,7 +109,7 @@ local function build()
     local b = fadeOut:CreateAnimation("Alpha")
     b:SetFromAlpha(1)
     b:SetToAlpha(0)
-    b:SetDuration(0.35)
+    b:SetDuration(0.3)  -- disappears in 300 ms once the bars are empty
     b:SetSmoothing("IN")
     fadeOut:SetToFinalAlpha(true)
     fadeOut:SetScript("OnFinished", function() f:Hide() end)
