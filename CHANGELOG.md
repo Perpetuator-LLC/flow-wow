@@ -13,7 +13,7 @@
   in white, objectives with progress, a short quest text, details, XP, then a hint.
 - Arrow panel: the task now has a band of its own in the route colour (icon, type, the task in
   large text, distance), then the rest.
-- Self-tests: `/flow test` (13 tests: registry, skill objectives and planning, XP, route colour,
+- Self-tests: `/flow test` (12 tests: registry, skill objectives and planning, XP, route colour,
   planner order and dependencies, blocked labels, buff memory, gear rule, menu, tooltip). They
   also run on every /reload into the diagnostics.
 
