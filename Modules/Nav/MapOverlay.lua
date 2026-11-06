@@ -132,33 +132,88 @@ local function drawRoute(c, mapID, plan, color, withPins)
 end
 
 -------------------------------------------------------------------------------
--- Trip plan list beside the map: same numbers and colours as the pins.
--- Hover a row to preview, click to choose.
+-- Route panel: the trip plan as a routed quest log. It takes over the game's
+-- quest log area on the right of the map when that's open, otherwise it sits
+-- just outside the map on the right, so it never covers the map itself.
+-- The orange "Flow route" bar at its top rolls it up (showing the default
+-- quest log / map again) and brings it back. Same numbers and colours as the
+-- map pins; hover a row to preview, click to choose.
 -------------------------------------------------------------------------------
 
 local list
-local LIST_ROWS = 12
+local MAX_ROWS = 26
+local ROW_H = 18
+
+local function collapsed() return ns.db.nav.mapListCollapsed == true end
+
+local function place()
+    list:ClearAllPoints()
+    local q = QuestMapFrame
+    if q and q:IsShown() and q:GetWidth() > 100 then
+        -- Take over the quest log area.
+        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 0)
+        list:SetPoint("BOTTOMRIGHT", q, "BOTTOMRIGHT", 0, 0)
+    else
+        -- Dock outside, to the right of the map.
+        list:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", 2, 0)
+        list:SetSize(300, math.max(200, WorldMapFrame:GetHeight()))
+    end
+end
 
 local function buildList()
-    local f = CreateFrame("Frame", "FlowMapTripList", WorldMapFrame)
-    f:SetSize(250, 28 + LIST_ROWS * 16)
-    f:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer or WorldMapFrame, "BOTTOMLEFT", 8, 8)
+    local f = CreateFrame("Frame", "FlowMapRoute", WorldMapFrame)
     f:SetFrameStrata("HIGH")
+    f:EnableMouse(false)
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0, 0, 0, 0.7)
+    f.bg:SetColorTexture(0.04, 0.04, 0.07, 0.95)
+
+    -- The roll-up bar: always visible, very obvious.
+    local t = CreateFrame("Button", "FlowMapRouteToggle", f)
+    t:SetHeight(24)
+    t:SetPoint("TOPLEFT", 0, 0)
+    t:SetPoint("TOPRIGHT", 0, 0)
+    t.bg = t:CreateTexture(nil, "BACKGROUND")
+    t.bg:SetAllPoints()
+    local o = theme().arrow
+    t.bg:SetColorTexture(o[1], o[2], o[3], 0.95)
+    t.text = t:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    t.text:SetPoint("CENTER")
+    t.hl = t:CreateTexture(nil, "HIGHLIGHT")
+    t.hl:SetAllPoints()
+    t.hl:SetColorTexture(1, 1, 1, 0.15)
+    t:SetScript("OnClick", function()
+        ns.db.nav.mapListCollapsed = not collapsed()
+        M:Redraw()
+    end)
+    t:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(collapsed() and "Show Flow's routed quest list" or "Hide it and use the game's own map and quest log")
+        GameTooltip:Show()
+    end)
+    t:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.toggle = t
+
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -6)
+    f.title:SetPoint("TOPLEFT", 8, -30)
+    f.title:SetPoint("TOPRIGHT", -8, -30)
+    f.title:SetJustifyH("LEFT")
+
     f.rows = {}
-    for i = 1, LIST_ROWS do
+    for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
-        r:SetSize(236, 15)
-        r:SetPoint("TOPLEFT", 8, -22 - (i - 1) * 16)
+        r:SetHeight(ROW_H - 2)
+        r:SetPoint("TOPLEFT", 8, -48 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -48 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
+        r.leg = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        r.leg:SetPoint("RIGHT", 0, 0)
+        r.leg:SetJustifyH("RIGHT")
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetAllPoints()
+        r.text:SetPoint("LEFT", 0, 0)
+        r.text:SetPoint("RIGHT", r.leg, "LEFT", -6, 0)
         r.text:SetJustifyH("LEFT")
         r.text:SetWordWrap(false)
         r:SetScript("OnEnter", function(self)
@@ -182,21 +237,35 @@ local function updateList()
     list = list or buildList()
     local plan = ns.nav.plan
     if not plan or #plan == 0 then list:Hide() return end
-    list.title:SetText(string.format("Flow trip plan: %d stops, about %d yd", #plan, plan[#plan].cum or 0))
+    place()
+    list:Show()
+    local hidden = collapsed()
+    list.toggle.text:SetText(hidden and "Show Flow route  (+)" or "Hide Flow route  (-)")
+    list.bg:SetShown(not hidden)
+    list.title:SetShown(not hidden)
+    if hidden then
+        -- Rolled up: only the bar remains, at the top of the area.
+        for i = 1, MAX_ROWS do list.rows[i]:Hide() end
+        return
+    end
+    local following = ns.party and ns.party:Following()
+    list.title:SetText(string.format("%s: %d stops, about %d yd",
+        following and "Party route" or "Your route", #plan, plan[#plan].cum or 0))
     local labels = ns.nav:PlanLabels(plan)
-    for i = 1, LIST_ROWS do
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 54) / ROW_H))
+    for i = 1, MAX_ROWS do
         local r, s = list.rows[i], plan[i]
-        if s then
+        if s and i <= fit then
             local col = ns.nav:StopColor(i, s.goal)
             if s.goal.key == hoverKey then col = theme().hover end
             r.key = s.goal.key
             r.text:SetText(string.format("|cff%s%s|r %s", col.hex, labels[i], s.goal.text or s.goal.title or "?"))
+            r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
         else
             r:Hide()
         end
     end
-    list:Show()
 end
 
 function M:Redraw()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.1
+- The map route list no longer covers the map: it takes over the quest log area (or sits just
+  right of the map) as a routed quest list, with an orange "Hide / Show Flow route" bar to roll
+  it up and get the game's own map and quest log back.
+
 ## 0.17.0
 - Joining a group asks automatically: follow the party route or keep yours. Party and personal
   routes are separate; switch any time with the toggle under the arrow.
