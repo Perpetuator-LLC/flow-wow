@@ -81,6 +81,11 @@ ns:Register("class", "PALADIN", {
         },
     },
 
+    -- Items to hold for class quests (item ID -> why, and until which level).
+    keepItems = {
+        [2589] = { why = "keep 10 for the Redemption class quest at level 12", untilLevel = 14 },  -- Linen Cloth
+    },
+
     -- Preferred weapon speed per role (see the weaponSpeed analyzer).
     weaponSpeed = {
         dps  = { prefer = "slow", why = "Seal and Judgement damage scales with damage per swing" },

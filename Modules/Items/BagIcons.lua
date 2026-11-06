@@ -1,7 +1,9 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   green arrow (top left)    = equip this now (better for your levelling role)
 --   coloured dot (top right)  = better for another role (red DPS, green Heal, blue Tank)
---   bottom left               = what Flow would do with it: gold coin = sell, AH, DE
+--   bottom left               = gold coin = sell, AH, DE, or why it is kept:
+--                               quest "!" (current/upcoming quest), profession icon (crafting material)
+-- The item tooltip says what Flow would do and why.
 -- /flow bags on|off
 
 local _, ns = ...
@@ -43,6 +45,11 @@ local function marks(button)
     m.coin:SetSize(14, 14)
     m.coin:SetPoint("BOTTOMLEFT", 1, 1)
     m.coin:Hide()
+    -- Keep-for-a-reason icon (quest "!", or the profession's icon).
+    m.keep = m:CreateTexture(nil, "OVERLAY")
+    m.keep:SetSize(14, 14)
+    m.keep:SetPoint("BOTTOMLEFT", 1, 1)
+    m.keep:Hide()
     button.flowMarks = m
     return m
 end
@@ -54,6 +61,7 @@ local function clear(button)
     for _, d in pairs(m.dots) do d:Hide() end
     m.badge:SetText("")
     m.coin:Hide()
+    m.keep:Hide()
 end
 
 local function paint(button, bag, slot)
@@ -69,6 +77,12 @@ local function paint(button, bag, slot)
         d:SetShown(g ~= nil and g.canUse and role ~= main and g.diffs[role] >= 0.5)
     end
     m.coin:SetShown(v.action == "sell")
+    if v.action == "keep" and v.icon then
+        m.keep:SetTexture(v.icon)
+        m.keep:Show()
+    else
+        m.keep:Hide()
+    end
     local b = v.action ~= "sell" and BADGE[v.action]
     if b then
         m.badge:SetText(b[1])
@@ -148,3 +162,16 @@ ns.commands.bags = function(arg)
         ns:Print("/flow bags on|off. Green arrow = equip now, dots = better for another role, $ sell, AH auction house, DE disenchant.")
     end
 end
+
+-- Tooltip line for items in your bags: what Flow would do, and why.
+local ACTION_COLOR = { equip = "66ff66", keep = "ffd200", sell = "ffbf33", ah = "66ccff", de = "bf80ff" }
+ns:Register("itemTip", "disposition", function(tooltip, link)
+    if not ns.db.bags.enabled then return end
+    local bag, slot, l = D:FindInBags(link)
+    if not bag then return end
+    local v = D:Decide(bag, slot, l)
+    if not v then return end
+    tooltip:AddLine(string.format("Flow: |cff%s%s|r: %s", ACTION_COLOR[v.action] or "ffffff",
+        D.LABEL[v.action] or v.action, v.reason or ""), 0.9, 0.9, 0.9, true)
+    tooltip:Show()
+end)

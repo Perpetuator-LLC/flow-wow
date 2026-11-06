@@ -47,8 +47,49 @@ end
 
 local function itemInfo(link)
     local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    local _, _, quality, _, minLevel, _, _, _, equipLoc, _, sellPrice, classID = get(link)
-    return quality, minLevel, sellPrice, classID, equipLoc
+    local _, _, quality, _, minLevel, _, _, _, equipLoc, _, sellPrice, classID, subclassID = get(link)
+    return quality, minLevel, sellPrice, classID, equipLoc, subclassID
+end
+
+-- Icons shown in bags for "keep" reasons.
+D.ICON_QUEST = "Interface\\GossipFrame\\AvailableQuestIcon"
+local PROF_ICON = {
+    ["Mining"] = "Interface\\Icons\\Trade_Mining",
+    ["Blacksmithing"] = "Interface\\Icons\\Trade_BlackSmithing",
+    ["First Aid"] = "Interface\\Icons\\Spell_Holy_SealOfSacrifice",
+    ["Cooking"] = "Interface\\Icons\\INV_Misc_Food_15",
+    ["Fishing"] = "Interface\\Icons\\Trade_Fishing",
+    ["Tailoring"] = "Interface\\Icons\\Trade_Tailoring",
+    ["Leatherworking"] = "Interface\\Icons\\Trade_LeatherWorking",
+    ["Alchemy"] = "Interface\\Icons\\Trade_Alchemy",
+    ["Engineering"] = "Interface\\Icons\\Trade_Engineering",
+    ["Enchanting"] = "Interface\\Icons\\Trade_Engraving",
+    ["Herbalism"] = "Interface\\Icons\\Trade_Herbalism",
+    ["Skinning"] = "Interface\\Icons\\INV_Misc_Pelt_Wolf_01",
+}
+D.PROF_ICON = PROF_ICON
+
+-- Trade goods (item class 7) subclass -> professions that use that kind of material.
+local MATERIAL = {
+    [1] = { "Engineering" }, [2] = { "Engineering" }, [3] = { "Engineering" },
+    [5] = { "First Aid", "Tailoring" },
+    [6] = { "Leatherworking" },
+    [7] = { "Mining", "Blacksmithing", "Engineering" },
+    [8] = { "Cooking" },
+    [9] = { "Alchemy" },
+    [12] = { "Enchanting" },
+}
+local MATERIAL_NAME = { [1] = "parts", [2] = "explosives", [3] = "devices", [5] = "cloth",
+    [6] = "leather", [7] = "metal & stone", [8] = "meat", [9] = "herbs", [12] = "enchanting materials" }
+
+-- Bag slot holding an item (first match), for tooltips.
+function D:FindInBags(link)
+    local id = tonumber(link:match("item:(%d+)"))
+    local found
+    self:EachBagItem(function(bag, slot, l)
+        if not found and (l == link or tonumber(l:match("item:(%d+)")) == id) then found = { bag, slot, l } end
+    end)
+    if found then return found[1], found[2], found[3] end
 end
 
 -- Market price from an auction addon if one is installed (Auctionator), else nil.
@@ -67,11 +108,12 @@ local cache = {}
 function D:Invalidate() wipe(cache) end
 
 function D:Describe(bag, slot, link)
-    local quality, minLevel, sellPrice, classID = itemInfo(link)
+    local quality, minLevel, sellPrice, classID, _, subclassID = itemInfo(link)
     if quality == nil then return nil end  -- not loaded yet
     return {
         bag = bag, slot = slot, link = link, id = tonumber(link:match("item:(%d+)")),
         quality = quality, minLevel = minLevel or 0, sellPrice = sellPrice or 0, classID = classID,
+        subclassID = subclassID,
         bound = self:IsBound(bag, slot),
         gear = ns.gear and ns.gear:Compare(link) or nil,
     }
@@ -134,7 +176,48 @@ end)
 
 -- Quest items (classID 12).
 reg("quest", 5, function(i)
-    if i.classID == 12 then return { action = "keep", reason = "quest item" } end
+    if i.classID == 12 then return { action = "keep", reason = "quest item", icon = D.ICON_QUEST } end
+end)
+
+-- Needed by a quest you're on, or one coming up within a few levels.
+reg("questNeeds", 6, function(i)
+    local need = ns.quests and ns.quests.QuestItems and ns.quests:QuestItems()[i.id]
+    if need then
+        return { action = "keep", icon = D.ICON_QUEST,
+            reason = need.inLog and ("for your quest: " .. (need.quest or "?"))
+                or string.format("for an upcoming quest: %s (level %d)", need.quest or "?", need.level or 0) }
+    end
+end)
+
+-- Class data: items to hold for class quests, e.g. Linen Cloth for Redemption.
+reg("classKeep", 7, function(i)
+    local d = ns:ClassData()
+    local k = d and d.keepItems and d.keepItems[i.id]
+    if k and (not k.untilLevel or UnitLevel("player") < k.untilLevel) then
+        return { action = "keep", reason = k.why, icon = D.ICON_QUEST }
+    end
+end)
+
+-- Materials your professions use: exact recipes once you've opened that
+-- profession's window, otherwise by kind of material.
+reg("professionMaterial", 25, function(i)
+    local usedBy = ns.reagents and ns.reagents:UsedBy(i.id)
+    if usedBy then
+        for prof, recipe in pairs(usedBy) do
+            if ns.api.Skill(prof) then
+                return { action = "keep", icon = PROF_ICON[prof],
+                    reason = "for " .. prof .. (type(recipe) == "string" and (": " .. recipe) or "") }
+            end
+        end
+    end
+    if i.classID == 7 and MATERIAL[i.subclassID] then
+        for _, prof in ipairs(MATERIAL[i.subclassID]) do
+            if ns.api.Skill(prof) then
+                return { action = "keep", icon = PROF_ICON[prof],
+                    reason = string.format("%s for %s", MATERIAL_NAME[i.subclassID] or "material", prof) }
+            end
+        end
+    end
 end)
 
 -- Gear you should wear now.

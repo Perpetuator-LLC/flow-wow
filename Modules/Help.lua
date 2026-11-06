@@ -34,7 +34,8 @@ local topics = {
         "Tooltips: score per role and +/- vs what each item would replace (or your role's set).",
         "/flow gear sets | set <role> <set name> | save <role> | offspec | on|off",
         "/flow spec - levelling spec advice; /flow spec dps|heal|tank|auto",
-        "Bags: green arrow = equip now, coloured dots = better for another role, gold coin = sell, AH, DE. /flow bags on|off",
+        "Bags: green arrow = equip now, coloured dots = better for another role, gold coin = sell, AH, DE,",
+        "  quest ! = needed for a quest, profession icon = crafting material. Tooltips say why. /flow bags on|off",
         "Vendors: Flow lists what to sell; sells 12 at a time on click, buy back any (it learns). /flow sell",
     } },
     { "learning", 70, "Learning from your fights", {

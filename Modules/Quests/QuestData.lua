@@ -310,3 +310,84 @@ ns.commands.missed = function()
             q.starter and q.starter.zoneId and (", " .. Q:ZoneName(q.starter.zoneId)) or ""))
     end
 end
+
+-------------------------------------------------------------------------------
+-- Items your quests need: for keep decisions in your bags.
+--   now      : item objectives of quests in your log
+--   upcoming : item objectives of quests you haven't done, can do within a
+--              few levels, in zones you've quested in (or class quests)
+-- Returns { [itemID] = { quest = name, level = n, inLog = bool } } (may be
+-- incomplete while the background scan runs). Needs Questie for full data.
+-------------------------------------------------------------------------------
+
+local questItems, qiDirty, qiRunning = {}, true, false
+local UPCOMING_LEVELS = 3
+
+local function addItems(map, quest, id, inLog)
+    for _, od in ipairs(quest.ObjectiveData or {}) do
+        if od.Type == "item" and od.Id then
+            local cur = map[od.Id]
+            if not cur or (inLog and not cur.inLog) then
+                map[od.Id] = { quest = quest.name, level = quest.level, inLog = inLog, questID = id }
+            end
+        end
+    end
+end
+
+local function scanQuestItems()
+    qiRunning = true
+    local level = UnitLevel("player")
+    local map = {}
+    local co = coroutine.create(function()
+        for id in pairs(inLog) do
+            local q = Q:QuestieGet("GetQuest", id)
+            if q then addItems(map, q, id, true) end
+        end
+        local src = Q:Source()
+        if not (src and src.label == "Questie") then return end
+        local zones, n = {}, 0
+        for id in pairs(completed) do
+            local q = src.get(id)
+            if q and q.zoneId then zones[q.zoneId] = true end
+            n = n + 1
+            if n % 150 == 0 then coroutine.yield() end
+        end
+        for i, id in ipairs(src.allIds()) do
+            if not completed[id] and not inLog[id] then
+                local q = Q:QuestieGet("GetQuest", id)
+                if q and (q.requiredLevel or 0) <= level + UPCOMING_LEVELS and q.ObjectiveData then
+                    local zone = q.zoneOrSort and q.zoneOrSort > 0 and q.zoneOrSort
+                    local classQuest = q.requiredClasses and q.requiredClasses ~= 0
+                    if classQuest or (zone and zones[zone]) then
+                        local doable = src.doable and src.doable(id)
+                        if doable ~= false then addItems(map, q, id, false) end
+                    end
+                end
+            end
+            if i % 150 == 0 then coroutine.yield() end
+        end
+    end)
+    local function step()
+        if InCombatLockdown and InCombatLockdown() then C_Timer.After(1, step) return end
+        local ok = coroutine.resume(co)
+        if ok and coroutine.status(co) ~= "dead" then
+            C_Timer.After(0, step)
+        else
+            questItems, qiRunning = map, false
+            if ns.disposition then ns.disposition:Invalidate() end
+        end
+    end
+    step()
+end
+
+function Q:QuestItems()
+    if qiDirty and not qiRunning then
+        qiDirty = false
+        scanQuestItems()
+    end
+    return questItems
+end
+
+for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "PLAYER_LEVEL_UP" }) do
+    ns:On(ev, function() qiDirty = true end)
+end
