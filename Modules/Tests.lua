@@ -378,3 +378,11 @@ ns:Register("test", "bags: profession tools are kept", function(t)
     end
     t:eq(rule.check({ id = 99991, name = "Rusty Sword" }), nil, "not a tool")
 end)
+
+ns:Register("test", "tools: any version of a tool counts", function(t)
+    local D = ns.disposition
+    t:eq(D:ToolProfession(2901, nil), "Mining", "classic Mining Pick by ID")
+    t:eq(D:ToolProfession(987654, "Mining Pick"), "Mining", "another item ID, same name")
+    t:eq(D:ToolProfession(987655, "Sturdy Blacksmith Hammer"), "Blacksmithing", "name contains the tool")
+    t:eq(D:ToolProfession(987656, "Rusty Sword"), nil, "not a tool")
+end)

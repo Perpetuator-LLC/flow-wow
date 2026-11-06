@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.6
+- Fixed: "Buy a Mining Pick" (and "needs a Mining Pick") stayed after you bought one: Flow only
+  looked for the classic item ID. Tools now count by ID or name, in your bags or equipped.
+
 ## 0.35.5
 - Flow Seller (the vendor drawer) stays on screen at every vendor. With nothing to sell it's
   collapsed to its header, "Flow Seller  0 items to sell"; click the header to open or close it.

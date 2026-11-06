@@ -208,11 +208,31 @@ local TOOL_NAMES = { { "Mining Pick", "Mining" }, { "Blacksmith Hammer", "Blacks
     { "Skinning Knife", "Skinning" }, { "Fishing Pole", "Fishing" }, { "Arclight Spanner", "Engineering" } }
 D.TOOLS = TOOLS
 
-reg("professionTool", 3, function(i)
-    local prof = TOOLS[i.id]
-    if not prof and i.name then
-        for _, t in ipairs(TOOL_NAMES) do if i.name:find(t[1], 1, true) then prof = t[2] break end end
+-- Which profession a tool is for (by item ID, else by name), or nil.
+function D:ToolProfession(id, name)
+    local prof = TOOLS[id]
+    if not prof and name then
+        for _, t in ipairs(TOOL_NAMES) do if name:find(t[1], 1, true) then return t[2] end end
     end
+    return prof
+end
+
+-- Do you carry (or wear) a tool for this profession? Any version of it:
+-- Forever's tools can have other item IDs than the classic ones.
+function D:HasTool(prof)
+    local found = false
+    self:EachBagItem(function(_, _, link)
+        if not found and self:ToolProfession(tonumber(link:match("item:(%d+)")), link:match("%[(.-)%]")) == prof then found = true end
+    end)
+    for slot = 16, 18 do
+        local link = not found and GetInventoryItemLink("player", slot)
+        if link and self:ToolProfession(tonumber(link:match("item:(%d+)")), link:match("%[(.-)%]")) == prof then found = true end
+    end
+    return found
+end
+
+reg("professionTool", 3, function(i)
+    local prof = D:ToolProfession(i.id, i.name)
     if not prof then return nil end
     local planned = false
     for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end

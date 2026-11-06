@@ -20,6 +20,11 @@ local A = ns.api
 local MAX_POINTS = 60
 
 local function count(id) return (GetItemCount and GetItemCount(id)) or 0 end
+-- A tool for this profession in your bags or equipped (any version of it).
+local function hasTool(prof, id)
+    if id and count(id) > 0 then return true end
+    return ns.disposition and ns.disposition.HasTool and ns.disposition:HasTool(prof) or false
+end
 local function src(id) return ns:Get("itemSource", id) end
 local function itemName(id)
     local s = src(id)
@@ -294,7 +299,7 @@ local function planProfession(prof, t, out)
 
     -- Tool in your bags?
     local toolMissing
-    if g.tool and count(g.tool) == 0 then
+    if g.tool and not hasTool(prof, g.tool) then
         toolMissing = itemName(g.tool)
         watched[g.tool] = true
         local pts, _, sellers = vendorPoints(g.tool)
@@ -411,7 +416,7 @@ local function planProfession(prof, t, out)
         elseif gr < (s.skill or 1) then blocked = string.format("needs %s %d", s.gather, s.skill)
         elseif #pts == 0 then blocked = "no known " .. node .. " in Flow's data"
         end
-        if s.gather == "Mining" and count(2901) == 0 and not blocked then blocked = "needs a Mining Pick" end
+        if s.gather == "Mining" and not hasTool("Mining", 2901) and not blocked then blocked = "needs a Mining Pick" end
         handled[s.gather] = true
         add({ key = "gather:" .. node, kind = "gather", points = pts,
               text = string.format("%s %s (about %d) for %s", s.gather == "Mining" and "Mine" or "Gather",
@@ -434,7 +439,7 @@ local function planProfession(prof, t, out)
             add({ key = "gather:" .. s.node, kind = "gather", points = pts,
                   text = string.format("Mine %s (about %d) for skill", s.node, math.ceil((t.target - rank) / c)),
                   details = { "Smelting the ore at a forge raises Mining too." },
-                  blockedBy = (count(2901) == 0 and "needs a Mining Pick")
+                  blockedBy = (not hasTool("Mining", 2901) and "needs a Mining Pick")
                       or (#pts == 0 and ("no known " .. s.node .. " in Flow's data")) or nil })
         end
     end
