@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.22.0
+- Stops are colour-coded by type, each with an icon too: accept (yellow !), turn in (yellow ?),
+  daily (blue), kill (red skull), collect (orange diamond), use (tan), talk (green), profession
+  trainer (purple), class trainer (teal), merchant (gold), hearthstone (white), skill-up (green),
+  waypoint and party (sky blue). The stop the arrow points at has an orange number.
+- Flow Tracker on screen, working as an accordion with Questie's tracker (blue Questie button).
+- Map: the Flow route header sits just above the quest log; open it covers the quest log, rolled up
+  the quest log is back.
+- Merchant stop when there is enough to sell (or bags nearly full) and a merchant is on the way.
+- Profession picker: offered in the advice list from level 3, `/flow professions`, setup row.
+- "Accept" instead of "Pick up".
+- Fixed: hovering checkpoints no longer re-plans every time (previews are cached).
+- Fixed: professions are read through the newer API, so learned ones clear their trainer stops.
+
 ## 0.21.0
 - Route planner: Flow checks quest availability itself (earlier quests in the chain done, race,
   class, level). It no longer sends you to pick up quests you can't take yet.

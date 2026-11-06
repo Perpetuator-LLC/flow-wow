@@ -157,7 +157,9 @@ local function place()
     local q = QuestMapFrame
     if q and q:IsShown() and q:GetWidth() > 100 then
         -- Take over the quest log area.
-        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 0)
+        -- The "Flow route" header sits just above the quest log; open, the
+        -- drawer covers the quest log; rolled up, the quest log shows again.
+        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 26)
         list:SetPoint("BOTTOMRIGHT", q, "BOTTOMRIGHT", 0, 0)
     else
         -- Dock outside, to the right of the map.
@@ -384,7 +386,7 @@ local function updateList()
             local col = ns.nav:StopColor(i, s.goal)
             if s.goal.key == hoverKey then col = theme().hover end
             r.key, r.isHidden = s.goal.key, false
-            r.text:SetText(string.format("|cff%s%s|r %s", col.hex, labels[i], s.goal.text or s.goal.title or "?"))
+            r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
         elseif h and i <= fit then

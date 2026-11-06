@@ -341,12 +341,44 @@ function N:PlanLabels(plan)
     return out
 end
 
+-- The kind of a stop (accept, turnin, kill, collect, ...): set by the goal's
+-- provider, or worked out from its key for older goals.
+function N:StopKind(goal)
+    if goal.kind then return goal.kind end
+    local k = goal.key
+    if k == "user:wp" then return "waypoint" end
+    if k:find("^party:") then return "party" end
+    if k:find("^pickup:") then return "accept" end
+    if k:find(":done$") then return "turnin" end
+    if k == "train:class" then return "classtrainer" end
+    if k:find("^train:") then return "proftrainer" end
+    if k:find("^skill:") then return "skill" end
+    if k:find("^hearth:") then return "hearth" end
+    if k == "merchant" then return "merchant" end
+    return "kill"
+end
+
+-- Colour for a stop: by its kind (see Theme.lua kinds).
 function N:StopColor(i, goal)
-    local T = ns.theme
-    if goal.key == "user:wp" or goal.key:find("^party:") then return T.user end
-    if goal.key:find("^pickup:") then return T.changed end
-    if i == 1 then return T.arrow end
-    return T.current
+    local kinds = ns.theme.kinds
+    local k = kinds[self:StopKind(goal)]
+    return k and k.color or ns.theme.current
+end
+
+-- "icon number text" for lists: the number is orange for the stop the arrow
+-- points at now, grey for the rest; the text takes the kind's colour.
+function N:FormatStop(i, goal, label)
+    local kindName = self:StopKind(goal)
+    local kind = ns.theme.kinds[kindName]
+    local path = kind and kind.icon
+    -- Profession stops show that profession's own icon (pickaxe, anvil...).
+    local prof = goal.key:match("^train:(.+)$") or goal.key:match("^skill:(.+)$")
+    if prof and ns.disposition and ns.disposition.PROF_ICON[prof] then path = ns.disposition.PROF_ICON[prof] end
+    local icon = path and string.format("|T%s:13:13|t ", path) or ""
+    local numColor = (i == 1) and ns.theme.arrow.hex or "999999"
+    local textColor = kind and kind.color.hex or "ffffff"
+    return string.format("%s|cff%s%s|r |cff%s%s|r", icon, numColor, label or tostring(i),
+        textColor, goal.text or goal.title or "?")
 end
 
 -------------------------------------------------------------------------------
@@ -593,9 +625,8 @@ local function showPanel()
         local labels = N:PlanLabels(N.plan)
         for i, s in ipairs(N.plan) do
             if i > 10 then lines[#lines + 1] = "  ..."; break end
-            local hex = N:StopColor(i, s.goal).hex
-            lines[#lines + 1] = string.format("  |cff%s%s|r %s |cff888888(+%d yd)|r",
-                hex, labels[i], s.goal.text or s.goal.title or "?", s.leg or 0)
+            lines[#lines + 1] = "  " .. N:FormatStop(i, s.goal, labels[i])
+                .. string.format(" |cff888888(+%d yd)|r", s.leg or 0)
         end
         if N.plan.dropped and #N.plan.dropped > 0 then
             lines[#lines + 1] = "|cff888888Skipped as too far out of the way: " .. table.concat(N.plan.dropped, ", ") .. "|r"

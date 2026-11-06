@@ -150,7 +150,7 @@ function RT:Refresh()
             if s then
                 local col = ns.nav:StopColor(i, s.goal)
                 r.key, r.goal = s.goal.key, s.goal
-                r.text:SetText(string.format("|cff%s%s|r %s", col.hex, labels[i], s.goal.text or s.goal.title or "?"))
+                r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
                 r:Show()
                 shown = i
             else

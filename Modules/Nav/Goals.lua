@@ -10,6 +10,11 @@ local _, ns = ...
 
 local MAX_POINTS = 80   -- spawns per goal
 
+-- Daily quest? (Questie quest flags; 0x1000 is the daily flag.)
+local function isDaily(quest)
+    return quest and quest.questFlags and bit and bit.band(quest.questFlags, 0x1000) ~= 0 or false
+end
+
 -- Your quest log: { { id, title, complete, objectives = { {text, finished} } } }
 local function questLog()
     local out = {}
@@ -98,6 +103,7 @@ ns:Register("navGoal", "questie", {
                 end
                 local turnIn = {
                     key = q.id .. ":done", weight = 0.8, points = turnPoints, level = quest.level,
+                    kind = isDaily(quest) and "daily" or "turnin",
                     title = q.title,
                     text = "Turn in: " .. (q.title or "quest"),
                     details = { (q.complete and "Quest complete. " or "After the objectives. ")
@@ -132,6 +138,7 @@ ns:Register("navGoal", "questie", {
                                 goals[#goals + 1] = {
                                     key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
                                     weight = elite and 1.6 or nil, elite = elite or nil,
+                                    kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                                     text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
                                     details = (function()
                                         local d = { "Quest: " .. (q.title or "?"), "Objective: " .. (obj.text or "?") }
@@ -176,6 +183,7 @@ ns:Register("navGoal", "pickups", {
             if (q.level or 0) >= level - 4 and q.starter and q.starter.spawns then
                 goals[#goals + 1] = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
+                    kind = isDaily(q.raw) and "daily" or "accept",
                     points = spawnPoints(q.starter.spawns),
                     title = q.name,
                     text = "Accept: " .. (q.name or "quest"),

@@ -17,3 +17,24 @@ ns.theme = {
     user     = rgb("56B4E9"),  -- sky blue: your own waypoint
     muted    = rgb("BBBBBB"),
 }
+
+-- Stop types on the route: a colour AND an icon each, so colour is never
+-- the only cue. (Quests yellow, dailies blue, kills red were chosen by the
+-- player; the rest are picked to stay apart from those.)
+local R = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
+ns.theme.kinds = {
+    accept       = { color = rgb("F0E442"), icon = "Interface\\GossipFrame\\AvailableQuestIcon", label = "Accept quest" },
+    turnin       = { color = rgb("FFD100"), icon = "Interface\\GossipFrame\\ActiveQuestIcon", label = "Turn in" },
+    daily        = { color = rgb("4DA6FF"), icon = "Interface\\GossipFrame\\AvailableQuestIcon", label = "Daily quest" },
+    kill         = { color = rgb("E8443A"), icon = R .. "8", label = "Kill" },
+    collect      = { color = rgb("E69F00"), icon = R .. "3", label = "Collect (drops)" },
+    use          = { color = rgb("C8A165"), icon = "Interface\\Icons\\INV_Misc_Gear_01", label = "Use / click" },
+    talk         = { color = rgb("8FD694"), icon = "Interface\\GossipFrame\\GossipGossipIcon", label = "Talk to" },
+    proftrainer  = { color = rgb("B07CFF"), icon = "Interface\\GossipFrame\\TrainerGossipIcon", label = "Profession trainer" },
+    classtrainer = { color = rgb("2EC4B6"), icon = "Interface\\GossipFrame\\TrainerGossipIcon", label = "Class trainer" },
+    merchant     = { color = rgb("D4AF37"), icon = "Interface\\GossipFrame\\VendorGossipIcon", label = "Merchant" },
+    hearth       = { color = rgb("E0E0E0"), icon = "Interface\\Icons\\INV_Misc_Rune_01", label = "Hearthstone" },
+    skill        = { color = rgb("57C785"), icon = "Interface\\Icons\\Trade_Fishing", label = "Skill-up" },
+    waypoint     = { color = rgb("56B4E9"), icon = "Interface\\Minimap\\MinimapArrow", label = "Your waypoint" },
+    party        = { color = rgb("56B4E9"), icon = "Interface\\FriendsFrame\\UI-Toast-FriendOnlineIcon", label = "Party route" },
+}
