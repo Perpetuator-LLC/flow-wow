@@ -35,6 +35,8 @@ Flow for WoW is a separate project from Flow Engine.
   points you along it. It learns trails as you walk and follows them around hills and rivers.
 - **World map route**: numbered checkpoints with quest levels (`3 [9]`) and quest pickups
   (`!2`). Hover a checkpoint to preview the route that starts there, click it to choose.
+- **Shared party routes**: `/flow party share` sends your route to your party; they join with one
+  click and anyone can edit it (choose stops, add waypoints, reach stops). Nobody owns it.
 - **Your own waypoint**: Ctrl- or Alt-click the world map, or `/flow way x y`; it clears when you
   arrive.
 - **Quest markers on nameplates**: skull with your kill count, diamond with the count of an item

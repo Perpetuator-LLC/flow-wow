@@ -304,7 +304,7 @@ end
 
 function N:StopColor(i, goal)
     local T = ns.theme
-    if goal.key == "user:wp" then return T.user end
+    if goal.key == "user:wp" or goal.key:find("^party:") then return T.user end
     if goal.key:find("^pickup:") then return T.changed end
     if i == 1 then return T.arrow end
     return T.current
@@ -330,6 +330,19 @@ function N:PickupKeys()
 end
 
 function N:Select(key)
+    -- On a shared party route, choosing edits the shared route instead:
+    -- a shared stop moves to the front; anything else is added at the front.
+    if key and ns.party and ns.party:Active() then
+        local id = key:match("^party:(.+)$")
+        if id then
+            ns.party:MoveFirst(id)
+        else
+            for _, g in ipairs(goals) do
+                if g.key == key then ns.party:AddGoal(g) break end
+            end
+        end
+        return
+    end
     local tour
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
@@ -353,6 +366,20 @@ function N:Options(sel)
     end
     if present["user:wp"] then first = "user:wp" end
     if not first and not tour and self.selection then self.selection = nil end
+    -- Shared party route: its stops come first, in the shared order (their
+    -- deps chain), before your own goals.
+    if ns.party and ns.party:Active() then
+        local partyFirst
+        for _, s in ipairs(ns.party:Stops()) do
+            local k = "party:" .. s.id
+            if present[k] then
+                tour = tour or {}
+                tour[k] = true
+                partyFirst = partyFirst or k
+            end
+        end
+        if partyFirst and first ~= "user:wp" then first = partyFirst end
+    end
     return { first = first, tour = tour }
 end
 
@@ -599,6 +626,12 @@ local function update()
     if g.key == "user:wp" and choice.d < 10 and ns.waypoint then
         ns.waypoint:Clear()
         ns:Print("arrived at your waypoint")
+    end
+    -- Reaching a shared stop clears it for the whole party.
+    local partyId = g.key:match("^party:(.+)$")
+    if partyId and choice.d < 15 and ns.party then
+        ns.party:Done(partyId)
+        ns:Print("reached a shared stop: " .. (g.title or "?"))
     end
     frame.text:SetText(g.text or g.title or "Next goal")
     if choice.d < ARRIVED * 2 then

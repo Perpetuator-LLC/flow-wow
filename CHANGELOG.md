@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0
+- Name: Flow (unfettered).
+- Shared party routes: `/flow party share`; party members join with one click and anyone can
+  edit (choose stops, add waypoints, reach stops). The latest edit wins for everyone; nobody owns it.
+
 ## 0.15.1
 - Max camera zoom on by default; untick it in `/flow settings` (or `/flow zoom off`) for the game default.
 

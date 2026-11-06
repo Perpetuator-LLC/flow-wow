@@ -24,6 +24,12 @@ function W:Get()
 end
 
 function W:Set(map, x, y, note)
+    -- On a shared party route, a waypoint becomes a shared stop at the front.
+    if ns.party and ns.party:Active() then
+        ns.party:AddFront(map, x, y, note or "Waypoint", nil, "waypoint")
+        ns:Print(string.format("added %.1f, %.1f to the front of the shared route", x * 100, y * 100))
+        return
+    end
     ns.db.nav.waypointNote = note
     if blizzard() and C_Map.SetUserWaypoint and UiMapPoint then
         C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(map, x, y))
