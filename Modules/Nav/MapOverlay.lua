@@ -51,7 +51,7 @@ local function line(c, x1, y1, x2, y2, color, alpha)
         lines[nLines] = l
     end
     local w, h = c:GetWidth(), c:GetHeight()
-    l:SetThickness(4 / canvasScale())
+    l:SetThickness(2 / canvasScale())  -- thin, solid line
     l:SetColorTexture(color[1], color[2], color[3], alpha or 0.9)
     l:SetStartPoint("TOPLEFT", c, x1 * w, -y1 * h)
     l:SetEndPoint("TOPLEFT", c, x2 * w, -y2 * h)
@@ -63,14 +63,19 @@ local function pin(c, x, y, label, color, stop)
     local p = pins[nPins]
     if not p then
         p = CreateFrame("Button", nil, c)
-        p:SetSize(16, 16)
-        p.bg = p:CreateTexture(nil, "BACKGROUND")
+        -- A small round point: dark ring + coloured dot (the portrait mask
+        -- is a white circle, tinted).
+        p:SetSize(11, 11)
+        local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+        p.edge = p:CreateTexture(nil, "BACKGROUND")
+        p.edge:SetPoint("TOPLEFT", -2, 2)
+        p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+        p.edge:SetTexture(CIRCLE)
+        p.edge:SetVertexColor(0, 0, 0, 0.9)
+        p.bg = p:CreateTexture(nil, "BORDER")
         p.bg:SetAllPoints()
-        p.edge = p:CreateTexture(nil, "BORDER")
-        p.edge:SetPoint("TOPLEFT", -1, 1)
-        p.edge:SetPoint("BOTTOMRIGHT", 1, -1)
-        p.edge:SetColorTexture(0, 0, 0, 0.9)
-        p.text = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        p.bg:SetTexture(CIRCLE)
+        p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         p.text:SetPoint("LEFT", p, "RIGHT", 3, 0)
         p:SetScript("OnEnter", function(self)
             hoverKey = self.stop.goal.key
@@ -80,7 +85,7 @@ local function pin(c, x, y, label, color, stop)
             GameTooltip:AddLine(g.text or g.title or "?", 1, 1, 1, true)
             for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
             local c2 = theme().proposed
-            GameTooltip:AddLine("Yellow: your route if you go here first. Click to choose it.", c2[1], c2[2], c2[3], true)
+            GameTooltip:AddLine("Purple: your route if you go here first. Click to choose it; right-click hides it.", c2[1], c2[2], c2[3], true)
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
@@ -108,14 +113,15 @@ local function pin(c, x, y, label, color, stop)
     p:ClearAllPoints()
     local s = p:GetScale()
     p:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth() / s, -y * c:GetHeight() / s)
-    p.bg:SetColorTexture(color[1], color[2], color[3], 1)
+    p.bg:SetVertexColor(color[1], color[2], color[3], 1)
     p.text:SetText(label)
-    p.text:SetTextColor(color[1], color[2], color[3])
     p:Show()
 end
 
--- Draws one route. Returns nothing; numbering: pickups "!k", others by order.
-local function drawRoute(c, mapID, plan, color, withPins)
+-- Draws one route as a thin, unbroken line through round points. Stops on
+-- another map are skipped, and the line joins the ones on this map.
+-- Each point's label carries the stop's type icon and number ("[icon] 3 [9]").
+local function drawRoute(c, mapID, plan, color, withPins, alpha)
     if not plan then return end
     local pos = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
     local px, py
@@ -124,15 +130,15 @@ local function drawRoute(c, mapID, plan, color, withPins)
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
         if x then
-            if px then line(c, px, py, x, y, color, 0.9) end
+            if px then line(c, px, py, x, y, color, alpha or 0.95) end
             px, py = x, y
             if withPins then
-                local pc = ns.nav:StopColor(i, s.goal)
+                local pc = color
                 if s.goal.key == hoverKey then pc = theme().hover end
-                pin(c, x, y, labels[i], pc, s)
+                local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
+                local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
+                pin(c, x, y, icon .. labels[i], pc, s)
             end
-        else
-            px, py = nil, nil  -- off this map: break the line
         end
     end
 end
@@ -417,12 +423,12 @@ function M:Redraw()
     if mapID then
         local T = theme()
         if previewKey then
-            -- Checkpoints stay those of your current route (now blue); the
-            -- yellow lines show the route if you picked the hovered place.
-            drawRoute(c, mapID, ns.nav.plan, T.changed, true)
-            drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false)
+            -- Points stay those of your current route (orange, dimmed); the
+            -- purple line shows the route if you picked the hovered place.
+            drawRoute(c, mapID, ns.nav.plan, T.route, true, 0.35)
+            drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false, 0.95)
         else
-            drawRoute(c, mapID, ns.nav.plan, T.current, true)
+            drawRoute(c, mapID, ns.nav.plan, T.route, true)
         end
     end
     for i = nLines + 1, oldLines do lines[i]:Hide() end

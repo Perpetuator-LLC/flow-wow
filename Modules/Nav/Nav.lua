@@ -326,6 +326,73 @@ end
 
 function N:Goals() return goals end
 
+-------------------------------------------------------------------------------
+-- HUD arrow: a chevron drawn from thin lines with a soft glow, a centre
+-- spine, and a faint ring of dots with one bright dot in the direction of
+-- travel. Lines can point anywhere, so the arrow is redrawn rotated instead
+-- of rotating a picture. Same calls as a texture: SetRotation (radians,
+-- counter-clockwise), SetVertexColor, Show, Hide.
+-------------------------------------------------------------------------------
+
+local CHEVRON = { { 0, 22 }, { -15, -14 }, { 0, -5 }, { 15, -14 } }
+local RING_R, RING_DOTS = 27, 16
+
+function N:MakeHudArrow(parent)
+    local a = CreateFrame("Frame", nil, parent)
+    a:SetSize(64, 64)
+    a:SetPoint("CENTER")
+    a.glow, a.core = {}, {}
+    for i = 1, #CHEVRON do
+        a.glow[i] = a:CreateLine(nil, "BACKGROUND")
+        a.glow[i]:SetThickness(7)
+        a.core[i] = a:CreateLine(nil, "ARTWORK")
+        a.core[i]:SetThickness(2.5)
+    end
+    a.spine = a:CreateLine(nil, "OVERLAY")
+    a.spine:SetThickness(1)
+    a.ring = {}
+    for i = 1, RING_DOTS do
+        local d = a:CreateTexture(nil, "BACKGROUND")
+        d:SetSize(2, 2)
+        d:SetColorTexture(1, 1, 1, 0.22)
+        local t = (i - 1) / RING_DOTS * 2 * math.pi
+        d:SetPoint("CENTER", a, "CENTER", RING_R * math.sin(t), RING_R * math.cos(t))
+        a.ring[i] = d
+    end
+    a.lead = a:CreateTexture(nil, "OVERLAY")
+    a.lead:SetSize(5, 5)
+    a.lead:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+
+    a.angle, a.r, a.g, a.b = 0, 1, 0.62, 0
+    local function draw()
+        local c, s = math.cos(a.angle), math.sin(a.angle)
+        local pts = {}
+        for i, p in ipairs(CHEVRON) do
+            pts[i] = { p[1] * c - p[2] * s, p[1] * s + p[2] * c }
+        end
+        for i = 1, #pts do
+            local p1, p2 = pts[i], pts[i % #pts + 1]
+            for _, l in ipairs({ a.glow[i], a.core[i] }) do
+                l:SetStartPoint("CENTER", a, p1[1], p1[2])
+                l:SetEndPoint("CENTER", a, p2[1], p2[2])
+            end
+            a.glow[i]:SetColorTexture(a.r, a.g, a.b, 0.25)
+            a.core[i]:SetColorTexture(a.r, a.g, a.b, 1)
+        end
+        a.spine:SetStartPoint("CENTER", a, pts[1][1], pts[1][2])
+        a.spine:SetEndPoint("CENTER", a, pts[3][1], pts[3][2])
+        a.spine:SetColorTexture(1, 1, 1, 0.85)
+        -- Bright dot on the ring where the arrow points.
+        a.lead:ClearAllPoints()
+        a.lead:SetPoint("CENTER", a, "CENTER", -RING_R * s, RING_R * c)
+        a.lead:SetVertexColor(a.r, a.g, a.b, 1)
+    end
+    function a:SetRotation(r) self.angle = r or 0; draw() end
+    function a:SetVertexColor(r, g, b) self.r, self.g, self.b = r, g, b; draw() end
+    draw()
+    return a
+end
+
 -- Shared look for route stops (trip plan, world map pins, map list):
 --   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colour: orange = where the arrow points now, blue = quest pickup,
@@ -648,10 +715,7 @@ local function buildArrow()
     local p = ns.db.nav.point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
-    f.arrow = f:CreateTexture(nil, "ARTWORK")
-    f.arrow:SetTexture("Interface\\Minimap\\MinimapArrow")
-    f.arrow:SetSize(48, 48)
-    f.arrow:SetPoint("CENTER")
+    f.arrow = N:MakeHudArrow(f)
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -2)
     f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

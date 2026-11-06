@@ -8,12 +8,16 @@ local function rgb(hex)
              tonumber(hex:sub(5, 6), 16) / 255, hex = hex }
 end
 
+-- Map and arrow: orange = your route (same as the arrow), purple = a route
+-- you're previewing. Orange and purple stay distinct for the common kinds
+-- of colour blindness. Stop types get their own colours + icons in lists.
 ns.theme = {
-    current  = rgb("009E73"),  -- bluish green: your current route
-    proposed = rgb("F0E442"),  -- yellow: a route you're previewing
-    changed  = rgb("0072B2"),  -- blue: current route while previewing another; quest pickups (!N)
+    route    = rgb("E69F00"),  -- orange: your current route on the map
+    current  = rgb("E69F00"),  -- (same; kept for older code)
+    proposed = rgb("A97BFF"),  -- purple: a route you're previewing
+    changed  = rgb("0072B2"),  -- blue: quest pickups (!N) in the advice list
     arrow    = rgb("E69F00"),  -- orange: the nav arrow
-    hover    = rgb("CC79A7"),  -- reddish purple: the checkpoint under your mouse
+    hover    = rgb("D9C2FF"),  -- light purple: the point under your mouse
     user     = rgb("56B4E9"),  -- sky blue: your own waypoint
     muted    = rgb("BBBBBB"),
 }

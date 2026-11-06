@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.1
+- Map: thin, unbroken route lines through small round points; your route is orange (like the
+  arrow), a previewed route purple. Each point shows its stop-type icon.
+- New HUD-style arrow: a glowing line-drawn chevron with a ring that marks the direction.
+
 ## 0.22.0
 - Stops are colour-coded by type, each with an icon too: accept (yellow !), turn in (yellow ?),
   daily (blue), kill (red skull), collect (orange diamond), use (tan), talk (green), profession
