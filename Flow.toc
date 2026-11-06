@@ -55,6 +55,7 @@ Modules\Nav\Goals.lua
 Modules\Nav\Waypoint.lua
 Modules\Nav\Party.lua
 Modules\Nav\MapOverlay.lua
+Modules\Nav\RouteTracker.lua
 Modules\Advisor\Advisor.lua
 Modules\Advisor\Builtins.lua
 
