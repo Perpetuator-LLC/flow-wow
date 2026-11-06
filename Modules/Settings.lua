@@ -45,6 +45,7 @@ local function refresh()
     if not frame then return end
     frame.keyValue:SetText(label(ns.db.cast.key))
     frame.clear:SetEnabled(ns.db.cast.key ~= nil)
+    if frame.zoom and ns.camera then frame.zoom:SetChecked(ns.camera:IsOn()) end
 end
 
 local function stopCapture(msg)
@@ -74,7 +75,7 @@ end
 
 local function build()
     local f = CreateFrame("Frame", "FlowSettings", UIParent)
-    f:SetSize(420, 230)
+    f:SetSize(420, 300)
     local p = ns.db.settings.point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("CENTER", 0, 120) end
     f:SetFrameStrata("DIALOG")
@@ -121,6 +122,23 @@ local function build()
     f.status:SetPoint("TOPLEFT", 16, -132)
     f.status:SetWidth(388)
     f.status:SetJustifyH("LEFT")
+
+    -- Row: max camera zoom (Camera.lua). Unticking restores the game default.
+    local zoom = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    zoom:SetSize(24, 24)
+    zoom:SetPoint("TOPLEFT", 12, -206)
+    local zoomLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    zoomLabel:SetPoint("LEFT", zoom, "RIGHT", 4, 0)
+    zoomLabel:SetText("Max camera zoom  |cff888888(off = game default)|r")
+    zoom:SetScript("OnClick", function(self)
+        if InCombatLockdown() then
+            self:SetChecked(ns.camera:IsOn())
+            f.status:SetText("Camera settings can't change in combat.")
+            return
+        end
+        ns.camera:Set(self:GetChecked() and true or false)
+    end)
+    f.zoom = zoom
 
     f.confirm = button(f, "Use it anyway", 120)
     f.confirm:SetPoint("BOTTOMLEFT", 16, 14)
@@ -232,4 +250,5 @@ ns.commands.key = function(arg)
 end
 ns:Register("help", "settings", { order = 5, title = "Settings", lines = {
     "/flow settings (or /flow key) - set the key that casts Flow's suggestion; /flow key test - check it",
+    "/flow zoom on|off - max camera zoom (also in /flow settings)",
 } })

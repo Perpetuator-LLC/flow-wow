@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.15.1
+- Max camera zoom on by default; untick it in `/flow settings` (or `/flow zoom off`) for the game default.
+
 ## 0.15.0
 - Fixed: the cast key did nothing on some clients. `/flow key test` shows what your key does.
 - Route adds a class-trainer stop by itself when you level into new spells.
