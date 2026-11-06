@@ -18,7 +18,7 @@ local topics = {
         "/flow rot on|off|unlock|lock|stats|known|reset",
     } },
     { "advice", 30, "Advice (round spyglass button with a count)", {
-        "Hover for ways to improve, click to print. Also /flow advice.",
+        "Hover for a quick list; click to open it. Rows with an arrow route you there. /flow advice prints it.",
     } },
     { "nav", 40, "Arrow", {
         "Plans your whole trip: objectives, turn-ins (after their objectives), quests to pick up,",
