@@ -1,6 +1,7 @@
 -- Flow Tracker: your route's next stops on screen (objectives with counts,
--- turn-ins, quests to accept, trainers...). Click a stop to go there first,
--- right-click to hide it.
+-- turn-ins, quests to accept, trainers...). Click a stop to open it (the
+-- quest, or the map at that stop); right-click for a menu (hide, route, order).
+-- Changing the route itself is done on the world map (click a stop there).
 --
 -- Accordion with Questie's tracker: only one is open at a time, and both can
 -- be collapsed. On first run Flow opens its tracker and collapses Questie's.
@@ -48,6 +49,7 @@ local function build()
     -- Always hang from the top-left corner, so collapsing shrinks it up into
     -- the header instead of towards its middle. (Older saves used other anchors.)
     local function pinTop()
+        if f.docked then return end
         local l, tp = f:GetLeft(), f:GetTop()
         if not (l and tp) then return end
         local s = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
@@ -79,10 +81,14 @@ local function build()
         RT:Open(db().open == "flow" and "none" or "flow")
     end)
     h:RegisterForDrag("LeftButton")  -- Shift-drag the header to move the tracker
-    h:SetScript("OnDragStart", function() if IsShiftKeyDown() then f:StartMoving() end end)
+    h:SetScript("OnDragStart", function()
+        if not IsShiftKeyDown() then return end
+        if f.docked then ns:Print("the Flow Tracker sits on Questie's tracker: move that one, or /flow tracker undock.") return end
+        f:StartMoving()
+    end)
     h:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
-        f.pinTop()
+        if not f.docked then f.pinTop() end
     end)
     f:SetMovable(true); f:SetClampedToScreen(true)
     f.header = h
@@ -103,10 +109,22 @@ local function build()
         r.text:SetAllPoints(); r.text:SetJustifyH("LEFT"); r.text:SetWordWrap(false)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints(); r.hl:SetColorTexture(1, 1, 1, 0.08)
         r:SetScript("OnClick", function(self, button)
-            if not self.key then return end
-            if button == "RightButton" then ns.nav:Hide(self.key)
-            elseif self.blocked then ns:Print((self.blocked.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked"))
-            else ns.nav:Select(self.key) end
+            if not self.goal then return end
+            local g = self.goal
+            if button == "RightButton" then
+                local items = {
+                    { title = true, text = g.text or g.title or "This stop" },
+                    { text = "Open it (quest / map)", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { sep = true },
+                }
+                for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+                ns.menu:Open(items)
+            elseif self.blocked then
+                ns:Print((g.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked"))
+            else
+                ns.nav:OpenStop(g)
+            end
         end)
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
@@ -115,9 +133,9 @@ local function build()
             for _, d in ipairs(self.goal.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
             if self.blocked then
                 GameTooltip:AddLine("Blocked: " .. (self.blocked.blockedBy or "?"), 1, 0.45, 0.45, true)
-                GameTooltip:AddLine("Joins the route by itself once that's sorted. Right-click: hide.", 0.6, 0.6, 0.6, true)
+                GameTooltip:AddLine("Joins the route by itself once that's sorted. Right-click: menu.", 0.6, 0.6, 0.6, true)
             else
-                GameTooltip:AddLine("Click: go here first. Right-click: hide.", 0.6, 0.6, 0.6)
+                GameTooltip:AddLine("Click: open it. Right-click: menu. (Change the route on the world map.)", 0.6, 0.6, 0.6, true)
             end
             GameTooltip:Show()
         end)
@@ -127,11 +145,52 @@ local function build()
     return f
 end
 
+-- Docked on Questie's tracker (default when Questie is there): one column.
+-- The two headers sit together; Flow's list opens upward from its header,
+-- Questie's opens downward from its own, and only one is open at a time
+-- (or neither). Move Questie's tracker and Flow's follows.
+-- /flow tracker undock puts it back where you dragged it.
+local function questieFrame()
+    if db().dock == false then return nil end
+    local q = _G.Questie_BaseFrame
+    if q and q:IsShown() and q:GetWidth() > 50 then return q end
+end
+
+local function layout(q)
+    local h, b = frame.header, frame.body
+    local docked = q ~= nil
+    if frame.docked ~= docked then
+        h:ClearAllPoints(); b:ClearAllPoints()
+        if docked then
+            h:SetPoint("BOTTOMLEFT"); h:SetPoint("BOTTOMRIGHT")
+            b:SetPoint("BOTTOMLEFT", h, "TOPLEFT", 0, 0); b:SetPoint("BOTTOMRIGHT", h, "TOPRIGHT", 0, 0)
+        else
+            h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
+            b:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, 0); b:SetPoint("TOPRIGHT", h, "BOTTOMRIGHT", 0, 0)
+        end
+        frame.docked = docked
+        frame:ClearAllPoints()
+        if not docked then
+            local p = db().point
+            if p then frame:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+            else frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -60, -230) end
+        end
+    end
+    if docked then
+        frame:ClearAllPoints()
+        frame:SetPoint("BOTTOMLEFT", q, "TOPLEFT", 0, 2)
+        frame:SetWidth(math.max(220, math.min(360, q:GetWidth())))
+    else
+        frame:SetWidth(260)
+    end
+end
+
 function RT:Refresh()
     if not frame then return end
     local enabled = ns.db.tracker.enabled ~= false
     frame:SetShown(enabled)
     if not enabled then return end
+    layout(questieFrame())
     local open = db().open == "flow"
     local plan = ns.nav and ns.nav.plan or {}
     local h = frame.header
@@ -211,14 +270,19 @@ ns.commands.tracker = function(arg)
         ns.db.tracker.enabled = (arg == "on")
         RT:Refresh()
         ns:Print("Flow Tracker " .. arg)
+    elseif arg == "dock" or arg == "undock" then
+        db().dock = (arg == "dock")
+        RT:Refresh()
+        ns:Print(arg == "dock" and "Flow Tracker docked on Questie's tracker." or "Flow Tracker undocked (Shift-drag its header to move it).")
     elseif arg == "questie" or arg == "flow" then
         RT:Open(arg)
     else
-        ns:Print("/flow tracker on|off|flow|questie")
+        ns:Print("/flow tracker on|off|flow|questie|dock|undock")
     end
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Your next stops on screen. Header: click to open/collapse; opening one tracker collapses the other.",
-    "Click a stop to go there first, right-click to hide it. /flow tracker on|off|flow|questie",
+    "Your next stops on screen, docked on top of Questie's tracker: one column, one open at a time (or neither).",
+    "Click a stop to open it (quest log or map); right-click for a menu. Change the route on the world map.",
+    "/flow tracker on|off|flow|questie|dock|undock",
 } })

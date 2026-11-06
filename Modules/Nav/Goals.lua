@@ -104,6 +104,7 @@ ns:Register("navGoal", "questie", {
                 end
                 local turnIn = {
                     key = q.id .. ":done", weight = 0.8, points = turnPoints, level = quest.level,
+                    npcs = who and { who } or nil,
                     kind = isDaily(quest) and "daily" or "turnin",
                     title = q.title,
                     text = "Turn in: " .. (q.title or "quest"),
@@ -191,6 +192,7 @@ ns:Register("navGoal", "pickups", {
             if (q.level or 0) >= level - 4 and q.starter and q.starter.spawns then
                 goals[#goals + 1] = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
+                    npcs = q.starter.name and { q.starter.name } or nil,
                     kind = isDaily(q.raw) and "daily" or "accept",
                     points = spawnPoints(q.starter.spawns),
                     title = q.name,
@@ -238,6 +240,7 @@ ns:Register("navGoal", "errands", {
             if #points > 0 then
                 out[#out + 1] = {
                     key = "train:" .. g.profession, weight = g.optional and 1.4 or 1.0, optional = g.optional, points = points,
+                    npcs = names,
                     title = g.why, text = g.why .. " (" .. table.concat(names, " / ") .. ")",
                     details = { g.why .. " at " .. table.concat(names, " or ") .. ".",
                                 g.optional and "Optional, so the arrow only picks it when you're close by." or nil },
@@ -317,6 +320,7 @@ ns:Register("navGoal", "errands", {
                 end
                 out[#out + 1] = {
                     key = "train:class", weight = 1.0, points = points,
+                    npcs = names,
                     title = "Class training",
                     text = text,
                     -- Nothing affordable (and every cost known): the cheapest is what it takes.

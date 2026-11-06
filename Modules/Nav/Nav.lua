@@ -87,6 +87,14 @@ local function bearing(p, wx, wy)
     return atan2(east, -south)
 end
 
+-- East / south offset in yards from the player to a world point (minimap pin).
+function N:Offset(p, wx, wy)
+    local a = mapAxes(p.map)
+    if not a then return nil end
+    local dx, dy = wx - p.wx, wy - p.wy
+    return dx * a.ex + dy * a.ey, dx * a.sx + dy * a.sy
+end
+
 local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
 local function compass(b)
     local i = floor(((b % (2 * math.pi)) / (2 * math.pi)) * 8 + 0.5) % 8
@@ -544,11 +552,52 @@ function N:Select(key)
     local tour
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
+    -- Choosing a stop switches to "From selected stop"; clearing goes back.
+    if key then ns.db.nav.sorter = "selected"
+    elseif ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
     self.planDirty = true
     pinnedKey = nil
 end
 
 function N:ClearSelection() self:Select(nil) end
+
+-- Open what a stop is about, without changing the route (tracker clicks,
+-- arrow menu): a quest in your log opens in the quest log; anything else
+-- opens the world map on that stop, highlighted.
+local function questLogIndex(id)
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then return C_QuestLog.GetLogIndexForQuestID(id) end
+    if GetQuestLogIndexByID then
+        local i = GetQuestLogIndexByID(id)
+        if i and i > 0 then return i end
+    end
+end
+
+function N:OpenStop(goal)
+    if not goal then return end
+    local id = tonumber(goal.key:match("^(%d+):"))
+    local idx = id and questLogIndex(id)
+    if idx then
+        if QuestMapFrame_OpenToQuestDetails then
+            if pcall(QuestMapFrame_OpenToQuestDetails, id) then return end
+        end
+        if QuestLogFrame and SelectQuestLogEntry then
+            SelectQuestLogEntry(idx)
+            if not QuestLogFrame:IsShown() then ShowUIPanel(QuestLogFrame) end
+            if QuestLog_Update then pcall(QuestLog_Update) end
+            if QuestLog_UpdateQuestDetails then pcall(QuestLog_UpdateQuestDetails) end
+            return
+        end
+    end
+    -- Not a quest in your log: show it on the world map.
+    if InCombatLockdown() then ns:Print("can't open the map in combat.") return end
+    local pt = goal.points and goal.points[1]
+    for _, s in ipairs(N.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
+    if not WorldMapFrame:IsShown() then
+        if ToggleWorldMap then ToggleWorldMap() else ShowUIPanel(WorldMapFrame) end
+    end
+    if pt and pt.map and WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, pt.map) end
+    if ns.mapOverlay and ns.mapOverlay.Focus then ns.mapOverlay:Focus(goal.key) end
+end
 
 -- The constraints for planning, dropping any that refer to finished goals.
 function N:Options(sel)
@@ -563,7 +612,10 @@ function N:Options(sel)
         if not next(tour) then tour = nil end
     end
     if present["user:wp"] then first = "user:wp" end
-    if not first and not tour and self.selection then self.selection = nil end
+    if not first and not tour and self.selection then
+        self.selection = nil  -- the chosen stop is done: back to the usual sorting
+        if ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
+    end
     -- Default (nothing chosen): pick up the quests in this hub before heading
     -- out, like a walkthrough does, as long as your quest log has room.
     if not tour and not sel.first and self:Mode() == "optimal" then
@@ -783,16 +835,17 @@ local function buildArrow()
     end)
     f:SetScript("OnClick", function(_, button)
         if button == "RightButton" then
-            -- Skip ahead to the next stop of the plan (or the next-nearest goal).
-            local ranked = N.plan or N.ranked or {}
-            if #ranked > 1 and current then
-                for i, r in ipairs(ranked) do
-                    if r.goal.key == current.goal.key then
-                        N:Select(ranked[(i % #ranked) + 1].goal.key)
-                        break
-                    end
-                end
+            -- Menu: this stop, then route and order choices, unhide all.
+            local items = {}
+            if current then
+                local g = current.goal
+                items[#items + 1] = { title = true, text = g.text or g.title or "This stop" }
+                items[#items + 1] = { text = "Open it (quest / map)", func = function() N:OpenStop(g) end }
+                items[#items + 1] = { text = "Hide this stop", func = function() N:Hide(g.key) end }
+                items[#items + 1] = { sep = true }
             end
+            for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+            ns.menu:Open(items)
         elseif panel and panel:IsShown() then
             panel:Hide()
         else
@@ -805,13 +858,19 @@ end
 
 local function update()
     local cfg = ns.db.nav
-    if not cfg.enabled then frame:Hide() return end
+    if not cfg.enabled then frame:Hide(); if ns.minimapPin then ns.minimapPin:Hide() end return end
     local p = N:PlayerPos()
     if not p then frame:Hide() return end
     if cfg.learn then record(p) end
 
     local choice = choose(p)
     current = choice
+    if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, choice and choice.point, choice and choice.goal) end
+    local tk = choice and choice.goal.key
+    if tk ~= N.lastTargetKey then
+        N.lastTargetKey = tk  -- mark the NPC of the new stop above its nameplate
+        if ns.questMarks and ns.questMarks.SetRouteTarget then pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs) end
+    end
     if not choice then
         if #goals == 0 and not ns.quests:Source() then
             frame.text:SetText("No directions yet")

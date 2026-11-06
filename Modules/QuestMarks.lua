@@ -14,13 +14,14 @@
 local _, ns = ...
 
 local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
-local KIND_ICON = { kill = 8, item = 3, talk = 1 }
+local KIND_ICON = { kill = 8, item = 3, talk = 1, route = 2 }  -- route: the NPC your current Flow stop is about
 
 local kills = {}       -- [lower mob name] = { "3/10", ... } (one per quest)
 local items = {}       -- [lower item name] = "2/6"
 local dropsBy = {}     -- [lower mob name] = { [lower item name] = true } from Questie
 local texts = {}       -- { lower objective text, ... } for name mentions
 local plates = {}      -- [unit token] = true
+local routeNames = {}  -- [lower name] = true: NPCs of your current route stop
 
 local function db() return ns.db.quests end
 
@@ -121,6 +122,9 @@ local function classify(unit)
             end
         end
     end
+
+    -- The NPC your current route stop is about (a vendor, a trainer, a turn-in).
+    if #marks == 0 and routeNames[lname] then marks[#marks + 1] = { kind = "route" } end
 
     -- Modern clients can tell us directly (no count available).
     if #marks == 0 and C_QuestLog and C_QuestLog.UnitIsRelatedToActiveQuest
@@ -253,4 +257,12 @@ ns.commands.quest = function(arg)
         end
         if n == 0 then print("  no open kill/collect objectives") end
     end
+end
+
+-- Called by the route (Nav.lua) when the current stop changes.
+ns.questMarks = ns.questMarks or {}
+function ns.questMarks.SetRouteTarget(names)
+    wipe(routeNames)
+    for _, n in ipairs(names or {}) do routeNames[n:lower()] = true end
+    updateAll()
 end

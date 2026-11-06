@@ -41,8 +41,33 @@ local function questOf(goal)
     return id and tonumber(id), k:find("^pickup:") ~= nil
 end
 
-function X:On() return (ns.db.nav.sorter or "xp") == "xp" end
-function X:Set(on) ns.db.nav.sorter = on and "xp" or "distance"; ns.nav:Collect() end
+-- Route sorting, three modes (map list, arrow right-click, /flow nav xp|distance):
+--   "xp"        Most XP first (default)
+--   "distance"  Shortest path
+--   "selected"  From the stop you clicked on the map; the rest is planned
+--               after it with the mode you had before ("base")
+-- Picking "xp" or "distance" again clears the clicked stop.
+function X:Mode() return ns.db.nav.sorter or "xp" end
+function X:Base() return ns.db.nav.baseSorter or "xp" end
+function X:On()
+    local m = self:Mode()
+    if m == "selected" then m = self:Base() end
+    return m == "xp"
+end
+function X:SetMode(m)
+    if m == "selected" then
+        if not (ns.nav.selection and ns.nav.selection.first) then
+            ns:Print("click a stop on the world map to start the route there.")
+            return
+        end
+        ns.db.nav.sorter = "selected"
+        return
+    end
+    ns.db.nav.sorter, ns.db.nav.baseSorter = m, m
+    ns.nav:ClearSelection()
+    ns.nav:Collect()
+end
+function X:Set(on) self:SetMode(on and "xp" or "distance") end  -- older callers
 
 function X:Apply(goals)
     local me = UnitLevel("player")

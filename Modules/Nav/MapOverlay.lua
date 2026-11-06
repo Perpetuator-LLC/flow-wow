@@ -15,6 +15,7 @@ local host           -- frame on the map canvas holding lines
 local lines, pins = {}, {}
 local nLines, nPins = 0, 0
 local previewKey, hoverKey
+local focusKey, focusUntil = nil, 0   -- a stop opened from the tracker / arrow menu
 
 local function theme() return ns.theme end
 
@@ -108,7 +109,10 @@ local function pin(c, x, y, label, color, stop, top)
     p.stop = stop
     p:SetParent(c)
     -- The hovered stop: bigger, white ring, above every other pin and line.
-    p:SetFrameLevel(top and 2100 or 2000)
+    -- Relative to the map canvas: fixed numbers could end up under the map's own
+    -- art (lakes, towns) when the canvas itself sits at a high level.
+    local base = math.min(c:GetFrameLevel() + 1000, 9000)
+    p:SetFrameLevel(top and base + 200 or base + 100)
     p:SetSize(top and 18 or 11, top and 18 or 11)
     p.edge:SetVertexColor(top and 1 or 0, top and 1 or 0, top and 1 or 0, top and 1 or 0.9)
     p.text:SetFontObject(top and "GameFontNormal" or "GameFontHighlightSmall")
@@ -193,7 +197,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha)
             if withPins then
                 local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
                 local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
-                if s.goal.key == hoverKey then
+                if s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil) then
                     hovered = { x, y, icon .. labels[i], s }
                 else
                     pin(c, x, y, icon .. labels[i], color, s)
@@ -449,21 +453,30 @@ local function buildList()
     hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.showHidden = hc
 
-    -- XP-first sorting (XpValue.lua), on by default.
-    local xc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    xc:SetSize(20, 20)
-    xc:SetPoint("TOPLEFT", 26, -102)
-    xc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    xc.label:SetPoint("LEFT", xc, "RIGHT", 2, 0)
-    xc.label:SetText("Most XP first  |cff888888(off = shortest path)|r")
-    xc:SetScript("OnClick", function(self) ns.xpValue:Set(self:GetChecked() and true or false); M:Redraw() end)
-    xc:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Still the shortest path, but quests are weighed by XP and level: more XP is worth a longer walk, and quests 3+ levels above you wait until you are ready. Hover a stop to see its XP.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    xc:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.xpFirst = xc
+    -- Route sorting (XpValue.lua): three modes, one row of radios.
+    f.sorts = {}
+    local SORTS = {
+        { "xp", "Most XP", 6, "Most XP first (default): the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
+        { "distance", "Shortest", 92, "Shortest path: nearest stops first, XP ignored." },
+        { "selected", "From selected", 172, "From the stop you clicked on the map: it goes first, the rest is planned after it. Picking another mode clears it." },
+    }
+    for _, sdef in ipairs(SORTS) do
+        local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+        rb:SetSize(20, 20)
+        rb:SetPoint("TOPLEFT", sdef[3], -102)
+        rb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        rb.label:SetPoint("LEFT", rb, "RIGHT", 1, 0)
+        rb.label:SetText(sdef[2])
+        rb.mode = sdef[1]
+        rb:SetScript("OnClick", function() ns.xpValue:SetMode(sdef[1]); M:Redraw() end)
+        rb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(sdef[4], 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        rb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        f.sorts[#f.sorts + 1] = rb
+    end
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.title:SetPoint("TOPLEFT", 8, -126)
@@ -564,7 +577,7 @@ local function updateList()
     list.profs:SetChecked(ns.db.nav.professions ~= false)
     list.showHidden:SetShown(not hidden); list.showHidden.label:SetShown(not hidden)
     list.showHidden:SetChecked(ns.db.nav.showHidden == true)
-    list.xpFirst:SetChecked(ns.xpValue:On())
+    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Mode() == rb.mode) end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -630,7 +643,7 @@ function M:Redraw()
         host:SetAllPoints(c)
         host:EnableMouse(false)
     end
-    host:SetFrameLevel(1999)
+    host:SetFrameLevel(math.min(c:GetFrameLevel() + 1000, 9000))
     -- Reuse frames in place and only hide leftovers afterwards: hiding the
     -- pin under the mouse would fire OnLeave and make previews flicker.
     local oldLines, oldPins = nLines, nPins
@@ -660,6 +673,13 @@ function M:Redraw()
         end)
     end
     updateList()
+end
+
+-- Highlight one stop for a few seconds (opened from the tracker or arrow menu).
+function M:Focus(key)
+    focusKey, focusUntil = key, GetTime() + 6
+    M:Redraw()
+    C_Timer.After(6.1, function() if WorldMapFrame:IsShown() then M:Redraw() end end)
 end
 
 function M:Preview(key)

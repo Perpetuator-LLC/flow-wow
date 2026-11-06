@@ -103,12 +103,13 @@ end
 
 local function vendorPoints(itemId)
     local item = ns.quests:QuestieGet("GetItem", itemId)
-    local spawns = {}
+    local spawns, names = {}, {}
     for _, id in ipairs(item and item.vendors or {}) do
         local npc = ns.quests:QuestieGet("GetNPC", id)
-        if npc and npc.spawns then spawns[#spawns + 1] = npc.spawns end
+        if npc and npc.spawns then spawns[#spawns + 1] = npc.spawns; names[#names + 1] = npc.name end
     end
-    return spawnPoints(spawns)
+    local pts, onMap = spawnPoints(spawns)
+    return pts, onMap, names
 end
 
 -- Anvils and forges stand by the blacksmiths; Flow uses those as the spot.
@@ -267,8 +268,8 @@ local function planProfession(prof, t, out)
     if g.tool and count(g.tool) == 0 then
         toolMissing = itemName(g.tool)
         watched[g.tool] = true
-        local pts = vendorPoints(g.tool)
-        add({ key = "buy:" .. g.tool, kind = "merchant", points = pts,
+        local pts, _, sellers = vendorPoints(g.tool)
+        add({ key = "buy:" .. g.tool, kind = "merchant", points = pts, npcs = sellers,
               text = "Buy a " .. toolMissing,
               details = { "Needed for " .. prof .. "." },
               blockedBy = #pts == 0 and ("Flow doesn't know who sells a " .. toolMissing .. " (try a trade supplies vendor)") or nil })
@@ -288,7 +289,7 @@ local function planProfession(prof, t, out)
     for _, s in ipairs(order) do
         if known and not known[s.recipe] and s.learn <= rank then
             local pts = npcPoints(ns.places:TrainersFor(prof))
-            add({ key = "learn:" .. prof .. ":" .. s.recipe, kind = "proftrainer", points = pts,
+            add({ key = "learn:" .. prof .. ":" .. s.recipe, kind = "proftrainer", points = pts, npcs = ns.places:TrainersFor(prof),
                   text = string.format("Learn %s (%s trainer)", s.recipe, prof),
                   blockedBy = #pts == 0 and ("no known " .. prof .. " trainer") or nil })
         end
@@ -356,13 +357,13 @@ local function planProfession(prof, t, out)
             nd.count = math.max(nd.count, math.ceil(n / (s.yield or 1)))
         elseif s and s.drops then
             local pts, onMap = npcPoints(s.drops)
-            add({ key = "farm:" .. id, kind = "kill", points = pts,
+            add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = s.drops,
                   text = string.format("Kill for %d %s (%s)", n, name, s.drops[1]),
                   details = { "Drops from: " .. table.concat(s.drops, ", ") .. "." },
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })
         elseif s and s.vendor then
-            local pts = vendorPoints(id)
-            add({ key = "buy:" .. id, kind = "merchant", points = pts,
+            local pts, _, sellers = vendorPoints(id)
+            add({ key = "buy:" .. id, kind = "merchant", points = pts, npcs = sellers,
                   text = string.format("Buy %d %s", n, name),
                   blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil })
         else

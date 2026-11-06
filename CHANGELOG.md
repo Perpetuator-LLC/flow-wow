@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.27.0
+- Route order has three modes (map list, arrow menu): Most XP first (default), Shortest path,
+  From selected stop. Clicking a stop on the world map selects it; picking one of the other two
+  clears it. When the selected stop is done, the route goes back to your usual mode.
+- Flow Tracker: clicking a stop opens it (quest in the quest log, anything else on the world map,
+  highlighted) instead of changing the route. Right-click for a menu. The route is changed on
+  the world map only.
+- Flow Tracker docks on top of Questie's tracker: one column, Flow opens upward from its
+  header, Questie downward from its own, one open at a time or neither. `/flow tracker undock`.
+- Right-click menu (arrow and tracker rows), in Flow's style: open or hide the stop; route
+  (Follow current quests / Optimal with professions / Optimal without professions); order;
+  Unhide all stops.
+- Minimap: a dot in the route colour for your current stop (at the edge when it's further).
+- Nameplates: the NPC your current stop is about (vendor, trainer, quest giver, turn-in) gets a
+  circle mark.
+- Map pins and route lines sit above the map's own art (lake, towns).
+
 ## 0.26.0
 - Map: a square Flow button above the game's quest log button opens and closes the route list.
   The quest log and Flow's list share the slot: one or the other, or neither.
