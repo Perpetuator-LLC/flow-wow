@@ -1,9 +1,9 @@
 -- World map overlay: your route as numbered checkpoints and lines.
 --   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colours (Theme.lua): the route and arrow colour shows the order mode
---     (purple = Most XP first, blue = Shortest path, gold = From selected stop);
---     a previewed route is yellow and yours turns grey meanwhile; the stop
---     under your mouse is red. /flow settings has a colour-blind palette.
+--     (purple = Most XP first, blue = Shortest path, orange = From selected stop);
+--     hovering a stop shows only the route you'd follow, all in legendary
+--     orange. /flow settings has a colour-blind palette.
 --   Hover a checkpoint (or a place in the advice list) to preview the route
 --   that starts there; click it to make that your route (the arrow follows).
 
@@ -41,6 +41,18 @@ local function toMap(pt, mapID)
             if x and x >= 0 and x <= 1 and y >= 0 and y <= 1 then return x, y end
         end
     end
+end
+
+-- Route lines and pins live one frame strata above the map, so the map's own
+-- objects (lake, town art, other pins) can't cover them; frame levels alone
+-- weren't enough. The map's scroll area still clips them to the map.
+local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG" }
+local function aboveMap()
+    local s = WorldMapFrame:GetFrameStrata()
+    for i, name in ipairs(STRATA) do
+        if name == s then return STRATA[math.min(i + 1, #STRATA)] end
+    end
+    return "DIALOG"
 end
 
 local function line(c, x1, y1, x2, y2, color, alpha)
@@ -82,7 +94,7 @@ local function pin(c, x, y, label, color, stop, top)
             M:Preview(hoverKey)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             local g = self.stop.goal
-            ns.nav:FillTooltip(GameTooltip, g, "Yellow line: your route if you go here first. Click: go here first. Right-click: hide.")
+            ns.nav:FillTooltip(GameTooltip, g, "Orange line: your route if you go here first. Click: go here first. Right-click: hide.")
             GameTooltip:Show()
         end)
         p:SetScript("OnLeave", function()
@@ -109,6 +121,7 @@ local function pin(c, x, y, label, color, stop, top)
     -- Relative to the map canvas: fixed numbers could end up under the map's own
     -- art (lakes, towns) when the canvas itself sits at a high level.
     local base = math.min(c:GetFrameLevel() + 1000, 9000)
+    p:SetFrameStrata(aboveMap())
     p:SetFrameLevel(top and base + 200 or base + 100)
     p:SetSize(top and 18 or 11, top and 18 or 11)
     p.edge:SetVertexColor(top and 1 or 0, top and 1 or 0, top and 1 or 0, top and 1 or 0.9)
@@ -176,7 +189,7 @@ end
 -- Draws one route as a thin, unbroken line through round points, starting
 -- at you. Stops on another map are skipped, and the line joins the ones on
 -- this map. Each point's label carries the stop's type icon and number.
-local function drawRoute(c, mapID, plan, color, withPins, alpha)
+local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     if not plan then return end
     local px, py = toMap(ns.nav:PlayerPos(), mapID)
     local labels = ns.nav:PlanLabels(plan)
@@ -184,7 +197,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha)
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
         if x then
-            if px then
+            if px and not pinsOnly then
                 -- From you to the first stop: brighter, so it's clear where to go now.
                 local first = (i == 1)
                 line(c, px, py, x, y, first and theme().route or color, first and 1 or (alpha or 0.95))
@@ -203,7 +216,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha)
         end
     end
     -- The stop you're pointing at (here or in the list) goes on top of everything.
-    if hovered then pin(c, hovered[1], hovered[2], hovered[3], theme().hover, hovered[4], true) end
+    if hovered then pin(c, hovered[1], hovered[2], hovered[3], pinsOnly and color or theme().hover, hovered[4], true) end
 end
 
 -------------------------------------------------------------------------------
@@ -571,7 +584,7 @@ local function buildList()
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g) end },
                     { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
-                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
@@ -617,7 +630,15 @@ local function updateList()
     local showProfs = not hidden and mode == "optimal"
     list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
     list.profs:SetChecked(ns.db.nav.professions ~= false)
-    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Mode() == rb.mode) end
+    local chosen = ns.nav.selection and ns.nav.selection.first
+    for _, rb in ipairs(list.sorts) do
+        rb:SetChecked(ns.xpValue:Mode() == rb.mode)
+        if rb.mode == "selected" then
+            -- Greyed until you pick a stop (map click or the ^ handle), then "From selected".
+            rb:SetEnabled(chosen and true or false)
+            rb.label:SetText(chosen and "From selected" or "|cff777777Select a waypoint|r")
+        end
+    end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -686,6 +707,7 @@ function M:Redraw()
         host:SetAllPoints(c)
         host:EnableMouse(false)
     end
+    host:SetFrameStrata(aboveMap())
     host:SetFrameLevel(math.min(c:GetFrameLevel() + 1000, 9000))
     -- Reuse frames in place and only hide leftovers afterwards: hiding the
     -- pin under the mouse would fire OnLeave and make previews flicker.
@@ -696,9 +718,10 @@ function M:Redraw()
     if mapID then
         local T = theme()
         if previewKey then
-            -- Your current route turns blue (sky blue when colour-blind) and
-            -- the yellow (purple) line shows the route if you picked the hovered place.
-            drawRoute(c, mapID, ns.nav.plan, T.changed, true, 0.6)
+            -- Only the route you'd follow, all in one colour: its lines, and the
+            -- stops as points (kept where they are so the one under the mouse
+            -- doesn't jump).
+            drawRoute(c, mapID, ns.nav.plan, T.proposed, true, 0.95, true)
             drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false, 0.95)
         else
             drawRoute(c, mapID, ns.nav.plan, T.route, true)

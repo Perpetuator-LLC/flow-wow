@@ -266,7 +266,7 @@ ns:Register("advisor", "fightInsights", {
 
 -------------------------------------------------------------------------------
 -- Missed quests (see Modules/Quests/QuestData.lua). Needs Questie + QuestieDB.
--- Next step: combine with route files so it can say "you passed X's step".
+-- Only the "install Questie" hint: the quests themselves are route stops.
 -------------------------------------------------------------------------------
 
 ns:Register("advisor", "missedQuests", {
@@ -276,25 +276,9 @@ ns:Register("advisor", "missedQuests", {
                 text = "Install Questie + QuestieDB so Flow can spot quests you skipped",
                 improves = { "XP", "Quests" } } }
         end
-        local list = ns.quests:Missed() or {}
-        local level = UnitLevel("player")
-        local out = {}
-        for i = 1, math.min(10, #list) do
-            local q = list[i]
-            local worthIt = (q.level or 0) >= level - 4
-            out[#out + 1] = {
-                importance = worthIt and 55 or 15,
-                goalKey = "pickup:" .. q.id,
-                text = string.format("Skipped quest: %s (level %d) from %s%s", q.name or "?", q.level or 0,
-                    q.starter and q.starter.name or "?",
-                    q.starter and q.starter.zoneId and (" in " .. ns.quests:ZoneName(q.starter.zoneId)) or ""),
-                improves = { worthIt and "XP" or "Completion" },
-            }
-        end
-        if #list > 10 then
-            out[#out + 1] = { importance = 14,
-                text = string.format("...and %d more skipped quests: /flow missed", #list - 10) }
-        end
-        return out
+        -- Quests to accept are on the route, the Flow Tracker and the map list;
+        -- "Ways to improve" sticks to your character: spells, training, gear,
+        -- talents, professions. (/flow missed still lists skipped quests.)
+        return {}
     end,
 })

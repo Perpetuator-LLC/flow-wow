@@ -124,7 +124,7 @@ ns:Register("test", "xp: weights favour your level, add tooltip lines", function
 end)
 
 ns:Register("test", "route colour follows the order mode", function(t)
-    local want = { xp = "A335EE", distance = "0070DD", selected = "E6CC80" }
+    local want = { xp = "A335EE", distance = "0070DD", selected = "FF8000" }
     local palette = ns.theme.palette
     ns.theme:UsePalette("standard")
     for mode, hex in pairs(want) do
@@ -199,4 +199,12 @@ ns:Register("test", "tooltip: stop details render", function(t)
     t:ok(ok, "no error: " .. tostring(err))
     t:ok(tt:NumLines() >= 4, "title, task, details and footer")
     tt:Hide()
+end)
+
+ns:Register("test", "ways to improve: no quests to accept", function(t)
+    local items = ns:Get("advisor", "missedQuests").check() or {}
+    for _, it in ipairs(items) do
+        t:ok(not (it.goalKey and it.goalKey:find("^pickup:")), "no pickup advice: " .. tostring(it.text))
+    end
+    t:ok(true)
 end)

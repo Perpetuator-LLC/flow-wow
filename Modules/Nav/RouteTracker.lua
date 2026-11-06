@@ -132,7 +132,7 @@ local function build()
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it (quest / map)", func = function() ns.nav:OpenStop(g) end },
-                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end

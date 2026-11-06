@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.1
+- Splash: 2 s.
+- "Hide this stop" in the menus is now "Move on (hide this for now)".
+- "From selected" is greyed as "Select a waypoint" until you pick a stop, then it reads "From
+  selected" and is ticked.
+- From selected stop is legendary orange (route, arrow). Hovering a stop now shows only the route
+  you'd follow, all in that orange, instead of two routes in different colours.
+- Route lines and points sit one layer (frame strata) above the map, so map objects can't cover them.
+- "Ways to improve" no longer lists quests to accept (they're on the route, tracker and map
+  list); it sticks to spells, training, gear, talents and professions.
+
 ## 0.29.0
 - Fixed: the spell suggestion (icon and cast key) stopped. Forever hides your buffs from addons
   (often in combat) and reading them threw an error that stopped every suggestion. Now Flow

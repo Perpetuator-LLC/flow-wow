@@ -11,21 +11,22 @@ end
 -- and the arrow share one colour, and it tells you the order mode:
 --   Most XP first       epic purple
 --   Shortest path       rare blue
---   From selected stop  artifact gold-orange
--- Previewing another route: it's yellow, and yours turns grey. The stop
+--   From selected stop  legendary orange
+-- Hovering a stop previews the route you'd follow, all in legendary orange
+-- (the same as "From selected", which is what clicking it gives you). The stop
 -- under your mouse is red.
 -- Colour-blind palette (/flow settings): Okabe-Ito equivalents that stay
 -- apart for the common kinds of colour blindness.
 local PALETTES = {
     standard = {
-        modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), selected = rgb("E6CC80") },
-        proposed = rgb("FFD800"),  -- yellow: a route you're previewing
+        modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), selected = rgb("FF8000") },
+        proposed = rgb("FF8000"),  -- legendary orange: the route you'd follow if you pick the hovered stop
         changed  = rgb("9A9A9A"),  -- grey: your route while previewing another
         hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
     },
     colorblind = {
         modes    = { xp = rgb("CC79A7"), distance = rgb("0072B2"), selected = rgb("E69F00") },
-        proposed = rgb("F0E442"),
+        proposed = rgb("E69F00"),
         changed  = rgb("9A9A9A"),
         hover    = rgb("D55E00"),
     },
