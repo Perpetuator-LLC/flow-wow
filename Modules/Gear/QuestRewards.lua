@@ -1,9 +1,8 @@
 -- Badges on quest reward choices so you can pick at a glance:
 --   spec icons (Retribution / Holy / Protection, role-coloured rim) = best upgrade for that role
 --   (classes without spec icons show D / H / T letters instead)
---   blue T  = best upgrade for Tank
---   gold $  = nothing is an upgrade for any role: take this one to sell
---              (highest vendor price)
+--   gold coin = nothing is an upgrade for any role: take this one to sell
+--               (highest vendor price)
 -- One item can carry several badges. A badge is only shown for a role if
 -- that choice actually beats what you wear for that role.
 
