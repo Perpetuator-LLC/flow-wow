@@ -1,117 +1,89 @@
 # Flow
 
-Sooth's personal World of Warcraft addon: one place to put whatever features we want.
+A levelling companion addon for **World of Warcraft: Forever**. It suggests what to press, plans
+your route, judges your gear, sorts your bags and learns from how you play. It started with the
+paladin and is built so other classes can be added without changing existing code.
 
-## Layout
-
-This is the World of Warcraft addon. It is a separate project from Flow Engine. The game is
-**World of Warcraft: Forever** (client folder `_forever_`).
-
-- `Flow.toc`: addon manifest (load order, saved variables, interface version)
-- `Core.lua`: shared namespace `ns`, event bus (`ns:On(event, fn)`), **registries**
-  (`ns:Register` / `ns:Get` / `ns:Each`), `/flow` slash command, `FlowDB` saved vars
-- `Modules/`: features (rotation, fight profiler, advisor, gear, quests, ...)
-- `Classes/<Class>/`: everything class-specific (data, trainer spells, rotation)
-- `docs/ARCHITECTURE.md`: every extension point, and how to add a class without touching
-  existing code.
+Flow for WoW is a separate project from Flow Engine.
 
 ## Features
 
-- **Greeting**: shows a "hello sooth" dialog on login. `/flow hello` shows it again.
-- **Rotation helper** (`Modules/Rotation/`): shows the spell to press next as an icon below
-  the middle of the screen, and makes the matching action bar button pulse. Suggestion only:
-  WoW does not let addons cast for you.
-  - Border colour: green = damage, yellow = buff, blue = efficient heal, red = emergency heal.
-  - **Self-heal logic**: suggests a heal only when, by the time the cast lands (cast time plus
-    your latency), you'll be missing at least as much health as the heal restores, so nothing is
-    wasted. Crits are ignored. It suggests an emergency heal when the incoming damage would
-    kill you before you could react, unless your target will die first.
-  - **Learning**: records how much your heals really restore (non-crits only) and how hard each
-    kind of mob hits you, and uses both in later fights. The data is kept in `FlowDB`.
-  - Rotation rules live in `Classes/<Class>/Rotation.lua`. The rules list spells you don't know
-    yet; the helper skips them until you learn them. A class can give a different priority list
-    per fight type (boss, several enemies, elite, normal).
-  - Commands: `/flow rot on|off|lock|unlock|stats|known|debug|reset` (`known` lists the spells
-    Flow thinks you have).
-- **Cast button and key** (`Modules/Rotation/Cast.lua`, `Modules/Settings.lua`, `Bindings.xml`):
-  the suggestion icon sits on a secure button. A click, or the key set in `/flow settings`, casts
-  the suggestion. The key uses an override binding: Flow shows any conflict and never changes your
-  own bindings. In combat WoW freezes what secure buttons cast, so the key keeps the spell from
-  the pull, or Blizzard's one-button assistant spell if the client has one, and a "key:" icon
-  shows it.
-- **Fight profiler** (`Modules/Fight/`): records every fight: damage, healing, threat, damage
-  taken, what you cast, your opener, and whether you followed the suggestion. Fights are
-  labelled by type: boss, several enemies, elite or normal. After 6 comparable fights of a type,
-  it compares your best third with your worst third. Spells you used more in your best fights
-  move up within the rotation's interchangeable groups. `/flow fights` shows the findings;
-  `/flow fights report` prints a one-line summary after each fight.
-- **Advisor** (`Modules/Advisor/`): an orange "!N" button next to the rotation icon. It lists
-  ways to get better, most important first, each with what it improves: spells to train
-  (from your last trainer visit, or from guide data), rotation spells missing from your action
-  bars, upgrades sitting in your bags, empty gear slots, unspent talent points, professions
-  that are capped or behind your level, and habits from your best fights. Hover the button to
-  see the list, click it to print, shift-drag to move. Also `/flow advice`.
+### Combat
+- **Rotation helper**: an icon shows the spell to press next, and the matching action bar or
+  stance bar button glows. The border colour says why: green attack, light blue buff, gold heal,
+  fast gold pulse heal now.
+- **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
+  key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
+  In combat WoW freezes what a key casts, so it keeps the spell from the pull (or Blizzard's
+  one-button assistant, if the client has one) and shows it.
+- **Smart self-heals**: suggests a heal only when none of it would be wasted by the time the
+  cast lands (cast time plus your latency, crits ignored). Suggests an emergency heal when
+  you'd die before you could react, unless your target dies first. Silent when the game hides
+  your health.
+- **Fight types**: boss, several enemies, elite or normal mob, each with its own priorities.
+- **Fight profiler**: records every fight and compares your best with your worst per fight
+  type. It leans the rotation towards what worked (`/flow fights`).
+- **Combat log reports**: `/flow log auto` writes the game's combat log file.
+  `tools/analyze-combatlog.ps1` turns it into DPS, healing and tanking reports with
+  recommendations, and feeds what it learned back into Flow.
 
-- **Quest markers** (`Modules/QuestMarks.lua`): icons above nameplates. Skull = a mob you need
-  to kill, diamond = a mob that drops an item you need, star = an NPC your quest mentions.
-  Which mob drops which item is learned the first time you loot one. Nameplates must be on
-  (V for enemies, Shift+V for friendly, or `/flow quest plates`). `/flow quest` lists your
-  objectives.
-- **Training** (`Modules/Trainer.lua`): reminds you at each level up, and at the trainer lists
-  what you can learn now and whether you can afford it.
-- **Spec advice** (`Modules/Spec.lua`): `/flow spec` shows the recommended levelling spec and
-  why. `/flow spec dps|heal|tank|auto` picks the role that gear advice favours.
-- **Gear scores** (`Modules/Gear/`): every item tooltip shows a score for each role:
-  red = DPS, green = Heal, blue = Tank. Each score shows +/- against what you wear, plus a
-  verdict: Upgrade, Keep (better for another role) or Sell. Stat weights are in
-  `Classes/<Class>/Data.lua`. Weapon speed, sockets, set bonuses and equip effects show a
-  note but aren't scored yet. Enchants, armor type, resistances, unique items and combos are
-  empty placeholders. See [docs/GEAR_PLAN.md](docs/GEAR_PLAN.md).
-- **Quest reward badges** (`Modules/Gear/QuestRewards.lua`): when a quest offers a choice, the
-  best upgrade for each role gets a badge: red D (DPS), green H (Heal), blue T (Tank). If no
-  choice beats what you wear for any role, the one that sells for the most gets a gold $.
+### Questing and navigation
+- **Route planner and arrow**: plans the whole trip (quest objectives, turn-ins after their
+  objectives, quests to pick up, trainers, and fishing or gathering when it's on the way) and
+  points you along it. It learns trails as you walk and follows them around hills and rivers.
+- **World map route**: numbered checkpoints with quest levels (`3 [9]`) and quest pickups
+  (`!2`). Hover a checkpoint to preview the route that starts there, click it to choose.
+- **Your own waypoint**: Ctrl- or Alt-click the world map, or `/flow way x y`; it clears when you
+  arrive.
+- **Quest markers on nameplates**: skull with your kill count, diamond with the count of an item
+  a mob drops, star for NPCs to talk to; several per mob.
+- **Missed quests**: quests you skipped in zones you've quested in (`/flow missed`).
+- **Quest reward badges**: the best choice per role (D/H/T), or a gold coin on the best one to
+  sell.
 
-- **Navigation arrow** (`Modules/Nav/`): points at your next quest goal: the nearest spawn of a
-  mob to kill, the mobs or objects that drop an item you need, or the NPC to turn in to. It
-  shows a short sentence and the distance. Left-click for details, right-click for the next
-  goal, shift-drag to move. **Pathing:** WoW doesn't tell addons where you can walk, so Flow
-  records the trails you travel and uses A* search over them. Once trails are known, the arrow
-  leads you along roads and around hills; in new places it points in a straight line.
-  Locations need Questie + QuestieDB. `/flow nav on|off|learn|forget`.
-- **Missed quests** (`Modules/Quests/`): `/flow missed`, plus advisor entries. Lists quests in
-  zones you've quested in that you haven't done (needs Questie + QuestieDB; data is read at
-  runtime, never copied).
+### Gear and items
+- **Gear scores per role** in every tooltip (red DPS, green Heal, blue Tank), each compared with
+  what that item would replace, or with your gear set for that role (Equipment Manager or
+  `/flow gear save`).
+- **Bag icons**: green arrow to equip now, role dots for other roles, gold coin to sell, AH,
+  DE, a quest "!" for items your quests need, and profession icons for crafting materials.
+  The tooltip says why.
+- **Selling**: at a vendor Flow lists what to sell and sells 12 at a time, which is the size
+  of the buyback tab. You can buy any item back with one click, and Flow then never sells it
+  again.
+- **Skill books**: tells you to hold "+N skill" items until the last points before a cap.
 
-- **Combat log analysis** (`tools/analyze-combatlog.ps1`, `Modules/CombatLogFile.lua`): Forever
-  blocks addons from *listening to* the combat log, but the game can still *write* it to
-  `Logs\WoWCombatLog*.txt`. `/flow log` toggles that, and `/flow log auto` turns it on at every
-  login. The script reads the files and writes:
-  - a report with DPS by fight type, damage by spell, your best vs worst fights (casts per
-    minute, seal uptime, opener), heal sizes and overheal, avoidance, how hard each mob hits,
-    and recommendations. It goes to `H:\wow-notes\WoW Forever\Reports\`.
-  - `Learned\CombatLog.lua`, which Flow loads to use those learnings. It sets the spell order
-    within the adaptive groups and the real heal sizes, and seeds how hard each mob hits.
-  Run it with: `powershell -ExecutionPolicy Bypass -File tools\analyze-combatlog.ps1`,
-  then `/reload` in game.
+### Progress advice
+- **Advice list** (the orange "!" button): spells to train, items to equip, professions behind
+  your level, talents, skipped quests, and habits from your best fights. Rows that are places
+  route you there.
+- **Training and professions**: trainer reminders, profession targets for your level, and spec
+  advice (`/flow spec`).
 
-## Debugging without a Lua install
+### Quality of life
+- A load splash, `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move any
+  Flow element.
 
-`/flow rot why` explains each rotation rule. It shows whether the spell is known, its
-condition, cooldown, range, whether it's on your bars, and the last error.
+## Requirements and companions
+- World of Warcraft: Forever (interface 16001).
+- Recommended: **Questie** + **QuestieDB**. Flow reads their quest and NPC data at runtime for
+  the arrow, map route, missed quests and quest-item keeping. Nothing is copied from them.
+- Optional: **Auctionator**, for auction house prices in sell decisions.
 
-This PC has no Lua interpreter, so code is only checked in game. Turn on `/console scriptErrors 1`
-to see errors, or use `/flow rot debug` to show the reason for each suggestion and any errors
-the rotation helper catches.
+## Commands
+`/flow help` lists everything. The main ones: `/flow settings`, `/flow rot why`,
+`/flow advice`, `/flow way`, `/flow map`, `/flow gear sets`, `/flow sell`, `/flow fights`,
+`/flow log auto`, `/flow api`.
 
-## Install (dev)
-
-The addon folder in the game is a junction pointing at this repo, so edits here are live after `/reload`:
-
-```
-G:\Blizzard\World of Warcraft\_forever_\Interface\AddOns\Flow  ->  H:\Flow
-```
-
-## Interface version
-
-The `## Interface:` number in the `.toc` must match the client, or the addon shows as "out of date".
-In game, run `/dump select(4, GetBuildInfo())` to get the right number and put it in the `.toc`.
+## For developers
+- `Flow.toc` sets the load order. `Core.lua` holds the event bus and the registries
+  (`ns:Register` / `ns:Get` / `ns:Each`).
+- `Modules/` holds the features. `Classes/<Class>/` holds class data, trainer spells and the
+  rotation.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) lists every extension point and how to add a
+  class; [docs/GEAR_PLAN.md](docs/GEAR_PLAN.md) covers gear scoring.
+- **No Lua interpreter here:** test in game with `/console scriptErrors 1`, and use
+  `/flow rot why` and `/flow api` when debugging.
+- **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
+  picks up changes.
+- **Packaging:** `tools/package.ps1` builds a release zip; see [docs/PUBLISHING.md](docs/PUBLISHING.md).

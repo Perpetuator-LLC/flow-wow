@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Flow
-## Notes: Sooth's personal everything-mod.
+## Notes: Levelling companion: rotation and heal advice, route planner, gear and bag sorting, quest help.
 ## Author: Sooth
 ## Version: 0.14.0
 ## SavedVariables: FlowDB
