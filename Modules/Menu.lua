@@ -143,6 +143,11 @@ function Menu:RouteItems()
           radio = true, checked = sort == "selected",
           disabled = not (nav.selection and nav.selection.first), func = function() ns.xpValue:SetMode("selected") end },
         { sep = true },
+        { title = true, text = "Your waypoint" },
+        { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },
+        { text = "Clear your waypoint", disabled = ns.waypoint:Get() == nil,
+          func = function() ns.waypoint:Clear(); ns:Print("waypoint cleared") end },
+        { sep = true },
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
     }

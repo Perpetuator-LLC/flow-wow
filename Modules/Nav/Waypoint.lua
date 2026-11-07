@@ -1,8 +1,9 @@
 -- Your own waypoint. It becomes the first stop of the route (the arrow goes
 -- there first), and clears itself when you arrive.
---   Set:   Ctrl-click the world map (the game's own map pin, on clients that
+--   Set:   paste coordinates (/flow way or /way, or right-click the arrow: Set a
+--          waypoint), Ctrl-click the world map (the game's own map pin, on clients that
 --          have it), Alt-click the world map, or /flow way <x> <y> [note]
---   Clear: /flow way clear (or arrive)
+--   Clear: /flow way clear, the arrow menu, or arrive
 -- PLACEHOLDER: a custom multi-point path (ticketed).
 
 local _, ns = ...
@@ -77,6 +78,87 @@ end
 ns:On("PLAYER_LOGIN", function() pcall(hookMap) end)
 ns:On("USER_WAYPOINT_UPDATED", function() if ns.nav then ns.nav:Collect() end end)
 
+-------------------------------------------------------------------------------
+-- Coordinates as people paste them. All of these work:
+--   45.2 63.1                    (your current zone)
+--   45.2, 63.1  /  (45.2, 63.1)  /  45.2 63.1 Hogger
+--   /way 45.2 63.1 Hogger        (a TomTom-style line pasted whole)
+--   /way Elwynn Forest 45.2 63.1 Hogger
+--   /way #1429 45.2 63.1         (a map ID)
+--   0.452 0.631                  (0-1 map fractions)
+-------------------------------------------------------------------------------
+
+-- Zone name -> map ID (zones and continents the client knows).
+local zoneIds
+local function zoneByName(name)
+    if not (C_Map and C_Map.GetMapInfo) then return nil end
+    if not zoneIds then
+        zoneIds = {}
+        for id = 1, 2500 do
+            local ok, info = pcall(C_Map.GetMapInfo, id)
+            if ok and info and info.name and info.mapType and info.mapType <= 3 then  -- cosmic/world/continent/zone
+                local key = info.name:lower()
+                if not zoneIds[key] or info.mapType == 3 then zoneIds[key] = id end
+            end
+        end
+    end
+    return zoneIds[name:lower()]
+end
+
+-- Text -> { map (or nil = your zone), mapName, x, y (0-1), note }, or nil + why.
+-- `lookup(name)` finds a zone's map ID (defaults to the game's map list).
+function W.Parse(text, lookup)
+    lookup = lookup or zoneByName
+    local s = (text or ""):gsub("^%s*/%a+%s*", ""):gsub("^[Ww]ay%s+", "")   -- a pasted "/way", "/flow way" or "/tomtom"
+    s = s:gsub("[%(%)%[%]]", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    local map, mapName
+    local id, rest = s:match("^#(%d+)%s+(.*)$")
+    if id then map, s = tonumber(id), rest end
+    -- The first number pair; anything before it is a zone name, after it a note.
+    local before, x, y, after = s:match("^(.-)%s*(%d+%.?%d*)%s*[,%s]%s*(%d+%.?%d*)%s*(.-)$")
+    x, y = tonumber(x), tonumber(y)
+    if not (x and y) then return nil, "no coordinates found" end
+    if before and before ~= "" then
+        mapName = before:gsub("[,%s]+$", "")
+        map = lookup(mapName)
+        if not map then return nil, "unknown zone \"" .. mapName .. "\"" end
+    end
+    if x > 1 or y > 1 then x, y = x / 100, y / 100 end   -- 45.2 -> 0.452
+    if x < 0 or x > 1 or y < 0 or y > 1 then return nil, "coordinates must be 0-100" end
+    return { map = map, mapName = mapName, x = x, y = y, note = (after and after ~= "") and after or nil }
+end
+
+-- Set from pasted text; returns true if it worked (prints why not).
+function W:SetFromText(text)
+    local p, why = W.Parse(text)
+    if not p then
+        ns:Print("couldn't read that: " .. why .. ". Try: 45.2 63.1, or Elwynn Forest 45.2 63.1 Hogger")
+        return false
+    end
+    local map = p.map or (C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
+    if not map then ns:Print("can't tell which zone you're in") return false end
+    W:Set(map, p.x, p.y, p.note)
+    return true
+end
+
+-- A box to paste coordinates into (arrow menu: "Set a waypoint...").
+StaticPopupDialogs = StaticPopupDialogs or {}
+StaticPopupDialogs["FLOW_WAYPOINT"] = {
+    text = "Paste or type coordinates:\n|cff999999e.g. 45.2 63.1  or  Elwynn Forest 45.2 63.1 Hogger|r",
+    button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",
+    hasEditBox = true, editBoxWidth = 260,
+    OnAccept = function(self)
+        local box = self.editBox or self.EditBox
+        W:SetFromText(box and box:GetText())
+    end,
+    EditBoxOnEnterPressed = function(self)
+        if W:SetFromText(self:GetText()) then self:GetParent():Hide() end
+    end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+function W:Prompt() StaticPopup_Show("FLOW_WAYPOINT") end
+
 ns.commands.way = function(arg)
     arg = arg or ""
     if arg:lower():match("^%s*clear") then
@@ -84,13 +166,19 @@ ns.commands.way = function(arg)
         ns:Print("waypoint cleared")
         return
     end
-    local x, y, note = arg:match("^%s*([%d%.]+)[,%s]+([%d%.]+)%s*(.-)%s*$")
-    x, y = tonumber(x), tonumber(y)
-    if not (x and y) then
-        ns:Print("/flow way <x> <y> [note] (map coordinates in your current zone), /flow way clear. Or Alt-click the world map.")
+    if arg:match("^%s*$") then
+        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way clear. Or Alt-click the world map, or right-click the arrow: Set a waypoint.")
         return
     end
-    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-    if not map then ns:Print("can't tell which zone you're in") return end
-    W:Set(map, x / 100, y / 100, note ~= "" and note or nil)
+    W:SetFromText(arg)
 end
+
+-- "/way ..." too, the format most guides and sites give, unless another
+-- addon (TomTom) already owns it.
+ns:On("PLAYER_LOGIN", function()
+    local taken = (SlashCmdList and SlashCmdList.TOMTOM_WAY) or (hash_SlashCmdList and hash_SlashCmdList["/WAY"])
+    if not taken and SlashCmdList then
+        SLASH_FLOWWAY1 = "/way"
+        SlashCmdList.FLOWWAY = ns.commands.way
+    end
+end)

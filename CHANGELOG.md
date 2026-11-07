@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.17
+- Waypoints from pasted coordinates. `/way` now works too (unless TomTom has it), and so does
+  a whole pasted line: `45.2 63.1`, `(45.2, 63.1)`, `/way 45.2 63.1 Hogger`,
+  `/way Elwynn Forest 45.2 63.1 Hogger`, `/way #1429 45 63`.
+- Arrow menu (right-click): "Set a waypoint (paste coordinates)..." opens a box to paste into,
+  and "Clear your waypoint".
+
 ## 0.35.16
 - Mount milestone. Five levels before riding level the advice list tells you to start saving
   (how much, and what you have). At riding level "Learn riding" goes on the route as a

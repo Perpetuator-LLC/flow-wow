@@ -518,3 +518,18 @@ ns:Register("test", "mount: save, then riding, then the mount", function(t)
     local _, race = UnitRace("player")
     t:ok(ns:Get("mount", race) ~= nil, "your race has a riding trainer listed (" .. tostring(race) .. ")")
 end)
+
+ns:Register("test", "waypoint: pasted coordinates in every usual format", function(t)
+    local P = ns.waypoint.Parse
+    local zones = function(n) return ({ ["elwynn forest"] = 1429 })[n:lower()] end
+    local p = P("45.2 63.1", zones)
+    t:near(p.x, 0.452, 0.0001, "x"); t:near(p.y, 0.631, 0.0001, "y"); t:eq(p.map, nil, "your zone")
+    p = P("(45.2, 63.1)", zones); t:near(p.y, 0.631, 0.0001, "brackets and comma")
+    p = P("/way 45.2 63.1 Hogger", zones); t:eq(p.note, "Hogger", "pasted /way line with a note")
+    p = P("/way Elwynn Forest 45.2 63.1 Hogger", zones); t:eq(p.map, 1429, "zone by name"); t:eq(p.note, "Hogger", "note after a zone")
+    p = P("#1429 45 63", zones); t:eq(p.map, 1429, "map ID")
+    p = P("0.452 0.631", zones); t:near(p.x, 0.452, 0.0001, "0-1 fractions")
+    local none, why = P("Stormwind 45 63", zones); t:eq(none, nil, "unknown zone refused"); t:ok(why:find("Stormwind") ~= nil, "says which zone")
+    t:eq((P("hello", zones)), nil, "no numbers")
+    t:eq((P("145 63", zones)), nil, "out of range")
+end)

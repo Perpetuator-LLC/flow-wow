@@ -63,7 +63,8 @@ Flow for WoW is a separate project from Flow Engine.
   professions), order, unhide all, and party options.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
-- **Your own waypoint**: Ctrl- or Alt-click the world map, or `/flow way x y`; it clears when you
+- **Your own waypoint**: Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest
+  45.2 63.1`, or right-click the arrow: Set a waypoint), or `/flow way x y`; it clears when you
   arrive.
 - **Only quests you can get**: holiday quests drop out when the event ends, and quests an NPC
   doesn't offer are skipped.
