@@ -872,7 +872,7 @@ end)
 ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon", function(t)
     local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
     local stop = { key = "craft:Cooking:Test", recipe = "Roasted Boar Meat", prof = "Cooking",
-                   station = "fire", anywhere = true, icon = "Interface\Icons\INV_Misc_Food_15" }
+                   station = "fire", anywhere = true, icon = "Interface\\Icons\\INV_Misc_Food_15" }
     -- Not at a craft stop: none of the craft steps.
     t:eq(get("craft:open", { goal = { key = "88:1" } }), nil, "no craft steps at a quest stop")
     -- Cooking needs a fire first: "open" waits until there is one.

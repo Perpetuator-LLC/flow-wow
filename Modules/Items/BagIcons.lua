@@ -58,7 +58,7 @@ local function marks(button)
     -- Flow's target marker (o) in the route colour, top-left: this is the
     -- item your current stop wants you to use ("Learn Brilliant Smallfish:
     -- use the recipe in your bags").
-    local CIRCLE = "Interface\CharacterFrame\TempPortraitAlphaMask"
+    local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
     m.focus = CreateFrame("Frame", nil, m)
     m.focus:SetSize(14, 14)
     m.focus:SetPoint("TOPLEFT", -3, 3)
