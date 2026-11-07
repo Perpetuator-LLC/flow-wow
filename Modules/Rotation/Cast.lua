@@ -388,10 +388,37 @@ local function buildHandle()
         t:SetPoint(pts[1]); t:SetPoint(pts[2])
         if i <= 2 then t:SetHeight(2) else t:SetWidth(2) end
         t:SetColorTexture(o[1], o[2], o[3], 1)
+        handle.edge[i] = t
     end
+    -- The label sits ABOVE the button (under it is the action's own text,
+    -- which it used to cover), on a small dark tab so it reads.
     handle.text = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    handle.text:SetPoint("TOP", handle, "BOTTOM", 0, -2)
+    handle.text:SetPoint("BOTTOM", handle, "TOP", 0, 4)
     handle.text:SetText("drag to move")
+    handle.tab = handle:CreateTexture(nil, "BACKGROUND")
+    handle.tab:SetPoint("TOPLEFT", handle.text, "TOPLEFT", -4, 2)
+    handle.tab:SetPoint("BOTTOMRIGHT", handle.text, "BOTTOMRIGHT", 4, -2)
+    handle.tab:SetColorTexture(0, 0, 0, 0.6)
+    -- Hover: it lights up, so it's clear you can grab it.
+    function handle:Paint(hot)
+        self.bg:SetColorTexture(o[1], o[2], o[3], hot and 0.35 or 0.12)
+        for _, t in ipairs(self.edge) do t:SetColorTexture(o[1], o[2], o[3], hot and 1 or 0.7) end
+        self.text:SetTextColor(hot and 1 or o[1], hot and 1 or o[2], hot and 1 or o[3])
+    end
+    handle:Paint(false)
+    handle:SetScript("OnEnter", function(self)
+        self:Paint(true)
+        pcall(SetCursor, "UI_MOVE_CURSOR")
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Drag to move the Flow button", 1, 1, 1)
+        GameTooltip:AddLine("Let go of Shift to use it again.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    handle:SetScript("OnLeave", function(self)
+        self:Paint(false)
+        pcall(ResetCursor)
+        GameTooltip:Hide()
+    end)
     handle:SetScript("OnMouseDown", function()
         if InCombatLockdown() then return end
         btn:StartMoving()

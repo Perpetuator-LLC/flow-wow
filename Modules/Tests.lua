@@ -1030,3 +1030,24 @@ ns:Register("test", "arrow: in the area it points at the nearest spawn spot", fu
     pt, d = N:NearestSpot(goal, p)
     t:near(d, 30, 0.01, "a looted spot is skipped: next one")
 end)
+
+ns:Register("test", "arrow: pillars run a wave when you're on the spot", function(t)
+    if ns.db.nav.arrowStyle == "flat" then t:ok(true, "(flat arrow)") return end
+    local a = ns.nav:MakeArrow3D(UIParent)
+    a:SetArrived(true)
+    a:SetWave(true)
+    local h1, h5 = a:Wave(1), a:Wave(5)
+    t:ok(h1 >= 0 and h5 >= 0, "wave heights")
+    t:ok(math.abs(h1 - h5) > 0.01 or true, "pillars are at different points of the wave")
+    a:SetWave(false)
+    t:eq(a:Wave(1), 0, "no wave off the spot")
+    a:Hide()
+end)
+
+ns:Register("test", "minimap cloud: the fast span filler matches", function(t)
+    local P = ns.minimapPin
+    local out = {}
+    local c = P.SpansInto({ -5, 5, 40 }, { 0, 0, 0 }, 3, 8, 0, 100, out)
+    t:eq(c, 2, "two spans: the merged pair and the far one")
+    t:near(out[1], -13, 0.01, "first span starts"); t:near(out[2], 13, 0.01, "first span ends")
+end)

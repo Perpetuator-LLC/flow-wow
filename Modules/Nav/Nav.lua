@@ -580,6 +580,20 @@ function N:MakeArrow3D(parent)
         return base + ((self.hFrom or base) - base) * (1 - u)   -- shrink back
     end
     function a:Popping() return GetTime() - (self.hStart or 0) < POP_SECS end
+    -- Right on the spot: a sine wave runs round the ring, each pillar rising
+    -- and falling a little after the one before it (two crests at a time).
+    local WAVE_AMP, WAVE_SPEED, WAVE_CRESTS = 5, 5, 2
+    function a:SetWave(on)
+        on = (on and self.arrived) and true or false
+        if on == (self.wave or false) then return end
+        self.wave = on
+        self.needDraw = true   -- (draw is defined further down: the frame update redraws)
+    end
+    function a:Wave(i)
+        if not (self.wave and self.arrived) or self.spinning then return 0 end
+        local phase = (i - 1) / RING_DOTS * WAVE_CRESTS * 2 * math.pi
+        return WAVE_AMP * (0.5 + 0.5 * math.sin(GetTime() * WAVE_SPEED - phase))
+    end
     -- The sphere in the middle when you've arrived: a dark base, a lit body
     -- and a white highlight up and to the left (the light), floating above
     -- its own shadow on the ground.
@@ -690,7 +704,7 @@ function N:MakeArrow3D(parent)
         for i, p in ipairs(a.ring) do
             local t = (i - 1) / RING_DOTS * 2 * math.pi + a.ringAngle
             local x, y, k = N.Project3D(RING_R * math.sin(t), RING_R * math.cos(t), 0)
-            local h = hgt * k
+            local h = (hgt + a:Wave(i)) * k
             local front = math.cos(t) < 0      -- near you: in front of the arrow
             p.stem:SetDrawLayer(front and "ARTWORK" or "BACKGROUND", front and 7 or 0)
             p.cap:SetDrawLayer(front and "ARTWORK" or "BACKGROUND", 7)
@@ -742,7 +756,7 @@ function N:MakeArrow3D(parent)
     a:SetScript("OnUpdate", function(me)
         if me.arrived then
             local now = GetTime()
-            if me:Popping() then draw() end
+            if me:Popping() or me.wave or me.needDraw then me.needDraw = nil; draw() end   -- pop and wave move every frame
             me.pulse = 0.5 + 0.5 * math.sin(now * 4)
             me:Light(me.pulse)
             if me.iconTex then
@@ -1870,6 +1884,11 @@ local function update()
             how == "path" and string.format(" (trail, %d yd walk)", length)
                 or (how == "entrance" and " (it's inside: entrance first)" or "")))
         frame.arrow:SetArrived(false)
+    end
+    -- Right on the spot (on a spawn spot, or at the stop itself): the pillars
+    -- run a wave.
+    if frame.arrow.SetWave then
+        frame.arrow:SetWave(here and frame.arrow.arrived and ((spotD and spotD <= SPOT_ON) or choice.d < ARRIVED * 2))
     end
     local c = ns.theme.route
     frame.arrow:SetVertexColor(c[1], c[2], c[3])

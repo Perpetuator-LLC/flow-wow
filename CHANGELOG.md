@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.46
+- The Flow button's "drag to move" label (hold Shift) now sits above the button, on a dark tab,
+  instead of covering the action's text below it. Hovering the handle lights it up, shows the
+  move cursor and a tooltip, so it's clear you can grab it.
+- Right on the spot (on a spawn spot, or at the stop itself), the arrow's pillars run a sine
+  wave around the ring.
+- Minimap clouds: redrawn only when something changed (you moved, turned, zoomed, or the stop
+  changed), without the memory churn (it was 1.3 MB a second).
+
 ## 0.35.45
 - Weapons: Flow now checks the weapon skills you've actually trained, not only what your class
   may use. A sword before you've learned Swords isn't offered as an upgrade (no more "you do

@@ -100,68 +100,107 @@ local function strip(x1, x2, y, color, alpha)
     t:Show()
 end
 
--- Where row `y` crosses the union of circles (centres pts, radius r), as
--- merged { x1, x2 } spans clipped to the round minimap of `radius`.
-function P.Spans(pts, r, y, radius)
-    local iv = {}
-    for _, q in ipairs(pts) do
-        local dy = y - q[2]
+-- Where row `y` crosses the union of circles (centres in flat xs / ys, n of
+-- them, radius r), clipped to the round minimap of `radius`. Writes the
+-- merged spans into `out` as a flat list (a1, b1, a2, b2...) and returns
+-- how many. Reuses its scratch lists: it runs for every row, several times
+-- a second, and building little tables each time churned 1.3 MB a second.
+local lo_, hi_ = {}, {}
+function P.SpansInto(xs, ys, n, r, y, radius, out)
+    local m2 = radius * radius - y * y
+    if m2 <= 0 then return 0 end
+    local m = math.sqrt(m2)
+    local k = 0
+    for i = 1, n do
+        local dy = y - ys[i]
         if dy > -r and dy < r then
             local dx = math.sqrt(r * r - dy * dy)
-            iv[#iv + 1] = { q[1] - dx, q[1] + dx }
+            local a = xs[i] - dx
+            -- insertion sort by start (few circles cross any one row)
+            local j = k
+            while j > 0 and lo_[j] > a do lo_[j + 1], hi_[j + 1] = lo_[j], hi_[j]; j = j - 1 end
+            lo_[j + 1], hi_[j + 1] = a, xs[i] + dx
+            k = k + 1
         end
     end
-    if #iv == 0 then return iv end
-    table.sort(iv, function(a, b) return a[1] < b[1] end)
-    local merged = { { iv[1][1], iv[1][2] } }
-    for i = 2, #iv do
-        local last = merged[#merged]
-        if iv[i][1] <= last[2] then last[2] = math.max(last[2], iv[i][2])
-        else merged[#merged + 1] = { iv[i][1], iv[i][2] } end
+    local c = 0
+    local i = 1
+    while i <= k do
+        local a, b = lo_[i], hi_[i]
+        i = i + 1
+        while i <= k and lo_[i] <= b do
+            if hi_[i] > b then b = hi_[i] end
+            i = i + 1
+        end
+        if a < -m then a = -m end
+        if b > m then b = m end
+        if b > a then out[c * 2 + 1], out[c * 2 + 2] = a, b; c = c + 1 end
     end
-    local m = radius * radius - y * y
-    if m <= 0 then return {} end
-    m = math.sqrt(m)
+    return c
+end
+
+-- The same as a list of { x1, x2 } (tests, and anything that wants tables).
+function P.Spans(pts, r, y, radius)
+    local xs, ys = {}, {}
+    for i, q in ipairs(pts) do xs[i], ys[i] = q[1], q[2] end
+    local flat = {}
+    local c = P.SpansInto(xs, ys, #pts, r, y, radius, flat)
     local out = {}
-    for _, s in ipairs(merged) do
-        local a, b = math.max(s[1], -m), math.min(s[2], m)
-        if b > a then out[#out + 1] = { a, b } end
-    end
+    for i = 1, c do out[i] = { flat[i * 2 - 1], flat[i * 2] } end
     return out
 end
 
+local xs_, ys_, spans_ = {}, {}, {}
 local function drawAreaMini(p, goal, color, strong)
     if not (goal and goal.area and goal.points) then return end
     local radius = Minimap:GetWidth() / 2
-    local pts, r = {}, nil
+    local n, r = 0, nil
     for _, pt in ipairs(goal.points) do
         if pt.wx and pt.cont == p.cont then
             local x, y, scale = toMini(p, pt.wx, pt.wy)
             if x then
                 r = r or math.max(3, AREA_YARDS * scale)
-                if math.sqrt(x * x + y * y) < radius + r then pts[#pts + 1] = { x, y } end
+                if x * x + y * y < (radius + r) * (radius + r) then n = n + 1; xs_[n], ys_[n] = x, y end
             end
         end
     end
-    if #pts == 0 then return end
-    local top, bottom = -radius, radius
+    if n == 0 then return end
     local lo, hi = math.huge, -math.huge
-    for _, q in ipairs(pts) do lo = math.min(lo, q[2] - r); hi = math.max(hi, q[2] + r) end
-    lo, hi = math.max(lo, top), math.min(hi, bottom)
+    for i = 1, n do
+        if ys_[i] - r < lo then lo = ys_[i] - r end
+        if ys_[i] + r > hi then hi = ys_[i] + r end
+    end
+    lo, hi = math.max(lo, -radius), math.min(hi, radius)
     local edgeA, coreA = strong and 0.17 or 0.1, strong and 0.17 or 0.1
     local y = lo + ROW / 2
     while y < hi and nDiscs < 900 do
-        for _, s in ipairs(P.Spans(pts, r, y, radius)) do strip(s[1], s[2], y, color, edgeA) end
-        for _, s in ipairs(P.Spans(pts, r * CORE, y, radius)) do strip(s[1], s[2], y, color, coreA) end
+        local c = P.SpansInto(xs_, ys_, n, r, y, radius, spans_)
+        for i = 1, c do strip(spans_[i * 2 - 1], spans_[i * 2], y, color, edgeA) end
+        c = P.SpansInto(xs_, ys_, n, r * CORE, y, radius, spans_)
+        for i = 1, c do strip(spans_[i * 2 - 1], spans_[i * 2], y, color, coreA) end
         y = y + ROW
     end
 end
 
-local lastAreas = 0
+-- Redraw only when something you'd see changed: you moved a couple of yards,
+-- turned (rotating minimap), zoomed, or the stop / hovered stop changed.
+local lastAreas, lastSig = 0, nil
+local function signature(p, goal)
+    local rot = GetCVar and GetCVar("rotateMinimap") == "1"
+    local f = rot and ns.api.Safe(GetPlayerFacing and GetPlayerFacing()) or 0
+    return string.format("%d:%d:%d:%d:%s:%s:%s:%d", math.floor(p.wx / 2), math.floor(p.wy / 2),
+        math.floor((f or 0) * 20), Minimap:GetZoom() or 0, tostring(goal and goal.key),
+        tostring(hoverGoal and hoverGoal.key), tostring(ns.db.nav.minimapAreas), Minimap:GetWidth())
+end
 function P:UpdateAreas(p, goal, force)
     if not Minimap then return end
     if not force and GetTime() - lastAreas < 0.2 then return end
     lastAreas = GetTime()
+    if p then
+        local sig = signature(p, goal)
+        if not force and sig == lastSig then return end
+        lastSig = sig
+    end
     if not areaHost then
         areaHost = CreateFrame("Frame", nil, Minimap)
         areaHost:SetAllPoints(Minimap)
@@ -210,6 +249,7 @@ end
 
 function P:Hide()
     if pin then pin:Hide() end
+    lastSig = nil   -- draw again next time
     for i = 1, nDiscs do discs[i]:Hide() end
     nDiscs = 0
 end
