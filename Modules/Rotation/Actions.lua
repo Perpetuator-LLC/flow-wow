@@ -123,6 +123,16 @@ function X.CanInteract()
     return ok and v ~= nil and tonumber(v) and tonumber(v) > 0 or false
 end
 
+-- One press that clears your target: the game's Interact goes to your target
+-- when you have one (Lee Brown), not to the bobber or vein in front of you.
+-- Only a friendly target (an NPC, a player): an enemy target is your pull.
+function X.FriendlyTarget()
+    return UnitExists("target") and not UnitCanAttack("player", "target") or false
+end
+function X.ClearTargetStep(why)
+    return { type = "clear", icon = "Interface\\Buttons\\UI-GroupLoot-Pass-Up", label = "Clear your target (" .. why .. ")", urgent = true }
+end
+
 local function channeling(spell)
     if not UnitChannelInfo then return false end
     local name = A.Safe(UnitChannelInfo("player"))
@@ -238,6 +248,7 @@ end })
 -- clicks your bobber (press when it splashes).
 ns:Register("action", "fish:reel", { order = 30, get = function(ctx)
     if not (ctx.pole and channeling("Fishing") and X.CanInteract()) then return nil end
+    if X.FriendlyTarget() then return X.ClearTargetStep("so the key reels in, not talks to your target") end
     return { type = "interact", icon = spellIcon("Fishing"), label = "Press when the bobber splashes", urgent = true }
 end })
 
@@ -245,7 +256,7 @@ end })
 ns:Register("action", "fish:cast", { order = 40, get = function(ctx)
     if not (ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
     if not knows("Fishing") then return nil end
-    return { type = "spell", spell = "Fishing", icon = spellIcon("Fishing"), label = "Cast your line" }
+    return { type = "spell", spell = "Fishing", unit = "player", icon = spellIcon("Fishing"), label = "Cast your line" }
 end })
 
 -- Mining / Herbalism: tracking on, then the key gathers (Interact).
@@ -253,11 +264,12 @@ local FIND = { Mining = "Find Minerals", Herbalism = "Find Herbs" }
 ns:Register("action", "gather:find", { order = 50, get = function(ctx)
     local spell = ctx.goal and ctx.goal.kind ~= "merchant" and FIND[ctx.prof]
     if not spell or not knows(spell) or tracking(spell) ~= false then return nil end
-    return { type = "spell", spell = spell, icon = spellIcon(spell), label = "Turn on " .. spell }
+    return { type = "spell", spell = spell, unit = "player", icon = spellIcon(spell), label = "Turn on " .. spell }
 end })
 ns:Register("action", "gather:interact", { order = 60, get = function(ctx)
     if not (ctx.at and FIND[ctx.prof] and ctx.goal.kind ~= "merchant" and X.CanInteract()) then return nil end
     local verb = ctx.prof == "Mining" and "Mine" or "Gather"
+    if X.FriendlyTarget() then return X.ClearTargetStep("so the key gathers, not talks to your target") end
     return { type = "interact", icon = spellIcon(ctx.prof == "Mining" and "Mining" or "Herb Gathering")
                  or "Interface\\Icons\\Trade_Mining",
              label = verb .. " (stand next to it and press)" }

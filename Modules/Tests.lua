@@ -703,3 +703,26 @@ ns:Register("test", "crafting: make exactly enough, and say what's next", functi
         end
     end
 end)
+
+ns:Register("test", "actions: a selected NPC never blocks the Flow key", function(t)
+    -- Flow's own spells cast on you, not your target (Lee Brown selected: cast failed).
+    if ns.api.SpellInfo("Fishing") and not (UnitChannelInfo and UnitChannelInfo("player")) then
+        local s = ns:Get("action", "fish:cast").get({ fishing = true, pole = true })
+        t:eq(s and s.unit, "player", "Fishing casts with no target")
+    end
+    local c = ns.actions.ClearTargetStep("test")
+    t:eq(c.type, "clear", "clear-target step")
+    t:eq(ns.cast._describe(c), "/cleartarget", "described for the diagnostics")
+    t:ok(c.icon:find("\\", 1, true) ~= nil, "icon path keeps its backslashes")
+end)
+
+ns:Register("test", "router: handle and help legend share one look", function(t)
+    local M = ns.mapOverlay
+    t:ok(type(M.MakeHandle) == "function", "one handle builder for rows and legend")
+    local h = M.MakeHandle(UIParent, 16)
+    h.active = true; h:Paint(false)
+    t:ok(h.ring:IsShown() and not h.arms[1]:IsShown(), "active: (o) marker, no ^")
+    h.active = false; h:Paint(false)
+    t:ok(h.arms[1]:IsShown() and not h.ring:IsShown(), "others: ^ chevron")
+    h:Hide()
+end)

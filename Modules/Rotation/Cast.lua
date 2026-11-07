@@ -33,6 +33,7 @@ local function describe(s)
     if not s then return "" end
     if s.type == "item" then return "/use " .. tostring(s.item) .. (s.targetSlot and (" on slot " .. s.targetSlot) or "") end
     if s.type == "interact" then return "Interact" end
+    if s.type == "clear" then return "/cleartarget" end
     return macroFor(s)
 end
 C._describe = describe  -- (tests)
@@ -53,9 +54,15 @@ local function setAction(s)
     if kind == "spell" and s.spell then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", s.spell)
-        -- Heals always on you: "player" as the unit.
+        -- Heals always on you: "player" as the unit. Flow Actions (Fishing,
+        -- Find Minerals) say unit = "player" too, so a target you have
+        -- selected (an NPC) never makes the cast fail.
         local heal = s.kind == "heal" or s.kind == "emergency"
-        btn:SetAttribute("unit", heal and "player" or nil)
+        btn:SetAttribute("unit", (heal and "player") or s.unit or nil)
+    elseif kind == "clear" then
+        -- The secure "target" type with unit "none" clears your target.
+        btn:SetAttribute("type", "target")
+        btn:SetAttribute("unit", "none")
     elseif kind == "item" and s.item then
         btn:SetAttribute("type", "item")
         btn:SetAttribute("item", s.item)

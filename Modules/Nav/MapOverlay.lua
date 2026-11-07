@@ -451,6 +451,7 @@ local function sidePanelOpen()
 end
 
 local selfToggling = false
+local slotClosedAt   -- when the side panel closed under an open drawer (Redraw)
 local function setSidePanel(open)
     if sidePanelOpen() == open then return end
     selfToggling = true
@@ -522,14 +523,39 @@ local function buildButton()
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function(self) self:Draw(); GameTooltip:Hide() end)
-    -- The game's own button: opening the quest log closes Flow's drawer.
-    if blizz and blizz.HookScript then
-        blizz:HookScript("OnClick", function()
-            if selfToggling then return end
+    -- The game's own quest-log button while Flow's drawer is open: the quest
+    -- log is already open underneath (the drawer covers it), so the click
+    -- should just close Flow's drawer and show it. A see-through Flow button
+    -- sits on top of the game's button for exactly that (no Blizzard code
+    -- runs). With the drawer closed it's hidden, and the game's button opens
+    -- and closes the quest log as usual.
+    if blizz then
+        local cover = CreateFrame("Button", "FlowMapQuestLogCover", WorldMapFrame)
+        cover:SetAllPoints(blizz)
+        cover:SetFrameStrata(blizz:GetFrameStrata())
+        cover:SetFrameLevel(blizz:GetFrameLevel() + 3)
+        cover.hl = cover:CreateTexture(nil, "HIGHLIGHT")
+        cover.hl:SetAllPoints(); cover.hl:SetColorTexture(1, 1, 1, 0.12)
+        cover:SetScript("OnClick", function()
             ns.db.nav.mapListCollapsed = true
             M:Redraw()
         end)
+        cover:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            GameTooltip:AddLine("Quest log")
+            GameTooltip:AddLine("Closes Flow Router and shows the quest log.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        cover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        cover:Hide()
+        b.cover = cover
     end
+    -- Map opened with the drawer open: make room for it again (once, on open).
+    WorldMapFrame:HookScript("OnShow", function()
+        if not collapsed() and QuestMapFrame and not sidePanelOpen() and not InCombatLockdown() then
+            setSidePanel(true)
+        end
+    end)
     return b
 end
 
@@ -548,13 +574,99 @@ local function place()
     end
 end
 
+-- The row handle: a ^ chevron ("go here first"), or Flow's (o) target marker
+-- on the active stop. Also drawn in the help legend, so they look the same.
+function M.MakeHandle(parent, size)
+    local go = CreateFrame("Button", nil, parent)
+    go:SetSize(size, size)
+    go.bg = go:CreateTexture(nil, "BACKGROUND")
+    go.bg:SetAllPoints()
+    go.arms = { go:CreateLine(nil, "ARTWORK"), go:CreateLine(nil, "ARTWORK") }
+    for k, l in ipairs(go.arms) do
+        l:SetThickness(2)
+        l:SetStartPoint("CENTER", go, (k == 1 and -1 or 1) * 4, -2)
+        l:SetEndPoint("CENTER", go, 0, 3)
+    end
+    local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+    local function disc(sub, d)
+        local t = go:CreateTexture(nil, "ARTWORK", nil, sub)
+        t:SetPoint("CENTER"); t:SetSize(d, d); t:SetTexture(CIRCLE); t:Hide()
+        return t
+    end
+    go.ring, go.hole, go.dot = disc(1, 12), disc(2, 9), disc(3, 6)
+    function go:Paint(hot)
+        local c = theme().route
+        local on = self.active and true or false
+        self.bg:SetColorTexture(c[1], c[2], c[3], on and 0 or (hot and 0.55 or 0.18))
+        for _, l in ipairs(self.arms) do
+            l:SetColorTexture(1, 1, 1, hot and 1 or 0.8)
+            l:SetShown(not on)
+        end
+        self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
+        self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
+        self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+        self.dot:SetVertexColor(c[1], c[2], c[3], 1)
+    end
+    go:Paint(false)
+    return go
+end
+
+-- "?" help: a small legend drawn with the same handle and (o) marker as the rows.
+local function buildHelp(f)
+    local q = CreateFrame("Button", nil, f)
+    q:SetSize(18, 18)
+    q:SetPoint("TOPRIGHT", -8, -4)
+    q.ring = q:CreateTexture(nil, "BACKGROUND")
+    q.ring:SetAllPoints(); q.ring:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    q.text = q:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    q.text:SetPoint("CENTER"); q.text:SetText("?")
+
+    local pop = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    pop:SetSize(250, 82)
+    pop:SetPoint("TOPRIGHT", q, "BOTTOMRIGHT", 0, -4)
+    pop:SetFrameStrata("TOOLTIP")
+    if pop.SetBackdrop then
+        pop:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+        pop:SetBackdropColor(0.02, 0.02, 0.03, 0.97)
+    end
+    local function line(y, handle, text)
+        local fs = pop:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("TOPLEFT", handle and 30 or 8, y - 2); fs:SetPoint("RIGHT", -8, 0)
+        fs:SetJustifyH("LEFT"); fs:SetText(text)
+        if handle then
+            local h = M.MakeHandle(pop, ROW_H - 2)
+            h:SetPoint("TOPLEFT", 8, y); h:EnableMouse(false)
+            h.active = handle == "active"
+            pop[handle] = h
+        end
+    end
+    line(-8, "go", "Go here first: routes from that stop")
+    line(-28, "active", "Active stop: where the arrow points")
+    line(-50, nil, "Click a stop's name to open it. Right-click to hide it or for more.")
+    pop:Hide()
+    function q:Paint(hot)
+        local c = theme().route
+        self.ring:SetVertexColor(c[1], c[2], c[3], hot and 0.55 or 0.25)
+        if pop.SetBackdropBorderColor then pop:SetBackdropBorderColor(c[1], c[2], c[3], 1) end
+    end
+    q:Paint(false)
+    q:SetScript("OnEnter", function(self)
+        self:Paint(true)
+        pop.go:Paint(false); pop.active:Paint(false)  -- follow the current route colour
+        pop:Show()
+    end)
+    q:SetScript("OnLeave", function(self) self:Paint(false); pop:Hide() end)
+    return q
+end
+
 local function buildList()
     local f = CreateFrame("Frame", "FlowMapRoute", WorldMapFrame)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.04, 0.04, 0.07, 0.95)
+    -- Near-black, so the map doesn't show through behind the list.
+    f.bg:SetColorTexture(0.015, 0.015, 0.025, 0.985)
 
     -- The roll-up bar: always visible. A dark header with an orange accent,
     -- a map icon, the title, and a +/- button on the right.
@@ -606,7 +718,8 @@ local function buildList()
     f.hint:SetPoint("TOPLEFT", 8, -6)
     f.hint:SetPoint("TOPRIGHT", -8, -6)
     f.hint:SetJustifyH("LEFT")
-    f.hint:SetText("|cffffd200Flow Router|r  Click a stop to open it; ^ goes there first.")
+    f.hint:SetText("|cffffd200Flow Router|r")
+    f.help = buildHelp(f)   -- how to use it: the "?" on the right
 
     local function choice(y, mode, text, tip)
         local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -728,45 +841,8 @@ local function buildList()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
-        r.go = CreateFrame("Button", nil, r)
-        r.go:SetSize(ROW_H - 2, ROW_H - 2)
+        r.go = M.MakeHandle(r, ROW_H - 2)
         r.go:SetPoint("LEFT", 0, 0)
-        r.go.bg = r.go:CreateTexture(nil, "BACKGROUND")
-        r.go.bg:SetAllPoints()
-        r.go.arms = { r.go:CreateLine(nil, "ARTWORK"), r.go:CreateLine(nil, "ARTWORK") }
-        for k, l in ipairs(r.go.arms) do
-            l:SetThickness(2)
-            l:SetStartPoint("CENTER", r.go, (k == 1 and -1 or 1) * 4, -2)
-            l:SetEndPoint("CENTER", r.go, 0, 3)
-        end
-        -- The active stop (where the arrow points now) shows a selected radio
-        -- dot (o) instead of the ^: a white ring around a dot in the route colour.
-        local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-        local function disc(layer, sub, size)
-            local t = r.go:CreateTexture(nil, layer, nil, sub)
-            t:SetPoint("CENTER")
-            t:SetSize(size, size)
-            t:SetTexture(CIRCLE)
-            t:Hide()
-            return t
-        end
-        r.go.ring = disc("ARTWORK", 1, 12)
-        r.go.hole = disc("ARTWORK", 2, 9)
-        r.go.dot = disc("ARTWORK", 3, 6)
-        function r.go:Paint(hot)
-            local c = theme().route
-            local on = self.active and true or false
-            self.bg:SetColorTexture(c[1], c[2], c[3], on and 0 or (hot and 0.55 or 0.18))
-            for _, l in ipairs(self.arms) do
-                l:SetColorTexture(1, 1, 1, hot and 1 or 0.8)
-                l:SetShown(not on)
-            end
-            self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
-            self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
-            self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
-            self.dot:SetVertexColor(c[1], c[2], c[3], 1)
-        end
-        r.go:Paint(false)
         r.go:SetScript("OnEnter", function(self)
             self:Paint(true); ns.nav:ClickCursor(true)
             local row = self:GetParent()
@@ -859,8 +935,16 @@ local function updateList()
     -- Keep the panel up even with an empty route, so the mode can be switched back.
     plan = plan or {}
     if not ns.nav:PlayerPos() then list:Hide() return end
-    -- Drawer open but the slot closed (e.g. map reopened): make room again.
-    if not collapsed() and QuestMapFrame and not sidePanelOpen() and not InCombatLockdown() then setSidePanel(true) end
+    -- Drawer open but the side panel got closed (by the game, not by the
+    -- map reopening, which makes room on open): close the drawer with it,
+    -- rather than forcing the panel back open (that flickered).
+    if not collapsed() and QuestMapFrame and not sidePanelOpen() then
+        slotClosedAt = slotClosedAt or GetTime()
+        if GetTime() - slotClosedAt > 1 then ns.db.nav.mapListCollapsed = true end
+    else
+        slotClosedAt = nil
+    end
+    if button.cover then button.cover:SetShown(not collapsed() and sidePanelOpen()) end
     if collapsed() then list:Hide() return end
     place()
     list:Show()

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.30
+- Flow key with an NPC selected (Lee Brown): Fishing and Find Minerals now cast on you, never
+  on your target, so they don't fail. Reeling in and gathering use the game's Interact, which
+  goes to your target when you have one, so with a friendly target selected the key first
+  clears it (one press). Enemy targets are left alone (that's your pull).
+- Flow Router: the title stands alone; a "?" on the right shows a small legend with the same
+  ^ handle and (o) marker the rows use. The background is darker.
+- Flow Router and the quest log: with the Router open, the game's quest-log button now just
+  closes the Router and shows the quest log (it used to close and spring back open). Flow's
+  button still opens the Router over the quest log, and closes both.
+
 ## 0.35.29
 - `/flow perf` also shows how much memory each part churns through (KB/s), and how much Flow
   really keeps after a clean-up, to track down a memory reading of 96 MB.
