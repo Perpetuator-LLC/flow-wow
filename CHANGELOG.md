@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.28
+- Smoother: Flow no longer re-plans the route every 8 seconds while you stand still (only after
+  you move 30 yards, or when something changes), and the background refresh of the stop list
+  runs every 30 seconds instead of 10. Each one took 20-40 ms, a small stutter you could feel.
+
 ## 0.35.27
 - Crafting: Flow makes exactly what reaches your target. The profession window gets a small
   Flow panel: "make 11 x Heavy Linen Bandage", First Aid 47 -> 58, and a **Make 11** button that

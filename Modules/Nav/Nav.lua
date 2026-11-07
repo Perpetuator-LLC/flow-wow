@@ -994,12 +994,18 @@ local function choose(p)
         pinnedKey = nil
     end
 
+    -- Re-plan when something changed, or every 8 s only if you've moved 30+
+    -- yards (standing still, the order can't change). Each plan is ~20-30 ms,
+    -- enough to feel as a stutter, so it shouldn't run for nothing (/flow perf).
     local now = GetTime()
-    if ns.planner and (N.planDirty or not plan or now - planAt > 8) then
+    local moved = not N.planPos or N.planPos.cont ~= p.cont
+        or dist(p.wx, p.wy, N.planPos.wx, N.planPos.wy) > 30
+    if ns.planner and (N.planDirty or not plan or (now - planAt > 8 and moved) or now - planAt > 60) then
         local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, N:Options())
         plan = ok and result or nil
         if not ok then N.lastError = "planner: " .. tostring(result) end
         planAt, N.planDirty = now, false
+        N.planPos = { cont = p.cont, wx = p.wx, wy = p.wy }
         N.planVersion = N.planVersion + 1
     end
     N.plan = plan
@@ -1645,7 +1651,10 @@ ns:OnLoad(function(saved)
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
         acc, collectAcc = acc + dt, collectAcc + dt
-        if collectAcc > 10 then collectAcc = 0; collectSoon(true) end
+        -- Quiet refresh: events (quests, items, level, skills) already
+        -- re-plan at once; this only catches what has no event. Every 30 s:
+        -- each rebuild is ~20-40 ms (/flow perf).
+        if collectAcc > 30 then collectAcc = 0; collectSoon(true) end
         if acc < 0.1 then return end
         acc = 0
         local ok, err = pcall(timedUpdate)
