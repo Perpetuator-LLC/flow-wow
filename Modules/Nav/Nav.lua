@@ -1677,6 +1677,38 @@ function N:InArea(goal, p)
     return false
 end
 
+-- The nearest spot in a stop's area where its thing spawns (a Bundle of
+-- Wood, a Prowler), skipping spots you looted in the last few minutes (the
+-- arrow moves on to the next one). Returns the point and yards, or nil.
+local SPOT_ON = 7                 -- yards: "you're on it" (ring)
+local SPOT_REST = 240             -- seconds a looted spot is skipped (respawn)
+local cleared = {}                -- "wx:wy" -> time looted
+local function spotKey(pt) return math.floor(pt.wx) .. ":" .. math.floor(pt.wy) end
+function N:NearestSpot(goal, p)
+    if not (goal and goal.points and p) then return nil end
+    local now, best, bestD = GetTime(), nil, nil
+    for _, pt in ipairs(goal.points) do
+        if pt.wx and pt.cont == p.cont then
+            local c = cleared[spotKey(pt)]
+            if not (c and now - c < SPOT_REST) then
+                local d = dist(p.wx, p.wy, pt.wx, pt.wy)
+                if not bestD or d < bestD then best, bestD = pt, d end
+            end
+        end
+    end
+    return best, bestD
+end
+-- Looting (a mob, a Bundle of Wood): the spot you're standing at is done for now.
+function N.ClearSpotNear(p, goal)
+    if not (p and goal) then return end
+    local pt, d = N:NearestSpot(goal, p)
+    if pt and d < 12 then cleared[spotKey(pt)] = GetTime() end
+end
+ns:On("LOOT_OPENED", function()
+    local p = N:PlayerPos()
+    if p and current and current.goal then N.ClearSpotNear(p, current.goal) end
+end)
+
 -- A nameplate on screen for one of the stop's mobs / NPCs (goal.npcs): the
 -- one nearest the middle of the screen. Returns { x, y (screen pixels), name }.
 function N:VisibleTarget(goal)
@@ -1806,7 +1838,19 @@ local function update()
     -- nameplate on screen: then the arrow points straight at it.
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
     N.arrived = here
-    if here then
+    -- In the area: the arrow finds the nearest spot where the thing you need
+    -- spawns (Questie knows each Bundle of Wood, each mob spawn), skipping
+    -- spots you've just looted, and shows how far. The ring only when you're
+    -- right on one.
+    local spot, spotD
+    if here and g.area then spot, spotD = N:NearestSpot(g, p) end
+    if here and spot and spotD > SPOT_ON and facing then
+        local sb = bearing(p, spot.wx, spot.wy)
+        frame.arrow:SetArrived(false)
+        if sb then frame.arrow:SetRotation(-(sb + facing)) end
+        frame.arrow:Show()
+        frame.sub:SetText(string.format("Nearest %s: %d yd", g.target or "spot", spotD))
+    elseif here then
         local tgt = N:VisibleTarget(g)
         if tgt then
             local ax, ay = frame:GetCenter()

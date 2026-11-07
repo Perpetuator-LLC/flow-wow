@@ -50,11 +50,18 @@ end
 function G:Compare(link)
     local item = link and self:Describe(link)
     if not item then return nil end
-    if not self:CanUse(item) then return { item = item, canUse = false } end
+    local ok, why = self:CanUse(item)
+    if not ok and why ~= "train" then return { item = item, canUse = false } end
     local scores, notes = self:Score(item)
     local diffs = {}
     for _, role in ipairs(ROLES) do
         diffs[role] = self:RoleDiff(item, role, scores)
+    end
+    if not ok then
+        -- Your class can use it once you train the weapon skill: scored, so
+        -- the route can send you to a weapon master if it'd be an upgrade.
+        return { item = item, canUse = false, needsTraining = true, skill = G.SKILL_NAME[item.subclassID],
+                 subclassID = item.subclassID, scores = scores, diffs = diffs, notes = notes }
     end
     return { item = item, canUse = true, scores = scores, diffs = diffs, notes = notes }
 end
@@ -166,11 +173,56 @@ end
 
 G.ROLES = ROLES
 
+-- Weapon skills: item subclass -> the game's weapon-skill spell (you know it
+-- once trained) and its name. Your class allowing a weapon type isn't enough:
+-- paladins start with maces and learn swords, axes and polearms from a
+-- weapon master ("You do not have the required proficiency" otherwise).
+local SKILL_SPELL = { [0] = 196, [1] = 197, [2] = 264, [3] = 266, [4] = 198, [5] = 199, [6] = 200,
+    [7] = 201, [8] = 202, [10] = 227, [13] = 15590, [15] = 1180, [16] = 2567, [18] = 5011, [19] = 5009 }
+G.SKILL_SPELL = SKILL_SPELL
+G.SKILL_NAME = { [0] = "Axes", [1] = "Two-Handed Axes", [2] = "Bows", [3] = "Guns", [4] = "Maces",
+    [5] = "Two-Handed Maces", [6] = "Polearms", [7] = "Swords", [8] = "Two-Handed Swords", [10] = "Staves",
+    [13] = "Fist Weapons", [15] = "Daggers", [16] = "Thrown", [18] = "Crossbows", [19] = "Wands" }
+
+local function knows(id)
+    if IsPlayerSpell then return IsPlayerSpell(id) end
+    if C_SpellBook and C_SpellBook.IsSpellKnown then return C_SpellBook.IsSpellKnown(id) end
+end
+
+-- Can this client tell which weapon skills you have? Only trusted when it
+-- says you know at least one, and knows the weapon in your hand (a client
+-- that answered "no" to everything would make every weapon look unusable).
+local reliable
+function G:WeaponSkillsKnown()
+    if reliable ~= nil then return reliable end
+    reliable = false
+    if not (IsPlayerSpell or (C_SpellBook and C_SpellBook.IsSpellKnown)) then return reliable end
+    local any = false
+    for _, id in pairs(SKILL_SPELL) do if knows(id) then any = true break end end
+    if not any then return reliable end
+    local mh = GetInventoryItemID and GetInventoryItemID("player", 16)
+    if mh then
+        local get = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+        local _, _, _, _, _, cls, sub = get(mh)
+        if cls == 2 and SKILL_SPELL[sub] and not knows(SKILL_SPELL[sub]) then return reliable end
+    end
+    reliable = true
+    return reliable
+end
+ns:On("SPELLS_CHANGED", function() reliable = nil end)
+ns:On("PLAYER_EQUIPMENT_CHANGED", function() reliable = nil end)
+
+-- true, or false plus why: "class" (your class never can) or "train" (learn
+-- the weapon skill from a weapon master first).
 function G:CanUse(item)
     local d = ns:ClassData()
     if not d then return true end
     local allowed = d.proficiency[item.classID]
-    if allowed and not allowed[item.subclassID] then return false end
+    if allowed and not allowed[item.subclassID] then return false, "class" end
+    if item.classID == 2 and SKILL_SPELL[item.subclassID] and self:WeaponSkillsKnown()
+        and not knows(SKILL_SPELL[item.subclassID]) then
+        return false, "train"
+    end
     return true
 end
 
@@ -260,8 +312,14 @@ local function addToTooltip(tooltip, link)
     local item = G:Describe(link)
     if not item then return end
 
-    if not G:CanUse(item) then
-        tooltip:AddLine("Flow: your class can't use this (sell it)", 1, 0.4, 0.4)
+    local usable, why = G:CanUse(item)
+    if not usable then
+        if why == "train" then
+            tooltip:AddLine(string.format("Flow: you haven't trained %s yet (a weapon master teaches it)",
+                G.SKILL_NAME[item.subclassID] or "this weapon type"), 1, 0.75, 0.3, true)
+        else
+            tooltip:AddLine("Flow: your class can't use this (sell it)", 1, 0.4, 0.4)
+        end
         tooltip:Show()
         return
     end

@@ -337,6 +337,17 @@ reg("notGear", 30, function(i)
     if not i.gear then return { action = "keep", reason = "not gear (materials, food, potions...)" } end
 end)
 
+-- An upgrade once you train its weapon skill (a sword before you've learned
+-- Swords): keep it; the route plans the weapon master.
+reg("needsTraining", 35, function(i)
+    local g = i.gear
+    if not (g and g.needsTraining) then return nil end
+    local main = ns:LevelingRole()
+    if (g.diffs and g.diffs[main] or 0) >= 0.5 then
+        return { action = "keep", reason = "upgrade once you train " .. (g.skill or "its weapon skill") .. " (weapon master)" }
+    end
+end)
+
 -- Upgrade later, or better for another role.
 reg("laterOrOtherRole", 40, function(i)
     local g = i.gear

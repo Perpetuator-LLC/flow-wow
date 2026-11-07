@@ -1004,3 +1004,29 @@ ns:Register("test", "gear: upgrades are things you can use (never a gun for a pa
     for i = 2, #up do t:ok(up[i - 1].diff >= up[i].diff, "best first") end
     t:ok(ns:Get("action", "gear:upgrade") ~= nil, "upgrade step registered")
 end)
+
+ns:Register("test", "weapons: trained skills, not just class rules", function(t)
+    local G = ns.gear
+    -- A gun: paladins can never use one (no training offered).
+    local ok, why = G:CanUse({ classID = 2, subclassID = 3 })
+    local _, class = UnitClass("player")
+    if class == "PALADIN" then
+        t:ok(not ok and why == "class", "paladin + gun: class can't")
+    end
+    -- One-handed maces: every paladin starts with them.
+    if class == "PALADIN" then t:ok(G:CanUse({ classID = 2, subclassID = 4 }), "maces: usable") end
+    -- Weapon masters exist for trainable skills, never for guns on a paladin route.
+    t:ok(#ns.weaponSkills.MastersFor(7) > 0, "someone teaches Swords")
+    t:eq(type(ns.weaponSkills.Wanted()), "table", "wanted skills computed")
+end)
+
+ns:Register("test", "arrow: in the area it points at the nearest spawn spot", function(t)
+    local N = ns.nav
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local goal = { area = true, points = { { cont = 0, wx = 30, wy = 0 }, { cont = 0, wx = 10, wy = 0 } } }
+    local pt, d = N:NearestSpot(goal, p)
+    t:near(d, 10, 0.01, "nearest spot first")
+    N.ClearSpotNear({ cont = 0, wx = 9, wy = 0 }, goal)   -- looted there
+    pt, d = N:NearestSpot(goal, p)
+    t:near(d, 30, 0.01, "a looted spot is skipped: next one")
+end)

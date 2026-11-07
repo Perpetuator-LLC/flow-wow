@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.45
+- Weapons: Flow now checks the weapon skills you've actually trained, not only what your class
+  may use. A sword before you've learned Swords isn't offered as an upgrade (no more "you do
+  not have the required proficiency"); it's kept, its tooltip says so, and if it would be an
+  upgrade the route gets a weapon master stop (Woo Ping in Stormwind, Buliwyf Stonehand in
+  Ironforge...) to learn it. Guns stay "your class can't use this": paladins never can.
+- In a quest's area the arrow now points at the nearest spot where the thing you need spawns
+  ("Nearest Bundle of Wood: 23 yd"), from Questie's spawn data, and moves on to the next spot
+  after you loot one. The ring shows only when you're right on a spot.
+
 ## 0.35.44
 - Fixed: with the Fishing Pole on and no note of your weapons, "put your weapon back" picked by
   item level and chose the Rust-covered Blunderbuss (a gun paladins can't use). It now uses

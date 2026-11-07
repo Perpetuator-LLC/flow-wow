@@ -150,7 +150,7 @@ ns:Register("navGoal", "questie", {
                                 goals[#goals + 1] = {
                                     key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
                                     weight = elite and 1.6 or nil, elite = elite or nil,
-                                    npcs = #targets > 0 and targets or nil, area = true,
+                                    npcs = #targets > 0 and targets or nil, area = true, target = what,
                                     kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                                     text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. ns.ProgressText(obj.text or (verb .. " " .. (what or ""))),
                                     details = (function()
