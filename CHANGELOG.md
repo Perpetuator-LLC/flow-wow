@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.54
+- Fixed: the arrow's right-click menu broke once a waypoint was set (Nearest repair / vendor,
+  Point the arrow here): Forever gives the game's map pin position as a plain table, and Flow
+  called a vector method on it ("Waypoint.lua:20: attempt to call a nil value").
+- The arrow turns with your character again by default (everyone is switched back once). Map
+  style (up = north) is still in the arrow menu, now labelled for what it does: it doesn't
+  turn with you or the camera. No mode can follow the camera: the game doesn't tell add-ons
+  where the camera points.
+
 ## 0.35.53
 - The camera stays where you put it: the game's "Camera Following Style" swung it back behind
   you whenever you moved. Flow switches it to Never once (you asked); it's a suggested setting

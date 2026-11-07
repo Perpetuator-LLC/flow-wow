@@ -78,21 +78,33 @@ local function mapAxes(map)
 end
 
 -- Which way the arrow is turned (ns.db.nav.arrowTurn):
---   "north"     north-up, fixed to the screen like a map (up = north). It
---               only turns as the direction to the stop changes, not when
---               you turn. The default.
---   "character" turns with your character: up = the way you face.
+--   "character" turns with your character: up = the way you face. The
+--               default (and how the arrow always worked).
+--   "north"     map style: up = north, like a compass on a map. It turns only
+--               as the direction to the stop changes: not when you turn, and
+--               not with the camera.
 --   "minimap"   like your minimap: turns with you if the minimap rotates,
---               north-up if it's locked.
--- Add-ons can't read the camera's direction, so "the way you face" is your
--- character, not the camera.
-local TURN_LABEL = { north = "north-up (up on the screen = north)", character = "turns with your character",
+--               map style if it's locked.
+-- Add-ons can't read the camera's direction, only your character's facing,
+-- so no mode can follow the camera as you swing it around. (North-up was the
+-- default in 0.35.51-0.35.53 and read as "the arrow is broken".)
+local TURN_LABEL = { north = "map style, up = north (doesn't turn with you or the camera)",
+                     character = "turns with your character",
                      minimap = "like your minimap (turns with you only if the minimap rotates)" }
 function N.ArrowTurn()
     local t = ns.db.nav.arrowTurn
-    if not TURN_LABEL[t] then t = (ns.db.nav.northUp == false) and "character" or "north" end
+    if not TURN_LABEL[t] then t = "character" end
     return t
 end
+-- Back to "with your character" once for everyone who got north-up as the
+-- default; pick it again from the arrow menu if you want it.
+ns:OnLoad(function(saved)
+    saved.nav = saved.nav or {}
+    if not saved.nav.arrowTurnReset then
+        saved.nav.arrowTurn, saved.nav.northUp = "character", nil
+        saved.nav.arrowTurnReset = true
+    end
+end)
 function N.ArrowFacing()
     local t = N.ArrowTurn()
     if t == "minimap" then t = (GetCVar and GetCVar("rotateMinimap") == "1") and "character" or "north" end
@@ -1654,7 +1666,7 @@ local function buildArrow()
             items[#items + 1] = { sep = true }
             items[#items + 1] = { title = true, text = "Arrow turns" }
             local turn = N.ArrowTurn()
-            items[#items + 1] = { text = "North-up (fixed to the screen)", radio = true, checked = turn == "north",
+            items[#items + 1] = { text = "Map style: up = north (doesn't turn with you)", radio = true, checked = turn == "north",
                 func = function() N:SetArrowTurn("north") end }
             items[#items + 1] = { text = "With my character", radio = true, checked = turn == "character",
                 func = function() N:SetArrowTurn("character") end }

@@ -184,7 +184,7 @@ local function build(parent)
         "A shaded chevron lying on the ground ahead of you. It turns left and right; WoW: Forever gives no heights, so it can't point up or down.",
         function() return ns.db.nav.arrowStyle ~= "flat" end,
         function(on) ns.nav:SetArrowStyle(on and "3d" or "flat") end)
-    _, y = check(f, y, "North-up arrow", "(off = turns with your character; right-click the arrow for \"like my minimap\")",
+    _, y = check(f, y, "Map-style arrow (up = north)", "(off = turns with your character, the default)",
         "The arrow points the way on the screen like a map, up = north: it only turns as the direction to the stop changes. (Add-ons can't read the camera's direction, so the other choice follows your character, not the camera.)",
         function() return ns.nav.ArrowTurn() == "north" end,
         function(on) ns.nav:SetArrowTurn(on and "north" or "character") end)

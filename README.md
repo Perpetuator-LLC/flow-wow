@@ -60,10 +60,10 @@ Flow for WoW is a separate project from Flow Engine.
   there. A "do it here" stop (crafting, a recipe to learn) shows its own icon bouncing in the
   ring.
 - **3D arrow**: a shaded chevron on the ground over a ring of pillars, with a floating sphere
-  when you've arrived (or the flat line arrow: right-click it and untick "3D arrow"). It's
-  **north-up** by default (fixed to the screen like a map); right-click it to have it turn
-  with your character, or like your minimap. The login intro spins the pillars around a gold
-  FLOW with the version underneath (`/flow splash`).
+  when you've arrived (or the flat line arrow: right-click it and untick "3D arrow"). It turns
+  with your character; right-click it for map style (up = north) or like your minimap. (The
+  game doesn't tell add-ons where the camera points, so it can't follow the camera.) The login
+  intro spins the pillars around a gold FLOW with the version underneath (`/flow splash`).
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
 - **Milestones**: class training and your mount always make the route and fit around the
   quests on the way. Flow tells you to start saving for your mount 5 levels early.

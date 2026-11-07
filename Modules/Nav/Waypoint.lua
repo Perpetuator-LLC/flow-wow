@@ -16,9 +16,13 @@ local function blizzard() return C_Map and C_Map.HasUserWaypoint and C_Map.GetUs
 function W:Get()
     if blizzard() and C_Map.HasUserWaypoint() then
         local pt = C_Map.GetUserWaypoint()
-        if pt and pt.position then
-            local x, y = pt.position:GetXY()
-            return { map = pt.uiMapID, x = x, y = y, note = ns.db.nav.waypointNote }
+        local pos = pt and pt.position
+        if pos then
+            -- A vector on most clients; a plain { x, y } table on Forever (calling
+            -- :GetXY on that broke the arrow's menu once a waypoint was set).
+            local x, y
+            if type(pos.GetXY) == "function" then x, y = pos:GetXY() else x, y = pos.x, pos.y end
+            if x and y then return { map = pt.uiMapID, x = x, y = y, note = ns.db.nav.waypointNote } end
         end
     end
     return ns.db.nav.waypoint

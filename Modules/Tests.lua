@@ -1131,8 +1131,9 @@ ns:Register("test", "arrow: north-up, with my character, or like my minimap", fu
     local nav = ns.db.nav
     local saved = { up = nav.northUp, turn = nav.arrowTurn }
     nav.northUp, nav.arrowTurn = nil, nil
-    t:eq(ns.nav.ArrowTurn(), "north", "north-up by default")
-    t:eq(ns.nav.ArrowFacing(), 0, "north-up: fixed to the screen")
+    t:eq(ns.nav.ArrowTurn(), "character", "turns with your character by default")
+    nav.arrowTurn = "north"
+    t:eq(ns.nav.ArrowFacing(), 0, "map style: fixed to the screen")
     nav.arrowTurn = "character"
     local f = ns.nav.ArrowFacing()
     t:ok(f == nil or type(f) == "number", "with my character: its facing")
@@ -1166,4 +1167,12 @@ ns:Register("test", "selling: auto-sell, 12 a visit so buyback can undo it", fun
     t:ok(type(ns.vendor.SellProposed) == "function", "auto-sell step")
     t:ok(ns.db.sell.autoAll ~= nil, "setting saved")
     t:ok(ns:Get("setupItem", "autoAll") ~= nil, "in Options")
+end)
+
+ns:Register("test", "waypoint: the game's map pin reads as a table or a vector", function(t)
+    -- Forever gives the pin's position as a plain { x, y } table: reading it must not error.
+    local ok, w = pcall(ns.waypoint.Get, ns.waypoint)
+    t:ok(ok, "reading your waypoint doesn't error")
+    local okM = pcall(ns.menu.RouteItems, ns.menu)
+    t:ok(okM, "the arrow's menu builds")
 end)
