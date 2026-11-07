@@ -651,7 +651,7 @@ function N:MakeArrow3D(parent)
             p.cap:SetSize(tall and 4 or 3, tall and 3 or 2)
             p.k = k
         end
-        a:Light()
+        a:Light(a.arrived and a.pulse or 1)
     end
     -- Colours of the pillars: faint white while pointing; in the route colour
     -- (pulsing) when arrived or spinning, darker at the back, caps brightest.
@@ -692,7 +692,8 @@ function N:MakeArrow3D(parent)
     a:SetScript("OnUpdate", function(me)
         if me.arrived then
             local now = GetTime()
-            me:Light(0.5 + 0.5 * math.sin(now * 4))
+            me.pulse = 0.5 + 0.5 * math.sin(now * 4)
+            me:Light(me.pulse)
             me:PlaceBall(7 + 1.5 * math.sin(now * 2.4))
             return
         end
