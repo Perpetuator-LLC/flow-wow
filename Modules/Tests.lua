@@ -627,3 +627,22 @@ ns:Register("test", "text: progress reads X -> N", function(t)
     t:eq(ns.ProgressText("Murloc slain: 3 / 7"), "Murloc slain: 3 -> 7", "spaces around the slash")
     t:eq(ns.ProgressText(nil), nil, "nil stays nil")
 end)
+
+ns:Register("test", "skillplan: fishing feeds cooking", function(t)
+    local SP = ns.skillPlan
+    local g = ns:Get("profGuide", "Cooking")
+    local step, fish, id = SP.FishAlternative(g.steps, 2672)
+    t:eq(id, 6291, "wolf meat's stand-in from fishing: Raw Brilliant Smallfish")
+    t:ok(step and step.recipeItem == 6325, "its recipe is bought")
+    t:ok(fish and fish.share > 0, "share of catches")
+    -- Catches still to come: only when Fishing is on the plan.
+    t:eq(SP.PlannedCatch({}), 0, "no Fishing target, no fish")
+    local rank = ns.api.Skill("Fishing")
+    if rank then
+        t:eq(SP.PlannedCatch({ Fishing = { target = rank + 10 } }), 10, "10 points to go: about 10 catches")
+        t:eq(SP.PlannedCatch({ Fishing = { target = rank } }), 0, "at target: none")
+    end
+    -- The fish step is never preferred over meat you'd farm when you have no fish.
+    local crafts = SP._simulate("Cooking", g.steps, 1, 10, {})
+    t:ok(crafts[g.steps[3]] == nil, "no fish in bags: plan doesn't count on cooking fish")
+end)

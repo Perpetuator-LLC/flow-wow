@@ -17,6 +17,7 @@
 --       name, gather = "<Profession>", objects = { objectIDs }, skill = n, yield = per node,
 --       smelt = { from = itemID, n = count, skill = n, spell = "Smelt X" },
 --       drops = { "NPC name", ... },        -- mobs that drop it
+--       fished = true, share = 0.7,         -- caught while levelling Fishing
 --       rate = 0.35,                        -- rough chance per kill (Flow learns yours as you loot)
 --       vendor = true })                     -- bought (Questie lists the vendors)
 
@@ -47,6 +48,10 @@ ns:Register("itemSource", 2589, { name = "Linen Cloth", drops = {
     "Murloc Streamrunner", "Murloc Forager" } })
 ns:Register("itemSource", 2672, { name = "Stringy Wolf Meat", rate = 0.35, drops = { "Young Wolf", "Timber Wolf", "Prowler", "Gray Forest Wolf" } })
 ns:Register("itemSource", 769,  { name = "Chunk of Boar Meat", rate = 0.45, drops = { "Stonetusk Boar", "Rockhide Boar", "Small Crag Boar" } })
+-- Caught while levelling Fishing (share: roughly how many catches are this fish
+-- in starting-zone water). Counts against the meat Cooking would otherwise farm.
+ns:Register("itemSource", 6291, { name = "Raw Brilliant Smallfish", fished = true, share = 0.7 })
+ns:Register("itemSource", 6325, { name = "Recipe: Brilliant Smallfish", vendor = true, price = 40 })
 
 -- Tools.
 -- price: copper, approximate; replaced by the real price once you've seen it at a vendor.
@@ -95,6 +100,9 @@ ns:Register("profGuide", "Cooking", {
     steps = {
         { recipe = "Charred Wolf Meat", item = 2679, learn = 1, yellow = 45, green = 65, grey = 85, mats = { [2672] = 1 }, station = "fire" },
         { recipe = "Roasted Boar Meat", item = 2681, learn = 1, yellow = 45, green = 65, grey = 85, mats = { [769] = 1 }, station = "fire" },
+        -- Fish from your Fishing stops levels Cooking just as well (the recipe is bought).
+        { recipe = "Brilliant Smallfish", item = 6290, learn = 1, yellow = 45, green = 65, grey = 85, mats = { [6291] = 1 },
+          station = "fire", recipeItem = 6325 },
     },
 })
 

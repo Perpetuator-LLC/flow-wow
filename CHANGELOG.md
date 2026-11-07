@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.24
+- Professions chain: when Fishing is on your route, the fish you'll catch count toward
+  Cooking (Brilliant Smallfish levels it like wolf or boar meat), so there's less meat to
+  farm. The recipe (about 40 copper) goes on the route as a stop. The farm stop says how many
+  fewer kills fishing saved you.
+
 ## 0.35.23
 - Progress reads as a path everywhere Flow writes it: "Loot Stringy Wolf Meat 9 -> 66",
   "Slimy Menace: 0 -> 7 Murloc slain".

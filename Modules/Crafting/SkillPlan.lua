@@ -358,6 +358,58 @@ function SP:ToolGoal(prof)
     }, name
 end
 
+-------------------------------------------------------------------------------
+-- Chaining professions: fish you'll catch levelling Fishing cook just as well
+-- as wolf or boar meat, so they count against the meat Cooking would farm.
+-------------------------------------------------------------------------------
+
+local CATCH_PER_POINT = 1   -- low Fishing skill: about one catch per skill point
+
+-- Catches still to come on the way to your Fishing target (0 if Fishing
+-- isn't on the plan).
+function SP.PlannedCatch(targets)
+    local t = targets and targets.Fishing
+    local rank = A.Skill("Fishing")
+    if not (t and rank) or rank >= t.target then return 0 end
+    return math.floor((t.target - rank) * CATCH_PER_POINT)
+end
+
+-- A fished material whose step skills up exactly like the step using `id`.
+-- Returns the step, the fish's source entry and its item ID.
+function SP.FishAlternative(steps, id)
+    local mine
+    for _, s in ipairs(steps or {}) do
+        if s.mats and s.mats[id] then mine = s break end
+    end
+    if not mine then return nil end
+    for _, s in ipairs(steps) do
+        for mid in pairs(s.mats or {}) do
+            local ms = src(mid)
+            if s ~= mine and ms and ms.fished and s.learn == mine.learn and s.yellow == mine.yellow
+                and s.green == mine.green and s.grey == mine.grey then
+                return s, ms, mid
+            end
+        end
+    end
+end
+
+-- "Buy Recipe: X" for a bought recipe you don't have (as far as Flow knows).
+local function recipeStop(prof, s, known)
+    if not s.recipeItem or (known and known[s.recipe]) then return nil end
+    local name = itemName(s.recipeItem)
+    watched[s.recipeItem] = true
+    if count(s.recipeItem) > 0 then
+        return { key = "use:" .. s.recipeItem, kind = "craft", points = { playerPoint() }, anywhere = true,
+                 text = "Learn " .. s.recipe .. ": use the recipe in your bags" }
+    end
+    local pts, _, sellers = vendorPoints(s.recipeItem)
+    return { key = "buy:" .. s.recipeItem, kind = "merchant", points = pts, npcs = sellers,
+             cost = SP.Price(s.recipeItem),
+             text = "Buy " .. name,
+             details = { "So you can cook what you catch (skip it if you already know " .. s.recipe .. ")." },
+             blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil }
+end
+
 local function planProfession(prof, t, out)
     local g = ns:Get("profGuide", prof)
     local rank, max = A.Skill(prof)
@@ -430,7 +482,11 @@ local function planProfession(prof, t, out)
     -- Learn recipes the plan uses that your profession window doesn't list.
     local known = ns.recipes:Known(prof)
     for _, s in ipairs(order) do
-        if known and not known[s.recipe] and s.learn <= rank then
+        if s.recipeItem then
+            -- Bought, not trained (Recipe: Brilliant Smallfish).
+            local r = recipeStop(prof, s, known)
+            if r then add(r) end
+        elseif known and not known[s.recipe] and s.learn <= rank then
             local pts = npcPoints(ns.places:TrainersFor(prof))
             add({ key = "learn:" .. prof .. ":" .. s.recipe, kind = "proftrainer", points = pts, npcs = ns.places:TrainersFor(prof),
                   text = string.format("Learn %s (%s trainer)", s.recipe, prof),
@@ -449,7 +505,8 @@ local function planProfession(prof, t, out)
             local pts, anywhere = stationPoints(s.station), false
             if not pts or #pts == 0 then pts, anywhere = { playerPoint() }, true end
             local blocked = toolMissing and ("needs a " .. toolMissing)
-                or (known and not known[s.recipe] and ("learn " .. s.recipe .. " first"))
+                or (known and not known[s.recipe] and (s.recipeItem and ("buy " .. itemName(s.recipeItem) .. " first")
+                    or ("learn " .. s.recipe .. " first")))
             add({ key = "craft:" .. prof .. ":" .. s.recipe, kind = "craft", points = pts, anywhere = anywhere,
                   weight = 0.5,
                   text = s.recipe:find("^Smelt ") and string.format("%s x%d at a forge", s.recipe, n)
@@ -498,7 +555,25 @@ local function planProfession(prof, t, out)
             nodes[key] = nd
             nd.items[#nd.items + 1] = string.format("%d %s", n, name)
             nd.count = math.max(nd.count, math.ceil(n / (s.yield or 1)))
+        elseif s and s.fished then
+            -- Comes from your Fishing stop; nothing to farm for it.
+            watched[id] = true
         elseif s and s.drops then
+            -- Fish you'll catch levelling Fishing anyway cook just as well:
+            -- they come off the meat to farm (and the recipe goes on the route).
+            local fishStep, fishSrc, fishId = SP.FishAlternative(steps, id)
+            local fromFish = 0
+            if fishStep then
+                fromFish = math.min(n, math.floor(SP.PlannedCatch(SP.lastTargets) * (fishSrc.share or 0.7)))
+                if fromFish > 0 then
+                    watched[fishId] = true
+                    local r = recipeStop(prof, fishStep, known)
+                    if r then add(r) end
+                end
+            end
+            n = n - fromFish
+            SP.lastFromFish = fromFish  -- (for /flow prof plan and tests)
+            if n > 0 then
             -- Other materials that level the same (wolf meat or boar meat): any of them will
             -- do, so their mobs count too.
             local ids = SP.Alternatives(steps, id)
@@ -521,6 +596,10 @@ local function planProfession(prof, t, out)
             if t.optional then
                 table.insert(details, 1, prof .. " isn't needed for a quest: loot these as you quest. No need to stop just for this.")
             end
+            if fromFish > 0 then
+                details[#details + 1] = string.format("%d fewer than without fishing: about %d %s from your Fishing stop cook just as well.",
+                    fromFish, fromFish, itemName(fishId))
+            end
             add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
                   -- Optional (no quest needs it): never a stop of its own; loot the
                   -- mobs your quests and travel bring you to (Nav.lua: alongGoals).
@@ -533,6 +612,7 @@ local function planProfession(prof, t, out)
                   end)(),
                   details = details,
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })
+            end
         elseif s and s.vendor then
             local pts, _, sellers = vendorPoints(id)
             add({ key = "buy:" .. id, kind = "merchant", points = pts, npcs = sellers,
@@ -594,7 +674,9 @@ ns:Register("navGoal", "skillplan", {
         wipe(handled)
         wipe(watched)
         local out = {}
-        for prof, t in pairs(SP:Targets()) do
+        SP.lastTargets = SP:Targets()   -- (fishing feeds cooking: SP.PlannedCatch)
+        SP.lastFromFish = 0
+        for prof, t in pairs(SP.lastTargets) do
             local ok, err = pcall(planProfession, prof, t, out)
             if not ok then ns:Log("skillplan", prof .. ": " .. tostring(err)) end
         end
