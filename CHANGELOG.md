@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.40
+- Fixed: at "Learn Brilliant Smallfish: use the recipe in your bags" the Flow key offered to
+  equip your Fishing Pole (the word "fish" made Flow think it was fishing). Only quest
+  objectives like "catch 5 fish" are guessed from their text now.
+- "Make 32 x Brilliant Smallfish" with the recipe already in your bags now says "use the recipe
+  in your bags first", not "buy" it.
+- Diagnostics: blocked actions carry the Flow version; `/flow api` reads UnitHealthPercent (it
+  may let Flow see how hurt you are).
+
 ## 0.35.39
 - Crafting where you stand ("Make 4 x Roasted Boar Meat" when you carry the meat and no fire is
   known nearby): the Flow key now does all of it: makes a campfire (Basic Campfire), opens

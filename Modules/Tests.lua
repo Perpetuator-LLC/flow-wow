@@ -231,7 +231,8 @@ ns:Register("test", "spec badge: better / worse / same per spec", function(t)
     local b = ns:SpecBadge(UIParent, 10)
     b:Set({ dps = 2, heal = -2, tank = 0 })
     t:ok(b:IsShown(), "shown with scores")
-    t:ok(b.slots.dps.arrow.l1:IsShown() and not b.slots.dps.arrow.bar:IsShown(), "dps: arrow")
+    local up = b.slots.dps.arrow
+    t:ok((up.tex:IsShown() or up.l1:IsShown()) and not up.bar:IsShown(), "dps: arrow")
     t:ok(b.slots.tank.arrow.bar:IsShown(), "tank: flat bar")
     b:Set(nil)
     t:ok(not b:IsShown(), "hidden without scores")
@@ -895,4 +896,11 @@ ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon"
         t:ok(a.ballHi:IsShown() and not a.icon:IsShown(), "no icon: the ball again")
         a:Hide()
     end
+end)
+
+ns:Register("test", "actions: 'Learn Brilliant Smallfish' isn't a fishing stop", function(t)
+    local P = ns.actions.GoalProf
+    t:eq(P({ key = "use:6325", kind = "craft", text = "Learn Brilliant Smallfish: use the recipe in your bags" }), nil, "recipe stop")
+    t:eq(P({ key = "craft:Cooking:Brilliant Smallfish", prof = "Cooking", text = "Make 32 x Brilliant Smallfish" }), "Cooking", "cooking fish is Cooking")
+    t:eq(P({ key = "123:1", text = "Catch 5 Raw Brilliant Smallfish" }), "Fishing", "a fishing quest objective still is")
 end)

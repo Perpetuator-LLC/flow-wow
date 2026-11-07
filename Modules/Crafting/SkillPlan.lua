@@ -570,7 +570,7 @@ local function planProfession(prof, t, out)
             local pts, anywhere = stationPoints(s.station), false
             if not pts or #pts == 0 then pts, anywhere = { playerPoint() }, true end
             local blocked = toolMissing and ("needs a " .. toolMissing)
-                or (known and not known[s.recipe] and (s.recipeItem and ("buy " .. itemName(s.recipeItem) .. " first")
+                or (known and not known[s.recipe] and (s.recipeItem and (count(s.recipeItem) > 0 and "use the recipe in your bags first" or ("buy " .. itemName(s.recipeItem) .. " first"))
                     or ("learn " .. s.recipe .. " first")))
             -- The count is the point: exactly what reaches your target, so
             -- it's highlighted, and the details say why that many.

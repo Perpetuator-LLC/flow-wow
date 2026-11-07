@@ -162,7 +162,9 @@ function X.GoalProf(goal)
     if goal.prof then return goal.prof end
     local p = goal.key and goal.key:match("^skill:(.+)$")
     if p then return p end
-    if goal.kind ~= "merchant" and type(goal.text) == "string"
+    -- Quest objectives only ("Catch 5 Raw Brilliant Smallfish"): Flow's own stops
+    -- say what they are, and "Learn Brilliant Smallfish" isn't fishing.
+    if goal.key and goal.key:find("^%d+:%d+$") and goal.kind ~= "merchant" and type(goal.text) == "string"
         and (goal.text:find("[Ff]ish[^i]") or goal.text:find("[Ff]ish$") or goal.text:find("[Cc]atch ")) then
         return "Fishing"
     end

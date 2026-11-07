@@ -141,7 +141,8 @@ end
 
 local function onBlocked(kind)
     return function(addon, func)
-        local line = string.format("%s: %s blamed for %s (%s)", kind, tostring(addon), tostring(func), context())
+        local line = string.format("%s: %s blamed for %s (%s) [v%s]", kind, tostring(addon), tostring(func), context(),
+            ns.Version and ns.Version() or "?")
         ns:Log("blocked", line)
         local d = db()
         if d then
