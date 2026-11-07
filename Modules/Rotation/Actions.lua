@@ -308,8 +308,8 @@ end
 
 ns:Register("action", "craft:fire", { order = 44, get = function(ctx)
     local g = craftHere(ctx)
-    if not (g and g.station == "fire") or X.FireNear() or professionOpen() then return nil end
-    if not knows("Basic Campfire") or count(4470) == 0 then return nil end   -- no wood: the route has a Simple Wood stop
+    if not (g and g.station == "fire" and g.anywhere) or X.FireNear() or professionOpen() then return nil end
+    if not (ns.skillPlan and ns.skillPlan.CanCampfire()) then return nil end   -- needs Simple Wood and Flint and Tinder
     return { type = "spell", spell = "Basic Campfire", unit = "player", icon = spellIcon("Basic Campfire"),
              label = "Make a campfire" }
 end })
@@ -317,7 +317,7 @@ end })
 ns:Register("action", "craft:open", { order = 46, get = function(ctx)
     local g = craftHere(ctx)
     if not g or professionOpen() or not knows(g.prof) then return nil end
-    if g.station == "fire" and not X.FireNear() then return nil end
+    if g.station == "fire" and g.anywhere and not X.FireNear() then return nil end   -- (at a real fire: open now)
     return { type = "spell", spell = g.prof, unit = "player", icon = spellIcon(g.prof), label = "Open " .. g.prof }
 end })
 

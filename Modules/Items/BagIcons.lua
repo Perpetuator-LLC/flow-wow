@@ -1,10 +1,9 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
---   green arrow (top left)    = equip this now (better for your levelling role)
 --   (o) target (top left)     = your current route stop wants you to use this item
 --   top right                 = gold coin = sell, AH, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
---   bottom row (gear)         = one icon per spec, with an arrow above: up = better
---                               than that spec's gear, down = worse, flat bar = about the same
+--   bottom row (gear)         = one icon per spec, with a mark above: green arrow up = better
+--                               than that spec's gear, red arrow down = worse, grey dash = about the same
 -- The item tooltip says what Flow would do and why.
 -- /flow bags on|off
 
@@ -94,7 +93,9 @@ local function paint(button, bag, slot)
     local v = D:Decide(bag, slot, link)
     if not v then clear(button) return end
     local m = marks(button)
-    m.arrow:SetShown(v.action == "equip")
+    -- (The old top-left "equip now" arrow is gone: the spec marks below say
+    -- better / worse per spec, with your levelling spec brightest.)
+    m.arrow:Hide()
     local id = tonumber(link:match("item:(%d+)"))
     local focus = id and id == ns.bagIcons.FocusItem()
     if focus then
@@ -190,7 +191,7 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Green arrow = equip now, spec icons with arrows = better / worse / same per spec, $ sell, AH auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current stop uses this. $ sell, AH auction house, DE disenchant.")
     end
 end
 

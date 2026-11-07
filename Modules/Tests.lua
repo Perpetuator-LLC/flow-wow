@@ -926,3 +926,23 @@ ns:Register("test", "look: action borders, bag focus, pillars, router header", f
         a:Hide()
     end
 end)
+
+ns:Register("test", "arrow panel: a drawer under the arrow, folds with its tab", function(t)
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(100, 60)
+    ns.nav._makeDrawer(f)
+    t:ok(f.tab ~= nil and f.lip ~= nil, "pull tab and lip")
+    t:ok(not f:IsMovable(), "not draggable: it belongs to the arrow")
+    t:ok(type(f.Fold) == "function", "folds back up")
+    f:Hide()
+end)
+
+ns:Register("test", "cooking: a campfire needs Simple Wood and Flint and Tinder", function(t)
+    local SP, A = ns.skillPlan, ns.api
+    local can = SP.CanCampfire()
+    if A.Count(4470) == 0 or A.Count(4471) == 0 then
+        t:ok(not can, "missing wood or flint: no campfire, cook at a real fire")
+    else
+        t:ok(can == (A.SpellInfo("Basic Campfire") ~= nil), "both in bags: campfire if you know it")
+    end
+end)

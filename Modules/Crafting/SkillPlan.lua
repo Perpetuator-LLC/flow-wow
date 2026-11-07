@@ -151,8 +151,19 @@ local function vendorPoints(itemId)
     return pts, onMap, names
 end
 
+-- Cooking fires: you can make one anywhere (Basic Campfire) only with Simple
+-- Wood AND Flint and Tinder in your bags; otherwise Flow plans the cooking at
+-- a real fire: the cooking trainers cook by one (Tomas in Goldshire's inn).
+local FLINT = 4471
+function SP.CanCampfire()
+    return A.SpellInfo("Basic Campfire") ~= nil and count(SIMPLE_WOOD) > 0 and count(FLINT) > 0
+end
 -- Anvils and forges stand by the blacksmiths; Flow uses those as the spot.
 local function stationPoints(station)
+    if station == "fire" then
+        if SP.CanCampfire() then return nil end   -- make one where you stand
+        return npcPoints(ns.places:TrainersFor("Cooking"))
+    end
     if station == "anvil" or station == "forge" then
         return npcPoints(ns.places:TrainersFor("Blacksmithing"))
     end
@@ -587,19 +598,18 @@ local function planProfession(prof, t, out)
                 details[#details + 1] = string.format("You have materials for %d now; the rest comes after you gather more.", n)
             end
             details[#details + 1] = anywhere and "You have the materials: do it now, wherever you are."
-                or ("At the " .. s.station .. " (by the blacksmith).")
-            -- Cooking with no known fire nearby: make one (Basic Campfire,
-            -- needs Simple Wood). Flow's key does it, then opens Cooking.
-            if anywhere and s.station == "fire" then
-                details[#details + 1] = "Needs a cooking fire: Flow's key makes a campfire (Basic Campfire, uses 1 Simple Wood), opens Cooking, then makes them."
-                watched[SIMPLE_WOOD] = true
-                if count(SIMPLE_WOOD) == 0 then
-                    local wpts, _, sellers = vendorPoints(SIMPLE_WOOD)
-                    if #wpts > 0 then
-                        add({ key = "buy:" .. SIMPLE_WOOD, kind = "merchant", points = wpts, npcs = sellers,
-                              cost = SP.Price(SIMPLE_WOOD), text = "Buy Simple Wood (for a campfire)",
-                              details = { "Basic Campfire needs 1 Simple Wood; it's how you cook away from a fire." } })
-                    end
+                or (s.station == "fire" and "At the fire by the cooking trainer (a campfire needs Simple Wood and Flint and Tinder)."
+                    or ("At the " .. s.station .. " (by the blacksmith)."))
+            -- Cooking: where you stand only if you can make a campfire (Simple
+            -- Wood and Flint and Tinder); then Flow's key makes it, opens
+            -- Cooking and makes them. Otherwise it's planned at a real fire
+            -- (stationPoints), and with no known fire it waits (blocked).
+            if s.station == "fire" then
+                watched[SIMPLE_WOOD] = true; watched[FLINT] = true
+                if anywhere and SP.CanCampfire() then
+                    details[#details + 1] = "No fire nearby: Flow's key makes a campfire (Basic Campfire, uses 1 Simple Wood), opens Cooking, then makes them."
+                elseif anywhere then
+                    blocked = blocked or "needs a cooking fire (none known nearby; a campfire needs Simple Wood and Flint and Tinder)"
                 end
             end
             add({ key = "craft:" .. prof .. ":" .. s.recipe, kind = "craft", points = pts, anywhere = anywhere,

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.42
+- Cooking: Flow plans cooking where you stand only if you can make a campfire (you need Simple
+  Wood AND Flint and Tinder). Otherwise it plans it at a real fire: by the cooking trainer
+  (Goldshire's inn), where the Flow key opens Cooking and makes them. No known fire: the stop
+  waits, saying why.
+- Bags: the old green "equip now" arrow in the top-left corner is gone. The per-spec marks say
+  it (green up = better for that spec, your levelling spec brightest).
+- The arrow's panel is a drawer: it slides down out of the arrow, joined to it, with a ^ tab at
+  the bottom to fold it back up (or click the arrow). It no longer moves. The stop card from the
+  Flow Tracker and Router is still its own window with an X.
+
 ## 0.35.41
 - The arrow's pillars stay small when you arrive (only a little taller than while pointing),
   and bounce up quickly as the change happens.

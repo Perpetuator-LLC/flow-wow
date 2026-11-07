@@ -1347,11 +1347,70 @@ local function fillHero(p, g, distText)
     return task
 end
 
+-- The arrow's panel is a drawer: it slides down out of the arrow (a lip joins
+-- it to the arrow's text), and a pull tab at the bottom with a ^ folds it back
+-- up. It isn't moved anywhere else: it belongs to the arrow. (The stop card,
+-- shared by the Flow Tracker and Router, is a separate window with an X.)
+local function makeDrawer(f)
+    local BG = { 0.04, 0.04, 0.07, 0.92 }
+    f.lip = f:CreateTexture(nil, "BACKGROUND")
+    f.lip:SetSize(90, 5)
+    f.lip:SetPoint("BOTTOM", f, "TOP", 0, 0)
+    f.lip:SetColorTexture(BG[1], BG[2], BG[3], BG[4])
+    local tab = CreateFrame("Button", nil, f)
+    tab:SetSize(64, 14)
+    tab:SetPoint("TOP", f, "BOTTOM", 0, 0)
+    tab.bg = tab:CreateTexture(nil, "BACKGROUND"); tab.bg:SetAllPoints()
+    tab.bg:SetColorTexture(BG[1], BG[2], BG[3], BG[4])
+    tab.arms = { tab:CreateLine(nil, "ARTWORK"), tab:CreateLine(nil, "ARTWORK") }
+    for k, l in ipairs(tab.arms) do
+        l:SetThickness(2)
+        l:SetStartPoint("CENTER", tab, (k == 1 and -1 or 1) * 6, -2)
+        l:SetEndPoint("CENTER", tab, 0, 3)
+        l:SetColorTexture(1, 1, 1, 0.75)
+    end
+    tab:SetScript("OnEnter", function(self)
+        for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 1) end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Fold the drawer back up", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    tab:SetScript("OnLeave", function(self)
+        for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 0.75) end
+        GameTooltip:Hide()
+    end)
+    tab:SetScript("OnClick", function() f:Fold() end)
+    f.tab = tab
+    -- Slide: grow down from the top edge when it opens, shrink back up when it folds.
+    local function slide(from, to, done)
+        local g = f:CreateAnimationGroup()
+        local a = g:CreateAnimation("Scale")
+        if a.SetScaleFrom then a:SetScaleFrom(1, from); a:SetScaleTo(1, to)
+        else a:SetFromScale(1, from); a:SetToScale(1, to) end
+        a:SetOrigin("TOP", 0, 0)
+        a:SetDuration(0.14)
+        a:SetSmoothing(from < to and "OUT" or "IN")
+        if done then g:SetScript("OnFinished", done) end
+        return g
+    end
+    f.openAnim = slide(0.05, 1)
+    f.foldAnim = slide(1, 0.05, function() f:Hide() end)
+    f:HookScript("OnShow", function(self) self.foldAnim:Stop(); self.openAnim:Play() end)
+    function f:Fold()
+        if not self:IsShown() or self.foldAnim:IsPlaying() then return end
+        self.openAnim:Stop(); self.foldAnim:Play()
+    end
+    f:SetScript("OnMouseUp", function(self) self:Fold() end)   -- a click on it folds it too
+end
+
+N._makeDrawer = makeDrawer  -- (tests)
+
 local function showPanel()
     if not current then return end
     if not panel then
         panel = buildPanel()
-        N.Draggable(panel, "panelPoint", "under the arrow")
+        makeDrawer(panel)
+        ns.db.nav.panelPoint = nil   -- (it used to be draggable)
     end
     local g = current.goal
     local h = panel.hero
@@ -1389,16 +1448,11 @@ local function showPanel()
         for _, a in ipairs(N.alongGoals) do lines[#lines + 1] = "  |cffcccccc" .. (a.text or a.title or "?") .. "|r" end
     end
     lines[#lines + 1] = " "
-    lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click this panel to close.|r"
+    lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click the arrow or the ^ tab to fold this away.|r"
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
     panel:ClearAllPoints()
-    local saved = ns.db.nav.panelPoint
-    if saved then
-        panel:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])   -- where you dragged it
-    else
-        panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- below the text, so hovering the text doesn't land on it
-    end
+    panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- the drawer, right under the arrow's text
     panel:Show()
 end
 
@@ -1549,7 +1603,7 @@ local function buildArrow()
                 func = function() N:SetArrowStyle(ns.db.nav.arrowStyle == "flat" and "3d" or "flat") end }
             ns.menu:Open(items)
         elseif panel and panel:IsShown() and not panel.byHover then
-            panel:Hide()
+            panel:Fold()
         else
             -- A click keeps it open (a hover-opened panel becomes pinned).
             showPanel()
@@ -1600,7 +1654,7 @@ local function buildArrow()
     end
     local function leave()
         GameTooltip:Hide()
-        if panel and panel.byHover then panel:Hide(); panel.byHover = false end
+        if panel and panel.byHover then panel:Fold(); panel.byHover = false end
     end
     f:SetScript("OnEnter", function() enter(f) end)
     f:SetScript("OnLeave", leave)
