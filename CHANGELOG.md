@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.26
+- Fixed: the Flow key stopped fishing after the first fishing quest. The next Fishing stop
+  (the "skill behind your level" one) didn't say it was for Fishing, so the key didn't
+  know. Now any fishing stop counts, including quest objectives like "catch 5 fish". Fishing
+  also continues wherever you have the pole on and are casting, until you walk away (then the
+  key puts your weapons back).
+- New: a "Buy a Shiny Bauble (lure)" stop with the Fishing Pole, when you carry no lure
+  (optional, planned when the vendor is on the way).
+- Options > AddOns > Flow: turn off the login title card, and turn the key's fishing and
+  gathering steps on or off.
+- The title card now sits lower, below the game's zone name.
+
 ## 0.35.25
 - `/flow perf`: how much CPU and memory Flow uses, per part (arrow, rotation, route planning,
   world map, tracker), and any single update slow enough to feel as a hitch. Saved with the

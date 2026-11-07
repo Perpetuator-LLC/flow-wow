@@ -58,6 +58,7 @@ ns:Register("itemSource", 6325, { name = "Recipe: Brilliant Smallfish", vendor =
 ns:Register("itemSource", 5956, { name = "Blacksmith Hammer", vendor = true, price = 18 })
 ns:Register("itemSource", 2901, { name = "Mining Pick", vendor = true, price = 16 })
 ns:Register("itemSource", 6256, { name = "Fishing Pole", vendor = true, price = 23 })
+ns:Register("itemSource", 6529, { name = "Shiny Bauble", vendor = true, price = 100 })   -- lure: +25 Fishing
 
 -------------------------------------------------------------------------------
 -- Professions
@@ -106,6 +107,7 @@ ns:Register("profGuide", "Cooking", {
     },
 })
 
-ns:Register("profGuide", "Fishing", { kind = "gather", spots = true, tool = 6256,
-    tip = "Tip: a Shiny Bauble (+25 Fishing for 10 minutes, from a fishing supplies vendor) catches more while your skill is low." })
+ns:Register("profGuide", "Fishing", { kind = "gather", spots = true, tool = 6256, lure = 6529,
+    tip = "Tip: a Shiny Bauble (+25 Fishing for 10 minutes) catches more while your skill is low. Flow's key puts it on your pole." })
+
 ns:Register("profGuide", "Herbalism", { kind = "gather", spots = true })

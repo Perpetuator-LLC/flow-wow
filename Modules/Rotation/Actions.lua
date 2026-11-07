@@ -144,9 +144,39 @@ local function near(goal, p, yards)
     return false
 end
 
+-- Which profession a stop is for. Stops from the skill planner say so
+-- (goal.prof); others are recognised by their key ("skill:Fishing") or, for
+-- quest stops like "catch 5 fish", by their text.
+function X.GoalProf(goal)
+    if not goal then return nil end
+    if goal.prof then return goal.prof end
+    local p = goal.key and goal.key:match("^skill:(.+)$")
+    if p then return p end
+    if goal.kind ~= "merchant" and type(goal.text) == "string"
+        and (goal.text:find("[Ff]ish[^i]") or goal.text:find("[Ff]ish$") or goal.text:find("[Cc]atch ")) then
+        return "Fishing"
+    end
+end
+
+-- Where you last fished. Fishing goes on wherever the pole is on and you've
+-- been casting, not just at Flow's own stop (any lake, any fishing quest),
+-- until you walk away from it.
+local FISH_NEAR, FISH_LEFT = 120, 60
+local function dist(p, at)
+    if not (p and at and p.cont == at.cont and ns.nav) then return math.huge end
+    local e, s = ns.nav:Offset(p, at.wx, at.wy)
+    return e and math.sqrt(e * e + s * s) or math.huge
+end
+local function markFishingSpot()
+    local p = ns.nav and ns.nav:PlayerPos()
+    if p then ns.db.actions.fishedAt = { cont = p.cont, wx = p.wx, wy = p.wy } end
+end
+X._markFishingSpot = markFishingSpot  -- (tests)
+
 -- Weapons you had before Flow put the pole on (to put back afterwards).
 local function saved() return ns.db.actions.weapons end
 local function saveWeapons()
+    markFishingSpot()
     local mh, oh = equipped(MAIN), equipped(OFF)
     if X.IsPole(mh) then return end
     ns.db.actions.weapons = { main = mh, off = oh }
@@ -156,13 +186,26 @@ function X:Context()
     local p = ns.nav and ns.nav:PlayerPos()
     local choice = ns.nav and ns.nav.current
     local goal = choice and choice.goal
+    local prof = X.GoalProf(goal)
+    local pole = X.IsPole(equipped(MAIN))
+    local atFish = prof == "Fishing" and near(goal, p, FISH_NEAR) or false
+    local spot = ns.db.actions.fishedAt
     return {
-        p = p, goal = goal,
+        p = p, goal = goal, prof = prof, pole = pole,
         at = goal and near(goal, p, NEAR) or false,
-        prof = goal and goal.prof,
-        pole = X.IsPole(equipped(MAIN)),
+        atFish = atFish,
+        -- Fishing now: at a fishing stop, or the pole is on and you're still
+        -- where you put it on / last cast (or haven't said where yet).
+        fishing = atFish or (pole and (not spot or dist(p, spot) < FISH_LEFT)) or false,
     }
 end
+
+-- Every cast marks the spot (so moving along the shore keeps you fishing).
+ns:On("UNIT_SPELLCAST_CHANNEL_START", function(unit, _, spellID)
+    if unit ~= "player" then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if name == "Fishing" then markFishingSpot() end
+end)
 
 -------------------------------------------------------------------------------
 -- The steps
@@ -170,7 +213,7 @@ end
 
 -- Fishing: equip the pole.
 ns:Register("action", "fish:equip", { order = 10, get = function(ctx)
-    if not (ctx.at and ctx.prof == "Fishing") or ctx.pole then return nil end
+    if not ctx.atFish or ctx.pole then return nil end
     for _, id in ipairs(bagItems()) do
         if X.IsPole(id) then
             return { type = "item", item = "item:" .. id, icon = itemIcon(id), label = "Equip your Fishing Pole",
@@ -181,7 +224,7 @@ end })
 
 -- Fishing: a lure on the pole (best one you carry that you can use).
 ns:Register("action", "fish:lure", { order = 20, get = function(ctx)
-    if not (ctx.at and ctx.prof == "Fishing" and ctx.pole) or lured() or channeling("Fishing") then return nil end
+    if not (ctx.fishing and ctx.pole) or lured() or channeling("Fishing") then return nil end
     for _, id in ipairs(X.LURES) do
         if count(id) > 0 and usable(id) then
             local name = (GetItemInfo and GetItemInfo(id)) or "a lure"
@@ -200,7 +243,7 @@ end })
 
 -- Fishing: cast.
 ns:Register("action", "fish:cast", { order = 40, get = function(ctx)
-    if not (ctx.at and ctx.prof == "Fishing" and ctx.pole) or channeling("Fishing") then return nil end
+    if not (ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
     if not knows("Fishing") then return nil end
     return { type = "spell", spell = "Fishing", icon = spellIcon("Fishing"), label = "Cast your line" }
 end })
@@ -208,12 +251,12 @@ end })
 -- Mining / Herbalism: tracking on, then the key gathers (Interact).
 local FIND = { Mining = "Find Minerals", Herbalism = "Find Herbs" }
 ns:Register("action", "gather:find", { order = 50, get = function(ctx)
-    local spell = ctx.goal and ctx.goal.kind == "gather" and FIND[ctx.prof]
+    local spell = ctx.goal and ctx.goal.kind ~= "merchant" and FIND[ctx.prof]
     if not spell or not knows(spell) or tracking(spell) ~= false then return nil end
     return { type = "spell", spell = spell, icon = spellIcon(spell), label = "Turn on " .. spell }
 end })
 ns:Register("action", "gather:interact", { order = 60, get = function(ctx)
-    if not (ctx.at and ctx.goal.kind == "gather" and X.CanInteract()) then return nil end
+    if not (ctx.at and FIND[ctx.prof] and ctx.goal.kind ~= "merchant" and X.CanInteract()) then return nil end
     local verb = ctx.prof == "Mining" and "Mine" or "Gather"
     return { type = "interact", icon = spellIcon(ctx.prof == "Mining" and "Mining" or "Herb Gathering")
                  or "Interface\\Icons\\Trade_Mining",
@@ -223,7 +266,7 @@ end })
 -- Left the fishing spot with the pole still on: weapons back, main hand first.
 ns:Register("action", "fish:restore", { order = 70, get = function(ctx)
     local w = saved()
-    if not w or (ctx.at and ctx.prof == "Fishing") or channeling("Fishing") then return nil end
+    if not w or ctx.fishing or channeling("Fishing") then return nil end
     local mh, oh = equipped(MAIN), equipped(OFF)
     if w.main and mh ~= w.main and count(w.main) > 0 then
         return { type = "item", item = "item:" .. w.main, icon = itemIcon(w.main), label = "Put your weapon back" }
@@ -232,7 +275,7 @@ ns:Register("action", "fish:restore", { order = 70, get = function(ctx)
         return { type = "item", item = "item:" .. w.off, icon = itemIcon(w.off), label = "Put your off-hand back" }
     end
     -- All back (or gone from your bags): done.
-    if not X.IsPole(mh) then ns.db.actions.weapons = nil end
+    if not X.IsPole(mh) then ns.db.actions.weapons = nil; ns.db.actions.fishedAt = nil end
 end })
 
 -------------------------------------------------------------------------------
@@ -274,7 +317,8 @@ ns.commands.action = function(arg)
     local ctx = X:Context()
     local s = X:Current()
     ns:Print(string.format("Flow Action now: %s", s and (s.label .. " [" .. s.key .. "]") or "nothing"))
-    print(string.format("  stop %s (%s), at it: %s, pole on: %s, interact key reaches objects: %s",
-        tostring(ctx.goal and ctx.goal.key), tostring(ctx.prof), tostring(ctx.at), tostring(ctx.pole), tostring(X.CanInteract())))
+    print(string.format("  stop %s (%s), at it: %s, fishing here: %s, pole on: %s, interact key reaches objects: %s",
+        tostring(ctx.goal and ctx.goal.key), tostring(ctx.prof), tostring(ctx.at), tostring(ctx.fishing), tostring(ctx.pole), tostring(X.CanInteract())))
+
     print("  /flow action on|off")
 end

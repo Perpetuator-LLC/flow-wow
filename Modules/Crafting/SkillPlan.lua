@@ -358,6 +358,28 @@ function SP:ToolGoal(prof)
     }, name
 end
 
+-- A lure for a profession that uses one (Fishing: guide `lure`, the Shiny
+-- Bauble), when you carry none. Optional and cheap: planned when its vendor
+-- is roughly on the way (often the same one that sells the pole).
+function SP:LureGoal(prof)
+    local g = ns:Get("profGuide", prof)
+    if not (g and g.lure) then return nil end
+    watched[g.lure] = true
+    for _, id in ipairs(ns.actions and ns.actions.LURES or { g.lure }) do
+        watched[id] = true
+        if count(id) > 0 then return nil end
+    end
+    local name = itemName(g.lure)
+    local pts, _, sellers = vendorPoints(g.lure)
+    if #pts == 0 then return nil end   -- nobody known sells it: just the tip
+    return {
+        key = "buy:" .. g.lure, kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(g.lure),
+        title = prof, text = "Buy a " .. name .. " (lure)", optional = true, weight = 1.2,
+        details = { g.tip or ("Catches more while your " .. prof .. " skill is low."),
+                    "Flow's key puts it on your pole when you're fishing." },
+    }
+end
+
 -------------------------------------------------------------------------------
 -- Chaining professions: fish you'll catch levelling Fishing cook just as well
 -- as wolf or boar meat, so they count against the meat Cooking would farm.
@@ -458,6 +480,8 @@ local function planProfession(prof, t, out)
         end
         local tool, missing = SP:ToolGoal(prof)
         if tool then add(tool) end
+        local lure = SP:LureGoal(prof)
+        if lure then add(lure) end
         add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
               text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target),
               details = g.tip and { g.tip } or nil,

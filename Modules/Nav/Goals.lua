@@ -285,13 +285,19 @@ ns:Register("navGoal", "errands", {
                             tool.optional, tool.weight = true, 1.2
                             out[#out + 1] = tool
                         end
+                        -- A lure too (Shiny Bauble), from the same kind of vendor.
+                        local lure = ns.skillPlan and ns.skillPlan.LureGoal and ns.skillPlan:LureGoal(p.name)
+                        if lure and not toolAdded[lure.key] then
+                            toolAdded[lure.key] = true
+                            out[#out + 1] = lure
+                        end
                         local guide = ns:Get("profGuide", p.name)
                         local details = { string.format("%s is behind your level: %d now, about %d is right for level %d.",
                                 p.name, rank, target, UnitLevel("player")),
                                 "Optional: only planned when it's roughly on the way." }
                         if guide and guide.tip then details[#details + 1] = guide.tip end
                         out[#out + 1] = {
-                            key = "skill:" .. p.name, optional = true, weight = 1.5, points = points,
+                            key = "skill:" .. p.name, prof = p.name, optional = true, weight = 1.5, points = points,
                             title = spot.text, text = string.format("%s (%s %d, aim for %d)", spot.text, p.name, rank, target),
                             details = details,
                             blockedBy = missing and ("needs a " .. missing) or nil,

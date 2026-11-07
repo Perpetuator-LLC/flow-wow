@@ -659,3 +659,26 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     t:ok(#P:Report() >= 1, "report has a summary line")
     t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
 end)
+
+ns:Register("test", "actions: any fishing stop counts, not just the quest's", function(t)
+    local P = ns.actions.GoalProf
+    t:eq(P({ key = "skill:Fishing", text = "Fish at the lake (Fishing 20, aim for 58)" }), "Fishing", "skill errand (no prof field)")
+    t:eq(P({ key = "skill:Fishing", prof = "Fishing", text = "Fish: 1 -> 20" }), "Fishing", "skill planner stop")
+    t:eq(P({ key = "123:1", kind = "collect", text = "Catch 5 Raw Brilliant Smallfish" }), "Fishing", "fishing quest objective")
+    t:eq(P({ key = "buy:6256", kind = "merchant", text = "Buy a Fishing Pole" }), nil, "buying the pole isn't fishing")
+    t:eq(P({ key = "gather:Copper Vein", prof = "Mining" }), "Mining", "mining stop")
+    t:eq(P({ key = "99128:1", text = "Slimy Menace: 0 -> 7 Murloc slain" }), nil, "a kill quest isn't fishing")
+end)
+
+ns:Register("test", "skillplan: fishing suggests a lure", function(t)
+    local g = ns:Get("profGuide", "Fishing")
+    t:eq(g.lure, 6529, "Shiny Bauble is Fishing's lure")
+    local stop = ns.skillPlan:LureGoal("Fishing")
+    if stop then
+        t:eq(stop.key, "buy:6529", "buy stop for the bauble")
+        t:ok(stop.optional, "optional: only when it's on the way")
+    else
+        t:ok(true, "no stop: you carry a lure, or no known vendor")
+    end
+    t:eq(ns.skillPlan:LureGoal("Mining"), nil, "no lure for Mining")
+end)

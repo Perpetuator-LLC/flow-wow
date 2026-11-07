@@ -191,6 +191,14 @@ local function build(parent)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)
+    _, y = check(f, y, "Flow title card when you log in", "(/flow splash replays it)",
+        "The short gold \"F L O W\" card after logging in or /reload.",
+        function() return ns.db.splash.enabled ~= false end,
+        function(on) ns.db.splash.enabled = on end)
+    _, y = check(f, y, "Flow key does fishing and gathering steps", "(/flow action)",
+        "Out of combat at a fishing or gathering stop, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
+        function() return ns.db.actions.enabled ~= false end,
+        function(on) ns.db.actions.enabled = on end)
     y = y - 10
 
     -- Suggested WoW settings (Setup.lua rows)

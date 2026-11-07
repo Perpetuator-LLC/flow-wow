@@ -56,7 +56,8 @@ end
 local function build()
     local f = CreateFrame("Frame", "FlowSplash", UIParent)
     f:SetSize(520, 130)
-    f:SetPoint("TOP", UIParent, "TOP", 0, -150)
+    -- Below the game's own zone name text, which appears near the top on login.
+    f:SetPoint("TOP", UIParent, "TOP", 0, -260)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
 
