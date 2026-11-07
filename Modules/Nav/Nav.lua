@@ -487,6 +487,184 @@ function N:MakeHudArrow(parent)
     return a
 end
 
+-------------------------------------------------------------------------------
+-- 3D arrow (the default look; /flow nav arrow flat for the line arrow).
+-- A thick chevron lying on the ground in front of you, seen from above and
+-- behind like the game camera: it tilts away towards the horizon, its far
+-- end is smaller (perspective), it has a lit top, darker sides and a soft
+-- shadow, and it floats with a slight bob. Built from lines only:
+--   * the slab is a stack of slices, darker at the bottom (the sides),
+--   * each slice is filled with nested outlines,
+--   * the top slice is shaded per edge by a fixed light (top-left).
+-- Looks only: it turns left and right like the flat arrow. Forever gives no
+-- heights, so it can't point up or down.
+-------------------------------------------------------------------------------
+
+local TILT = math.rad(52)                    -- how far the ground leans away from you
+local COS_T, SIN_T = math.cos(TILT), math.sin(TILT)
+local DEPTH = 150                            -- perspective strength (bigger = flatter)
+local SLICES, FILL = 5, 7                    -- slab thickness (slices), fill density of the top
+local THICK = 1.4                            -- pixels between slices
+local LIGHT = { -0.6, 0.8 }                  -- light from the top-left of the screen
+local CHEVRON3D = { { 0, 26 }, { -18, -16 }, { 0, -6 }, { 18, -16 } }
+
+-- A ground point (x right, z forward) turned by `angle`, on screen. Pure
+-- maths, so it can be tested: returns screen x, y and the perspective scale.
+function N.Project3D(x, z, angle)
+    local c, s = math.cos(angle), math.sin(angle)
+    local gx, gz = x * c - z * s, x * s + z * c
+    local k = DEPTH / (DEPTH + gz * SIN_T)
+    return gx * k, gz * COS_T * k, k
+end
+
+function N:MakeArrow3D(parent)
+    local a = CreateFrame("Frame", nil, parent)
+    a:SetSize(64, 64)
+    a:SetPoint("CENTER")
+    a.lines, a.n = {}, 0
+    local function line(layer, thick)
+        a.n = a.n + 1
+        local l = a.lines[a.n]
+        if not l then
+            l = a:CreateLine(nil, layer)
+            a.lines[a.n] = l
+        end
+        l:SetThickness(thick)
+        l:Show()
+        return l
+    end
+    -- Ring of dots like the flat arrow, flattened onto the ground; lights up
+    -- when you arrive.
+    a.ring = {}
+    for i = 1, RING_DOTS do
+        local d = a:CreateTexture(nil, "BACKGROUND")
+        d:SetSize(2, 2)
+        d:SetColorTexture(1, 1, 1, 0.22)
+        a.ring[i] = d
+    end
+    a.center = a:CreateTexture(nil, "OVERLAY")
+    a.center:SetSize(10, 6)
+    a.center:SetPoint("CENTER")
+    a.center:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    a.center:Hide()
+
+    a.angle, a.r, a.g, a.b, a.bob = 0, 1, 0.62, 0, 0
+    local function outline(pts, dx, dy, layer, thick, r, g, b, alpha, shade)
+        for i = 1, #pts do
+            local p1, p2 = pts[i], pts[i % #pts + 1]
+            local l = line(layer, thick)
+            l:SetStartPoint("CENTER", a, p1[1] + dx, p1[2] + dy)
+            l:SetEndPoint("CENTER", a, p2[1] + dx, p2[2] + dy)
+            local m = 1
+            if shade then
+                -- Edge facing the light: brighter; facing away: darker.
+                local ex, ey = p2[1] - p1[1], p2[2] - p1[2]
+                local len = math.sqrt(ex * ex + ey * ey)
+                if len > 0 then m = 0.8 + 0.35 * ((ey * LIGHT[1] - ex * LIGHT[2]) / len) end
+            end
+            l:SetColorTexture(math.min(1, r * m), math.min(1, g * m), math.min(1, b * m), alpha)
+        end
+    end
+    local function draw()
+        a.n = 0
+        local pts, cx, cy = {}, 0, 0
+        for i, p in ipairs(CHEVRON3D) do
+            local x, y = N.Project3D(p[1], p[2], a.angle)
+            pts[i] = { x, y }
+            cx, cy = cx + x / #CHEVRON3D, cy + y / #CHEVRON3D
+        end
+        local function shrink(f)
+            local out = {}
+            for i, p in ipairs(pts) do out[i] = { cx + (p[1] - cx) * f, cy + (p[2] - cy) * f } end
+            return out
+        end
+        if not a.arrived then
+            -- Shadow on the ground: soft, offset down and right.
+            outline(pts, 3, -5, "BACKGROUND", 7, 0, 0, 0, 0.22)
+            outline(shrink(0.5), 3, -5, "BACKGROUND", 7, 0, 0, 0, 0.22)
+            -- The slab: slices from the bottom (dark sides) up.
+            local lift = 4 + a.bob
+            for sl = 0, SLICES - 1 do
+                local top = (sl == SLICES - 1)
+                local m = top and 1 or (0.35 + 0.35 * sl / (SLICES - 1))
+                local dy = lift + sl * THICK
+                for f = 1, (top and FILL or 1) do   -- lower slices: outline only (the sides)
+                    local scale = 1 - (f - 1) / FILL
+                    outline(scale == 1 and pts or shrink(scale), 0, dy, top and "ARTWORK" or "BORDER",
+                        top and 2.6 or 2.5, a.r * m, a.g * m, a.b * m, 1, top and f == 1)
+                end
+            end
+            -- Ridge along the middle of the top: a white highlight.
+            local ridge = line("OVERLAY", 1.2)
+            local dy = lift + (SLICES - 1) * THICK
+            ridge:SetStartPoint("CENTER", a, pts[1][1], pts[1][2] + dy)
+            ridge:SetEndPoint("CENTER", a, pts[3][1], pts[3][2] + dy)
+            ridge:SetColorTexture(1, 1, 1, 0.75)
+        end
+        for i = a.n + 1, #a.lines do a.lines[i]:Hide() end
+        -- The ring lies on the ground too: an ellipse.
+        for i, d in ipairs(a.ring) do
+            local t = (i - 1) / RING_DOTS * 2 * math.pi
+            local x, y = N.Project3D(RING_R * math.sin(t), RING_R * math.cos(t), 0)
+            d:ClearAllPoints()
+            d:SetPoint("CENTER", a, "CENTER", x, y)
+        end
+    end
+    function a:SetRotation(r)
+        r = r or 0
+        if math.abs(r - self.angle) < 0.003 then return end
+        self.angle = r; draw()
+    end
+    function a:SetVertexColor(r, g, b)
+        if self.r == r and self.g == g and self.b == b then return end
+        self.r, self.g, self.b = r, g, b; draw()
+    end
+    -- Gentle floating; the ring pulses instead once you've arrived.
+    a:SetScript("OnUpdate", function(me)
+        if me.arrived then
+            local pulse = 0.6 + 0.4 * math.sin(GetTime() * 4)
+            for _, d in ipairs(me.ring) do d:SetColorTexture(me.r, me.g, me.b, pulse) end
+            me.center:SetVertexColor(me.r, me.g, me.b, 0.5 + 0.5 * pulse)
+            return
+        end
+        local bob = math.floor(1.5 * math.sin(GetTime() * 2.4) * 4 + 0.5) / 4   -- quarter pixels
+        if bob ~= me.bob then me.bob = bob; draw() end
+    end)
+    function a:SetArrived(on)
+        on = on and true or false
+        if self.arrived == on then return end
+        self.arrived = on
+        self.center:SetShown(on)
+        for _, d in ipairs(self.ring) do
+            d:SetSize(on and 4 or 2, on and 3 or 2)
+            if not on then d:SetColorTexture(1, 1, 1, 0.22) end
+        end
+        draw()
+    end
+    draw()
+    return a
+end
+
+-- The arrow in the style you chose: "3d" (default) or "flat".
+function N:MakeArrow(parent)
+    if ns.db.nav.arrowStyle == "flat" then return self:MakeHudArrow(parent) end
+    return self:MakeArrow3D(parent)
+end
+
+-- Switch styles on the fly (arrow menu, /flow nav arrow).
+function N:SetArrowStyle(style)
+    ns.db.nav.arrowStyle = (style == "flat") and "flat" or "3d"
+    local frame = N.arrowFrame
+    if frame and frame.arrow then
+        local old = frame.arrow
+        old:Hide(); old:SetScript("OnUpdate", nil)
+        frame.arrow = self:MakeArrow(frame)
+        frame.arrow:SetVertexColor(old.r or 1, old.g or 0.62, old.b or 0)
+        frame.arrow:SetRotation(old.angle or 0)
+        if old.arrived then frame.arrow:SetArrived(true) end
+    end
+end
+
 -- Shared look for route stops (trip plan, world map pins, map list):
 --   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colour: route colour (green) = where the arrow points now, blue = quest pickup,
@@ -1159,7 +1337,8 @@ local function buildArrow()
     local p = ns.db.nav.point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
-    f.arrow = N:MakeHudArrow(f)
+    f.arrow = N:MakeArrow(f)
+    N.arrowFrame = f
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -2)
     f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1185,6 +1364,9 @@ local function buildArrow()
                 items[#items + 1] = { sep = true }
             end
             for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+            items[#items + 1] = { sep = true }
+            items[#items + 1] = { text = "3D arrow", checked = ns.db.nav.arrowStyle ~= "flat",
+                func = function() N:SetArrowStyle(ns.db.nav.arrowStyle == "flat" and "3d" or "flat") end }
             ns.menu:Open(items)
         elseif panel and panel:IsShown() and not panel.byHover then
             panel:Hide()
@@ -1499,6 +1681,9 @@ ns.commands.nav = function(arg)
             N:Collect()
             ns:Print(n .. " hidden stop(s) back on the route.")
         end
+    elseif arg == "arrow 3d" or arg == "arrow flat" then
+        N:SetArrowStyle(arg:match("arrow (%a+%d?)") == "flat" and "flat" or "3d")
+        ns:Print("arrow: " .. (ns.db.nav.arrowStyle == "flat" and "flat lines" or "3D"))
     elseif arg == "why" then
         -- What the route is made of, and what Flow wanted but couldn't place.
         ns:Print(string.format("route: mode %s, professions %s, Questie %s",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.19
+- 3D arrow (the new default): a thick chevron lying on the ground ahead of you, tilted towards
+  the horizon with perspective, a lit top, darker sides, a soft shadow and a slight float. Its
+  ring lies flat on the ground too. It turns left and right like before; it can't point up or
+  down (WoW: Forever gives no heights). Right-click the arrow and untick "3D arrow", or
+  `/flow nav arrow flat`, for the flat line arrow.
+
 ## 0.35.18
 - Fishing needs a Fishing Pole: without one, "Buy a Fishing Pole" comes first and the fishing
   stop shows "needs a Fishing Pole". Fishing stops also suggest a Shiny Bauble lure.

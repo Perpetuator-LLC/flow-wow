@@ -43,6 +43,8 @@ Flow for WoW is a separate project from Flow Engine.
   selected waypoint** (legendary orange). Tooltips show each stop's XP.
 - **Quest areas**: in an objective area the arrow becomes a ring; hover it to see every quest
   there. The arrow comes back when the mob or NPC you need is in sight.
+- **3D arrow**: a shaded chevron lying on the ground ahead of you (or the flat line arrow:
+  right-click it and untick "3D arrow").
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
 - **Milestones**: class training and your mount always make the route and fit around the
   quests on the way. Flow tells you to start saving for your mount 5 levels early.

@@ -547,3 +547,15 @@ ns:Register("test", "fishing: a pole comes first", function(t)
     end
     t:eq((ns.skillPlan:ToolGoal("Cooking")), nil, "no tool for Cooking")
 end)
+
+ns:Register("test", "3D arrow: perspective and turning", function(t)
+    local P = ns.nav.Project3D
+    local x, y, k = P(0, 26, 0)
+    t:near(x, 0, 0.001, "straight ahead stays centred"); t:ok(y > 0, "ahead is up the screen")
+    t:ok(k < 1, "the far tip is smaller")
+    local _, yb, kb = P(0, -16, 0)
+    t:ok(yb < 0 and kb > 1, "the near end is lower and bigger")
+    t:ok(y < 26, "the ground leans away (foreshortened)")
+    local xl = P(0, 26, math.pi / 2)
+    t:ok(xl < -20, "a quarter turn counter-clockwise points left")
+end)
