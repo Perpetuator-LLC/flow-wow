@@ -44,6 +44,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Quest areas**: in an objective area the arrow becomes a ring; hover it to see every quest
   there. The arrow comes back when the mob or NPC you need is in sight.
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
+- **Milestones**: class training and your mount always make the route and fit around the
+  quests on the way. Flow tells you to start saving for your mount 5 levels early.
+- **Completionist route**: every quest in the zones you are questing in, any level.
+- **Along the way**: optional farming (meat for Cooking) is never a detour; loot it as you go.
 - **Blocked stops**: stops you can't do yet stay listed, greyed, with the reason ("needs
   1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
 - **Flow Router** (the square button above the world map's quest log button): the route list

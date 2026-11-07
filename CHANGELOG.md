@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.16
+- Mount milestone. Five levels before riding level the advice list tells you to start saving
+  (how much, and what you have). At riding level "Learn riding" goes on the route as a
+  milestone, then the mount itself; each waits, with its price, until you can pay. Paladins
+  and warlocks get their mount from a class quest, so they only save for riding.
+- The riding level (40) and prices (about 20g riding, 80g mount) are the classic ones, shown
+  as estimates until WoW: Forever confirms them; they are one line to change in
+  Modules/Nav/Mounts.lua.
+
 ## 0.35.15
 - Fixed: "Learn Heavy Linen Bandage" (and other recipe stops) stayed after you learned it at
   the trainer. Flow now notices the "You have learned..." line at once.

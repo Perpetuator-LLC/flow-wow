@@ -503,3 +503,18 @@ ns:Register("test", "planner: a milestone always makes the cut", function(t)
     for _, s in ipairs(plan) do if s.goal.key == "train:class" then found = true end end
     t:ok(found, "class training is planned even though 20 stops are nearer")
 end)
+
+ns:Register("test", "mount: save, then riding, then the mount", function(t)
+    local MT, r = ns.mounts, ns:Get("mountRule", "default")
+    local L = r.level
+    t:eq(MT.Next({ level = L - 10 }), nil, "too early: nothing")
+    t:eq(MT.Next({ level = L - 2 }), "save", "a few levels before: save up")
+    t:eq(MT.Next({ level = L }), "riding", "at riding level: learn riding")
+    t:eq(MT.Next({ level = L, hasRiding = true }), "mount", "then buy the mount")
+    t:eq(MT.Next({ level = L, hasRiding = true, classMount = "Summon Warhorse" }), nil, "class mount: nothing to buy")
+    t:eq(MT.Next({ level = L + 5, hasRiding = true, hasMount = true }), nil, "done")
+    t:eq(MT.Total({ classMount = "Summon Warhorse" }), r.ridingCost, "paladins save for riding only")
+    t:eq(MT.Total({}), r.ridingCost + r.mountCost, "others: riding and the mount")
+    local _, race = UnitRace("player")
+    t:ok(ns:Get("mount", race) ~= nil, "your race has a riding trainer listed (" .. tostring(race) .. ")")
+end)
