@@ -224,6 +224,8 @@ end)
 -- Fishing: equip the pole.
 ns:Register("action", "fish:equip", { order = 10, get = function(ctx)
     if not ctx.atFish or ctx.pole then return nil end
+    -- Not with an enemy targeted: you're about to fight (weapon stays on).
+    if UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target") then return nil end
     for _, id in ipairs(bagItems()) do
         if X.IsPole(id) then
             return { type = "item", item = "item:" .. id, icon = itemIcon(id), label = "Equip your Fishing Pole",
@@ -275,19 +277,49 @@ ns:Register("action", "gather:interact", { order = 60, get = function(ctx)
              label = verb .. " (stand next to it and press)" }
 end })
 
--- Left the fishing spot with the pole still on: weapons back, main hand first.
-ns:Register("action", "fish:restore", { order = 70, get = function(ctx)
-    local w = saved()
-    if not w or ctx.fishing or channeling("Fishing") then return nil end
+-- The best weapon in your bags (highest item level, not a pole): for when
+-- the pole is on and Flow didn't note what you had before.
+local function bestBagWeapon()
+    local best, bestLevel
+    for _, id in ipairs(bagItems()) do
+        local _, _, _, equipLoc, _, classID = instant(id)
+        if classID == 2 and not X.IsPole(id) and equipLoc ~= "INVTYPE_RANGED" and equipLoc ~= "INVTYPE_THROWN" then
+            local level = (GetItemInfo and select(4, GetItemInfo(id))) or 0
+            if not bestLevel or level > bestLevel then best, bestLevel = id, level end
+        end
+    end
+    return best
+end
+
+-- The next press that puts your weapons back (main hand, then off hand), or
+-- nil when they're on. `urgent`: before anything else, rotation included.
+local function restoreStep(urgent, label)
+    local w = saved() or {}
     local mh, oh = equipped(MAIN), equipped(OFF)
-    if w.main and mh ~= w.main and count(w.main) > 0 then
-        return { type = "item", item = "item:" .. w.main, icon = itemIcon(w.main), label = "Put your weapon back" }
+    local main = w.main or (X.IsPole(mh) and bestBagWeapon()) or nil
+    if main and mh ~= main and count(main) > 0 then
+        return { type = "item", item = "item:" .. main, icon = itemIcon(main), label = label or "Put your weapon back", urgent = urgent }
     end
     if w.off and oh ~= w.off and count(w.off) > 0 then
-        return { type = "item", item = "item:" .. w.off, icon = itemIcon(w.off), label = "Put your off-hand back" }
+        return { type = "item", item = "item:" .. w.off, icon = itemIcon(w.off), label = "Put your off-hand back", urgent = urgent }
     end
     -- All back (or gone from your bags): done.
     if not X.IsPole(mh) then ns.db.actions.weapons = nil; ns.db.actions.fishedAt = nil end
+end
+X._restoreStep = restoreStep  -- (tests)
+
+-- An enemy targeted with the pole still on: weapons back first, before the
+-- pull, even at the fishing spot (you're about to fight with a fishing pole).
+ns:Register("action", "arm:enemy", { order = 1, get = function(ctx)
+    if not ctx.pole or not UnitExists("target") or not UnitCanAttack("player", "target")
+        or UnitIsDead("target") then return nil end
+    return restoreStep(true, "Weapon back on before the fight")
+end })
+
+-- Left the fishing spot with the pole still on: weapons back, main hand first.
+ns:Register("action", "fish:restore", { order = 70, get = function(ctx)
+    if not saved() or ctx.fishing or channeling("Fishing") then return nil end
+    return restoreStep(false)
 end })
 
 -------------------------------------------------------------------------------

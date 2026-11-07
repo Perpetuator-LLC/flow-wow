@@ -760,3 +760,20 @@ ns:Register("test", "intro: the arrow spins up and lands pointing up", function(
     t:ok(I.Status():find("spells", 1, true) ~= nil, "status line says what Flow works with")
     t:ok(_G.FlowSplash == nil, "the old title card is gone")
 end)
+
+ns:Register("test", "actions: an enemy targeted with the pole on: weapon back first", function(t)
+    local a = ns:Get("action", "arm:enemy")
+    t:ok(a and a.order < 10, "comes before the fishing steps")
+    t:eq(a.get({ pole = false }), nil, "nothing when the pole isn't on")
+    -- With saved weapons that aren't on: the press equips the main hand, urgently.
+    local saved = ns.db.actions.weapons
+    ns.db.actions.weapons = { main = 25 }   -- Worn Shortsword (not equipped in this check)
+    local s = ns.actions._restoreStep(true, "Weapon back on before the fight")
+    if GetItemCount(25) > 0 and GetInventoryItemID("player", 16) ~= 25 then
+        t:eq(s and s.item, "item:25", "equips the saved weapon")
+        t:ok(s and s.urgent, "before the rotation's pull")
+    else
+        t:ok(true, "(no Worn Shortsword in bags to check with)")
+    end
+    ns.db.actions.weapons = saved
+end)

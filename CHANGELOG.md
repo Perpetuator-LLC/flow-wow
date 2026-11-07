@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.34
+- Target an enemy with your Fishing Pole still on, and the Flow key puts your weapon back on
+  first (then your shield), before your pull, even at the fishing spot. If Flow didn't note
+  what you had on, it picks the best weapon in your bags. It won't offer the pole again while
+  the enemy is targeted.
+
 ## 0.35.33
 - The login intro starts straight away with the spin and "Flow (unfettered)" (it used to show
   your quest first and then take the arrow over, which flashed), and lasts about a second
