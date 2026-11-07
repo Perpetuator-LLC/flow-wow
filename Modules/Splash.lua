@@ -8,7 +8,7 @@ local _, ns = ...
 local I = {}
 ns.intro = I
 
-local SPIN, HOLD = 1.4, 2.2   -- seconds: spinning, then the ring with FLOW
+local SPIN, HOLD = 2.0, 2.6   -- seconds: spinning, then the ring with FLOW
 local TURNS = 2
 
 local function version()
@@ -45,7 +45,7 @@ local driver = CreateFrame("Frame")
 
 function I:Play()
     local f = ns.nav and ns.nav.arrowFrame
-    if not (f and f.arrow) or ns.db.nav.enabled == false then return end
+    if not (f and f.arrow) or ns.db.nav.enabled == false then ns.nav.intro = nil return end
     local a = f.arrow
     if not f.introText then
         f.introText = f:CreateFontString(nil, "OVERLAY")
@@ -65,8 +65,15 @@ function I:Play()
     f.introText:SetAlpha(0)
     f.introText:Show()
     local t0 = GetTime()
+    f.introStatusAt = nil
     driver:SetScript("OnUpdate", function()
         local t = GetTime() - t0
+        -- Quest data and the route arrive during the intro: keep the status current.
+        if t - (f.introStatusAt or 0) > 0.5 then
+            f.introStatusAt = t
+            local okS, st = pcall(I.Status)
+            f.sub:SetText("v" .. version() .. (okS and ("  ·  " .. st) or ""))
+        end
         if t < SPIN then
             a:SetRotation(I.SpinAngle(t))
             f.introText:SetAlpha(t / SPIN)
@@ -85,16 +92,22 @@ end
 ns:OnLoad(function(saved)
     saved.splash = saved.splash or {}
     if saved.splash.enabled == nil then saved.splash.enabled = true end
+    -- Hold the arrow from the very start, so it never shows a quest first
+    -- and then gets taken over (that flashed).
+    if saved.splash.enabled and ns.nav then ns.nav.intro = true end
 end)
 
 local shown = false
 ns:On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
     -- Only on login or /reload, not on every loading screen.
-    if isInitialLogin or isReloadingUi or (isInitialLogin == nil and not shown) then
+    if not shown or isInitialLogin or isReloadingUi then
         shown = true
         if ns.db.splash.enabled then
-            -- Give spells, quest data and the route a moment so the status is right.
-            C_Timer.After(1.5, function() pcall(I.Play, I) end)
+            -- At once: the status line fills in as quest data and the route arrive.
+            local ok = pcall(I.Play, I)
+            if not ok and ns.nav then ns.nav.intro = nil end
+            -- Never leave the arrow held if the intro didn't run to the end.
+            C_Timer.After(SPIN + HOLD + 2, function() if ns.nav and not driver:GetScript("OnUpdate") then ns.nav.intro = nil end end)
         end
     end
 end)

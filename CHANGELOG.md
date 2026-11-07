@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.33
+- The login intro starts straight away with the spin and "Flow (unfettered)" (it used to show
+  your quest first and then take the arrow over, which flashed), and lasts about a second
+  longer. The status line fills in as quest data and your route load.
+
 ## 0.35.32
 - The login title card is gone. Instead the arrow plays a short intro: it spins up, settles
   into its ring with FLOW in the middle, and underneath says "Flow (unfettered)", the version,
