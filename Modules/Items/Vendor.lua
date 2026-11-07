@@ -328,7 +328,7 @@ function V:Refresh()
     f.sellAll:SetEnabled(anything)
     -- Say what it sells: how many items, and for how much (the coin icons alone
     -- read like a count).
-    local nSell = (junkOn and #junk or 0) + math.min(BATCH, #proposed)
+    nSell = (junkOn and #junk or 0) + math.min(BATCH, #proposed)
     f.sellAll:SetText(anything and string.format("Sell %d item%s for %s", nSell, nSell == 1 and "" or "s", money(batchValue))
         or "Nothing to sell")
 end

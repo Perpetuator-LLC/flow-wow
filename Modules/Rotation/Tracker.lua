@@ -60,9 +60,8 @@ function T:DTPS()
     local elapsed = math.max(0.5, now - combatStart)
     if elapsed >= WINDOW then return sum / WINDOW end
 
-    local learned = 0
     local name = UnitExists("target") and ns.api.Safe(UnitName("target"))
-    learned = T:LearnedMobDPS(name) or 0
+    local learned = T:LearnedMobDPS(name) or 0
     -- Blend: real damage for the time we have seen, learned rate for the rest.
     return (sum + learned * (WINDOW - elapsed)) / WINDOW
 end
@@ -163,7 +162,7 @@ end
 
 local function onCombatLog()
     local _, sub, _, srcGUID, srcName, _, _, dstGUID, _, _, _,
-          a12, a13, a14, a15, a16, a17, a18 = CombatLogGetCurrentEventInfo()
+          a12, a13, _, a15, _, _, a18 = CombatLogGetCurrentEventInfo()
     cleuActive = true
     playerGUID = playerGUID or UnitGUID("player")
 

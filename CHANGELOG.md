@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.56
+- Flow's code is now checked before you ever /reload: a Lua checker (luacheck) reads every
+  file for the kind of slip that used to reach you as a Lua error or a dead button (a name
+  typo, a missing "local", using something before it's set up). The whole add-on passes with
+  no warnings. No change in game: the tidy-up removed unused leftovers only.
+
 ## 0.35.55
 - The Flow Router's Route dropdown didn't open: the same waypoint error as the arrow menu
   (fixed in 0.35.54). Menus now fail safely: if building a list ever errors, it's logged and

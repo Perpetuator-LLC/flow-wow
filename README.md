@@ -181,6 +181,8 @@ at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to tes
 - **Tests:** `Modules/Tests.lua` registers self-tests (`ns:Register("test", name, fn)`). There's
   no Lua interpreter here, so they run in game: `/flow test`, and in the diagnostics on every
   `/reload` (`tools/read-diag.ps1` prints them).
+- **Lint:** `tools/lint.ps1` checks the Lua before you `/reload` (luacheck with
+  `.luacheckrc`, plus texture paths): missing `local`s, typos, values never used.
 - **Debugging:** `/console scriptErrors 1`, `/flow rot why` and `/flow api`.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.

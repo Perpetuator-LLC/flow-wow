@@ -695,7 +695,7 @@ local function planProfession(prof, t, out)
             local rate = rates / #ids
             local kills = math.ceil(n / math.max(rate, 0.05))
             local _, seenKills = SP.DropRate(id)
-            local pts, onMap = npcPoints(mobs)
+            local pts = npcPoints(mobs)
             local details = {
                 string.format("About %d kills: roughly 1 in %d drops one%s.", kills, math.floor(1 / rate + 0.5),
                     seenKills >= 5 and " (from your own loot)" or ""),
@@ -761,7 +761,7 @@ local function planProfession(prof, t, out)
         if best and not nodes[src(best.item).node] then
             local s = src(best.item)
             local c = rank < best.yellow and 1 or (rank < best.green and 0.6 or 0.2)
-            local pts, onMap = objectPoints(s.objects)
+            local pts = objectPoints(s.objects)
             add({ key = "gather:" .. s.node, kind = "gather", prof = "Mining", points = pts,
                   text = string.format("Mine %s (about %d) for skill", s.node, math.ceil((t.target - rank) / c)),
                   details = { "Smelting the ore at a forge raises Mining too." },

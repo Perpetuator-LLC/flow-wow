@@ -471,7 +471,7 @@ ns:On("PLAYER_REGEN_DISABLED", function() C:EndMove() end)
 -------------------------------------------------------------------------------
 
 local spy = CreateFrame("Frame", nil, UIParent)
-local lastSpyAt, spyLogged = 0, 0
+local spyLogged = 0
 local clicksAtPress = 0
 -- Only when keys can be passed on: a keyboard frame that can't would eat every key.
 if spy.SetPropagateKeyboardInput then
@@ -481,7 +481,7 @@ end
 spy:SetScript("OnKeyDown", function(_, key)
     local mine = ns.db and ns.db.cast and ns.db.cast.key
     if not mine or key ~= mine:match("[^-]+$") then return end
-    lastSpyAt = GetTime()
+    -- (key press noted below)
     clicksAtPress = fight and fight.clicks or 0
     if fight then fight.keys = (fight.keys or 0) + 1 end
     if spyLogged < 6 then

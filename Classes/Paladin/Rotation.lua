@@ -42,10 +42,6 @@ local function hasAura()
     return A.Buff("player", function(n) return PALADIN_AURAS[n] end)
 end
 
-local function hasBlessing()
-    return A.Buff("player", function(n) return n and n:find("^Blessing of") end)
-end
-
 local buffs = {
     { spell = "Devotion Aura", kind = "buff", reason = "No aura",
       when = function() return not hasAura() end },

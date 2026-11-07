@@ -219,7 +219,7 @@ ns:Register("navGoal", "pickups", {
 ns:Register("navGoal", "errands", {
     collect = function()
         local goals = {}
-        local d = ns:ClassData()
+        local _ = ns:ClassData()
         local wanted = {}
         local A = ns.api
         -- "Include professions" (map panel, /flow nav professions on|off).

@@ -170,7 +170,7 @@ function Q:UiMapForArea(areaId)
 end
 
 local function zoneIdOf(spawns)
-    for zone in pairs(spawns or {}) do return zone end
+    return (next(spawns or {}))   -- the first zone listed
 end
 
 ns:Register("questSource", "questie", {

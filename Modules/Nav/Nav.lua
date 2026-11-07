@@ -353,13 +353,13 @@ function N:Collect()
     -- and turn-ins), plus your waypoint and the party route; "optimal" (default)
     -- = everything worth doing: pickups, trainers, fishing/gathering too.
     if N:Mode() == "quests" then
-        local kept = {}
+        local questsOnly = {}
         for _, g in ipairs(list) do
             if g.key:find("^%d+:") or g.key == "user:wp" or g.key:find("^party:") then
-                kept[#kept + 1] = g
+                questsOnly[#questsOnly + 1] = g
             end
         end
-        list = kept
+        list = questsOnly
     end
     -- Stops you hid (right-click on the map) stay out of the route; they're
     -- kept in N.hiddenGoals so the map panel can list and unhide them.
@@ -383,8 +383,8 @@ function N:Collect()
     -- and the route objective (what the route optimises; XpValue.lua) weighs
     -- the stops and may pick which ones count.
     if ns.xpValue then
-        local okA, kept = pcall(ns.xpValue.Apply, ns.xpValue, shown)
-        if okA and kept then shown = kept end
+        local okA, picked = pcall(ns.xpValue.Apply, ns.xpValue, shown)
+        if okA and picked then shown = picked end
     end
     goals = shown
     N.planDirty = true
@@ -1505,7 +1505,7 @@ local function textTooltip()
 end
 N._textTooltip = textTooltip  -- (tests)
 
-local function link(parent, label, fn)
+local function uiLink(parent, label, fn)
     local b = CreateFrame("Button", nil, parent)
     b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     b.text:SetPoint("LEFT")
@@ -1536,16 +1536,16 @@ local function buildCard()
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
     f.links = {
-        quest = link(f, "Select in quest log", function()
+        quest = uiLink(f, "Select in quest log", function()
             N:OpenInGame(f.goal)
             ns:Print("selected in your quest log: press L (or M) to read it.")
         end),
-        map = link(f, "Show on map", function()
+        map = uiLink(f, "Show on map", function()
             local g = f.goal
             if ns.mapOverlay then ns.mapOverlay:Focus(g.key, 20) end
             if not WorldMapFrame:IsShown() then ns:Print("press M: Flow highlights it on your map.") end
         end),
-        first = link(f, "Go here first", function() N:Select(f.goal.key); f:Hide() end),
+        first = uiLink(f, "Go here first", function() N:Select(f.goal.key); f:Hide() end),
     }
     return f
 end
@@ -1876,8 +1876,8 @@ local function update()
     -- they are, so the arrow jumped around and sent you back and forth.) The
     -- nearest spot is still used for one thing: standing on one makes the
     -- pillars wave.
-    local spot, spotD
-    if here and g.area then spot, spotD = N:NearestSpot(g, p) end
+    local _, spotD
+    if here and g.area then _, spotD = N:NearestSpot(g, p) end
     if here then
         local tgt = N:VisibleTarget(g)
         if tgt then

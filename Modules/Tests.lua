@@ -63,7 +63,7 @@ end
 ns:On("PLAYER_LOGIN", function()
     C_Timer.After(8, function()
         if InCombatLockdown() then return end
-        local ok, passed, failed, checks, out = pcall(run)
+        local ok, passed, failed, _, out = pcall(run)
         if not ok then ns:Log("tests", "run failed: " .. tostring(passed)) return end
         ns:Log("tests", string.format("at login: %d passed, %d failed", passed, failed))
         if failed > 0 then
@@ -114,7 +114,7 @@ ns:Register("test", "skill plan: most skill per material", function(t)
     local total = 0
     for _, s in ipairs(order) do total = total + crafts[s] end
     t:ok(total >= 19 and total <= 25, "about one craft per point while orange (" .. total .. ")")
-    crafts, order = ns.skillPlan._simulate("Blacksmithing__test", g.steps, 30, 50, {})
+    order = select(2, ns.skillPlan._simulate("Blacksmithing__test", g.steps, 30, 50, {}))
     for _, s in ipairs(order) do t:ok(s.recipe ~= "Coarse Sharpening Stone", "no coarse stones below 65") end
 end)
 
@@ -771,7 +771,7 @@ ns:Register("test", "stop card: drag by the title, opens where you left it", fun
     ns.nav:ShowStop({ key = "test:card", text = "Test stop", points = {} })
     local card = _G.FlowStopCard
     t:ok(card and card:IsMovable(), "card can be moved")
-    local a, rel, b, x, y = card:GetPoint()
+    local a, _, _, x = card:GetPoint()
     t:eq(a, "TOPLEFT", "opens at the saved point"); t:eq(x, 100, "saved x")
     card:Hide()
     ns.db.nav.cardPoint = saved
@@ -884,7 +884,7 @@ ns:Register("test", "arrow 3D: pillars on the ring and a sphere when you arrive"
     local a = ns.nav:MakeArrow3D(UIParent)
     t:ok(#a.ring > 0 and a.ring[1].stem ~= nil, "each ring dot is a pillar")
     a:SetArrived(false)
-    local s1x, s1y = a.ring[1].stem:GetStartPoint()
+    a.ring[1].stem:GetStartPoint()   -- reading the pillar must not error
     t:ok(not a.ballBody:IsShown(), "no sphere while pointing")
     a:SetArrived(true)
     t:ok(a.ballBody:IsShown() and a.ballHi:IsShown(), "sphere with a highlight when you arrive")
@@ -1045,10 +1045,10 @@ ns:Register("test", "arrow: nearest spawn spot, skipping looted ones", function(
     local o = math.random(1, 1000000) * 100
     local p = { cont = 0, wx = o, wy = 0 }
     local goal = { area = true, points = { { cont = 0, wx = o + 30, wy = 0 }, { cont = 0, wx = o + 10, wy = 0 } } }
-    local pt, d = N:NearestSpot(goal, p)
+    local _, d = N:NearestSpot(goal, p)
     t:near(d, 10, 0.01, "nearest spot first")
     N.ClearSpotNear({ cont = 0, wx = o + 9, wy = 0 }, goal)   -- looted there
-    pt, d = N:NearestSpot(goal, p)
+    _, d = N:NearestSpot(goal, p)
     t:near(d, 30, 0.01, "a looted spot is skipped: next one")
 end)
 
@@ -1113,9 +1113,9 @@ end)
 ns:Register("test", "map labels: placed where they don't cover each other", function(t)
     local B = ns.mapOverlay.LabelBox
     -- Right of a point at 0,0 (half size 5): starts past the point.
-    local l, b, r, top = B(1, 0, 0, 5, 20, 10)
+    local l, _, r = B(1, 0, 0, 5, 20, 10)
     t:ok(l > 5 and r == l + 20, "right side")
-    l, b, r, top = B(2, 0, 0, 5, 20, 10)
+    r = select(3, B(2, 0, 0, 5, 20, 10))
     t:ok(r < -5, "left side")
 end)
 
@@ -1158,7 +1158,7 @@ end)
 
 ns:Register("test", "route: ready turn-ins near you are part of the hub's business", function(t)
     local keys = ns.nav:PickupKeys(100000) or {}
-    local turnins, ok = 0, true
+    local turnins = 0
     for k in pairs(keys) do if k:find(":done$") then turnins = turnins + 1 end end
     t:ok(turnins >= 0, "turn-ins counted with pickups")
     t:ok(type(ns.mapOverlay.PointHere) == "function", "point the arrow at any stop")
@@ -1178,7 +1178,7 @@ end)
 
 ns:Register("test", "waypoint: the game's map pin reads as a table or a vector", function(t)
     -- Forever gives the pin's position as a plain { x, y } table: reading it must not error.
-    local ok, w = pcall(ns.waypoint.Get, ns.waypoint)
+    local ok = pcall(ns.waypoint.Get, ns.waypoint)
     t:ok(ok, "reading your waypoint doesn't error")
     local okM = pcall(ns.menu.RouteItems, ns.menu)
     t:ok(okM, "the arrow's menu builds")

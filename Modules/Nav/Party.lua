@@ -149,7 +149,7 @@ local function received(sender, msg)
         if state.joined then P:Broadcast() end
         P:SendQuests()
     elseif kind == "L" then
-        local part, parts, list = rest:match("^(%d+)|(%d+)|(.*)$")
+        local part, _, list = rest:match("^(%d+)|(%d+)|(.*)$")
         members[sender] = members[sender] or { quests = {} }
         if tonumber(part) == 1 then members[sender].quests = {} end
         for id in (list or ""):gmatch("%d+") do members[sender].quests[tonumber(id)] = true end

@@ -227,7 +227,7 @@ ns:Register("advisor", "professions", {
             end
         end
         -- Planned professions (class data) you haven't learned yet.
-        local d = ns:ClassData()
+        local _ = ns:ClassData()
         for _, p in ipairs(ns:ProfessionPlan()) do
             if not collapsed and not ns.api.Skill(p.name) then
                 local who = ns.places and ns.places:TrainersFor(p.name) or {}

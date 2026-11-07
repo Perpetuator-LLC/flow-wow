@@ -442,7 +442,7 @@ local CANDS = {   -- anchor on the label, anchor on the point, x, y
 -- The label's box for candidate k, around a point at cx, cy of half size s.
 function M.LabelBox(k, cx, cy, s, w, h)
     local a = CANDS[k]
-    local lx, ly = cx, cy
+    local lx, ly
     if a[2]:find("RIGHT") then lx = cx + s + a[3] elseif a[2]:find("LEFT") then lx = cx - s + a[3] else lx = cx + a[3] end
     if a[2]:find("TOP") then ly = cy + s + a[4] elseif a[2]:find("BOTTOM") then ly = cy - s + a[4] else ly = cy + a[4] end
     local l, b

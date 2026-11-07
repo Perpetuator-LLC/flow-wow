@@ -110,9 +110,12 @@ If anything is there, fix it before other work, even if nobody mentioned it:
    and print one red chat line if any fail, so a broken button is flagged before it's clicked.
    Anything that builds a menu goes through `ns.menu:RouteItems()`-style safe builders: one
    failing entry must not stop the menu opening.
-2. Before committing: `tools\check-paths.ps1`. Watch for a `local` used before it's declared
-   (a function referring to a later `local function` sees a global instead) and for game
-   values that differ on Forever (vectors that are plain tables, globals moved into `C_*`).
+2. Before committing, run `powershell -ExecutionPolicy Bypass -File tools\lint.ps1` and get it
+   to **0 warnings** (it runs luacheck with `.luacheckrc`, then `check-paths.ps1`). It catches
+   a missing `local`, a `local` used before it's declared, typos in names and unused values.
+   Fix the code rather than widening `.luacheckrc`; use `_` for values you don't need.
+   Lint can't see game values that differ on Forever (vectors that are plain tables, globals
+   moved into `C_*`): those need an in-game test.
 3. Bump `## Version:` in `Flow.toc` (patch number) and add a `CHANGELOG.md` entry at the top,
    written for players.
 4. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the

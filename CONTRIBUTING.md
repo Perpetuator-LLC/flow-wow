@@ -37,6 +37,9 @@ can check its own work.
 ## Pull requests
 
 - One feature or fix per PR, with a test in `Modules/Tests.lua`.
+- `powershell -ExecutionPolicy Bypass -File tools\lint.ps1` must say "lint OK" (needs
+  [luacheck.exe](https://github.com/lunarmodules/luacheck/releases); the script says where to
+  put it).
 - Bump the patch version in `Flow.toc` and add a player-facing line to `CHANGELOG.md`.
 - Say how you tested it in game (class, level, zone) and paste the `/flow test` result.
 - Don't include data copied from other addons or sites.

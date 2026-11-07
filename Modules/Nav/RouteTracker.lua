@@ -259,7 +259,7 @@ function RT:Refresh()
             local r, s = frame.rows[i], plan[i]
             local bl = (not s) and blocked[i - #plan] or nil
             if s then
-                local col = ns.nav:StopColor(i, s.goal)
+                -- (row colour comes from FormatStop)
                 r.key, r.goal, r.blocked = s.goal.key, s.goal, nil
                 r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
                 r:Show()

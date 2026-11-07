@@ -248,7 +248,7 @@ local function finishFight()
     P:Relearn(f.type, f.role)
 
     if ns.db.profiler.report then
-        local key, m = P:PrimaryMetric(f.role)
+        local _, m = P:PrimaryMetric(f.role)
         local v = m.value(f)
         ns:Print(string.format("%s fight, %.0fs: %s %.1f", ns.fight:Label(f.type), f.duration,
             m.label, v or 0))
