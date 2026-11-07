@@ -356,9 +356,31 @@ ns:On("MERCHANT_SHOW", function()
         panel:ClearAllPoints()
         panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
         if ns.db.sell.autoJunk then V:SellJunk() end
+        if ns.db.sell.autoAll then V:SellProposed() end
         V:Refresh()
     end)
 end)
+
+-- Auto-sell (Options: "Auto-sell everything Flow marks to sell"): the
+-- non-junk items Flow says you don't need, as soon as you open a vendor.
+-- At most 12 a visit, the vendor's buyback tab: anything sold by mistake can
+-- be bought back there (the drawer lists them with "Buy back"), and buying
+-- it back tells Flow never to sell that item again. More than 12: the rest
+-- go on the next visit.
+function V:SellProposed()
+    if not canSell() then return end
+    local _, proposed = self:Candidates()
+    local n, value = math.min(BATCH, #proposed), 0
+    for i = 1, n do
+        sellOne(proposed[i])
+        value = value + proposed[i].price
+    end
+    if n > 0 then
+        D:Invalidate()
+        ns:Print(string.format("sold %d item(s) you don't need for %s%s. Wrong one? Buy it back in Flow's vendor drawer: Flow won't sell it again.",
+            n, money(value), #proposed > n and string.format(" (%d more next visit)", #proposed - n) or ""))
+    end
+end
 
 ns:On("MERCHANT_CLOSED", function()
     merchantOpen = false
@@ -372,7 +394,17 @@ ns:OnLoad(function(saved)
     if saved.sell.enabled == nil then saved.sell.enabled = true end
     if saved.sell.junkAll == nil then saved.sell.junkAll = true end
     if saved.sell.autoJunk == nil then saved.sell.autoJunk = true end
+    -- Auto-sell the rest of Flow's "sell" items too (you asked for it).
+    if saved.sell.autoAll == nil then saved.sell.autoAll = true end
 end)
+
+ns:Register("setupItem", "autoAll", {
+    order = 16, label = "Auto-sell everything Flow marks to sell",
+    why = "At a vendor, also sells the gear, food and other items Flow says you don't need (up to 12 a visit, so you can buy any back; Flow then never sells it again).",
+    isOn = function() return ns.db.sell.autoAll == true end,
+    set = function(on) ns.db.sell.autoAll = on end,
+    suggested = true, default = false, isNew = true,
+})
 
 ns:Register("setupItem", "autoJunk", {
     order = 15, label = "Auto-sell junk at vendors",

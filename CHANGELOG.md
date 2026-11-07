@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.52
+- Auto-sell: opening a vendor now also sells everything else Flow marks "sell" (gear you've
+  outgrown, outgrown food and drink, unused materials...), not just grey junk. Up to 12 a visit,
+  the size of the vendor's buyback tab, so anything sold by mistake can be bought back from
+  Flow's vendor drawer; buying it back tells Flow never to sell that item again. More than 12:
+  the rest go on the next visit. On by default; Options > AddOns > Flow: "Auto-sell everything
+  Flow marks to sell".
+
 ## 0.35.51
 - Fixed: a finished quest's turn-in right next to you waited behind every quest pickup in the
   hub. A hub's business now includes ready turn-ins with the pickups (like a walkthrough: hand
