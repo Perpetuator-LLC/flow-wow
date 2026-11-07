@@ -25,7 +25,8 @@ Flow for WoW is a separate project from Flow Engine.
   your Fishing Pole, puts on your best lure, casts, then reels in when the bobber splashes; at a
   mining or herb stop it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
   your weapons back. Upgrades in your bags: it equips them (first, when you target an enemy).
-  Crafting: campfire, open the profession, make exactly enough. One press per step.
+  Crafting: campfire, open the profession, make exactly enough. Things to learn in your bags
+  (recipes, scrolls): it learns them. One press per step.
   `/flow action` shows what it would do.
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
   Remembers what you cast when the game hides your auras.
@@ -73,7 +74,7 @@ Flow for WoW is a separate project from Flow Engine.
   professions), order, unhide all, and party options.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
-- **Your own waypoint**: Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest
+- **Your own waypoint**: `/flow way repair` or `vendor` (or right-click the arrow) for the nearest one; Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest
   45.2 63.1`, or right-click the arrow: Set a waypoint), or `/flow way x y`; it clears when you
   arrive.
 - **Only quests you can get**: holiday quests drop out when the event ends, and quests an NPC
