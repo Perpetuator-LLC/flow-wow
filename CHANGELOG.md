@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.53
+- The camera stays where you put it: the game's "Camera Following Style" swung it back behind
+  you whenever you moved. Flow switches it to Never once (you asked); it's a suggested setting
+  in Options > AddOns > Flow if you want it back.
+- The arrow can turn three ways (right-click it, "Arrow turns"): north-up (the default, fixed
+  to the screen: it only turns as the direction to the stop changes), with my character, or
+  like my minimap (turns with you if your minimap rotates, north-up if it's locked).
+- Flow Router: one "Route:" dropdown (current quests, optimal with or without professions,
+  completionist, and the order) instead of two checkboxes and a sub-box that couldn't reach
+  Completionist. The route list moved up into the space.
+- Flow Seller: an "Auto-sell" switch on the drawer's header, and both auto-sell switches (all,
+  and grey junk) in Options > AddOns > Flow.
+- README brought up to date with everything since 0.35.
+
 ## 0.35.52
 - Auto-sell: opening a vendor now also sells everything else Flow marks "sell" (gear you've
   outgrown, outgrown food and drink, unused materials...), not just grey junk. Up to 12 a visit,

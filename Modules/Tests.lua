@@ -1127,14 +1127,25 @@ ns:Register("test", "bags: things to learn and full bags", function(t)
     t:ok(ns.services and type(ns.services.Nearest) == "function", "nearest repair / vendor")
 end)
 
-ns:Register("test", "arrow: north-up toggle", function(t)
-    local saved = ns.db.nav.northUp
-    ns.db.nav.northUp = nil
-    t:eq(ns.nav.ArrowFacing(), 0, "north-up by default")
-    ns.db.nav.northUp = false
+ns:Register("test", "arrow: north-up, with my character, or like my minimap", function(t)
+    local nav = ns.db.nav
+    local saved = { up = nav.northUp, turn = nav.arrowTurn }
+    nav.northUp, nav.arrowTurn = nil, nil
+    t:eq(ns.nav.ArrowTurn(), "north", "north-up by default")
+    t:eq(ns.nav.ArrowFacing(), 0, "north-up: fixed to the screen")
+    nav.arrowTurn = "character"
     local f = ns.nav.ArrowFacing()
-    t:ok(f == nil or type(f) == "number", "off: follows your character's facing")
-    ns.db.nav.northUp = saved
+    t:ok(f == nil or type(f) == "number", "with my character: its facing")
+    nav.arrowTurn = "minimap"
+    local m = ns.nav.ArrowFacing()
+    if GetCVar("rotateMinimap") == "1" then t:ok(m == nil or type(m) == "number", "rotating minimap: turns")
+    else t:eq(m, 0, "north-locked minimap: north-up") end
+    nav.northUp, nav.arrowTurn = saved.up, saved.turn
+end)
+
+ns:Register("test", "router dropdown, camera, auto-sell switches", function(t)
+    t:ok(ns:Get("setupItem", "cameraStays") ~= nil, "camera stays where you put it: a setting")
+    t:ok(type(ns.menu.RouteItems) == "function", "route list for the Router's dropdown")
 end)
 
 ns:Register("test", "route: ready turn-ins near you are part of the hub's business", function(t)

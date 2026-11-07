@@ -77,20 +77,36 @@ local function mapAxes(map)
     return a
 end
 
--- Bearing (radians clockwise from north) from the player to a world point.
--- Which way the arrow is turned: by your character's facing (it points the
--- way relative to where you face), or north-up (relative to the screen, like
--- a map: up = north). Add-ons can't read the camera's direction, so "where
--- you face" is the character, not the camera. North-up is the default;
--- right-click the arrow or /flow nav northup to switch.
+-- Which way the arrow is turned (ns.db.nav.arrowTurn):
+--   "north"     north-up, fixed to the screen like a map (up = north). It
+--               only turns as the direction to the stop changes, not when
+--               you turn. The default.
+--   "character" turns with your character: up = the way you face.
+--   "minimap"   like your minimap: turns with you if the minimap rotates,
+--               north-up if it's locked.
+-- Add-ons can't read the camera's direction, so "the way you face" is your
+-- character, not the camera.
+local TURN_LABEL = { north = "north-up (up on the screen = north)", character = "turns with your character",
+                     minimap = "like your minimap (turns with you only if the minimap rotates)" }
+function N.ArrowTurn()
+    local t = ns.db.nav.arrowTurn
+    if not TURN_LABEL[t] then t = (ns.db.nav.northUp == false) and "character" or "north" end
+    return t
+end
 function N.ArrowFacing()
-    if ns.db.nav.northUp ~= false then return 0 end
+    local t = N.ArrowTurn()
+    if t == "minimap" then t = (GetCVar and GetCVar("rotateMinimap") == "1") and "character" or "north" end
+    if t == "north" then return 0 end
     return A.Safe(GetPlayerFacing and GetPlayerFacing())
 end
-function N:SetNorthUp(on)
-    ns.db.nav.northUp = on and true or false
-    ns:Print("arrow: " .. (on and "north-up (up on the screen = north)" or "turns with your character"))
+function N:SetArrowTurn(t)
+    if not TURN_LABEL[t] then return end
+    ns.db.nav.arrowTurn = t
+    ns:Print("arrow: " .. TURN_LABEL[t])
 end
+function N:SetNorthUp(on) self:SetArrowTurn(on and "north" or "character") end   -- older callers
+
+-- Bearing (radians clockwise from north) from the player to a world point.
 
 local function bearing(p, wx, wy)
     local a = mapAxes(p.map)
@@ -1635,8 +1651,15 @@ local function buildArrow()
             items[#items + 1] = { sep = true }
             items[#items + 1] = { text = "3D arrow", checked = ns.db.nav.arrowStyle ~= "flat",
                 func = function() N:SetArrowStyle(ns.db.nav.arrowStyle == "flat" and "3d" or "flat") end }
-            items[#items + 1] = { text = "North-up arrow (fixed to the screen)", checked = ns.db.nav.northUp ~= false,
-                func = function() N:SetNorthUp(ns.db.nav.northUp == false) end }
+            items[#items + 1] = { sep = true }
+            items[#items + 1] = { title = true, text = "Arrow turns" }
+            local turn = N.ArrowTurn()
+            items[#items + 1] = { text = "North-up (fixed to the screen)", radio = true, checked = turn == "north",
+                func = function() N:SetArrowTurn("north") end }
+            items[#items + 1] = { text = "With my character", radio = true, checked = turn == "character",
+                func = function() N:SetArrowTurn("character") end }
+            items[#items + 1] = { text = "Like my minimap", radio = true, checked = turn == "minimap",
+                func = function() N:SetArrowTurn("minimap") end }
             ns.menu:Open(items)
         elseif panel and panel:IsShown() and not panel.byHover then
             panel:Fold()
@@ -2024,7 +2047,11 @@ ns.commands.nav = function(arg)
             ns:Print(n .. " hidden stop(s) back on the route.")
         end
     elseif arg == "northup" or arg == "north" then
-        N:SetNorthUp(ns.db.nav.northUp == false)
+        N:SetArrowTurn("north")
+    elseif arg == "turn character" or arg == "character" then
+        N:SetArrowTurn("character")
+    elseif arg == "turn minimap" or arg == "minimap" then
+        N:SetArrowTurn("minimap")
     elseif arg == "arrow 3d" or arg == "arrow flat" then
         N:SetArrowStyle(arg:match("arrow (%a+%d?)") == "flat" and "flat" or "3d")
         ns:Print("arrow: " .. (ns.db.nav.arrowStyle == "flat" and "flat lines" or "3D"))

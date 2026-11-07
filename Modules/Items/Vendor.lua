@@ -142,6 +142,25 @@ local function build()
     f.head.pm:SetSize(16, 16); f.head.pm:SetPoint("RIGHT", -8, 0)
     f.head.hl = f.head:CreateTexture(nil, "HIGHLIGHT"); f.head.hl:SetAllPoints(); f.head.hl:SetColorTexture(1, 1, 1, 0.06)
     f.head:SetScript("OnClick", function() V.visitCollapsed = not f.collapsed; V:Refresh() end)
+    -- Auto-sell on/off, right in the header (also in Options > AddOns > Flow).
+    f.auto = CreateFrame("CheckButton", nil, f.head, "UICheckButtonTemplate")
+    f.auto:SetSize(20, 20)
+    f.auto:SetPoint("RIGHT", f.head.pm, "LEFT", -6, 0)
+    f.auto.label = f.head:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.auto.label:SetPoint("RIGHT", f.auto, "LEFT", 0, 0)
+    f.auto.label:SetText("Auto-sell")
+    f.auto:SetChecked(ns.db.sell.autoAll == true)
+    f.auto:SetScript("OnClick", function(self)
+        ns.db.sell.autoAll = self:GetChecked() and true or false
+        ns:Print("auto-sell at vendors " .. (ns.db.sell.autoAll and "on" or "off") .. " (grey junk: " .. (ns.db.sell.autoJunk and "on" or "off") .. ")")
+    end)
+    f.auto:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Auto-sell", 1, 1, 1)
+        GameTooltip:AddLine("When you open a vendor, sell what Flow marks to sell (up to 12, so you can buy any back). Grey junk has its own switch in Options.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    f.auto:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     f.junk = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     f.junk:SetSize(22, 22)
@@ -201,6 +220,7 @@ function V:Refresh()
     f.title:SetText(string.format("Flow Seller  |cff%s%d item%s to sell|r", nSell > 0 and "ffffff" or "888888",
         nSell, nSell == 1 and "" or "s"))
     f.head.pm:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+    f.auto:SetChecked(ns.db.sell.autoAll == true)
     local parts = { f.junk, f.junkLabel, f.propHeader, f.soldHeader, f.footer, f.sellAll, f.close }
     for _, r in ipairs(f.propRows) do parts[#parts + 1] = r end
     for _, r in ipairs(f.soldRows) do parts[#parts + 1] = r end

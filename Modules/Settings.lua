@@ -184,10 +184,10 @@ local function build(parent)
         "A shaded chevron lying on the ground ahead of you. It turns left and right; WoW: Forever gives no heights, so it can't point up or down.",
         function() return ns.db.nav.arrowStyle ~= "flat" end,
         function(on) ns.nav:SetArrowStyle(on and "3d" or "flat") end)
-    _, y = check(f, y, "North-up arrow", "(off = turns with your character)",
-        "The arrow points the way on the screen like a map, up = north. (Add-ons can't read the camera's direction, so the other choice follows your character, not the camera.)",
-        function() return ns.db.nav.northUp ~= false end,
-        function(on) ns.db.nav.northUp = on end)
+    _, y = check(f, y, "North-up arrow", "(off = turns with your character; right-click the arrow for \"like my minimap\")",
+        "The arrow points the way on the screen like a map, up = north: it only turns as the direction to the stop changes. (Add-ons can't read the camera's direction, so the other choice follows your character, not the camera.)",
+        function() return ns.nav.ArrowTurn() == "north" end,
+        function(on) ns.nav:SetArrowTurn(on and "north" or "character") end)
     _, y = check(f, y, "Stop areas on the minimap", nil,
         "The area of the stop the arrow points at, on the minimap (and the stop you hover in the Flow Tracker).",
         function() return ns.db.nav.minimapAreas ~= false end,
@@ -203,6 +203,14 @@ local function build(parent)
         "Out of combat at a fishing or gathering stop, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
         function() return ns.db.actions.enabled ~= false end,
         function(on) ns.db.actions.enabled = on end)
+    _, y = check(f, y, "Flow Seller: auto-sell at vendors", "(also on the Flow Seller drawer)",
+        "When you open a vendor, sell everything Flow marks to sell: up to 12 a visit, so you can buy any back (Flow then never sells it again).",
+        function() return ns.db.sell.autoAll == true end,
+        function(on) ns.db.sell.autoAll = on end)
+    _, y = check(f, y, "Flow Seller: auto-sell grey junk", nil,
+        "Sells every grey item as soon as you open a vendor.",
+        function() return ns.db.sell.autoJunk == true end,
+        function(on) ns.db.sell.autoJunk = on end)
     y = y - 10
 
     -- Suggested WoW settings (Setup.lua rows)

@@ -972,6 +972,44 @@ local function buildList()
     f.showLines = rc
     hc:Hide(); hc.label:Hide()  -- hidden stops are always listed now
 
+    -- One dropdown for the route instead of the checkboxes above (which
+    -- couldn't reach Completionist, and had professions as an odd sub-box):
+    -- "Route: Optimal with professions" opens the same list as the arrow's
+    -- right-click menu. (The map's route on/off button sits above Flow's
+    -- drawer button, so the checkbox for it goes too.)
+    for _, cb in ipairs({ f.modeQuests, f.modeOptimal, pc, rc }) do cb:Hide(); cb.label:Hide(); cb.retired = true end
+    local dd = CreateFrame("Button", nil, f)
+    dd:SetHeight(22)
+    dd:SetPoint("TOPLEFT", 8, -30); dd:SetPoint("TOPRIGHT", -8, -30)
+    dd.bg = dd:CreateTexture(nil, "BACKGROUND"); dd.bg:SetAllPoints()
+    dd.bg:SetColorTexture(1, 1, 1, 0.06)
+    dd.hl = dd:CreateTexture(nil, "HIGHLIGHT"); dd.hl:SetAllPoints()
+    dd.hl:SetColorTexture(1, 1, 1, 0.08)
+    dd.text = dd:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    dd.text:SetPoint("LEFT", 8, 0); dd.text:SetPoint("RIGHT", -20, 0); dd.text:SetJustifyH("LEFT")
+    dd.arms = { dd:CreateLine(nil, "ARTWORK"), dd:CreateLine(nil, "ARTWORK") }
+    for k, l in ipairs(dd.arms) do                         -- a small down chevron: "opens a list"
+        l:SetThickness(1.5)
+        l:SetStartPoint("RIGHT", dd, -14 + (k == 1 and -4 or 4), 2)
+        l:SetEndPoint("RIGHT", dd, -14, -2)
+        l:SetColorTexture(1, 1, 1, 0.8)
+    end
+    dd:SetScript("OnClick", function() ns.menu:Open(ns.menu:RouteItems()) end)
+    dd:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Choose the route", 1, 1, 1)
+        GameTooltip:AddLine("Current quests, optimal (with or without professions), or completionist; and the order.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    dd:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    function dd:Update()
+        local mode, profs = ns.nav:Mode(), ns.db.nav.professions ~= false
+        local what = (mode == "quests" and "Current quests") or (mode == "complete" and "Completionist")
+            or (profs and "Optimal with professions" or "Optimal without professions")
+        self.text:SetText("|cffffd200Route:|r " .. what)
+    end
+    f.routeDrop = dd
+
     -- Route sorting (XpValue.lua): three modes, one row of radios.
     f.sorts = {}
     local SORTS = {
@@ -982,7 +1020,7 @@ local function buildList()
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
         rb:SetSize(20, 20)
-        rb:SetPoint("TOPLEFT", sdef[3], -88)
+        rb:SetPoint("TOPLEFT", sdef[3], -58)
         rb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         rb.label:SetPoint("LEFT", rb, "RIGHT", 1, 0)
         rb.label:SetText(ns.theme:ModeText(sdef[1], sdef[2]))
@@ -998,8 +1036,8 @@ local function buildList()
     end
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -112)
-    f.title:SetPoint("TOPRIGHT", -8, -112)
+    f.title:SetPoint("TOPLEFT", 8, -84)
+    f.title:SetPoint("TOPRIGHT", -8, -84)
     f.title:SetJustifyH("LEFT")
 
     -- Each row: [^] handle, then the stop.
@@ -1012,8 +1050,8 @@ local function buildList()
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -130 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -130 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -102 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -102 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -1130,19 +1168,9 @@ local function updateList()
     list.bg:SetShown(not hidden)
     list.title:SetShown(not hidden)
     list.hint:SetShown(not hidden)
-    list.modeQuests:SetShown(not hidden); list.modeQuests.label:SetShown(not hidden)
-    list.modeOptimal:SetShown(not hidden); list.modeOptimal.label:SetShown(not hidden)
-    local mode = ns.nav:Mode()
-    list.modeQuests:SetChecked(mode == "quests")
-    list.modeOptimal:SetChecked(mode ~= "quests")
-    -- Completionist (arrow menu, /flow nav complete) shares this row.
-    list.modeOptimal.label:SetText(mode == "complete" and "Completionist: every quest here" or "Follow optimal path")
-    -- Professions only matter on the optimal path.
-    local showProfs = not hidden and mode ~= "quests"
-    list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
-    list.profs:SetChecked(ns.db.nav.professions ~= false)
+    list.routeDrop:SetShown(not hidden)
+    list.routeDrop:Update()
     local chosen = ns.nav.selection and ns.nav.selection.first
-    list.showLines:SetChecked(ns.db.nav.mapLines ~= false)
     for _, rb in ipairs(list.sorts) do
         rb:SetChecked(ns.xpValue:Mode() == rb.mode)
         if rb.mode == "selected" then
@@ -1161,9 +1189,9 @@ local function updateList()
     list.title:SetText(string.format("%s: %d stops, about %d yd%s",
         following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0,
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
-    if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
+    if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 136) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108) / ROW_H))
     -- Route stops first, then blocked stops (lock + reason), then (if
     -- ticked) hidden stops, greyed out.
     local blocked = ns.nav.blockedGoals or {}

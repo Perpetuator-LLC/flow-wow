@@ -87,6 +87,31 @@ ns:Register("setupItem", "zoom", {
     suggested = true, default = false,
 })
 
+-- The game's "Camera Following Style": by default it swings the camera back
+-- behind you whenever you move. Off = the camera stays where you put it.
+ns:Register("setupItem", "cameraStays", {
+    order = 61, label = "Camera stays where you put it",
+    why = "Stops the game swinging the camera back behind you when you move (the game's Camera Following Style: Never).",
+    available = function() return cvar("cameraSmoothStyle") ~= nil end,
+    isOn = function() return cvar("cameraSmoothStyle") == "0" end,
+    set = function(on)
+        if on then SetCVar("cameraSmoothStyle", "0")
+        else SetCVar("cameraSmoothStyle", cvarDefault("cameraSmoothStyle") or "4") end
+    end,
+    suggested = true,
+    default = function() return cvarDefault("cameraSmoothStyle") == "0" end,
+    isNew = true,
+})
+-- You asked for it (2026-11-06): switched once, then it's yours to change.
+ns:On("PLAYER_LOGIN", function()
+    ns.db.setup = ns.db.setup or {}
+    if not ns.db.setup.cameraStaysOnce and cvar("cameraSmoothStyle") and cvar("cameraSmoothStyle") ~= "0" then
+        SetCVar("cameraSmoothStyle", "0")
+        ns:Print("the camera now stays where you put it (Options > AddOns > Flow to change).")
+    end
+    ns.db.setup.cameraStaysOnce = true
+end)
+
 ns:Register("setupItem", "stamps", {
     order = 70, label = "Chat timestamps", why = "See when each chat line arrived.",
     isOn = function() local v = cvar("showTimestamps"); return v ~= nil and v ~= "none" end,
