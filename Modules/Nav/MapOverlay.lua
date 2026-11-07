@@ -851,9 +851,11 @@ local function updateList()
     list.modeOptimal:SetShown(not hidden); list.modeOptimal.label:SetShown(not hidden)
     local mode = ns.nav:Mode()
     list.modeQuests:SetChecked(mode == "quests")
-    list.modeOptimal:SetChecked(mode == "optimal")
+    list.modeOptimal:SetChecked(mode ~= "quests")
+    -- Completionist (arrow menu, /flow nav complete) shares this row.
+    list.modeOptimal.label:SetText(mode == "complete" and "Completionist: every quest here" or "Follow optimal path")
     -- Professions only matter on the optimal path.
-    local showProfs = not hidden and mode == "optimal"
+    local showProfs = not hidden and mode ~= "quests"
     list.profs:SetShown(showProfs); list.profs.label:SetShown(showProfs)
     list.profs:SetChecked(ns.db.nav.professions ~= false)
     local chosen = ns.nav.selection and ns.nav.selection.first

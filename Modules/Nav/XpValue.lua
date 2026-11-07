@@ -50,6 +50,8 @@ end
 function X:Mode() return ns.db.nav.sorter or "xp" end
 function X:Base() return ns.db.nav.baseSorter or "xp" end
 function X:On()
+    -- Completionist route: every quest counts the same, so XP doesn't reorder it.
+    if ns.nav and ns.nav.Mode and ns.nav:Mode() == "complete" then return false end
     local m = self:Mode()
     if m == "selected" then m = self:Base() end
     return m == "xp"

@@ -53,9 +53,12 @@ local function candidates(p, goals)
             stops[#stops + 1] = { goal = g, key = g.key, points = keep, near = pts[1].d }
         end
     end
-    -- Chosen stops always make the cut; the rest by (weighted) nearness.
+    -- Chosen stops always make the cut, then milestones (class training: it
+    -- changes every fight after it), then the rest by (weighted) nearness.
+    -- A milestone is never dropped as "too far", but it doesn't jump the
+    -- queue either: its weight puts it where it costs the least detour.
     table.sort(stops, function(a, b)
-        local fa, fb = forced(a.key) and 1 or 0, forced(b.key) and 1 or 0
+        local fa, fb = forced(a.key) and 2 or (a.goal.milestone and 1 or 0), forced(b.key) and 2 or (b.goal.milestone and 1 or 0)
         if fa ~= fb then return fa > fb end
         return a.near * (a.goal.weight or 1) < b.near * (b.goal.weight or 1)
     end)

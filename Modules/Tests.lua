@@ -467,3 +467,39 @@ ns:Register("test", "router: the selected stop is marked active", function(t)
     t:ok(not ns.mapOverlay.IsSelected("123:1"), "not in another order mode")
     db.sorter, db.selectedKey = sorter, key
 end)
+
+ns:Register("test", "recipes: learning one at a trainer clears its stop", function(t)
+    local R = ns.recipes
+    local p = R._patternFrom("You have learned how to create a new item: %s.")
+    t:eq(("You have learned how to create a new item: Heavy Linen Bandage."):match(p), "Heavy Linen Bandage", "chat line parsed")
+    local saved = ns.db.crafting["First Aid"]
+    ns.db.crafting["First Aid"] = { rank = 40, seenAt = 0, recipes = { ["Linen Bandage"] = { reagents = {} } } }
+    t:ok(R:MarkKnown("Heavy Linen Bandage"), "recipe from the First Aid guide")
+    local known = R:Known("First Aid")
+    t:ok(known["Heavy Linen Bandage"] ~= nil, "now known")
+    t:ok(not R:MarkKnown("Not A Recipe"), "unknown names are ignored")
+    ns.db.crafting["First Aid"] = saved
+end)
+
+ns:Register("test", "route: completionist mode keeps grey quests and ignores XP", function(t)
+    local db = ns.db.nav
+    local mode = db.mode
+    db.mode = "complete"
+    t:ok(not ns.xpValue:On(), "XP doesn't reorder a completionist route")
+    ns.nav:SetMode("complete"); t:eq(db.mode, "complete", "mode kept")
+    ns.nav:SetMode("nonsense"); t:eq(db.mode, "optimal", "unknown mode -> optimal")
+    db.mode = mode
+    ns.nav:Collect()
+end)
+
+ns:Register("test", "planner: a milestone always makes the cut", function(t)
+    local P = ns.planner
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local goals = {}
+    for i = 1, 20 do goals[i] = { key = "near" .. i, points = { { cont = 0, wx = i * 10, wy = 0 } } } end
+    goals[21] = { key = "train:class", milestone = true, weight = 0.5, points = { { cont = 0, wx = 5000, wy = 0 } } }
+    local plan = P:Plan(p, goals, {})
+    local found
+    for _, s in ipairs(plan) do if s.goal.key == "train:class" then found = true end end
+    t:ok(found, "class training is planned even though 20 stops are nearer")
+end)

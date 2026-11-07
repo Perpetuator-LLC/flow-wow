@@ -384,8 +384,11 @@ end
 
 function N:Mode() return (ns.db.nav and ns.db.nav.mode) or "optimal" end
 
+-- Route modes: "quests" (only your log), "optimal" (everything worth the XP),
+-- "complete" (completionist: every quest you can still do in the zones
+-- you're questing in, whatever its level, in the shortest order).
 function N:SetMode(mode)
-    ns.db.nav.mode = (mode == "quests") and "quests" or "optimal"
+    ns.db.nav.mode = (mode == "quests" or mode == "complete") and mode or "optimal"
     self:Collect()
 end
 
@@ -752,7 +755,7 @@ function N:Options(sel)
     end
     -- Default (nothing chosen): pick up the quests in this hub before heading
     -- out, like a walkthrough does, as long as your quest log has room.
-    if not tour and not sel.first and self:Mode() == "optimal" then
+    if not tour and not sel.first and self:Mode() ~= "quests" then
         tour = self:PickupKeys()
     end
     -- Shared party route: its stops come first, in the shared order (their
@@ -1537,9 +1540,11 @@ ns.commands.nav = function(arg)
         end
         local p = N:PlayerPos()
         if p then print(string.format("  you: map %d at %.1f, %.1f", p.map, p.x * 100, p.y * 100)) end
-    elseif arg == "quests" or arg == "optimal" then
+    elseif arg == "quests" or arg == "optimal" or arg == "complete" then
         N:SetMode(arg)
-        ns:Print(arg == "quests" and "following your current quests only" or "following the optimal path (quests, pickups, trainers, skill-ups)")
+        ns:Print(arg == "quests" and "following your current quests only"
+            or arg == "complete" and "completionist: every quest in the zones you're questing in, any level, shortest order"
+            or "following the optimal path (quests, pickups, trainers, skill-ups)")
     elseif arg == "learn" then
         cfg.learn = not cfg.learn
         ns:Print("trail learning " .. (cfg.learn and "on" or "off"))

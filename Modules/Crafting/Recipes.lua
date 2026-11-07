@@ -85,3 +85,55 @@ ns:OnLoad(function(saved) saved.crafting = saved.crafting or {} end)
 for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIST_UPDATE" }) do
     ns:On(ev, function() C_Timer.After(0.3, function() R:Record() end) end)
 end
+
+-- Learning a recipe at a trainer doesn't open the profession window, so the
+-- record above wouldn't know until you next open it, and "Learn X" stops
+-- stayed on the route. The game's chat line ("You have learned how to create
+-- a new item: Heavy Linen Bandage.") and NEW_RECIPE_LEARNED tell us at once.
+function R:MarkKnown(name)
+    if not name then return false end
+    local prof
+    for p, g in ns:Each("profGuide") do
+        for _, s in ipairs(g.steps or {}) do if s.recipe == name then prof = p end end
+    end
+    if not prof then
+        for p, d in pairs(ns.db.crafting) do
+            if type(d) == "table" and d.recipes and d.recipes[name] then prof = p end
+        end
+    end
+    if not prof then return false end
+    local d = ns.db.crafting[prof]
+    if not d then
+        d = { rank = nil, seenAt = time(), recipes = {} }
+        ns.db.crafting[prof] = d
+    end
+    d.recipes = d.recipes or {}
+    d.recipes[name] = d.recipes[name] or { reagents = {} }
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    return true
+end
+
+-- "You have learned how to create a new item: %s." -> a Lua pattern.
+local function patternFrom(fmt)
+    if type(fmt) ~= "string" then return nil end
+    return "^" .. fmt:gsub("[%(%)%.%+%-%*%?%[%]%^%$]", "%%%0"):gsub("%%s", "(.+)") .. "$"
+end
+R._patternFrom = patternFrom  -- (tests)
+
+ns:On("CHAT_MSG_SYSTEM", function(msg)
+    for _, fmt in ipairs({ ERR_LEARN_RECIPE_S, ERR_LEARN_SPELL_S }) do
+        local p = patternFrom(fmt)
+        local name = p and type(msg) == "string" and msg:match(p)
+        if name then R:MarkKnown(name:gsub("^|c%x+|H.-|h%[?(.-)%]?|h|r$", "%1")) return end
+    end
+end)
+
+ns:On("NEW_RECIPE_LEARNED", function(recipeID)
+    local name
+    if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+        local ok, info = pcall(C_TradeSkillUI.GetRecipeInfo, recipeID)
+        name = ok and info and info.name
+    end
+    if not name and GetSpellInfo then name = GetSpellInfo(recipeID) end
+    R:MarkKnown(name)
+end)

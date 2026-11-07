@@ -134,6 +134,7 @@ function Menu:RouteItems()
         { text = "Follow current quests", radio = true, checked = mode == "quests", func = setRoute("quests", profs) },
         { text = "Optimal with professions", radio = true, checked = mode == "optimal" and profs, func = setRoute("optimal", true) },
         { text = "Optimal without professions", radio = true, checked = mode == "optimal" and not profs, func = setRoute("optimal", false) },
+        { text = "Completionist: every quest here, any level", radio = true, checked = mode == "complete", func = setRoute("complete", profs) },
         { sep = true },
         { title = true, text = "Order" },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },

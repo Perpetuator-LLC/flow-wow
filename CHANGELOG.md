@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.15
+- Fixed: "Learn Heavy Linen Bandage" (and other recipe stops) stayed after you learned it at
+  the trainer. Flow now notices the "You have learned..." line at once.
+- New route: **Completionist** (arrow menu, or `/flow nav complete`): every quest you can still
+  do in the zones you are questing in, grey ones included, in the shortest order. XP does not
+  reorder it.
+- Class training is a milestone: it always makes the route (never dropped as too far) and
+  counts as half the distance of a quest stop, so you train as soon as it fits around the
+  quests on the way, instead of whenever you happen to pass the trainer.
+- Quests that come into range as you level are folded into the route by themselves (the
+  route re-plans on level up).
+
 ## 0.35.14
 - For contributors: CLAUDE.md (how to work on Flow with an AI assistant), CONTRIBUTING.md,
   and GitHub issue and pull request templates.

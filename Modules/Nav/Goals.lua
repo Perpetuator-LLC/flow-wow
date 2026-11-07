@@ -191,9 +191,12 @@ ns:Register("navGoal", "pickups", {
         -- Quest log full: picking up more is pointless.
         if ns.quests.FreeSlots and ns.quests:FreeSlots() == 0 then return nil end
         local level = UnitLevel("player")
+        -- Levelling: only quests still worth the XP (down to 4 levels below you).
+        -- Completionist mode: all of them, grey ones too.
+        local floor = ns.nav:Mode() == "complete" and -math.huge or level - 4
         local goals = {}
         for _, q in ipairs(list) do
-            if (q.level or 0) >= level - 4 and q.starter and q.starter.spawns then
+            if (q.level or 0) >= floor and q.starter and q.starter.spawns then
                 goals[#goals + 1] = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
                     npcs = q.starter.name and { q.starter.name } or nil,
@@ -323,7 +326,10 @@ ns:Register("navGoal", "errands", {
                     text = string.format("Train %d of %d spell(s) at your class trainer (money for %d)", canPay, waiting, canPay)
                 end
                 out[#out + 1] = {
-                    key = "train:class", weight = 1.0, points = points,
+                    -- A milestone: new ranks make every fight after it faster, so it
+                    -- always makes the route and costs half as much "distance" as a
+                    -- quest stop. It still fits around the quests on the way there.
+                    key = "train:class", weight = 0.5, milestone = true, points = points,
                     npcs = names,
                     title = "Class training",
                     text = text,
