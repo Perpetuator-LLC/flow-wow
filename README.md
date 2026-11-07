@@ -3,8 +3,9 @@
 # Flow (unfettered) WoW Mod
 
 A levelling companion addon for **World of Warcraft: Forever**. It suggests what to press, plans
-your route, judges your gear, sorts your bags and learns from how you play. It started with the
-paladin and is built so other classes can be added without changing existing code.
+your route, judges your gear, sorts your bags, plans your professions and learns from how you
+play. It started with the paladin and is built so other classes can be added without changing
+existing code.
 
 Flow for WoW is a separate project from Flow Engine.
 
@@ -16,12 +17,15 @@ Flow for WoW is a separate project from Flow Engine.
   fast gold pulse heal now.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
-  In combat WoW freezes what a key casts, so it keeps the spell from the pull (or Blizzard's
-  one-button assistant, if the client has one) and shows it.
+  In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
+  if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button.
+- **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
+  Remembers what you cast when the game hides your auras.
+- **Heal after a fight**: after a long fight, briefly suggests a heal if you need one; never
+  in combat or with an enemy targeted.
 - **Smart self-heals**: suggests a heal only when none of it would be wasted by the time the
-  cast lands (cast time plus your latency, crits ignored). Suggests an emergency heal when
-  you'd die before you could react, unless your target dies first. Silent when the game hides
-  your health.
+  cast lands. Suggests an emergency heal when you'd die before you could react, unless your
+  target dies first. Silent when the game hides your health.
 - **Fight types**: boss, several enemies, elite or normal mob, each with its own priorities.
 - **Fight profiler**: records every fight and compares your best with your worst per fight
   type. It leans the rotation towards what worked (`/flow fights`).
@@ -31,45 +35,79 @@ Flow for WoW is a separate project from Flow Engine.
 
 ### Questing and navigation
 - **Route planner and arrow**: plans the whole trip (quest objectives, turn-ins after their
-  objectives, quests to pick up, trainers, and fishing or gathering when it's on the way) and
-  points you along it. It learns trails as you walk and follows them around hills and rivers.
-- **World map route**: numbered checkpoints with quest levels (`3 [9]`) and quest pickups
-  (`!2`). Hover a checkpoint to preview the route that starts there, click it to choose.
-- **Party routes**: joining a group asks if you want to follow the party route; your own route
-  stays separate (toggle under the arrow). The leader's Flow builds one from the quests you share.
-  Anyone following it can edit it (choose stops, add waypoints, reach stops); nobody owns it.
+  objectives, quests to pick up, trainers you can afford, and profession stops) and points you
+  along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
+  entrances so it sends you in through the door, not over the top.
+- **Three route orders**, each with its own colour for the arrow, route and waypoints:
+  **Most XP first** (epic purple, the default), **Shortest path** (rare blue) and **From
+  selected waypoint** (legendary orange). Tooltips show each stop's XP.
+- **Quest areas**: in an objective area the arrow becomes a ring; hover it to see every quest
+  there. The arrow comes back when the mob or NPC you need is in sight.
+- **Corpse arrow**: when you die the arrow turns red and points to your corpse.
+- **Blocked stops**: stops you can't do yet stay listed, greyed, with the reason ("needs
+  1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
+- **Flow Router** (the square button above the world map's quest log button): the route list
+  with quest icons, the order modes, and a "Show route on map" toggle. Hover a stop for details,
+  click to open its quest, use the `^` handle to route from that stop, right-click to hide it
+  for now. Hidden stops stay listed so you can bring them back.
+- **World map and minimap**: numbered waypoints with quest levels (`3 [9]`) and pickups
+  (`!2`), a line from you to the next stop with white chevrons, hover previews in orange, and
+  a minimap dot for the next stop.
+- **Flow Tracker**: the route under Questie's tracker, opening downward. Click a row to open the
+  quest; Shift-drag the header to move it, drop it near Questie to dock it again.
+- **Arrow menu**: right-click the arrow for route (quests only, optimal with or without
+  professions), order, unhide all, and party options.
+- **Party routes**: share your quests as a party route if you want one; your own route stays
+  separate. Anyone following it can edit it; nobody owns it.
 - **Your own waypoint**: Ctrl- or Alt-click the world map, or `/flow way x y`; it clears when you
   arrive.
+- **Only quests you can get**: holiday quests drop out when the event ends, and quests an NPC
+  doesn't offer are skipped.
 - **Quest markers on nameplates**: skull with your kill count, diamond with the count of an item
   a mob drops, star for NPCs to talk to; several per mob.
 - **Missed quests**: quests you skipped in zones you've quested in (`/flow missed`).
-- **Quest reward badges**: the best choice per role (spec icons: Retribution, Holy, Protection), or a gold coin on the best one to
-  sell.
+
+### Professions
+- **Skill plans**: for each profession, the cheapest path to the next skill cap: buy, learn,
+  smelt, craft, gather or farm, with prices from vendors you've visited. These go into the route
+  (`/flow prof plan`).
+- **Guides** for Blacksmithing, Mining, First Aid, Cooking, Fishing and Herbalism, plus the
+  recipes Flow has seen in your profession windows.
+- **Tools**: reminds you to buy the Mining Pick or Blacksmith Hammer, and knows when you have one.
 
 ### Gear and items
-- **Gear scores per role** in every tooltip, shown with your spec icons (Retribution, Holy, Protection), each compared with
-  what that item would replace, or with your gear set for that role (Equipment Manager or
-  `/flow gear save`).
-- **Bag icons**: green arrow to equip now, spec icons for other roles, gold coin to sell, AH,
-  DE, a quest "!" for items your quests need, and profession icons for crafting materials.
-  The tooltip says why.
-- **Selling**: at a vendor Flow lists what to sell and sells 12 at a time, which is the size
-  of the buyback tab. You can buy any item back with one click, and Flow then never sells it
-  again.
+- **Gear scores per role** in every tooltip, shown with your spec icons (Retribution, Holy,
+  Protection) and an up, down or equal arrow above each, compared with what the item would
+  replace (two one-handers are judged as a pair against a two-hander), or with your gear set
+  for that role (Equipment Manager or `/flow gear save`). Weapon speed counts for each spec.
+- **Quest reward badges**: the same spec icons and arrows on quest rewards, or a gold coin on
+  the best one to sell.
+- **Bag icons**: green arrow to equip now, spec arrows for other roles, gold coin to sell, AH,
+  DE, a quest "!" for items your quests need, and profession icons for materials and tools.
+  The tooltip lists every reason to keep an item (e.g. "Linen for First Aid").
+- **Flow Seller**: at a vendor Flow sells grey junk by itself and lists what else to sell,
+  12 at a time (the size of the buyback tab). It never sells profession tools or materials you
+  need. Buy any item back with one click, and Flow then never sells it again. With nothing to
+  sell it folds to "Flow Seller  0 items to sell".
 - **Skill books**: tells you to hold "+N skill" items until the last points before a cap.
 
 ### Progress advice
-- **Advice list** (the round spyglass button with a count): spells to train, items to equip, professions behind
-  your level, talents, skipped quests, and habits from your best fights. Rows that are places
-  route you there.
-- **Training and professions**: trainer reminders, profession targets for your level, and spec
-  advice (`/flow spec`).
+- **Advice list** (the round spyglass button with a count): spells to train (with cost), items
+  to equip, professions behind your level, talents and habits from your best fights. Rows that
+  are places route you there.
+- **Training and talents**: trainer reminders, profession targets for your level, and spec
+  advice (`/flow spec`, `/flow talents`).
 
 ### Quality of life
-- **Setup table** on first run (`/flow setup`), **key binding mode** with save/undo/cancel
-  (`/flow bind`), and a heads-up when the game auto-places new spells on your bars.
-- A load splash, `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move any
-  Flow element.
+- **Setup table** on first run (`/flow setup`): auto loot, nameplates, target of target,
+  camera zoom, timestamps, colour-blind route colours, combat log and your cast key. When an
+  update adds a new suggestion, the table shows once more.
+- **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
+  auto-places new spells on your bars.
+- **Colour-blind palette** for the route (in `/flow settings`).
+- A short load splash, `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
+  any Flow element.
+- **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
 
 ## Requirements and companions
 - World of Warcraft: Forever (interface 16001).
@@ -78,9 +116,10 @@ Flow for WoW is a separate project from Flow Engine.
 - Optional: **Auctionator**, for auction house prices in sell decisions.
 
 ## Commands
-`/flow help` lists everything. The main ones: `/flow settings`, `/flow rot why`,
-`/flow advice`, `/flow way`, `/flow map`, `/flow gear sets`, `/flow sell`, `/flow fights`,
-`/flow log auto`, `/flow api`.
+`/flow help` lists everything. The main ones: `/flow setup`, `/flow settings`, `/flow rot why`,
+`/flow advice`, `/flow way`, `/flow map`, `/flow nav xp|distance`, `/flow nav unhide`,
+`/flow prof plan`, `/flow gear sets`, `/flow sell`, `/flow fights`, `/flow talents`,
+`/flow log auto`, `/flow test`, `/flow api`.
 
 ## For developers
 - `Flow.toc` sets the load order. `Core.lua` holds the event bus and the registries
@@ -89,8 +128,10 @@ Flow for WoW is a separate project from Flow Engine.
   rotation.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) lists every extension point and how to add a
   class; [docs/GEAR_PLAN.md](docs/GEAR_PLAN.md) covers gear scoring.
-- **No Lua interpreter here:** test in game with `/console scriptErrors 1`, and use
-  `/flow rot why` and `/flow api` when debugging.
+- **Tests:** `Modules/Tests.lua` registers self-tests (`ns:Register("test", name, fn)`). There's
+  no Lua interpreter here, so they run in game: `/flow test`, and in the diagnostics on every
+  `/reload` (`tools/read-diag.ps1` prints them).
+- **Debugging:** `/console scriptErrors 1`, `/flow rot why` and `/flow api`.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
 - **Packaging:** `tools/package.ps1` builds a release zip; see [docs/PUBLISHING.md](docs/PUBLISHING.md).

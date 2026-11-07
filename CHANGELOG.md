@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.8
+- Setup: new "Target of target" row, suggested on. On clients that keep it in Edit Mode the
+  row says where to find it (Target Frame > Target of Target).
+- Setup: when an update adds a suggestion you have not seen and that is off, the setup table
+  opens once more, 30 seconds after login, with a line in chat naming what is new.
+- README: feature list brought up to date (route orders and colours, Flow Router, Flow Tracker,
+  quest areas, corpse arrow, blocked stops, professions, Flow Seller, self-tests); banner uses
+  the current route colours.
+
 ## 0.35.7
 - Arrow: in a quest area (the ring is showing), hovering the arrow or its text opens the full
   panel and moving away closes it; click to keep it open. Elsewhere hover shows a tooltip and a

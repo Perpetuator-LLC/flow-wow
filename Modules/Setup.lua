@@ -47,6 +47,29 @@ cvarRow("autoPush", 50, "Auto-place new spells on bars",
     "The game drops newly learned spells into empty bar slots. Leave off if you place spells yourself.",
     "AutoPushSpellToActionBar", "1", "0", false)
 
+-- Target of target: classic-style clients have a CVar; newer ones put it in Edit Mode
+-- (Target Frame > "Target of Target"), so that case is an info row telling you where.
+ns:Register("setupItem", "targetOfTarget", {
+    order = 55, label = "Target of target",
+    why = "Shows who your target is attacking, so you see when a mob turns on you or a party member.",
+    available = function() return cvar("showTargetOfTarget") ~= nil end,
+    isOn = function() return cvar("showTargetOfTarget") == "1" end,
+    set = function(on)
+        SetCVar("showTargetOfTarget", on and "1" or "0")
+        if TargetofTarget_Update and TargetFrameToT then pcall(TargetofTarget_Update, TargetFrameToT) end
+    end,
+    suggested = true,
+    default = function() return cvarDefault("showTargetOfTarget") == "1" end,
+    isNew = true,  -- added after the first-run table: shown once to existing installs too
+})
+ns:Register("setupItem", "targetOfTargetEdit", {
+    order = 55, label = "Target of target",
+    why = "Shows who your target is attacking. Turn it on in Edit Mode: Target Frame > Target of Target.",
+    available = function() return cvar("showTargetOfTarget") == nil end,
+    now = function() return "in Edit Mode" end,
+    info = true,
+})
+
 ns:Register("setupItem", "zoom", {
     order = 60, label = "Max camera zoom", why = "See more around you while questing.",
     isOn = function() return ns.camera:IsOn() end,
@@ -252,6 +275,7 @@ end
 
 function S:Open()
     frame = frame or build()
+    self:MarkSeen()
     frame:Show()
     self:Refresh()
 end
@@ -261,14 +285,40 @@ ns:OnLoad(function(saved)
     if saved.settings then saved.settings.prompted = true end
 end)
 
--- First run only.
-ns:On("PLAYER_ENTERING_WORLD", function()
-    if ns.db.setup.done then return end
-    C_Timer.After(30, function()  -- well after the splash, so new players aren't swamped
-        if not InCombatLockdown() and not ns.db.setup.done then
-            ns.db.setup.done = true
-            S:Open()
+-- Suggested rows you've never been shown that are still off (e.g. a row added in an update).
+-- Installs from before this list existed count every row as seen except ones marked isNew.
+function S:Unseen()
+    local db = ns.db.setup
+    if not db.seen then
+        db.seen = {}
+        if db.done then
+            for key, item in ns:Each("setupItem") do if not item.isNew then db.seen[key] = true end end
         end
+    end
+    local out = {}
+    for _, r in ipairs(rows()) do
+        local it = r.item
+        if not db.seen[r.key] and it.isOn and it.suggested and not it.isOn() then out[#out + 1] = it.label end
+    end
+    return out
+end
+
+function S:MarkSeen()
+    if not ns.db.setup.seen then self:Unseen() end
+    for _, r in ipairs(rows()) do ns.db.setup.seen[r.key] = true end
+end
+
+-- First run, or once when an update adds a suggestion you haven't seen.
+ns:On("PLAYER_ENTERING_WORLD", function()
+    if ns.db.setup.done and #S:Unseen() == 0 then return end
+    C_Timer.After(30, function()  -- well after the splash, so new players aren't swamped
+        if InCombatLockdown() then return end
+        local new = ns.db.setup.done and S:Unseen() or nil
+        if new and #new == 0 then return end
+        ns.db.setup.done = true
+        S:MarkSeen()
+        if new then ns:Print("new in the setup table: " .. table.concat(new, ", ")) end
+        S:Open()
     end)
 end)
 

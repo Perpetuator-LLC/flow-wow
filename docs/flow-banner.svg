@@ -5,22 +5,30 @@
       <stop offset="1" stop-color="#1f2333"/>
     </linearGradient>
     <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#E69F00"/>
-      <stop offset="1" stop-color="#F0E442"/>
+      <stop offset="0" stop-color="#FF8000"/>
+      <stop offset="1" stop-color="#FFD100"/>
     </linearGradient>
+    <!-- white chevron "ants" along the route, as on the in-game map -->
+    <marker id="chev" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#ffffff" stroke-width="2"/>
+    </marker>
   </defs>
   <rect width="900" height="220" rx="16" fill="url(#bg)"/>
-  <!-- the route: checkpoints joined by a path (same colours as in game) -->
-  <path d="M60 182 C 160 150, 230 205, 320 172 S 470 145, 560 165 S 720 200, 840 150"
-        fill="none" stroke="#009E73" stroke-width="5" stroke-linecap="round"/>
-  <path d="M320 172 C 380 210, 470 205, 560 165" fill="none" stroke="#F0E442" stroke-width="3"
-        stroke-dasharray="8 8" stroke-linecap="round" opacity="0.9"/>
-  <circle cx="60" cy="182" r="11" fill="#E69F00"/>
-  <circle cx="320" cy="172" r="10" fill="#009E73"/>
-  <circle cx="560" cy="165" r="10" fill="#0072B2"/>
-  <circle cx="840" cy="150" r="10" fill="#009E73"/>
-  <text x="76" y="206" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#E69F00">1 [9]</text>
-  <text x="576" y="190" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#56B4E9">!2 [8]</text>
+  <!-- the route in the three order-mode colours: Most XP (epic), Shortest (rare), From selected (legendary) -->
+  <path d="M60 182 C 160 150, 230 205, 320 172" fill="none" stroke="#A335EE" stroke-width="5" stroke-linecap="round"/>
+  <path d="M320 172 C 400 140, 480 145, 560 165" fill="none" stroke="#0070DD" stroke-width="5" stroke-linecap="round"/>
+  <path d="M560 165 C 650 188, 740 200, 840 150" fill="none" stroke="#FF8000" stroke-width="5" stroke-linecap="round"/>
+  <polyline points="110,166 180,172 250,181 400,150 480,150 640,184 740,183" fill="none" stroke="none"
+            marker-mid="url(#chev)"/>
+  <!-- quest-area ring at the selected stop -->
+  <circle cx="840" cy="150" r="24" fill="none" stroke="#FF8000" stroke-width="2" opacity="0.6"/>
+  <circle cx="60" cy="182" r="11" fill="#A335EE" stroke="#fff" stroke-width="2"/>
+  <circle cx="320" cy="172" r="10" fill="#0070DD" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="560" cy="165" r="10" fill="#FF8000" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="840" cy="150" r="10" fill="#FF8000" stroke="#fff" stroke-width="1.5"/>
+  <text x="76" y="208" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#C88BF5">1 [7]</text>
+  <text x="300" y="204" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#5AA9F0">!2 [8]</text>
+  <text x="808" y="198" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#FFB060">3 [9]</text>
   <text x="450" y="78" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
         font-size="76" letter-spacing="18" fill="url(#gold)">FLOW</text>
   <text x="450" y="112" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif"

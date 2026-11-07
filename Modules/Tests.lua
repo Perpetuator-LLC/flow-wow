@@ -386,3 +386,24 @@ ns:Register("test", "tools: any version of a tool counts", function(t)
     t:eq(D:ToolProfession(987655, "Sturdy Blacksmith Hammer"), "Blacksmithing", "name contains the tool")
     t:eq(D:ToolProfession(987656, "Rusty Sword"), nil, "not a tool")
 end)
+
+-- Test-only setup rows: hidden except while this test runs (the registry has no remove).
+local setupTestOn = false
+ns:Register("setupItem", "zzTestNew", { order = 999, label = "Test row", suggested = true, isNew = true,
+    available = function() return setupTestOn end, isOn = function() return false end, set = function() end })
+ns:Register("setupItem", "zzTestOld", { order = 999, label = "Old row", suggested = true,
+    available = function() return setupTestOn end, isOn = function() return false end, set = function() end })
+
+ns:Register("test", "setup: a new suggestion is shown once to old installs", function(t)
+    local S, db = ns.setup, ns.db.setup
+    local savedSeen, savedDone = db.seen, db.done
+    setupTestOn = true
+    db.done, db.seen = true, nil
+    local new = table.concat(S:Unseen(), ",")
+    t:ok(new:find("Test row") ~= nil, "the new row is unseen")
+    t:ok(new:find("Old row") == nil, "older rows count as seen")
+    S:MarkSeen()
+    t:eq(#S:Unseen(), 0, "nothing left after it's shown")
+    setupTestOn = false
+    db.seen, db.done = savedSeen, savedDone
+end)
