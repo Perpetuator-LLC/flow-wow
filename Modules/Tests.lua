@@ -1051,3 +1051,13 @@ ns:Register("test", "minimap cloud: the fast span filler matches", function(t)
     t:eq(c, 2, "two spans: the merged pair and the far one")
     t:near(out[1], -13, 0.01, "first span starts"); t:near(out[2], 13, 0.01, "first span ends")
 end)
+
+ns:Register("test", "Flow button: cooldown timer text", function(t)
+    local T = ns.CooldownText
+    t:eq(T(0, 0, 100), "", "ready: no timer")
+    t:eq(T(99, 1.5, 100), "", "global cooldown only: no timer")
+    t:eq(T(90, 30, 100), "20", "20 s left")
+    t:eq(T(98, 6, 100), "4.0", "under 10 s: tenths")
+    t:eq(T(0.5, 300, 100), "4m", "minutes when long")
+    t:eq(T(10, 30, 100), "", "finished: no timer")
+end)

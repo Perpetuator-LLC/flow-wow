@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.47
+- The Flow button shows a cooldown timer: seconds left, big in the middle of the icon (tenths
+  under 10 s, minutes when long). Not for the 1.5 s global cooldown. Items too (a lure...).
+- In a quest's area the arrow is the ring again. Pointing at the nearest spawn spot (0.35.45)
+  sent you back and forth: those are where things CAN spawn, not where they are. Standing on
+  one still makes the pillars wave.
+
 ## 0.35.46
 - The Flow button's "drag to move" label (hold Shift) now sits above the button, on a dark tab,
   instead of covering the action's text below it. Hovering the handle lights it up, shows the

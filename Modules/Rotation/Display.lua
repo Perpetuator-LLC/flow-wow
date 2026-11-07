@@ -69,6 +69,18 @@ local function buildIcon(cfg)
 
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints()
+    -- Flow draws its own countdown (below), so the game's numbers stay off.
+    if f.cd.SetHideCountdownNumbers then f.cd:SetHideCountdownNumbers(true) end
+    -- The cooldown timer: seconds left, big in the middle of the icon, above
+    -- the cooldown's dark sweep. The global cooldown (1.5 s after every cast)
+    -- isn't counted: only real cooldowns.
+    f.timerLayer = CreateFrame("Frame", nil, f)
+    f.timerLayer:SetAllPoints()
+    f.timerLayer:SetFrameLevel(f.cd:GetFrameLevel() + 2)
+    f.timer = f.timerLayer:CreateFontString(nil, "OVERLAY")
+    f.timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
+    f.timer:SetPoint("CENTER", 0, 0)
+    f.timer:SetTextColor(1, 0.95, 0.7)
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
@@ -163,6 +175,33 @@ end
 -------------------------------------------------------------------------------
 
 
+-- Cooldown of what the button does: a spell, or an item (a lure, a recipe).
+local function cooldownOf(s)
+    if s.spell then return A.CooldownRaw(s.spell) end
+    local id = s.item and tonumber(tostring(s.item):match("(%d+)"))
+    if id then
+        local get = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown
+        if get then
+            local ok, start, dur = pcall(get, id)
+            if ok then return start, dur end
+        end
+    end
+    return 0, 0
+end
+
+-- The timer's text for a cooldown: "" when ready or only the global
+-- cooldown; "1m" / "12" / "4.2" otherwise.
+local GCD = 1.6
+function ns.CooldownText(start, dur, now)
+    start, dur = ns.api.Safe(start), ns.api.Safe(dur)
+    if not (start and dur) or start == 0 or dur <= GCD then return "" end
+    local left = start + dur - now
+    if left <= 0 then return "" end
+    if left >= 60 then return string.format("%dm", math.ceil(left / 60)) end
+    if left >= 10 then return string.format("%d", math.floor(left + 0.5)) end
+    return string.format("%.1f", left)
+end
+
 -- Border for a Flow Action (equip the pole, make a campfire...): not the
 -- route purple, which reads as "epic item". Spells use the spell colour
 -- (light blue, like buffs); items their own quality colour (white, green...).
@@ -197,12 +236,9 @@ local function render(s, cfg)
     icon.border:SetColor(color[1], color[2], color[3])
     -- Flow Actions always say what the press does ("Equip your Fishing Pole").
     icon.text:SetText(s.label or (cfg.debug and s.reason) or "")
-    if s.spell then
-        local start, dur = A.CooldownRaw(s.spell)
-        icon.cd:SetCooldown(start, dur)
-    else
-        icon.cd:SetCooldown(0, 0)
-    end
+    local start, dur = cooldownOf(s)
+    icon.cd:SetCooldown(start or 0, dur or 0)
+    icon.timer:SetText(ns.CooldownText(start, dur, GetTime()))
     icon:Show()
 
     local key = tostring(s.spell or s.item or s.type) .. s.kind

@@ -1852,19 +1852,14 @@ local function update()
     -- nameplate on screen: then the arrow points straight at it.
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
     N.arrived = here
-    -- In the area: the arrow finds the nearest spot where the thing you need
-    -- spawns (Questie knows each Bundle of Wood, each mob spawn), skipping
-    -- spots you've just looted, and shows how far. The ring only when you're
-    -- right on one.
+    -- In the area it's the ring. (Pointing at the nearest Questie spawn spot
+    -- was tried in 0.35.45: the spots are where things CAN spawn, not where
+    -- they are, so the arrow jumped around and sent you back and forth.) The
+    -- nearest spot is still used for one thing: standing on one makes the
+    -- pillars wave.
     local spot, spotD
     if here and g.area then spot, spotD = N:NearestSpot(g, p) end
-    if here and spot and spotD > SPOT_ON and facing then
-        local sb = bearing(p, spot.wx, spot.wy)
-        frame.arrow:SetArrived(false)
-        if sb then frame.arrow:SetRotation(-(sb + facing)) end
-        frame.arrow:Show()
-        frame.sub:SetText(string.format("Nearest %s: %d yd", g.target or "spot", spotD))
-    elseif here then
+    if here then
         local tgt = N:VisibleTarget(g)
         if tgt then
             local ax, ay = frame:GetCenter()
