@@ -1629,7 +1629,7 @@ local function buildArrow()
                 local g = current.goal
                 items[#items + 1] = { title = true, text = g.text or g.title or "This stop" }
                 items[#items + 1] = { text = "Open it", func = function() N:OpenStop(g) end }
-                items[#items + 1] = { text = "Move on (hide this for now)", func = function() N:Hide(g.key) end }
+                items[#items + 1] = { text = "Hide this stop", func = function() N:Hide(g.key) end }
                 items[#items + 1] = { sep = true }
             end
             for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end

@@ -125,19 +125,12 @@ local function build()
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
     f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.94)
-    local top = f:CreateTexture(nil, "BORDER")
-    top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(2)
-    local o = ns.theme.arrow
-    top:SetColorTexture(o[1], o[2], o[3], 0.95)
-
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.title:SetPoint("TOPLEFT", 10, -10)
-    f.title:SetText("Flow Seller")
-    -- The header opens and closes the drawer. It stays on screen at every
-    -- vendor, collapsed when there's nothing to sell, so you can see it's
-    -- working ("0 items to sell") and open it to check.
-    f.head = CreateFrame("Button", nil, f)
-    f.head:SetPoint("TOPLEFT"); f.head:SetPoint("TOPRIGHT"); f.head:SetHeight(28)
+    -- Flow's title bar (Theme.lua), the same as the Flow Tracker's and Flow
+    -- Router's: a coin for the seller. It opens and closes the drawer. It stays
+    -- on screen at every vendor, collapsed when there's nothing to sell, so you
+    -- can see it's working ("0 items to sell") and open it to check.
+    f.head = ns.theme:TitleBar(f, "Flow Seller", "Interface\\Icons\\INV_Misc_Coin_01", "Button")
+    f.title = f.head.text
     f.head.pm = f.head:CreateTexture(nil, "ARTWORK")
     f.head.pm:SetSize(16, 16); f.head.pm:SetPoint("RIGHT", -8, 0)
     f.head.hl = f.head:CreateTexture(nil, "HIGHLIGHT"); f.head.hl:SetAllPoints(); f.head.hl:SetColorTexture(1, 1, 1, 0.06)
@@ -226,7 +219,7 @@ function V:Refresh()
     for _, r in ipairs(f.soldRows) do parts[#parts + 1] = r end
     if collapsed then
         for _, p in ipairs(parts) do p:Hide() end
-        f:SetHeight(30)
+        f:SetHeight(ns.theme.TITLE_H)   -- just the title bar
         f:Show()
         return
     end
@@ -363,10 +356,16 @@ function V:SellAll()
     C_Timer.After(0.4, function() V:Refresh() end)
 end
 
+-- The panel, built the first time it's needed (a vendor, or the tests).
+function V:Panel()
+    panel = panel or build()
+    return panel
+end
+
 ns:On("MERCHANT_SHOW", function()
     merchantOpen = true
     if not ns.db.sell.enabled then return end
-    panel = panel or build()
+    V:Panel()
     wipe(sold); junkSold = 0
     V.visitCollapsed = nil  -- each visit starts open if there's something to sell, else collapsed
     D:Invalidate()

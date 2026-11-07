@@ -38,6 +38,33 @@ ns.theme = {
     muted    = rgb("BBBBBB"),
 }
 
+-- Flow's panel title bar, the brand on every Flow panel (Flow Tracker, Flow
+-- Router, Flow Seller): a dark bar with the orange accent down its left edge,
+-- an icon and the title in gold. One recipe, so the panels can't drift apart.
+-- frameType "Button" when the bar is clickable. Returns the bar with
+-- .bg, .accent, .icon and .text (the title).
+ns.theme.TITLE_H = 24
+function ns.theme:TitleBar(parent, title, icon, frameType)
+    local h = CreateFrame(frameType or "Frame", nil, parent)
+    h.flowTitleBar = true
+    h:SetHeight(self.TITLE_H)
+    h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
+    h.bg = h:CreateTexture(nil, "BACKGROUND"); h.bg:SetAllPoints()
+    h.bg:SetColorTexture(0.11, 0.09, 0.06, 0.92)
+    local o = self.arrow
+    h.accent = h:CreateTexture(nil, "BORDER")
+    h.accent:SetPoint("TOPLEFT"); h.accent:SetPoint("BOTTOMLEFT"); h.accent:SetWidth(4)
+    h.accent:SetColorTexture(o[1], o[2], o[3], 1)
+    h.icon = h:CreateTexture(nil, "ARTWORK")
+    h.icon:SetSize(16, 16); h.icon:SetPoint("LEFT", 9, 0)
+    if icon then h.icon:SetTexture(icon) end
+    h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    h.text:SetPoint("LEFT", h.icon, "RIGHT", 6, 0)
+    h.text:SetText(title or "")
+    return h
+end
+
 local function set(self, k, c)
     if self[k] then
         self[k][1], self[k][2], self[k][3], self[k].hex = c[1], c[2], c[3], c.hex

@@ -65,6 +65,7 @@ end
 function Menu:Close() if frame then frame:Hide() end end
 
 function Menu:Open(items)
+    self.items = items   -- the menu on screen (tests read its entries)
     GameTooltip:Hide()
     if not frame then build() end
     local y = -PAD

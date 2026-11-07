@@ -101,6 +101,9 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 - Player-facing text is short, plain and specific ("Loot Stringy Wolf Meat 9/66"), never
   jargon.
 - Keep features optional and quiet: nothing should nag; the route should just be right.
+- Every Flow panel gets its title bar from `ns.theme:TitleBar(parent, title, icon)`
+  (`Modules/Theme.lua`): the same dark bar, orange accent and gold title as the Flow Tracker,
+  Router and Seller. Colours come from `ns.theme`, never hard-coded per panel.
 
 ## Every change
 

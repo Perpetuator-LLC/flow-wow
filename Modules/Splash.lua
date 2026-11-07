@@ -49,17 +49,25 @@ end
 -- Drawn on its own layer ABOVE the arrow (the arrow and its pillars are a
 -- child frame, which the game always draws over its parent), so FLOW sits
 -- on top of the spinning pillars, on a soft dark backing so it reads.
+-- The backing fades out at its edges: a few ovals, each a little bigger and
+-- each only faintly dark, stacked so the middle is about half dark and the
+-- rim melts into the pillars (no hard black edge).
+I.BACKING = { layers = 6, alpha = 0.11, from = { 38, 14 }, to = { 96, 40 } }
 local function deepText(f, arrow)
     local host = CreateFrame("Frame", nil, f)
     host:SetAllPoints(f)
     host:SetFrameLevel(arrow:GetFrameLevel() + 10)
     local layers = {}
-    local back = host:CreateTexture(nil, "BACKGROUND")
-    back:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-    back:SetSize(70, 30)
-    back:SetPoint("CENTER", host, "CENTER", 0, 6)
-    back:SetVertexColor(0, 0, 0, 0.6)
-    layers[#layers + 1] = back
+    local B = I.BACKING
+    for i = 1, B.layers do
+        local u = (i - 1) / (B.layers - 1)
+        local back = host:CreateTexture(nil, "BACKGROUND")
+        back:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        back:SetSize(B.from[1] + (B.to[1] - B.from[1]) * u, B.from[2] + (B.to[2] - B.from[2]) * u)
+        back:SetPoint("CENTER", host, "CENTER", 0, 6)
+        back:SetVertexColor(0, 0, 0, B.alpha)
+        layers[#layers + 1] = back
+    end
     local function face(dx, dy, r, g, b, a, outline, layer)
         local fs = host:CreateFontString(nil, layer or "OVERLAY")
         local ok = pcall(fs.SetFont, fs, "Fonts\\MORPHEUS.TTF", 22, outline or "")

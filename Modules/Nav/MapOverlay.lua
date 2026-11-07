@@ -142,7 +142,7 @@ local function pin(c, x, y, label, color, stop, top, target, selected)
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
@@ -302,7 +302,7 @@ local function blobClick(self, button)
             { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
             { text = "Go here first", func = function() ns.nav:Select(g.key) end },
             { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-            { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+            { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
         }
         ns.menu:Open(items)
         return
@@ -877,22 +877,9 @@ local function buildList()
     t:Hide()  -- the square map button opens and closes the drawer now
 
     -- How to use it, and which route to follow.
-    -- Header like the Flow Tracker's: dark bar, orange accent on the left,
-    -- an icon (a compass: the route) and the title; "?" help on the right.
-    local hd = CreateFrame("Frame", nil, f)
-    hd:SetHeight(24)
-    hd:SetPoint("TOPLEFT"); hd:SetPoint("TOPRIGHT")
-    hd.bg = hd:CreateTexture(nil, "BACKGROUND"); hd.bg:SetAllPoints()
-    hd.bg:SetColorTexture(0.11, 0.09, 0.06, 0.92)
-    local acc = hd:CreateTexture(nil, "BORDER")
-    acc:SetPoint("TOPLEFT"); acc:SetPoint("BOTTOMLEFT"); acc:SetWidth(4)
-    acc:SetColorTexture(o[1], o[2], o[3], 1)
-    hd.icon = hd:CreateTexture(nil, "ARTWORK")
-    hd.icon:SetSize(16, 16); hd.icon:SetPoint("LEFT", 9, 0)
-    hd.icon:SetTexture("Interface\\Icons\\INV_Misc_Spyglass_03"); hd.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    hd.text = hd:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    hd.text:SetPoint("LEFT", hd.icon, "RIGHT", 6, 0)
-    hd.text:SetText("Flow Router")
+    -- Header: Flow's title bar (Theme.lua), like the Flow Tracker's and
+    -- Flow Seller's; a spyglass for the route, "?" help on the right.
+    local hd = ns.theme:TitleBar(f, "Flow Router", "Interface\\Icons\\INV_Misc_Spyglass_03")
     f.header = hd
     f.hint = hd   -- (older name: shown and hidden with the list)
     f.help = buildHelp(f)   -- how to use it: the "?" on the right
@@ -1131,7 +1118,7 @@ local function buildList()
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end

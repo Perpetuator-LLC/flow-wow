@@ -61,18 +61,8 @@ local function build()
     if not p or p[1] ~= "TOPLEFT" then C_Timer.After(0, pinTop) end
     local o = ns.theme.arrow
 
-    -- Header (same style as the Flow Router on the map).
-    local h = CreateFrame("Button", nil, f)
-    h:SetHeight(24)
-    h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
-    h.bg = h:CreateTexture(nil, "BACKGROUND"); h.bg:SetAllPoints()
-    h.bg:SetColorTexture(0.11, 0.09, 0.06, 0.92)
-    local accent = h:CreateTexture(nil, "BORDER")
-    accent:SetPoint("TOPLEFT"); accent:SetPoint("BOTTOMLEFT"); accent:SetWidth(4)
-    accent:SetColorTexture(o[1], o[2], o[3], 1)
-    h.icon = h:CreateTexture(nil, "ARTWORK")
-    h.icon:SetSize(16, 16); h.icon:SetPoint("LEFT", 9, 0)
-    h.icon:SetTexture("Interface\\Icons\\INV_Misc_Map_01"); h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    -- Header: Flow's title bar (Theme.lua), the same on every Flow panel.
+    local h = ns.theme:TitleBar(f, nil, "Interface\\Icons\\INV_Misc_Map_01", "Button")
     -- Shown in place of the map icon while the route is being redone: the
     -- game's own loading spinner if this client has it, else a turning arrow.
     local okS, spinner = pcall(CreateFrame, "Frame", nil, h, "LoadingSpinnerTemplate")
@@ -92,8 +82,6 @@ local function build()
         h.spin = { Show = function() t:Show(); ag:Play() end, Hide = function() ag:Stop(); t:Hide() end }
         t:Hide()
     end
-    h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    h.text:SetPoint("LEFT", h.icon, "RIGHT", 6, 0)
     h.pm = h:CreateTexture(nil, "ARTWORK")
     h.pm:SetSize(16, 16); h.pm:SetPoint("RIGHT", -6, 0)
     h:SetScript("OnClick", function()
@@ -167,7 +155,7 @@ local function build()
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Point the arrow here (your waypoint)", func = function() if ns.mapOverlay then ns.mapOverlay.PointHere(g) end end },
-                    { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end

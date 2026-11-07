@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.58
+- The dark oval behind FLOW in the login intro is softer: about half dark in the middle,
+  fading out to nothing at its edges, so the pillars show through around the word.
+- Flow Seller has the same title bar as the Flow Tracker and Flow Router (dark bar, orange
+  accent, an icon, gold title). All three now come from one place, so they stay matched.
+- Right-click menus: "Move on (hide this for now)" is now "Hide this stop".
+
 ## 0.35.57
 - Quests could go missing from the route while you stood right where they're done (Red Linen
   Goods among the Defias). Flow keeps up to 80 spots per objective, and it took the first 80

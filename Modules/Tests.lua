@@ -1270,5 +1270,42 @@ ns:Register("test", "click: Flow Tracker rows open the menu on right-click", fun
     local ok, err = pcall(r:GetScript("OnClick"), r, "RightButton")
     t:ok(ok, "row right-click runs" .. (ok and "" or (": " .. tostring(err))))
     t:ok(menuShown(), "menu on screen")
+    local hideEntry, oldName = false, false
+    for _, it in ipairs(ns.menu.items or {}) do
+        if it.text == "Hide this stop" then hideEntry = true end
+        if it.text and it.text:find("^Move on") then oldName = true end
+    end
+    t:ok(hideEntry, "it has \"Hide this stop\"")
+    t:ok(not oldName, "no \"Move on\" entry")
     closeMenu()
+end)
+
+ns:Register("test", "brand: Flow Tracker, Router and Seller share one title bar", function(t)
+    local seller = ns.vendor:Panel()   -- built now if no vendor was opened yet
+    local bars = {
+        { "Flow Tracker", _G.FlowTracker and _G.FlowTracker.header },
+        { "Flow Router", _G.FlowMapRoute and _G.FlowMapRoute.header },
+        { "Flow Seller", seller.head },
+    }
+    for _, b in ipairs(bars) do
+        local name, h = b[1], b[2]
+        if h then
+            t:ok(h.flowTitleBar, name .. ": made by ns.theme:TitleBar")
+            t:near(h:GetHeight(), ns.theme.TITLE_H, 0.5, name .. ": bar height")
+            t:ok(h.accent and h.icon and h.text and h.icon:GetTexture() ~= nil, name .. ": accent, icon and title")
+        else
+            t:ok(true, "(" .. name .. " not built yet)")
+        end
+    end
+    t:eq(seller.title, seller.head.text, "Flow Seller's title is on the bar")
+    t:ok(seller.title:GetText():find("^Flow Seller") ~= nil, "it says Flow Seller")
+    if not (MerchantFrame and MerchantFrame:IsShown()) then seller:Hide() end
+end)
+
+ns:Register("test", "intro: FLOW's dark backing fades out to its edges", function(t)
+    local B = ns.intro.BACKING
+    local middle = 1 - (1 - B.alpha) ^ B.layers   -- every oval overlaps at the centre
+    t:near(middle, 0.5, 0.05, "about half dark in the middle")
+    t:ok(B.alpha <= 0.15, "the outer rim is only faintly dark")
+    t:ok(B.to[1] > B.from[1] and B.to[2] > B.from[2], "each oval bigger than the last")
 end)
