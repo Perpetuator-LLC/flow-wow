@@ -36,6 +36,9 @@ local function arrow(slot, size)
     local h = math.max(6, math.floor(size * 0.8))
     a:SetSize(size, h)
     a:SetPoint("BOTTOM", slot, "TOP", 0, 1)
+    -- Always full strength: the spec icons below fade for the specs you're
+    -- not levelling, but the better / worse arrow should never look faint.
+    if a.SetIgnoreParentAlpha then a:SetIgnoreParentAlpha(true) end
     a.tex = a:CreateTexture(nil, "OVERLAY")
     a.tex:SetSize(h + 2, h + 2)
     a.tex:SetPoint("CENTER")

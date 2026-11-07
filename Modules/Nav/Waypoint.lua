@@ -167,8 +167,13 @@ ns.commands.way = function(arg)
         ns:Print("waypoint cleared")
         return
     end
+    local svc = arg:lower():match("^%s*(%a+)%s*$")
+    if (svc == "repair" or svc == "vendor" or svc == "sell") and ns.services then
+        ns.services:GoTo(svc == "repair" and "repair" or "vendor")
+        return
+    end
     if arg:match("^%s*$") then
-        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way clear. Or Alt-click the world map, or right-click the arrow: Set a waypoint.")
+        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way repair, /flow way vendor, /flow way clear. Or Alt-click the world map, or right-click the arrow.")
         return
     end
     W:SetFromText(arg)

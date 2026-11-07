@@ -165,19 +165,94 @@ local function drawAreaMini(p, goal, color, strong)
         end
     end
     if n == 0 then return end
+    local edgeA, coreA = strong and 0.17 or 0.1, strong and 0.17 or 0.1
+    -- One smooth outline per group of spawns (like the world map's areas),
+    -- not a circle per spawn: the outline wrapped around all the spawn
+    -- circles of the group, filled row by row; a smaller copy of it on top
+    -- for the soft edge.
+    local M = ns.mapOverlay
+    if M and M._hull and M._clusters then
+        local pts = {}
+        for i = 1, n do pts[i] = { xs_[i], ys_[i] } end
+        for _, group in ipairs(M._clusters(pts, r * 3)) do
+            local ring = {}
+            for _, q in ipairs(group) do
+                for k = 0, 11 do
+                    local a = k * math.pi / 6
+                    ring[#ring + 1] = { q[1] + r * math.cos(a), q[2] + r * math.sin(a) }
+                end
+            end
+            local outline = M._hull(ring)
+            P.FillShape(outline, radius, color, edgeA)
+            P.FillShape(P.Shrink(outline, CORE), radius, color, coreA)
+        end
+        return
+    end
+    -- (Fallback without the map module: the outline of the circles.)
     local lo, hi = math.huge, -math.huge
     for i = 1, n do
         if ys_[i] - r < lo then lo = ys_[i] - r end
         if ys_[i] + r > hi then hi = ys_[i] + r end
     end
     lo, hi = math.max(lo, -radius), math.min(hi, radius)
-    local edgeA, coreA = strong and 0.17 or 0.1, strong and 0.17 or 0.1
     local y = lo + ROW / 2
     while y < hi and nDiscs < 900 do
         local c = P.SpansInto(xs_, ys_, n, r, y, radius, spans_)
         for i = 1, c do strip(spans_[i * 2 - 1], spans_[i * 2], y, color, edgeA) end
         c = P.SpansInto(xs_, ys_, n, r * CORE, y, radius, spans_)
         for i = 1, c do strip(spans_[i * 2 - 1], spans_[i * 2], y, color, coreA) end
+        y = y + ROW
+    end
+end
+
+-- A convex outline (list of {x, y}) shrunk towards its middle by `f`.
+function P.Shrink(poly, f)
+    local cx, cy = 0, 0
+    for _, v in ipairs(poly) do cx, cy = cx + v[1], cy + v[2] end
+    cx, cy = cx / #poly, cy / #poly
+    local out = {}
+    for i, v in ipairs(poly) do out[i] = { cx + (v[1] - cx) * f, cy + (v[2] - cy) * f } end
+    return out
+end
+
+-- Where row y crosses a convex outline: x from, x to (nil if it doesn't).
+function P.ShapeRow(poly, y)
+    local lo, hi
+    local m = #poly
+    for i = 1, m do
+        local a, b = poly[i], poly[i % m + 1]
+        local y1, y2 = a[2], b[2]
+        if (y >= y1 and y <= y2) or (y >= y2 and y <= y1) then
+            local x = (y1 == y2) and a[1] or (a[1] + (y - y1) * (b[1] - a[1]) / (y2 - y1))
+            if not lo or x < lo then lo = x end
+            if not hi or x > hi then hi = x end
+            if y1 == y2 then
+                if b[1] < lo then lo = b[1] end
+                if b[1] > hi then hi = b[1] end
+            end
+        end
+    end
+    return lo, hi
+end
+
+-- Fill a convex outline with strips, clipped to the round minimap.
+function P.FillShape(poly, radius, color, alpha)
+    if not poly or #poly < 3 then return end
+    local lo, hi = math.huge, -math.huge
+    for _, v in ipairs(poly) do
+        if v[2] < lo then lo = v[2] end
+        if v[2] > hi then hi = v[2] end
+    end
+    lo, hi = math.max(lo, -radius), math.min(hi, radius)
+    local y = lo + ROW / 2
+    while y < hi and nDiscs < 900 do
+        local a, b = P.ShapeRow(poly, y)
+        local m2 = radius * radius - y * y
+        if a and m2 > 0 then
+            local m = math.sqrt(m2)
+            a, b = math.max(a, -m), math.min(b, m)
+            if b > a then strip(a, b, y, color, alpha) end
+        end
         y = y + ROW
     end
 end

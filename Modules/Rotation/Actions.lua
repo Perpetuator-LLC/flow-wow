@@ -339,6 +339,72 @@ ns:Register("action", "bag:use", { order = 48, get = function(ctx)
     return { type = "item", item = "item:" .. g.useItem, icon = itemIcon(g.useItem), label = g.text }
 end })
 
+-- Anything in your bags you can learn right now (a recipe, a scroll or book
+-- that "Teaches you..."), not already known: the key learns it. First when
+-- your bags are full (learning frees the slot), otherwise when there's
+-- nothing else to press. Read from each item's tooltip, refreshed when your
+-- bags change.
+local learnables, learnDirty = {}, true
+ns:On("BAG_UPDATE_DELAYED", function() learnDirty = true end)
+ns:On("LEARNED_SPELL_IN_TAB", function() learnDirty = true end)
+ns:On("NEW_RECIPE_LEARNED", function() learnDirty = true end)
+local function tooltipLines(bag, slot)
+    local T = C_TooltipInfo
+    if not (T and T.GetBagItem) then return nil end
+    local ok, data = pcall(T.GetBagItem, bag, slot)
+    if not (ok and data and data.lines) then return nil end
+    local out = {}
+    for _, l in ipairs(data.lines) do out[#out + 1] = l.leftText or "" end
+    return out
+end
+function X.Learnables()
+    if not learnDirty then return learnables end
+    learnDirty = false
+    wipe(learnables)
+    local C = C_Container
+    local slots = (C and C.GetContainerNumSlots) or GetContainerNumSlots
+    local itemAt = (C and C.GetContainerItemID) or GetContainerItemID
+    if not (slots and itemAt) then return learnables end
+    local known = ITEM_SPELL_KNOWN or "Already known"
+    for bag = 0, 4 do
+        for slot = 1, (slots(bag) or 0) do
+            local id = itemAt(bag, slot)
+            if id and usable(id) then
+                local _, _, _, _, _, classID = instant(id)
+                local lines = tooltipLines(bag, slot)
+                local teaches, isKnown = classID == 9, false
+                for _, t in ipairs(lines or {}) do
+                    if t:find(known, 1, true) then isKnown = true end
+                    if t:find("Teaches", 1, true) or t:find("teaches you", 1, true) then teaches = true end
+                end
+                if teaches and not isKnown then
+                    local name = (A.ItemInfo and A.ItemInfo(id)) or "it"
+                    learnables[#learnables + 1] = { id = id, name = name }
+                end
+            end
+        end
+    end
+    return learnables
+end
+
+local function freeSlots()
+    local C = C_Container
+    local free = (C and C.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
+    if not free then return 99 end
+    local n = 0
+    for bag = 0, 4 do n = n + (select(1, free(bag)) or 0) end
+    return n
+end
+X._freeSlots = freeSlots
+
+ns:Register("action", "bag:learn", { order = 3, get = function(ctx)
+    local l = X.Learnables()[1]
+    if not l then return nil end
+    local full = freeSlots() <= 1
+    return { type = "item", item = "item:" .. l.id, icon = itemIcon(l.id), urgent = full,
+             label = (full and "Bags full: learn " or "Learn: ") .. l.name }
+end })
+
 -- Mining / Herbalism: tracking on, then the key gathers (Interact).
 local FIND = { Mining = "Find Minerals", Herbalism = "Find Herbs" }
 ns:Register("action", "gather:find", { order = 50, get = function(ctx)

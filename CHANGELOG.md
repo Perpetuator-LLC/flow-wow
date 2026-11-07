@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.50
+- Minimap areas are one smooth shape per group of spawns, like the world map's areas, instead
+  of the outline of many circles. Only your current stop's area shows (and the one you hover
+  in the Flow Tracker).
+- The better / worse arrows above the spec icons are always full strength (they faded with
+  the spec icons for specs you aren't levelling).
+- Learning from your bags: anything you can learn right now (a recipe, a scroll or book that
+  teaches you something, not already known) is offered on the Flow key: "Learn: X". When your
+  bags are full it comes first: learning frees the slot.
+- Nearest repair and nearest vendor: right-click the arrow ("Nearest repair", "Nearest vendor
+  (sell)") or /flow way repair | vendor. Flow sets your waypoint on the closest one it knows:
+  merchants you've visited (it now remembers which ones repair) and every vendor and repairer
+  in Questie's data. When it's far, it reminds you where your hearthstone goes.
+
 ## 0.35.49
 - Fixed a blocked action: the world map's own pins were blocked in combat ("taint from Flow:
   Button:SetPassThroughButtons()"). Flow was opening the game's quest log panel itself to make

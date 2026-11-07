@@ -146,6 +146,8 @@ function Menu:RouteItems()
         { sep = true },
         { title = true, text = "Your waypoint" },
         { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },
+        { text = "Nearest repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
+        { text = "Nearest vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
         { text = "Clear your waypoint", disabled = ns.waypoint:Get() == nil,
           func = function() ns.waypoint:Clear(); ns:Print("waypoint cleared") end },
         { sep = true },

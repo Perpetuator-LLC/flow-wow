@@ -1108,3 +1108,21 @@ ns:Register("test", "Flow button: on deck shows the next spells", function(t)
     local seen = {}
     for _, d in ipairs(deck) do t:ok(not seen[d.spell], d.spell .. ": once"); seen[d.spell] = true end
 end)
+
+ns:Register("test", "minimap cloud: one smooth shape per area", function(t)
+    local P = ns.minimapPin
+    local square = { { -10, -10 }, { 10, -10 }, { 10, 10 }, { -10, 10 } }
+    local a, b = P.ShapeRow(square, 0)
+    t:near(a, -10, 0.01, "row crosses the left side"); t:near(b, 10, 0.01, "and the right side")
+    t:eq(P.ShapeRow(square, 20), nil, "a row outside the shape: nothing")
+    local s = P.Shrink(square, 0.5)
+    t:near(s[2][1], 5, 0.01, "shrunk towards the middle")
+end)
+
+ns:Register("test", "bags: things to learn and full bags", function(t)
+    local X = ns.actions
+    t:eq(type(X.Learnables()), "table", "learnables list")
+    t:eq(type(X._freeSlots()), "number", "free bag slots counted")
+    t:ok(ns:Get("action", "bag:learn") ~= nil, "learn step registered")
+    t:ok(ns.services and type(ns.services.Nearest) == "function", "nearest repair / vendor")
+end)
