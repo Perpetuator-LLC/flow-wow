@@ -68,44 +68,66 @@ local function toMini(p, wx, wy)
 end
 
 -------------------------------------------------------------------------------
--- Areas on the minimap: the same patches as the world map (spawn discs and a
--- border), for the stop the arrow points at, and, while you hover a row in
+-- Areas on the minimap: the same areas as the world map, as soft clouds
+-- for the stop the arrow points at, and, while you hover a row in
 -- the Flow Tracker, for that stop in the hover colour. So you can tell at a
 -- glance whether you're standing in this stop's area, the next one's, or both.
 -------------------------------------------------------------------------------
 
+-- Drawn as one cloud like the game's own quest areas, not a pile of circles:
+-- the outline of all the spawn circles together, filled row by row with thin
+-- strips that never overlap (overlapping see-through circles pile up colour,
+-- which is what made each circle show). A smaller core on top gives the
+-- soft edge. Clipped to the round minimap.
 local AREA_YARDS = 45
-local discs, nDiscs, edges, nEdges = {}, 0, {}, 0
+local ROW = 2                -- pixels per strip
+local CORE = 0.62            -- core radius, as a share of the area's
+local discs, nDiscs = {}, 0  -- (the strips)
 local hoverGoal
 local areaHost
 
-local function disc(x, y, r, color, alpha)
+local function strip(x1, x2, y, color, alpha)
     nDiscs = nDiscs + 1
     local t = discs[nDiscs]
     if not t then
         t = areaHost:CreateTexture(nil, "BACKGROUND")
-        t:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
         discs[nDiscs] = t
     end
-    t:SetSize(r * 2, r * 2)
+    t:SetColorTexture(color[1], color[2], color[3], alpha)
     t:ClearAllPoints()
-    t:SetPoint("CENTER", Minimap, "CENTER", x, y)
-    t:SetVertexColor(color[1], color[2], color[3], alpha)
+    t:SetSize(math.max(1, x2 - x1), ROW)
+    t:SetPoint("CENTER", Minimap, "CENTER", (x1 + x2) / 2, y)
     t:Show()
 end
 
-local function edge(x1, y1, x2, y2, color, alpha)
-    nEdges = nEdges + 1
-    local l = edges[nEdges]
-    if not l then
-        l = areaHost:CreateLine(nil, "ARTWORK")
-        l:SetThickness(1.5)
-        edges[nEdges] = l
+-- Where row `y` crosses the union of circles (centres pts, radius r), as
+-- merged { x1, x2 } spans clipped to the round minimap of `radius`.
+function P.Spans(pts, r, y, radius)
+    local iv = {}
+    for _, q in ipairs(pts) do
+        local dy = y - q[2]
+        if dy > -r and dy < r then
+            local dx = math.sqrt(r * r - dy * dy)
+            iv[#iv + 1] = { q[1] - dx, q[1] + dx }
+        end
     end
-    l:SetStartPoint("CENTER", Minimap, x1, y1)
-    l:SetEndPoint("CENTER", Minimap, x2, y2)
-    l:SetColorTexture(color[1], color[2], color[3], alpha)
-    l:Show()
+    if #iv == 0 then return iv end
+    table.sort(iv, function(a, b) return a[1] < b[1] end)
+    local merged = { { iv[1][1], iv[1][2] } }
+    for i = 2, #iv do
+        local last = merged[#merged]
+        if iv[i][1] <= last[2] then last[2] = math.max(last[2], iv[i][2])
+        else merged[#merged + 1] = { iv[i][1], iv[i][2] } end
+    end
+    local m = radius * radius - y * y
+    if m <= 0 then return {} end
+    m = math.sqrt(m)
+    local out = {}
+    for _, s in ipairs(merged) do
+        local a, b = math.max(s[1], -m), math.min(s[2], m)
+        if b > a then out[#out + 1] = { a, b } end
+    end
+    return out
 end
 
 local function drawAreaMini(p, goal, color, strong)
@@ -117,30 +139,21 @@ local function drawAreaMini(p, goal, color, strong)
             local x, y, scale = toMini(p, pt.wx, pt.wy)
             if x then
                 r = r or math.max(3, AREA_YARDS * scale)
-                if math.sqrt(x * x + y * y) < radius - r * 0.5 then pts[#pts + 1] = { x, y } end
+                if math.sqrt(x * x + y * y) < radius + r then pts[#pts + 1] = { x, y } end
             end
         end
     end
     if #pts == 0 then return end
-    local M = ns.mapOverlay
-    for _, q in ipairs(pts) do disc(q[1], q[2], r, color, strong and 0.3 or 0.18) end
-    if not (M and M._hull and M._clusters) then return end
-    for _, group in ipairs(M._clusters(pts, r * 3)) do
-        local ring = {}
-        for _, q in ipairs(group) do
-            for k = 0, 11 do
-                local a = k * math.pi / 6
-                ring[#ring + 1] = { q[1] + r * math.cos(a), q[2] + r * math.sin(a) }
-            end
-        end
-        local hull = M._hull(ring)
-        for i = 1, #hull do
-            local a, b = hull[i], hull[i % #hull + 1]
-            -- Only inside the round minimap.
-            if a[1] * a[1] + a[2] * a[2] < radius * radius and b[1] * b[1] + b[2] * b[2] < radius * radius then
-                edge(a[1], a[2], b[1], b[2], color, strong and 0.95 or 0.7)
-            end
-        end
+    local top, bottom = -radius, radius
+    local lo, hi = math.huge, -math.huge
+    for _, q in ipairs(pts) do lo = math.min(lo, q[2] - r); hi = math.max(hi, q[2] + r) end
+    lo, hi = math.max(lo, top), math.min(hi, bottom)
+    local edgeA, coreA = strong and 0.17 or 0.1, strong and 0.17 or 0.1
+    local y = lo + ROW / 2
+    while y < hi and nDiscs < 900 do
+        for _, s in ipairs(P.Spans(pts, r, y, radius)) do strip(s[1], s[2], y, color, edgeA) end
+        for _, s in ipairs(P.Spans(pts, r * CORE, y, radius)) do strip(s[1], s[2], y, color, coreA) end
+        y = y + ROW
     end
 end
 
@@ -154,14 +167,14 @@ function P:UpdateAreas(p, goal, force)
         areaHost:SetAllPoints(Minimap)
         areaHost:SetFrameLevel(Minimap:GetFrameLevel() + 2)   -- under the pin
     end
-    local oldD, oldE = nDiscs, nEdges
-    nDiscs, nEdges = 0, 0
+    local oldD = nDiscs
+    nDiscs = 0
     if ns.db.nav.minimapPin ~= false and ns.db.nav.minimapAreas ~= false and p then
         if hoverGoal and hoverGoal ~= goal then drawAreaMini(p, hoverGoal, ns.theme.hover, true) end
         drawAreaMini(p, goal, ns.theme.route, hoverGoal == nil or hoverGoal == goal)
     end
     for i = nDiscs + 1, oldD do discs[i]:Hide() end
-    for i = nEdges + 1, oldE do edges[i]:Hide() end
+
 end
 
 -- The Flow Tracker calls this while you hover one of its rows (nil = none).
@@ -198,6 +211,5 @@ end
 function P:Hide()
     if pin then pin:Hide() end
     for i = 1, nDiscs do discs[i]:Hide() end
-    for i = 1, nEdges do edges[i]:Hide() end
-    nDiscs, nEdges = 0, 0
+    nDiscs = 0
 end

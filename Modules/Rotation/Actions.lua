@@ -355,26 +355,61 @@ ns:Register("action", "gather:interact", { order = 60, get = function(ctx)
              label = verb .. " (stand next to it and press)" }
 end })
 
--- The best weapon in your bags (highest item level, not a pole): for when
--- the pole is on and Flow didn't note what you had before.
-local function bestBagWeapon()
-    local best, bestLevel
-    for _, id in ipairs(bagItems()) do
-        local _, _, _, equipLoc, _, classID = instant(id)
-        if classID == 2 and not X.IsPole(id) and equipLoc ~= "INVTYPE_RANGED" and equipLoc ~= "INVTYPE_THROWN" then
-            local level = (A.ItemInfo and select(4, A.ItemInfo(id))) or 0
-            if not bestLevel or level > bestLevel then best, bestLevel = id, level end
+-- Upgrades in your bags: what Flow's gear check says to wear now for your
+-- levelling spec (the bag marks' green arrow), only gear you can use and
+-- are high enough level for. Best first. { id, link, diff, equipLoc, name }
+local WEAPON = { INVTYPE_WEAPON = true, INVTYPE_2HWEAPON = true, INVTYPE_WEAPONMAINHAND = true,
+                 INVTYPE_WEAPONOFFHAND = true, INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true }
+X.WEAPON_SLOTS = WEAPON
+local upgradeCache, upgradeAt = {}, {}
+for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP" }) do
+    ns:On(ev, function() wipe(upgradeAt) end)
+end
+function X.Upgrades(weaponsOnly)
+    -- Asked ten times a second: reuse the answer until bags or gear change (or 2 s).
+    local k = weaponsOnly and "w" or "all"
+    if upgradeAt[k] and GetTime() - upgradeAt[k] < 2 then return upgradeCache[k] end
+    local list = X.FindUpgrades(weaponsOnly)
+    upgradeCache[k], upgradeAt[k] = list, GetTime()
+    return list
+end
+function X.FindUpgrades(weaponsOnly)
+    local D, G = ns.disposition, ns.gear
+    if not (D and G and D.EachBagItem) then return {} end
+    local role = ns:LevelingRole()
+    local out = {}
+    D:EachBagItem(function(bag, slot, link)
+        local ok, v = pcall(D.Decide, D, bag, slot, link)
+        if not (ok and v and v.action == "equip") then return end
+        local g = G:Compare(link)
+        local loc = g and g.item and g.item.equipLoc
+        if not (g and g.canUse) or (weaponsOnly and not WEAPON[loc]) then return end
+        local id = tonumber(link:match("item:(%d+)"))
+        if id and not X.IsPole(id) then
+            out[#out + 1] = { id = id, link = link, diff = g.diffs[role] or 0, equipLoc = loc,
+                              name = link:match("%[(.-)%]") or "it" }
         end
-    end
-    return best
+    end)
+    table.sort(out, function(a, b) return a.diff > b.diff end)
+    return out
+end
+
+local function enemyTargeted()
+    return UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target")
 end
 
 -- The next press that puts your weapons back (main hand, then off hand), or
 -- nil when they're on. `urgent`: before anything else, rotation included.
+-- No note of what you had (you put the pole on yourself): your best weapon
+-- from the gear check (never something you can't use, like a gun).
 local function restoreStep(urgent, label)
     local w = saved() or {}
     local mh, oh = equipped(MAIN), equipped(OFF)
-    local main = w.main or (X.IsPole(mh) and bestBagWeapon()) or nil
+    local main = w.main
+    if not main and X.IsPole(mh) then
+        local best = X.Upgrades(true)[1]
+        main = best and best.id
+    end
     if main and mh ~= main and count(main) > 0 then
         return { type = "item", item = "item:" .. main, icon = itemIcon(main), label = label or "Put your weapon back", urgent = urgent }
     end
@@ -389,9 +424,23 @@ X._restoreStep = restoreStep  -- (tests)
 -- An enemy targeted with the pole still on: weapons back first, before the
 -- pull, even at the fishing spot (you're about to fight with a fishing pole).
 ns:Register("action", "arm:enemy", { order = 1, get = function(ctx)
-    if not ctx.pole or not UnitExists("target") or not UnitCanAttack("player", "target")
-        or UnitIsDead("target") then return nil end
-    return restoreStep(true, "Weapon back on before the fight")
+    if not ctx.pole or not enemyTargeted() then return nil end
+    return restoreStep(true, "Weapon on before the fight")
+end })
+
+-- An upgrade (or something for an empty slot) in your bags: put it on. Before
+-- a fight (enemy targeted) it comes first; otherwise when there's nothing
+-- else to press. Not weapons while you're fishing (the pole stays on).
+ns:Register("action", "gear:upgrade", { order = 2, get = function(ctx)
+    if UnitIsDeadOrGhost("player") then return nil end
+    for _, u in ipairs(X.Upgrades()) do
+        if not (ctx.fishing and WEAPON[u.equipLoc]) then
+            local enemy = enemyTargeted()
+            return { type = "item", item = "item:" .. u.id, icon = itemIcon(u.id), urgent = enemy,
+                     label = (enemy and "Before the fight: equip " or "Equip ") .. u.name
+                         .. string.format(" (upgrade +%d)", math.floor(u.diff + 0.5)) }
+        end
+    end
 end })
 
 -- Left the fishing spot with the pole still on: weapons back, main hand first.

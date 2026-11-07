@@ -979,3 +979,28 @@ ns:Register("test", "intro: FLOW sits above the pillars", function(t)
     t:ok(f.arrow:GetFrameLevel() >= 0, "arrow has a frame level")
     if f.introText then t:ok(true, "intro text exists") end
 end)
+
+ns:Register("test", "minimap areas: one cloud, not a pile of circles", function(t)
+    local S = ns.minimapPin.Spans
+    -- Two overlapping circles: one span across both on the middle row.
+    local spans = S({ { -5, 0 }, { 5, 0 } }, 8, 0, 100)
+    t:eq(#spans, 1, "overlapping circles merge into one span")
+    t:near(spans[1][1], -13, 0.01, "left edge"); t:near(spans[1][2], 13, 0.01, "right edge")
+    -- Far apart: two spans.
+    t:eq(#S({ { -40, 0 }, { 40, 0 } }, 8, 0, 100), 2, "separate areas stay separate")
+    -- Clipped to the round minimap.
+    local c = S({ { 95, 0 } }, 10, 0, 100)
+    t:ok(c[1] and c[1][2] <= 100, "cut at the minimap's edge")
+    t:eq(#S({ { 0, 0 } }, 5, 50, 100), 0, "rows away from the circle: nothing")
+end)
+
+ns:Register("test", "gear: upgrades are things you can use (never a gun for a paladin)", function(t)
+    local X = ns.actions
+    for _, u in ipairs(X.FindUpgrades(true)) do
+        t:ok(X.WEAPON_SLOTS[u.equipLoc], u.name .. ": a weapon or shield slot")
+        t:ok(u.equipLoc ~= "INVTYPE_RANGEDRIGHT" and u.equipLoc ~= "INVTYPE_RANGED", u.name .. ": not ranged")
+    end
+    local up = X.FindUpgrades()
+    for i = 2, #up do t:ok(up[i - 1].diff >= up[i].diff, "best first") end
+    t:ok(ns:Get("action", "gear:upgrade") ~= nil, "upgrade step registered")
+end)

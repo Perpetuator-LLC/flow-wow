@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.44
+- Fixed: with the Fishing Pole on and no note of your weapons, "put your weapon back" picked by
+  item level and chose the Rust-covered Blunderbuss (a gun paladins can't use). It now uses
+  Flow's gear check: your best usable weapon for your levelling spec.
+- New: upgrades on the Flow key. Out of combat with nothing to cast, the key offers "Equip X
+  (upgrade +N)" for gear in your bags that's better for your levelling spec (or fills an empty
+  slot). Target an enemy and it comes first: "Before the fight: equip X". Weapons wait while
+  you're fishing.
+- Minimap areas are one soft cloud like the game's own quest areas, instead of a pile of
+  overlapping circles.
+
 ## 0.35.43
 - Fixed: talking to a quest giver could hide quests they DO offer (7 at once in one talk), so
   "Accept:" stops vanished for quests you hadn't taken. Flow now only judges from a real list
