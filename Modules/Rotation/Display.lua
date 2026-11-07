@@ -174,19 +174,25 @@ local function render(s, cfg)
         return
     end
 
-    local color = COLORS[s.kind] or COLORS.damage
-    local _, tex = A.SpellInfo(s.spell)
-    icon.tex:SetTexture(tex)
+    local color = COLORS[s.kind] or ns.theme.route or COLORS.damage
+    local tex = s.icon
+    if not tex and s.spell then tex = select(2, A.SpellInfo(s.spell)) end
+    icon.tex:SetTexture(tex or "Interface\\Icons\\INV_Misc_QuestionMark")
     icon.border:SetColor(color[1], color[2], color[3])
-    icon.text:SetText(cfg.debug and s.reason or "")
-    local start, dur = A.CooldownRaw(s.spell)
-    icon.cd:SetCooldown(start, dur)
+    -- Flow Actions always say what the press does ("Equip your Fishing Pole").
+    icon.text:SetText(s.label or (cfg.debug and s.reason) or "")
+    if s.spell then
+        local start, dur = A.CooldownRaw(s.spell)
+        icon.cd:SetCooldown(start, dur)
+    else
+        icon.cd:SetCooldown(0, 0)
+    end
     icon:Show()
 
-    local key = s.spell .. s.kind
+    local key = tostring(s.spell or s.item or s.type) .. s.kind
     if key ~= current then
         current = key
-        showGlows(s.spell, color, s.kind)
+        if s.spell then showGlows(s.spell, color, s.kind) else clearGlows() end
     end
 end
 
@@ -198,6 +204,7 @@ local function onUpdate(_, dt)
 
     local cfg = ns.db.rotation
     if not cfg.enabled then
+        E.shown = nil
         if icon:IsShown() then icon:Hide(); clearGlows(); current = nil end
         return
     end
@@ -213,6 +220,13 @@ local function onUpdate(_, dt)
         E.lastError, E.lastErrorAt = s, now
         s = nil
     end
+    -- Out of combat, a Flow Action (equip the pole, cast Fishing...) when
+    -- there's no spell to suggest, or before it when it's urgent (reel in).
+    if not InCombatLockdown() and ns.actions then
+        local okA, a = pcall(ns.actions.Current, ns.actions)
+        if okA and a and (a.urgent or not s) then s = a end
+    end
+    E.shown = s   -- what the icon shows = what the key does (Cast.lua)
     local okR, err = pcall(render, s, cfg)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
 end

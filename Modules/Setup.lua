@@ -24,13 +24,13 @@ local function cvarDefault(name)
 end
 
 -- An on/off CVar row.
-local function cvarRow(key, order, label, why, name, onValue, offValue, suggested)
+local function cvarRow(key, order, label, why, name, onValue, offValue, suggested, isNew)
     ns:Register("setupItem", key, {
         order = order, label = label, why = why,
         available = function() return cvar(name) ~= nil end,
         isOn = function() return cvar(name) == onValue end,
         set = function(on) SetCVar(name, on and onValue or offValue) end,
-        suggested = suggested,
+        suggested = suggested, isNew = isNew,
         default = function() return cvarDefault(name) == onValue end,
     })
 end
@@ -46,6 +46,11 @@ cvarRow("instantQuest", 40, "Instant quest text", "Quest text appears at once in
 cvarRow("autoPush", 50, "Auto-place new spells on bars",
     "The game drops newly learned spells into empty bar slots. Leave off if you place spells yourself.",
     "AutoPushSpellToActionBar", "1", "0", false)
+-- Fishing and mining with Flow's key: it presses Interact, which only reaches
+-- the bobber / vein / herb in front of you with "soft target interact" on.
+cvarRow("softInteract", 52, "Interact key reaches objects",
+    "Your Interact key (and Flow's key while fishing or mining) reels in the bobber and gathers the vein or herb in front of you.",
+    "SoftTargetInteract", "3", "0", true, true)
 
 -- Target of target: classic-style clients have a CVar; newer ones put it in Edit Mode
 -- (Target Frame > "Target of Target"), so that case is an info row telling you where.

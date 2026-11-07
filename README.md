@@ -19,6 +19,10 @@ Flow for WoW is a separate project from Flow Engine.
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button.
+- **Flow Actions** (same key, out of combat, at your route stop): at a fishing spot it equips
+  your Fishing Pole, puts on your best lure, casts, then reels in when the bobber splashes; at a
+  mining or herb stop it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
+  your weapons back. One press per step. `/flow action` shows what it would do.
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
   Remembers what you cast when the game hides your auras.
 - **Heal after a fight**: after a long fight, briefly suggests a heal if you need one; never

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.22
+- Fixed: the Flow key and the icon did nothing out of combat (Devotion Aura, blessings, seals).
+  Once the button had nothing to cast it hid itself and never came back until a fight started.
+- New: Flow Actions on the same key, out of combat, at your route stop. Fishing: equip your
+  pole, put on your best lure, cast, then press again when the bobber splashes. Mining and
+  herbs: turn on Find Minerals or Find Herbs, then gather. Leaving: your weapons go back on.
+  `/flow action` says what it would do and why.
+- New suggested setting: "Interact key reaches objects" (needed to reel in and gather with the key).
+
 ## 0.35.21
 - Fixed a self-test that dropped the oldest diagnostics line when the log was full.
 

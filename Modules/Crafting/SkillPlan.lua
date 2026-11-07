@@ -406,7 +406,7 @@ local function planProfession(prof, t, out)
         end
         local tool, missing = SP:ToolGoal(prof)
         if tool then add(tool) end
-        add({ key = "skill:" .. prof, kind = "skill", points = points,
+        add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
               text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target),
               details = g.tip and { g.tip } or nil,
               blockedBy = (missing and ("needs a " .. missing))
@@ -556,7 +556,7 @@ local function planProfession(prof, t, out)
         end
         if s.gather == "Mining" and not hasTool("Mining", 2901) and not blocked then blocked = "needs a Mining Pick" end
         handled[s.gather] = true
-        add({ key = "gather:" .. node, kind = "gather", points = pts,
+        add({ key = "gather:" .. node, kind = "gather", prof = s.gather, points = pts,
               text = string.format("%s %s (about %d) for %s", s.gather == "Mining" and "Mine" or "Gather",
                   node, nd.count, table.concat(nd.items, ", ")),
               details = { onMap and "Nearest ones on this map; the route picks the ones on your way."
@@ -574,7 +574,7 @@ local function planProfession(prof, t, out)
             local s = src(best.item)
             local c = rank < best.yellow and 1 or (rank < best.green and 0.6 or 0.2)
             local pts, onMap = objectPoints(s.objects)
-            add({ key = "gather:" .. s.node, kind = "gather", points = pts,
+            add({ key = "gather:" .. s.node, kind = "gather", prof = "Mining", points = pts,
                   text = string.format("Mine %s (about %d) for skill", s.node, math.ceil((t.target - rank) / c)),
                   details = { "Smelting the ore at a forge raises Mining too." },
                   blockedBy = (not hasTool("Mining", 2901) and "needs a Mining Pick")

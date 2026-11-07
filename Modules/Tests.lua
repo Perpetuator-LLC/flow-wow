@@ -589,3 +589,34 @@ ns:Register("test", "settings: suggested WoW settings are all on Flow's page", f
     for _, r in ipairs(rows) do if r.item.isOn then toggles = toggles + 1 end end
     t:ok(toggles >= 5, "at least 5 suggested settings available here (" .. toggles .. ")")
 end)
+
+ns:Register("test", "cast: the key's button comes back out of combat", function(t)
+    -- The update loop must not live on the button: it hides itself when
+    -- there's nothing to press, and a hidden frame's OnUpdate never runs.
+    local btn = _G.FlowCastButton
+    t:ok(btn ~= nil, "cast button exists")
+    if btn then t:ok(btn:GetScript("OnUpdate") == nil, "no update loop on the (hideable) button") end
+    t:eq(ns.cast._describe({ type = "item", item = "item:6256" }), "/use item:6256", "item press described")
+    t:eq(ns.cast._describe({ type = "item", item = "item:6529", targetSlot = 16 }), "/use item:6529 on slot 16", "lure on main hand")
+    t:eq(ns.cast._describe({ spell = "Devotion Aura", kind = "buff" }), "/cast Devotion Aura", "spell press")
+end)
+
+ns:Register("test", "actions: fishing steps on the Flow key", function(t)
+    local X = ns.actions
+    t:ok(X.IsPole(6256), "Fishing Pole is a pole")
+    t:ok(not X.IsPole(2901), "Mining Pick is not a pole")
+    local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
+    -- Not at the fishing stop: no fishing steps.
+    t:eq(get("fish:cast", { at = false, prof = "Fishing", pole = true }), nil, "no cast away from the spot")
+    t:eq(get("fish:equip", { at = true, prof = "Mining", pole = false }), nil, "no pole at a mining stop")
+    -- At the spot with the pole on: cast (when you know Fishing and aren't fishing yet).
+    if ns.api.SpellInfo("Fishing") and not (UnitChannelInfo and UnitChannelInfo("player")) then
+        local s = get("fish:cast", { at = true, prof = "Fishing", pole = true })
+        t:eq(s and s.spell, "Fishing", "casts Fishing at the spot")
+    end
+    -- Nothing to put back when Flow didn't swap anything.
+    local saved = ns.db.actions.weapons
+    ns.db.actions.weapons = nil
+    t:eq(get("fish:restore", { at = false }), nil, "no restore without saved weapons")
+    ns.db.actions.weapons = saved
+end)

@@ -26,23 +26,45 @@ local function macroFor(s)
     return "/cast " .. s.spell
 end
 
--- Points the secure button at the suggestion, as the "spell" button type:
--- Forever ignores macro-type secure buttons (the fight records showed every
--- press arriving with the right macro, and nothing cast). Attack too: Flow
--- only suggests it while you're not swinging, so the press turns it on.
-local function setMacro(text, spell)
-    if InCombatLockdown() or text == macro then return end
-    if spell then
+local interact = false   -- the key presses the game's Interact (bobber, vein)
+
+-- What the press does, as text: for the diagnostics and to skip repeats.
+local function describe(s)
+    if not s then return "" end
+    if s.type == "item" then return "/use " .. tostring(s.item) .. (s.targetSlot and (" on slot " .. s.targetSlot) or "") end
+    if s.type == "interact" then return "Interact" end
+    return macroFor(s)
+end
+C._describe = describe  -- (tests)
+
+-- Points the secure button at the suggestion, as the "spell" or "item"
+-- button type: Forever ignores macro-type secure buttons (the fight records
+-- showed every press arriving with the right macro, and nothing cast).
+-- Attack too: Flow only suggests it while you're not swinging, so the press
+-- turns it on. Items: equips gear (the pole), or with targetSlot applies to
+-- that slot (a lure on your main hand). "interact": the key itself is bound
+-- to the game's Interact for as long as that's the action.
+local function setAction(s)
+    if InCombatLockdown() then return end
+    local text = describe(s)
+    if text == macro then return end
+    for _, a in ipairs({ "spell", "item", "unit", "target-slot" }) do btn:SetAttribute(a, nil) end
+    local kind = s and (s.type or "spell")
+    if kind == "spell" and s.spell then
         btn:SetAttribute("type", "spell")
-        btn:SetAttribute("spell", spell)
+        btn:SetAttribute("spell", s.spell)
         -- Heals always on you: "player" as the unit.
-        local heal = text:find("@player", 1, true) or ns.rotation.current and ns.rotation.current.kind == "heal"
+        local heal = s.kind == "heal" or s.kind == "emergency"
         btn:SetAttribute("unit", heal and "player" or nil)
+    elseif kind == "item" and s.item then
+        btn:SetAttribute("type", "item")
+        btn:SetAttribute("item", s.item)
+        btn:SetAttribute("target-slot", s.targetSlot)
     else
         btn:SetAttribute("type", nil)
-        btn:SetAttribute("spell", nil)
     end
-    macro, lockedSpell = text, spell
+    macro, lockedSpell = text, s and s.spell
+    C:SetInteract(kind == "interact")
 end
 
 -- Blizzard's single-button assistant, if this client has one.
@@ -142,8 +164,20 @@ function C:ApplyKey()
     pendingKey = false
     ClearOverrideBindings(owner)
     local key = ns.db.cast.key
-    if key then SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
+    if key then
+        if interact then SetOverrideBinding(owner, true, key, "INTERACTTARGET")
+        else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
+    end
     refreshLabels()
+end
+
+-- Key = the game's Interact (reel in the bobber, mine the vein) or back to
+-- Flow's button. Only out of combat; a fight always gets the button back.
+function C:SetInteract(on)
+    on = on and true or false
+    if on == interact or InCombatLockdown() then return end
+    interact = on
+    self:ApplyKey()
 end
 
 -- What else uses this key: friendly name, or nil if it's free (or Flow's).
@@ -177,14 +211,18 @@ ns:OnLoad(function(saved)
     build(saved.rotation)
     C:ApplyKey()
 
+    -- Runs on its own frame: the button hides when there's nothing to press,
+    -- and a hidden frame's OnUpdate never runs, so (before 0.35.22) the
+    -- button never came back out of combat and the key did nothing.
     local acc = 0
-    btn:SetScript("OnUpdate", function(_, dt)
+    local driver = CreateFrame("Frame")
+    driver:SetScript("OnUpdate", function(_, dt)
         acc = acc + dt
         if acc < 0.1 then return end
         acc = 0
         if not InCombatLockdown() then
-            local s = E.current
-            setMacro(macroFor(s), s and s.spell)
+            local s = E.shown
+            setAction(s)
             -- Hidden when there's nothing to press, so it never blocks clicks
             -- on the world. (Can only change out of combat.)
             local want = s ~= nil or not ns.db.rotation.locked
@@ -197,17 +235,20 @@ end)
 -- Last moment before combat lockdown: lock in the spell for this fight.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if btn and not btn:IsShown() then btn:Show() end  -- key must work all fight
+    -- The key goes back to Flow's button for the fight (not Interact). This
+    -- event comes just before the lockdown, so changes are still allowed.
+    if interact then interact = false; C:ApplyKey() end
     local helper = assistantSpell()
     if helper then
-        setMacro("/cast " .. helper, helper)
+        setAction({ spell = helper })
     else
         -- The key can't change during the fight, so lock it to something worth
         -- pressing all fight: the class decides (pullLock), never nothing.
         local s = E.current
         local def = E:Definition()
         local spell = def and def.pullLock and def.pullLock(s, E) or (s and s.spell)
-        if spell and s and spell == s.spell then setMacro(macroFor(s), spell)
-        elseif spell then setMacro("/cast " .. spell, spell) end
+        if spell and s and spell == s.spell then setAction(s)
+        elseif spell then setAction({ spell = spell }) end
     end
 end)
 
@@ -266,6 +307,12 @@ end)
 
 ns:OnLoad(function()
     if not btn then return end
+    -- A Flow Action can need a step just before the press (the pole: note
+    -- which weapons to put back afterwards).
+    btn:HookScript("PreClick", function()
+        local s = E.shown
+        if s and s.before and not InCombatLockdown() then pcall(s.before) end
+    end)
     btn:HookScript("PostClick", function(_, button, down)
         if not fight and GetTime() < afterUntil then
             ns:Log("cast", string.format("after-fight press: %s down=%s spell %s unit %s", tostring(button), tostring(down),

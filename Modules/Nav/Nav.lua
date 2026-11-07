@@ -1517,6 +1517,7 @@ local function update()
 
     local choice = choose(p)
     current = choice
+    N.current = choice  -- for Flow Actions (Modules/Rotation/Actions.lua)
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, choice and choice.point, choice and choice.goal) end
     local tk = choice and choice.goal.key
     if tk ~= N.lastTargetKey then

@@ -29,6 +29,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `test` | "area: what it checks" | `fn(t)` with `t:ok`, `t:eq`, `t:near` | `/flow test`, diagnostics snapshot |
 | `mount` | race token, e.g. `Human` | `{ trainer, vendor, what }` NPC names | Mount milestone (`Modules/Nav/Mounts.lua`) |
 | `mountRule` | `default` | `{ level, ridingCost, mountCost, saveFrom, classMount = { CLASS = spell } }` | Mount milestone: when to save, learn and buy |
+| `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`) |
 | `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
