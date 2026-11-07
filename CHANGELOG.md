@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.39
+- Crafting where you stand ("Make 4 x Roasted Boar Meat" when you carry the meat and no fire is
+  known nearby): the Flow key now does all of it: makes a campfire (Basic Campfire), opens
+  Cooking, then makes exactly the right number. First Aid skips the fire. A recipe in your
+  bags: the key uses it.
+- No Simple Wood for the campfire: a "Buy Simple Wood" stop goes on the route.
+- When you're at a stop like that, the arrow's ring shows its icon bouncing in place of the
+  ball: the cooking (or other profession) icon for crafting, a bag for something to use from
+  your bags.
+
 ## 0.35.38
 - The 3D arrow's ring has height: its dots are now little pillars with lit caps (short while
   it points the way, tall and glowing in the route colour when you've arrived). The dot in the

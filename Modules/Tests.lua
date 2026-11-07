@@ -867,3 +867,32 @@ ns:Register("test", "arrow 3D: pillars on the ring and a sphere when you arrive"
     t:ok(a.ringAngle == math.pi / 2, "the ring can spin")
     a:Hide()
 end)
+
+ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon", function(t)
+    local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
+    local stop = { key = "craft:Cooking:Test", recipe = "Roasted Boar Meat", prof = "Cooking",
+                   station = "fire", anywhere = true, icon = "Interface\Icons\INV_Misc_Food_15" }
+    -- Not at a craft stop: none of the craft steps.
+    t:eq(get("craft:open", { goal = { key = "88:1" } }), nil, "no craft steps at a quest stop")
+    -- Cooking needs a fire first: "open" waits until there is one.
+    if not ns.actions.FireNear() then
+        t:eq(get("craft:open", { goal = stop, at = true }), nil, "no opening Cooking without a fire")
+    end
+    local s = get("craft:fire", { goal = stop, at = true })
+    if s then t:eq(s.spell, "Basic Campfire", "makes a campfire first") else t:ok(true, "(no wood or no Basic Campfire: the route buys wood)") end
+    -- First Aid (no station): open it straight away.
+    local fa = get("craft:open", { goal = { key = "craft:First Aid:X", recipe = "Linen Bandage", prof = "First Aid", anywhere = true }, at = true })
+    if ns.api.SpellInfo("First Aid") and not (TradeSkillFrame and TradeSkillFrame:IsShown()) then
+        t:eq(fa and fa.spell, "First Aid", "opens First Aid")
+    end
+    t:eq(ns.cast._describe({ type = "click", label = "Make 4 x Roasted Boar Meat" }), "/click Make 4 x Roasted Boar Meat", "click step described")
+    -- The 3D arrow shows the stop's icon instead of the ball when you're there.
+    if ns.db.nav.arrowStyle ~= "flat" then
+        local a = ns.nav:MakeArrow3D(UIParent)
+        a:SetCenterIcon(stop.icon); a:SetArrived(true)
+        t:ok(a.icon:IsShown() and not a.ballHi:IsShown(), "icon in the ring, no ball")
+        a:SetCenterIcon(nil)
+        t:ok(a.ballHi:IsShown() and not a.icon:IsShown(), "no icon: the ball again")
+        a:Hide()
+    end
+end)

@@ -20,6 +20,15 @@ local A = ns.api
 local MAX_POINTS = 60
 
 local function count(id) return A.Count(id) end
+
+local SIMPLE_WOOD = 4470                                  -- Basic Campfire uses one
+local BAG_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
+-- A profession's own icon (its spell), for the arrow when you're at its stop.
+local function profIcon(prof)
+    local _, icon = A.SpellInfo(prof)
+    return icon
+end
+SP.ProfIcon = profIcon
 -- A tool for this profession in your bags or equipped (any version of it).
 local function hasTool(prof, id)
     if id and count(id) > 0 then return true end
@@ -453,6 +462,7 @@ local function recipeStop(prof, s, known)
     watched[s.recipeItem] = true
     if count(s.recipeItem) > 0 then
         return { key = "use:" .. s.recipeItem, kind = "craft", points = { playerPoint() }, anywhere = true,
+                 icon = BAG_ICON, useItem = s.recipeItem,   -- in your bags: the arrow shows a bag
                  text = "Learn " .. s.recipe .. ": use the recipe in your bags" }
     end
     local pts, _, sellers = vendorPoints(s.recipeItem)
@@ -578,8 +588,24 @@ local function planProfession(prof, t, out)
             end
             details[#details + 1] = anywhere and "You have the materials: do it now, wherever you are."
                 or ("At the " .. s.station .. " (by the blacksmith).")
+            -- Cooking with no known fire nearby: make one (Basic Campfire,
+            -- needs Simple Wood). Flow's key does it, then opens Cooking.
+            if anywhere and s.station == "fire" then
+                details[#details + 1] = "Needs a cooking fire: Flow's key makes a campfire (Basic Campfire, uses 1 Simple Wood), opens Cooking, then makes them."
+                watched[SIMPLE_WOOD] = true
+                if count(SIMPLE_WOOD) == 0 then
+                    local wpts, _, sellers = vendorPoints(SIMPLE_WOOD)
+                    if #wpts > 0 then
+                        add({ key = "buy:" .. SIMPLE_WOOD, kind = "merchant", points = wpts, npcs = sellers,
+                              cost = SP.Price(SIMPLE_WOOD), text = "Buy Simple Wood (for a campfire)",
+                              details = { "Basic Campfire needs 1 Simple Wood; it's how you cook away from a fire." } })
+                    end
+                end
+            end
             add({ key = "craft:" .. prof .. ":" .. s.recipe, kind = "craft", points = pts, anywhere = anywhere,
                   weight = 0.5,
+                  -- The arrow shows the profession's icon (bouncing) when you're there.
+                  icon = profIcon(prof), station = s.station,
                   -- For the profession window hint (CraftHint.lua).
                   prof = prof, recipe = s.recipe, makeCount = n, planned = planned, rank = rank, target = t.target,
                   text = s.recipe:find("^Smelt ") and string.format("%s x%s at a forge", s.recipe, num)

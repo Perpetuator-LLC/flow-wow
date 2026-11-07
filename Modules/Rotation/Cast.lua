@@ -34,6 +34,7 @@ local function describe(s)
     if s.type == "item" then return "/use " .. tostring(s.item) .. (s.targetSlot and (" on slot " .. s.targetSlot) or "") end
     if s.type == "interact" then return "Interact" end
     if s.type == "clear" then return "/cleartarget" end
+    if s.type == "click" then return "/click " .. tostring(s.label) end
     return macroFor(s)
 end
 C._describe = describe  -- (tests)
@@ -49,7 +50,7 @@ local function setAction(s)
     if InCombatLockdown() then return end
     local text = describe(s)
     if text == macro then return end
-    for _, a in ipairs({ "spell", "item", "unit", "target-slot" }) do btn:SetAttribute(a, nil) end
+    for _, a in ipairs({ "spell", "item", "unit", "target-slot", "clickbutton" }) do btn:SetAttribute(a, nil) end
     local kind = s and (s.type or "spell")
     if kind == "spell" and s.spell then
         btn:SetAttribute("type", "spell")
@@ -59,6 +60,10 @@ local function setAction(s)
         -- selected (an NPC) never makes the cast fail.
         local heal = s.kind == "heal" or s.kind == "emergency"
         btn:SetAttribute("unit", (heal and "player") or s.unit or nil)
+    elseif kind == "click" and s.button then
+        -- Presses one of Flow's own buttons (the profession panel's "Make N").
+        btn:SetAttribute("type", "click")
+        btn:SetAttribute("clickbutton", s.button)
     elseif kind == "clear" then
         -- The secure "target" type with unit "none" clears your target.
         btn:SetAttribute("type", "target")

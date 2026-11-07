@@ -59,6 +59,7 @@ ns:Register("itemSource", 5956, { name = "Blacksmith Hammer", vendor = true, pri
 ns:Register("itemSource", 2901, { name = "Mining Pick", vendor = true, price = 16 })
 ns:Register("itemSource", 6256, { name = "Fishing Pole", vendor = true, price = 23 })
 ns:Register("itemSource", 6529, { name = "Shiny Bauble", vendor = true, price = 100 })   -- lure: +25 Fishing
+ns:Register("itemSource", 4470, { name = "Simple Wood", vendor = true, price = 38 })      -- for Basic Campfire
 
 -------------------------------------------------------------------------------
 -- Professions

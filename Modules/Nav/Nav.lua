@@ -462,6 +462,17 @@ function N:MakeHudArrow(parent)
     end
     function a:SetRotation(r) self.angle = r or 0; draw() end
     function a:SetVertexColor(r, g, b) self.r, self.g, self.b = r, g, b; draw() end
+    -- The stop's own icon in the middle instead of the dot (cooking, a bag...).
+    function a:SetCenterIcon(tex)
+        if tex == self.iconTex then return end
+        self.iconTex = tex
+        if tex then
+            self.center:SetTexture(tex); self.center:SetTexCoord(0.08, 0.92, 0.08, 0.92); self.center:SetSize(18, 18)
+        else
+            self.center:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask"); self.center:SetTexCoord(0, 1, 0, 1)
+            self.center:SetSize(10, 10)
+        end
+    end
     -- Arrived: chevron gone, the ring lights up in the route colour and pulses,
     -- with a dot in the middle ("you're here").
     a.center = a:CreateTexture(nil, "OVERLAY")
@@ -481,7 +492,7 @@ function N:MakeHudArrow(parent)
             self:SetScript("OnUpdate", function(me)
                 local pulse = 0.6 + 0.4 * math.sin(GetTime() * 4)
                 for _, d in ipairs(me.ring) do d:SetColorTexture(me.r, me.g, me.b, pulse) end
-                me.center:SetVertexColor(me.r, me.g, me.b, 0.5 + 0.5 * pulse)
+                if me.iconTex then me.center:SetVertexColor(1, 1, 1, 1) else me.center:SetVertexColor(me.r, me.g, me.b, 0.5 + 0.5 * pulse) end
             end)
         else
             self:SetScript("OnUpdate", nil)
@@ -574,10 +585,35 @@ function N:MakeArrow3D(parent)
         self.ballBody:SetPoint("CENTER", self, "CENTER", -0.8, lift + 0.8)
         self.ballHi:SetPoint("CENTER", self, "CENTER", -2.4, lift + 2.6)
     end
+    -- The stop's own icon in place of the ball (the cooking icon at "Make 4 x
+    -- Roasted Boar Meat", a bag for something to use from your bags):
+    -- round, on a dark disc, bouncing over its shadow.
+    a.icon = a:CreateTexture(nil, "OVERLAY", nil, 4)
+    a.icon:SetSize(18, 18)
+    a.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    a.icon:Hide()
+    if a.CreateMaskTexture then
+        local okM, mask = pcall(a.CreateMaskTexture, a)
+        if okM and mask then
+            mask:SetTexture(CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(a.icon)
+            pcall(a.icon.AddMaskTexture, a.icon, mask)
+        end
+    end
+    function a:SetCenterIcon(tex)
+        if tex == self.iconTex then return end
+        self.iconTex = tex
+        if tex then self.icon:SetTexture(tex) end
+        self:ShowBall(self.arrived)
+    end
     function a:ShowBall(on)
         on = on and not self.noBall
-        self.ballShadow:SetShown(on); self.ballBase:SetShown(on)
-        self.ballBody:SetShown(on); self.ballHi:SetShown(on)
+        local icon = on and self.iconTex ~= nil
+        self.icon:SetShown(icon)
+        self.ballShadow:SetShown(on)
+        self.ballBase:SetShown(on)                     -- the dark disc (behind the icon too)
+        self.ballBody:SetShown(on and not icon); self.ballHi:SetShown(on and not icon)
+        self.ballBase:SetSize(icon and 22 or 12, icon and 22 or 12)
     end
 
     a.angle, a.r, a.g, a.b, a.bob = 0, 1, 0.62, 0, 0
@@ -694,7 +730,16 @@ function N:MakeArrow3D(parent)
             local now = GetTime()
             me.pulse = 0.5 + 0.5 * math.sin(now * 4)
             me:Light(me.pulse)
-            me:PlaceBall(7 + 1.5 * math.sin(now * 2.4))
+            if me.iconTex then
+                -- The icon bounces (a hop, not a float): "do this here, now".
+                local hop = math.abs(math.sin(now * 3.2)) * 5
+                me:PlaceBall(9 + hop)
+                me.icon:ClearAllPoints(); me.icon:SetPoint("CENTER", me, "CENTER", 0, 9 + hop)
+                me.ballShadow:SetSize(15 - hop, math.max(2, 4 - hop * 0.3))
+            else
+                me:PlaceBall(7 + 1.5 * math.sin(now * 2.4))
+                me.ballShadow:SetSize(13, 4)
+            end
             return
         end
         local bob = math.floor(1.5 * math.sin(GetTime() * 2.4) * 4 + 0.5) / 4   -- quarter pixels
@@ -1679,6 +1724,9 @@ local function update()
         ns:Print("reached a shared stop: " .. (g.title or "?"))
     end
     frame.text:SetText(g.text or g.title or "Next goal")
+    -- A stop with its own icon (craft here: the profession; use from your
+    -- bags: a bag) shows it bouncing in the ring when you're there.
+    if frame.arrow.SetCenterIcon then frame.arrow:SetCenterIcon(g.icon) end
     -- Arrived: at the stop, or anywhere in a quest's area (near any spawn of
     -- its mobs / objects, not just the one point the route picked). Then the
     -- arrow is a pulsing ring - unless one of the quest's mobs or NPCs has a

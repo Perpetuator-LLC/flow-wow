@@ -279,6 +279,63 @@ ns:Register("action", "fish:cast", { order = 40, get = function(ctx)
              label = ctx.noWater and "Face the water, then cast" or "Cast your line" }
 end })
 
+-- Crafting where you stand (a "Make 4 x Roasted Boar Meat" stop that follows
+-- you): the key makes a campfire if the recipe needs one, opens the
+-- profession, then presses Flow's "Make N" button for exactly the right amount.
+local fireAt   -- where and when your last Basic Campfire went up
+local FIRE_YARDS, FIRE_SECS = 8, 55
+function X.FireNear()
+    if not fireAt then return false end
+    local p = ns.nav and ns.nav:PlayerPos()
+    return GetTime() - fireAt.t < FIRE_SECS and dist(p, fireAt) < FIRE_YARDS
+end
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" then return end
+    if A.SpellInfo(A.Safe(spellID) or 0) == "Basic Campfire" then
+        local p = ns.nav and ns.nav:PlayerPos()
+        if p then fireAt = { cont = p.cont, wx = p.wx, wy = p.wy, t = GetTime() } end
+    end
+end)
+local function professionOpen()
+    return (TradeSkillFrame and TradeSkillFrame:IsShown()) or (ProfessionsFrame and ProfessionsFrame:IsShown()) or false
+end
+local function craftHere(ctx)
+    local g = ctx.goal
+    return g and g.recipe and (g.anywhere or ctx.at) and not g.blockedBy and g
+end
+
+ns:Register("action", "craft:fire", { order = 44, get = function(ctx)
+    local g = craftHere(ctx)
+    if not (g and g.station == "fire") or X.FireNear() or professionOpen() then return nil end
+    if not knows("Basic Campfire") or count(4470) == 0 then return nil end   -- no wood: the route has a Simple Wood stop
+    return { type = "spell", spell = "Basic Campfire", unit = "player", icon = spellIcon("Basic Campfire"),
+             label = "Make a campfire" }
+end })
+
+ns:Register("action", "craft:open", { order = 46, get = function(ctx)
+    local g = craftHere(ctx)
+    if not g or professionOpen() or not knows(g.prof) then return nil end
+    if g.station == "fire" and not X.FireNear() then return nil end
+    return { type = "spell", spell = g.prof, unit = "player", icon = spellIcon(g.prof), label = "Open " .. g.prof }
+end })
+
+-- The window is open and Flow's panel under it says how many: the key
+-- presses that panel's "Make N" button.
+ns:Register("action", "craft:make", { order = 47, get = function(ctx)
+    local g = craftHere(ctx)
+    local hint = _G.FlowCraftHint
+    if not (g and professionOpen() and hint and hint:IsShown() and hint.btn and hint.btn:IsEnabled()) then return nil end
+    return { type = "click", button = hint.btn, icon = g.icon or spellIcon(g.prof),
+             label = (hint.btn:GetText() or "Make") .. " x " .. g.recipe }
+end })
+
+-- A recipe (or other item) to use from your bags: the key uses it.
+ns:Register("action", "bag:use", { order = 48, get = function(ctx)
+    local g = ctx.goal
+    if not (g and g.useItem) or count(g.useItem) == 0 then return nil end
+    return { type = "item", item = "item:" .. g.useItem, icon = itemIcon(g.useItem), label = g.text }
+end })
+
 -- Mining / Herbalism: tracking on, then the key gathers (Interact).
 local FIND = { Mining = "Find Minerals", Herbalism = "Find Herbs" }
 ns:Register("action", "gather:find", { order = 50, get = function(ctx)
