@@ -169,6 +169,71 @@ function Q:UiMapForArea(areaId)
     return mapByZoneName(areaId)
 end
 
+-- Questie spawn tables ({ [areaId] = { {x, y}, ... } }, 0-100 coords) -> at
+-- most `cap` map points { map, x, y }, spread over ALL the spawns (every
+-- n-th one). Taking the first `cap` instead let one mob with lots of spawns
+-- (Defias Bandits) fill the list from one corner of the zone, so the camp
+-- you're standing in could be missing and the route skipped the quest.
+--   opts.map      your map: its spawns fill the cap first
+--   opts.onlyMap  if any spawns are on your map, keep only those
+--   opts.mapFor   areaId -> uiMap (tests); default Questie's zone table
+-- Returns points, anyOnYourMap, how many spawns were known.
+-- Two passes (count, then pick) so only the kept spots become tables: a quest
+-- can have hundreds of spawns and this runs on every route refresh.
+local function validSpawn(c) return c[1] and c[1] >= 0 and c[2] and c[2] >= 0 end
+function Q.SpreadPoints(spawnTables, cap, opts)
+    opts = opts or {}
+    local mapFor = opts.mapFor or function(areaId) return Q:UiMapForArea(areaId) end
+    local maps = {}
+    local function mapOf(areaId)
+        local m = maps[areaId]
+        if m == nil then m = mapFor(areaId) or false; maps[areaId] = m end
+        return m
+    end
+    local nMine, nAway = 0, 0
+    for _, spawns in ipairs(spawnTables or {}) do
+        for areaId, list in pairs(spawns or {}) do
+            local m = mapOf(areaId)
+            if m and type(list) == "table" then
+                for _, c in ipairs(list) do
+                    if validSpawn(c) then
+                        if m == opts.map then nMine = nMine + 1 else nAway = nAway + 1 end
+                    end
+                end
+            end
+        end
+    end
+    local takeMine = math.min(cap, nMine)
+    local takeAway = (opts.onlyMap and nMine > 0) and 0 or math.max(0, math.min(cap - takeMine, nAway))
+    -- The k-th pick of `take` from `count` is spawn number floor((k-1)*count/take)+1.
+    local function due(i, k, take, count) return k <= take and i == math.floor((k - 1) * count / take) + 1 end
+    local out = {}
+    local iMine, kMine, iAway, kAway = 0, 1, 0, 1
+    for _, spawns in ipairs(spawnTables or {}) do
+        for areaId, list in pairs(spawns or {}) do
+            local m = mapOf(areaId)
+            if m and type(list) == "table" then
+                for _, c in ipairs(list) do
+                    if validSpawn(c) then
+                        local take
+                        if m == opts.map then
+                            iMine = iMine + 1
+                            take = due(iMine, kMine, takeMine, nMine)
+                            if take then kMine = kMine + 1 end
+                        else
+                            iAway = iAway + 1
+                            take = due(iAway, kAway, takeAway, nAway)
+                            if take then kAway = kAway + 1 end
+                        end
+                        if take then out[#out + 1] = { map = m, x = c[1] / 100, y = c[2] / 100 } end
+                    end
+                end
+            end
+        end
+    end
+    return out, nMine > 0, nMine + nAway
+end
+
 local function zoneIdOf(spawns)
     return (next(spawns or {}))   -- the first zone listed
 end

@@ -2066,6 +2066,21 @@ ns.commands.nav = function(arg)
         end
         local p = N:PlayerPos()
         if p then print(string.format("  you: map %d at %.1f, %.1f", p.map, p.x * 100, p.y * 100)) end
+        -- Objectives in your log that didn't make this plan (it takes the 14
+        -- nearest stops): how far their nearest known spot is, and how many
+        -- spots Flow kept of the ones Questie knows.
+        if p then
+            local onRoute = {}
+            for _, s in ipairs(N.plan or {}) do onRoute[s.goal.key] = true end
+            for _, g in ipairs(goals) do
+                if g.key:find("^%d+:%d+$") and not onRoute[g.key] then
+                    local _, d = nearestPoint(g, p)
+                    print(string.format("  not on this plan: %s  nearest spot %s, %d spot(s) of %s known  [%s]",
+                        tostring(g.text or g.title), d and (math.floor(d) .. " yd") or "none here",
+                        g.points and #g.points or 0, tostring(g.known or "?"), g.key))
+                end
+            end
+        end
     elseif arg == "quests" or arg == "optimal" or arg == "complete" then
         N:SetMode(arg)
         ns:Print(arg == "quests" and "following your current quests only"

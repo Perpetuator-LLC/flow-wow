@@ -133,12 +133,45 @@ ns:Register("test", "xp: weights favour your level, add tooltip lines", function
         { key = "pickup:999001", level = me, weight = 1, details = {} },
         { key = "pickup:999002", level = me + 3, weight = 1, details = {} },
     }
-    with(ns.db.nav, "sorter", "xp", function() ns.xpValue:Apply(goals) end)
+    -- (Completionist routes always sort by distance: test in the default mode.)
+    with(ns.db.nav, "mode", "optimal", function()
+        with(ns.db.nav, "sorter", "xp", function() ns.xpValue:Apply(goals) end)
+    end)
     t:ok(goals[2].weight > goals[1].weight, "3 levels above weighs more than your level")
     t:ok(goals[1].details[1] and goals[1].details[1]:find("^XP: "), "XP line added")
     local plain = { { key = "pickup:999003", level = me + 3, weight = 1, details = {} } }
     with(ns.db.nav, "sorter", "distance", function() ns.xpValue:Apply(plain) end)
     t:eq(plain[1].weight, 1, "shortest path leaves weights alone")
+end)
+
+ns:Register("test", "quest spots: spread over every mob's spawns, your map first", function(t)
+    local S = ns.quests.SpreadPoints
+    local mapFor = function(area) return area end   -- area id = map id here
+    -- Bandits: 150 spawns along x (0..149 %), a wizard: 10 spawns, another zone: 5.
+    local bandit, wizard, far = { [1] = {} }, { [1] = {} }, { [2] = {} }
+    for i = 0, 149 do bandit[1][#bandit[1] + 1] = { i * 0.66, 50 } end
+    for i = 1, 10 do wizard[1][#wizard[1] + 1] = { 70, 40 + i } end
+    for i = 1, 5 do far[2][#far[2] + 1] = { 10, 10 } end
+    local pts, onMap, known = S({ bandit, wizard, far }, 80, { map = 1, mapFor = mapFor })
+    t:eq(#pts, 80, "kept the cap")
+    t:eq(known, 165, "counts every spawn it knew")
+    t:ok(onMap, "some on your map")
+    local maxX, wiz, other = 0, 0, 0
+    for _, p in ipairs(pts) do
+        if p.map == 1 and p.y == 0.5 then maxX = math.max(maxX, p.x) end
+        if p.map == 1 and p.x == 0.7 then wiz = wiz + 1 end
+        if p.map == 2 then other = other + 1 end
+    end
+    t:ok(maxX > 0.9, "reaches the far end of the bandits' spawns (" .. maxX .. ")")
+    t:ok(wiz > 0, "the second mob still gets spots (" .. wiz .. ")")
+    t:eq(other, 0, "other zones wait while your map fills the cap")
+    local few = S({ wizard, far }, 80, { map = 1, mapFor = mapFor })
+    t:eq(#few, 15, "under the cap: everything, other zones too")
+    local only = S({ wizard, far }, 80, { map = 1, onlyMap = true, mapFor = mapFor })
+    t:eq(#only, 10, "onlyMap: just your map when it has any")
+    local none = S({ far }, 80, { map = 1, onlyMap = true, mapFor = mapFor })
+    t:eq(#none, 5, "onlyMap with nothing here: anywhere")
+    t:eq(#S({ { [1] = { { -1, -1 } } } }, 80, { mapFor = mapFor }), 0, "no-position spawns skipped")
 end)
 
 ns:Register("test", "route colour follows the order mode", function(t)
@@ -870,13 +903,19 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
             keep = function(g) return g.key:find("^keep:") ~= nil end,
             weigh = function() return 0.5 end })
     end
-    ns.db.nav.sorter, ns.db.nav.baseSorter = "test-only", "test-only"
-    local out = X:Apply({ { key = "keep:1", weight = 1 }, { key = "drop:1", weight = 1 } })
-    t:eq(#out, 1, "keep picks the stops")
-    t:eq(out[1].weight, 0.5, "weigh scales the weight")
-    ns.db.nav.sorter, ns.db.nav.baseSorter = "nonsense", nil
-    t:eq((X:Objective()), "xp", "unknown objective falls back to Most XP")
+    -- Completionist routes always sort by distance: test in the default mode.
+    with(ns.db.nav, "mode", "optimal", function()
+        ns.db.nav.sorter, ns.db.nav.baseSorter = "test-only", "test-only"
+        local out = X:Apply({ { key = "keep:1", weight = 1 }, { key = "drop:1", weight = 1 } })
+        t:eq(#out, 1, "keep picks the stops")
+        t:eq(out[1] and out[1].weight, 0.5, "weigh scales the weight")
+        ns.db.nav.sorter, ns.db.nav.baseSorter = "nonsense", nil
+        t:eq((X:Objective()), "xp", "unknown objective falls back to Most XP")
+    end)
     ns.db.nav.sorter, ns.db.nav.baseSorter = saved.s, saved.b
+    with(ns.db.nav, "mode", "complete", function()
+        t:eq((X:Objective()), "distance", "completionist: shortest order")
+    end)
 end)
 
 ns:Register("test", "arrow 3D: pillars on the ring and a sphere when you arrive", function(t)

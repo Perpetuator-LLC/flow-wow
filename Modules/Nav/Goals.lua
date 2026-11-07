@@ -71,15 +71,25 @@ local function addSpawns(points, spawns, cap, onlyMap)
     end
 end
 
-local function npcSpawns(db, points, id)
-    local npc = call(db, "GetNPC", id)
-    if npc then addSpawns(points, npc.spawns) end
-    return npc and npc.name
+-- Spawn tables -> at most MAX_POINTS spots, spread over all of them with the
+-- ones on your map first (ns.quests.SpreadPoints): every mob that drops the
+-- item gets its share, not just the first one listed.
+local function pointsFrom(tables)
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+    local pts, _, known = ns.quests.SpreadPoints(tables, MAX_POINTS, { map = map })
+    return pts, known
 end
 
-local function objectSpawns(db, points, id)
+-- Adds the NPC's / object's spawn table to `tables`; returns its name (and the NPC).
+local function npcSpawns(db, tables, id)
+    local npc = call(db, "GetNPC", id)
+    if npc and npc.spawns then tables[#tables + 1] = npc.spawns end
+    return npc and npc.name, npc
+end
+
+local function objectSpawns(db, tables, id)
     local obj = call(db, "GetObject", id)
-    if obj then addSpawns(points, obj.spawns) end
+    if obj and obj.spawns then tables[#tables + 1] = obj.spawns end
     return obj and obj.name
 end
 ns.quests.LogEntries = questLog  -- shared with SkillPlan.lua
@@ -95,13 +105,14 @@ ns:Register("navGoal", "questie", {
                 -- Where the quest is handed in. For unfinished quests this is a
                 -- later stop that the planner puts after the objectives
                 -- (deps), so it can decide "finish, then turn in on the way".
-                local turnPoints, who = {}, nil
+                local turnSpawns, who = {}, nil
                 for _, id in ipairs(quest.Finishes and quest.Finishes.NPC or {}) do
-                    who = npcSpawns(db, turnPoints, id) or who
+                    who = npcSpawns(db, turnSpawns, id) or who
                 end
                 for _, id in ipairs(quest.Finishes and quest.Finishes.GameObject or {}) do
-                    who = objectSpawns(db, turnPoints, id) or who
+                    who = objectSpawns(db, turnSpawns, id) or who
                 end
+                local turnPoints = pointsFrom(turnSpawns)
                 local turnIn = {
                     key = q.id .. ":done", weight = 0.8, points = turnPoints, level = quest.level,
                     npcs = who and { who } or nil,
@@ -120,16 +131,16 @@ ns:Register("navGoal", "questie", {
                         -- smelt, craft), not by walking to the trainer.
                         local skillObj = ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
                         if not obj.finished and od and not skillObj then
-                            local points, verb, what, elite = {}, nil, nil, false
+                            local spawns, verb, what, elite = {}, nil, nil, false
                             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
                             if od.Type == "monster" then
-                                what = npcSpawns(db, points, od.Id); verb = "Kill"
+                                local npcRaw
+                                what, npcRaw = npcSpawns(db, spawns, od.Id); verb = "Kill"
                                 if what then targets[#targets + 1] = what end
                                 -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
-                                local npcRaw = call(db, "GetNPC", od.Id)
                                 if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
                             elseif od.Type == "object" then
-                                what = objectSpawns(db, points, od.Id); verb = "Use"
+                                what = objectSpawns(db, spawns, od.Id); verb = "Use"
                             elseif od.Type == "item" then
                                 local item = call(db, "GetItem", od.Id)
                                 verb = "Collect"; what = item and item.name
@@ -137,18 +148,18 @@ ns:Register("navGoal", "questie", {
                                 -- among normal kobolds doesn't make the objective elite).
                                 local anyNormal, anyElite = false, false
                                 for _, npcId in ipairs(item and item.npcDrops or {}) do
-                                    local dropper = npcSpawns(db, points, npcId)
+                                    local dropper, npcRaw = npcSpawns(db, spawns, npcId)
                                     if dropper then targets[#targets + 1] = dropper end
-                                    local npcRaw = call(db, "GetNPC", npcId)
                                     if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
                                 end
                                 elite = anyElite and not anyNormal
-                                for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, points, objId) end
+                                for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
                             end
+                            local points, known = pointsFrom(spawns)
                             if verb and #points > 0 then
                                 table.insert(turnIn.deps, q.id .. ":" .. i)
                                 goals[#goals + 1] = {
-                                    key = q.id .. ":" .. i, points = points, title = q.title, level = quest.level,
+                                    key = q.id .. ":" .. i, points = points, known = known, title = q.title, level = quest.level,
                                     weight = elite and 1.6 or nil, elite = elite or nil,
                                     npcs = #targets > 0 and targets or nil, area = true, target = what,
                                     kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
@@ -177,9 +188,7 @@ ns:Register("navGoal", "questie", {
 
 -- Spawn table -> map points (shared by pickups below).
 local function spawnPoints(spawns)
-    local points = {}
-    addSpawns(points, spawns)
-    return points
+    return (pointsFrom({ spawns }))
 end
 
 -- Quests you haven't picked up yet that are still worth doing (from the

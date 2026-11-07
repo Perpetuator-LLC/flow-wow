@@ -74,24 +74,10 @@ local function playerPoint()
 end
 
 -- Questie spawns -> map points; on this map if any are here, else anywhere.
+-- Spread over all the spawns, not the first MAX_POINTS (ns.quests.SpreadPoints).
 local function spawnPoints(spawnTables)
-    local mine, all = {}, {}
-    local map = here()
-    for _, spawns in ipairs(spawnTables) do
-        for areaId, list in pairs(spawns or {}) do
-            local m = ns.quests:UiMapForArea(areaId)
-            if m then
-                for _, c in ipairs(list) do
-                    if c[1] and c[1] >= 0 and c[2] and c[2] >= 0 then
-                        local pt = { map = m, x = c[1] / 100, y = c[2] / 100 }
-                        if m == map and #mine < MAX_POINTS then mine[#mine + 1] = pt end
-                        if #all < MAX_POINTS then all[#all + 1] = pt end
-                    end
-                end
-            end
-        end
-    end
-    return #mine > 0 and mine or all, #mine > 0
+    local pts, onMap = ns.quests.SpreadPoints(spawnTables, MAX_POINTS, { map = here(), onlyMap = true })
+    return pts, onMap
 end
 
 local function objectPoints(ids)

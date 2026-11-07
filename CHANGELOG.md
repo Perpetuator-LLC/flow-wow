@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.57
+- Quests could go missing from the route while you stood right where they're done (Red Linen
+  Goods among the Defias). Flow keeps up to 80 spots per objective, and it took the first 80
+  Questie lists: one mob with lots of spawns filled them from one corner of the zone, and the
+  other eight mobs that drop the bandana got none. Spots are now spread over every spawn of
+  every mob, your current zone first. Professions' gathering and vendor spots too.
+- `/flow nav why` (and the diagnostics) list quest objectives that aren't on the current plan,
+  with how far their nearest known spot is.
+- Two self-tests failed on completionist routes (they assumed the default route): fixed.
+
 ## 0.35.56
 - Flow's code is now checked before you ever /reload: a Lua checker (luacheck) reads every
   file for the kind of slip that used to reach you as a Lua error or a dead button (a name
