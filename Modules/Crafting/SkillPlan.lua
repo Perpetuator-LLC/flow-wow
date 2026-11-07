@@ -509,7 +509,12 @@ local function planProfession(prof, t, out)
             end
             add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
                   weight = t.optional and 3 or nil,   -- optional: only when the mobs are on your way
-                  text = string.format("Loot %d %s (~%d kills)", n, table.concat(names, " or "), kills),
+                  -- Progress like a quest objective: what you carry / what the plan uses.
+                  text = (function()
+                      local have = 0
+                      for _, aid in ipairs(ids) do watched[aid] = true; have = have + count(aid) end
+                      return string.format("Loot %s %d/%d (~%d kills)", table.concat(names, " or "), have, have + n, kills)
+                  end)(),
                   details = details,
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })
         elseif s and s.vendor then

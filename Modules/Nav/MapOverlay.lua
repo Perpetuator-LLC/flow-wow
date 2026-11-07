@@ -214,24 +214,127 @@ local function blobRadius(c, mapID)
     local frac = (w and w > 0) and (AREA_YARDS / w) or 0.015
     return math.max(6, math.min(frac * c:GetWidth(), 60))
 end
-local function drawArea(c, mapID, goal, color, strong)
+-- Hovering a disc: every disc of that stop lights up, and the tooltip says
+-- which stop it is and what you need there (Loot Stringy Wolf Meat 9/66).
+local function blobEnter(self)
+    for i = 1, nBlobs do
+        local b = blobs[i]
+        if b.goal == self.goal then b.tex:SetVertexColor(b.color[1], b.color[2], b.color[3], 0.45) end
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+    GameTooltip:AddLine(string.format("|cffffffff%s|r  %s", self.label or "", self.goal.text or self.goal.title or ""), nil, nil, nil, true)
+    ns.nav:FillTooltip(GameTooltip, self.goal, "Click: open it. Right-click: menu.")
+    GameTooltip:Show()
+end
+local function blobLeave(self)
+    for i = 1, nBlobs do
+        local b = blobs[i]
+        if b.goal == self.goal then b.tex:SetVertexColor(b.color[1], b.color[2], b.color[3], b.alpha) end
+    end
+    GameTooltip:Hide()
+end
+local function blobClick(self, button)
+    local g = self.goal
+    if button == "RightButton" then
+        local items = {
+            { title = true, text = g.text or g.title or "This stop" },
+            { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+            { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+            { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
+        }
+        ns.menu:Open(items)
+        return
+    end
+    ns.nav:OpenStop(g)
+end
+
+-- Convex hull (monotone chain) of {x, y} points, counter-clockwise.
+local function hull(p)
+    table.sort(p, function(a, b) return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]) end)
+    if #p < 3 then return p end
+    local function cross(o, a, b) return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1]) end
+    local lower, upper = {}, {}
+    for i = 1, #p do
+        while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], p[i]) <= 0 do lower[#lower] = nil end
+        lower[#lower + 1] = p[i]
+    end
+    for i = #p, 1, -1 do
+        while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], p[i]) <= 0 do upper[#upper] = nil end
+        upper[#upper + 1] = p[i]
+    end
+    lower[#lower] = nil; upper[#upper] = nil
+    for _, q in ipairs(upper) do lower[#lower + 1] = q end
+    return lower
+end
+
+-- Spawn points (pixels) -> groups of points that lie close together, each
+-- its own patch of ground with its own border.
+local function clusters(pts, gap)
+    local group, out = {}, {}
+    local function find(i) while group[i] ~= i do i = group[i] end return i end
+    for i = 1, #pts do group[i] = i end
+    for i = 1, #pts do
+        for j = i + 1, #pts do
+            local dx, dy = pts[i][1] - pts[j][1], pts[i][2] - pts[j][2]
+            if dx * dx + dy * dy < gap * gap then group[find(i)] = find(j) end
+        end
+    end
+    local byRoot = {}
+    for i = 1, #pts do
+        local r = find(i)
+        if not byRoot[r] then byRoot[r] = {}; out[#out + 1] = byRoot[r] end
+        table.insert(byRoot[r], pts[i])
+    end
+    return out
+end
+M._hull, M._clusters = hull, clusters  -- (tests)
+
+local function drawArea(c, mapID, goal, color, strong, label)
     if not (goal and goal.area and goal.points) then return end
     local r = blobRadius(c, mapID)
+    local w, h = c:GetWidth(), c:GetHeight()
+    local alpha = strong and 0.28 or 0.1
+    local px = {}
     for _, pt in ipairs(goal.points) do
         local x, y = toMap(pt, mapID)
-        if x and nBlobs < 160 then
+        if x and nBlobs < 300 then
+            px[#px + 1] = { x * w, y * h }
             nBlobs = nBlobs + 1
             local b = blobs[nBlobs]
             if not b then
-                b = host:CreateTexture(nil, "BACKGROUND")
-                b:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                b = CreateFrame("Button", nil, host)
+                b.tex = b:CreateTexture(nil, "BACKGROUND")
+                b.tex:SetAllPoints()
+                b.tex:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                b:SetScript("OnEnter", blobEnter)
+                b:SetScript("OnLeave", blobLeave)
+                b:SetScript("OnClick", blobClick)
                 blobs[nBlobs] = b
             end
+            b.goal, b.label, b.color, b.alpha = goal, label, color, alpha
+            b:SetFrameStrata(host:GetFrameStrata())
+            b:SetFrameLevel(host:GetFrameLevel() + (strong and 3 or 1))   -- under the route's pins
             b:SetSize(r * 2, r * 2)
             b:ClearAllPoints()
-            b:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth(), -y * c:GetHeight())
-            b:SetVertexColor(color[1], color[2], color[3], strong and 0.28 or 0.16)
+            b:SetPoint("CENTER", c, "TOPLEFT", x * w, -y * h)
+            b.tex:SetVertexColor(color[1], color[2], color[3], b:IsMouseOver() and 0.45 or alpha)
             b:Show()
+        end
+    end
+    -- A border around each patch: the outline of its discs.
+    for _, group in ipairs(clusters(px, r * 3)) do
+        local ring = {}
+        for _, p in ipairs(group) do
+            for k = 0, 11 do
+                local a = k * math.pi / 6
+                ring[#ring + 1] = { p[1] + r * math.cos(a), p[2] + r * math.sin(a) }
+            end
+        end
+        local edge = hull(ring)
+        for i = 1, #edge do
+            local a, b = edge[i], edge[i % #edge + 1]
+            line(c, a[1] / w, a[2] / h, b[1] / w, b[2] / h, color, strong and 0.9 or 0.6)
         end
     end
 end
@@ -783,12 +886,19 @@ function M:Redraw()
     if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
         local plan = ns.nav.plan or {}
-        local first = plan[1] and plan[1].goal
         local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey
-        for _, s in ipairs(plan) do
-            if s.goal.key == pointed and s.goal ~= first then drawArea(c, mapID, s.goal, T.hover, true) end
+        local labels = ns.nav:PlanLabels(plan)
+        -- Every area stop gets its own bordered patch: faint, the next stop
+        -- stronger, the one you point at in the hover colour. Drawn last = on top.
+        local order = {}
+        for i = #plan, 2, -1 do if plan[i].goal.key ~= pointed then order[#order + 1] = i end end
+        if plan[1] and plan[1].goal.key ~= pointed then order[#order + 1] = 1 end
+        for i, s in ipairs(plan) do if s.goal.key == pointed then order[#order + 1] = i end end
+        for _, i in ipairs(order) do
+            local g = plan[i].goal
+            if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i])
+            else drawArea(c, mapID, g, T.route, i == 1, labels[i]) end
         end
-        drawArea(c, mapID, first, T.route, pointed == nil or (first ~= nil and first.key == pointed))
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the
             -- stops as points (kept where they are so the one under the mouse
@@ -845,6 +955,7 @@ ns.commands.map = function(arg)
         if arg == "off" then
             for i = 1, nLines do lines[i]:Hide() end
             for i = 1, nPins do pins[i]:Hide() end
+            for i = 1, nBlobs do blobs[i]:Hide() end
             if list then list:Hide() end
         end
         ns:Print("route on the world map " .. arg)

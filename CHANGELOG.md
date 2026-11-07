@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.10
+- Farm stops count like quest objectives: "Loot Stringy Wolf Meat or Chunk of Boar Meat 9/66
+  (~150 kills)". The count is what you carry out of what the plan uses.
+- World map: every area stop gets its own patch with a border around it (the next stop
+  stronger, the one you point at in the hover colour). Hover a patch to see the stop number
+  and what you need there; click opens it, right-click for the menu.
+
 ## 0.35.9
 - World map: a stop that is a whole area (mobs to kill, things to loot, meat to farm) shows
   where its mobs live as soft discs in the route colour, for the next stop and the one you point

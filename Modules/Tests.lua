@@ -435,3 +435,11 @@ ns:Register("test", "drops: rate moves from the guide's to yours", function(t)
     t:eq(ns.db.crafting.drops[769].got, 1, "found by name too")
     ns.db.crafting.drops = saved
 end)
+
+ns:Register("test", "map areas: patches and their borders", function(t)
+    local M = ns.mapOverlay
+    local groups = M._clusters({ { 0, 0 }, { 5, 0 }, { 100, 100 }, { 104, 102 }, { 300, 0 } }, 20)
+    t:eq(#groups, 3, "three separate patches")
+    local edge = M._hull({ { 0, 0 }, { 10, 0 }, { 10, 10 }, { 0, 10 }, { 5, 5 } })
+    t:eq(#edge, 4, "a square's border has 4 corners (the middle point is inside)")
+end)
