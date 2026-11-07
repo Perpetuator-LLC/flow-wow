@@ -82,7 +82,8 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 ## Lua gotchas that have bitten us
 
 - **Backslashes:** texture paths need doubled backslashes, `"Interface\\Icons\\X"`. In Lua 5.1
-  `"\I"` silently becomes `"I"` and the texture is blank.
+  `"\I"` silently becomes `"I"` and the texture is blank. Run `tools\check-paths.ps1` before
+  committing: shell heredocs and sed tend to eat one of the two backslashes.
 - A `local` must be declared before any function that uses it is defined.
 - `ns:Register` errors on a duplicate key; tests that register helpers must do it once, at
   file level.
