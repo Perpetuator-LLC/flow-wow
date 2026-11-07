@@ -73,7 +73,7 @@ end
 -- target: the stop the arrow points at, drawn as Flow's target marker (o):
 -- a ring in the route colour around a dot (same look as the arrow's ring when
 -- you arrive, the active stop in the Flow Router and the minimap pin).
-local function pin(c, x, y, label, color, stop, top, target)
+local function pin(c, x, y, label, color, stop, top, target, selected)
     nPins = nPins + 1
     local p = pins[nPins]
     if not p then
@@ -112,7 +112,10 @@ local function pin(c, x, y, label, color, stop, top, target)
             ns.nav:ClickCursor(false)
             hoverKey = nil
             GameTooltip:Hide()
-            if self.isTarget then
+            if self.isSelected then
+                local h = theme().hover
+                self:SetSize(16, 16); self.edge:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
+            elseif self.isTarget then
                 local c = self.color
                 self:SetSize(16, 16); self.edge:SetVertexColor(c[1], c[2], c[3], 1)
             else
@@ -156,7 +159,23 @@ local function pin(c, x, y, label, color, stop, top, target)
     local s = p:GetScale()
     p:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth() / s, -y * c:GetHeight() / s)
     p.bg:ClearAllPoints()
-    if target and not top then
+    p.isSelected = (selected and not top) and true or false
+    if p.isSelected then
+        -- The stop you chose ("Go here first"): stays red like when hovered,
+        -- inside red with a bold dark red ring, until you clear it.
+        local h = theme().hover
+        p:SetSize(16, 16)
+        p.edge:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
+        p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -3, 3); p.edge:SetPoint("BOTTOMRIGHT", 3, -3)
+        p.hole:Hide()
+        p.bg:SetAllPoints()
+        color = h
+    else
+        p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -2, 2); p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+    end
+    if p.isSelected then
+        -- (styled above)
+    elseif target and not top then
         -- (o): ring in the route colour, a dark gap, the dot.
         p.edge:SetVertexColor(color[1], color[2], color[3], 1)
         p.hole:ClearAllPoints(); p.hole:SetPoint("TOPLEFT", 1, -1); p.hole:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -418,7 +437,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 if s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil) then
                     hovered = { x, y, icon .. labels[i], s }
                 else
-                    pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly)
+                    pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly, M.IsSelected(s.goal.key))
                 end
             end
         end
@@ -603,9 +622,15 @@ function M.MakeHandle(parent, size)
             l:SetShown(not on)
         end
         self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
-        self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
+        local h = theme().hover
+        if self.selected then   -- chosen stop: red inside, dark red ring (as on the map)
+            self.ring:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
+            self.dot:SetVertexColor(h[1], h[2], h[3], 1)
+        else
+            self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
+            self.dot:SetVertexColor(c[1], c[2], c[3], 1)
+        end
         self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
-        self.dot:SetVertexColor(c[1], c[2], c[3], 1)
     end
     go:Paint(false)
     return go
@@ -841,6 +866,12 @@ local function buildList()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
+        -- The stop you chose ("Go here first"): a red tint and bar, like the
+        -- red it has on the map, so it reads as selected while it lasts.
+        r.sel = r:CreateTexture(nil, "BACKGROUND")
+        r.sel:SetAllPoints(); r.sel:Hide()
+        r.selBar = r:CreateTexture(nil, "BORDER")
+        r.selBar:SetPoint("TOPRIGHT"); r.selBar:SetPoint("BOTTOMRIGHT"); r.selBar:SetWidth(3); r.selBar:Hide()
         r.go = M.MakeHandle(r, ROW_H - 2)
         r.go:SetPoint("LEFT", 0, 0)
         r.go:SetScript("OnEnter", function(self)
@@ -1007,12 +1038,18 @@ local function updateList()
     for _, h in ipairs(hiddenGoals) do entries[#entries + 1] = { hidden = h } end
     for i = 1, MAX_ROWS do
         local r, e = list.rows[i], entries[i]
+        r.sel:Hide(); r.selBar:Hide()
         if e and i <= fit and e.stop then
             local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.goal = s.goal
             r.go.selected = M.IsSelected(s.goal.key)
             r.go.active = (e.i == 1) or r.go.selected
+            if r.go.selected then
+                local h = theme().hover
+                r.sel:SetColorTexture(h[1], h[2], h[3], 0.2); r.sel:Show()
+                r.selBar:SetColorTexture(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1); r.selBar:Show()
+            end
             r.go:Paint(r.go:IsMouseOver())
             r.go:Show()
             r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
@@ -1060,7 +1097,9 @@ function M:Redraw()
     if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
         local plan = ns.nav.plan or {}
+        -- The stop you chose counts as pointed at: its area stays red too.
         local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey
+            or (ns.db.nav.sorter == "selected" and ns.db.nav.selectedKey) or nil
         local labels = ns.nav:PlanLabels(plan)
         -- Every area stop gets its own bordered patch: faint, the next stop
         -- stronger, the one you point at in the hover colour. Drawn last = on top.

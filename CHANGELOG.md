@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.31
+- The stop you choose ("Go here first") stays marked: on the map it's red inside with a bold
+  dark red ring and its area stays red (like when you hover it); in the Flow Router its row is
+  tinted red with a red bar, and its marker turns red. The route itself stays in the "From
+  selected" orange.
+- The stop card (Flow's quest view) can be dragged by its title band. It then opens where you
+  left it; right-click the title to put it back beside what you click.
+
 ## 0.35.30
 - Flow key with an NPC selected (Lee Brown): Fishing and Find Minerals now cast on you, never
   on your target, so they don't fail. Reeling in and gathering use the game's Interact, which

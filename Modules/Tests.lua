@@ -726,3 +726,28 @@ ns:Register("test", "router: handle and help legend share one look", function(t)
     t:ok(h.arms[1]:IsShown() and not h.ring:IsShown(), "others: ^ chevron")
     h:Hide()
 end)
+
+ns:Register("test", "router: the stop you chose stays marked", function(t)
+    local nav, saved = ns.db.nav, { sorter = ns.db.nav.sorter, key = ns.db.nav.selectedKey }
+    nav.sorter, nav.selectedKey = "selected", "test:1"
+    t:ok(ns.mapOverlay.IsSelected("test:1"), "chosen stop is selected")
+    t:ok(not ns.mapOverlay.IsSelected("test:2"), "others aren't")
+    local h = ns.mapOverlay.MakeHandle(UIParent, 16)
+    h.active, h.selected = true, true; h:Paint(false)
+    local r, g = h.dot:GetVertexColor()
+    t:ok(r > g, "selected handle: red dot")
+    h:Hide()
+    nav.sorter, nav.selectedKey = saved.sorter, saved.key
+end)
+
+ns:Register("test", "stop card: drag by the title, opens where you left it", function(t)
+    local saved = ns.db.nav.cardPoint
+    ns.db.nav.cardPoint = { "TOPLEFT", "TOPLEFT", 100, -100 }
+    ns.nav:ShowStop({ key = "test:card", text = "Test stop", points = {} })
+    local card = _G.FlowStopCard
+    t:ok(card and card:IsMovable(), "card can be moved")
+    local a, rel, b, x, y = card:GetPoint()
+    t:eq(a, "TOPLEFT", "opens at the saved point"); t:eq(x, 100, "saved x")
+    card:Hide()
+    ns.db.nav.cardPoint = saved
+end)
