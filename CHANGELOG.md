@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.35.21
+- Fixed a self-test that dropped the oldest diagnostics line when the log was full.
+
 ## 0.35.20
 - Fixed: "Flow has been blocked from an action only available to the Blizzard UI" when using
   the game menu. Flow replaced the game's popup table (0.35.17), which taints every popup,

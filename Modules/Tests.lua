@@ -562,13 +562,17 @@ end)
 
 ns:Register("test", "diag: blocked actions are logged for read-diag", function(t)
     local d = ns.db.diag
-    local savedLog, savedBlocked = #d.log, d.blocked and #d.blocked or 0
+    -- Copy both lists: a full log drops its oldest line when one is added,
+    -- so just removing the test's line wouldn't put things back.
+    local function copy(list) local c = {} for i, v in ipairs(list or {}) do c[i] = v end return c end
+    local savedLog, savedBlocked, hadBlocked = copy(d.log), copy(d.blocked), d.blocked ~= nil
     ns.diag._onBlocked("FORBIDDEN")("Flow", "TestProtectedFunction()")
     t:ok(d.log[#d.log]:find("%[blocked%] FORBIDDEN: Flow blamed for TestProtectedFunction") ~= nil, "logged with [blocked]")
     t:eq(d.blocked[#d.blocked].func, "TestProtectedFunction()", "kept in the blocked list")
     -- Don't leave the test's entry where read-diag would flag it.
-    table.remove(d.log, #d.log); table.remove(d.blocked, #d.blocked)
-    t:eq(#d.log, savedLog, "log restored"); t:eq(#d.blocked, savedBlocked, "blocked list restored")
+    d.log = savedLog
+    d.blocked = hadBlocked and savedBlocked or nil
+    t:eq(d.log[#d.log], savedLog[#savedLog], "log restored")
 end)
 
 ns:Register("test", "taint: Flow never replaces the game's global tables", function(t)
