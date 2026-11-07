@@ -1055,3 +1055,6 @@ ns.commands.map = function(arg)
         ns:Print("/flow map on|off. Hover a checkpoint to preview, click to choose. Alt-click the map to set a waypoint.")
     end
 end
+
+-- Timed for /flow perf.
+M.Redraw = ns.perf.Wrap("world map", M.Redraw)

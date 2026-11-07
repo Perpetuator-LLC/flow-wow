@@ -65,6 +65,7 @@ function D:Snapshot(reason)
         { "gear why", function() c.gear("why") end },
         { "prof plan", function() c.professions("plan") end },
         { "talents", function() c.talents() end },
+        { "perf", function() c.perf("") end },
         { "tests", function() c.test("") end },
     }
     for _, chk in ipairs(checks) do

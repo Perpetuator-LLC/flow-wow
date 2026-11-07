@@ -235,7 +235,7 @@ ns:OnLoad(function(saved)
     icon = buildIcon(saved.rotation)
     E.icon = icon  -- for the cast button (Cast.lua)
     local driver = CreateFrame("Frame")
-    driver:SetScript("OnUpdate", onUpdate)
+    driver:SetScript("OnUpdate", ns.perf.Wrap("rotation + actions (10/s)", onUpdate))
 end)
 
 local function rescan()

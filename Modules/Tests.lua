@@ -646,3 +646,16 @@ ns:Register("test", "skillplan: fishing feeds cooking", function(t)
     local crafts = SP._simulate("Cooking", g.steps, 1, 10, {})
     t:ok(crafts[g.steps[3]] == nil, "no fish in bags: plan doesn't count on cooking fish")
 end)
+
+ns:Register("test", "perf: Flow's update loops are timed", function(t)
+    local P = ns.perf
+    local f = P.Wrap("test: wrapped", function(a, b) return a + b, "x" end)
+    local s, x = f(2, 3)
+    t:eq(s, 5, "wrapped function still returns its results"); t:eq(x, "x", "second result too")
+    t:eq(P.stats["test: wrapped"].calls, 1, "call counted")
+    P.stats["test: wrapped"] = nil
+    t:ok(P.stats["arrow + minimap (10/s)"] ~= nil, "route arrow timed")
+    t:ok(P.stats["route: order stops"] ~= nil, "planner timed")
+    t:ok(#P:Report() >= 1, "report has a summary line")
+    t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
+end)

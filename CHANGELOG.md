@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.25
+- `/flow perf`: how much CPU and memory Flow uses, per part (arrow, rotation, route planning,
+  world map, tracker), and any single update slow enough to feel as a hitch. Saved with the
+  diagnostics so slow spots get noticed.
+- The Flow Tracker shows a spinner and "updating route..." while the route is being redone.
+
 ## 0.35.24
 - Professions chain: when Fishing is on your route, the fish you'll catch count toward
   Cooking (Brilliant Smallfish levels it like wolf or boar meat), so there's less meat to

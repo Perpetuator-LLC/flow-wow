@@ -73,6 +73,25 @@ local function build()
     h.icon = h:CreateTexture(nil, "ARTWORK")
     h.icon:SetSize(16, 16); h.icon:SetPoint("LEFT", 9, 0)
     h.icon:SetTexture("Interface\\Icons\\INV_Misc_Map_01"); h.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    -- Shown in place of the map icon while the route is being redone: the
+    -- game's own loading spinner if this client has it, else a turning arrow.
+    local okS, spinner = pcall(CreateFrame, "Frame", nil, h, "LoadingSpinnerTemplate")
+    if okS and spinner then
+        spinner:SetSize(20, 20); spinner:SetPoint("CENTER", h.icon)
+        local anim = spinner.Anim or spinner.AnimFrame
+        h.spin = { Show = function() spinner:Show(); if anim and anim.Play then anim:Play() end end,
+                   Hide = function() spinner:Hide(); if anim and anim.Stop then anim:Stop() end end }
+        spinner:Hide()
+    else
+        local t = h:CreateTexture(nil, "OVERLAY")
+        t:SetSize(16, 16); t:SetPoint("CENTER", h.icon)
+        t:SetTexture("Interface\\Minimap\\MinimapArrow")
+        t:SetVertexColor(o[1], o[2], o[3], 1)
+        local ag = t:CreateAnimationGroup(); ag:SetLooping("REPEAT")
+        local r = ag:CreateAnimation("Rotation"); r:SetDegrees(-360); r:SetDuration(1)
+        h.spin = { Show = function() t:Show(); ag:Play() end, Hide = function() ag:Stop(); t:Hide() end }
+        t:Hide()
+    end
     h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     h.text:SetPoint("LEFT", h.icon, "RIGHT", 6, 0)
     h.pm = h:CreateTexture(nil, "ARTWORK")
@@ -213,8 +232,14 @@ function RT:Refresh()
     local plan = ns.nav and ns.nav.plan or {}
     local h = frame.header
     local nBlocked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
-    h.text:SetText(string.format("Flow Tracker  |cff888888%d stops|r%s", #plan,
+    local busy = ns.nav and ns.nav.Busy and ns.nav.Busy()
+    h.text:SetText(string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or (#plan .. " stops"),
         nBlocked > 0 and string.format("  |cffff7070%d blocked|r", nBlocked) or ""))
+    if busy ~= h.spinning then
+        h.spinning = busy
+        h.icon:SetShown(not busy)
+        if busy then h.spin.Show() else h.spin.Hide() end
+    end
     h.pm:SetTexture(open and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
     frame.body:SetShown(open)
     local shown = 0
@@ -304,3 +329,6 @@ ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
     "Click a stop to open it (quest log or map); right-click for a menu. Change the route on the world map.",
     "Shift-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock",
 } })
+
+-- Timed for /flow perf.
+RT.Refresh = ns.perf.Wrap("Flow Tracker", RT.Refresh)

@@ -1597,15 +1597,22 @@ end
 -- Wiring
 -------------------------------------------------------------------------------
 
-local pendingCollect = false
-local function scheduleCollect()
+-- busy: something changed (quest, level, item...) and the route is being
+-- redone; the Flow Tracker spins its icon meanwhile. The quiet refresh every
+-- 10 s doesn't count, or it would spin all the time.
+local pendingCollect, busy = false, false
+function N.Busy() return busy end
+local function collectSoon(quiet)
+    if not quiet then busy = true end
     if pendingCollect then return end
     pendingCollect = true
     C_Timer.After(1, function()
         pendingCollect = false
         pcall(N.Collect, N)
+        busy = false
     end)
 end
+local function scheduleCollect() collectSoon(false) end
 N.RequestCollect = scheduleCollect  -- other modules: re-plan soon (throttled)
 
 -- Money changed: re-plan only when it crosses a skipped stop's cost (so it
@@ -1634,13 +1641,14 @@ ns:OnLoad(function(saved)
     ns.theme:UpdateRoute()
     frame = buildArrow()
     local acc, collectAcc = 0, 0
+    local timedUpdate = ns.perf.Wrap("arrow + minimap (10/s)", update)
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
         acc, collectAcc = acc + dt, collectAcc + dt
-        if collectAcc > 10 then collectAcc = 0; scheduleCollect() end
+        if collectAcc > 10 then collectAcc = 0; collectSoon(true) end
         if acc < 0.1 then return end
         acc = 0
-        local ok, err = pcall(update)
+        local ok, err = pcall(timedUpdate)
         if not ok then
             if err ~= N.lastError then ns:Log("nav", err) end
             N.lastError = err
@@ -1745,3 +1753,6 @@ ns.commands.nav = function(arg)
         print("  /flow nav on|off|learn|forget. Shift-drag the arrow to move it.")
     end
 end
+
+-- Timed for /flow perf.
+N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)

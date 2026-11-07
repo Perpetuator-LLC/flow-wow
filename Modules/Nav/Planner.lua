@@ -250,3 +250,6 @@ function P:Plan(p, goals, opts)
     end
     return plan
 end
+
+-- Timed for /flow perf.
+P.Plan = ns.perf.Wrap("route: order stops", P.Plan)
