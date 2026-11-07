@@ -90,13 +90,13 @@ end)
 
 ns:Register("test", "skill plan: most skill per material", function(t)
     local g = ns:Get("profGuide", "Blacksmithing")
-    local crafts, order, reaches = ns.skillPlan._simulate("Blacksmithing__test", g.steps, 1, 20)
+    local crafts, order, reaches = ns.skillPlan._simulate("Blacksmithing__test", g.steps, 1, 20, {})
     t:ok(reaches, "guide reaches 20")
     t:eq(order[1] and order[1].recipe, "Rough Sharpening Stone", "starts with sharpening stones")
     local total = 0
     for _, s in ipairs(order) do total = total + crafts[s] end
     t:ok(total >= 19 and total <= 25, "about one craft per point while orange (" .. total .. ")")
-    crafts, order = ns.skillPlan._simulate("Blacksmithing__test", g.steps, 30, 50)
+    crafts, order = ns.skillPlan._simulate("Blacksmithing__test", g.steps, 30, 50, {})
     for _, s in ipairs(order) do t:ok(s.recipe ~= "Coarse Sharpening Stone", "no coarse stones below 65") end
 end)
 
@@ -406,4 +406,32 @@ ns:Register("test", "setup: a new suggestion is shown once to old installs", fun
     t:eq(#S:Unseen(), 0, "nothing left after it's shown")
     setupTestOn = false
     db.seen, db.done = savedSeen, savedDone
+end)
+
+ns:Register("test", "cooking: meat you carry is used first, either meat will do", function(t)
+    local SP = ns.skillPlan
+    local g = ns:Get("profGuide", "Cooking")
+    local crafts, order = SP._simulate("Cooking__test", g.steps, 1, 10, { [769] = 4 })
+    t:eq(order[1] and order[1].recipe, "Roasted Boar Meat", "boar meat in bags goes first")
+    local boar
+    for _, s in ipairs(order) do if s.recipe == "Roasted Boar Meat" then boar = crafts[s] end end
+    t:eq(boar, 4, "all 4 boar meat used, then wolf")
+    local alts = SP.Alternatives(g.steps, 2672)
+    t:eq(alts[1], 2672, "wolf meat first"); t:eq(alts[2], 769, "boar meat stands in")
+    t:eq(#SP.Alternatives(g.steps, 99999), 1, "unknown item: just itself")
+end)
+
+ns:Register("test", "drops: rate moves from the guide's to yours", function(t)
+    local SP = ns.skillPlan
+    local saved = ns.db.crafting.drops
+    ns.db.crafting.drops = {}
+    t:near(SP.DropRate(2672), 0.35, 0.001, "no kills yet: the guide's rate")
+    for i = 1, 5 do SP.RecordLoot("Young Wolf", "corpse" .. i, i == 1 and { [2672] = true } or {}) end
+    SP.RecordLoot("Young Wolf", "corpse5", {})            -- same corpse looted again: not counted
+    local r, kills = SP.DropRate(2672)
+    t:eq(kills, 5, "five kills counted")
+    t:near(r, (1 + 0.35 * 5) / 10, 0.001, "1 in 5 pulls the estimate down")
+    SP.RecordLoot("Stonetusk Boar", "corpse6", { ["chunk of boar meat"] = true })
+    t:eq(ns.db.crafting.drops[769].got, 1, "found by name too")
+    ns.db.crafting.drops = saved
 end)

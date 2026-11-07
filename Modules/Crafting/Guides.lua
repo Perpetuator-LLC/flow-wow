@@ -17,6 +17,7 @@
 --       name, gather = "<Profession>", objects = { objectIDs }, skill = n, yield = per node,
 --       smelt = { from = itemID, n = count, skill = n, spell = "Smelt X" },
 --       drops = { "NPC name", ... },        -- mobs that drop it
+--       rate = 0.35,                        -- rough chance per kill (Flow learns yours as you loot)
 --       vendor = true })                     -- bought (Questie lists the vendors)
 
 local _, ns = ...
@@ -44,8 +45,8 @@ ns:Register("itemSource", 2589, { name = "Linen Cloth", drops = {
     "Defias Thug", "Defias Cutpurse", "Defias Bandit", "Defias Rogue Wizard", "Defias Smuggler",
     "Kobold Vermin", "Kobold Worker", "Kobold Laborer", "Kobold Tunneler", "Riverpaw Gnoll", "Riverpaw Runt",
     "Murloc Streamrunner", "Murloc Forager" } })
-ns:Register("itemSource", 2672, { name = "Stringy Wolf Meat", drops = { "Young Wolf", "Timber Wolf", "Prowler", "Gray Forest Wolf" } })
-ns:Register("itemSource", 769,  { name = "Chunk of Boar Meat", drops = { "Stonetusk Boar", "Rockhide Boar", "Small Crag Boar" } })
+ns:Register("itemSource", 2672, { name = "Stringy Wolf Meat", rate = 0.35, drops = { "Young Wolf", "Timber Wolf", "Prowler", "Gray Forest Wolf" } })
+ns:Register("itemSource", 769,  { name = "Chunk of Boar Meat", rate = 0.45, drops = { "Stonetusk Boar", "Rockhide Boar", "Small Crag Boar" } })
 
 -- Tools.
 -- price: copper, approximate; replaced by the real price once you've seen it at a vendor.

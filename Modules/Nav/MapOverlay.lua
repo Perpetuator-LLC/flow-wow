@@ -199,6 +199,43 @@ local function drawAnts()
     for i = nAnts + 1, old do ants[i]:Hide() end
 end
 
+-- Areas: a stop that's a whole area (mobs to kill, things to loot, a farm
+-- stop) shows where its mobs live as soft discs in the route colour, under
+-- the lines, instead of only the one point the route passes. Drawn for the
+-- next stop and the one you're pointing at.
+local blobs, nBlobs = {}, 0
+local AREA_YARDS = 45                       -- same radius as the arrow's ring (Nav.lua)
+local function blobRadius(c, mapID)
+    local w
+    if C_Map.GetMapWorldSize then
+        local ok, width = pcall(C_Map.GetMapWorldSize, mapID)
+        if ok then w = width end
+    end
+    local frac = (w and w > 0) and (AREA_YARDS / w) or 0.015
+    return math.max(6, math.min(frac * c:GetWidth(), 60))
+end
+local function drawArea(c, mapID, goal, color, strong)
+    if not (goal and goal.area and goal.points) then return end
+    local r = blobRadius(c, mapID)
+    for _, pt in ipairs(goal.points) do
+        local x, y = toMap(pt, mapID)
+        if x and nBlobs < 160 then
+            nBlobs = nBlobs + 1
+            local b = blobs[nBlobs]
+            if not b then
+                b = host:CreateTexture(nil, "BACKGROUND")
+                b:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                blobs[nBlobs] = b
+            end
+            b:SetSize(r * 2, r * 2)
+            b:ClearAllPoints()
+            b:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth(), -y * c:GetHeight())
+            b:SetVertexColor(color[1], color[2], color[3], strong and 0.28 or 0.16)
+            b:Show()
+        end
+    end
+end
+
 -- Draws one route as a thin, unbroken line through round points, starting
 -- at you. Stops on another map are skipped, and the line joins the ones on
 -- this map. Each point's label carries the stop's type icon and number.
@@ -740,9 +777,18 @@ function M:Redraw()
     local oldLines, oldPins = nLines, nPins
     legs = {}
     nLines, nPins = 0, 0
+    local oldBlobs = nBlobs
+    nBlobs = 0
     local mapID = WorldMapFrame:GetMapID()
     if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
+        local plan = ns.nav.plan or {}
+        local first = plan[1] and plan[1].goal
+        local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey
+        for _, s in ipairs(plan) do
+            if s.goal.key == pointed and s.goal ~= first then drawArea(c, mapID, s.goal, T.hover, true) end
+        end
+        drawArea(c, mapID, first, T.route, pointed == nil or (first ~= nil and first.key == pointed))
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the
             -- stops as points (kept where they are so the one under the mouse
@@ -755,6 +801,7 @@ function M:Redraw()
     end
     for i = nLines + 1, oldLines do lines[i]:Hide() end
     for i = nPins + 1, oldPins do pins[i]:Hide() end
+    for i = nBlobs + 1, oldBlobs do blobs[i]:Hide() end
     drawAnts()
     if not host.antsOn then
         host.antsOn = true

@@ -174,26 +174,121 @@ local function matUnits(step)
 end
 
 -- Expected crafts per step to go from rank to target: at each point, the
--- step with the most skill per material.
+-- step with the most skill per material. When two are as good (Charred Wolf
+-- Meat, Roasted Boar Meat), the one whose materials are in your bags wins, so
+-- what you already carry gets used before anything is farmed.
+-- `have` (optional): item ID -> count in bags; defaults to your bags.
 local simulate
-function simulate(prof, steps, rank, target)
+function simulate(prof, steps, rank, target, have)
     local crafts, order = {}, {}
+    local left = {}
+    local function bag(id)
+        if left[id] == nil then left[id] = (have and have[id]) or (not have and count(id)) or 0 end
+        return left[id]
+    end
+    local function canMake(s)
+        for id, q in pairs(s.mats or {}) do if bag(id) < q then return false end end
+        return true
+    end
     local guard = 0
     while rank < target and guard < 600 do
         guard = guard + 1
-        local best, bestV, bestC
+        local best, bestV, bestC, bestHave
         for _, s in ipairs(steps) do
             local c = chance(prof, s, rank)
             local v = c / matUnits(s)
-            if c > 0 and (not bestV or v > bestV) then best, bestV, bestC = s, v, c end
+            local h = canMake(s)
+            if c > 0 and (not bestV or v > bestV or (v == bestV and h and not bestHave)) then
+                best, bestV, bestC, bestHave = s, v, c, h
+            end
         end
         if not best then break end
         if not crafts[best] then crafts[best] = 0; order[#order + 1] = best end
         crafts[best] = crafts[best] + 1
+        if bestHave then for id, q in pairs(best.mats or {}) do left[id] = bag(id) - q end end
         rank = rank + bestC
     end
     return crafts, order, rank >= target
 end
+
+-- Materials that stand in for `id`: dropped materials of other steps that
+-- skill up exactly like the step using `id` (same colours, one material each).
+-- `id` itself comes first.
+function SP.Alternatives(steps, id)
+    local mine
+    for _, s in ipairs(steps or {}) do
+        if s.mats and s.mats[id] then mine = s break end
+    end
+    local out = { id }
+    if not mine then return out end
+    local function single(s)
+        local only, n = nil, 0
+        for mid in pairs(s.mats or {}) do only = mid; n = n + 1 end
+        return n == 1 and only or nil
+    end
+    if not single(mine) then return out end
+    for _, s in ipairs(steps) do
+        local other = single(s)
+        local os = other and src(other)
+        if s ~= mine and other and other ~= id and os and os.drops
+            and s.learn == mine.learn and s.yellow == mine.yellow and s.green == mine.green and s.grey == mine.grey then
+            out[#out + 1] = other
+        end
+    end
+    return out
+end
+
+-------------------------------------------------------------------------------
+-- Drop rates: how many kills a dropped material really takes. Starts from the
+-- guide's rough rate and moves to yours as you loot those mobs.
+-------------------------------------------------------------------------------
+
+local PRIOR_KILLS = 5           -- how much the guide's rate counts, in kills
+local DEFAULT_RATE = 0.4
+
+function SP.DropRate(id)
+    local s = src(id)
+    local prior = (s and s.rate) or DEFAULT_RATE
+    local d = ns.db.crafting.drops and ns.db.crafting.drops[id]
+    local kills, got = d and d.kills or 0, d and d.got or 0
+    return (got + prior * PRIOR_KILLS) / (kills + PRIOR_KILLS), kills
+end
+
+-- Looting a mob that's listed as dropping a material: one kill for each such
+-- material, and one "got" for each that was in the loot. Once per corpse.
+local lastCorpse
+function SP.RecordLoot(mob, guid, looted)
+    if not mob or (guid and guid == lastCorpse) then return end
+    lastCorpse = guid
+    ns.db.crafting.drops = ns.db.crafting.drops or {}
+    local lower = mob:lower()
+    for id, s in ns:Each("itemSource") do
+        if type(id) == "number" and s.drops then
+            for _, n in ipairs(s.drops) do
+                if n:lower() == lower then
+                    local d = ns.db.crafting.drops[id] or { kills = 0, got = 0 }
+                    ns.db.crafting.drops[id] = d
+                    d.kills = d.kills + 1
+                    if looted[id] or (s.name and looted[s.name:lower()]) then d.got = d.got + 1 end
+                    break
+                end
+            end
+        end
+    end
+end
+
+ns:On("LOOT_OPENED", function() pcall(function()
+    if not (UnitExists("target") and UnitIsDead("target")) then return end
+    local looted = {}
+    for slot = 1, (GetNumLootItems and GetNumLootItems() or 0) do
+        local link = GetLootSlotLink and GetLootSlotLink(slot)
+        local id = link and tonumber(link:match("item:(%d+)"))
+        if id then looted[id] = true end
+        local _, name = GetLootSlotInfo(slot)
+        if name then looted[name:lower()] = true end
+    end
+    SP.RecordLoot(A.Safe and A.Safe(UnitName("target")) or UnitName("target"), UnitGUID("target"), looted)
+end) end)
 
 -------------------------------------------------------------------------------
 -- Targets: quests first, then planned professions behind your level.
@@ -390,10 +485,32 @@ local function planProfession(prof, t, out)
             nd.items[#nd.items + 1] = string.format("%d %s", n, name)
             nd.count = math.max(nd.count, math.ceil(n / (s.yield or 1)))
         elseif s and s.drops then
-            local pts, onMap = npcPoints(s.drops)
-            add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = s.drops,
-                  text = string.format("Kill for %d %s (%s)", n, name, s.drops[1]),
-                  details = { "Drops from: " .. table.concat(s.drops, ", ") .. "." },
+            -- Other materials that level the same (wolf meat or boar meat): any of them will
+            -- do, so their mobs count too.
+            local ids = SP.Alternatives(steps, id)
+            local names, mobs, rates = {}, {}, 0
+            for _, aid in ipairs(ids) do
+                local as = src(aid)
+                names[#names + 1] = itemName(aid)
+                for _, m in ipairs(as.drops) do mobs[#mobs + 1] = m end
+                rates = rates + SP.DropRate(aid)
+            end
+            local rate = rates / #ids
+            local kills = math.ceil(n / math.max(rate, 0.05))
+            local _, seenKills = SP.DropRate(id)
+            local pts, onMap = npcPoints(mobs)
+            local details = {
+                string.format("About %d kills: roughly 1 in %d drops one%s.", kills, math.floor(1 / rate + 0.5),
+                    seenKills >= 5 and " (from your own loot)" or ""),
+                "Drops from: " .. table.concat(mobs, ", ") .. ".",
+            }
+            if t.optional then
+                table.insert(details, 1, prof .. " isn't needed for a quest: loot these as you quest. No need to stop just for this.")
+            end
+            add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
+                  weight = t.optional and 3 or nil,   -- optional: only when the mobs are on your way
+                  text = string.format("Loot %d %s (~%d kills)", n, table.concat(names, " or "), kills),
+                  details = details,
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })
         elseif s and s.vendor then
             local pts, _, sellers = vendorPoints(id)

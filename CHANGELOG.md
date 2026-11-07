@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.9
+- World map: a stop that is a whole area (mobs to kill, things to loot, meat to farm) shows
+  where its mobs live as soft discs in the route colour, for the next stop and the one you point
+  at, instead of a single dot. Farm stops also get the ring on the arrow when you are there.
+- Farming is realistic now: "Loot 66 Stringy Wolf Meat or Chunk of Boar Meat (~170 kills)".
+  Each material has a rough drop rate, and Flow learns yours as you loot those mobs.
+- Either meat will do: wolves and boars both count, and meat already in your bags is cooked
+  first.
+- Optional professions (not needed for a quest) are "loot as you quest": their farm stops only
+  come up when the mobs are on your way, instead of pulling you off to grind.
+
 ## 0.35.8
 - Setup: new "Target of target" row, suggested on. On clients that keep it in Edit Mode the
   row says where to find it (Target Frame > Target of Target).
