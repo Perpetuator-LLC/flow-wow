@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.12
+- Flow Router: your selected stop shows a filled star instead of the ^. Hover it to see that
+  the route starts there; click it to clear the selection and go back to your usual order.
+
 ## 0.35.11
 - Clicking a stop (Flow Router row or point, Flow Tracker row, map area) opens Flow's own
   card for it beside what you clicked, and the Flow Router stays open. The card has links:

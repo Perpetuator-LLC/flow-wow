@@ -456,3 +456,14 @@ ns:Register("test", "stop card: tooltip text and route patch", function(t)
     t:eq(ns.mapOverlay._routePatch(groups, 98, 99), 2, "the patch nearest the route's spot")
     t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
 end)
+
+ns:Register("test", "router: the selected stop gets the star", function(t)
+    local db = ns.db.nav
+    local sorter, key = db.sorter, db.selectedKey
+    db.sorter, db.selectedKey = "selected", "123:1"
+    t:ok(ns.mapOverlay.IsSelected("123:1"), "selected stop")
+    t:ok(not ns.mapOverlay.IsSelected("123:2"), "other stops keep the ^")
+    db.sorter = "xp"
+    t:ok(not ns.mapOverlay.IsSelected("123:1"), "not in another order mode")
+    db.sorter, db.selectedKey = sorter, key
+end)

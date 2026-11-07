@@ -199,6 +199,11 @@ local function drawAnts()
     for i = nAnts + 1, old do ants[i]:Hide() end
 end
 
+-- The stop you chose to route from ("From selected waypoint" order).
+function M.IsSelected(key)
+    return key ~= nil and ns.db.nav.sorter == "selected" and ns.db.nav.selectedKey == key
+end
+
 -- Areas: a stop that's a whole area (mobs to kill, things to loot, a farm
 -- stop) shows where its mobs live as soft discs in the route colour, under
 -- the lines, instead of only the one point the route passes. Drawn for the
@@ -710,20 +715,36 @@ local function buildList()
             l:SetStartPoint("CENTER", r.go, (k == 1 and -1 or 1) * 4, -2)
             l:SetEndPoint("CENTER", r.go, 0, 3)
         end
+        -- The selected stop (the route starts there) shows a filled star instead of the ^.
+        r.go.star = r.go:CreateTexture(nil, "ARTWORK")
+        r.go.star:SetPoint("CENTER")
+        r.go.star:SetSize(ROW_H - 6, ROW_H - 6)
+        r.go.star:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
+        r.go.star:Hide()
         function r.go:Paint(hot)
             local c = theme().route
             self.bg:SetColorTexture(c[1], c[2], c[3], hot and 0.55 or 0.18)
-            for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, hot and 1 or 0.8) end
+            for _, l in ipairs(self.arms) do
+                l:SetColorTexture(1, 1, 1, hot and 1 or 0.8)
+                l:SetShown(not self.selected)
+            end
+            self.star:SetShown(self.selected and true or false)
+            self.star:SetAlpha(hot and 1 or 0.9)
         end
         r.go:Paint(false)
         r.go:SetScript("OnEnter", function(self)
             self:Paint(true); ns.nav:ClickCursor(true)
             local row = self:GetParent()
             hoverKey = row.key
-            M:Preview(row.key)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("Go here first")
-            GameTooltip:AddLine("Routes from this stop (order: From selected stop). Shown in the preview colour on the map.", 1, 1, 1, true)
+            if self.selected then
+                GameTooltip:AddLine("Your selected stop")
+                GameTooltip:AddLine("The route starts here. Click to clear it and go back to your usual order.", 1, 1, 1, true)
+            else
+                M:Preview(row.key)
+                GameTooltip:AddLine("Go here first")
+                GameTooltip:AddLine("Routes from this stop (order: From selected stop). Shown in the preview colour on the map.", 1, 1, 1, true)
+            end
             GameTooltip:Show()
         end)
         r.go:SetScript("OnLeave", function(self)
@@ -735,7 +756,9 @@ local function buildList()
         r.go:SetScript("OnClick", function(self)
             local row = self:GetParent()
             M:Preview(nil)
-            if row.key then ns.nav:Select(row.key) end
+            if self.selected then ns.nav:ClearSelection()
+            elseif row.key then ns.nav:Select(row.key) end
+            GameTooltip:Hide()
             M:Redraw()
         end)
         r.leg = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -866,6 +889,8 @@ local function updateList()
             local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.goal = s.goal
+            r.go.selected = M.IsSelected(s.goal.key)
+            r.go:Paint(r.go:IsMouseOver())
             r.go:Show()
             r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
