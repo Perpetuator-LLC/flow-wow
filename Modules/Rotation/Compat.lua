@@ -15,6 +15,22 @@ function A.Safe(v)
     if v ~= nil and issecret and issecret(v) then return nil end
     return v
 end
+
+-- Item functions: WoW: Forever moved some of the old globals into C_Item
+-- (GetItemCount is gone as a global). One place that finds each wherever
+-- this client has it; nil if neither exists. (Before this, Flow counted 0
+-- of every item: crafting, lures and putting your weapon back all broke.)
+local CI = C_Item or {}
+A.ItemCount   = GetItemCount or CI.GetItemCount
+A.ItemInfo    = GetItemInfo or CI.GetItemInfo
+A.ItemIcon    = GetItemIcon or CI.GetItemIconByID
+A.IsUsableItem = IsUsableItem or CI.IsUsableItem
+-- How many you carry (bags; 0 if the client can't say).
+function A.Count(id)
+    if not (A.ItemCount and id) then return 0 end
+    local ok, n = pcall(A.ItemCount, id)
+    return ok and tonumber(n) or 0
+end
 local Safe = A.Safe
 
 -- name, icon, castTimeMs, spellID

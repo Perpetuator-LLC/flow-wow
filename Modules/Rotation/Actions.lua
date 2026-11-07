@@ -64,16 +64,16 @@ end
 
 local function equipped(slot) return GetInventoryItemID and GetInventoryItemID("player", slot) end
 
-local function count(id) return (GetItemCount and GetItemCount(id)) or 0 end
+local function count(id) return A.Count(id) end
 
 local function itemIcon(id)
     local _, _, _, _, icon = instant(id)
-    return icon or (GetItemIcon and GetItemIcon(id))
+    return icon or (A.ItemIcon and A.ItemIcon(id))
 end
 
 local function usable(id)
-    if not IsUsableItem then return true end
-    local ok, u = pcall(IsUsableItem, id)
+    if not A.IsUsableItem then return true end
+    local ok, u = pcall(A.IsUsableItem, id)
     return not ok or u ~= false
 end
 
@@ -256,7 +256,7 @@ ns:Register("action", "fish:lure", { order = 20, get = function(ctx)
     if not (ctx.fishing and ctx.pole) or lured() or channeling("Fishing") then return nil end
     for _, id in ipairs(X.LURES) do
         if count(id) > 0 and usable(id) then
-            local name = (GetItemInfo and GetItemInfo(id)) or "a lure"
+            local name = (A.ItemInfo and A.ItemInfo(id)) or "a lure"
             return { type = "item", item = "item:" .. id, targetSlot = MAIN, icon = itemIcon(id),
                      label = "Put " .. name .. " on your pole" }
         end
@@ -302,7 +302,7 @@ local function bestBagWeapon()
     for _, id in ipairs(bagItems()) do
         local _, _, _, equipLoc, _, classID = instant(id)
         if classID == 2 and not X.IsPole(id) and equipLoc ~= "INVTYPE_RANGED" and equipLoc ~= "INVTYPE_THROWN" then
-            local level = (GetItemInfo and select(4, GetItemInfo(id))) or 0
+            local level = (A.ItemInfo and select(4, A.ItemInfo(id))) or 0
             if not bestLevel or level > bestLevel then best, bestLevel = id, level end
         end
     end

@@ -19,7 +19,7 @@ ns.skillPlan = SP
 local A = ns.api
 local MAX_POINTS = 60
 
-local function count(id) return (GetItemCount and GetItemCount(id)) or 0 end
+local function count(id) return A.Count(id) end
 -- A tool for this profession in your bags or equipped (any version of it).
 local function hasTool(prof, id)
     if id and count(id) > 0 then return true end
@@ -28,7 +28,7 @@ end
 local function src(id) return ns:Get("itemSource", id) end
 local function itemName(id)
     local s = src(id)
-    return (s and s.name) or (GetItemInfo and GetItemInfo(id)) or ("item " .. id)
+    return (s and s.name) or (A.ItemInfo and A.ItemInfo(id)) or ("item " .. id)
 end
 
 -- Profession name as the guides spell it ("first aid" -> "First Aid").

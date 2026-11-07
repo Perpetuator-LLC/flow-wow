@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.37
+- Fixed a "blocked" error: dragging the Flow cast icon when a fight started tried to finish the
+  move in combat, which the game forbids for that button. A drag still going when combat
+  starts is now finished just before the fight.
+- Fixed: Flow counted 0 of every item, because WoW: Forever moved GetItemCount into C_Item.
+  Crafting counts, lures and "put your weapon back" all read your bags correctly now.
+
 ## 0.35.36
 - The arrow's panel (click the arrow) can be dragged by its title band too, like the stop
   card; it then opens where you left it (right-click the title to put it back under the arrow).

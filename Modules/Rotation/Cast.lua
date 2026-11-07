@@ -121,13 +121,9 @@ local function build(cfg)
     btn:SetClampedToScreen(true)
     btn:RegisterForDrag("LeftButton")
     btn:SetScript("OnDragStart", function(self)
-        if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving() end
+        if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
     end)
-    btn:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local a, _, b, x, y = self:GetPoint()
-        cfg.point = { a, b, x, y }
-    end)
+    btn:SetScript("OnDragStop", function() C:EndMove() end)
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Flow: click to cast the suggestion")
@@ -394,14 +390,12 @@ local function buildHandle()
     handle:SetScript("OnMouseDown", function()
         if InCombatLockdown() then return end
         btn:StartMoving()
-        handle.moving = true
+        handle.moving, C.moving = true, true
     end)
     handle:SetScript("OnMouseUp", function()
         if not handle.moving then return end
         handle.moving = false
-        btn:StopMovingOrSizing()
-        local a, _, b, x, y = btn:GetPoint()
-        ns.db.rotation.point = { a, b, x, y }
+        C:EndMove()
     end)
     handle:Hide()
 end
@@ -421,6 +415,21 @@ local function showHandle()
 end
 ns:On("MODIFIER_STATE_CHANGED", showHandle)
 ns:On("PLAYER_REGEN_DISABLED", function() if handle then handle.moving = false; handle:Hide() end end)
+
+-- Finish moving the icon and remember where. The cast button is a secure
+-- frame: moving it is forbidden in combat ("Flow has been blocked from an
+-- action..." when a drag was still going as a fight began). So a drag still
+-- going when combat starts is finished at the start of the fight (still
+-- allowed then, see PLAYER_REGEN_DISABLED below), and a release during the
+-- fight does nothing.
+function C:EndMove()
+    if not (self.moving and btn) or InCombatLockdown() then return end
+    self.moving = false
+    btn:StopMovingOrSizing()
+    local a, _, b, x, y = btn:GetPoint()
+    ns.db.rotation.point = { a, b, x, y }
+end
+ns:On("PLAYER_REGEN_DISABLED", function() C:EndMove() end)
 
 -------------------------------------------------------------------------------
 -- Key check: a listener that sees your Flow key go down (and passes it on

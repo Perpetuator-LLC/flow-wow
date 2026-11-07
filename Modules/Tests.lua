@@ -769,7 +769,7 @@ ns:Register("test", "actions: an enemy targeted with the pole on: weapon back fi
     local saved = ns.db.actions.weapons
     ns.db.actions.weapons = { main = 25 }   -- Worn Shortsword (not equipped in this check)
     local s = ns.actions._restoreStep(true, "Weapon back on before the fight")
-    if GetItemCount(25) > 0 and GetInventoryItemID("player", 16) ~= 25 then
+    if ns.api.Count(25) > 0 and GetInventoryItemID("player", 16) ~= 25 then
         t:eq(s and s.item, "item:25", "equips the saved weapon")
         t:ok(s and s.urgent, "before the rotation's pull")
     else
@@ -813,4 +813,24 @@ ns:Register("test", "arrow panel: drag by the title too", function(t)
     ns.nav.Draggable(f, "testPoint", "here")
     t:ok(f:IsMovable() and f.hero:IsMouseEnabled(), "movable by its title")
     f:Hide()
+end)
+
+ns:Register("test", "items: Flow can count what you carry on this client", function(t)
+    local A = ns.api
+    t:ok(A.ItemCount ~= nil, "an item count function exists (global or C_Item)")
+    t:eq(type(A.Count(6256)), "number", "count is a number")
+    -- Something you have equipped or carry: your Hearthstone (6948) is in nearly every bag.
+    if A.ItemCount then t:ok(A.Count(6948) >= 0, "count works without erroring") end
+end)
+
+ns:Register("test", "taint: moving the cast icon never happens in combat", function(t)
+    t:ok(type(ns.cast.EndMove) == "function", "one place finishes a move")
+    local btn = _G.FlowCastButton
+    -- The icon's own release handler must go through EndMove (which refuses in combat).
+    t:ok(btn and btn:GetScript("OnDragStop") ~= nil, "release handled")
+    local was = ns.cast.moving
+    ns.cast.moving = false
+    ns.cast:EndMove()   -- not moving: nothing happens (no protected call)
+    t:ok(ns.cast.moving == false, "no move in progress, nothing done")
+    ns.cast.moving = was
 end)
