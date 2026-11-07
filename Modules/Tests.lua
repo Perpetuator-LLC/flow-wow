@@ -682,3 +682,24 @@ ns:Register("test", "skillplan: fishing suggests a lure", function(t)
     end
     t:eq(ns.skillPlan:LureGoal("Mining"), nil, "no lure for Mining")
 end)
+
+ns:Register("test", "skillplan: Fishing paces with the water, crafting with your level", function(t)
+    local SP = ns.skillPlan
+    t:eq(SP.Pace("Fishing", 10), 25, "level 10: starting-zone water")
+    t:eq(SP.Pace("Fishing", 20), 75, "level 20: next zones")
+    t:ok(SP.Pace("Fishing", 8) < 25, "level 8: under 25, not 58")
+    t:eq(SP.Pace("First Aid", 10), 75, "crafting keeps the general curve")
+end)
+
+ns:Register("test", "crafting: make exactly enough, and say what's next", function(t)
+    local H = ns.craftHint
+    t:ok(type(H.Craft) == "function", "Make N button can craft")
+    t:eq(#H.CraftStops("No Such Profession"), 0, "no stops for an unknown profession")
+    for _, g in ipairs(ns.skillPlan.lastStops or {}) do
+        if g.recipe then
+            t:ok(g.makeCount and g.makeCount > 0, g.recipe .. ": has a count")
+            t:ok(g.target and g.planned, g.recipe .. ": knows its target and planned total")
+            t:ok(g.text:find("|cffffd100", 1, true) ~= nil, g.recipe .. ": count highlighted")
+        end
+    end
+end)

@@ -294,6 +294,24 @@ end) end)
 -- Targets: quests first, then planned professions behind your level.
 -------------------------------------------------------------------------------
 
+
+-- The skill that's right for your level, per profession. Crafting keeps pace
+-- with the general curve (75 by level 10, 300 by 60). A profession can give
+-- its own `pace` (level -> skill) when the general curve asks too much:
+-- Fishing only needs to keep up with the water you'll be fishing in.
+function SP.Pace(prof, level)
+    local g = prof and ns:Get("profGuide", prof)
+    local marks = g and g.pace
+    if not marks then return A.ProfessionTarget(level) end
+    if level <= marks[1][1] then return marks[1][2] end
+    for i = 2, #marks do
+        local a, b = marks[i - 1], marks[i]
+        if level <= b[1] then
+            return math.floor(a[2] + (b[2] - a[2]) * (level - a[1]) / (b[1] - a[1]))
+        end
+    end
+    return marks[#marks][2]
+end
 function SP:Targets()
     -- Professions switched off (map list, arrow menu): no profession stops at all,
     -- not even for quests that ask for a skill, nor tools to buy.
@@ -308,13 +326,26 @@ function SP:Targets()
         end
     end
     if ns.db.nav.professions ~= false then
-        local want = A.ProfessionTarget(UnitLevel("player"))
+        local level = UnitLevel("player")
         for _, p in ipairs(ns:ProfessionPlan() or {}) do
             local g = ns:Get("profGuide", p.name)
             local rank = A.Skill(p.name)
+            local want = SP.Pace(p.name, level)
             -- Gathering behind your level is the errands' optional skill-up stop.
-            if g and g.kind == "craft" and rank and rank + 10 < want and not out[p.name] then
-                out[p.name] = { target = want, optional = true }
+            -- A craft plan starts when you're 10+ behind and then holds until
+            -- you reach its target (it used to vanish once you were within
+            -- 10, halfway through crafting, so you didn't know when to stop).
+            local active = ns.db.crafting.active or {}
+            ns.db.crafting.active = active
+            if g and g.kind == "craft" and rank and not out[p.name] then
+                if rank + 10 < want then
+                    out[p.name] = { target = want, optional = true }
+                    active[p.name] = want
+                elseif active[p.name] and rank < active[p.name] then
+                    out[p.name] = { target = active[p.name], optional = true }
+                else
+                    active[p.name] = nil
+                end
             end
         end
     end
@@ -531,12 +562,29 @@ local function planProfession(prof, t, out)
             local blocked = toolMissing and ("needs a " .. toolMissing)
                 or (known and not known[s.recipe] and (s.recipeItem and ("buy " .. itemName(s.recipeItem) .. " first")
                     or ("learn " .. s.recipe .. " first")))
+            -- The count is the point: exactly what reaches your target, so
+            -- it's highlighted, and the details say why that many.
+            local planned = math.ceil(crafts[s])
+            local num = "|cffffd100" .. n .. "|r"
+            local c = chance(prof, s, rank)
+            local details = {
+                string.format("%d takes %s %d -> %d: %s.", planned, prof, rank, t.target,
+                    c >= 1 and "each one gives a skill point while it's yellow"
+                    or "it's green now, so only some give a point (Flow counted on that)"),
+                "More than that won't raise the skill further for now, so it'd be wasted materials.",
+            }
+            if n < planned then
+                details[#details + 1] = string.format("You have materials for %d now; the rest comes after you gather more.", n)
+            end
+            details[#details + 1] = anywhere and "You have the materials: do it now, wherever you are."
+                or ("At the " .. s.station .. " (by the blacksmith).")
             add({ key = "craft:" .. prof .. ":" .. s.recipe, kind = "craft", points = pts, anywhere = anywhere,
                   weight = 0.5,
-                  text = s.recipe:find("^Smelt ") and string.format("%s x%d at a forge", s.recipe, n)
-                      or string.format("Make %d x %s", n, s.recipe),
-                  details = { anywhere and "You have the materials: do it now, wherever you are."
-                                  or ("At the " .. s.station .. " (by the blacksmith).") },
+                  -- For the profession window hint (CraftHint.lua).
+                  prof = prof, recipe = s.recipe, makeCount = n, planned = planned, rank = rank, target = t.target,
+                  text = s.recipe:find("^Smelt ") and string.format("%s x%s at a forge", s.recipe, num)
+                      or string.format("Make %s x %s", num, s.recipe),
+                  details = details,
                   blockedBy = blocked or nil })
         end
     end

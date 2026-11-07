@@ -108,6 +108,9 @@ ns:Register("profGuide", "Cooking", {
 })
 
 ns:Register("profGuide", "Fishing", { kind = "gather", spots = true, tool = 6256, lure = 6529,
+    -- Keep up with the water you'll fish in, not with crafting: starting-zone
+    -- lakes need ~25 so fish don't get away, the next zones ~75, then ~150.
+    pace = { { 1, 1 }, { 10, 25 }, { 20, 75 }, { 30, 150 }, { 40, 225 }, { 50, 300 } },
     tip = "Tip: a Shiny Bauble (+25 Fishing for 10 minutes) catches more while your skill is low. Flow's key puts it on your pole." })
 
 ns:Register("profGuide", "Herbalism", { kind = "gather", spots = true })

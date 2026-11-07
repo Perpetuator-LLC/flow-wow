@@ -220,9 +220,9 @@ ns:Register("advisor", "professions", {
                 out[#out + 1] = { importance = 60,
                     text = string.format("%s is capped at %d (max %d): train the next tier", p.name, p.rank, p.max),
                     improves = { "Professions" }, goalKey = "train:" .. p.name }
-            elseif p.rank + 15 < target then
+            elseif p.rank + 15 < (ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target) then
                 out[#out + 1] = { importance = 30,
-                    text = string.format("%s is %d; aim for about %d at level %d", p.name, p.rank, target, level),
+                    text = string.format("%s is %d; aim for about %d at level %d", p.name, p.rank, ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target, level),
                     improves = { "Professions" }, goalKey = "skill:" .. p.name }
             end
         end

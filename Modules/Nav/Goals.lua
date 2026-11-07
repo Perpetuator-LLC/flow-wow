@@ -258,12 +258,13 @@ ns:Register("navGoal", "errands", {
         -- Skill-ups: gathering/fishing for planned professions that are behind
         -- your level. Optional stops, so the planner only routes you there
         -- when it's on the way (or nothing else is left).
-        local target = A.ProfessionTarget(UnitLevel("player"))
+        local level = UnitLevel("player")
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
         local toolAdded = {}
         for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
+            local target = ns.skillPlan and ns.skillPlan.Pace(p.name, level) or A.ProfessionTarget(level)
             if rank and rank + 10 < target and rank < max and not (ns.skillPlan and ns.skillPlan:Handles(p.name)) then
                 for _, spot in ipairs(ns.places:SpotsFor(p.name)) do
                     local points = {}

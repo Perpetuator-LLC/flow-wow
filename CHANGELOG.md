@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.27
+- Crafting: Flow makes exactly what reaches your target. The profession window gets a small
+  Flow panel: "make 11 x Heavy Linen Bandage", First Aid 47 -> 58, and a **Make 11** button that
+  crafts exactly that many. Hover it for why that number and what's next. When the skill gets
+  there, Flow says "that's enough, stop crafting" and names your next stop.
+- Fixed: a crafting plan vanished once you were within 10 points of its target (halfway
+  through), so nothing told you when to stop. It now holds until the target is reached.
+- Route stops highlight the count in "Make 11 x ...".
+- Fishing keeps up with the water you'll fish in (about 25 by level 10, 75 by 20, 150 by 30)
+  instead of the crafting curve, which asked for 58 at level 8.
+
 ## 0.35.26
 - Fixed: the Flow key stopped fishing after the first fishing quest. The next Fishing stop
   (the "skill behind your level" one) didn't say it was for Fishing, so the key didn't
