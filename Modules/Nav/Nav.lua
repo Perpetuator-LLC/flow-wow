@@ -350,12 +350,12 @@ function N:Collect()
     N.deferredGoals = blockedGoals  -- older name
     list = kept
     -- Route mode: "quests" = only quests already in your log (their objectives
-    -- and turn-ins), plus your waypoint and the party route; "optimal" (default)
+    -- and turn-ins), plus the party route; "optimal" (default)
     -- = everything worth doing: pickups, trainers, fishing/gathering too.
     if N:Mode() == "quests" then
         local questsOnly = {}
         for _, g in ipairs(list) do
-            if g.key:find("^%d+:") or g.key == "user:wp" or g.key:find("^party:") then
+            if g.key:find("^%d+:") or g.key:find("^party:") then
                 questsOnly[#questsOnly + 1] = g
             end
         end
@@ -892,11 +892,15 @@ end
 
 -------------------------------------------------------------------------------
 -- Choosing the route. N.selection = { first = goal key, tour = { [key] = true } }
---   first : the stop you picked (from the map, the advice list, or right-click)
+--   first : the stop you moved first (its ^ in the Flow Router, "Go here
+--           first"): the route is re-planned from it, in the same order mode,
+--           so it's stop 1 with the (o). It stays first until it's done or
+--           you click its (o).
 --   tour  : stops that must all come before anything else (picking one of the
 --           "!" quest pickups puts all pickups first: !3 -> the other pickups
 --           -> then the normal plan)
--- Your own waypoint (Waypoint.lua) is always first when set.
+-- Your own waypoint (Waypoint.lua) is NOT part of the route: see
+-- N.WaypointChoice (the arrow follows it in orange while it's set).
 -------------------------------------------------------------------------------
 
 N.planVersion = 0
@@ -953,9 +957,9 @@ function N:Select(key)
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
     ns.db.nav.selectedKey = key  -- kept across /reload
-    -- Choosing a stop switches to "From selected stop"; clearing goes back.
-    if key then ns.db.nav.sorter = "selected"
-    elseif ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
+    -- Same order mode (and route colour): only the first stop changes.
+    if ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
+    ns.theme:UpdateRoute()
     self.planDirty = true
     pinnedKey = nil
 end
@@ -1080,13 +1084,11 @@ function N:Options(sel)
         for k in pairs(sel.tour) do if present[k] then tour[k] = true end end
         if not next(tour) then tour = nil end
     end
-    if present["user:wp"] then first = "user:wp" end
     -- (Not in the first seconds after login: quest data may not be in yet, and
     -- a stop chosen before the reload would be dropped too early.)
     if not first and not tour and self.selection and GetTime() - (N.loadedAt or 0) > 20 then
         self.selection = nil  -- the chosen stop is done: back to the usual sorting
         ns.db.nav.selectedKey = nil
-        if ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
     end
     -- Default (nothing chosen): pick up the quests in this hub before heading
     -- out, like a walkthrough does, as long as your quest log has room.
@@ -1105,7 +1107,7 @@ function N:Options(sel)
                 partyFirst = partyFirst or k
             end
         end
-        if partyFirst and first ~= "user:wp" then first = partyFirst end
+        if partyFirst then first = partyFirst end
     end
     return { first = first, tour = tour }
 end
@@ -1180,6 +1182,30 @@ local function choose(p)
         end
     end
     return ranked[1]
+end
+
+-- Your own waypoint (Waypoint.lua: Ctrl/Alt-click the map, /way, "Point the
+-- arrow here"). It isn't a route stop: while it's set the arrow points at it,
+-- in the waypoint orange, the map draws an orange line to it, and the route
+-- carries on unchanged underneath. It clears itself when you get there.
+-- Returns { goal, point, d, waypoint = true } like choose(), or nil (none set,
+-- or it's on another continent).
+local wpGoal = { key = "user:wp", title = "Your waypoint", points = {}, kind = "waypoint" }
+local wpCache = {}
+function N.WaypointChoice(p)
+    local w = ns.waypoint and ns.waypoint:Get()
+    if not (w and w.map and w.x and p) then return nil end
+    if wpCache.map ~= w.map or wpCache.x ~= w.x or wpCache.y ~= w.y then
+        local cont, wx, wy = N:ToWorld(w.map, w.x, w.y)
+        wpCache = { map = w.map, x = w.x, y = w.y, pt = wx and { map = w.map, x = w.x, y = w.y, cont = cont, wx = wx, wy = wy } }
+    end
+    local pt = wpCache.pt
+    if not pt or pt.cont ~= p.cont then return nil end
+    wpGoal.text = "Your waypoint" .. (w.note and (": " .. w.note) or "")
+    wpGoal.details = { string.format("You set this at %.1f, %.1f.", w.x * 100, w.y * 100),
+                       "Not part of the route: it clears when you get there (or the X in the Flow Router), then the arrow is back on the route." }
+    wpGoal.points[1] = pt
+    return { goal = wpGoal, point = pt, d = dist(p.wx, p.wy, pt.wx, pt.wy), waypoint = true }
 end
 
 -- Decide where the arrow points: a trail point along a known path, or the
@@ -1625,7 +1651,15 @@ local function buildArrow()
         if button == "RightButton" then
             -- Menu: this stop, then route and order choices, unhide all.
             local items = {}
-            if current then
+            if current and current.waypoint then
+                -- Following your own waypoint (not a route stop).
+                items[#items + 1] = { title = true, text = current.goal.text or "Your waypoint" }
+                items[#items + 1] = { text = "Clear it (back to the route)", func = function()
+                    if ns.waypoint then ns.waypoint:Clear() end
+                    ns:Print("waypoint cleared: back to your route")
+                end }
+                items[#items + 1] = { sep = true }
+            elseif current then
                 local g = current.goal
                 items[#items + 1] = { title = true, text = g.text or g.title or "This stop" }
                 items[#items + 1] = { text = "Open it", func = function() N:OpenStop(g) end }
@@ -1817,7 +1851,8 @@ local function update()
     -- Dead: the arrow turns red and points back to your corpse.
     if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then return end
 
-    local choice = choose(p)
+    local choice = choose(p)          -- (keeps the route planned, waypoint or not)
+    choice = N.WaypointChoice(p) or choice
     current = choice
     N.current = choice  -- for Flow Actions (Modules/Rotation/Actions.lua)
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, choice and choice.point, choice and choice.goal) end
@@ -1904,7 +1939,7 @@ local function update()
     if frame.arrow.SetWave then
         frame.arrow:SetWave(here and frame.arrow.arrived and ((spotD and spotD <= SPOT_ON) or choice.d < ARRIVED * 2))
     end
-    local c = ns.theme.route
+    local c = choice.waypoint and ns.theme.waypoint or ns.theme.route   -- your waypoint: orange
     frame.arrow:SetVertexColor(c[1], c[2], c[3])
     frame:Show()
     if panel and panel:IsShown() then showPanel() end
@@ -1949,12 +1984,11 @@ ns:OnLoad(function(saved)
     saved.nav.graphs = saved.nav.graphs or {}
     if saved.nav.enabled == nil then saved.nav.enabled = true end
     if saved.nav.learn == nil then saved.nav.learn = true end
-    -- Restore the stop you chose before the reload ("From selected stop").
+    -- Restore the stop you moved first before the reload. ("selected" used to be
+    -- an order of its own; old saves go back to their usual order.)
     N.loadedAt = GetTime()
-    if saved.nav.sorter == "selected" then
-        if saved.nav.selectedKey then N.selection = { first = saved.nav.selectedKey }
-        else saved.nav.sorter = saved.nav.baseSorter or "xp" end
-    end
+    if saved.nav.sorter == "selected" then saved.nav.sorter = saved.nav.baseSorter or "xp" end
+    if saved.nav.selectedKey then N.selection = { first = saved.nav.selectedKey } end
     ns.theme:UpdateRoute()
     frame = buildArrow()
     local acc, collectAcc = 0, 0

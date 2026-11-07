@@ -175,13 +175,19 @@ ns:Register("test", "quest spots: spread over every mob's spawns, your map first
 end)
 
 ns:Register("test", "route colour follows the order mode", function(t)
-    local want = { xp = "A335EE", distance = "0070DD", selected = "FF8000" }
+    local want = { xp = "A335EE", distance = "0070DD" }
     local palette = ns.theme.palette
     ns.theme:UsePalette("standard")
     for mode, hex in pairs(want) do
         with(ns.db.nav, "sorter", mode, function() ns.theme:UpdateRoute() end)
         t:eq(ns.theme.route.hex, hex, mode)
     end
+    -- An old save's "selected" order is its base order now (no orange route).
+    with(ns.db.nav, "baseSorter", "distance", function()
+        with(ns.db.nav, "sorter", "selected", function() ns.theme:UpdateRoute() end)
+    end)
+    t:eq(ns.theme.route.hex, "0070DD", "old \"selected\" save: its base order's colour")
+    t:eq(ns.theme.waypoint.hex, "FF8000", "your waypoint: legendary orange")
     ns.theme:UsePalette(palette)
 end)
 
@@ -515,15 +521,91 @@ ns:Register("test", "stop card: tooltip text and route patch", function(t)
     t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
 end)
 
-ns:Register("test", "router: the selected stop is marked active", function(t)
-    local db = ns.db.nav
-    local sorter, key = db.sorter, db.selectedKey
-    db.sorter, db.selectedKey = "selected", "123:1"
-    t:ok(ns.mapOverlay.IsSelected("123:1"), "selected stop")
-    t:ok(not ns.mapOverlay.IsSelected("123:2"), "other stops keep the ^")
-    db.sorter = "xp"
-    t:ok(not ns.mapOverlay.IsSelected("123:1"), "not in another order mode")
-    db.sorter, db.selectedKey = sorter, key
+ns:Register("test", "route: go here first puts a stop on top, same order and colour", function(t)
+    local N, db = ns.nav, ns.db.nav
+    if ns.party and ns.party:Following() then t:ok(true, "(on a party route)") return end
+    local goals = N:Goals() or {}
+    local g = goals[#goals]
+    if not g then t:ok(true, "(no stops to try)") return end
+    local savedSel, savedKey, savedSorter = N.selection, db.selectedKey, db.sorter
+    local hex = ns.theme.route.hex
+    local ok, err = pcall(function()
+        N:Select(g.key)
+        t:eq(N.selection and N.selection.first, g.key, "it's the first stop")
+        t:ok(db.sorter ~= "selected", "no separate \"selected\" order")
+        t:eq(ns.theme.route.hex, hex, "route colour unchanged")
+        t:eq(N:Options().first, g.key, "the planner starts there")
+        t:ok(ns.mapOverlay.IsChosen(g.key), "remembered as moved first")
+        N:ClearSelection()
+        t:ok(not ns.mapOverlay.IsChosen(g.key), "the (o) click puts the usual order back")
+    end)
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+    N.selection, db.selectedKey, db.sorter = savedSel, savedKey, savedSorter
+    ns.theme:UpdateRoute()
+    N.planDirty = true
+end)
+
+ns:Register("test", "map: the stop you're heading to has a white ring, the rest black", function(t)
+    local c = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
+    if not c then t:ok(true, "(no map canvas)") return end
+    local stop = { goal = { key = "test:pin", text = "test" } }
+    local p = ns.mapOverlay._pin(c, 0.5, 0.5, "1", ns.theme.route, stop, nil, true)
+    local r, g, b = p.edge:GetVertexColor()
+    t:ok(r > 0.99 and g > 0.99 and b > 0.99, "heading there: white ring")
+    t:ok(p.hole:IsShown(), "with the (o) gap and dot")
+    p = ns.mapOverlay._pin(c, 0.6, 0.6, "2", ns.theme.route, stop, nil, false)
+    r, g, b = p.edge:GetVertexColor()
+    t:ok(r < 0.01 and g < 0.01 and b < 0.01, "other stops: black ring")
+    p:Hide()
+    if WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
+end)
+
+ns:Register("test", "waypoint: your own is an orange path, not a route stop", function(t)
+    t:ok(ns:Get("navGoal", "userWaypoint") == nil, "not a route goal any more")
+    local p = ns.nav:PlayerPos()
+    if not p then t:ok(true, "(no position)") return end
+    local W = ns.waypoint
+    local realGet = W.Get
+    W.Get = function() return { map = p.map, x = math.min(1, p.x + 0.02), y = p.y, note = "test" } end
+    local ok, err = pcall(function()
+        local c = ns.nav.WaypointChoice(p)
+        t:ok(c and c.waypoint and c.goal.key == "user:wp", "the arrow follows it")
+        t:ok(c and c.d > 0, "how far it is")
+        t:ok(ns.nav:Options().first ~= "user:wp", "the route isn't re-planned around it")
+        local f = _G.FlowMapRoute
+        if f and f.wp then
+            t:ok(f.wp:Update(), "the Flow Router shows its orange line")
+            t:ok(f.wp.text:GetText():find("Your waypoint") ~= nil, "labelled Your waypoint")
+        end
+        local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
+        if canvas then
+            ns.mapOverlay._drawWaypoint(canvas, p.map)
+            local pin = ns.mapOverlay.WaypointPin()
+            t:ok(pin and pin:IsShown(), "an orange (o) on the map")
+            if pin then
+                local r, g, b = pin.ring:GetVertexColor()
+                local w = ns.theme.waypoint
+                t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "in the waypoint orange")
+            end
+        end
+    end)
+    W.Get = realGet
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+    local f = _G.FlowMapRoute
+    if f and f.wp then f.wp:Update() end
+    local pin = ns.mapOverlay.WaypointPin()
+    if pin and not W:Get() then pin:Hide() end
+    if WorldMapFrame and WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
+end)
+
+ns:Register("test", "menus: no \"From selected\" order; undo go-here-first instead", function(t)
+    local fromSelected, undo = false, false
+    for _, it in ipairs(ns.menu:RouteItems()) do
+        if it.text and it.text:find("From selected") then fromSelected = true end
+        if it.text and it.text:find("Usual order") then undo = true end
+    end
+    t:ok(not fromSelected, "no From selected")
+    t:ok(undo, "Usual order (undo go here first)")
 end)
 
 ns:Register("test", "recipes: learning one at a trainer clears its stop", function(t)
@@ -785,17 +867,17 @@ ns:Register("test", "router: handle and help legend share one look", function(t)
     h:Hide()
 end)
 
-ns:Register("test", "router: the stop you chose stays marked", function(t)
-    local nav, saved = ns.db.nav, { sorter = ns.db.nav.sorter, key = ns.db.nav.selectedKey }
-    nav.sorter, nav.selectedKey = "selected", "test:1"
-    t:ok(ns.mapOverlay.IsSelected("test:1"), "chosen stop is selected")
-    t:ok(not ns.mapOverlay.IsSelected("test:2"), "others aren't")
+ns:Register("test", "router: the (o) is the route colour, your waypoint's orange", function(t)
     local h = ns.mapOverlay.MakeHandle(UIParent, 16)
-    h.active, h.selected = true, true; h:Paint(false)
-    local r, g = h.dot:GetVertexColor()
-    t:ok(r > g, "selected handle: red dot")
+    h.active = true; h:Paint(false)
+    local r, g, b = h.ring:GetVertexColor()
+    local c = ns.theme.route
+    t:near(r + g + b, c[1] + c[2] + c[3], 0.02, "(o) ring in the route colour")
+    h.ringColor = ns.theme.waypoint; h:Paint(false)
+    r, g, b = h.ring:GetVertexColor()
+    local w = ns.theme.waypoint
+    t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "your waypoint's (o) in orange")
     h:Hide()
-    nav.sorter, nav.selectedKey = saved.sorter, saved.key
 end)
 
 ns:Register("test", "stop card: drag by the title, opens where you left it", function(t)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.59
+- The map: the stop you're heading to has a white ring; every other stop a black one.
+- Choosing stops is simpler. Click a stop: open it. Its ^ in the Flow Router: it moves to the
+  top, the rest of the route is re-planned after it, and it gets the (o). The (o) is always the
+  top row, and nothing else is marked: no more red "selected" stop, and no "From selected"
+  order (the route keeps its colour). Click the (o) of a stop you moved, or "Usual order" in
+  the menus, to go back.
+- Your own waypoint (Ctrl/Alt-click the map, /way, "Point the arrow here") is no longer pushed
+  into the route as stop 1. The arrow turns orange and points at it along an orange line on
+  the map; the Flow Router shows it as an orange line above the route, with an X to clear it.
+  The route waits underneath and the arrow goes back to it when you arrive or clear it.
+
 ## 0.35.58
 - The dark oval behind FLOW in the login intro is softer: about half dark in the middle,
   fading out to nothing at its edges, so the pillars show through around the word.

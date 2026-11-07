@@ -141,9 +141,9 @@ function Menu:RouteItemsRaw()
         { title = true, text = "Order" },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
-        { text = (nav.selection and nav.selection.first) and ns.theme:ModeText("selected", "From selected stop") or "Select a waypoint (on the map)",
-          radio = true, checked = sort == "selected",
-          disabled = not (nav.selection and nav.selection.first), func = function() ns.xpValue:SetMode("selected") end },
+        -- A stop moved first (its ^ in the Flow Router): undo it here too.
+        { text = "Usual order (undo \"go here first\")", disabled = not (nav.selection and nav.selection.first),
+          func = function() nav:ClearSelection() end },
         { sep = true },
         { title = true, text = "Your waypoint" },
         { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },

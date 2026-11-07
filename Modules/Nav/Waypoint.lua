@@ -1,9 +1,12 @@
--- Your own waypoint. It becomes the first stop of the route (the arrow goes
--- there first), and clears itself when you arrive.
+-- Your own waypoint. It is NOT a stop on the route: while it's set the arrow
+-- points there in orange (Nav.lua, N.WaypointChoice), the map draws an orange
+-- line to it and the Flow Router an orange line above the route, and the
+-- route itself carries on unchanged. It clears itself when you arrive.
 --   Set:   paste coordinates (/flow way or /way, or right-click the arrow: Set a
 --          waypoint), Ctrl-click the world map (the game's own map pin, on clients that
---          have it), Alt-click the world map, or /flow way <x> <y> [note]
---   Clear: /flow way clear, the arrow menu, or arrive
+--          have it), Alt-click the world map, /flow way <x> <y> [note], or
+--          "Point the arrow here" on any stop
+--   Clear: /flow way clear, the X in the Flow Router, the arrow or map menu, or arrive
 -- PLACEHOLDER: a custom multi-point path (ticketed).
 
 local _, ns = ...
@@ -42,30 +45,22 @@ function W:Set(map, x, y, note)
     else
         ns.db.nav.waypoint = { map = map, x = x, y = y, note = note }
     end
-    if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end
-    ns:Print(string.format("waypoint set at %.1f, %.1f%s", x * 100, y * 100, note and (" (" .. note .. ")") or ""))
+    W.Changed()
+    ns:Print(string.format("waypoint set at %.1f, %.1f%s: the arrow points there in orange (your route waits)",
+        x * 100, y * 100, note and (" (" .. note .. ")") or ""))
 end
 
 function W:Clear()
     if blizzard() and C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end
     ns.db.nav.waypoint, ns.db.nav.waypointNote = nil, nil
-    if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end
+    W.Changed()
 end
 
-ns:Register("navGoal", "userWaypoint", {
-    collect = function()
-        local w = W:Get()
-        if not w then return nil end
-        return { {
-            key = "user:wp", weight = 0.1,
-            points = { { map = w.map, x = w.x, y = w.y } },
-            title = "Your waypoint",
-            text = "Waypoint" .. (w.note and (": " .. w.note) or ""),
-            details = { string.format("You set this at %.1f, %.1f.", w.x * 100, w.y * 100),
-                        "It clears when you get there, or with /flow way clear." },
-        } }
-    end,
-})
+-- The waypoint isn't part of the route, so nothing is re-planned: the arrow
+-- picks it up on its next update; the map and its list redraw now.
+function W.Changed()
+    if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
+end
 
 -- Alt-click on the world map.
 local function hookMap()
@@ -80,7 +75,7 @@ local function hookMap()
 end
 
 ns:On("PLAYER_LOGIN", function() pcall(hookMap) end)
-ns:On("USER_WAYPOINT_UPDATED", function() if ns.nav then ns.nav:Collect() end end)
+ns:On("USER_WAYPOINT_UPDATED", function() W.Changed() end)
 
 -------------------------------------------------------------------------------
 -- Coordinates as people paste them. All of these work:

@@ -84,9 +84,10 @@ ns:Register("routeObjective", "distance", {
 
 -- Route sorting modes (map list, arrow right-click, /flow nav xp|distance|sort):
 --   any routeObjective key ("xp" by default, "distance", ...)
---   "selected"  From the stop you clicked on the map; the rest is planned
---               after it with the objective you had before ("base")
--- Picking an objective again clears the clicked stop.
+-- Moving one stop first (its ^ in the Flow Router) isn't a mode: the route
+-- keeps its objective and is planned from that stop (ns.nav.selection).
+-- Picking an objective clears the moved stop. ("selected" was a mode once;
+-- old saves fall back to the base objective.)
 local function known(m) return m and ns:Get("routeObjective", m) ~= nil end
 function X:Mode() return ns.db.nav.sorter or "xp" end
 function X:Base()
@@ -103,14 +104,6 @@ function X:Objective()
 end
 function X:On() return (self:Objective()) == "xp" end
 function X:SetMode(m)
-    if m == "selected" then
-        if not (ns.nav.selection and ns.nav.selection.first) then
-            ns:Print("click a stop on the world map to start the route there.")
-            return
-        end
-        ns.db.nav.sorter = "selected"
-        return
-    end
     if not known(m) then ns:Print("no route objective called '" .. tostring(m) .. "'") return end
     ns.db.nav.sorter, ns.db.nav.baseSorter = m, m
     ns.nav:ClearSelection()

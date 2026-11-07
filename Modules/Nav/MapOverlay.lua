@@ -1,11 +1,11 @@
 -- World map overlay: your route as numbered checkpoints and lines.
 --   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colours (Theme.lua): the route and arrow colour shows the order mode
---     (purple = Most XP first, blue = Shortest path, orange = From selected stop);
---     hovering a stop shows only the route you'd follow, all in legendary
---     orange. /flow settings has a colour-blind palette.
---   Hover a checkpoint (or a place in the advice list) to preview the route
---   that starts there; click it to make that your route (the arrow follows).
+--     (purple = Most XP first, blue = Shortest path); hovering a ^ shows only
+--     the route you'd follow, in legendary orange. Your own waypoint is an
+--     orange line and (o) of its own. /flow settings has a colour-blind palette.
+--   The stop you're heading to (route stop 1) has a white ring, the rest black.
+--   Click a stop: open it. The ^ in the Flow Router: go there first.
 
 local _, ns = ...
 local M = {}
@@ -80,10 +80,10 @@ local function line(c, x1, y1, x2, y2, color, alpha)
     l:Show()
 end
 
--- target: the stop the arrow points at, drawn as Flow's target marker (o):
--- a ring in the route colour around a dot (same look as the arrow's ring when
--- you arrive, the active stop in the Flow Router and the minimap pin).
-local function pin(c, x, y, label, color, stop, top, target, selected)
+-- target: the stop you're heading to (route stop 1), drawn as Flow's target
+-- marker (o) with a white ring; the other stops have black rings.
+-- top: the stop under your mouse (bigger, in the hover colour, on top).
+local function pin(c, x, y, label, color, stop, top, target)
     nPins = nPins + 1
     local p = pins[nPins]
     if not p then
@@ -122,12 +122,8 @@ local function pin(c, x, y, label, color, stop, top, target, selected)
             ns.nav:ClickCursor(false)
             hoverKey = nil
             GameTooltip:Hide()
-            if self.isSelected then
-                local h = theme().hover
-                self:SetSize(16, 16); self.edge:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
-            elseif self.isTarget then
-                local c = self.color
-                self:SetSize(16, 16); self.edge:SetVertexColor(c[1], c[2], c[3], 1)
+            if self.isTarget then
+                self:SetSize(16, 16); self.edge:SetVertexColor(1, 1, 1, 1)   -- white ring: where you're heading
             else
                 self:SetSize(11, 11); self.edge:SetVertexColor(0, 0, 0, 0.9)
             end
@@ -170,25 +166,11 @@ local function pin(c, x, y, label, color, stop, top, target, selected)
     local s = p:GetScale()
     p:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth() / s, -y * c:GetHeight() / s)
     p.bg:ClearAllPoints()
-    p.isSelected = (selected and not top) and true or false
-    if p.isSelected then
-        -- The stop you chose ("Go here first"): stays red like when hovered,
-        -- inside red with a bold dark red ring, until you clear it.
-        local h = theme().hover
-        p:SetSize(16, 16)
-        p.edge:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
-        p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -3, 3); p.edge:SetPoint("BOTTOMRIGHT", 3, -3)
-        p.hole:Hide()
-        p.bg:SetAllPoints()
-        color = h
-    else
-        p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -2, 2); p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
-    end
-    if p.isSelected then
-        -- (styled above)
-    elseif target and not top then
-        -- (o): ring in the route colour, a dark gap, the dot.
-        p.edge:SetVertexColor(color[1], color[2], color[3], 1)
+    p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -2, 2); p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+    if target and not top then
+        -- (o), the stop you're heading to: a WHITE ring, a dark gap, the dot
+        -- in the route colour. Every other stop has a black ring.
+        p.edge:SetVertexColor(1, 1, 1, 1)
         p.hole:ClearAllPoints(); p.hole:SetPoint("TOPLEFT", 1, -1); p.hole:SetPoint("BOTTOMRIGHT", -1, 1)
         p.hole:Show()
         p.bg:SetPoint("TOPLEFT", 4, -4); p.bg:SetPoint("BOTTOMRIGHT", -4, 4)
@@ -202,7 +184,9 @@ local function pin(c, x, y, label, color, stop, top, target, selected)
     p.full, p.short = label, (label:gsub(" %[%d+%]", ""))   -- "3 [9]" and "3" (for the declutter)
     p.top = top and true or false
     p:Show()
+    return p
 end
+M._pin = pin   -- (tests)
 
 -- Draws one route as a thin, unbroken line through round points. Stops on
 -- another map are skipped, and the line joins the ones on this map.
@@ -255,9 +239,12 @@ local function drawAnts()
     for i = nAnts + 1, old do ants[i]:Hide() end
 end
 
--- The stop you chose to route from ("From selected waypoint" order).
-function M.IsSelected(key)
-    return key ~= nil and ns.db.nav.sorter == "selected" and ns.db.nav.selectedKey == key
+-- The stop you moved to the front (the ^ handle, "Go here first"). The route
+-- is planned from it, so it's stop 1 and wears the (o) like any first stop;
+-- no other mark. It stays first until it's done or you click its (o).
+function M.IsChosen(key)
+    local sel = ns.nav and ns.nav.selection
+    return key ~= nil and sel ~= nil and sel.first == key
 end
 
 -- Areas: a stop that's a whole area (mobs to kill, things to loot, a farm
@@ -518,7 +505,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 if s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil) then
                     hovered = { x, y, icon .. labels[i], s }
                 else
-                    pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly, M.IsSelected(s.goal.key))
+                    pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly)
                     pins[nPins].order = i
                 end
             end
@@ -530,6 +517,72 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
         pins[nPins].order = 0
     end
 end
+
+-- Your own waypoint on the map: an orange line from you to it and an orange
+-- (o), apart from the route (which is drawn as usual). Right-click: clear it.
+local wpPin
+local function clearWaypoint()
+    if ns.waypoint then ns.waypoint:Clear() end
+    ns:Print("waypoint cleared: back to your route")
+    GameTooltip:Hide()
+    pcall(M.Redraw, M)
+end
+local function makeWaypointPin()
+    local p = CreateFrame("Button", nil, UIParent)
+    local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+    p.ring = p:CreateTexture(nil, "BACKGROUND"); p.ring:SetPoint("TOPLEFT", -2, 2); p.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+    p.ring:SetTexture(CIRCLE)
+    p.hole = p:CreateTexture(nil, "BORDER", nil, 1); p.hole:SetPoint("TOPLEFT", 1, -1); p.hole:SetPoint("BOTTOMRIGHT", -1, 1)
+    p.hole:SetTexture(CIRCLE); p.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+    p.dot = p:CreateTexture(nil, "BORDER", nil, 2); p.dot:SetPoint("TOPLEFT", 4, -4); p.dot:SetPoint("BOTTOMRIGHT", -4, 4)
+    p.dot:SetTexture(CIRCLE)
+    p.text = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    p.text:SetPoint("LEFT", p, "RIGHT", 3, 0)
+    p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    p:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            ns.menu:Open({ { title = true, text = "Your waypoint" }, { text = "Clear it (back to the route)", func = clearWaypoint } })
+        end
+    end)
+    p:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local w = ns.waypoint and ns.waypoint:Get()
+        GameTooltip:AddLine("Your waypoint" .. ((w and w.note) and (": " .. w.note) or ""))
+        GameTooltip:AddLine("Not a stop on the route: the arrow points here in orange until you get there.", 1, 1, 1, true)
+        GameTooltip:AddLine("Right-click: clear it.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return p
+end
+local function drawWaypoint(c, mapID)
+    local w = ns.waypoint and ns.waypoint:Get()
+    local choice = w and ns.nav.WaypointChoice and ns.nav.WaypointChoice(ns.nav:PlayerPos())
+    local x, y
+    if w then x, y = toMap(choice and choice.point or { map = w.map, x = w.x, y = w.y }, mapID) end
+    if not x then if wpPin then wpPin:Hide() end return end
+    local col = theme().waypoint
+    local px, py = toMap(ns.nav:PlayerPos(), mapID)
+    if px and host then   -- (host: the map's line layer, made on the first redraw)
+        line(c, px, py, x, y, col, 1)
+        legs[#legs + 1] = { px, py, x, y, color = { 1, 1, 1 }, alpha = 1 }   -- white chevrons, like the route
+    end
+    wpPin = wpPin or makeWaypointPin()
+    wpPin:SetParent(c)
+    wpPin:SetFrameStrata(aboveMap())
+    wpPin:SetFrameLevel(math.min(c:GetFrameLevel() + 1000, 9000) + 150)
+    wpPin:SetSize(16, 16)
+    wpPin:SetScale(1 / canvasScale())
+    wpPin.ring:SetVertexColor(col[1], col[2], col[3], 1)
+    wpPin.dot:SetVertexColor(col[1], col[2], col[3], 1)
+    wpPin.text:SetText("|cff" .. col.hex .. "Your waypoint|r")
+    local s = wpPin:GetScale()
+    wpPin:ClearAllPoints()
+    wpPin:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth() / s, -y * c:GetHeight() / s)
+    wpPin:Show()
+end
+M._drawWaypoint = drawWaypoint   -- (tests)
+M.WaypointPin = function() return wpPin end
 
 -------------------------------------------------------------------------------
 -- Route panel: the trip plan as a routed quest log. It takes over the game's
@@ -759,18 +812,80 @@ function M.MakeHandle(parent, size)
             l:SetShown(not on)
         end
         self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
-        local h = theme().hover
-        if self.selected then   -- chosen stop: red inside, dark red ring (as on the map)
-            self.ring:SetVertexColor(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1)
-            self.dot:SetVertexColor(h[1], h[2], h[3], 1)
-        else
-            self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
-            self.dot:SetVertexColor(c[1], c[2], c[3], 1)
-        end
+        local rc = self.ringColor or c   -- (o): the route colour (your waypoint's: orange)
+        self.ring:SetVertexColor(rc[1], rc[2], rc[3], 1)
+        self.dot:SetVertexColor(rc[1], rc[2], rc[3], 1)
         self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
     end
     go:Paint(false)
     return go
+end
+
+-- Your waypoint's line in the Flow Router: an orange (o), "Your waypoint:
+-- <note>", how far, and an X to clear it. Hidden while none is set.
+-- :Update() shows or hides it and returns whether it's shown.
+function M.MakeWaypointRow(f)
+    local w = CreateFrame("Button", nil, f)
+    w:SetHeight(ROW_H - 2)
+    w:SetPoint("TOPLEFT", 8, -102); w:SetPoint("TOPRIGHT", -8, -102)
+    w.bg = w:CreateTexture(nil, "BACKGROUND"); w.bg:SetAllPoints()
+    w.mark = M.MakeHandle(w, ROW_H - 2)
+    w.mark:SetPoint("LEFT")
+    w.mark.active = true
+    w.mark:EnableMouse(false)
+    local function clear()
+        if ns.waypoint then ns.waypoint:Clear() end
+        ns:Print("waypoint cleared: back to your route")
+        GameTooltip:Hide()
+        M:Redraw()
+    end
+    w.clear = CreateFrame("Button", nil, w)
+    w.clear:SetSize(14, 14); w.clear:SetPoint("RIGHT", -2, 0)
+    w.clear:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+    w.clear:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Highlight")
+    w.clear:SetScript("OnClick", clear)
+    w.clear:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Clear your waypoint")
+        GameTooltip:AddLine("The arrow goes back to your route.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    w.clear:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    w.leg = w:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    w.leg:SetPoint("RIGHT", w.clear, "LEFT", -6, 0)
+    w.text = w:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    w.text:SetPoint("LEFT", w.mark, "RIGHT", 5, 0)
+    w.text:SetPoint("RIGHT", w.leg, "LEFT", -6, 0)
+    w.text:SetJustifyH("LEFT"); w.text:SetWordWrap(false)
+    w:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    w:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            ns.menu:Open({ { title = true, text = "Your waypoint" }, { text = "Clear it", func = clear } })
+        end
+    end)
+    w:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Your waypoint")
+        GameTooltip:AddLine("Not a stop on the route: the arrow points here in orange, along the orange line on the map, until you get there. Then it's back to the route below.", 1, 1, 1, true)
+        GameTooltip:AddLine("X or right-click: clear it.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    w:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    function w:Update()
+        local wp = ns.waypoint and ns.waypoint:Get()
+        if not wp then self:Hide() return false end
+        local col = theme().waypoint
+        self.mark.ringColor = col
+        self.mark:Paint(false)
+        self.bg:SetColorTexture(col[1], col[2], col[3], 0.14)
+        self.text:SetText("|cff" .. col.hex .. "Your waypoint|r" .. (wp.note and ("  " .. wp.note) or ""))
+        local c = ns.nav.WaypointChoice and ns.nav.WaypointChoice(ns.nav:PlayerPos())
+        self.leg:SetText(c and string.format("%d yd", c.d) or "other zone")
+        self:Show()
+        return true
+    end
+    w:Hide()
+    return w
 end
 
 -- "?" help: a small legend drawn with the same handle and (o) marker as the rows.
@@ -803,8 +918,8 @@ local function buildHelp(f)
             pop[handle] = h
         end
     end
-    line(-8, "go", "Go here first: routes from that stop")
-    line(-28, "active", "Active stop: where the arrow points")
+    line(-8, "go", "Go here first: moves it to the top, re-plans after it")
+    line(-28, "active", "Where you're heading: always the top row")
     line(-50, nil, "Click a stop's name to open it. Right-click to hide it or for more.")
     pop:Hide()
     function q:Paint(hot)
@@ -997,12 +1112,12 @@ local function buildList()
     end
     f.routeDrop = dd
 
-    -- Route sorting (XpValue.lua): three modes, one row of radios.
+    -- Route sorting (XpValue.lua): one row of radios. (To put one stop first,
+    -- use its ^ in the list below: the rest is re-planned after it.)
     f.sorts = {}
     local SORTS = {
         { "xp", "Most XP", 6, "Most XP first (default): the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
         { "distance", "Shortest", 92, "Shortest path: nearest stops first, XP ignored." },
-        { "selected", "From selected", 172, "From the stop you clicked on the map: it goes first, the rest is planned after it. Picking another mode clears it." },
     }
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -1027,11 +1142,18 @@ local function buildList()
     f.title:SetPoint("TOPRIGHT", -8, -84)
     f.title:SetJustifyH("LEFT")
 
+    -- Your own waypoint (Waypoint.lua), when you've set one: an orange line
+    -- above the route, not a stop in it. The arrow follows it (orange) until
+    -- you get there or clear it; the route below carries on as it was.
+    f.wp = M.MakeWaypointRow(f)
+
     -- Each row: [^] handle, then the stop.
-    --   ^ handle    route from this stop (like clicking it on the map);
-    --               hovering it previews that route
+    --   ^ handle    go here first: the route is re-planned from this stop,
+    --               which moves to the top and gets the (o); hovering it
+    --               previews that route
+    --   (o)         the stop you're heading to, always the top row
     --   row hover   the stop's details (quest objectives and text)
-    --   row click   open it (quest details, closing this drawer)
+    --   row click   open it (its card)
     --   right-click menu
     f.rows = {}
     for i = 1, MAX_ROWS do
@@ -1042,12 +1164,6 @@ local function buildList()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
-        -- The stop you chose ("Go here first"): a red tint and bar, like the
-        -- red it has on the map, so it reads as selected while it lasts.
-        r.sel = r:CreateTexture(nil, "BACKGROUND")
-        r.sel:SetAllPoints(); r.sel:Hide()
-        r.selBar = r:CreateTexture(nil, "BORDER")
-        r.selBar:SetPoint("TOPRIGHT"); r.selBar:SetPoint("BOTTOMRIGHT"); r.selBar:SetWidth(3); r.selBar:Hide()
         r.go = M.MakeHandle(r, ROW_H - 2)
         r.go:SetPoint("LEFT", 0, 0)
         r.go:SetScript("OnEnter", function(self)
@@ -1056,13 +1172,13 @@ local function buildList()
             hoverKey = row.key
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if self.active then
-                GameTooltip:AddLine("Active stop")
-                GameTooltip:AddLine(self.selected and "You chose this one: the arrow points here. Click to clear it and go back to your usual order."
-                    or "The arrow points here now.", 1, 1, 1, true)
+                GameTooltip:AddLine("Where you're heading")
+                GameTooltip:AddLine(M.IsChosen(row.key) and "You moved this one first. Click to go back to the usual order."
+                    or "The next stop on your route.", 1, 1, 1, true)
             else
                 M:Preview(row.key)
                 GameTooltip:AddLine("Go here first")
-                GameTooltip:AddLine("Routes from this stop (order: From selected stop). Shown in the preview colour on the map.", 1, 1, 1, true)
+                GameTooltip:AddLine("Moves this stop to the top and plans the rest of the route after it. The orange line on the map is that route.", 1, 1, 1, true)
             end
             GameTooltip:Show()
         end)
@@ -1075,8 +1191,11 @@ local function buildList()
         r.go:SetScript("OnClick", function(self)
             local row = self:GetParent()
             M:Preview(nil)
-            if self.selected then ns.nav:ClearSelection()
-            elseif row.key and not self.active then ns.nav:Select(row.key) end
+            if self.active then
+                if M.IsChosen(row.key) then ns.nav:ClearSelection() end
+            elseif row.key then
+                ns.nav:Select(row.key)
+            end
             GameTooltip:Hide()
             M:Redraw()
         end)
@@ -1157,19 +1276,21 @@ local function updateList()
     list.hint:SetShown(not hidden)
     list.routeDrop:SetShown(not hidden)
     list.routeDrop:Update()
-    local chosen = ns.nav.selection and ns.nav.selection.first
-    for _, rb in ipairs(list.sorts) do
-        rb:SetChecked(ns.xpValue:Mode() == rb.mode)
-        if rb.mode == "selected" then
-            -- Greyed until you pick a stop (map click or the ^ handle), then "From selected".
-            rb:SetEnabled(chosen and true or false)
-            rb.label:SetText(chosen and ns.theme:ModeText("selected", "From selected") or "|cff777777Select a waypoint|r")
-        end
-    end
+    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Base() == rb.mode) end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
+        list.wp:Hide()
         return
+    end
+    -- Your waypoint's line, then the route rows under it.
+    local wpShown = list.wp:Update()
+    local top = -102 - (wpShown and ROW_H or 0)
+    for i = 1, MAX_ROWS do
+        local r = list.rows[i]
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 8, top - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, top - (i - 1) * ROW_H)
     end
     local following = ns.party and ns.party:Following()
     local nBlocked = ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
@@ -1178,7 +1299,7 @@ local function updateList()
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108 - (wpShown and ROW_H or 0)) / ROW_H))
     -- Route stops first, then blocked stops (lock + reason), then (if
     -- ticked) hidden stops, greyed out.
     local blocked = ns.nav.blockedGoals or {}
@@ -1197,18 +1318,13 @@ local function updateList()
     for _, h in ipairs(hiddenGoals) do entries[#entries + 1] = { hidden = h } end
     for i = 1, MAX_ROWS do
         local r, e = list.rows[i], entries[i]
-        r.sel:Hide(); r.selBar:Hide()
         if e and i <= fit and e.stop then
             local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.goal = s.goal
-            r.go.selected = M.IsSelected(s.goal.key)
-            r.go.active = (e.i == 1) or r.go.selected
-            if r.go.selected then
-                local h = theme().hover
-                r.sel:SetColorTexture(h[1], h[2], h[3], 0.2); r.sel:Show()
-                r.selBar:SetColorTexture(h[1] * 0.55, h[2] * 0.2, h[3] * 0.2, 1); r.selBar:Show()
-            end
+            -- The (o) is always the top row: the stop you're heading to. A
+            -- stop you moved first IS the top row, so it needs no other mark.
+            r.go.active = (e.i == 1)
             r.go:Paint(r.go:IsMouseOver())
             r.go:Show()
             r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
@@ -1256,9 +1372,7 @@ function M:Redraw()
     if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
         local plan = ns.nav.plan or {}
-        -- The stop you chose counts as pointed at: its area stays red too.
-        local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey
-            or (ns.db.nav.sorter == "selected" and ns.db.nav.selectedKey) or nil
+        local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey or nil
         local labels = ns.nav:PlanLabels(plan)
         -- Every area stop gets its own bordered patch: faint, the next stop
         -- stronger, the one you point at in the hover colour. Drawn last = on top.
@@ -1282,6 +1396,9 @@ function M:Redraw()
         else
             drawRoute(c, mapID, ns.nav.plan, T.route, true)
         end
+        drawWaypoint(c, mapID)
+    elseif wpPin then
+        wpPin:Hide()
     end
     for i = nLines + 1, oldLines do lines[i]:Hide() end
     for i = nPins + 1, oldPins do pins[i]:Hide() end
