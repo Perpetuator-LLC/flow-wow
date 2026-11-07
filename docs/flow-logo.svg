@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Flow (unfettered) logo">
+  <!-- CurseForge project avatar (400x400). Same palette as flow-banner.svg:
+       dark panel, orange-to-gold title, route in the three order-mode colours.
+       Strokes are thick so the route still reads at the 64 px listing size.
+       Render with tools/render-graphics.ps1. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14121c"/>
+      <stop offset="1" stop-color="#1f2333"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#FF8000" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FF8000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF8000"/>
+      <stop offset="1" stop-color="#FFD100"/>
+    </linearGradient>
+    <marker id="head" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="3.4" markerHeight="3.4" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#FF8000" stroke="#ffffff" stroke-width="0.7" stroke-linejoin="round"/>
+    </marker>
+    <!-- the whole route as one path, for the white chevron "ants" -->
+    <path id="route" d="M66 332 C 105 300, 140 345, 182 318 C 220 294, 250 300, 282 286 C 305 276, 322 262, 336 242"/>
+  </defs>
+
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <rect width="400" height="400" fill="url(#glow)"/>
+  <rect x="16" y="16" width="368" height="368" rx="30" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.55"/>
+
+  <!-- letter-spacing also trails the last letter, so x is nudged right by half of it -->
+  <text x="205" y="165" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="98" letter-spacing="10" fill="url(#gold)">FLOW</text>
+  <text x="202" y="205" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="24" letter-spacing="4" fill="#d8d8e0">unfettered</text>
+
+  <!-- route: Most XP (epic), Shortest (rare), From selected (legendary) -->
+  <path d="M66 332 C 105 300, 140 345, 182 318" fill="none" stroke="#A335EE" stroke-width="9" stroke-linecap="round"/>
+  <path d="M182 318 C 220 294, 250 300, 282 286" fill="none" stroke="#0070DD" stroke-width="9" stroke-linecap="round"/>
+  <path d="M282 286 C 305 276, 322 262, 336 242" fill="none" stroke="#FF8000" stroke-width="9" stroke-linecap="round" marker-end="url(#head)"/>
+  <text font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff" dy="5" letter-spacing="17">
+    <textPath href="#route" startOffset="34">›››››››››››</textPath>
+  </text>
+
+  <circle cx="66" cy="332" r="15" fill="#A335EE" stroke="#ffffff" stroke-width="3"/>
+  <circle cx="182" cy="318" r="12" fill="#0070DD" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="282" cy="286" r="12" fill="#FF8000" stroke="#ffffff" stroke-width="2.5"/>
+</svg>

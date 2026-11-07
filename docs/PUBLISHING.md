@@ -7,12 +7,15 @@ steps that need your accounts and decisions are listed below.
 - [ ] **Licence.** Pick MIT or GPLv3 and add a `LICENSE` file; the package script includes it.
   Either works: Flow ships no third-party data and only reads Questie/QuestieDB/Auctionator at
   runtime.
-- [ ] **Public name.** "Flow" may already be taken on CurseForge. If so, use something like
-  "Flow: Levelling Companion" (the folder and TOC can stay `Flow`).
+- [x] **Public name.** "Flow" is taken on CurseForge (an unlisted Forever project, checked
+  2026-11-07), and names must be unique. Use **"Flow (unfettered)"**, the TOC title. Leave
+  "Forever"/"WoW" out of the name: CurseForge's rules say no game names.
 - [ ] **Author name** in `Flow.toc` (`## Author:`).
-- [ ] **Forever on CurseForge.** Check that CurseForge lists World of Warcraft: Forever as a game
-  version. If it doesn't yet, upload for Classic Era and say "built for Forever" in the
-  description, or wait.
+- [x] **Forever on CurseForge.** It is a flavour there: tag uploads with game version
+  **1.60.1 (Forever)**.
+- [x] **Graphics.** Avatar `docs/flow-logo.png` (400x400, CurseForge's size) and description
+  banner `docs/flow-banner.png` (1800x440). Edit the `.svg` sources, then re-render with
+  `powershell -ExecutionPolicy Bypass -File tools\render-graphics.ps1` (uses Edge headless).
 
 ## First upload (manual)
 1. Create a CurseForge author account and a new World of Warcraft addon project.
