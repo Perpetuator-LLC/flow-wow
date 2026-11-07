@@ -538,20 +538,47 @@ function N:MakeArrow3D(parent)
         l:Show()
         return l
     end
-    -- Ring of dots like the flat arrow, flattened onto the ground; lights up
-    -- when you arrive.
+    -- The ring on the ground: a circle of pillars standing on it (short while
+    -- pointing the way, tall and glowing when you've arrived). Each pillar is
+    -- a stem with a lit cap; the ones at the back sit behind the arrow, the
+    -- ones in front of it in front. a.ringAngle turns the ring (the login
+    -- intro spins it).
+    local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
     a.ring = {}
     for i = 1, RING_DOTS do
-        local d = a:CreateTexture(nil, "BACKGROUND")
-        d:SetSize(2, 2)
-        d:SetColorTexture(1, 1, 1, 0.22)
-        a.ring[i] = d
+        local p = {}
+        p.stem = a:CreateLine(nil, "BACKGROUND")
+        p.stem:SetThickness(2)
+        p.cap = a:CreateTexture(nil, "BACKGROUND", nil, 1)
+        p.cap:SetTexture(CIRCLE)
+        p.cap:SetSize(3, 2)
+        a.ring[i] = p
     end
-    a.center = a:CreateTexture(nil, "OVERLAY")
-    a.center:SetSize(10, 6)
-    a.center:SetPoint("CENTER")
-    a.center:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-    a.center:Hide()
+    a.ringAngle = 0
+    -- The sphere in the middle when you've arrived: a dark base, a lit body
+    -- and a white highlight up and to the left (the light), floating above
+    -- its own shadow on the ground.
+    local function ball(layer, sub, w, h)
+        local t = a:CreateTexture(nil, layer, nil, sub)
+        t:SetTexture(CIRCLE); t:SetSize(w, h or w); t:Hide()
+        return t
+    end
+    a.ballShadow = ball("BACKGROUND", 2, 13, 4)
+    a.ballBase = ball("OVERLAY", 1, 12)
+    a.ballBody = ball("OVERLAY", 2, 9)
+    a.ballHi = ball("OVERLAY", 3, 3)
+    a.center = a.ballBody   -- older name
+    function a:PlaceBall(lift)
+        self.ballShadow:SetPoint("CENTER", self, "CENTER", 0, -1)
+        self.ballBase:SetPoint("CENTER", self, "CENTER", 0, lift)
+        self.ballBody:SetPoint("CENTER", self, "CENTER", -0.8, lift + 0.8)
+        self.ballHi:SetPoint("CENTER", self, "CENTER", -2.4, lift + 2.6)
+    end
+    function a:ShowBall(on)
+        on = on and not self.noBall
+        self.ballShadow:SetShown(on); self.ballBase:SetShown(on)
+        self.ballBody:SetShown(on); self.ballHi:SetShown(on)
+    end
 
     a.angle, a.r, a.g, a.b, a.bob = 0, 1, 0.62, 0, 0
     local function outline(pts, dx, dy, layer, thick, r, g, b, alpha, shade)
@@ -607,13 +634,50 @@ function N:MakeArrow3D(parent)
             ridge:SetColorTexture(1, 1, 1, 0.75)
         end
         for i = a.n + 1, #a.lines do a.lines[i]:Hide() end
-        -- The ring lies on the ground too: an ellipse.
-        for i, d in ipairs(a.ring) do
-            local t = (i - 1) / RING_DOTS * 2 * math.pi
-            local x, y = N.Project3D(RING_R * math.sin(t), RING_R * math.cos(t), 0)
-            d:ClearAllPoints()
-            d:SetPoint("CENTER", a, "CENTER", x, y)
+        -- The ring lies on the ground (an ellipse); its pillars stand up from it.
+        local tall = a.arrived or a.spinning
+        local hgt = tall and 12 or 3.5
+        for i, p in ipairs(a.ring) do
+            local t = (i - 1) / RING_DOTS * 2 * math.pi + a.ringAngle
+            local x, y, k = N.Project3D(RING_R * math.sin(t), RING_R * math.cos(t), 0)
+            local h = hgt * k
+            local front = math.cos(t) < 0      -- near you: in front of the arrow
+            p.stem:SetDrawLayer(front and "ARTWORK" or "BACKGROUND", front and 7 or 0)
+            p.cap:SetDrawLayer(front and "ARTWORK" or "BACKGROUND", 7)
+            p.stem:SetStartPoint("CENTER", a, x, y)
+            p.stem:SetEndPoint("CENTER", a, x, y + h)
+            p.cap:ClearAllPoints()
+            p.cap:SetPoint("CENTER", a, "CENTER", x, y + h)
+            p.cap:SetSize(tall and 4 or 3, tall and 3 or 2)
+            p.k = k
         end
+        a:Light()
+    end
+    -- Colours of the pillars: faint white while pointing; in the route colour
+    -- (pulsing) when arrived or spinning, darker at the back, caps brightest.
+    function a:Light(pulse)
+        local tall = self.arrived or self.spinning
+        pulse = pulse or 1
+        for i, p in ipairs(self.ring) do
+            if tall then
+                local depth = 0.55 + 0.45 * math.min(1, math.max(0, ((p.k or 1) - 0.85) * 3))   -- back: darker
+                p.stem:SetColorTexture(self.r * depth, self.g * depth, self.b * depth, 0.55 + 0.4 * pulse)
+                p.cap:SetVertexColor(math.min(1, self.r + 0.45), math.min(1, self.g + 0.45), math.min(1, self.b + 0.45), 0.7 + 0.3 * pulse)
+            else
+                p.stem:SetColorTexture(1, 1, 1, 0.22)
+                p.cap:SetVertexColor(1, 1, 1, 0.35)
+            end
+        end
+        local r, g, b = self.r, self.g, self.b
+        self.ballBase:SetVertexColor(r * 0.35, g * 0.35, b * 0.35, 1)
+        self.ballBody:SetVertexColor(math.min(1, r * 0.9 + 0.1), math.min(1, g * 0.9 + 0.1), math.min(1, b * 0.9 + 0.1), 1)
+        self.ballHi:SetVertexColor(1, 1, 1, 0.85)
+        self.ballShadow:SetVertexColor(0, 0, 0, 0.45)
+    end
+    -- Turn the ring (the intro spins it fast; otherwise it stays put).
+    function a:SetRingSpin(angle)
+        self.ringAngle = angle or 0
+        draw()
     end
     function a:SetRotation(r)
         r = r or 0
@@ -624,12 +688,12 @@ function N:MakeArrow3D(parent)
         if self.r == r and self.g == g and self.b == b then return end
         self.r, self.g, self.b = r, g, b; draw()
     end
-    -- Gentle floating; the ring pulses instead once you've arrived.
+    -- Gentle floating; once you've arrived the pillars pulse and the sphere floats.
     a:SetScript("OnUpdate", function(me)
         if me.arrived then
-            local pulse = 0.6 + 0.4 * math.sin(GetTime() * 4)
-            for _, d in ipairs(me.ring) do d:SetColorTexture(me.r, me.g, me.b, pulse) end
-            me.center:SetVertexColor(me.r, me.g, me.b, 0.5 + 0.5 * pulse)
+            local now = GetTime()
+            me:Light(0.5 + 0.5 * math.sin(now * 4))
+            me:PlaceBall(7 + 1.5 * math.sin(now * 2.4))
             return
         end
         local bob = math.floor(1.5 * math.sin(GetTime() * 2.4) * 4 + 0.5) / 4   -- quarter pixels
@@ -639,11 +703,8 @@ function N:MakeArrow3D(parent)
         on = on and true or false
         if self.arrived == on then return end
         self.arrived = on
-        self.center:SetShown(on)
-        for _, d in ipairs(self.ring) do
-            d:SetSize(on and 4 or 2, on and 3 or 2)
-            if not on then d:SetColorTexture(1, 1, 1, 0.22) end
-        end
+        self:ShowBall(on)
+        if on then self:PlaceBall(7) end
         draw()
     end
     draw()

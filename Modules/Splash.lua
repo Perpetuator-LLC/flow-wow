@@ -1,15 +1,17 @@
 -- Login intro, played on Flow's arrow (it replaced a separate title card):
--- the arrow spins up and settles into its ring with FLOW in the middle,
--- while the text under it says "Flow (unfettered)", the version and what
--- Flow has to work with. Then the arrow goes back to pointing the way.
+-- the ring's pillars stand tall and spin fast around a deep gold FLOW,
+-- slowing to a stop, while the text under it says "Flow (unfettered)", the
+-- version and what Flow has to work with. Then the arrow appears over the
+-- now-still pillars and goes back to pointing the way.
 -- /flow splash replays it; Options > AddOns > Flow turns it off.
 
 local _, ns = ...
 local I = {}
 ns.intro = I
 
-local SPIN, HOLD = 2.0, 2.6   -- seconds: spinning, then the ring with FLOW
-local TURNS = 2
+local SPIN, TAIL = 3.2, 1.4   -- seconds: pillars spinning with FLOW, then the arrow
+local TURNS = 6               -- ring turns during the spin (fast, easing out)
+I.SPIN, I.TURNS = SPIN, TURNS
 
 local function version()
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -34,11 +36,37 @@ function I.Status()
     return table.concat(bits, "  ·  ")
 end
 
--- The arrow's rotation t seconds into the intro: fast at first, easing out,
--- TURNS full turns, ending pointing up.
+-- The ring's turn t seconds into the intro: very fast at first, easing out
+-- to a stop after TURNS full turns (so it ends where it started).
 function I.SpinAngle(t)
     local u = math.min(math.max(t / SPIN, 0), 1)
     return (1 - (1 - u) ^ 3) * TURNS * 2 * math.pi
+end
+
+-- FLOW with depth: the word stacked a few times, each copy a pixel lower and
+-- to the right and darker (the sides of the letters), the gold face on top
+-- and a faint light edge above it.
+local function deepText(f)
+    local layers = {}
+    local function face(dx, dy, r, g, b, a, outline)
+        local fs = f:CreateFontString(nil, "OVERLAY")
+        local ok = pcall(fs.SetFont, fs, "Fonts\\MORPHEUS.TTF", 17, outline or "")
+        if not ok or not fs:GetFont() then fs:SetFont(STANDARD_TEXT_FONT, 15, outline or "") end
+        fs:SetPoint("CENTER", f, "CENTER", dx, dy + 2)
+        fs:SetTextColor(r, g, b, a)
+        fs:SetText("FLOW")
+        layers[#layers + 1] = fs
+        return fs
+    end
+    for i = 4, 1, -1 do face(i * 0.6, -i * 0.6, 0.30 - i * 0.05, 0.17 - i * 0.03, 0.02, 1) end  -- sides
+    face(0, 0.7, 1, 1, 0.85, 0.55)                       -- light edge
+    face(0, 0, 1, 0.82, 0.25, 1, "OUTLINE")              -- gold face
+    local t = {}
+    function t:SetAlpha(v) for _, l in ipairs(layers) do l:SetAlpha(v) end end
+    function t:SetShown(v) for _, l in ipairs(layers) do l:SetShown(v) end end
+    function t:Show() self:SetShown(true) end
+    function t:Hide() self:SetShown(false) end
+    return t
 end
 
 local driver = CreateFrame("Frame")
@@ -47,18 +75,17 @@ function I:Play()
     local f = ns.nav and ns.nav.arrowFrame
     if not (f and f.arrow) or ns.db.nav.enabled == false then ns.nav.intro = nil return end
     local a = f.arrow
-    if not f.introText then
-        f.introText = f:CreateFontString(nil, "OVERLAY")
-        f.introText:SetFont(STANDARD_TEXT_FONT, 13, "OUTLINE")
-        f.introText:SetPoint("CENTER", 0, 1)
-        f.introText:SetTextColor(1, 0.82, 0.25)
-        f.introText:SetText("FLOW")
-    end
+    f.introText = f.introText or deepText(f)
     ns.nav.intro = true   -- the arrow's own update leaves it alone meanwhile
     f:Show()
     local col = ns.theme.route
     a:SetVertexColor(col[1], col[2], col[3])
+    -- The pillars, tall and spinning, FLOW where the sphere would be.
+    local pillars = a.SetRingSpin ~= nil   -- (the flat arrow has no pillars: it spins itself)
+    a.noBall, a.spinning = true, true
     a:SetArrived(false)
+    if pillars then a:SetArrived(true) end
+    a:SetRotation(0)
     f.text:SetText("|cffffd200Flow|r |cffbbbbbb(unfettered)|r")
     local ok, s = pcall(I.Status)
     f.sub:SetText("v" .. version() .. (ok and ("  ·  " .. s) or ""))
@@ -66,6 +93,14 @@ function I:Play()
     f.introText:Show()
     local t0 = GetTime()
     f.introStatusAt = nil
+    local function finish()
+        driver:SetScript("OnUpdate", nil)
+        f.introText:Hide()
+        a.noBall, a.spinning = nil, nil
+        if pillars then a:SetRingSpin(0) end
+        a:SetArrived(false)
+        ns.nav.intro = nil   -- back to pointing the way
+    end
     driver:SetScript("OnUpdate", function()
         local t = GetTime() - t0
         -- Quest data and the route arrive during the intro: keep the status current.
@@ -75,16 +110,18 @@ function I:Play()
             f.sub:SetText("v" .. version() .. (okS and ("  ·  " .. st) or ""))
         end
         if t < SPIN then
-            a:SetRotation(I.SpinAngle(t))
-            f.introText:SetAlpha(t / SPIN)
-        elseif t < SPIN + HOLD then
-            if not a.arrived then a:SetArrived(true) end   -- the ring, FLOW in the middle
-            f.introText:SetAlpha(1)
+            if pillars then a:SetRingSpin(I.SpinAngle(t)) else a:SetRotation(I.SpinAngle(t)) end
+            f.introText:SetAlpha(math.min(1, t / 0.6))   -- FLOW fades in fast
+        elseif t < SPIN + TAIL then
+            if a.spinning then
+                -- Pillars still and short again, the arrow appears over them.
+                a.spinning = nil
+                if pillars then a:SetRingSpin(0) end
+                a:SetArrived(false)
+            end
+            f.introText:SetAlpha(math.max(0, 1 - (t - SPIN) / 0.4))   -- FLOW fades out
         else
-            driver:SetScript("OnUpdate", nil)
-            f.introText:Hide()
-            a:SetArrived(false)
-            ns.nav.intro = nil   -- back to pointing the way
+            finish()
         end
     end)
 end
@@ -107,7 +144,7 @@ ns:On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
             local ok = pcall(I.Play, I)
             if not ok and ns.nav then ns.nav.intro = nil end
             -- Never leave the arrow held if the intro didn't run to the end.
-            C_Timer.After(SPIN + HOLD + 2, function() if ns.nav and not driver:GetScript("OnUpdate") then ns.nav.intro = nil end end)
+            C_Timer.After(SPIN + TAIL + 2, function() if ns.nav and not driver:GetScript("OnUpdate") then ns.nav.intro = nil end end)
         end
     end
 end)

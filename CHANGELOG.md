@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.38
+- The 3D arrow's ring has height: its dots are now little pillars with lit caps (short while
+  it points the way, tall and glowing in the route colour when you've arrived). The dot in the
+  middle is now a shaded sphere floating over its shadow.
+- New login intro: the pillars stand tall and spin fast around a deep gold FLOW, slowing to a
+  stop, with "Flow (unfettered)", the version and status underneath; then the arrow appears
+  over the still pillars.
+- What the route optimises is now pluggable (for contributors): a `routeObjective` registry.
+  Most XP and Shortest are the built-in ones; others (fishing only, a profession race) are a
+  registration away. `/flow nav sort` lists them.
+
 ## 0.35.37
 - Fixed a "blocked" error: dragging the Flow cast icon when a fight started tried to finish the
   move in combat, which the game forbids for that button. A drag still going when combat
