@@ -13,20 +13,24 @@ local clock = debugprofilestop
 -- unchanged (callers keep their own pcall).
 function P.Wrap(name, fn)
     if not clock then return fn end
-    local st = P.stats[name] or { calls = 0, total = 0, max = 0 }
+    local st = P.stats[name] or { calls = 0, total = 0, max = 0, kb = 0 }
     P.stats[name] = st
     return function(...)
-        local t0 = clock()
+        local m0, t0 = collectgarbage("count"), clock()
         local a, b, c, d = fn(...)
         local ms = clock() - t0
         st.calls, st.total = st.calls + 1, st.total + ms
         if ms > st.max then st.max = ms end
+        -- Memory it made (garbage to clean up later): the cleaner's work is
+        -- CPU too, and a big number here is what swells "memory".
+        local made = collectgarbage("count") - m0
+        if made > 0 then st.kb = st.kb + made end
         return a, b, c, d
     end
 end
 
 function P:Reset()
-    for _, st in pairs(self.stats) do st.calls, st.total, st.max = 0, 0, 0 end
+    for _, st in pairs(self.stats) do st.calls, st.total, st.max, st.kb = 0, 0, 0, 0 end
     self.since = GetTime()
 end
 
@@ -48,12 +52,16 @@ function P:Report()
     end
     table.sort(rows, function(a, b) return a.st.total > b.st.total end)
     local kb = memoryKB()
-    out[#out + 1] = string.format("over %d s: Flow used %.2f ms per second (%.2f%% of one CPU core), memory %s",
-        secs, sum / secs, sum / secs / 10, kb and string.format("%.1f MB", kb / 1024) or "?")
+    -- What Flow really keeps: after a full clean-up of the garbage.
+    collectgarbage("collect")
+    local kept = memoryKB()
+    out[#out + 1] = string.format("over %d s: Flow used %.2f ms per second (%.2f%% of one CPU core), memory %s (%s kept after clean-up)",
+        secs, sum / secs, sum / secs / 10, kb and string.format("%.1f MB", kb / 1024) or "?",
+        kept and string.format("%.1f MB", kept / 1024) or "?")
     for _, r in ipairs(rows) do
         local st = r.st
-        out[#out + 1] = string.format("  %-26s %6.2f ms/s  avg %5.2f ms  worst %6.1f ms  (%d calls)",
-            r.name, st.total / secs, st.total / st.calls, st.max, st.calls)
+        out[#out + 1] = string.format("  %-26s %6.2f ms/s  avg %5.2f ms  worst %6.1f ms  makes %6.1f KB/s  (%d calls)",
+            r.name, st.total / secs, st.total / st.calls, st.max, (st.kb or 0) / secs, st.calls)
     end
     -- One frame at 60 fps is ~16 ms: anything near that is a hitch you'd feel.
     for _, r in ipairs(rows) do

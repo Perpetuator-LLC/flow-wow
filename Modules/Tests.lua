@@ -607,11 +607,11 @@ ns:Register("test", "actions: fishing steps on the Flow key", function(t)
     t:ok(not X.IsPole(2901), "Mining Pick is not a pole")
     local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
     -- Not at the fishing stop: no fishing steps.
-    t:eq(get("fish:cast", { at = false, prof = "Fishing", pole = true }), nil, "no cast away from the spot")
+    t:eq(get("fish:cast", { fishing = false, prof = "Fishing", pole = true }), nil, "no cast away from the spot")
     t:eq(get("fish:equip", { at = true, prof = "Mining", pole = false }), nil, "no pole at a mining stop")
     -- At the spot with the pole on: cast (when you know Fishing and aren't fishing yet).
     if ns.api.SpellInfo("Fishing") and not (UnitChannelInfo and UnitChannelInfo("player")) then
-        local s = get("fish:cast", { at = true, prof = "Fishing", pole = true })
+        local s = get("fish:cast", { fishing = true, atFish = true, prof = "Fishing", pole = true })
         t:eq(s and s.spell, "Fishing", "casts Fishing at the spot")
     end
     -- Nothing to put back when Flow didn't swap anything.

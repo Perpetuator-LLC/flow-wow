@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.29
+- `/flow perf` also shows how much memory each part churns through (KB/s), and how much Flow
+  really keeps after a clean-up, to track down a memory reading of 96 MB.
+- Fixed a self-test that still used the old fishing check.
+
 ## 0.35.28
 - Smoother: Flow no longer re-plans the route every 8 seconds while you stand still (only after
   you move 30 yards, or when something changes), and the background refresh of the stop list
