@@ -207,6 +207,42 @@ function A.IsCurrent(spell)
     return Safe(r) and true or false
 end
 
+
+-- Auto attack switched on (either name: "Auto Attack" on newer clients,
+-- "Attack" on older ones).
+function A.Swinging()
+    return A.IsCurrent("Auto Attack") or A.IsCurrent("Attack")
+end
+
+-- Your health is hidden from add-ons on Forever, but the game's own
+-- low-health warning (the red screen flash, about a third of your health or
+-- less) is drawn by Blizzard's code, and whether it's showing can be read.
+-- true / false, or nil when this client has no such warning (or hides it).
+function A.LowHealthWarning()
+    local f = _G.LowHealthFrame
+    if not f then return nil end
+    local ok, shown = pcall(f.IsShown, f)
+    shown = ok and Safe(shown)
+    if shown == nil then return nil end
+    if not shown then return false end
+    local okA, alpha = pcall(f.GetAlpha, f)
+    alpha = okA and Safe(alpha)
+    return alpha == nil or alpha > 0.05
+end
+
+-- What's stopping you right now (stunned, feared...): the game's
+-- loss-of-control type ("STUN", "FEAR", "CHARM", "ROOT"...), or nil.
+function A.LossOfControl()
+    local L = C_LossOfControl
+    if not (L and L.GetActiveLossOfControlDataCount and L.GetActiveLossOfControlData) then return nil end
+    local okN, n = pcall(L.GetActiveLossOfControlDataCount)
+    n = okN and Safe(n)
+    for i = 1, (n or 0) do
+        local okD, d = pcall(L.GetActiveLossOfControlData, i)
+        local t = okD and d and Safe(d.locType)
+        if t then return t end
+    end
+end
 -- Can this client give addons the combat log? Newer clients (the ones with
 -- "secret" values, which includes Forever) treat registering for it as an
 -- action only the Blizzard UI may take, and show an "Interface action

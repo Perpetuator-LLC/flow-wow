@@ -75,6 +75,8 @@ function E:Context()
         casting = A.Casting(),
         fightType = ns.fight and ns.fight:Classify() or "normal",
         role = ns.LevelingRole and ns:LevelingRole() or "dps",
+        lowHealth = A.LowHealthWarning(),   -- the game's red low-health warning is on
+        loc = A.LossOfControl(),            -- "STUN", "FEAR"... when something holds you
         engine = self,
     }
 end
@@ -195,6 +197,56 @@ function E:AfterFightHeal(ctx, def, now)
     end
 end
 
+
+-------------------------------------------------------------------------------
+-- When your health is hidden: the game's low-health warning
+-------------------------------------------------------------------------------
+
+-- Heal when the game's low-health warning is on (your health itself is
+-- hidden from add-ons on Forever). The fastest heal you can cast: at a third
+-- of your health there's no time for a slow one. In combat it shows on the
+-- Flow icon and glows on your bar (the key is locked for the fight).
+function E:LowHealthHeal(ctx, heals)
+    if ctx.maxHp > 0 or not ctx.lowHealth or UnitIsDeadOrGhost("player") then return nil end
+    if ctx.casting then
+        for _, h in ipairs(heals) do if h == ctx.casting then return nil end end
+    end
+    local best, bestCast
+    for _, spell in ipairs(heals) do
+        if self:Ready(spell) then
+            local _, _, castMs = A.SpellInfo(spell)
+            if not bestCast or (castMs or 0) < bestCast then best, bestCast = spell, castMs or 0 end
+        end
+    end
+    if not best then return nil end
+    return { spell = best, kind = ctx.inCombat and "emergency" or "heal",
+             reason = "Low health (the game's warning is on): heal now" }
+end
+
+-------------------------------------------------------------------------------
+-- Breaking free (stuns, fears...)
+-------------------------------------------------------------------------------
+
+-- Spells that get you out, and what they break. "any" = every kind of loss of
+-- control. Racials first; extend with ns.rotation.BREAKERS.
+E.BREAKERS = {
+    { spell = "Will to Survive", any = true },             -- human (newer clients)
+    { spell = "Every Man for Himself", any = true },       -- human
+    { spell = "Will of the Forsaken", types = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, SLEEP = true } },
+    { spell = "Escape Artist", types = { ROOT = true } },  -- gnome
+    { spell = "Blessing of Freedom", types = { ROOT = true } },
+}
+
+function E:BreakFree(ctx)
+    local t = ctx.loc
+    if not t then return nil end
+    for _, b in ipairs(E.BREAKERS) do
+        if (b.any or (b.types and b.types[t])) and self:Ready(b.spell) then
+            return { spell = b.spell, kind = "emergency", fightType = ctx.fightType,
+                     reason = string.format("You're held (%s): break free", t:lower():gsub("_", " ")) }
+        end
+    end
+end
 function E:Choose()
     local def = self:Definition()
     if not def then return nil end
@@ -202,8 +254,16 @@ function E:Choose()
     pcall(T.SampleTarget, T)
     local ctx = self:Context()
 
+    -- Stunned, feared, charmed...: break free first, if you can.
+    local brk = self:BreakFree(ctx)
+    if brk then return brk end
+
     if def.heals then
         local h = self:HealDecision(ctx, def.heals)
+        if h then h.fightType = ctx.fightType; return h end
+        -- Your health is hidden (Forever): the game's own low-health warning
+        -- says when you're at about a third or less: heal now, fastest first.
+        h = self:LowHealthHeal(ctx, def.heals)
         if h then h.fightType = ctx.fightType; return h end
     end
 

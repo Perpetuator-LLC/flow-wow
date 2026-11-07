@@ -81,6 +81,25 @@ local function buildIcon(cfg)
     f.timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
     f.timer:SetPoint("CENTER", 0, 0)
     f.timer:SetTextColor(1, 0.95, 0.7)
+    -- Auto attack on: a small crossed-swords badge on the top-left corner,
+    -- gently pulsing while you're swinging.
+    f.swing = CreateFrame("Frame", nil, f.timerLayer)
+    f.swing:SetSize(18, 18)
+    f.swing:SetPoint("CENTER", f, "TOPLEFT", 2, -2)
+    f.swing.back = f.swing:CreateTexture(nil, "BACKGROUND")
+    f.swing.back:SetPoint("TOPLEFT", -1, 1); f.swing.back:SetPoint("BOTTOMRIGHT", 1, -1)
+    f.swing.back:SetColorTexture(0, 0, 0, 0.85)
+    f.swing.tex = f.swing:CreateTexture(nil, "ARTWORK")
+    f.swing.tex:SetAllPoints()
+    f.swing.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local _, swingIcon = A.SpellInfo("Auto Attack")
+    f.swing.tex:SetTexture(swingIcon or "Interface\\Icons\\INV_Sword_04")
+    local pulse = f.swing:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local fade = pulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
+    f.swing.pulse = pulse
+    f.swing:Hide()
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
@@ -281,6 +300,12 @@ local function onUpdate(_, dt)
     E.shown = s   -- what the icon shows = what the key does (Cast.lua)
     local okR, err = pcall(render, s, cfg)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
+    -- Swords badge while auto attack is on.
+    local swinging = icon:IsShown() and A.Swinging()
+    if swinging ~= icon.swing:IsShown() then
+        icon.swing:SetShown(swinging)
+        if swinging then icon.swing.pulse:Play() else icon.swing.pulse:Stop() end
+    end
 end
 
 ns:OnLoad(function(saved)

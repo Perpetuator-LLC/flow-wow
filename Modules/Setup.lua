@@ -51,6 +51,11 @@ cvarRow("autoPush", 50, "Auto-place new spells on bars",
 cvarRow("softInteract", 52, "Interact key reaches objects",
     "Your Interact key (and Flow's key while fishing or mining) reels in the bobber and gathers the vein or herb in front of you.",
     "SoftTargetInteract", "3", "0", true, true)
+-- Your health is hidden from add-ons; the game's red low-health flash is how
+-- Flow knows to suggest a heal. (The game's option is "don't flash": off = flash.)
+cvarRow("lowHealthFlash", 53, "Low-health screen warning",
+    "The red screen flash when your health is low. Flow uses it to suggest a heal (your health itself is hidden from add-ons).",
+    "doNotFlashLowHealthWarning", "0", "1", true, true)
 
 -- Target of target: classic-style clients have a CVar; newer ones put it in Edit Mode
 -- (Target Frame > "Target of Target"), so that case is an info row telling you where.

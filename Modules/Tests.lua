@@ -1061,3 +1061,20 @@ ns:Register("test", "Flow button: cooldown timer text", function(t)
     t:eq(T(0.5, 300, 100), "4m", "minutes when long")
     t:eq(T(10, 30, 100), "", "finished: no timer")
 end)
+
+ns:Register("test", "rotation: heal on the game's low-health warning; break free when held", function(t)
+    local E, def = ns.rotation, ns.rotation:Definition()
+    if not (def and def.heals) then t:ok(true, "(no heals for this class)") return end
+    -- Health hidden (maxHp 0) and the warning on: the fastest ready heal.
+    local h = E:LowHealthHeal({ maxHp = 0, lowHealth = true, inCombat = true }, def.heals)
+    local anyReady = false
+    for _, s in ipairs(def.heals) do if E:Ready(s) then anyReady = true end end
+    if anyReady then
+        t:ok(h and h.kind == "emergency", "warning on in combat: emergency heal")
+    end
+    t:eq(E:LowHealthHeal({ maxHp = 0, lowHealth = false }, def.heals), nil, "warning off: no heal")
+    t:eq(E:LowHealthHeal({ maxHp = 100, hp = 30, lowHealth = true }, def.heals), nil, "health readable: the normal heal logic decides")
+    -- Not held: nothing to break.
+    t:eq(E:BreakFree({ loc = nil }), nil, "not held: no break-free")
+    t:ok(type(ns.api.Swinging()) == "boolean", "auto attack state readable")
+end)
