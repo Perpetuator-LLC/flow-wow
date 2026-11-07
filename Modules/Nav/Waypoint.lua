@@ -1,6 +1,6 @@
 -- Your own waypoint. It is NOT a stop on the route: while it's set the arrow
--- points there in orange (Nav.lua, N.WaypointChoice), the map draws an orange
--- line to it and the Flow Router an orange line above the route, and the
+-- points there in green (Nav.lua, N.WaypointChoice), the map draws a green
+-- line to it and the Flow Router a green line above the route, and the
 -- route itself carries on unchanged. It clears itself when you arrive.
 --   Set:   paste coordinates (/flow way or /way, or right-click the arrow: Set a
 --          waypoint), Ctrl-click the world map (the game's own map pin, on clients that
@@ -46,7 +46,7 @@ function W:Set(map, x, y, note)
         ns.db.nav.waypoint = { map = map, x = x, y = y, note = note }
     end
     W.Changed()
-    ns:Print(string.format("waypoint set at %.1f, %.1f%s: the arrow points there in orange (your route waits)",
+    ns:Print(string.format("waypoint set at %.1f, %.1f%s: the arrow points there in green (your route waits)",
         x * 100, y * 100, note and (" (" .. note .. ")") or ""))
 end
 

@@ -182,7 +182,7 @@ ns:Register("test", "route colour shows its state: purple, blue, orange custom",
         with(ns.db.nav, "sorter", mode, function() ns.theme:UpdateRoute() end)
         t:eq(ns.theme.route.hex, hex, mode .. (mode == "selected" and " (old save: Custom route)" or ""))
     end
-    t:eq(ns.theme.waypoint.hex, "FF8000", "your waypoint: the same orange")
+    t:eq(ns.theme.waypoint.hex, "1EFF00", "your waypoint: green, not the Custom route orange")
     ns.theme:UsePalette(palette)
     ns.theme:UpdateRoute()
 end)
@@ -563,7 +563,7 @@ ns:Register("test", "map: the stop you're heading to has a white ring, the rest 
     if WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
 end)
 
-ns:Register("test", "waypoint: your own is an orange path, not a route stop", function(t)
+ns:Register("test", "waypoint: your own is a green path, not a route stop", function(t)
     t:ok(ns:Get("navGoal", "userWaypoint") == nil, "not a route goal any more")
     local p = ns.nav:PlayerPos()
     if not p then t:ok(true, "(no position)") return end
@@ -577,18 +577,18 @@ ns:Register("test", "waypoint: your own is an orange path, not a route stop", fu
         t:ok(ns.nav:Options().first ~= "user:wp", "the route isn't re-planned around it")
         local f = _G.FlowMapRoute
         if f and f.wp then
-            t:ok(f.wp:Update(), "the Flow Router shows its orange line")
+            t:ok(f.wp:Update(), "the Flow Router shows its green line")
             t:ok(f.wp.text:GetText():find("Your waypoint") ~= nil, "labelled Your waypoint")
         end
         local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
         if canvas then
             ns.mapOverlay._drawWaypoint(canvas, p.map)
             local pin = ns.mapOverlay.WaypointPin()
-            t:ok(pin and pin:IsShown(), "an orange (o) on the map")
+            t:ok(pin and pin:IsShown(), "a green (o) on the map")
             if pin then
                 local r, g, b = pin.ring:GetVertexColor()
                 local w = ns.theme.waypoint
-                t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "in the waypoint orange")
+                t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "in the waypoint green")
             end
         end
     end)
@@ -630,7 +630,33 @@ ns:Register("test", "menus: Most XP, Shortest and Custom route", function(t)
     t:ok(seen["Most XP first"] and seen["Shortest path"] and seen["Custom route"], "all three route states")
     t:ok(not seen["From selected"], "no old From selected")
     local c = seen["Custom route"]
-    if c then t:eq(c.checked and true or false, ns.xpValue:IsCustom(), "Custom route ticked only while it's on") end
+    if c then
+        t:eq(c.checked and true or false, ns.xpValue:IsCustom(), "Custom route ticked only while it's on")
+        t:eq(c.disabled and true or false, not ns.xpValue:IsCustom(), "greyed out on Most XP or Shortest")
+    end
+end)
+
+ns:Register("test", "router: Custom route button greyed out on Most XP or Shortest", function(t)
+    local f = _G.FlowMapRoute
+    local rb
+    for _, b in ipairs(f and f.sorts or {}) do if b.mode == "custom" then rb = b end end
+    if not rb then t:ok(true, "(Flow Router not built yet)") return end
+    local db = ns.db.nav
+    local saved = { sorter = db.sorter, shown = f:IsShown() }
+    local ok, err = pcall(function()
+        for _, mode in ipairs({ "xp", "distance", "custom" }) do
+            db.sorter = mode
+            ns.mapOverlay._updateList()
+            if f:IsShown() then
+                t:eq(rb:IsEnabled() and true or false, mode == "custom", mode .. ": Custom route " .. (mode == "custom" and "on" or "greyed out"))
+                t:eq(rb:GetChecked() and true or false, mode == "custom", mode .. ": ticked only when on")
+            end
+        end
+    end)
+    db.sorter = saved.sorter
+    pcall(ns.mapOverlay._updateList)
+    if not saved.shown then f:Hide() end
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
 end)
 
 ns:Register("test", "recipes: learning one at a trainer clears its stop", function(t)
@@ -892,7 +918,7 @@ ns:Register("test", "router: handle and help legend share one look", function(t)
     h:Hide()
 end)
 
-ns:Register("test", "router: the (o) is the route colour, your waypoint's orange", function(t)
+ns:Register("test", "router: the (o) is the route colour, your waypoint's green", function(t)
     local h = ns.mapOverlay.MakeHandle(UIParent, 16)
     h.active = true; h:Paint(false)
     local r, g, b = h.ring:GetVertexColor()
@@ -901,7 +927,7 @@ ns:Register("test", "router: the (o) is the route colour, your waypoint's orange
     h.ringColor = ns.theme.waypoint; h:Paint(false)
     r, g, b = h.ring:GetVertexColor()
     local w = ns.theme.waypoint
-    t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "your waypoint's (o) in orange")
+    t:near(r + g + b, w[1] + w[2] + w[3], 0.02, "your waypoint's (o) in green")
     h:Hide()
 end)
 

@@ -57,8 +57,8 @@ Flow for WoW is a separate project from Flow Engine.
   again. The top row's (o) is where you're heading (a white ring on the map). Tooltips show
   each stop's XP.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
-  here") isn't a stop on the route: the arrow turns legendary orange and points there along an
-  orange line on the map, then goes back to the route when you arrive or clear it.
+  here") isn't a stop on the route: the arrow turns green and points there along a green line
+  on the map, then goes back to the route when you arrive or clear it.
 - **Hub business first**: in a quest hub the route turns in every finished quest there and
   picks up the quests on offer before heading out, like a walkthrough.
 - **Quest areas**: in an objective area the arrow becomes a ring of little pillars that pop up

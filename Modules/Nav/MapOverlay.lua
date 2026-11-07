@@ -2,8 +2,8 @@
 --   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colours (Theme.lua): the route and arrow colour shows the order mode
 --     (purple = Most XP first, blue = Shortest path); hovering a ^ shows only
---     the route you'd follow, in legendary orange. Your own waypoint is an
---     orange line and (o) of its own. /flow settings has a colour-blind palette.
+--     the route you'd follow, in legendary orange. Your own waypoint is a
+--     green line and (o) of its own. /flow settings has a colour-blind palette.
 --   The stop you're heading to (route stop 1) has a white ring, the rest black.
 --   Click a stop: open it. The ^ in the Flow Router: go there first.
 
@@ -518,7 +518,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     end
 end
 
--- Your own waypoint on the map: an orange line from you to it and an orange
+-- Your own waypoint on the map: a green line from you to it and a green
 -- (o), apart from the route (which is drawn as usual). Right-click: clear it.
 local wpPin
 local function clearWaypoint()
@@ -548,7 +548,7 @@ local function makeWaypointPin()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         local w = ns.waypoint and ns.waypoint:Get()
         GameTooltip:AddLine("Your waypoint" .. ((w and w.note) and (": " .. w.note) or ""))
-        GameTooltip:AddLine("Not a stop on the route: the arrow points here in orange until you get there.", 1, 1, 1, true)
+        GameTooltip:AddLine("Not a stop on the route: the arrow points here in green until you get there.", 1, 1, 1, true)
         GameTooltip:AddLine("Right-click: clear it.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
@@ -812,7 +812,7 @@ function M.MakeHandle(parent, size)
             l:SetShown(not on)
         end
         self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
-        local rc = self.ringColor or c   -- (o): the route colour (your waypoint's: orange)
+        local rc = self.ringColor or c   -- (o): the route colour (your waypoint's: green)
         self.ring:SetVertexColor(rc[1], rc[2], rc[3], 1)
         self.dot:SetVertexColor(rc[1], rc[2], rc[3], 1)
         self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
@@ -821,7 +821,7 @@ function M.MakeHandle(parent, size)
     return go
 end
 
--- Your waypoint's line in the Flow Router: an orange (o), "Your waypoint:
+-- Your waypoint's line in the Flow Router: a green (o), "Your waypoint:
 -- <note>", how far, and an X to clear it. Hidden while none is set.
 -- :Update() shows or hides it and returns whether it's shown.
 function M.MakeWaypointRow(f)
@@ -866,7 +866,7 @@ function M.MakeWaypointRow(f)
     w:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Your waypoint")
-        GameTooltip:AddLine("Not a stop on the route: the arrow points here in orange, along the orange line on the map, until you get there. Then it's back to the route below.", 1, 1, 1, true)
+        GameTooltip:AddLine("Not a stop on the route: the arrow points here in green, along the green line on the map, until you get there. Then it's back to the route below.", 1, 1, 1, true)
         GameTooltip:AddLine("X or right-click: clear it.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
@@ -1120,7 +1120,7 @@ local function buildList()
     local SORTS = {
         { "xp", "Most XP", 6, "Most XP first (default): the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
         { "distance", "Shortest", 92, "Shortest path: nearest stops first, XP ignored." },
-        { "custom", "Custom route", 172, "You picked the next stop yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again." },
+        { "custom", "Custom route", 172, "On when you pick the next stop yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again. Greyed out while you're on one of those." },
     }
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -1145,7 +1145,7 @@ local function buildList()
     f.title:SetPoint("TOPRIGHT", -8, -84)
     f.title:SetJustifyH("LEFT")
 
-    -- Your own waypoint (Waypoint.lua), when you've set one: an orange line
+    -- Your own waypoint (Waypoint.lua), when you've set one: a green line
     -- above the route, not a stop in it. The arrow follows it (orange) until
     -- you get there or clear it; the route below carries on as it was.
     f.wp = M.MakeWaypointRow(f)
@@ -1279,7 +1279,16 @@ local function updateList()
     list.hint:SetShown(not hidden)
     list.routeDrop:SetShown(not hidden)
     list.routeDrop:Update()
-    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Mode() == rb.mode) end
+    for _, rb in ipairs(list.sorts) do
+        local on = ns.xpValue:Mode() == rb.mode
+        rb:SetChecked(on)
+        if rb.mode == "custom" then
+            -- Greyed out on Most XP or Shortest: a Custom route starts by
+            -- picking a stop (its ^), not here. (Its tooltip still says how.)
+            rb:SetEnabled(on)
+            rb.label:SetText(on and ns.theme:ModeText("custom", "Custom route") or "|cff777777Custom route|r")
+        end
+    end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -1354,6 +1363,7 @@ local function updateList()
         end
     end
 end
+M._updateList = function() updateList() end   -- (tests)
 
 function M:Redraw()
     local c = canvas()

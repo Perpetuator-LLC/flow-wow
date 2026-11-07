@@ -13,23 +13,23 @@ end
 --   Shortest path       rare blue     optimised
 --   Custom route        legendary orange: you picked the next stop (a ^);
 --                       stays until you choose Most XP or Shortest again
--- Your own waypoint is the same orange (also your choice): the arrow and a
--- line on the map to it. Hovering a ^ previews that route in orange too. The
--- stop under your mouse is red.
+-- Your own waypoint is green (uncommon green), its own colour so it never
+-- reads as a Custom route: the arrow and a line on the map to it. Hovering a
+-- ^ previews that route in orange. The stop under your mouse is red.
 -- Colour-blind palette (/flow settings): Okabe-Ito equivalents that stay
 -- apart for the common kinds of colour blindness.
 local PALETTES = {
     standard = {
         modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), custom = rgb("FF8000"), selected = rgb("FF8000") },
         proposed = rgb("FF8000"),  -- legendary orange: the route you'd follow if you pick the hovered stop
-        waypoint = rgb("FF8000"),  -- legendary orange: your own waypoint (arrow, map line, Router line)
+        waypoint = rgb("1EFF00"),  -- uncommon green: your own waypoint (arrow, map line, Router line)
         changed  = rgb("9A9A9A"),  -- grey: your route while previewing another
         hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
     },
     colorblind = {
         modes    = { xp = rgb("CC79A7"), distance = rgb("0072B2"), custom = rgb("E69F00"), selected = rgb("E69F00") },
         proposed = rgb("E69F00"),
-        waypoint = rgb("E69F00"),
+        waypoint = rgb("009E73"),  -- bluish green
         changed  = rgb("9A9A9A"),
         hover    = rgb("D55E00"),
     },

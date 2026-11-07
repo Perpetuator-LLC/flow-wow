@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.61
+- Your own waypoint is green now (arrow, map line and (o), and its line in the Flow Router),
+  so it never looks like a Custom route. Orange means Custom route only. (Colour-blind
+  palette: a bluish green.)
+- The Custom route button in the Flow Router is greyed out while you're on Most XP or
+  Shortest: it comes on by itself when you pick a stop's ^. Same in the right-click menus.
+
 ## 0.35.60
 - Finished quests are on the route again. Flow looked for each quest's turn-in NPC under a
   name Questie no longer uses ("Finishes"; today's Questie says "Finisher"), so no turn-in

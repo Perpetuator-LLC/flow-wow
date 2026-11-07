@@ -900,7 +900,7 @@ end
 --           "!" quest pickups puts all pickups first: !3 -> the other pickups
 --           -> then the normal plan)
 -- Your own waypoint (Waypoint.lua) is NOT part of the route: see
--- N.WaypointChoice (the arrow follows it in orange while it's set).
+-- N.WaypointChoice (the arrow follows it in green while it's set).
 -------------------------------------------------------------------------------
 
 N.planVersion = 0
@@ -1193,7 +1193,7 @@ end
 
 -- Your own waypoint (Waypoint.lua: Ctrl/Alt-click the map, /way, "Point the
 -- arrow here"). It isn't a route stop: while it's set the arrow points at it,
--- in the waypoint orange, the map draws an orange line to it, and the route
+-- in the waypoint green, the map draws a green line to it, and the route
 -- carries on unchanged underneath. It clears itself when you get there.
 -- Returns { goal, point, d, waypoint = true } like choose(), or nil (none set,
 -- or it's on another continent).
@@ -1946,7 +1946,7 @@ local function update()
     if frame.arrow.SetWave then
         frame.arrow:SetWave(here and frame.arrow.arrived and ((spotD and spotD <= SPOT_ON) or choice.d < ARRIVED * 2))
     end
-    local c = choice.waypoint and ns.theme.waypoint or ns.theme.route   -- your waypoint: orange
+    local c = choice.waypoint and ns.theme.waypoint or ns.theme.route   -- your waypoint: green
     frame.arrow:SetVertexColor(c[1], c[2], c[3])
     frame:Show()
     if panel and panel:IsShown() then showPanel() end
