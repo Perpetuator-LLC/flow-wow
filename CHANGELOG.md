@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.48
+- The Flow button shows a small crossed-swords badge (top-left, gently pulsing) while auto
+  attack is on.
+- Heals: your health is hidden from add-ons on WoW: Forever, so Flow's heal timing never fired.
+  It now uses the game's own low-health warning (the red screen flash, about a third of your
+  health): when it's on, Flow suggests your fastest heal. In combat that's on the Flow icon and
+  glowing on your bar (the key itself is locked for the fight). New suggested setting:
+  "Low-health screen warning" (needed for this).
+- Stunned, feared or rooted: Flow suggests the spell that breaks you free when you have one
+  (Will to Survive or Every Man for Himself, Will of the Forsaken, Escape Artist, Blessing of
+  Freedom for roots).
+- `/flow api` reports whether the low-health warning and loss-of-control can be read here.
+
 ## 0.35.47
 - The Flow button shows a cooldown timer: seconds left, big in the middle of the icon (tenths
   under 10 s, minutes when long). Not for the 1.5 s global cooldown. Items too (a lure...).
