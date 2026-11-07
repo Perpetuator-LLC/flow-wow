@@ -27,6 +27,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `profGuide` | profession name | `{ kind = "craft"|"gather", tool, steps = { {recipe, item, learn, yellow, green, grey, mats, station} }, nodes }` | Skill planner (`Modules/Crafting/SkillPlan.lua`) |
 | `itemSource` | item ID | `{ name, gather, objects, node, skill, yield }` or `{ smelt = {from, n, skill} }` or `{ drops = {npc names} }` or `{ vendor = true }` | Skill planner: where materials come from |
 | (perf) | `ns.perf.Wrap(name, fn)` | timed function | `/flow perf`, diagnostics snapshot |
+| `weaponMaster` | NPC name | `{ skills = { [itemSubclassID] = true } }` | Weapon master stops when an upgrade needs a weapon skill (`Modules/Gear/WeaponSkills.lua`) |
 | `routeObjective` | e.g. `xp`, `distance` | `{ label, tip, color, weigh = fn(goal, ctx) -> multiplier, keep = fn(goal, ctx) -> bool }` | What the route optimises (`Modules/Nav/XpValue.lua`); `/flow nav sort <key>` |
 | `test` | "area: what it checks" | `fn(t)` with `t:ok`, `t:eq`, `t:near` | `/flow test`, diagnostics snapshot |
 | `mount` | race token, e.g. `Human` | `{ trainer, vendor, what }` NPC names | Mount milestone (`Modules/Nav/Mounts.lua`) |
