@@ -777,3 +777,15 @@ ns:Register("test", "actions: an enemy targeted with the pole on: weapon back fi
     end
     ns.db.actions.weapons = saved
 end)
+
+ns:Register("test", "actions: no endless casts where there's no water", function(t)
+    local X, saved = ns.actions, ns.db.actions.dryAt
+    t:ok(not X.NoteDry("Not enough mana"), "other errors ignored")
+    t:ok(X.NoteDry("Your cast didn't land in fishable water"), "the no-water message is noted")
+    if ns.nav:PlayerPos() then
+        local ctx = X:Context()
+        t:ok(ctx.noWater, "here counts as no water now")
+        t:ok(ctx.atFish or not ctx.fishing, "off a fishing stop: not fishing here any more")
+    end
+    ns.db.actions.dryAt = saved
+end)

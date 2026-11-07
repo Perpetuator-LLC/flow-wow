@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.35
+- Fixed: after a fight away from the water, the Flow key kept offering "Cast your line" and
+  the game said "didn't land in fishable water" over and over. Now that message tells Flow
+  there's no water there: away from a fishing stop it offers to put your weapons back
+  instead; at one, it says "Face the water, then cast".
+
 ## 0.35.34
 - Target an enemy with your Fishing Pole still on, and the Flow key puts your weapon back on
   first (then your shield), before your pull, even at the fishing spot. If Flow didn't note

@@ -200,13 +200,19 @@ function X:Context()
     local pole = X.IsPole(equipped(MAIN))
     local atFish = prof == "Fishing" and near(goal, p, FISH_NEAR) or false
     local spot = ns.db.actions.fishedAt
+    -- The game said "didn't land in fishable water" here: no water in front
+    -- of you. Off a fishing stop that means stop offering Fishing (weapons
+    -- back instead); at one, it means turn to face the water.
+    local dry = ns.db.actions.dryAt
+    local noWater = dry and dist(p, dry) < 15 or false
     return {
         p = p, goal = goal, prof = prof, pole = pole,
         at = goal and near(goal, p, NEAR) or false,
-        atFish = atFish,
+        atFish = atFish, noWater = noWater,
         -- Fishing now: at a fishing stop, or the pole is on and you're still
-        -- where you put it on / last cast (or haven't said where yet).
-        fishing = atFish or (pole and (not spot or dist(p, spot) < FISH_LEFT)) or false,
+        -- where you put it on / last cast (or haven't said where yet), and
+        -- the last cast here didn't miss the water.
+        fishing = atFish or (pole and not noWater and (not spot or dist(p, spot) < FISH_LEFT)) or false,
     }
 end
 
@@ -214,8 +220,19 @@ end
 ns:On("UNIT_SPELLCAST_CHANNEL_START", function(unit, _, spellID)
     if unit ~= "player" then return end
     local name = A.SpellInfo(A.Safe(spellID) or 0)
-    if name == "Fishing" then markFishingSpot() end
+    if name == "Fishing" then markFishingSpot(); ns.db.actions.dryAt = nil end
 end)
+
+-- "Your cast didn't land in fishable water": remember where, so the key
+-- stops offering a cast there (it repeated this 10 times after a fight).
+function X.NoteDry(msg)
+    local want = _G.SPELL_FAILED_NOT_FISHABLE
+    if type(msg) ~= "string" or not ((want and msg == want) or msg:find("fishable", 1, true)) then return false end
+    local p = ns.nav and ns.nav:PlayerPos()
+    if p then ns.db.actions.dryAt = { cont = p.cont, wx = p.wx, wy = p.wy } end
+    return true
+end
+ns:On("UI_ERROR_MESSAGE", function(_, msg) X.NoteDry(A.Safe(msg)) end)
 
 -------------------------------------------------------------------------------
 -- The steps
@@ -258,7 +275,8 @@ end })
 ns:Register("action", "fish:cast", { order = 40, get = function(ctx)
     if not (ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
     if not knows("Fishing") then return nil end
-    return { type = "spell", spell = "Fishing", unit = "player", icon = spellIcon("Fishing"), label = "Cast your line" }
+    return { type = "spell", spell = "Fishing", unit = "player", icon = spellIcon("Fishing"),
+             label = ctx.noWater and "Face the water, then cast" or "Cast your line" }
 end })
 
 -- Mining / Herbalism: tracking on, then the key gathers (Interact).
