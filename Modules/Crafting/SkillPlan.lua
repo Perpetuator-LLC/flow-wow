@@ -340,6 +340,24 @@ end
 
 local watched = {}  -- item IDs whose counts change the plan
 
+-- The tool a profession needs (guide `tool`: Mining Pick, Blacksmith Hammer,
+-- Fishing Pole) when you don't have one: a "Buy a X" stop, and X's name so
+-- the stops that need it can say "needs a X". Nothing when you have it.
+-- Also used for the optional skill-ups in Goals.lua.
+function SP:ToolGoal(prof)
+    local g = ns:Get("profGuide", prof)
+    if not (g and g.tool) or hasTool(prof, g.tool) then return nil, nil end
+    local name = itemName(g.tool)
+    watched[g.tool] = true
+    local pts, _, sellers = vendorPoints(g.tool)
+    return {
+        key = "buy:" .. g.tool, kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(g.tool),
+        title = prof, text = "Buy a " .. name,
+        details = { "Needed for " .. prof .. "." },
+        blockedBy = #pts == 0 and ("Flow doesn't know who sells a " .. name .. " (try a trade supplies vendor)") or nil,
+    }, name
+end
+
 local function planProfession(prof, t, out)
     local g = ns:Get("profGuide", prof)
     local rank, max = A.Skill(prof)
@@ -386,23 +404,19 @@ local function planProfession(prof, t, out)
             end)())
             for _, pt in ipairs(o) do points[#points + 1] = pt end
         end
+        local tool, missing = SP:ToolGoal(prof)
+        if tool then add(tool) end
         add({ key = "skill:" .. prof, kind = "skill", points = points,
               text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target),
-              blockedBy = #points == 0 and ("no known " .. prof .. " spot on this map") or nil })
+              details = g.tip and { g.tip } or nil,
+              blockedBy = (missing and ("needs a " .. missing))
+                  or (#points == 0 and ("no known " .. prof .. " spot on this map")) or nil })
         return
     end
 
     -- Tool in your bags?
-    local toolMissing
-    if g.tool and not hasTool(prof, g.tool) then
-        toolMissing = itemName(g.tool)
-        watched[g.tool] = true
-        local pts, _, sellers = vendorPoints(g.tool)
-        add({ key = "buy:" .. g.tool, kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(g.tool),
-              text = "Buy a " .. toolMissing,
-              details = { "Needed for " .. prof .. "." },
-              blockedBy = #pts == 0 and ("Flow doesn't know who sells a " .. toolMissing .. " (try a trade supplies vendor)") or nil })
-    end
+    local toolGoal, toolMissing = SP:ToolGoal(prof)
+    if toolGoal then add(toolGoal) end
 
     -- Mining also levels from the veins themselves.
     local steps = g.steps or {}

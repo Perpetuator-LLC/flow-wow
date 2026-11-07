@@ -261,6 +261,7 @@ ns:Register("navGoal", "errands", {
         local target = A.ProfessionTarget(UnitLevel("player"))
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
+        local toolAdded = {}
         for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
             if rank and rank + 10 < target and rank < max and not (ns.skillPlan and ns.skillPlan:Handles(p.name)) then
@@ -276,12 +277,24 @@ ns:Register("navGoal", "errands", {
                         end
                     end
                     if #points > 0 then
+                        -- No pole (pick, ...) yet: buying one comes first.
+                        local tool, missing
+                        if ns.skillPlan and ns.skillPlan.ToolGoal then tool, missing = ns.skillPlan:ToolGoal(p.name) end
+                        if tool and not toolAdded[tool.key] then
+                            toolAdded[tool.key] = true
+                            tool.optional, tool.weight = true, 1.2
+                            out[#out + 1] = tool
+                        end
+                        local guide = ns:Get("profGuide", p.name)
+                        local details = { string.format("%s is behind your level: %d now, about %d is right for level %d.",
+                                p.name, rank, target, UnitLevel("player")),
+                                "Optional: only planned when it's roughly on the way." }
+                        if guide and guide.tip then details[#details + 1] = guide.tip end
                         out[#out + 1] = {
                             key = "skill:" .. p.name, optional = true, weight = 1.5, points = points,
                             title = spot.text, text = string.format("%s (%s %d, aim for %d)", spot.text, p.name, rank, target),
-                            details = { string.format("%s is behind your level: %d now, about %d is right for level %d.",
-                                p.name, rank, target, UnitLevel("player")),
-                                "Optional: only planned when it's roughly on the way." },
+                            details = details,
+                            blockedBy = missing and ("needs a " .. missing) or nil,
                         }
                     end
                 end

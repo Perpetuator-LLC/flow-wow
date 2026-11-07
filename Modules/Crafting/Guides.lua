@@ -52,6 +52,7 @@ ns:Register("itemSource", 769,  { name = "Chunk of Boar Meat", rate = 0.45, drop
 -- price: copper, approximate; replaced by the real price once you've seen it at a vendor.
 ns:Register("itemSource", 5956, { name = "Blacksmith Hammer", vendor = true, price = 18 })
 ns:Register("itemSource", 2901, { name = "Mining Pick", vendor = true, price = 16 })
+ns:Register("itemSource", 6256, { name = "Fishing Pole", vendor = true, price = 23 })
 
 -------------------------------------------------------------------------------
 -- Professions
@@ -97,5 +98,6 @@ ns:Register("profGuide", "Cooking", {
     },
 })
 
-ns:Register("profGuide", "Fishing", { kind = "gather", spots = true })
+ns:Register("profGuide", "Fishing", { kind = "gather", spots = true, tool = 6256,
+    tip = "Tip: a Shiny Bauble (+25 Fishing for 10 minutes, from a fishing supplies vendor) catches more while your skill is low." })
 ns:Register("profGuide", "Herbalism", { kind = "gather", spots = true })

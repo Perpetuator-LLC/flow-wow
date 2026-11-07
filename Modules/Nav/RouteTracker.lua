@@ -132,6 +132,8 @@ local function build()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints(); r.hl:SetColorTexture(1, 1, 1, 0.08)
         r:SetScript("OnClick", function(self, button)
             if not self.goal then return end
+            -- Its area lights up on the minimap (hover colour), next to the current stop's.
+            if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
             local g = self.goal
             if button == "RightButton" then
                 local items = {
@@ -150,6 +152,8 @@ local function build()
         end)
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
+            -- Its area lights up on the minimap (hover colour), next to the current stop's.
+            if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             -- Clickable rows say so: hand cursor and an "open" hint.
             if not self.blocked then self.open:Show(); ns.nav:ClickCursor(true) end
@@ -158,7 +162,10 @@ local function build()
                 or "Click: open it. Right-click: menu. (Change the route on the world map.)")
             GameTooltip:Show()
         end)
-        r:SetScript("OnLeave", function(self) GameTooltip:Hide(); self.open:Hide(); ns.nav:ClickCursor(false) end)
+        r:SetScript("OnLeave", function(self)
+            GameTooltip:Hide(); self.open:Hide(); ns.nav:ClickCursor(false)
+            if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, nil) end
+        end)
         f.rows[i] = r
     end
     return f

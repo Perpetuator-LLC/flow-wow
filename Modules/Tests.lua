@@ -533,3 +533,17 @@ ns:Register("test", "waypoint: pasted coordinates in every usual format", functi
     t:eq((P("hello", zones)), nil, "no numbers")
     t:eq((P("145 63", zones)), nil, "out of range")
 end)
+
+ns:Register("test", "fishing: a pole comes first", function(t)
+    local g = ns:Get("profGuide", "Fishing")
+    t:eq(g.tool, 6256, "Fishing needs a Fishing Pole")
+    t:ok(g.tip and g.tip:find("Shiny Bauble") ~= nil, "lure tip")
+    local goal, missing = ns.skillPlan:ToolGoal("Fishing")
+    if ns.disposition:HasTool("Fishing") then
+        t:eq(goal, nil, "you have a pole: nothing to buy")
+    else
+        t:eq(goal and goal.text, "Buy a Fishing Pole", "no pole: buy one")
+        t:eq(missing, "Fishing Pole", "and the fishing stop says why")
+    end
+    t:eq((ns.skillPlan:ToolGoal("Cooking")), nil, "no tool for Cooking")
+end)

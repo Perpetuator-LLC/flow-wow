@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.18
+- Fishing needs a Fishing Pole: without one, "Buy a Fishing Pole" comes first and the fishing
+  stop shows "needs a Fishing Pole". Fishing stops also suggest a Shiny Bauble lure.
+- Minimap areas: the stop the arrow points at shows its area on the minimap (discs and a
+  border, like the world map). Hover a row in the Flow Tracker and that stop's area lights up
+  in the hover colour too, so you can see whether you stand in this stop's area, the next one's,
+  or both.
+
 ## 0.35.17
 - Waypoints from pasted coordinates. `/way` now works too (unless TomTom has it), and so does
   a whole pasted line: `45.2 63.1`, `(45.2, 63.1)`, `/way 45.2 63.1 Hogger`,
