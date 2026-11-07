@@ -302,6 +302,7 @@ function Adv:FillPanel()
 end
 
 function Adv:TogglePanel()
+    GameTooltip:Hide()
     panel = panel or buildPanel()
     if panel:IsShown() then panel:Hide() return end
     self:Refresh()

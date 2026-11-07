@@ -229,13 +229,18 @@ local band = bit and bit.band
 --   * Questie's event calendar: event / holiday quests (Hallow's End...)
 --     only while Questie says the event is on. Quests sorted under a holiday
 --     with no calendar entry are treated as off.
---   * what NPCs actually offer: when you talk to a quest giver, quests Flow
---     expected from them but they don't offer are skipped for a week
---     (ns.db.quests.notOffered). Covers events Questie doesn't know about.
+--   * what NPCs actually offer: when a quest giver shows you their list of
+--     quests and one Flow expected isn't on it, on two separate visits, it's
+--     skipped for a day (ns.db.quests.notOffered). Covers events Questie
+--     doesn't know about. (It used to judge from any one conversation, even
+--     one with no quest list or while you were accepting, and hid quests the
+--     NPC did offer, for a week: 7 at once from one talk.)
 local HOLIDAY_SORTS = { [-22] = true, [-284] = true, [-364] = true, [-366] = true, [-369] = true,
     [-370] = true, [-374] = true, [-375] = true, [-376] = true, [-1001] = true, [-1002] = true,
     [-1003] = true, [-1004] = true, [-1005] = true, [-1006] = true, [-1007] = true, [-1008] = true }
-local NOT_OFFERED_DAYS = 7
+local NOT_OFFERED_HIDE = 86400   -- seconds a quest stays skipped once confirmed
+local NOT_OFFERED_GAP = 60       -- the two visits must be at least this far apart
+local QUIET_AFTER = 5            -- seconds after you accept / turn in: the list is changing
 
 local eventSet, eventActive
 local function events()
@@ -258,51 +263,85 @@ function Q:Offered(id, q)
     if set and set[id] and not active[id] then return false end
     if q and HOLIDAY_SORTS[q.zoneOrSort or 0] and not (active and active[id]) then return false end
     local no = ns.db.quests and ns.db.quests.notOffered and ns.db.quests.notOffered[id]
-    if no and time() - no < NOT_OFFERED_DAYS * 86400 then return false end
+    if type(no) == "table" and no.hiddenAt and time() - no.hiddenAt < NOT_OFFERED_HIDE then return false end
     return true
 end
 
 -- At a quest giver: note which quests Flow expected but the NPC didn't offer.
-local function checkOffers()
+-- Only judged from a real list of quests on offer, never in the seconds after
+-- you accept or turn one in, and a quest is skipped only after two visits.
+local lastQuestChange = 0
+ns:On("QUEST_ACCEPTED", function() lastQuestChange = GetTime() end)
+ns:On("QUEST_TURNED_IN", function() lastQuestChange = GetTime() end)
+
+-- What this NPC is offering right now: { [id or name] = true }, or nil when
+-- the window shows no list of quests (then nothing can be concluded).
+function Q.OfferedNow(event)
+    local offered, any = {}, false
+    if event == "GOSSIP_SHOW" and C_GossipInfo and C_GossipInfo.GetAvailableQuests then
+        for _, info in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
+            if info.questID then offered[info.questID] = true end
+            if info.title then offered[info.title] = true end
+            any = true
+        end
+    elseif event == "QUEST_GREETING" and GetNumAvailableQuests and GetAvailableTitle then
+        for i = 1, GetNumAvailableQuests() do
+            local title = GetAvailableTitle(i)
+            if title then offered[title] = true; any = true end
+        end
+    end
+    return any and offered or nil
+end
+
+-- One visit's verdict for quest `id` (seen on offer or not) at time `now`.
+-- Returns true when it's now skipped. Pure enough to test.
+function Q.NoteOffer(id, onOffer, now)
+    ns.db.quests.notOffered = ns.db.quests.notOffered or {}
+    local list = ns.db.quests.notOffered
+    if onOffer then list[id] = nil return false end
+    local e = type(list[id]) == "table" and list[id] or nil
+    if not e then list[id] = { firstAt = now } return false end
+    if e.hiddenAt then return true end
+    if now - e.firstAt >= NOT_OFFERED_GAP then e.hiddenAt = now return true end
+    return false
+end
+
+local function checkOffers(event)
+    if GetTime() - lastQuestChange < QUIET_AFTER then return end
     local guid = ns.api.Safe(UnitGUID("npc"))
     local npcId = guid and tonumber(guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)"))
     if not npcId then return end
     local npc = Q:QuestieGet("GetNPC", npcId)
     if not npc or not npc.questStarts then return end
-    local offered, anyInfo = {}, false
-    if C_GossipInfo and C_GossipInfo.GetAvailableQuests then
-        for _, info in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
-            if info.questID then offered[info.questID] = true end
-            anyInfo = true
-        end
-    end
-    if GetNumAvailableQuests and GetAvailableTitle then
-        for i = 1, GetNumAvailableQuests() do
-            local title = GetAvailableTitle(i)
-            if title then offered[title] = true; anyInfo = true end
-        end
-    end
-    ns.db.quests.notOffered = ns.db.quests.notOffered or {}
+    local offered = Q.OfferedNow(event)
+    if not offered then return end   -- no list on screen: nothing to conclude
+    local now, changed = time(), false
     for _, id in ipairs(npc.questStarts) do
         local qd = Q:QuestieGet("GetQuest", id)
-        if qd and not completed[id] and not inLog[id] and Q:Available(qd) then
+        if qd and not completed[id] and not inLog[id] then
             local name = qd.name
-            if offered[id] or (name and offered[name]) then
-                ns.db.quests.notOffered[id] = nil
-            elseif anyInfo or GetNumAvailableQuests then
-                -- The NPC talked to you and didn't offer it: not available now.
-                if not ns.db.quests.notOffered[id] then
-                    ns:Log("quests", "not offered by " .. tostring(npc.name) .. ": " .. tostring(name) .. " (" .. id .. ")")
-                end
-                ns.db.quests.notOffered[id] = time()
+            local on = offered[id] or (name and offered[name]) or false
+            if Q.NoteOffer(id, on, now) and not on then
+                changed = true
+                ns:Log("quests", "not offered twice by " .. tostring(npc.name) .. ": " .. tostring(name) .. " (" .. id .. "), skipped for a day")
             end
         end
     end
-    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
 end
 for _, ev in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING" }) do
-    ns:On(ev, function() C_Timer.After(0.2, function() pcall(checkOffers) end) end)
+    ns:On(ev, function() C_Timer.After(0.2, function() pcall(checkOffers, ev) end) end)
 end
+
+-- Old-style entries (a time per quest) came from the over-eager check:
+-- drop them so the quests it hid come back.
+ns:OnLoad(function(saved)
+    saved.quests = saved.quests or {}
+    local list = saved.quests.notOffered
+    if list then
+        for id, v in pairs(list) do if type(v) ~= "table" then list[id] = nil end end
+    end
+end)
 
 function Q:Available(q, levelSlack)
     local level = UnitLevel("player")
@@ -416,6 +455,9 @@ local function scan(src)
         if coroutine.status(co) == "dead" then
             missedCache, running = result, false
             if ns.advisor then pcall(ns.advisor.Refresh, ns.advisor) end
+            -- The route's "Accept:" stops come from this list: re-plan now
+            -- (it used to wait for the 30 s refresh).
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
         else
             C_Timer.After(0, step)
         end
@@ -424,7 +466,9 @@ local function scan(src)
 end
 
 -- Returns the last finished list (may be nil while the first scan runs) and
--- starts a fresh scan in the background if anything changed.
+-- starts a fresh scan in the background if anything changed. The list is
+-- checked against your quest log right now: a quest you just accepted (or
+-- turned in) is gone at once, not after the scan.
 function Q:Missed()
     local src = self:Source()
     if not src then return nil end
@@ -432,7 +476,12 @@ function Q:Missed()
         dirty = false
         scan(src)
     end
-    return missedCache
+    if not missedCache then return nil end
+    local out = {}
+    for _, q in ipairs(missedCache) do
+        if not inLog[q.id] and not completed[q.id] then out[#out + 1] = q end
+    end
+    return out
 end
 
 function Q:MissedScanning() return running end

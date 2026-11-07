@@ -212,9 +212,10 @@ function X:Context()
         at = goal and near(goal, p, NEAR) or false,
         atFish = atFish, noWater = noWater,
         -- Fishing now: at a fishing stop, or the pole is on and you're still
-        -- where you put it on / last cast (or haven't said where yet), and
+        -- where you put it on / last cast (a pole on with no known spot, away
+        -- from a fishing stop, isn't fishing: weapons back instead), and
         -- the last cast here didn't miss the water.
-        fishing = atFish or (pole and not noWater and (not spot or dist(p, spot) < FISH_LEFT)) or false,
+        fishing = atFish or (pole and not noWater and spot and dist(p, spot) < FISH_LEFT) or false,
     }
 end
 
@@ -395,7 +396,7 @@ end })
 
 -- Left the fishing spot with the pole still on: weapons back, main hand first.
 ns:Register("action", "fish:restore", { order = 70, get = function(ctx)
-    if not saved() or ctx.fishing or channeling("Fishing") then return nil end
+    if not (saved() or ctx.pole) or ctx.fishing or channeling("Fishing") then return nil end
     return restoreStep(false)
 end })
 

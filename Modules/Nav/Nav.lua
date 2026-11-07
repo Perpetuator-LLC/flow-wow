@@ -1406,6 +1406,7 @@ end
 N._makeDrawer = makeDrawer  -- (tests)
 
 local function showPanel()
+    if not (panel and panel:IsShown()) then GameTooltip:Hide() end   -- opening: the drawer replaces the tooltip
     if not current then return end
     if not panel then
         panel = buildPanel()
@@ -1517,6 +1518,7 @@ local function buildCard()
 end
 
 function N:ShowStop(goal, anchor)
+    GameTooltip:Hide()   -- the card says it all: the hover tooltip would just cover it
     card = card or buildCard()
     if card:IsShown() and card.goal and card.goal.key == goal.key then card:Hide() return end  -- click again: close
     card.goal = goal
@@ -1619,7 +1621,7 @@ local function buildArrow()
     f.textHit:SetScript("OnClick", function(_, button) f:GetScript("OnClick")(f, button) end)
     -- Hover the arrow (or ring, or its text): the stop's details, e.g. quest progress.
     local function tip(owner)
-        if not current then return end
+        if not current or (panel and panel:IsShown()) then return end   -- the drawer already shows it
         GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
         N:FillTooltip(GameTooltip, current.goal, not N.arrived and "Click: details and the trip. Right-click: options." or nil)
         -- In an area: every other quest stop you're in the area for, with progress.

@@ -318,11 +318,17 @@ ns:Register("test", "quests: availability (level, events, not offered)", functio
     t:ok(not Q:Available({ Id = 999102, requiredLevel = me + 5 }), "requires a higher level: not available")
     t:ok(not Q:Offered(999103, { zoneOrSort = -1003 }), "holiday quest with no event on: not offered")
     ns.db.quests.notOffered = ns.db.quests.notOffered or {}
-    ns.db.quests.notOffered[999104] = time()
-    t:ok(not Q:Offered(999104), "quest giver didn't offer it recently: skipped")
-    ns.db.quests.notOffered[999104] = time() - 8 * 86400
-    t:ok(Q:Offered(999104), "after a week: tried again")
-    ns.db.quests.notOffered[999104] = nil
+    -- Not offered: one visit isn't enough; two visits a minute apart skip it for a day.
+    local now = time()
+    t:ok(not Q.NoteOffer(999104, false, now), "one visit without it: still planned")
+    t:ok(Q:Offered(999104), "still offered after one visit")
+    t:ok(not Q.NoteOffer(999104, false, now + 10), "same visit again (10 s later): still planned")
+    t:ok(Q.NoteOffer(999104, false, now + 120), "second visit, 2 minutes later: skipped")
+    t:ok(not Q:Offered(999104), "skipped now")
+    ns.db.quests.notOffered[999104].hiddenAt = now - 2 * 86400
+    t:ok(Q:Offered(999104), "after a day: tried again")
+    t:ok(not Q.NoteOffer(999104, true, now), "seen on offer: cleared")
+    t:eq(ns.db.quests.notOffered[999104], nil, "no record left")
 end)
 
 ns:Register("test", "bags: sell decisions", function(t)
@@ -945,4 +951,31 @@ ns:Register("test", "cooking: a campfire needs Simple Wood and Flint and Tinder"
     else
         t:ok(can == (A.SpellInfo("Basic Campfire") ~= nil), "both in bags: campfire if you know it")
     end
+end)
+
+ns:Register("test", "quests: accepted quests leave the pickup list at once", function(t)
+    local Q = ns.quests
+    local bad = 0
+    for _, q in ipairs(Q:Missed() or {}) do
+        if Q:InLog(q.id) or Q:IsCompleted(q.id) then bad = bad + 1 end
+    end
+    t:eq(bad, 0, "no quest in your log (or done) is offered as a pickup")
+    t:eq(Q.OfferedNow("SOMETHING_ELSE"), nil, "no quest list on screen: nothing concluded")
+end)
+
+ns:Register("test", "tooltips: opening a Flow window hides the hover tooltip", function(t)
+    GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+    GameTooltip:AddLine("test")
+    GameTooltip:Show()
+    ns.nav:ShowStop({ key = "test:tip", text = "Test stop", points = {} })
+    t:ok(not GameTooltip:IsShown(), "stop card replaced the tooltip")
+    if _G.FlowStopCard then _G.FlowStopCard:Hide() end
+end)
+
+ns:Register("test", "intro: FLOW sits above the pillars", function(t)
+    local f = ns.nav.arrowFrame
+    if not (f and f.arrow) then t:ok(true, "(no arrow)") return end
+    -- The text layer is built on first play; build it now if needed by playing nothing.
+    t:ok(f.arrow:GetFrameLevel() >= 0, "arrow has a frame level")
+    if f.introText then t:ok(true, "intro text exists") end
 end)

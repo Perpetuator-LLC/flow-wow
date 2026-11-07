@@ -46,24 +46,37 @@ end
 -- FLOW with depth: the word stacked a few times, each copy a pixel lower and
 -- to the right and darker (the sides of the letters), the gold face on top
 -- and a faint light edge above it.
-local function deepText(f)
+-- Drawn on its own layer ABOVE the arrow (the arrow and its pillars are a
+-- child frame, which the game always draws over its parent), so FLOW sits
+-- on top of the spinning pillars, on a soft dark backing so it reads.
+local function deepText(f, arrow)
+    local host = CreateFrame("Frame", nil, f)
+    host:SetAllPoints(f)
+    host:SetFrameLevel(arrow:GetFrameLevel() + 10)
     local layers = {}
-    local function face(dx, dy, r, g, b, a, outline)
-        local fs = f:CreateFontString(nil, "OVERLAY")
-        local ok = pcall(fs.SetFont, fs, "Fonts\\MORPHEUS.TTF", 17, outline or "")
-        if not ok or not fs:GetFont() then fs:SetFont(STANDARD_TEXT_FONT, 15, outline or "") end
-        fs:SetPoint("CENTER", f, "CENTER", dx, dy + 2)
+    local back = host:CreateTexture(nil, "BACKGROUND")
+    back:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    back:SetSize(70, 30)
+    back:SetPoint("CENTER", host, "CENTER", 0, 6)
+    back:SetVertexColor(0, 0, 0, 0.6)
+    layers[#layers + 1] = back
+    local function face(dx, dy, r, g, b, a, outline, layer)
+        local fs = host:CreateFontString(nil, layer or "OVERLAY")
+        local ok = pcall(fs.SetFont, fs, "Fonts\\MORPHEUS.TTF", 22, outline or "")
+        if not ok or not fs:GetFont() then fs:SetFont(STANDARD_TEXT_FONT, 19, outline or "") end
+        fs:SetPoint("CENTER", host, "CENTER", dx, dy + 6)
         fs:SetTextColor(r, g, b, a)
         fs:SetText("FLOW")
         layers[#layers + 1] = fs
         return fs
     end
-    for i = 4, 1, -1 do face(i * 0.6, -i * 0.6, 0.30 - i * 0.05, 0.17 - i * 0.03, 0.02, 1) end  -- sides
-    face(0, 0.7, 1, 1, 0.85, 0.55)                       -- light edge
-    face(0, 0, 1, 0.82, 0.25, 1, "OUTLINE")              -- gold face
+    -- The sides of the letters: six copies stepping down and right, darkest at the back.
+    for i = 6, 1, -1 do face(i * 0.55, -i * 0.55, 0.32 - i * 0.04, 0.18 - i * 0.025, 0.02, 1, nil, "ARTWORK") end
+    face(0, 0.8, 1, 1, 0.85, 0.6)                          -- light top edge
+    face(0, 0, 1, 0.84, 0.28, 1, "THICKOUTLINE")           -- bold gold face
     local t = {}
     function t:SetAlpha(v) for _, l in ipairs(layers) do l:SetAlpha(v) end end
-    function t:SetShown(v) for _, l in ipairs(layers) do l:SetShown(v) end end
+    function t:SetShown(v) host:SetShown(v) end
     function t:Show() self:SetShown(true) end
     function t:Hide() self:SetShown(false) end
     return t
@@ -75,7 +88,7 @@ function I:Play()
     local f = ns.nav and ns.nav.arrowFrame
     if not (f and f.arrow) or ns.db.nav.enabled == false then ns.nav.intro = nil return end
     local a = f.arrow
-    f.introText = f.introText or deepText(f)
+    f.introText = f.introText or deepText(f, a)
     ns.nav.intro = true   -- the arrow's own update leaves it alone meanwhile
     f:Show()
     local col = ns.theme.route

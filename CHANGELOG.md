@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.43
+- Fixed: talking to a quest giver could hide quests they DO offer (7 at once in one talk), so
+  "Accept:" stops vanished for quests you hadn't taken. Flow now only judges from a real list
+  of quests on screen, never in the seconds after you accept or turn in, needs two visits a
+  minute apart, and skips for a day instead of a week. The ones it wrongly hid are back.
+- Fixed: a quest you just accepted stayed on the route as "Accept:" until a background scan
+  finished. It now leaves at once (checked against your quest log), and the route refreshes
+  when the scan ends.
+- Clicking anything in Flow that opens a window (arrow drawer, stop card, menus, advice) hides
+  the hover tooltip, and the arrow shows no tooltip while its drawer is open.
+- Intro: FLOW is bigger and bold, on top of the spinning pillars (it was drawn under them).
+- The Flow key no longer offers "Cast your line" just because the pole is on: away from a
+  fishing stop or where you last fished, it offers to put your weapons back.
+
 ## 0.35.42
 - Cooking: Flow plans cooking where you stand only if you can make a campfire (you need Simple
   Wood AND Flint and Tinder). Otherwise it plans it at a real fire: by the cooking trainer
