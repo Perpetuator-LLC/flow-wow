@@ -74,6 +74,10 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   ("Can't measure restricted regions").
 - Item IDs can differ from classic: match tools and materials by ID **or** name.
 - Talents use `C_ClassTalents` / `C_Traits`, not the classic talent API.
+- Some item globals are gone (`GetItemCount` lives in `C_Item`). Use `ns.api.Count(id)`,
+  `ns.api.ItemInfo`, `ns.api.ItemIcon`, `ns.api.IsUsableItem` (Compat.lua), never the bare globals.
+- Never move, resize, show or hide a secure frame (the cast button) in combat, and finish any
+  drag of one in `PLAYER_REGEN_DISABLED` (see `ns.cast:EndMove`).
 
 ## Lua gotchas that have bitten us
 
