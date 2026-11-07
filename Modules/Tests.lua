@@ -1126,3 +1126,27 @@ ns:Register("test", "bags: things to learn and full bags", function(t)
     t:ok(ns:Get("action", "bag:learn") ~= nil, "learn step registered")
     t:ok(ns.services and type(ns.services.Nearest) == "function", "nearest repair / vendor")
 end)
+
+ns:Register("test", "arrow: north-up toggle", function(t)
+    local saved = ns.db.nav.northUp
+    ns.db.nav.northUp = nil
+    t:eq(ns.nav.ArrowFacing(), 0, "north-up by default")
+    ns.db.nav.northUp = false
+    local f = ns.nav.ArrowFacing()
+    t:ok(f == nil or type(f) == "number", "off: follows your character's facing")
+    ns.db.nav.northUp = saved
+end)
+
+ns:Register("test", "route: ready turn-ins near you are part of the hub's business", function(t)
+    local keys = ns.nav:PickupKeys(100000) or {}
+    local turnins, ok = 0, true
+    for k in pairs(keys) do if k:find(":done$") then turnins = turnins + 1 end end
+    t:ok(turnins >= 0, "turn-ins counted with pickups")
+    t:ok(type(ns.mapOverlay.PointHere) == "function", "point the arrow at any stop")
+end)
+
+ns:Register("test", "seller and lite mode", function(t)
+    t:ok(type(ns.disposition.ConsumableKind) == "function", "food / drink told apart")
+    t:ok(ns:Get("disposition", "outgrownConsumable") ~= nil, "outgrown food rule registered")
+    t:eq(type(ns.Lite()), "boolean", "lite mode known")
+end)

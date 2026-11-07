@@ -134,6 +134,14 @@ local function build()
     f.body:SetPoint("TOPRIGHT", h, "BOTTOMRIGHT", 0, 0)
     f.body.bg = f.body:CreateTexture(nil, "BACKGROUND"); f.body.bg:SetAllPoints()
     f.body.bg:SetColorTexture(0, 0, 0, 0.45)
+    -- A faint rail down the left edge with a small down chevron at the end:
+    -- the stops run top to bottom, 1 then 2 then 3.
+    f.body.rail = f.body:CreateTexture(nil, "BORDER")
+    f.body.rail:SetWidth(1)
+    f.body.rail:SetPoint("TOPLEFT", 3, -6)
+    f.body.rail:SetColorTexture(1, 1, 1, 0.14)
+    f.body.chev = { f.body:CreateLine(nil, "BORDER"), f.body:CreateLine(nil, "BORDER") }
+    for _, l in ipairs(f.body.chev) do l:SetThickness(1); l:SetColorTexture(1, 1, 1, 0.22) end
     f.rows = {}
     for i = 1, ROWS do
         local r = CreateFrame("Button", nil, f.body)
@@ -158,6 +166,7 @@ local function build()
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
+                    { text = "Point the arrow here (your waypoint)", func = function() if ns.mapOverlay then ns.mapOverlay.PointHere(g) end end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
@@ -273,6 +282,16 @@ function RT:Refresh()
         end
     end
     frame.body:SetHeight(8 + shown * 17)
+    -- The order rail: as long as the list, chevron at the bottom (only with 2+ stops).
+    local railLen = math.max(0, shown * 17 - 6)
+    local rail = frame.body.rail
+    rail:SetHeight(math.max(1, railLen))
+    rail:SetShown(shown > 1)
+    for k, l in ipairs(frame.body.chev) do
+        l:SetStartPoint("TOPLEFT", frame.body, 3 + (k == 1 and -2.5 or 2.5), -6 - railLen + 3)
+        l:SetEndPoint("TOPLEFT", frame.body, 3.5, -6 - railLen)
+        l:SetShown(shown > 1)
+    end
     frame:SetHeight(24 + (open and (8 + shown * 17) or 0))
 end
 
@@ -297,7 +316,7 @@ ns:On("PLAYER_ENTERING_WORLD", function()
         local acc, lastVersion = 0, -1
         frame:SetScript("OnUpdate", function(_, dt)
             acc = acc + dt
-            if acc < 0.5 then return end
+            if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end   -- lite: every 2 s
             acc = 0
             if questieOpen() and db().open == "flow" then db().open = "questie" end
             if not questieOpen() and db().open == "questie" and questieTracker() then db().open = "none" end

@@ -80,3 +80,23 @@ ns.commands.perf = function(arg)
     for _, line in ipairs(P:Report()) do print(line) end
     print("  /flow perf reset")
 end
+
+-- Lite mode: inside a dungeon or raid, or during a boss fight, Flow eases off
+-- the parts you don't need there (route planning, the arrow and minimap at
+-- full speed, map and tracker refreshes) so it never adds to lag in a boss
+-- fight. The rotation, the Flow key and bags keep running as normal.
+local liteAt, liteVal = 0, false
+function ns.Lite()
+    local now = GetTime()
+    if now - liteAt < 1 then return liteVal end
+    liteAt = now
+    local inInstance, kind = false, nil
+    if IsInInstance then inInstance, kind = IsInInstance() end
+    local boss = IsEncounterInProgress and IsEncounterInProgress() or false
+    liteVal = (inInstance and (kind == "party" or kind == "raid")) or boss or false
+    if ns.db and ns.db.perf and ns.db.perf.lite == false then liteVal = false end
+    return liteVal
+end
+ns:On("ENCOUNTER_START", function() liteAt = 0 end)
+ns:On("ENCOUNTER_END", function() liteAt = 0 end)
+ns:On("PLAYER_ENTERING_WORLD", function() liteAt = 0 end)

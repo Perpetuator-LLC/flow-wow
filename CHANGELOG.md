@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.51
+- Fixed: a finished quest's turn-in right next to you waited behind every quest pickup in the
+  hub. A hub's business now includes ready turn-ins with the pickups (like a walkthrough: hand
+  in, pick up, head out), and each turn-in frees a quest log slot for the pickups.
+- North-up arrow (the default): the arrow points the way on the screen like a map, up = north.
+  Right-click the arrow ("North-up arrow"), Options > AddOns > Flow, or /flow nav northup to
+  switch back to turning with your character. (Add-ons can't read the camera's direction.)
+- "Point the arrow here (your waypoint)" on every stop's right-click menu (world map, Flow
+  Router, Flow Tracker): the arrow goes there first; the planned route stays as it is. Any spot
+  on the map: Alt-click it.
+- Selling: food and drink you've outgrown is marked to sell once you carry 10+ of a better tier
+  of the same kind for your level.
+- Lite mode in dungeons, raids and boss fights: route planning pauses, the arrow and minimap
+  update twice a second, the map and tracker refresh every 2 s, the minimap areas pause. The
+  rotation, the Flow key and bags run as normal.
+- Flow Tracker: a faint line down the left of the stops with a small down chevron at the end:
+  the order runs top to bottom.
+
 ## 0.35.50
 - Minimap areas are one smooth shape per group of spawns, like the world map's areas, instead
   of the outline of many circles. Only your current stop's area shows (and the one you hover

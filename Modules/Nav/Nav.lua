@@ -78,6 +78,20 @@ local function mapAxes(map)
 end
 
 -- Bearing (radians clockwise from north) from the player to a world point.
+-- Which way the arrow is turned: by your character's facing (it points the
+-- way relative to where you face), or north-up (relative to the screen, like
+-- a map: up = north). Add-ons can't read the camera's direction, so "where
+-- you face" is the character, not the camera. North-up is the default;
+-- right-click the arrow or /flow nav northup to switch.
+function N.ArrowFacing()
+    if ns.db.nav.northUp ~= false then return 0 end
+    return A.Safe(GetPlayerFacing and GetPlayerFacing())
+end
+function N:SetNorthUp(on)
+    ns.db.nav.northUp = on and true or false
+    ns:Print("arrow: " .. (on and "north-up (up on the screen = north)" or "turns with your character"))
+end
+
 local function bearing(p, wx, wy)
     local a = mapAxes(p.map)
     if not a then return nil end
@@ -886,22 +900,36 @@ end
 
 N.planVersion = 0
 
--- Quest pickups near you ("this hub"), nearest first, capped at the free
--- quest log slots. Walkthroughs grab every quest in a hub before heading out.
+-- This hub's business before heading out, like a walkthrough: turn in every
+-- finished quest near you, then pick up the quests here (nearest first,
+-- capped at the free quest log slots; each turn-in frees one). Turn-ins used
+-- to be left out, so a hand-in right next to you waited behind every pickup.
 local HUB_RADIUS = 250  -- yards
+local function ready(g, present)
+    for _, dep in ipairs(g.deps or {}) do if present[dep] then return false end end
+    return true
+end
 function N:PickupKeys(radius)
     local p = self:PlayerPos()
     if not p then return nil end
-    local near = {}
+    local present = {}
+    for _, g in ipairs(goals) do present[g.key] = true end
+    local near, turnins = {}, {}
     for _, g in ipairs(goals) do
-        if g.provider == "pickups" then
+        local isPickup = g.provider == "pickups"
+        local isTurnin = g.key:find(":done$") and ready(g, present)
+        if isPickup or isTurnin then
             local _, d = nearestPoint(g, p)
-            if d and d <= (radius or HUB_RADIUS) then near[#near + 1] = { key = g.key, d = d } end
+            if d and d <= (radius or HUB_RADIUS) then
+                local list = isTurnin and turnins or near
+                list[#list + 1] = { key = g.key, d = d }
+            end
         end
     end
     table.sort(near, function(a, b) return a.d < b.d end)
-    local free = ns.quests.FreeSlots and ns.quests:FreeSlots() or 20
+    local free = (ns.quests.FreeSlots and ns.quests:FreeSlots() or 20) + #turnins
     local t, any = {}, false
+    for _, e in ipairs(turnins) do t[e.key] = true; any = true end
     for i = 1, math.min(#near, free) do t[near[i].key] = true; any = true end
     return any and t or nil
 end
@@ -1607,6 +1635,8 @@ local function buildArrow()
             items[#items + 1] = { sep = true }
             items[#items + 1] = { text = "3D arrow", checked = ns.db.nav.arrowStyle ~= "flat",
                 func = function() N:SetArrowStyle(ns.db.nav.arrowStyle == "flat" and "3d" or "flat") end }
+            items[#items + 1] = { text = "North-up arrow (fixed to the screen)", checked = ns.db.nav.northUp ~= false,
+                func = function() N:SetNorthUp(ns.db.nav.northUp == false) end }
             ns.menu:Open(items)
         elseif panel and panel:IsShown() and not panel.byHover then
             panel:Fold()
@@ -1759,7 +1789,7 @@ function N:ShowCorpse(p)
     if not wx then return false end
     local d = dist(p.wx, p.wy, wx, wy)
     local b = bearing(p, wx, wy)
-    local facing = A.Safe(GetPlayerFacing and GetPlayerFacing())
+    local facing = N.ArrowFacing()
     frame.arrow:SetVertexColor(CORPSE_RED[1], CORPSE_RED[2], CORPSE_RED[3])
     frame.arrow:SetArrived(d < ARRIVED * 2)
     if b and facing then frame.arrow:SetRotation(-(b + facing)); frame.arrow:Show() end
@@ -1812,7 +1842,7 @@ local function update()
     local wx, wy, how, length = steer(p, choice)
     N.how = how
     local b = bearing(p, wx, wy)
-    local facing = A.Safe(GetPlayerFacing and GetPlayerFacing())
+    local facing = N.ArrowFacing()
     if b and facing then
         frame.arrow:SetRotation(-(b + facing))
         frame.arrow:Show()
@@ -1936,8 +1966,9 @@ ns:OnLoad(function(saved)
         -- Quiet refresh: events (quests, items, level, skills) already
         -- re-plan at once; this only catches what has no event. Every 30 s:
         -- each rebuild is ~20-40 ms (/flow perf).
-        if collectAcc > 30 then collectAcc = 0; collectSoon(true) end
-        if acc < 0.1 then return end
+        local lite = ns.Lite and ns.Lite()
+        if collectAcc > 30 and not lite then collectAcc = 0; collectSoon(true) end
+        if acc < (lite and 0.5 or 0.1) then return end   -- lite (dungeon, raid, boss): 2 a second
         acc = 0
         local ok, err = pcall(timedUpdate)
         if not ok then
@@ -1992,6 +2023,8 @@ ns.commands.nav = function(arg)
             N:Collect()
             ns:Print(n .. " hidden stop(s) back on the route.")
         end
+    elseif arg == "northup" or arg == "north" then
+        N:SetNorthUp(ns.db.nav.northUp == false)
     elseif arg == "arrow 3d" or arg == "arrow flat" then
         N:SetArrowStyle(arg:match("arrow (%a+%d?)") == "flat" and "flat" or "3d")
         ns:Print("arrow: " .. (ns.db.nav.arrowStyle == "flat" and "flat lines" or "3D"))

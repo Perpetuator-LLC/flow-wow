@@ -283,7 +283,7 @@ function P:UpdateAreas(p, goal, force)
     end
     local oldD = nDiscs
     nDiscs = 0
-    if ns.db.nav.minimapPin ~= false and ns.db.nav.minimapAreas ~= false and p then
+    if ns.db.nav.minimapPin ~= false and ns.db.nav.minimapAreas ~= false and p and not (ns.Lite and ns.Lite()) then
         if hoverGoal and hoverGoal ~= goal then drawAreaMini(p, hoverGoal, ns.theme.hover, true) end
         drawAreaMini(p, goal, ns.theme.route, hoverGoal == nil or hoverGoal == goal)
     end

@@ -331,6 +331,59 @@ reg("junk", 20, function(i)
     if i.quality == 0 then return { action = "sell", reason = "junk" } end
 end)
 
+-------------------------------------------------------------------------------
+-- Food and drink you've outgrown: when you carry at least KEEP_BETTER of a
+-- better tier of the same kind (food, or drink) for your level, the weaker
+-- kind is sold. Tiers go by the level the item needs (Tough Jerky 5, Haunch
+-- of Meat 15...): a step of 5+ levels is a better tier.
+-------------------------------------------------------------------------------
+local KEEP_BETTER, TIER_STEP = 10, 5
+local function consumableKind(id)
+    local spell = C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(id)
+    if not spell and GetItemSpell then spell = GetItemSpell(id) end
+    if type(spell) ~= "string" then return nil end
+    if spell:find("Drink") then return "drink" end
+    if spell:find("Food") then return "food" end
+end
+D.ConsumableKind = consumableKind
+-- What you carry, per kind: { food = { {id, level, count}... }, drink = ... }
+local carried, carriedFor
+local function carriedConsumables()
+    local level = UnitLevel("player")
+    if carried and carriedFor == level and next(cache) ~= nil then return carried end
+    carried, carriedFor = { food = {}, drink = {} }, level
+    local seen = {}
+    D:EachBagItem(function(bag, slot, link)
+        local id = tonumber(link:match("item:(%d+)"))
+        if id and not seen[id] then
+            seen[id] = true
+            local kind = consumableKind(id)
+            if kind then
+                local minLevel = select(5, ((C_Item and C_Item.GetItemInfo) or GetItemInfo)(link)) or 0
+                table.insert(carried[kind], { id = id, level = minLevel, count = ns.api.Count(id) })
+            end
+        end
+    end)
+    return carried
+end
+-- The best tier you carry enough of, for a kind: its level, or nil.
+function D:BestConsumableTier(kind)
+    local best
+    for _, e in ipairs(carriedConsumables()[kind] or {}) do
+        if e.level <= UnitLevel("player") and e.count >= KEEP_BETTER and (not best or e.level > best) then best = e.level end
+    end
+    return best
+end
+reg("outgrownConsumable", 22, function(i)
+    if i.classID ~= 0 or not i.id then return nil end
+    local kind = consumableKind(i.id)
+    if not kind then return nil end
+    local best = D:BestConsumableTier(kind)
+    if best and (i.minLevel or 0) + TIER_STEP <= best then
+        return { action = "sell", reason = string.format("outgrown: you carry %d+ better %s", KEEP_BETTER, kind) }
+    end
+end)
+
 -- Non-gear: trade goods, reagents, consumables, recipes, bags, gems... keep.
 -- (PLACEHOLDER: sell trade goods none of your professions use.)
 reg("notGear", 30, function(i)

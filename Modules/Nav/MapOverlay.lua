@@ -19,6 +19,16 @@ local focusKey, focusUntil = nil, 0   -- a stop opened from the tracker / arrow 
 
 local function theme() return ns.theme end
 
+-- "Point the arrow here": your own waypoint at this stop (the arrow goes there
+-- first; the planned route stays as it is and carries on after).
+function M.PointHere(goal)
+    if not (goal and ns.waypoint) then return end
+    local pt
+    for _, s in ipairs(ns.nav.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
+    pt = pt or (goal.points and goal.points[1])
+    if pt and pt.map and pt.x then ns.waypoint:Set(pt.map, pt.x, pt.y, goal.text or goal.title) end
+end
+
 local function canvas()
     if not WorldMapFrame then return nil end
     if WorldMapFrame.GetCanvas then return WorldMapFrame:GetCanvas() end
@@ -131,6 +141,7 @@ local function pin(c, x, y, label, color, stop, top, target, selected)
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+                    { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
@@ -290,6 +301,7 @@ local function blobClick(self, button)
             { title = true, text = g.text or g.title or "This stop" },
             { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
             { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+            { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
             { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
         }
         ns.menu:Open(items)
@@ -1080,6 +1092,7 @@ local function buildList()
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
+                    { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
@@ -1289,7 +1302,7 @@ ns:OnLoad(function()
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
         acc = acc + dt
-        if acc < 0.5 then return end
+        if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end   -- lite: every 2 s
         acc = 0
         if WorldMapFrame and WorldMapFrame:IsShown() then pcall(M.Redraw, M) end
     end)
