@@ -191,8 +191,8 @@ local function build(parent)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)
-    _, y = check(f, y, "Flow title card when you log in", "(/flow splash replays it)",
-        "The short gold \"F L O W\" card after logging in or /reload.",
+    _, y = check(f, y, "Intro on the arrow when you log in", "(/flow splash replays it)",
+        "After logging in or /reload the arrow spins, shows FLOW in its ring, and the version and status underneath.",
         function() return ns.db.splash.enabled ~= false end,
         function(on) ns.db.splash.enabled = on end)
     _, y = check(f, y, "Flow key does fishing and gathering steps", "(/flow action)",

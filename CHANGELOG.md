@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.32
+- The login title card is gone. Instead the arrow plays a short intro: it spins up, settles
+  into its ring with FLOW in the middle, and underneath says "Flow (unfettered)", the version,
+  and what Flow is working with (spells, Questie, stops planned). Then it points the way as
+  usual. `/flow splash` replays it; Options > AddOns > Flow turns it off.
+- "ways to improve" in chat now shows Flow's version.
+
 ## 0.35.31
 - The stop you choose ("Go here first") stays marked: on the map it's red inside with a bold
   dark red ring and its area stays red (like when you hover it); in the Flow Router its row is

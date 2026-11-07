@@ -118,7 +118,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
   auto-places new spells on your bars.
 - **Colour-blind palette** for the route (in `/flow settings`).
-- A short load splash, `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
+- A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
 

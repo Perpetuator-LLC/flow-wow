@@ -1544,6 +1544,7 @@ local function update()
         if ns.mapOverlay and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
     end
     if not cfg.enabled then frame:Hide(); if ns.minimapPin then ns.minimapPin:Hide() end return end
+    if N.intro then return end   -- the login intro is playing on the arrow (Splash.lua)
     local p = N:PlayerPos()
     if not p then frame:Hide() return end
     if cfg.learn then record(p) end

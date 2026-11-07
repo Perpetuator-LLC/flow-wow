@@ -7,7 +7,7 @@ local _, ns = ...
 local topics = {
     { "basics", 10, "Basics", {
         "Hold |cffffd200Shift|r and drag any Flow element to move it.",
-        "/flow splash - replay the load splash (on/off)",
+        "/flow splash - replay the intro on the arrow (on/off)",
         "/flow api - what this game client lets addons see",
     } },
     { "rotation", 20, "Rotation (icon + glowing action button)", {

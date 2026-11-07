@@ -38,8 +38,8 @@ local function line(item)
 end
 
 function Adv:Print(limit)
-    if #items == 0 then ns:Print("nothing to improve right now.") return end
-    ns:Print("ways to improve:")
+    if #items == 0 then ns:Print("nothing to improve right now |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r.") return end
+    ns:Print("ways to improve |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r:")
     for i = 1, math.min(limit or #items, #items) do print("  " .. i .. ". " .. line(items[i])) end
 end
 

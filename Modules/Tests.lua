@@ -751,3 +751,12 @@ ns:Register("test", "stop card: drag by the title, opens where you left it", fun
     card:Hide()
     ns.db.nav.cardPoint = saved
 end)
+
+ns:Register("test", "intro: the arrow spins up and lands pointing up", function(t)
+    local I = ns.intro
+    t:near(I.SpinAngle(0), 0, 0.001, "starts still")
+    t:near(I.SpinAngle(1.4), 4 * math.pi, 0.001, "two full turns, ending pointing up")
+    t:ok(I.SpinAngle(0.3) - I.SpinAngle(0) > I.SpinAngle(1.4) - I.SpinAngle(1.1), "fast first, easing out")
+    t:ok(I.Status():find("spells", 1, true) ~= nil, "status line says what Flow works with")
+    t:ok(_G.FlowSplash == nil, "the old title card is gone")
+end)

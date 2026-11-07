@@ -1,15 +1,15 @@
--- Load splash: a short animated title card when you log in or /reload,
--- showing that Flow is running and what it's working with.
--- Replaces the old "hello sooth" popup (popups from addons can taint
--- Blizzard's own dialogs). /flow splash replays it; /flow splash off.
+-- Login intro, played on Flow's arrow (it replaced a separate title card):
+-- the arrow spins up and settles into its ring with FLOW in the middle,
+-- while the text under it says "Flow (unfettered)", the version and what
+-- Flow has to work with. Then the arrow goes back to pointing the way.
+-- /flow splash replays it; Options > AddOns > Flow turns it off.
 
 local _, ns = ...
+local I = {}
+ns.intro = I
 
-local GOLD = { 1.0, 0.82, 0.25 }
-local BAR_W = 460      -- width of the two gold bars
-local INTRO = 0.15     -- seconds for the bars to sweep in
-local SHOW_TIME = 1.75  -- seconds the bars count down (whole splash: 0.15 + 1.75 + 0.1 = 2 s)
-local frame
+local SPIN, HOLD = 1.4, 2.2   -- seconds: spinning, then the ring with FLOW
+local TURNS = 2
 
 local function version()
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -23,138 +23,62 @@ local function count(t)
 end
 
 -- One short status line about what Flow has to work with.
-local function status()
+function I.Status()
     local bits = {}
     local spells = ns.rotation and count(ns.rotation:KnownSpells()) or 0
-    bits[#bits + 1] = "rotation " .. spells .. " spells"
+    bits[#bits + 1] = spells .. " spells"
     local src = ns.quests and ns.quests:Source()
     bits[#bits + 1] = src and src.label == "Questie" and "Questie linked" or "no quest database"
-    local learned = ns:Get("learned", "combatlog")
-    local fights = #(ns.db.profiler and ns.db.profiler.fights or {}) + (learned and learned.fights or 0)
-    bits[#bits + 1] = fights .. " fights learned"
-    local trail = 0
-    for _, g in pairs(ns.db.nav and ns.db.nav.graphs or {}) do trail = trail + #g.x end
-    bits[#bits + 1] = trail .. " trail points"
-    return table.concat(bits, "   |cff666666•|r   ")
+    local plan = ns.nav and ns.nav.plan
+    if plan and #plan > 0 then bits[#bits + 1] = #plan .. " stops planned" end
+    return table.concat(bits, "  ·  ")
 end
 
-local function scaleAnim(group, fromX, toX, duration)
-    local a = group:CreateAnimation("Scale")
-    if a.SetScaleFrom then
-        a:SetScaleFrom(fromX, 1)
-        a:SetScaleTo(toX, 1)
-    else
-        a:SetFromScale(fromX, 1)
-        a:SetToScale(toX, 1)
+-- The arrow's rotation t seconds into the intro: fast at first, easing out,
+-- TURNS full turns, ending pointing up.
+function I.SpinAngle(t)
+    local u = math.min(math.max(t / SPIN, 0), 1)
+    return (1 - (1 - u) ^ 3) * TURNS * 2 * math.pi
+end
+
+local driver = CreateFrame("Frame")
+
+function I:Play()
+    local f = ns.nav and ns.nav.arrowFrame
+    if not (f and f.arrow) or ns.db.nav.enabled == false then return end
+    local a = f.arrow
+    if not f.introText then
+        f.introText = f:CreateFontString(nil, "OVERLAY")
+        f.introText:SetFont(STANDARD_TEXT_FONT, 13, "OUTLINE")
+        f.introText:SetPoint("CENTER", 0, 1)
+        f.introText:SetTextColor(1, 0.82, 0.25)
+        f.introText:SetText("FLOW")
     end
-    a:SetDuration(duration)
-    a:SetOrigin("CENTER", 0, 0)
-    a:SetSmoothing("OUT")
-    return a
-end
-
-local function build()
-    local f = CreateFrame("Frame", "FlowSplash", UIParent)
-    f:SetSize(520, 130)
-    -- Below the game's own zone name text, which appears near the top on login.
-    f:SetPoint("TOP", UIParent, "TOP", 0, -260)
-    f:SetFrameStrata("HIGH")
-    f:EnableMouse(false)
-
-    -- Soft dark band behind the text.
-    f.band = f:CreateTexture(nil, "BACKGROUND")
-    f.band:SetPoint("TOPLEFT", 0, -18)
-    f.band:SetPoint("BOTTOMRIGHT", 0, 8)
-    f.band:SetColorTexture(0, 0, 0, 0.45)
-
-    -- Thin golden lines: they sweep out from the middle, then count down the
-    -- time the splash stays up. The top one empties left to right (pinned to
-    -- its right end), the bottom one right to left (pinned to its left end).
-    -- When both are empty, the splash is gone.
-    local function line(y, pin)
-        local t = f:CreateTexture(nil, "ARTWORK")
-        t:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9)
-        t:SetSize(BAR_W, 2)
-        t:SetPoint(pin, f, "TOP", pin == "RIGHT" and BAR_W / 2 or -BAR_W / 2, y)
-        local g = t:CreateAnimationGroup()
-        scaleAnim(g, 0.01, 1, INTRO)
-        t.sweep = g
-        return t
-    end
-    f.top = line(-18, "RIGHT")
-    f.bottom = line(-122, "LEFT")
-
-    f.title = f:CreateFontString(nil, "OVERLAY")
-    f.title:SetFont(STANDARD_TEXT_FONT, 46, "OUTLINE")
-    f.title:SetPoint("TOP", 0, -26)
-    f.title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    f.title:SetText("F  L  O  W")
-
-    f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.sub:SetPoint("TOP", f.title, "BOTTOM", 0, -4)
-
-    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.status:SetPoint("TOP", f.sub, "BOTTOM", 0, -8)
-    f.status:SetTextColor(0.8, 0.8, 0.8)
-
-    local fadeIn = f:CreateAnimationGroup()
-    local a = fadeIn:CreateAnimation("Alpha")
-    a:SetFromAlpha(0)
-    a:SetToAlpha(1)
-    a:SetDuration(0.15)
-    a:SetSmoothing("OUT")
-    fadeIn:SetToFinalAlpha(true)
-    f.fadeIn = fadeIn
-
-    local fadeOut = f:CreateAnimationGroup()
-    local b = fadeOut:CreateAnimation("Alpha")
-    b:SetFromAlpha(1)
-    b:SetToAlpha(0)
-    b:SetDuration(0.1)  -- gone 100 ms after the bars empty
-    b:SetSmoothing("IN")
-    fadeOut:SetToFinalAlpha(true)
-    fadeOut:SetScript("OnFinished", function() f:Hide() end)
-    f.fadeOut = fadeOut
-
-    f:Hide()
-    return f
-end
-
-local token = 0
-local function show()
-    frame = frame or build()
-    token = token + 1
-    local mine = token
-    local name = UnitName("player") or "friend"
-    frame.sub:SetText(string.format("|cffbbbbbb(unfettered)|r   ready, %s   |cff888888v%s  ·  /flow help  ·  /flow settings|r", name, version()))
-    local ok, s = pcall(status)
-    frame.status:SetText(ok and s or "")
-    frame.fadeOut:Stop()
-    frame:SetAlpha(0)
-    frame.top:SetWidth(BAR_W)
-    frame.bottom:SetWidth(BAR_W)
-    frame:Show()
-    frame.fadeIn:Play()
-    frame.top.sweep:Play()
-    frame.bottom.sweep:Play()
-    if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN then pcall(PlaySound, SOUNDKIT.IG_MAINMENU_OPEN) end
-
-    -- Count down: after the sweep-in, both bars shrink to nothing over
-    -- SHOW_TIME; then the splash fades out.
-    local t = 0
-    frame:SetScript("OnUpdate", function(self, dt)
-        if mine ~= token then self:SetScript("OnUpdate", nil) return end
-        t = t + dt
-        if t < INTRO then return end
-        local left = 1 - (t - INTRO) / SHOW_TIME
-        if left <= 0 then
-            self.top:SetWidth(0.1); self.bottom:SetWidth(0.1)
-            self:SetScript("OnUpdate", nil)
-            self.fadeOut:Play()
-            return
+    ns.nav.intro = true   -- the arrow's own update leaves it alone meanwhile
+    f:Show()
+    local col = ns.theme.route
+    a:SetVertexColor(col[1], col[2], col[3])
+    a:SetArrived(false)
+    f.text:SetText("|cffffd200Flow|r |cffbbbbbb(unfettered)|r")
+    local ok, s = pcall(I.Status)
+    f.sub:SetText("v" .. version() .. (ok and ("  ·  " .. s) or ""))
+    f.introText:SetAlpha(0)
+    f.introText:Show()
+    local t0 = GetTime()
+    driver:SetScript("OnUpdate", function()
+        local t = GetTime() - t0
+        if t < SPIN then
+            a:SetRotation(I.SpinAngle(t))
+            f.introText:SetAlpha(t / SPIN)
+        elseif t < SPIN + HOLD then
+            if not a.arrived then a:SetArrived(true) end   -- the ring, FLOW in the middle
+            f.introText:SetAlpha(1)
+        else
+            driver:SetScript("OnUpdate", nil)
+            f.introText:Hide()
+            a:SetArrived(false)
+            ns.nav.intro = nil   -- back to pointing the way
         end
-        self.top:SetWidth(BAR_W * left)
-        self.bottom:SetWidth(BAR_W * left)
     end)
 end
 
@@ -169,8 +93,8 @@ ns:On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
     if isInitialLogin or isReloadingUi or (isInitialLogin == nil and not shown) then
         shown = true
         if ns.db.splash.enabled then
-            -- Give spells and quest data a moment to load so the status is right.
-            C_Timer.After(1.5, function() pcall(show) end)
+            -- Give spells, quest data and the route a moment so the status is right.
+            C_Timer.After(1.5, function() pcall(I.Play, I) end)
         end
     end
 end)
@@ -179,9 +103,10 @@ ns.commands.splash = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
         ns.db.splash.enabled = (arg == "on")
-        ns:Print("load splash " .. arg)
+        ns:Print("login intro on the arrow " .. arg)
     else
-        show()
+        I:Play()
     end
 end
 ns.commands.hello = ns.commands.splash
+ns.commands.intro = ns.commands.splash
