@@ -253,6 +253,7 @@ function E:Choose()
 
     pcall(T.SampleTarget, T)
     local ctx = self:Context()
+    self.lastCtx = ctx   -- (OnDeck reads it: same moment, no second look)
 
     -- Stunned, feared, charmed...: break free first, if you can.
     local brk = self:BreakFree(ctx)
@@ -339,6 +340,29 @@ function E:Explain()
     return out
 end
 
+
+-- What's on deck: the next spells after the current one, in your priority
+-- order, among those whose condition holds right now (their cooldowns may
+-- still be running: that's the "future"). As things change (a seal running
+-- out, a target getting low) they move up and down. { {spell, cd} ... }
+function E:OnDeck(n, current)
+    local def, ctx = self:Definition(), self.lastCtx
+    if not (def and ctx) then return {} end
+    local out, seen = {}, { [current or ""] = true }
+    for _, rule in ipairs(priorityFor(def, ctx)) do
+        local s = rule.spell
+        if not seen[s] and self:Knows(s) and s ~= "Attack" and s ~= "Auto Attack" then
+            local okW, w = true, true
+            if rule.when then okW, w = pcall(rule.when, ctx) end
+            if okW and w then
+                seen[s] = true
+                out[#out + 1] = { spell = s, cd = A.Cooldown(s), kind = rule.kind or "damage" }
+                if #out >= n then break end
+            end
+        end
+    end
+    return out
+end
 -- What to press now. Also remembered as E.current so the profiler can tell
 -- whether you followed the suggestion.
 function E:Evaluate()

@@ -439,13 +439,17 @@ ns:Register("navGoal", "merchant", {
             for _, pt in ipairs(ns.places:Points(inn.name)) do points[#points + 1] = pt end
         end
         if #points == 0 then return nil end
+        -- Bags full (1 slot or none): loot is being lost, so it's a real stop,
+        -- planned even with a detour. Otherwise only when you pass a merchant.
+        local full = free <= 1
         return { {
-            key = "merchant", optional = true, weight = 1.2, points = points,
+            key = "merchant", optional = not full or nil, weight = full and 0.8 or 1.2, points = points,
             title = "Merchant",
-            text = string.format("Sell %d item(s) (%s) at a merchant", count, money(value)),
+            text = string.format("%sSell %d item(s) (%s) at a merchant", full and "Bags full: " or "", count, money(value)),
             details = { free <= 3 and string.format("Your bags are nearly full (%d free).", free)
                             or "Enough to sell to be worth a short detour.",
-                        "Only planned when a merchant is roughly on your way." },
+                        full and "Full bags lose loot: planned even if it's a detour."
+                            or "Only planned when a merchant is roughly on your way (passing a town)." },
         } }
     end,
 })

@@ -81,11 +81,11 @@ local function buildIcon(cfg)
     f.timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
     f.timer:SetPoint("CENTER", 0, 0)
     f.timer:SetTextColor(1, 0.95, 0.7)
-    -- Auto attack on: a small crossed-swords badge on the top-left corner,
-    -- gently pulsing while you're swinging.
+    -- Auto attack on: a crossed-swords badge on the LEFT of the button (the
+    -- "active" side; on deck is on the right), gently pulsing while swinging.
     f.swing = CreateFrame("Frame", nil, f.timerLayer)
-    f.swing:SetSize(18, 18)
-    f.swing:SetPoint("CENTER", f, "TOPLEFT", 2, -2)
+    f.swing:SetSize(24, 24)   -- the "active" side: left of the button
+    f.swing:SetPoint("RIGHT", f, "LEFT", -8, 0)
     f.swing.back = f.swing:CreateTexture(nil, "BACKGROUND")
     f.swing.back:SetPoint("TOPLEFT", -1, 1); f.swing.back:SetPoint("BOTTOMRIGHT", 1, -1)
     f.swing.back:SetColorTexture(0, 0, 0, 0.85)
@@ -100,6 +100,28 @@ local function buildIcon(cfg)
     fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
     f.swing.pulse = pulse
     f.swing:Hide()
+    -- On deck (right of the button): the next three spells in your priority
+    -- order, shrinking, each with its cooldown timer. Greyed while cooling down.
+    f.deck = {}
+    local SIZES = { 30, 25, 21 }
+    local prev
+    for i, sz in ipairs(SIZES) do
+        local d = CreateFrame("Frame", nil, f)
+        d:SetSize(sz, sz)
+        if prev then d:SetPoint("LEFT", prev, "RIGHT", 4, 0) else d:SetPoint("LEFT", f, "RIGHT", 8, 0) end
+        d.back = d:CreateTexture(nil, "BACKGROUND")
+        d.back:SetPoint("TOPLEFT", -1, 1); d.back:SetPoint("BOTTOMRIGHT", 1, -1)
+        d.back:SetColorTexture(0, 0, 0, 0.85)
+        d.tex = d:CreateTexture(nil, "ARTWORK")
+        d.tex:SetAllPoints(); d.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        d.timer = d:CreateFontString(nil, "OVERLAY")
+        d.timer:SetFont(STANDARD_TEXT_FONT, math.max(9, math.floor(sz * 0.42)), "OUTLINE")
+        d.timer:SetPoint("CENTER")
+        d:SetAlpha(1 - (i - 1) * 0.15)
+        d:Hide()
+        f.deck[i] = d
+        prev = d
+    end
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
@@ -305,6 +327,28 @@ local function onUpdate(_, dt)
     if swinging ~= icon.swing:IsShown() then
         icon.swing:SetShown(swinging)
         if swinging then icon.swing.pulse:Play() else icon.swing.pulse:Stop() end
+    end
+    -- On deck: only while there's a fight on or about to be (hostile target).
+    local ctx = E.lastCtx
+    local deck = {}
+    if icon:IsShown() and ctx and (ctx.inCombat or ctx.hostile) and cfg.deck ~= false then
+        local okD, d = pcall(E.OnDeck, E, #icon.deck, s and s.spell)
+        if okD then deck = d end
+    end
+    local now = GetTime()
+    for i, slot in ipairs(icon.deck) do
+        local e = deck[i]
+        if e then
+            local _, tex = A.SpellInfo(e.spell)
+            slot.tex:SetTexture(tex)
+            local start, dur = A.CooldownRaw(e.spell)
+            local txt = ns.CooldownText(start, dur, now)
+            slot.timer:SetText(txt)
+            slot.tex:SetDesaturated(txt ~= "")
+            slot:Show()
+        else
+            slot:Hide()
+        end
     end
 end
 

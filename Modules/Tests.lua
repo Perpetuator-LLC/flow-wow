@@ -1020,13 +1020,16 @@ ns:Register("test", "weapons: trained skills, not just class rules", function(t)
     t:eq(type(ns.weaponSkills.Wanted()), "table", "wanted skills computed")
 end)
 
-ns:Register("test", "arrow: in the area it points at the nearest spawn spot", function(t)
+ns:Register("test", "arrow: nearest spawn spot, skipping looted ones", function(t)
     local N = ns.nav
-    local p = { cont = 0, wx = 0, wy = 0 }
-    local goal = { area = true, points = { { cont = 0, wx = 30, wy = 0 }, { cont = 0, wx = 10, wy = 0 } } }
+    -- Fresh coordinates every run: looted spots are remembered for 4 minutes,
+    -- so a second run (/flow test) at the same spot found it already looted.
+    local o = math.random(1, 1000000) * 100
+    local p = { cont = 0, wx = o, wy = 0 }
+    local goal = { area = true, points = { { cont = 0, wx = o + 30, wy = 0 }, { cont = 0, wx = o + 10, wy = 0 } } }
     local pt, d = N:NearestSpot(goal, p)
     t:near(d, 10, 0.01, "nearest spot first")
-    N.ClearSpotNear({ cont = 0, wx = 9, wy = 0 }, goal)   -- looted there
+    N.ClearSpotNear({ cont = 0, wx = o + 9, wy = 0 }, goal)   -- looted there
     pt, d = N:NearestSpot(goal, p)
     t:near(d, 30, 0.01, "a looted spot is skipped: next one")
 end)
@@ -1077,4 +1080,31 @@ ns:Register("test", "rotation: heal on the game's low-health warning; break free
     -- Not held: nothing to break.
     t:eq(E:BreakFree({ loc = nil }), nil, "not held: no break-free")
     t:ok(type(ns.api.Swinging()) == "boolean", "auto attack state readable")
+end)
+
+ns:Register("test", "taint: Flow never toggles the game's map panels", function(t)
+    -- Opening the Flow Router must not open or close the game's quest log panel.
+    local q = QuestMapFrame
+    if not (q and ns.mapOverlay and ns.mapOverlay.SetDrawer) then t:ok(true, "(no quest panel)") return end
+    local before, collapsed = q:IsShown(), ns.db.nav.mapListCollapsed
+    ns.mapOverlay:SetDrawer(true); ns.mapOverlay:SetDrawer(false)
+    t:eq(q:IsShown(), before, "quest panel untouched by the Router")
+    ns.db.nav.mapListCollapsed = collapsed
+end)
+
+ns:Register("test", "map labels: placed where they don't cover each other", function(t)
+    local B = ns.mapOverlay.LabelBox
+    -- Right of a point at 0,0 (half size 5): starts past the point.
+    local l, b, r, top = B(1, 0, 0, 5, 20, 10)
+    t:ok(l > 5 and r == l + 20, "right side")
+    l, b, r, top = B(2, 0, 0, 5, 20, 10)
+    t:ok(r < -5, "left side")
+end)
+
+ns:Register("test", "Flow button: on deck shows the next spells", function(t)
+    local E = ns.rotation
+    local deck = E:OnDeck(3, nil)
+    t:ok(type(deck) == "table" and #deck <= 3, "at most three")
+    local seen = {}
+    for _, d in ipairs(deck) do t:ok(not seen[d.spell], d.spell .. ": once"); seen[d.spell] = true end
 end)

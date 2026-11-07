@@ -1023,35 +1023,20 @@ function N:OpenStop(goal, anchor)
     return N:OpenInGame(goal)
 end
 
--- The quest in the game's quest log (or, for other stops, the place on the world map).
+-- A stop in the game's own windows, WITHOUT calling the game's map or
+-- quest-log functions from Flow's code (QuestMapFrame_OpenToQuestDetails,
+-- ToggleWorldMap, SetMapID...): those run the map from add-on code and taint
+-- it, and in a later fight the map's own buttons get blocked (0.35.47). So:
+-- the quest is selected in your log (you open it with L or M, so the game
+-- runs its own window), and Flow's map layer highlights the stop for the
+-- next 20 seconds.
 function N:OpenInGame(goal)
     if not goal then return end
     local id = tonumber(goal.key:match("^(%d+):"))
-    local idx = id and questLogIndex(id)
-    if idx then
-        -- The quest details open in the map's side panel: fold Flow's drawer away so they show.
-        ns.db.nav.mapListCollapsed = true
-        if ns.mapOverlay and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
-        if QuestMapFrame_OpenToQuestDetails then
-            if pcall(QuestMapFrame_OpenToQuestDetails, id) then return end
-        end
-        if QuestLogFrame and SelectQuestLogEntry then
-            SelectQuestLogEntry(idx)
-            if not QuestLogFrame:IsShown() then ShowUIPanel(QuestLogFrame) end
-            if QuestLog_Update then pcall(QuestLog_Update) end
-            if QuestLog_UpdateQuestDetails then pcall(QuestLog_UpdateQuestDetails) end
-            return
-        end
+    if id and questLogIndex(id) and C_QuestLog and C_QuestLog.SetSelectedQuest then
+        pcall(C_QuestLog.SetSelectedQuest, id)
     end
-    -- Not a quest in your log: show it on the world map.
-    if InCombatLockdown() then ns:Print("can't open the map in combat.") return end
-    local pt = goal.points and goal.points[1]
-    for _, s in ipairs(N.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
-    if not WorldMapFrame:IsShown() then
-        if ToggleWorldMap then ToggleWorldMap() else ShowUIPanel(WorldMapFrame) end
-    end
-    if pt and pt.map and WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, pt.map) end
-    if ns.mapOverlay and ns.mapOverlay.Focus then ns.mapOverlay:Focus(goal.key) end
+    if ns.mapOverlay and ns.mapOverlay.Focus then ns.mapOverlay:Focus(goal.key, 20) end
 end
 
 -- The constraints for planning, dropping any that refer to finished goals.
@@ -1509,6 +1494,7 @@ local function link(parent, label, fn)
     return b
 end
 
+
 local function buildCard()
     local f = buildPanel("FlowStopCard")
     f:SetFrameStrata("FULLSCREEN_DIALOG")          -- above the world map
@@ -1521,10 +1507,14 @@ local function buildCard()
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
     f.links = {
-        quest = link(f, "Open in quest log", function() local g = f.goal; f:Hide(); N:OpenInGame(g) end),
+        quest = link(f, "Select in quest log", function()
+            N:OpenInGame(f.goal)
+            ns:Print("selected in your quest log: press L (or M) to read it.")
+        end),
         map = link(f, "Show on map", function()
             local g = f.goal
-            if WorldMapFrame:IsShown() and ns.mapOverlay then ns.mapOverlay:Focus(g.key) else N:OpenInGame(g) end
+            if ns.mapOverlay then ns.mapOverlay:Focus(g.key, 20) end
+            if not WorldMapFrame:IsShown() then ns:Print("press M: Flow highlights it on your map.") end
         end),
         first = link(f, "Go here first", function() N:Select(f.goal.key); f:Hide() end),
     }

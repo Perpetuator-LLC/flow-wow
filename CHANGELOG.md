@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.49
+- Fixed a blocked action: the world map's own pins were blocked in combat ("taint from Flow:
+  Button:SetPassThroughButtons()"). Flow was opening the game's quest log panel itself to make
+  room for the Flow Router, which ran the map from Flow's code. It never touches the game's
+  map or quest panels now: with the quest log open the Router covers it, otherwise it docks
+  beside the map. The stop card's link is now "Select in quest log" (press L or M to read it),
+  and "Show on map" highlights the stop on Flow's map layer.
+- Map: a route on/off button sits right above Flow's drawer button.
+- Map labels push each other apart: each one tries eight spots around its point and takes one
+  that doesn't cover another label; with no room it drops the [level] and keeps the number.
+- Bags full: the "sell at a merchant" stop is planned even with a detour (it was only planned
+  when a merchant was on your way).
+- Flow button: the next three spells are "on deck" to its right, shrinking, with their cooldown
+  timers, moving up and down as things change. Auto attack moved to the left (the "active"
+  side).
+
 ## 0.35.48
 - The Flow button shows a small crossed-swords badge (top-left, gently pulsing) while auto
   attack is on.
