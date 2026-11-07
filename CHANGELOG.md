@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.14
+- For contributors: CLAUDE.md (how to work on Flow with an AI assistant), CONTRIBUTING.md,
+  and GitHub issue and pull request templates.
+- Tools find your WoW: Forever folder and account by themselves (set FLOW_WOW_DIR /
+  FLOW_WOW_ACCOUNT to override); combat reports go to reports/ by default.
+
 ## 0.35.13
 - Flow Router: the active stop (where the arrow points now) shows a selected radio dot, a
   white ring around a dot in the route colour, instead of the ^ (replaces the 0.35.12 star).

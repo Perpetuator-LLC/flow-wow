@@ -5,13 +5,20 @@
   the game on /reload, logout or exit.
 
 .USAGE
-  powershell -ExecutionPolicy Bypass -File tools\read-diag.ps1 [-Account YOUR_ACCOUNT] [-Tail 60]
+  powershell -ExecutionPolicy Bypass -File tools\read-diag.ps1 [-Account NAME] [-WowDir PATH] [-Tail 60]
+  The WoW folder and account are found by themselves (tools\Common.ps1);
+  set FLOW_WOW_DIR / FLOW_WOW_ACCOUNT if the guess is wrong.
 #>
 param(
-    [string]$WowDir = 'G:\Blizzard\World of Warcraft\_forever_',
-    [string]$Account = 'YOUR_ACCOUNT',
+    [string]$WowDir,
+    [string]$Account,
     [int]$Tail = 60
 )
+. (Join-Path $PSScriptRoot 'Common.ps1')
+if (-not $WowDir) { $WowDir = Find-WowDir }
+if (-not $WowDir) { Write-Host "Can't find your WoW: Forever folder. Pass -WowDir or set FLOW_WOW_DIR."; exit 1 }
+if (-not $Account) { $Account = Find-WowAccount $WowDir }
+if (-not $Account) { Write-Host "No Flow saved data under $WowDir yet. /reload in game first, or pass -Account."; exit 1 }
 $file = Join-Path $WowDir "WTF\Account\$Account\SavedVariables\Flow.lua"
 if (-not (Test-Path $file)) { Write-Host "No saved data at $file yet. /reload in game first."; exit 1 }
 $info = Get-Item $file

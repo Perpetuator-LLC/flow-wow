@@ -95,7 +95,6 @@ Missed quests today: doable quests in zones you've already completed quests in, 
 haven't done and aren't on. **Next step:** route steps (quest ID, NPC, coordinates) so it can
 say "you passed this step without picking up X". Also a "learn" mode that records quest
 givers from `QUEST_ACCEPTED`, for Forever-only quests that no database covers yet.
-Research notes: `H:\wow-notes\research\Quest Database Options.md`.
 
 ## Placeholders to grow into
 

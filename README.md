@@ -122,6 +122,9 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow log auto`, `/flow test`, `/flow api`.
 
 ## For developers
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Using Claude or another AI assistant? Point it
+at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to test in game.
+
 - `Flow.toc` sets the load order. `Core.lua` holds the event bus and the registries
   (`ns:Register` / `ns:Get` / `ns:Each`).
 - `Modules/` holds the features. `Classes/<Class>/` holds class data, trainer spells and the

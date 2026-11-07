@@ -1,0 +1,90 @@
+# Working on Flow (for Claude and other AI assistants)
+
+Flow is a World of Warcraft: Forever addon (Lua 5.1, interface 16001): a levelling companion
+with a rotation helper, route planner and arrow, gear scoring, bag sorting and profession
+plans. Read [README.md](README.md) for what it does and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it's built.
+
+## The one design rule
+
+**Extend by registering, don't edit the core.** `Core.lua` has registries
+(`ns:Register(kind, key, value)`, `ns:Get`, `ns:Each`). New classes, rotations, advisors,
+route goals, profession guides, item sources, gear analyzers, setup rows and tests are new
+registrations, usually in a new file listed in `Flow.toc`. The table of registry kinds is in
+`docs/ARCHITECTURE.md`. If a change seems to need edits all over the core, look for the
+registry first, or add one.
+
+## Map of the code
+
+| Path | What |
+|---|---|
+| `Flow.toc` | Load order. Every new file must be listed here or WoW never loads it. |
+| `Core.lua` | Event bus (`ns:On`), registries, saved data (`ns:OnLoad`), `/flow` commands (`ns.commands.x`). |
+| `Classes/<Class>/` | Class data, trainer spells, rotation. Only Paladin so far: adding a class is a great first contribution. |
+| `Modules/Rotation/` | Rotation engine, cast button/key, the Forever API shims (`Compat.lua`, `ns.api`). |
+| `Modules/Nav/` | Route: goals (`Goals.lua`), planner, arrow and panels (`Nav.lua`), world map (`MapOverlay.lua`), tracker. |
+| `Modules/Crafting/` | Profession guides, recorded recipes, skill plans that become route stops. |
+| `Modules/Gear/`, `Modules/Items/` | Gear scores per role, bag icons, selling, keep reasons. |
+| `Modules/Advisor/` | The advice list. |
+| `Modules/Tests.lua` | Self-tests. |
+| `tools/` | PowerShell: read the in-game diagnostics, analyse combat logs, package a release. |
+
+## Testing: there is no Lua interpreter, tests run in the game
+
+- Add a test for every behaviour you change: `ns:Register("test", "area: what it checks", function(t) ... end)`
+  in `Modules/Tests.lua`, using `t:ok(cond, msg)`, `t:eq(a, b, msg)`, `t:near(a, b, tol, msg)`.
+  Restore any saved data you change inside a test.
+- Tests run on every `/reload` and with `/flow test`. The results are saved with the
+  diagnostics snapshot, which you can read without asking the player to copy anything:
+  `powershell -ExecutionPolicy Bypass -File tools\read-diag.ps1`. It finds the WoW folder and
+  account by itself (override with `FLOW_WOW_DIR` / `FLOW_WOW_ACCOUNT`).
+- The saved file is written when the game reloads or logs out, so it shows the **previous**
+  session. Ask the player to `/reload` (twice if you need the run that includes your change).
+- Useful in game: `/console scriptErrors 1`, `/flow api` (which APIs this client has),
+  `/flow rot why`, `/flow nav why`.
+- With the repo junctioned into `Interface\AddOns\Flow`, `/reload` picks up edits.
+
+## WoW: Forever quirks (learned the hard way)
+
+- **Secret values:** player health and some unit data are hidden from addons. Code must cope
+  with `nil`/secret values; `ns.api.Safe(x)` unwraps what it can.
+- **Auras** can error when read from tainted code: `Compat.lua` wraps them in `pcall` and falls
+  back to remembering your own casts.
+- **Combat lockdown:** a secure button can't change what it casts in combat, so the cast key is
+  locked to one spell at the pull. Don't try to retarget, interrupt or heal others in combat.
+- Macro-type secure buttons are ignored on Forever; use `type = "spell"`.
+- `UnitPosition` height is always 0 (no elevation), and nameplate positions are restricted
+  ("Can't measure restricted regions").
+- Item IDs can differ from classic: match tools and materials by ID **or** name.
+- Talents use `C_ClassTalents` / `C_Traits`, not the classic talent API.
+
+## Lua gotchas that have bitten us
+
+- **Backslashes:** texture paths need doubled backslashes, `"Interface\\Icons\\X"`. In Lua 5.1
+  `"\I"` silently becomes `"I"` and the texture is blank.
+- A `local` must be declared before any function that uses it is defined.
+- `ns:Register` errors on a duplicate key; tests that register helpers must do it once, at
+  file level.
+
+## Data rules
+
+- **Don't copy Questie (or other addons') data into this repo.** Flow reads Questie/QuestieDB
+  at runtime when they're installed; that's the arrangement.
+- Profession and item data in `Modules/Crafting/Guides.lua` is our own, approximate, and
+  corrected by what the game shows.
+
+## Style
+
+- Comments explain *why* and what the player sees, in plain English.
+- Player-facing text is short, plain and specific ("Loot Stringy Wolf Meat 9/66"), never
+  jargon.
+- Keep features optional and quiet: nothing should nag; the route should just be right.
+
+## Every change
+
+1. Code + a test in `Modules/Tests.lua`.
+2. Bump `## Version:` in `Flow.toc` (patch number) and add a `CHANGELOG.md` entry at the top,
+   written for players.
+3. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the
+   README feature list.
+4. One commit per change, message `Flow x.y.z: what changed`.

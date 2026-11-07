@@ -13,13 +13,19 @@
   with it on, but the plain format is simpler and smaller.
 #>
 param(
-    [string]$LogDir = 'G:\Blizzard\World of Warcraft\_forever_\Logs',
+    [string]$LogDir,                 # default: <your WoW: Forever folder>\Logs (tools\Common.ps1)
     [string[]]$Files,
-    [string]$ReportDir = 'H:\wow-notes\WoW Forever\Reports',
+    [string]$ReportDir = $(if ($env:FLOW_REPORT_DIR) { $env:FLOW_REPORT_DIR } else { Join-Path $PSScriptRoot '..\reports' }),
     [string]$LearnedOut = (Join-Path $PSScriptRoot '..\Learned\CombatLog.lua'),
     [int]$MinFightSeconds = 6
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Common.ps1')
+if (-not $LogDir -and -not $Files) {
+    $wow = Find-WowDir
+    if (-not $wow) { throw "Can't find your WoW: Forever folder. Pass -LogDir or set FLOW_WOW_DIR." }
+    $LogDir = Join-Path $wow 'Logs'
+}
 
 $source = @'
 using System;
