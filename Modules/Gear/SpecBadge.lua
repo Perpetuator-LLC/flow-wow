@@ -1,8 +1,8 @@
 -- The spec badge: one small icon per spec (Retribution / Holy / Protection,
--- role-coloured rim) with an arrow drawn right above each:
---   up (green)   better than what that spec wears
---   down (red)   worse
---   flat (grey)  about the same
+-- role-coloured rim) with a mark right above each:
+--   green arrow up   better than what that spec wears
+--   red arrow down   worse
+--   grey dash        about the same
 -- Your levelling spec is brighter. Used wherever Flow marks an item: bag
 -- slots, quest reward choices, the vendor drawer...
 --
@@ -25,24 +25,48 @@ function ns.SpecTrend(diff)
     return "same"
 end
 
+-- One look everywhere: the game's own green bag arrow (the "equip this"
+-- arrow on bag slots) pointing up = better; the same arrow turned over and
+-- red = worse; a short grey dash = about the same. Clients without that
+-- arrow art fall back to a drawn chevron in the same colours.
+local UP, DOWN, SAME = { 0.3, 1, 0.3 }, { 1, 0.3, 0.3 }, { 0.7, 0.7, 0.7 }
+
 local function arrow(slot, size)
     local a = CreateFrame("Frame", nil, slot)
-    a:SetSize(size, math.max(5, math.floor(size * 0.6)))
+    local h = math.max(6, math.floor(size * 0.8))
+    a:SetSize(size, h)
     a:SetPoint("BOTTOM", slot, "TOP", 0, 1)
+    a.tex = a:CreateTexture(nil, "OVERLAY")
+    a.tex:SetSize(h + 2, h + 2)
+    a.tex:SetPoint("CENTER")
+    a.atlas = a.tex.SetAtlas and pcall(a.tex.SetAtlas, a.tex, "bags-greenarrow")
+        and (not a.tex.GetAtlas or a.tex:GetAtlas() ~= nil) or false
     a.l1 = a:CreateLine(nil, "OVERLAY"); a.l1:SetThickness(2)
     a.l2 = a:CreateLine(nil, "OVERLAY"); a.l2:SetThickness(2)
     a.bar = a:CreateTexture(nil, "OVERLAY")
-    a.bar:SetSize(size - 2, 2)
+    a.bar:SetSize(math.max(4, size - 4), 2)
     a.bar:SetPoint("CENTER")
-    a.bar:SetColorTexture(0.8, 0.8, 0.8, 0.95)
+    a.bar:SetColorTexture(SAME[1], SAME[2], SAME[3], 0.9)
     function a:Show3(trend)
-        local w, h = self:GetWidth(), self:GetHeight()
-        self.bar:SetShown(trend == "same")
-        self.l1:SetShown(trend ~= "same"); self.l2:SetShown(trend ~= "same")
-        if trend == "same" then return end
+        local same = trend == "same"
+        self.bar:SetShown(same)
         local up = trend == "up"
-        local tipY, baseY = up and h or 0, up and 0 or h
-        local c = up and { 0.3, 1, 0.3 } or { 1, 0.3, 0.3 }
+        local c = up and UP or DOWN
+        if self.atlas then
+            self.l1:Hide(); self.l2:Hide()
+            self.tex:SetShown(not same)
+            if same then return end
+            -- Green as drawn for up; for down, greyed then tinted red and turned over.
+            self.tex:SetDesaturated(not up)
+            if up then self.tex:SetVertexColor(1, 1, 1, 1) else self.tex:SetVertexColor(c[1], c[2], c[3], 1) end
+            if self.tex.SetRotation then self.tex:SetRotation(up and 0 or math.pi) end
+            return
+        end
+        self.tex:Hide()
+        self.l1:SetShown(not same); self.l2:SetShown(not same)
+        if same then return end
+        local w, hh = self:GetWidth(), self:GetHeight()
+        local tipY, baseY = up and hh or 0, up and 0 or hh
         self.l1:SetStartPoint("BOTTOMLEFT", self, 1, baseY); self.l1:SetEndPoint("BOTTOMLEFT", self, w / 2, tipY)
         self.l2:SetStartPoint("BOTTOMLEFT", self, w - 1, baseY); self.l2:SetEndPoint("BOTTOMLEFT", self, w / 2, tipY)
         self.l1:SetColorTexture(c[1], c[2], c[3], 1); self.l2:SetColorTexture(c[1], c[2], c[3], 1)
@@ -71,7 +95,7 @@ end
 function ns:SpecBadge(parent, size)
     size = size or 10
     local f = CreateFrame("Frame", nil, parent)
-    f:SetSize(3 * size + 4, size + math.max(5, math.floor(size * 0.6)) + 1)
+    f:SetSize(3 * size + 4, size + math.max(6, math.floor(size * 0.8)) + 1)
     f:SetFrameLevel(parent:GetFrameLevel() + 6)
     f.slots = {}
     for i, role in ipairs(ROLES) do

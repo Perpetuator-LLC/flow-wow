@@ -789,3 +789,28 @@ ns:Register("test", "actions: no endless casts where there's no water", function
     end
     ns.db.actions.dryAt = saved
 end)
+
+ns:Register("test", "gear marks: green arrow up, red arrow down, grey dash same", function(t)
+    local b = ns:SpecBadge(UIParent, 10)
+    b:Set({ dps = 2, heal = -2, tank = 0 })
+    local up, down, same = b.slots.dps.arrow, b.slots.heal.arrow, b.slots.tank.arrow
+    t:ok(same.bar:IsShown(), "same: grey dash")
+    if up.atlas then
+        t:ok(up.tex:IsShown() and down.tex:IsShown(), "up and down use the game's green arrow art")
+        local r, g = down.tex:GetVertexColor()
+        t:ok(r > g, "down: red")
+        t:ok(not same.tex:IsShown(), "no arrow for same")
+    else
+        t:ok(up.l1:IsShown(), "no arrow art on this client: drawn chevron instead")
+    end
+    b:Hide()
+end)
+
+ns:Register("test", "arrow panel: drag by the title too", function(t)
+    t:ok(type(ns.nav.Draggable) == "function", "shared drag helper")
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.hero = CreateFrame("Frame", nil, f)
+    ns.nav.Draggable(f, "testPoint", "here")
+    t:ok(f:IsMovable() and f.hero:IsMouseEnabled(), "movable by its title")
+    f:Hide()
+end)

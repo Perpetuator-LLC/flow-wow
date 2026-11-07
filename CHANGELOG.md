@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.36
+- The arrow's panel (click the arrow) can be dragged by its title band too, like the stop
+  card; it then opens where you left it (right-click the title to put it back under the arrow).
+- Gear marks are one style everywhere: the game's green bag arrow pointing up = better for
+  that spec, the same arrow red and pointing down = worse, a short grey dash = about the same.
+- After-fight heal: offered after any fight of 6 seconds or more, for 15 seconds (it was only
+  after 15-second fights, for 10). Your health is hidden from add-ons on WoW: Forever, so Flow
+  can't tell how hurt you are; `/flow api` now also checks whether the damage meter or the
+  health bar could tell it.
+
 ## 0.35.35
 - Fixed: after a fight away from the water, the Flow key kept offering "Cast your line" and
   the game said "didn't land in fishable water" over and over. Now that message tells Flow

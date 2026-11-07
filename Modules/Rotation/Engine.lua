@@ -177,7 +177,9 @@ end
 
 -- The after-fight heal prompt. Flow can't see your health in Forever, so it
 -- only offers a heal when it's likely useful and never gets in the way:
---   * only after a long fight (15 s or more), for 10 s
+--   * after any real fight (6 s or more), for 15 s: your health is hidden
+--     from add-ons on Forever, so Flow can't tell how hurt you are; a 7 s
+--     fight that left you at half health used to get no offer at all
 --   * never in combat, and never once you target an enemy (you're pulling:
 --     attacks come first)
 --   * gone once you heal or fight again
@@ -357,7 +359,7 @@ end
 local fightStart
 ns:On("PLAYER_REGEN_DISABLED", function() fightStart = GetTime(); E.afterFight = nil end)
 ns:On("PLAYER_REGEN_ENABLED", function()
-    if fightStart and GetTime() - fightStart >= 15 then E.afterFight = GetTime() + 10 end
+    if fightStart and GetTime() - fightStart >= 6 then E.afterFight = GetTime() + 15 end
     fightStart = nil
 end)
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)

@@ -1167,6 +1167,39 @@ local function buildPanel(name)
     return f
 end
 
+-- Drag a panel (arrow panel, stop card) by its title band. Once moved it
+-- opens where you left it (saved as ns.db.nav[key]); right-click the title
+-- to put it back where it opens by default (`home`, said in chat).
+function N.Draggable(f, key, home)
+    f:SetMovable(true)
+    f:SetClampedToScreen(true)
+    local h = f.hero
+    h:EnableMouse(true)
+    h:RegisterForDrag("LeftButton")
+    h:SetScript("OnDragStart", function() f:StartMoving() end)
+    h:SetScript("OnDragStop", function()
+        f:StopMovingOrSizing()
+        local a, _, b, x, y = f:GetPoint()
+        ns.db.nav[key] = { a, b, x, y }
+        f.byHover = false   -- you moved it: keep it open
+    end)
+    h:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" and ns.db.nav[key] then
+            ns.db.nav[key] = nil
+            ns:Print("back " .. home .. " next time it opens")
+        end
+    end)
+    h:SetScript("OnEnter", function(self)
+        if self.hinted then return end
+        self.hinted = true   -- once per session: how to move it
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Drag the title to move this.", 1, 1, 1)
+        GameTooltip:AddLine("Right-click the title to put it back " .. home .. ".", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
 -- The coloured band at the top of the arrow panel and the stop card.
 local function fillHero(p, g, distText)
     local h = p.hero
@@ -1187,7 +1220,10 @@ end
 
 local function showPanel()
     if not current then return end
-    panel = panel or buildPanel()
+    if not panel then
+        panel = buildPanel()
+        N.Draggable(panel, "panelPoint", "under the arrow")
+    end
     local g = current.goal
     local h = panel.hero
     local task = fillHero(panel, g, string.format("%d yd", current.d or 0))
@@ -1228,7 +1264,12 @@ local function showPanel()
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
     panel:ClearAllPoints()
-    panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- below the text, so hovering the text doesn't land on it
+    local saved = ns.db.nav.panelPoint
+    if saved then
+        panel:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])   -- where you dragged it
+    else
+        panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- below the text, so hovering the text doesn't land on it
+    end
     panel:Show()
 end
 
@@ -1278,33 +1319,7 @@ local function buildCard()
     f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f.close:SetPoint("TOPRIGHT", 2, 2)
     f.close:SetScale(0.8)
-    -- Drag it by its title band. Once moved, it opens where you left it;
-    -- right-click the title to put it back beside what you click.
-    f:SetMovable(true)
-    local h = f.hero
-    h:EnableMouse(true)
-    h:RegisterForDrag("LeftButton")
-    h:SetScript("OnDragStart", function() f:StartMoving() end)
-    h:SetScript("OnDragStop", function()
-        f:StopMovingOrSizing()
-        local a, _, b, x, y = f:GetPoint()
-        ns.db.nav.cardPoint = { a, b, x, y }
-    end)
-    h:SetScript("OnMouseUp", function(_, button)
-        if button == "RightButton" and ns.db.nav.cardPoint then
-            ns.db.nav.cardPoint = nil
-            ns:Print("stop card: back beside what you click")
-        end
-    end)
-    h:SetScript("OnEnter", function(self)
-        if self.hinted then return end
-        self.hinted = true   -- once per session: how to move it
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Drag the title to move this card.", 1, 1, 1)
-        GameTooltip:AddLine("Right-click the title to put it back beside what you click.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
-    end)
-    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    N.Draggable(f, "cardPoint", "beside what you click")
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
     f.links = {

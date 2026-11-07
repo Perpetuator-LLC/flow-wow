@@ -152,6 +152,21 @@ local function apiReport(arg)
     print("  combat log function: " .. has(CombatLogGetCurrentEventInfo)
         .. ", Flow uses it: " .. tostring(ns.api and ns.api.CombatLogAllowed()))
     print("  damage meter API: " .. has(C_DamageMeter))
+    -- Health is hidden from add-ons here; these say whether anything else
+    -- could tell Flow how hurt you are (for the after-fight heal).
+    if C_DamageMeter then
+        local names = {}
+        for k in pairs(C_DamageMeter) do names[#names + 1] = tostring(k) end
+        table.sort(names)
+        print("    damage meter functions: " .. table.concat(names, ", "))
+    end
+    local okBar, bar = pcall(function()
+        local hb = PlayerFrame and (PlayerFrame.healthbar or (PlayerFrame.PlayerFrameContent and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain
+            and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HealthBarsContainer
+            and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HealthBarsContainer.HealthBar))
+        return hb and hb:GetValue()
+    end)
+    print("  health bar value: " .. (okBar and shown(bar) or "error") .. ", UnitHealthPercent: " .. has(UnitHealthPercent))
     print("  C_Spell: " .. has(C_Spell) .. ", C_SpellBook: " .. has(C_SpellBook) .. ", C_Container: " .. has(C_Container))
     print("  quest waypoints: " .. has(C_QuestLog and C_QuestLog.GetNextWaypoint)
         .. ", equipment manager: " .. has(C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs))
