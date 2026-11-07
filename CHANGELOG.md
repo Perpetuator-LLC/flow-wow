@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.55
+- The Flow Router's Route dropdown didn't open: the same waypoint error as the arrow menu
+  (fixed in 0.35.54). Menus now fail safely: if building a list ever errors, it's logged and
+  said in chat, and the menu still opens.
+- The arrow turns with your character, only. The map-style and minimap modes are gone (neither
+  turned the way you look). It can't follow the camera as you swing it around: the game
+  doesn't give add-ons the camera's direction.
+- Catching breakage sooner: Flow runs its self-tests 8 seconds after every login and /reload,
+  and if any fail you get one red line in chat naming it. New "click" tests press Flow's own
+  buttons (the arrow's right-click, the Router dropdown, Tracker rows) and check a menu opens.
+
 ## 0.35.54
 - Fixed: the arrow's right-click menu broke once a waypoint was set (Nearest repair / vendor,
   Point the arrow here): Forever gives the game's map pin position as a plain table, and Flow

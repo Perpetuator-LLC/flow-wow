@@ -104,9 +104,17 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 
 ## Every change
 
-1. Code + a test in `Modules/Tests.lua`.
-2. Bump `## Version:` in `Flow.toc` (patch number) and add a `CHANGELOG.md` entry at the top,
+1. Code + a test in `Modules/Tests.lua`. For anything the player clicks (a button, a menu, a
+   dropdown), add a **click test**: call its OnClick script in a `pcall` the way a click would,
+   and check what should appear did (see "click:" tests). Self-tests run 8 s after every login
+   and print one red chat line if any fail, so a broken button is flagged before it's clicked.
+   Anything that builds a menu goes through `ns.menu:RouteItems()`-style safe builders: one
+   failing entry must not stop the menu opening.
+2. Before committing: `tools\check-paths.ps1`. Watch for a `local` used before it's declared
+   (a function referring to a later `local function` sees a global instead) and for game
+   values that differ on Forever (vectors that are plain tables, globals moved into `C_*`).
+3. Bump `## Version:` in `Flow.toc` (patch number) and add a `CHANGELOG.md` entry at the top,
    written for players.
-3. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the
+4. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the
    README feature list.
-4. One commit per change, message `Flow x.y.z: what changed`.
+5. One commit per change, message `Flow x.y.z: what changed`.

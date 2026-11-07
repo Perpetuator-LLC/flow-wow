@@ -117,7 +117,7 @@ function Menu:Open(items)
 end
 
 -- Route entries shared by every Flow menu (arrow, tracker rows).
-function Menu:RouteItems()
+function Menu:RouteItemsRaw()
     local nav = ns.nav
     local mode, profs = nav:Mode(), ns.db.nav.professions ~= false
     local sort = ns.xpValue:Mode()
@@ -171,4 +171,20 @@ function Menu:RouteItems()
         end
     end
     return items
+end
+
+-- The route list, never failing: an error in one entry (like the waypoint
+-- check in 0.35.53) used to stop the whole menu from opening, with nothing
+-- on screen. Now it's logged (diagnostics: "[menu]") and said in chat, and
+-- the menu still opens with what it can show.
+function Menu:RouteItems()
+    local ok, items = pcall(self.RouteItemsRaw, self)
+    if ok and type(items) == "table" then return items end
+    ns:Log("menu", "route items: " .. tostring(items))
+    if not Menu.warned then
+        Menu.warned = true
+        ns:Print("|cffff6060a menu entry failed (logged for the diagnostics).|r")
+    end
+    return { { title = true, text = "Route" },
+             { text = "(something went wrong here: it's logged)", disabled = true } }
 end

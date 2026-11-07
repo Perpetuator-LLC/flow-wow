@@ -57,6 +57,24 @@ ns.commands.test = function(arg)
     for _, l in ipairs(out) do print(l) end
 end
 
+-- After every login and /reload: run them all, and if anything fails say so
+-- in chat right away (one red line), so a broken button shows up before you
+-- click it. The full results are in the diagnostics and /flow test.
+ns:On("PLAYER_LOGIN", function()
+    C_Timer.After(8, function()
+        if InCombatLockdown() then return end
+        local ok, passed, failed, checks, out = pcall(run)
+        if not ok then ns:Log("tests", "run failed: " .. tostring(passed)) return end
+        ns:Log("tests", string.format("at login: %d passed, %d failed", passed, failed))
+        if failed > 0 then
+            local first = (out[1] or ""):gsub("^FAIL ", "")
+            ns:Print(string.format("|cffff6060%d self-test%s failed|r (%s%s). Details: /flow test",
+                failed, failed == 1 and "" or "s", first, failed > 1 and ", ..." or ""))
+            for _, l in ipairs(out) do ns:Log("tests", l) end
+        end
+    end)
+end)
+
 -------------------------------------------------------------------------------
 -- Tests
 -------------------------------------------------------------------------------
@@ -1127,21 +1145,10 @@ ns:Register("test", "bags: things to learn and full bags", function(t)
     t:ok(ns.services and type(ns.services.Nearest) == "function", "nearest repair / vendor")
 end)
 
-ns:Register("test", "arrow: north-up, with my character, or like my minimap", function(t)
-    local nav = ns.db.nav
-    local saved = { up = nav.northUp, turn = nav.arrowTurn }
-    nav.northUp, nav.arrowTurn = nil, nil
-    t:eq(ns.nav.ArrowTurn(), "character", "turns with your character by default")
-    nav.arrowTurn = "north"
-    t:eq(ns.nav.ArrowFacing(), 0, "map style: fixed to the screen")
-    nav.arrowTurn = "character"
+ns:Register("test", "arrow: turns with your character", function(t)
     local f = ns.nav.ArrowFacing()
-    t:ok(f == nil or type(f) == "number", "with my character: its facing")
-    nav.arrowTurn = "minimap"
-    local m = ns.nav.ArrowFacing()
-    if GetCVar("rotateMinimap") == "1" then t:ok(m == nil or type(m) == "number", "rotating minimap: turns")
-    else t:eq(m, 0, "north-locked minimap: north-up") end
-    nav.northUp, nav.arrowTurn = saved.up, saved.turn
+    t:ok(f == nil or type(f) == "number", "your character's facing")
+    t:ok(ns.nav.ArrowTurn == nil, "the removed turn modes are gone")
 end)
 
 ns:Register("test", "router dropdown, camera, auto-sell switches", function(t)
@@ -1175,4 +1182,54 @@ ns:Register("test", "waypoint: the game's map pin reads as a table or a vector",
     t:ok(ok, "reading your waypoint doesn't error")
     local okM = pcall(ns.menu.RouteItems, ns.menu)
     t:ok(okM, "the arrow's menu builds")
+end)
+
+-------------------------------------------------------------------------------
+-- Click tests: press Flow's own buttons the way you would and check what you
+-- should see appears (a menu opens), so a broken button is caught at login
+-- instead of when you click it. Each one closes what it opened.
+-------------------------------------------------------------------------------
+
+local function menuShown() return _G.FlowMenu and _G.FlowMenu:IsShown() end
+local function closeMenu() if ns.menu then ns.menu:Close() end end
+
+ns:Register("test", "click: the arrow's right-click menu opens", function(t)
+    local f = ns.nav.arrowFrame
+    if not (f and f:GetScript("OnClick")) then t:ok(true, "(no arrow yet)") return end
+    closeMenu()
+    local ok, err = pcall(f:GetScript("OnClick"), f, "RightButton")
+    t:ok(ok, "right-click runs" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "the menu is on screen")
+    closeMenu()
+end)
+
+ns:Register("test", "click: the Flow Router's Route dropdown opens", function(t)
+    local list = _G.FlowMapRoute
+    local dd = list and list.routeDrop
+    if not dd then t:ok(true, "(the Router hasn't been built yet: open the map once)") return end
+    closeMenu()
+    local ok, err = pcall(dd:GetScript("OnClick"), dd, "LeftButton")
+    t:ok(ok, "dropdown click runs" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "the route list is on screen")
+    closeMenu()
+end)
+
+ns:Register("test", "click: every route menu entry is well formed", function(t)
+    local items = ns.menu:RouteItems()
+    t:ok(#items > 3, "route list has its entries")
+    for i, it in ipairs(items) do
+        local good = it.sep or it.title or (type(it.text) == "string" and (it.func == nil or type(it.func) == "function"))
+        t:ok(good, "entry " .. i .. " (" .. tostring(it.text) .. ")")
+    end
+end)
+
+ns:Register("test", "click: Flow Tracker rows open the menu on right-click", function(t)
+    local frame = _G.FlowTracker
+    local r = frame and frame.rows and frame.rows[1]
+    if not (r and r:IsShown() and r.goal and r:GetScript("OnClick")) then t:ok(true, "(no tracker row to try)") return end
+    closeMenu()
+    local ok, err = pcall(r:GetScript("OnClick"), r, "RightButton")
+    t:ok(ok, "row right-click runs" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "menu on screen")
+    closeMenu()
 end)
