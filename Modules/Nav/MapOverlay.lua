@@ -112,7 +112,7 @@ local function pin(c, x, y, label, color, stop, top, target)
             hoverKey = self.stop.goal.key
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             ns.nav:ClickCursor(true)
-            ns.nav:FillTooltip(GameTooltip, self.stop.goal, "Click: open it. Right-click: menu. (^ in the Flow Router list: go here first.)")
+            ns.nav:FillTooltip(GameTooltip, self.stop.goal, "Click: open it. Right-click: menu. (^ in the Flow Router: go here next, a Custom route.)")
             GameTooltip:Show()
             -- Highlight in place (redrawing would move the point under the mouse).
             self:SetSize(18, 18); self.edge:SetVertexColor(1, 1, 1, 1)
@@ -136,7 +136,7 @@ local function pin(c, x, y, label, color, stop, top, target)
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-                    { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+                    { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
@@ -287,7 +287,7 @@ local function blobClick(self, button)
         local items = {
             { title = true, text = g.text or g.title or "This stop" },
             { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-            { text = "Go here first", func = function() ns.nav:Select(g.key) end },
+            { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
             { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
             { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
         }
@@ -918,7 +918,7 @@ local function buildHelp(f)
             pop[handle] = h
         end
     end
-    line(-8, "go", "Go here first: moves it to the top, re-plans after it")
+    line(-8, "go", "Go here next: a Custom route (orange) from it")
     line(-28, "active", "Where you're heading: always the top row")
     line(-50, nil, "Click a stop's name to open it. Right-click to hide it or for more.")
     pop:Hide()
@@ -1112,12 +1112,15 @@ local function buildList()
     end
     f.routeDrop = dd
 
-    -- Route sorting (XpValue.lua): one row of radios. (To put one stop first,
-    -- use its ^ in the list below: the rest is re-planned after it.)
+    -- Route state (XpValue.lua): one row of radios, each in its route colour.
+    -- Custom route (orange) is on while you've picked the next stop yourself
+    -- (a ^ in the list below); Most XP or Shortest puts you back on an
+    -- optimised route.
     f.sorts = {}
     local SORTS = {
         { "xp", "Most XP", 6, "Most XP first (default): the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
         { "distance", "Shortest", 92, "Shortest path: nearest stops first, XP ignored." },
+        { "custom", "Custom route", 172, "You picked the next stop yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again." },
     }
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -1173,12 +1176,12 @@ local function buildList()
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if self.active then
                 GameTooltip:AddLine("Where you're heading")
-                GameTooltip:AddLine(M.IsChosen(row.key) and "You moved this one first. Click to go back to the usual order."
+                GameTooltip:AddLine(M.IsChosen(row.key) and "Your pick (Custom route). Click to go back to the optimised route."
                     or "The next stop on your route.", 1, 1, 1, true)
             else
                 M:Preview(row.key)
-                GameTooltip:AddLine("Go here first")
-                GameTooltip:AddLine("Moves this stop to the top and plans the rest of the route after it. The orange line on the map is that route.", 1, 1, 1, true)
+                GameTooltip:AddLine("Go here next")
+                GameTooltip:AddLine("Makes it your next stop: a Custom route (orange) until you choose Most XP or Shortest again. The orange line on the map is that route.", 1, 1, 1, true)
             end
             GameTooltip:Show()
         end)
@@ -1214,7 +1217,7 @@ local function buildList()
             local footer
             if self.isHidden then footer = "Hidden. Click to bring it back."
             elseif self.blocked then footer = "Joins the route by itself once that's sorted. Right-click: menu."
-            else footer = "Click: open it. ^: go here first. Right-click: menu." end
+            else footer = "Click: open it. ^: go here next (Custom route). Right-click: menu." end
             if not self.blocked then ns.nav:ClickCursor(true) end
             ns.nav:FillTooltip(GameTooltip, g, footer)
             GameTooltip:Show()
@@ -1235,7 +1238,7 @@ local function buildList()
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-                    { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
+                    { text = "Go here next (Custom route)", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
@@ -1276,7 +1279,7 @@ local function updateList()
     list.hint:SetShown(not hidden)
     list.routeDrop:SetShown(not hidden)
     list.routeDrop:Update()
-    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Base() == rb.mode) end
+    for _, rb in ipairs(list.sorts) do rb:SetChecked(ns.xpValue:Mode() == rb.mode) end
     if hidden then
         -- Rolled up: only the bar remains, at the top of the area.
         for i = 1, MAX_ROWS do list.rows[i]:Hide() end
@@ -1295,7 +1298,8 @@ local function updateList()
     local following = ns.party and ns.party:Following()
     local nBlocked = ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
     list.title:SetText(string.format("%s: %d stops, about %d yd%s",
-        following and "Party route" or "Your route", #plan, plan[#plan] and plan[#plan].cum or 0,
+        following and "Party route" or (ns.xpValue:IsCustom() and ns.theme:ModeText("custom", "Custom route")) or "Your route",
+        #plan, plan[#plan] and plan[#plan].cum or 0,
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
     local labels = ns.nav:PlanLabels(plan)

@@ -892,10 +892,10 @@ end
 
 -------------------------------------------------------------------------------
 -- Choosing the route. N.selection = { first = goal key, tour = { [key] = true } }
---   first : the stop you moved first (its ^ in the Flow Router, "Go here
---           first"): the route is re-planned from it, in the same order mode,
---           so it's stop 1 with the (o). It stays first until it's done or
---           you click its (o).
+--   first : the next stop you picked (its ^ in the Flow Router, "Go here
+--           first"). That makes it a Custom route (orange): this stop first,
+--           with the (o), the rest planned after it. It stays Custom until you
+--           pick Most XP or Shortest again (or click the (o) of your pick).
 --   tour  : stops that must all come before anything else (picking one of the
 --           "!" quest pickups puts all pickups first: !3 -> the other pickups
 --           -> then the normal plan)
@@ -957,8 +957,13 @@ function N:Select(key)
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
     ns.db.nav.selectedKey = key  -- kept across /reload
-    -- Same order mode (and route colour): only the first stop changes.
-    if ns.db.nav.sorter == "selected" then ns.db.nav.sorter = ns.db.nav.baseSorter or "xp" end
+    -- Picking a stop: Custom route (orange). Clearing it: back to optimised
+    -- (your last objective).
+    if key then
+        ns.db.nav.sorter = "custom"
+    elseif ns.db.nav.sorter == "custom" or ns.db.nav.sorter == "selected" then
+        ns.db.nav.sorter = ns.xpValue and ns.xpValue:Base() or "xp"
+    end
     ns.theme:UpdateRoute()
     self.planDirty = true
     pinnedKey = nil
@@ -1086,8 +1091,10 @@ function N:Options(sel)
     end
     -- (Not in the first seconds after login: quest data may not be in yet, and
     -- a stop chosen before the reload would be dropped too early.)
+    -- Your pick is done: the route carries on from here, still a Custom route
+    -- (orange) until you choose Most XP or Shortest again.
     if not first and not tour and self.selection and GetTime() - (N.loadedAt or 0) > 20 then
-        self.selection = nil  -- the chosen stop is done: back to the usual sorting
+        self.selection = nil
         ns.db.nav.selectedKey = nil
     end
     -- Default (nothing chosen): pick up the quests in this hub before heading
@@ -1571,7 +1578,7 @@ local function buildCard()
             if ns.mapOverlay then ns.mapOverlay:Focus(g.key, 20) end
             if not WorldMapFrame:IsShown() then ns:Print("press M: Flow highlights it on your map.") end
         end),
-        first = uiLink(f, "Go here first", function() N:Select(f.goal.key); f:Hide() end),
+        first = uiLink(f, "Go here next", function() N:Select(f.goal.key); f:Hide() end),
     }
     return f
 end
@@ -1984,10 +1991,10 @@ ns:OnLoad(function(saved)
     saved.nav.graphs = saved.nav.graphs or {}
     if saved.nav.enabled == nil then saved.nav.enabled = true end
     if saved.nav.learn == nil then saved.nav.learn = true end
-    -- Restore the stop you moved first before the reload. ("selected" used to be
-    -- an order of its own; old saves go back to their usual order.)
+    -- Restore your Custom route's pick from before the reload ("selected" is
+    -- the older name of "custom").
     N.loadedAt = GetTime()
-    if saved.nav.sorter == "selected" then saved.nav.sorter = saved.nav.baseSorter or "xp" end
+    if saved.nav.sorter == "selected" then saved.nav.sorter = "custom" end
     if saved.nav.selectedKey then N.selection = { first = saved.nav.selectedKey } end
     ns.theme:UpdateRoute()
     frame = buildArrow()

@@ -50,10 +50,12 @@ Flow for WoW is a separate project from Flow Engine.
   objectives, quests to pick up, trainers you can afford, and profession stops) and points you
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
   entrances so it sends you in through the door, not over the top.
-- **Two route orders**, each with its own colour for the arrow, route and waypoints:
-  **Most XP first** (epic purple, the default) and **Shortest path** (rare blue). Tooltips
-  show each stop's XP. The ^ on a stop in the Flow Router moves it to the top: the route is
-  re-planned from there and it gets the (o), the stop you're heading to (a white ring on the map).
+- **The route's colour tells you its state** (arrow, route and waypoints): **Most XP first**
+  (epic purple, the default) and **Shortest path** (rare blue) are optimised; **Custom route**
+  (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
+  "Go here next"). It goes there first and stays orange until you choose Most XP or Shortest
+  again. The top row's (o) is where you're heading (a white ring on the map). Tooltips show
+  each stop's XP.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a stop on the route: the arrow turns legendary orange and points there along an
   orange line on the map, then goes back to the route when you arrive or clear it.

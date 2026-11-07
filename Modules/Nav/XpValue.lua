@@ -82,14 +82,19 @@ ns:Register("routeObjective", "distance", {
     label = "Shortest", tip = "Shortest path: nearest stops first, XP ignored.",
 })
 
--- Route sorting modes (map list, arrow right-click, /flow nav xp|distance|sort):
---   any routeObjective key ("xp" by default, "distance", ...)
--- Moving one stop first (its ^ in the Flow Router) isn't a mode: the route
--- keeps its objective and is planned from that stop (ns.nav.selection).
--- Picking an objective clears the moved stop. ("selected" was a mode once;
--- old saves fall back to the base objective.)
+-- Route states (map list, arrow right-click, /flow nav xp|distance|custom|sort):
+--   any routeObjective key ("xp" by default, "distance", ...): optimised
+--   "custom"  Custom route: you picked the next stop (its ^ in the Flow Router,
+--             or "Go here first"). The route goes there first, then carries on
+--             planned with your last objective ("base"), and stays Custom
+--             (orange) until you pick an objective again. ("selected" is its
+--             older name, in old saves.)
 local function known(m) return m and ns:Get("routeObjective", m) ~= nil end
-function X:Mode() return ns.db.nav.sorter or "xp" end
+function X:Mode()
+    local m = ns.db.nav.sorter or "xp"
+    return m == "selected" and "custom" or m
+end
+function X:IsCustom() return self:Mode() == "custom" end
 function X:Base()
     local b = ns.db.nav.baseSorter
     return known(b) and b or "xp"
@@ -99,11 +104,18 @@ function X:Objective()
     -- Completionist route: every quest counts the same, so XP doesn't reorder it.
     if ns.nav and ns.nav.Mode and ns.nav:Mode() == "complete" then return "distance", ns:Get("routeObjective", "distance") end
     local m = self:Mode()
-    if m == "selected" or not known(m) then m = self:Base() end
+    if not known(m) then m = self:Base() end   -- custom: planned with your last objective
     return m, ns:Get("routeObjective", m)
 end
 function X:On() return (self:Objective()) == "xp" end
 function X:SetMode(m)
+    if m == "custom" or m == "selected" then
+        -- Custom route starts by picking a stop; the radio alone can't.
+        if not self:IsCustom() then
+            ns:Print("Custom route: pick your next stop with its ^ in the Flow Router (or right-click a stop: Go here next).")
+        end
+        return
+    end
     if not known(m) then ns:Print("no route objective called '" .. tostring(m) .. "'") return end
     ns.db.nav.sorter, ns.db.nav.baseSorter = m, m
     ns.nav:ClearSelection()

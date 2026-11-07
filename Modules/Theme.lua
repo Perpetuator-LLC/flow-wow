@@ -8,25 +8,26 @@ local function rgb(hex)
 end
 
 -- Route colours (map lines, pins, the nav arrow, the minimap dot). The route
--- and the arrow share one colour, and it tells you the order mode:
---   Most XP first       epic purple
---   Shortest path       rare blue
--- Moving a stop first (its ^) keeps the colour: it's the same route, re-planned.
--- Your own waypoint is legendary orange: the arrow and a line on the map, apart
--- from the route. Hovering a ^ previews that route in the same orange. The stop
--- under your mouse is red.
+-- and the arrow share one colour, and it tells you the route's state:
+--   Most XP first       epic purple   optimised
+--   Shortest path       rare blue     optimised
+--   Custom route        legendary orange: you picked the next stop (a ^);
+--                       stays until you choose Most XP or Shortest again
+-- Your own waypoint is the same orange (also your choice): the arrow and a
+-- line on the map to it. Hovering a ^ previews that route in orange too. The
+-- stop under your mouse is red.
 -- Colour-blind palette (/flow settings): Okabe-Ito equivalents that stay
 -- apart for the common kinds of colour blindness.
 local PALETTES = {
     standard = {
-        modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), selected = rgb("FF8000") },
+        modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), custom = rgb("FF8000"), selected = rgb("FF8000") },
         proposed = rgb("FF8000"),  -- legendary orange: the route you'd follow if you pick the hovered stop
         waypoint = rgb("FF8000"),  -- legendary orange: your own waypoint (arrow, map line, Router line)
         changed  = rgb("9A9A9A"),  -- grey: your route while previewing another
         hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
     },
     colorblind = {
-        modes    = { xp = rgb("CC79A7"), distance = rgb("0072B2"), selected = rgb("E69F00") },
+        modes    = { xp = rgb("CC79A7"), distance = rgb("0072B2"), custom = rgb("E69F00"), selected = rgb("E69F00") },
         proposed = rgb("E69F00"),
         waypoint = rgb("E69F00"),
         changed  = rgb("9A9A9A"),
@@ -75,7 +76,7 @@ local function set(self, k, c)
     end
 end
 
--- Colour of an order mode ("xp", "distance", "selected") in the current palette:
+-- Colour of a route state ("xp", "distance", "custom") in the current palette:
 -- menus and the map list colour their labels with it.
 function ns.theme:ModeColor(mode)
     local p = PALETTES[self.palette or "standard"]
@@ -87,8 +88,7 @@ function ns.theme:ModeText(mode, text) return "|cff" .. self:ModeColor(mode).hex
 function ns.theme:UpdateRoute()
     local p = PALETTES[self.palette or "standard"]
     local mode = ns.db and ns.db.nav and ns.db.nav.sorter or "xp"
-    -- (Old saves: "selected" was an order of its own; it's the base order now.)
-    if mode == "selected" then mode = ns.db.nav.baseSorter or "xp" end
+    if mode == "selected" then mode = "custom" end   -- (its older name)
     local obj = ns.Get and ns:Get("routeObjective", mode)
     set(self, "route", p.modes[mode] or (obj and obj.color) or p.modes.xp)
     self.current = self.route  -- older name

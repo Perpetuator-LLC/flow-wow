@@ -106,10 +106,11 @@ ns:Register("navGoal", "questie", {
                 -- later stop that the planner puts after the objectives
                 -- (deps), so it can decide "finish, then turn in on the way".
                 local turnSpawns, who = {}, nil
-                for _, id in ipairs(quest.Finishes and quest.Finishes.NPC or {}) do
+                local fin = ns.quests.FinisherOf(quest)
+                for _, id in ipairs(fin.NPC or {}) do
                     who = npcSpawns(db, turnSpawns, id) or who
                 end
-                for _, id in ipairs(quest.Finishes and quest.Finishes.GameObject or {}) do
+                for _, id in ipairs(fin.GameObject or {}) do
                     who = objectSpawns(db, turnSpawns, id) or who
                 end
                 local turnPoints = pointsFrom(turnSpawns)

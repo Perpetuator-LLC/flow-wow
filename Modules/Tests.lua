@@ -174,21 +174,17 @@ ns:Register("test", "quest spots: spread over every mob's spawns, your map first
     t:eq(#S({ { [1] = { { -1, -1 } } } }, 80, { mapFor = mapFor }), 0, "no-position spawns skipped")
 end)
 
-ns:Register("test", "route colour follows the order mode", function(t)
-    local want = { xp = "A335EE", distance = "0070DD" }
+ns:Register("test", "route colour shows its state: purple, blue, orange custom", function(t)
+    local want = { xp = "A335EE", distance = "0070DD", custom = "FF8000", selected = "FF8000" }
     local palette = ns.theme.palette
     ns.theme:UsePalette("standard")
     for mode, hex in pairs(want) do
         with(ns.db.nav, "sorter", mode, function() ns.theme:UpdateRoute() end)
-        t:eq(ns.theme.route.hex, hex, mode)
+        t:eq(ns.theme.route.hex, hex, mode .. (mode == "selected" and " (old save: Custom route)" or ""))
     end
-    -- An old save's "selected" order is its base order now (no orange route).
-    with(ns.db.nav, "baseSorter", "distance", function()
-        with(ns.db.nav, "sorter", "selected", function() ns.theme:UpdateRoute() end)
-    end)
-    t:eq(ns.theme.route.hex, "0070DD", "old \"selected\" save: its base order's colour")
-    t:eq(ns.theme.waypoint.hex, "FF8000", "your waypoint: legendary orange")
+    t:eq(ns.theme.waypoint.hex, "FF8000", "your waypoint: the same orange")
     ns.theme:UsePalette(palette)
+    ns.theme:UpdateRoute()
 end)
 
 ns:Register("test", "planner: nearest first, turn-in after its objective", function(t)
@@ -521,26 +517,33 @@ ns:Register("test", "stop card: tooltip text and route patch", function(t)
     t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
 end)
 
-ns:Register("test", "route: go here first puts a stop on top, same order and colour", function(t)
-    local N, db = ns.nav, ns.db.nav
+ns:Register("test", "route: picking the next stop makes an orange Custom route until you optimise", function(t)
+    local N, db, X = ns.nav, ns.db.nav, ns.xpValue
     if ns.party and ns.party:Following() then t:ok(true, "(on a party route)") return end
     local goals = N:Goals() or {}
     local g = goals[#goals]
     if not g then t:ok(true, "(no stops to try)") return end
-    local savedSel, savedKey, savedSorter = N.selection, db.selectedKey, db.sorter
-    local hex = ns.theme.route.hex
+    local saved = { sel = N.selection, key = db.selectedKey, sorter = db.sorter, base = db.baseSorter }
     local ok, err = pcall(function()
+        db.sorter, db.baseSorter = "distance", "distance"
         N:Select(g.key)
-        t:eq(N.selection and N.selection.first, g.key, "it's the first stop")
-        t:ok(db.sorter ~= "selected", "no separate \"selected\" order")
-        t:eq(ns.theme.route.hex, hex, "route colour unchanged")
+        t:eq(N.selection and N.selection.first, g.key, "your pick is the next stop")
+        t:eq(X:Mode(), "custom", "Custom route")
+        t:eq(ns.theme.route.hex, ns.theme:ModeColor("custom").hex, "the route is orange")
+        t:eq((X:Objective()), "distance", "the rest is planned with your last objective")
         t:eq(N:Options().first, g.key, "the planner starts there")
-        t:ok(ns.mapOverlay.IsChosen(g.key), "remembered as moved first")
-        N:ClearSelection()
-        t:ok(not ns.mapOverlay.IsChosen(g.key), "the (o) click puts the usual order back")
+        t:ok(ns.mapOverlay.IsChosen(g.key), "remembered as your pick")
+        -- Your pick done: still Custom until you choose an objective again.
+        N.selection, db.selectedKey = nil, nil
+        t:eq(X:Mode(), "custom", "stays Custom after your pick")
+        X:SetMode("distance")
+        t:eq(X:Mode(), "distance", "Shortest: optimised again")
+        t:eq(ns.theme.route.hex, ns.theme:ModeColor("distance").hex, "and blue")
+        N:Select(g.key); N:ClearSelection()
+        t:eq(X:Mode(), "distance", "clicking your pick's (o) also goes back")
     end)
     t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
-    N.selection, db.selectedKey, db.sorter = savedSel, savedKey, savedSorter
+    N.selection, db.selectedKey, db.sorter, db.baseSorter = saved.sel, saved.key, saved.sorter, saved.base
     ns.theme:UpdateRoute()
     N.planDirty = true
 end)
@@ -598,14 +601,36 @@ ns:Register("test", "waypoint: your own is an orange path, not a route stop", fu
     if WorldMapFrame and WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
 end)
 
-ns:Register("test", "menus: no \"From selected\" order; undo go-here-first instead", function(t)
-    local fromSelected, undo = false, false
-    for _, it in ipairs(ns.menu:RouteItems()) do
-        if it.text and it.text:find("From selected") then fromSelected = true end
-        if it.text and it.text:find("Usual order") then undo = true end
+ns:Register("test", "turn-ins: quests you've done have a place to hand them in", function(t)
+    local F = ns.quests.FinisherOf
+    t:eq((F({ Finisher = { NPC = { 1 } } }).NPC or {})[1], 1, "Questie's Finisher field")
+    t:eq((F({ Finishes = { GameObject = { 2 } } }).GameObject or {})[1], 2, "older Questie's Finishes")
+    t:eq((F({ finishedBy = { { 3 } } }).NPC or {})[1], 3, "the raw finishedBy row")
+    t:eq(next(F(nil)), nil, "no quest: nothing")
+    local provider = ns:Get("navGoal", "questie")
+    local ok, goals = pcall(provider and provider.collect or error)
+    if not (ok and goals) then t:ok(true, "(no Questie)") return end
+    local turnins, placed = 0, 0
+    for _, g in ipairs(goals) do
+        if g.key:find(":done$") then
+            turnins = turnins + 1
+            if g.points and #g.points > 0 then placed = placed + 1 end
+        end
     end
-    t:ok(not fromSelected, "no From selected")
-    t:ok(undo, "Usual order (undo go here first)")
+    t:ok(turnins == 0 or placed > 0, string.format("turn-ins on the map: %d of %d", placed, turnins))
+end)
+
+ns:Register("test", "menus: Most XP, Shortest and Custom route", function(t)
+    local seen = {}
+    for _, it in ipairs(ns.menu:RouteItems()) do
+        for _, label in ipairs({ "Most XP first", "Shortest path", "Custom route", "From selected" }) do
+            if it.text and it.text:find(label, 1, true) then seen[label] = it end
+        end
+    end
+    t:ok(seen["Most XP first"] and seen["Shortest path"] and seen["Custom route"], "all three route states")
+    t:ok(not seen["From selected"], "no old From selected")
+    local c = seen["Custom route"]
+    if c then t:eq(c.checked and true or false, ns.xpValue:IsCustom(), "Custom route ticked only while it's on") end
 end)
 
 ns:Register("test", "recipes: learning one at a trainer clears its stop", function(t)

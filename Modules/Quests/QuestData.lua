@@ -169,6 +169,23 @@ function Q:UiMapForArea(areaId)
     return mapByZoneName(areaId)
 end
 
+-- Who takes a quest in: { NPC = { ids }, GameObject = { ids } }. Questie calls
+-- it `Finisher` (older versions `Finishes`; the raw row is `finishedBy`).
+-- Flow read only `Finishes`, so with today's Questie no turn-in ever had a
+-- place and finished quests never made the route.
+function Q.FinisherOf(quest)
+    if type(quest) ~= "table" then return {} end
+    local f = quest.Finisher or quest.Finishes
+    if type(f) == "table" and (f.NPC or f.GameObject) then
+        return { NPC = type(f.NPC) == "table" and f.NPC or nil, GameObject = type(f.GameObject) == "table" and f.GameObject or nil }
+    end
+    local raw = quest.finishedBy
+    if type(raw) == "table" then
+        return { NPC = type(raw[1]) == "table" and raw[1] or nil, GameObject = type(raw[2]) == "table" and raw[2] or nil }
+    end
+    return {}
+end
+
 -- Questie spawn tables ({ [areaId] = { {x, y}, ... } }, 0-100 coords) -> at
 -- most `cap` map points { map, x, y }, spread over ALL the spawns (every
 -- n-th one). Taking the first `cap` instead let one mob with lots of spawns

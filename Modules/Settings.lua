@@ -178,7 +178,7 @@ local function build(parent)
     y = heading(f, y, "Flow")
     local _
     _, y = check(f, y, "Colour-blind route colours", "(safer colours)",
-        "The route and arrow colour shows the order: purple = Most XP first, blue = Shortest path; orange = your own waypoint. On: the same roles in colours that stay apart for the common kinds of colour blindness.",
+        "The route and arrow colour shows the route's state: purple = Most XP first, blue = Shortest path, orange = Custom route (you picked the next stop) or your own waypoint. On: the same roles in colours that stay apart for the common kinds of colour blindness.",
         function() return ns.theme:ColorBlind() end, function(on) ns.theme:SetColorBlind(on) end)
     _, y = check(f, y, "3D arrow", "(off = flat line arrow)",
         "A shaded chevron lying on the ground ahead of you. It turns left and right; WoW: Forever gives no heights, so it can't point up or down.",

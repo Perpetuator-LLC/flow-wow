@@ -141,9 +141,12 @@ function Menu:RouteItemsRaw()
         { title = true, text = "Order" },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
-        -- A stop moved first (its ^ in the Flow Router): undo it here too.
-        { text = "Usual order (undo \"go here first\")", disabled = not (nav.selection and nav.selection.first),
-          func = function() nav:ClearSelection() end },
+        -- On while you've picked the next stop yourself (a ^ / Go here next);
+        -- the two above put you back on an optimised route.
+        { text = sort == "custom" and ns.theme:ModeText("custom", "Custom route (your pick)")
+                or "|cff777777Custom route (pick a stop: its ^ or Go here next)|r",
+          radio = true, checked = sort == "custom", disabled = sort ~= "custom",
+          func = function() ns.xpValue:SetMode("custom") end },
         { sep = true },
         { title = true, text = "Your waypoint" },
         { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },

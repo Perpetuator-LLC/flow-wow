@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.60
+- Finished quests are on the route again. Flow looked for each quest's turn-in NPC under a
+  name Questie no longer uses ("Finishes"; today's Questie says "Finisher"), so no turn-in
+  ever had a place on the map and none made the route. Turn-ins near you now come first, with
+  the quest pickups there, before heading out.
+- Custom route is back, in the clear orange: pick your next stop with its ^ in the Flow Router
+  (or right-click a stop: Go here next). The route goes there first and stays orange, not
+  optimised, until you choose Most XP (purple) or Shortest (blue) again. The colour always
+  says which you're on, and the Router and menus have all three.
+
 ## 0.35.59
 - The map: the stop you're heading to has a white ring; every other stop a black one.
 - Choosing stops is simpler. Click a stop: open it. Its ^ in the Flow Router: it moves to the
