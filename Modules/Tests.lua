@@ -457,7 +457,7 @@ ns:Register("test", "stop card: tooltip text and route patch", function(t)
     t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
 end)
 
-ns:Register("test", "router: the selected stop gets the star", function(t)
+ns:Register("test", "router: the selected stop is marked active", function(t)
     local db = ns.db.nav
     local sorter, key = db.sorter, db.selectedKey
     db.sorter, db.selectedKey = "selected", "123:1"

@@ -508,7 +508,9 @@ local function planProfession(prof, t, out)
                 table.insert(details, 1, prof .. " isn't needed for a quest: loot these as you quest. No need to stop just for this.")
             end
             add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
-                  weight = t.optional and 3 or nil,   -- optional: only when the mobs are on your way
+                  -- Optional (no quest needs it): never a stop of its own; loot the
+                  -- mobs your quests and travel bring you to (Nav.lua: alongGoals).
+                  along = t.optional or nil,
                   -- Progress like a quest objective: what you carry / what the plan uses.
                   text = (function()
                       local have = 0

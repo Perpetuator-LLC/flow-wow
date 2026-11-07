@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.13
+- Flow Router: the active stop (where the arrow points now) shows a selected radio dot, a
+  white ring around a dot in the route colour, instead of the ^ (replaces the 0.35.12 star).
+  Hover says the arrow points here; if you chose it, a click clears your choice.
+- Optional profession farming (meat for Cooking when no quest needs it) is never a stop of
+  its own any more, so Flow no longer sends you off to kill wolves. It is listed under "Along
+  the way" in the arrow panel: loot those mobs when your quests bring you to them.
+- Fixed three icon paths with single backslashes (money-blocked stops, lock icon, quest
+  reward coin).
+
 ## 0.35.12
 - Flow Router: your selected stop shows a filled star instead of the ^. Hover it to see that
   the route starts there; click it to clear the selection and go back to your usual order.

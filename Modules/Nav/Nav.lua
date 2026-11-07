@@ -320,7 +320,7 @@ function N:Collect()
             end
             deferred[g.key] = { text = g.title or g.text, cost = g.cost, since = deferred[g.key] and deferred[g.key].since or time() }
             g.blockedBy = string.format("needs %s (you have %s)", N:Coin(g.cost), N:Coin(money))
-            g.blockIcon = "Interface\MoneyFrame\UI-GoldIcon"
+            g.blockIcon = "Interface\\MoneyFrame\\UI-GoldIcon"
         elseif deferred[g.key] then
             ns:Print((g.title or g.text or g.key) .. ": you have the money now, back on the route.")
             deferred[g.key] = nil
@@ -354,6 +354,16 @@ function N:Collect()
         if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
     end
     N.hiddenGoals = hiddenGoals
+    -- "Along the way" goals (loot meat for an optional profession): never a
+    -- stop of their own, so the route never sends you off to grind them.
+    -- They're listed in the arrow panel and stop cards, and their mobs are
+    -- worth looting when you meet them anyway.
+    local routed, along = {}, {}
+    for _, g in ipairs(shown) do
+        if g.along then along[#along + 1] = g else routed[#routed + 1] = g end
+    end
+    N.alongGoals = along
+    shown = routed
     -- XP-first sorting (XpValue.lua): weights by XP and quest level; also adds XP to tooltips.
     if ns.xpValue then pcall(ns.xpValue.Apply, ns.xpValue, shown) end
     goals = shown
@@ -479,7 +489,7 @@ end
 --   colour: route colour (green) = where the arrow points now, blue = quest pickup,
 --           sky blue = your waypoint, bluish green = the rest of the route
 -- A blocked stop for lists: lock (or coin) icon, greyed text, and the reason.
-local LOCK = "Interface\Buttons\LockButton-Locked-Up"
+local LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
 function N:FormatBlocked(goal)
     return string.format("|T%s:12:12|t |cff9a9a9a%s|r", goal.blockIcon or LOCK, goal.text or goal.title or "?"),
            "|cffff7070" .. (goal.blockedBy or "blocked") .. "|r"
@@ -1019,6 +1029,12 @@ local function showPanel()
         if N.plan.dropped and #N.plan.dropped > 0 then
             lines[#lines + 1] = "|cff888888Skipped as too far out of the way: " .. table.concat(N.plan.dropped, ", ") .. "|r"
         end
+    end
+    -- Things to pick up as you go, never a detour of their own.
+    if N.alongGoals and #N.alongGoals > 0 then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = "|cffffd200Along the way|r |cff888888(loot these when you meet them; no detour)|r"
+        for _, a in ipairs(N.alongGoals) do lines[#lines + 1] = "  |cffcccccc" .. (a.text or a.title or "?") .. "|r" end
     end
     lines[#lines + 1] = " "
     lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click this panel to close.|r"
