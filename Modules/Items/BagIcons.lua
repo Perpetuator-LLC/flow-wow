@@ -1,5 +1,6 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   green arrow (top left)    = equip this now (better for your levelling role)
+--   (o) target (top left)     = your current route stop wants you to use this item
 --   top right                 = gold coin = sell, AH, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
 --   bottom row (gear)         = one icon per spec, with an arrow above: up = better
@@ -9,6 +10,14 @@
 
 local _, ns = ...
 local D = ns.disposition
+local B = {}
+ns.bagIcons = B
+
+-- The item your current route stop wants you to use (a recipe to learn...).
+function B.FocusItem()
+    local c = ns.nav and ns.nav.current
+    return c and c.goal and c.goal.useItem or nil
+end
 
 local BADGE = {
     sell = { "$", 1.0, 0.75, 0.2 },
@@ -46,6 +55,24 @@ local function marks(button)
     m.keep:SetSize(14, 14)
     m.keep:SetPoint("TOPRIGHT", -1, -1)
     m.keep:Hide()
+    -- Flow's target marker (o) in the route colour, top-left: this is the
+    -- item your current stop wants you to use ("Learn Brilliant Smallfish:
+    -- use the recipe in your bags").
+    local CIRCLE = "Interface\CharacterFrame\TempPortraitAlphaMask"
+    m.focus = CreateFrame("Frame", nil, m)
+    m.focus:SetSize(14, 14)
+    m.focus:SetPoint("TOPLEFT", -3, 3)
+    m.focus:SetFrameLevel(m:GetFrameLevel() + 2)
+    local function disc(sub, inset)
+        local t = m.focus:CreateTexture(nil, "OVERLAY", nil, sub)
+        t:SetTexture(CIRCLE)
+        t:SetPoint("TOPLEFT", inset, -inset); t:SetPoint("BOTTOMRIGHT", -inset, inset)
+        return t
+    end
+    m.focus.edge, m.focus.ring, m.focus.hole, m.focus.dot = disc(1, -1), disc(2, 0), disc(3, 2), disc(4, 4)
+    m.focus.edge:SetVertexColor(0, 0, 0, 0.9)
+    m.focus.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+    m.focus:Hide()
     button.flowMarks = m
     return m
 end
@@ -54,6 +81,7 @@ local function clear(button)
     local m = button.flowMarks
     if not m then return end
     m.arrow:Hide()
+    m.focus:Hide()
     m.specs:Hide()
     m.badge:SetText("")
     m.coin:Hide()
@@ -67,6 +95,14 @@ local function paint(button, bag, slot)
     if not v then clear(button) return end
     local m = marks(button)
     m.arrow:SetShown(v.action == "equip")
+    local id = tonumber(link:match("item:(%d+)"))
+    local focus = id and id == ns.bagIcons.FocusItem()
+    if focus then
+        local c = ns.theme.route
+        m.focus.ring:SetVertexColor(c[1], c[2], c[3], 1)
+        m.focus.dot:SetVertexColor(c[1], c[2], c[3], 1)
+    end
+    m.focus:SetShown(focus or false)
     local g = v.item.gear
     if g and g.canUse then m.specs:Set(g.diffs) else m.specs:Hide() end
     m.coin:SetShown(v.action == "sell")
@@ -132,6 +168,8 @@ ns:OnLoad(function(saved)
         local open = (ContainerFrameCombinedBags and ContainerFrameCombinedBags:IsShown())
             or (ContainerFrame1 and ContainerFrame1:IsShown())
         if open and not wasOpen then dirty = true end
+        local focus = B.FocusItem()
+        if focus ~= B.lastFocus then B.lastFocus = focus; dirty = true end
         wasOpen = open
         if dirty or (open and math.random() < 0.1) then
             dirty = false

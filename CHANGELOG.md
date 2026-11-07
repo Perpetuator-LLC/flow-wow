@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.41
+- The arrow's pillars stay small when you arrive (only a little taller than while pointing),
+  and bounce up quickly as the change happens.
+- The Flow Router has a header like the Flow Tracker's (dark bar, orange accent, its own
+  spyglass icon), with the "?" help on the right.
+- The item your current stop wants you to use (a recipe to learn...) gets Flow's (o) marker
+  in the route colour on its bag slot, top-left.
+- The Flow Action border is no longer route purple (it read as "epic"): spell steps use the
+  spell colour (light blue), item steps the item's own quality colour.
+
 ## 0.35.40
 - Fixed: at "Learn Brilliant Smallfish: use the recipe in your bags" the Flow key offered to
   equip your Fishing Pole (the word "fish" made Flow think it was fishing). Only quest

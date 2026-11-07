@@ -904,3 +904,25 @@ ns:Register("test", "actions: 'Learn Brilliant Smallfish' isn't a fishing stop",
     t:eq(P({ key = "craft:Cooking:Brilliant Smallfish", prof = "Cooking", text = "Make 32 x Brilliant Smallfish" }), "Cooking", "cooking fish is Cooking")
     t:eq(P({ key = "123:1", text = "Catch 5 Raw Brilliant Smallfish" }), "Fishing", "a fishing quest objective still is")
 end)
+
+ns:Register("test", "look: action borders, bag focus, pillars, router header", function(t)
+    -- A spell step isn't route purple (that reads as an epic item).
+    local c = ns.ActionColor({ type = "spell", spell = "Basic Campfire" })
+    local r = ns.theme.route
+    t:ok(not (c[1] == r[1] and c[2] == r[2] and c[3] == r[3]), "spell step: not the route colour")
+    -- Item step: the item's quality colour (Fishing Pole: common = white).
+    local w = ns.ActionColor({ type = "item", item = "item:6256" })
+    t:ok(w[1] > 0.9 and w[2] > 0.9, "common item: white border")
+    -- The bag focus: the current stop's item.
+    t:ok(type(ns.bagIcons.FocusItem) == "function", "bags know the stop's item")
+    -- Pillars: small when arrived, bouncing up for the change.
+    if ns.db.nav.arrowStyle ~= "flat" then
+        local a = ns.nav:MakeArrow3D(UIParent)
+        a:SetArrived(true)
+        local popped = a:PillarHeight()
+        a.hStart = GetTime() - 1
+        t:ok(a:PillarHeight() <= 6, "settled: almost as small as while pointing")
+        t:ok(popped >= 0, "height defined during the bounce")
+        a:Hide()
+    end
+end)

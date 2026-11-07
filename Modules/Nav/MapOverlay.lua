@@ -640,7 +640,8 @@ end
 local function buildHelp(f)
     local q = CreateFrame("Button", nil, f)
     q:SetSize(18, 18)
-    q:SetPoint("TOPRIGHT", -8, -4)
+    q:SetPoint("RIGHT", f.header, "RIGHT", -6, 0)
+    q:SetFrameLevel(f.header:GetFrameLevel() + 2)   -- above the header bar
     q.ring = q:CreateTexture(nil, "BACKGROUND")
     q.ring:SetAllPoints(); q.ring:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
     q.text = q:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -739,11 +740,24 @@ local function buildList()
     t:Hide()  -- the square map button opens and closes the drawer now
 
     -- How to use it, and which route to follow.
-    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.hint:SetPoint("TOPLEFT", 8, -6)
-    f.hint:SetPoint("TOPRIGHT", -8, -6)
-    f.hint:SetJustifyH("LEFT")
-    f.hint:SetText("|cffffd200Flow Router|r")
+    -- Header like the Flow Tracker's: dark bar, orange accent on the left,
+    -- an icon (a compass: the route) and the title; "?" help on the right.
+    local hd = CreateFrame("Frame", nil, f)
+    hd:SetHeight(24)
+    hd:SetPoint("TOPLEFT"); hd:SetPoint("TOPRIGHT")
+    hd.bg = hd:CreateTexture(nil, "BACKGROUND"); hd.bg:SetAllPoints()
+    hd.bg:SetColorTexture(0.11, 0.09, 0.06, 0.92)
+    local acc = hd:CreateTexture(nil, "BORDER")
+    acc:SetPoint("TOPLEFT"); acc:SetPoint("BOTTOMLEFT"); acc:SetWidth(4)
+    acc:SetColorTexture(o[1], o[2], o[3], 1)
+    hd.icon = hd:CreateTexture(nil, "ARTWORK")
+    hd.icon:SetSize(16, 16); hd.icon:SetPoint("LEFT", 9, 0)
+    hd.icon:SetTexture("Interface\\Icons\\INV_Misc_Spyglass_03"); hd.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    hd.text = hd:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hd.text:SetPoint("LEFT", hd.icon, "RIGHT", 6, 0)
+    hd.text:SetText("Flow Router")
+    f.header = hd
+    f.hint = hd   -- (older name: shown and hidden with the list)
     f.help = buildHelp(f)   -- how to use it: the "?" on the right
 
     local function choice(y, mode, text, tip)
@@ -766,15 +780,15 @@ local function buildList()
         cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return cb
     end
-    f.modeQuests = choice(-20, "quests", "Follow current quests",
+    f.modeQuests = choice(-30, "quests", "Follow current quests",
         "Only the quests already in your log: their objectives, then turn-ins.")
-    f.modeOptimal = choice(-38, "optimal", "Follow optimal path",
+    f.modeOptimal = choice(-48, "optimal", "Follow optimal path",
         "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")
 
     -- Include professions (trainers to learn/raise them, and skill-up stops).
     local pc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     pc:SetSize(20, 20)
-    pc:SetPoint("TOPLEFT", 26, -58)
+    pc:SetPoint("TOPLEFT", 26, -68)
     pc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pc.label:SetPoint("LEFT", pc, "RIGHT", 2, 0)
     pc.label:SetText("Include professions")
@@ -794,7 +808,7 @@ local function buildList()
     -- Show hidden stops (greyed out at the end of the list; click to unhide).
     local hc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     hc:SetSize(20, 20)
-    hc:SetPoint("TOPLEFT", 170, -82)
+    hc:SetPoint("TOPLEFT", 170, -92)
     hc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     hc.label:SetPoint("LEFT", hc, "RIGHT", 2, 0)
     hc.label:SetText("Show hidden stops")
@@ -813,7 +827,7 @@ local function buildList()
     -- Show the route on the map (lines, points, chevrons); off = the list only.
     local rc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     rc:SetSize(20, 20)
-    rc:SetPoint("TOPLEFT", 170, -58)
+    rc:SetPoint("TOPLEFT", 170, -68)
     rc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     rc.label:SetPoint("LEFT", rc, "RIGHT", 2, 0)
     rc.label:SetText("Show route on map")
@@ -831,7 +845,7 @@ local function buildList()
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
         rb:SetSize(20, 20)
-        rb:SetPoint("TOPLEFT", sdef[3], -78)
+        rb:SetPoint("TOPLEFT", sdef[3], -88)
         rb.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         rb.label:SetPoint("LEFT", rb, "RIGHT", 1, 0)
         rb.label:SetText(ns.theme:ModeText(sdef[1], sdef[2]))
@@ -847,8 +861,8 @@ local function buildList()
     end
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOPLEFT", 8, -102)
-    f.title:SetPoint("TOPRIGHT", -8, -102)
+    f.title:SetPoint("TOPLEFT", 8, -112)
+    f.title:SetPoint("TOPRIGHT", -8, -112)
     f.title:SetJustifyH("LEFT")
 
     -- Each row: [^] handle, then the stop.
@@ -861,8 +875,8 @@ local function buildList()
     for i = 1, MAX_ROWS do
         local r = CreateFrame("Button", nil, f)
         r:SetHeight(ROW_H - 2)
-        r:SetPoint("TOPLEFT", 8, -120 - (i - 1) * ROW_H)
-        r:SetPoint("TOPRIGHT", -8, -120 - (i - 1) * ROW_H)
+        r:SetPoint("TOPLEFT", 8, -130 - (i - 1) * ROW_H)
+        r:SetPoint("TOPRIGHT", -8, -130 - (i - 1) * ROW_H)
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -1019,7 +1033,7 @@ local function updateList()
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try \"Follow optimal path\".") end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 126) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 136) / ROW_H))
     -- Route stops first, then blocked stops (lock + reason), then (if
     -- ticked) hidden stops, greyed out.
     local blocked = ns.nav.blockedGoals or {}

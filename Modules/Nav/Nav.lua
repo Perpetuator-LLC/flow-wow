@@ -566,6 +566,20 @@ function N:MakeArrow3D(parent)
         a.ring[i] = p
     end
     a.ringAngle = 0
+    -- Pillar height: small (3.5) while pointing, only a little taller (5)
+    -- once you've arrived, with a quick bounce up as the change happens
+    -- (POP for half a second); tall (12) while the login intro spins them.
+    a.hStart, a.hFrom = 0, 3.5
+    local POP, POP_SECS = 11, 0.5
+    function a:PillarHeight()
+        if self.spinning then return 12 end
+        local base = self.arrived and 5 or 3.5
+        local u = (GetTime() - (self.hStart or 0)) / POP_SECS
+        if u >= 1 then return base end
+        if self.arrived then return base + POP * math.sin(math.pi * u) * (1 - u) end
+        return base + ((self.hFrom or base) - base) * (1 - u)   -- shrink back
+    end
+    function a:Popping() return GetTime() - (self.hStart or 0) < POP_SECS end
     -- The sphere in the middle when you've arrived: a dark base, a lit body
     -- and a white highlight up and to the left (the light), floating above
     -- its own shadow on the ground.
@@ -672,7 +686,7 @@ function N:MakeArrow3D(parent)
         for i = a.n + 1, #a.lines do a.lines[i]:Hide() end
         -- The ring lies on the ground (an ellipse); its pillars stand up from it.
         local tall = a.arrived or a.spinning
-        local hgt = tall and 12 or 3.5
+        local hgt = a:PillarHeight()
         for i, p in ipairs(a.ring) do
             local t = (i - 1) / RING_DOTS * 2 * math.pi + a.ringAngle
             local x, y, k = N.Project3D(RING_R * math.sin(t), RING_R * math.cos(t), 0)
@@ -728,6 +742,7 @@ function N:MakeArrow3D(parent)
     a:SetScript("OnUpdate", function(me)
         if me.arrived then
             local now = GetTime()
+            if me:Popping() then draw() end
             me.pulse = 0.5 + 0.5 * math.sin(now * 4)
             me:Light(me.pulse)
             if me.iconTex then
@@ -743,11 +758,13 @@ function N:MakeArrow3D(parent)
             return
         end
         local bob = math.floor(1.5 * math.sin(GetTime() * 2.4) * 4 + 0.5) / 4   -- quarter pixels
-        if bob ~= me.bob then me.bob = bob; draw() end
+        if bob ~= me.bob or me:Popping() then me.bob = bob; draw() end
     end)
     function a:SetArrived(on)
         on = on and true or false
         if self.arrived == on then return end
+        self.hFrom = self:PillarHeight()   -- pop from where they are now
+        self.hStart = GetTime()
         self.arrived = on
         self:ShowBall(on)
         if on then self:PlaceBall(7) end

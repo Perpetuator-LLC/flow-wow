@@ -162,6 +162,22 @@ end
 -- Update loop
 -------------------------------------------------------------------------------
 
+
+-- Border for a Flow Action (equip the pole, make a campfire...): not the
+-- route purple, which reads as "epic item". Spells use the spell colour
+-- (light blue, like buffs); items their own quality colour (white, green...).
+local function actionColor(s)
+    local id = s.item and tonumber(tostring(s.item):match("(%d+)"))
+    if id then
+        local q = C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(id)
+        local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+        if c then return { c.r, c.g, c.b } end
+        return { 1, 1, 1 }
+    end
+    if s.type == "interact" or s.type == "clear" or s.type == "click" then return { 0.85, 0.85, 0.85 } end
+    return COLORS.buff
+end
+ns.ActionColor = actionColor  -- (tests)
 local function render(s, cfg)
     if not s then
         current = nil
@@ -174,7 +190,7 @@ local function render(s, cfg)
         return
     end
 
-    local color = COLORS[s.kind] or ns.theme.route or COLORS.damage
+    local color = COLORS[s.kind] or actionColor(s)
     local tex = s.icon
     if not tex and s.spell then tex = select(2, A.SpellInfo(s.spell)) end
     icon.tex:SetTexture(tex or "Interface\\Icons\\INV_Misc_QuestionMark")
