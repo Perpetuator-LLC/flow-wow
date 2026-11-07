@@ -1278,6 +1278,33 @@ local function buildCard()
     f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f.close:SetPoint("TOPRIGHT", 2, 2)
     f.close:SetScale(0.8)
+    -- Drag it by its title band. Once moved, it opens where you left it;
+    -- right-click the title to put it back beside what you click.
+    f:SetMovable(true)
+    local h = f.hero
+    h:EnableMouse(true)
+    h:RegisterForDrag("LeftButton")
+    h:SetScript("OnDragStart", function() f:StartMoving() end)
+    h:SetScript("OnDragStop", function()
+        f:StopMovingOrSizing()
+        local a, _, b, x, y = f:GetPoint()
+        ns.db.nav.cardPoint = { a, b, x, y }
+    end)
+    h:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" and ns.db.nav.cardPoint then
+            ns.db.nav.cardPoint = nil
+            ns:Print("stop card: back beside what you click")
+        end
+    end)
+    h:SetScript("OnEnter", function(self)
+        if self.hinted then return end
+        self.hinted = true   -- once per session: how to move it
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Drag the title to move this card.", 1, 1, 1)
+        GameTooltip:AddLine("Right-click the title to put it back beside what you click.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
     f.links = {
@@ -1325,7 +1352,10 @@ function N:ShowStop(goal, anchor)
     end
     card:SetHeight(card.hero:GetHeight() + card.text:GetStringHeight() + 48)
     card:ClearAllPoints()
-    if anchor and anchor.GetRight then
+    local saved = ns.db.nav.cardPoint
+    if saved then
+        card:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])   -- where you dragged it
+    elseif anchor and anchor.GetRight then
         -- Beside what you clicked, on whichever side has room.
         local right = anchor:GetRight() and anchor:GetRight() * anchor:GetEffectiveScale() / UIParent:GetEffectiveScale()
         if right and right + 350 > GetScreenWidth() then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -8, 0)
