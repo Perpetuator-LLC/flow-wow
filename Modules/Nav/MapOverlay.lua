@@ -70,7 +70,10 @@ local function line(c, x1, y1, x2, y2, color, alpha)
     l:Show()
 end
 
-local function pin(c, x, y, label, color, stop, top)
+-- target: the stop the arrow points at, drawn as Flow's target marker (o):
+-- a ring in the route colour around a dot (same look as the arrow's ring when
+-- you arrive, the active stop in the Flow Router and the minimap pin).
+local function pin(c, x, y, label, color, stop, top, target)
     nPins = nPins + 1
     local p = pins[nPins]
     if not p then
@@ -84,7 +87,10 @@ local function pin(c, x, y, label, color, stop, top)
         p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
         p.edge:SetTexture(CIRCLE)
         p.edge:SetVertexColor(0, 0, 0, 0.9)
-        p.bg = p:CreateTexture(nil, "BORDER")
+        p.hole = p:CreateTexture(nil, "BORDER", nil, 1)
+        p.hole:SetTexture(CIRCLE)
+        p.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+        p.bg = p:CreateTexture(nil, "BORDER", nil, 2)
         p.bg:SetAllPoints()
         p.bg:SetTexture(CIRCLE)
         p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -106,7 +112,12 @@ local function pin(c, x, y, label, color, stop, top)
             ns.nav:ClickCursor(false)
             hoverKey = nil
             GameTooltip:Hide()
-            self:SetSize(11, 11); self.edge:SetVertexColor(0, 0, 0, 0.9)
+            if self.isTarget then
+                local c = self.color
+                self:SetSize(16, 16); self.edge:SetVertexColor(c[1], c[2], c[3], 1)
+            else
+                self:SetSize(11, 11); self.edge:SetVertexColor(0, 0, 0, 0.9)
+            end
             self:SetFrameLevel(math.max(1, self:GetFrameLevel() - 100))
         end)
         p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -129,6 +140,7 @@ local function pin(c, x, y, label, color, stop, top)
         pins[nPins] = p
     end
     p.stop = stop
+    p.isTarget, p.color = (target and not top) and true or false, color
     p:SetParent(c)
     -- The hovered stop: bigger, white ring, above every other pin and line.
     -- Relative to the map canvas: fixed numbers could end up under the map's own
@@ -136,13 +148,25 @@ local function pin(c, x, y, label, color, stop, top)
     local base = math.min(c:GetFrameLevel() + 1000, 9000)
     p:SetFrameStrata(aboveMap())
     p:SetFrameLevel(top and base + 200 or base + 100)
-    p:SetSize(top and 18 or 11, top and 18 or 11)
-    p.edge:SetVertexColor(top and 1 or 0, top and 1 or 0, top and 1 or 0, top and 1 or 0.9)
-    p.text:SetFontObject(top and "GameFontNormal" or "GameFontHighlightSmall")
+    local size = top and 18 or (target and 16 or 11)
+    p:SetSize(size, size)
+    p.text:SetFontObject((top or target) and "GameFontNormal" or "GameFontHighlightSmall")
     p:SetScale(1 / canvasScale())
     p:ClearAllPoints()
     local s = p:GetScale()
     p:SetPoint("CENTER", c, "TOPLEFT", x * c:GetWidth() / s, -y * c:GetHeight() / s)
+    p.bg:ClearAllPoints()
+    if target and not top then
+        -- (o): ring in the route colour, a dark gap, the dot.
+        p.edge:SetVertexColor(color[1], color[2], color[3], 1)
+        p.hole:ClearAllPoints(); p.hole:SetPoint("TOPLEFT", 1, -1); p.hole:SetPoint("BOTTOMRIGHT", -1, 1)
+        p.hole:Show()
+        p.bg:SetPoint("TOPLEFT", 4, -4); p.bg:SetPoint("BOTTOMRIGHT", -4, 4)
+    else
+        p.edge:SetVertexColor(top and 1 or 0, top and 1 or 0, top and 1 or 0, top and 1 or 0.9)
+        p.hole:Hide()
+        p.bg:SetAllPoints()
+    end
     p.bg:SetVertexColor(color[1], color[2], color[3], 1)
     p.text:SetText(label)
     p:Show()
@@ -394,7 +418,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 if s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil) then
                     hovered = { x, y, icon .. labels[i], s }
                 else
-                    pin(c, x, y, icon .. labels[i], color, s)
+                    pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly)
                 end
             end
         end
@@ -738,7 +762,7 @@ local function buildList()
                 l:SetShown(not on)
             end
             self.ring:SetShown(on); self.hole:SetShown(on); self.dot:SetShown(on)
-            self.ring:SetVertexColor(1, 1, 1, hot and 1 or 0.9)
+            self.ring:SetVertexColor(c[1], c[2], c[3], 1)   -- Flow's target marker (o)
             self.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
             self.dot:SetVertexColor(c[1], c[2], c[3], 1)
         end

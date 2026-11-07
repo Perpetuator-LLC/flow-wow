@@ -110,3 +110,59 @@ end
 ns:Register("help", "diag", { order = 90, title = "Diagnostics", lines = {
     "/flow dump - capture Flow's checks for Claude to read (then /reload). Also automatic on every /reload.",
 } })
+
+-------------------------------------------------------------------------------
+-- Blocked actions ("Flow has been blocked from an action only available to
+-- the Blizzard UI"). The game fires ADDON_ACTION_BLOCKED / _FORBIDDEN with
+-- the add-on it blames and the protected function. Flow logs every one,
+-- whichever add-on is blamed, so tools\read-diag.ps1 shows them under
+-- "Blocked actions", with what you were doing at the time.
+--
+-- The blamed add-on is the one whose code *tainted* the path, which can be
+-- long before the error. To find where, developer installs (Flow.toc has
+-- "## X-Flow-Dev: 1"; tools\package.ps1 removes it from releases) turn on
+-- the game's taint log (Logs\taint.log), which read-diag.ps1 also reads.
+-------------------------------------------------------------------------------
+
+D.blocked = {}
+
+local function context()
+    local bits = {}
+    if InCombatLockdown() then bits[#bits + 1] = "in combat" end
+    for _, name in ipairs({ "GameMenuFrame", "SettingsPanel", "WorldMapFrame", "QuestLogFrame",
+                            "FlowStopCard", "FlowNavPanel", "FlowSetup", "FlowSettings" }) do
+        local f = _G[name]
+        if f and f.IsShown and f:IsShown() then bits[#bits + 1] = name .. " open" end
+    end
+    return #bits > 0 and table.concat(bits, ", ") or "nothing special open"
+end
+
+local function onBlocked(kind)
+    return function(addon, func)
+        local line = string.format("%s: %s blamed for %s (%s)", kind, tostring(addon), tostring(func), context())
+        ns:Log("blocked", line)
+        local d = db()
+        if d then
+            d.blocked = d.blocked or {}
+            table.insert(d.blocked, { at = date("%Y-%m-%d %H:%M:%S"), kind = kind, addon = tostring(addon),
+                func = tostring(func), context = context(), version = ns.Version and ns.Version() or "?" })
+            while #d.blocked > 50 do table.remove(d.blocked, 1) end
+        end
+    end
+end
+ns:On("ADDON_ACTION_BLOCKED", onBlocked("BLOCKED"))
+ns:On("ADDON_ACTION_FORBIDDEN", onBlocked("FORBIDDEN"))
+D._onBlocked = onBlocked  -- (tests)
+
+function D:IsDev()
+    local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    local ok, v = pcall(meta, "Flow", "X-Flow-Dev")
+    return ok and v == "1"
+end
+
+ns:On("PLAYER_LOGIN", function()
+    if D:IsDev() and GetCVar and SetCVar then
+        local ok, v = pcall(GetCVar, "taintLog")
+        if ok and v ~= "1" and v ~= "2" then pcall(SetCVar, "taintLog", "1") end
+    end
+end)

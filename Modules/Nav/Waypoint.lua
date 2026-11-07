@@ -142,7 +142,8 @@ function W:SetFromText(text)
 end
 
 -- A box to paste coordinates into (arrow menu: "Set a waypoint...").
-StaticPopupDialogs = StaticPopupDialogs or {}
+-- (Only our own key in the game's popup table: replacing the table itself taints
+-- every popup in the game.)
 StaticPopupDialogs["FLOW_WAYPOINT"] = {
     text = "Paste or type coordinates:\n|cff999999e.g. 45.2 63.1  or  Elwynn Forest 45.2 63.1 Hogger|r",
     button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",

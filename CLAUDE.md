@@ -44,6 +44,23 @@ registry first, or add one.
   `/flow rot why`, `/flow nav why`.
 - With the repo junctioned into `Interface\AddOns\Flow`, `/reload` picks up edits.
 
+## Blocked actions ("Flow has been blocked from an action only available to the Blizzard UI")
+
+These are taint bugs and always ours to fix. **Every time you read the diagnostics, check the
+"Blocked actions" section** that `tools\read-diag.ps1` prints (and the `taint.log` lines under it).
+If anything is there, fix it before other work, even if nobody mentioned it:
+
+1. The log line names the blamed add-on, the protected function and what was open.
+2. `taint.log` (developer installs turn it on: `## X-Flow-Dev: 1` in `Flow.toc`) says which
+   Flow line first tainted the path.
+3. Fix the cause, not the symptom. Usual causes: assigning a Blizzard global or table
+   (`StaticPopupDialogs = ...`), calling Blizzard panel functions from add-on code
+   (`ShowUIPanel`/`HideUIPanel` on their frames, `HandleUserActionToggleSidePanel`), or changing
+   protected frames or settings in combat.
+4. Add a test (see "taint:" tests in `Modules/Tests.lua`, which use `issecurevariable`).
+5. If you can't tell the root cause from the log and taint.log, ask the player what they clicked.
+   Don't guess-fix.
+
 ## WoW: Forever quirks (learned the hard way)
 
 - **Secret values:** player health and some unit data are hidden from addons. Code must cope

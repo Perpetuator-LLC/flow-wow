@@ -1,13 +1,19 @@
--- Flow settings window. /flow settings (also in the game's Options >
--- AddOns list where the client supports it).
+-- Flow's settings: a page in the game's Options > AddOns > Flow (the
+-- Settings API; older clients: Interface Options). /flow settings opens it.
 --
--- First setting: the cast key. Click "Set key", press the key (modifiers and
--- mouse buttons 3-5 work). If the key already does something else, Flow says
--- what, and you choose: use it anyway (Flow overrides it only while Flow is
--- loaded; your own binding is untouched and comes back if you clear Flow's
--- key) or pick another. Movement keys get an extra warning.
+--   Cast key       Click "Set key", press the key (modifiers and mouse
+--                  buttons 3-5 work). If the key already does something,
+--                  Flow says what and you choose: use it anyway (your own
+--                  binding is untouched and comes back if you clear Flow's
+--                  key) or pick another. Movement keys get an extra warning.
+--   Flow           Flow's own options (route colours, 3D arrow, minimap).
+--   Suggested WoW settings
+--                  The game settings Flow recommends (Setup.lua rows: auto
+--                  loot, nameplates, target of target, ...), each with what
+--                  Flow suggests and why; "Use Flow's suggestions" sets all.
 --
--- More settings are added as rows in build(); keep each one self-explaining.
+-- Nothing here calls Blizzard's panel functions (ShowUIPanel/HideUIPanel on
+-- their frames): doing that from add-on code taints the game menu.
 
 local _, ns = ...
 local S = {}
@@ -41,12 +47,16 @@ local function button(parent, text, width)
     return b
 end
 
+-- Every tick box and value on the page shows the current state.
 local function refresh()
     if not frame then return end
     frame.keyValue:SetText(label(ns.db.cast.key))
     frame.clear:SetEnabled(ns.db.cast.key ~= nil)
-    if frame.zoom and ns.camera then frame.zoom:SetChecked(ns.camera:IsOn()) end
-    if frame.colorblind then frame.colorblind:SetChecked(ns.theme:ColorBlind()) end
+    for _, c in ipairs(frame.checks or {}) do
+        local ok, on = pcall(c.get)
+        c:SetChecked(ok and on and true or false)
+        if c.now then local ok2, t = pcall(c.nowText); c.now:SetText(ok2 and t or "") end
+    end
 end
 
 local function stopCapture(msg)
@@ -74,102 +84,162 @@ local function choose(key)
     frame.another:Show()
 end
 
-local function build()
-    local f = CreateFrame("Frame", "FlowSettings", UIParent)
-    f:SetSize(420, 330)
-    local p = ns.db.settings.point
-    if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) else f:SetPoint("CENTER", 0, 120) end
-    f:SetFrameStrata("DIALOG")
-    f:EnableMouse(true)
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.92)
-    f.edge = f:CreateTexture(nil, "BORDER")
-    f.edge:SetPoint("TOPLEFT", 0, 0)
-    f.edge:SetPoint("TOPRIGHT", 0, 0)
-    f.edge:SetHeight(2)
-    f.edge:SetColorTexture(1, 0.82, 0.25, 0.9)
-    ns:MakeMovable(f, ns.db.settings, true)
-    tinsert(UISpecialFrames, "FlowSettings")  -- Escape closes it
 
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    f.title:SetPoint("TOPLEFT", 16, -14)
-    f.title:SetText("Flow settings  |cff888888v" .. (ns.Version and ns.Version() or "?") .. "|r")
+local WIDTH = 580
 
-    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", 2, 2)
+local function heading(f, y, text)
+    local h = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    h:SetPoint("TOPLEFT", 16, y)
+    h:SetText(text)
+    local line = f:CreateTexture(nil, "ARTWORK")
+    line:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -4)
+    line:SetSize(WIDTH - 40, 1)
+    line:SetColorTexture(1, 0.82, 0.25, 0.5)
+    return y - 34
+end
 
-    -- Row: cast key
-    local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    name:SetPoint("TOPLEFT", 16, -52)
-    name:SetText("Cast key")
-    f.keyValue = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.keyValue:SetPoint("LEFT", name, "RIGHT", 16, 0)
-
-    local set = button(f, "Set key", 90)
-    set:SetPoint("TOPRIGHT", -110, -46)
-    f.clear = button(f, "Clear", 80)
-    f.clear:SetPoint("LEFT", set, "RIGHT", 8, 0)
-
-    local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    help:SetPoint("TOPLEFT", 16, -80)
-    help:SetWidth(388)
-    help:SetJustifyH("LEFT")
-    help:SetText("Press this key (or click the suggestion icon) to cast what Flow suggests. "
-        .. "In combat WoW doesn't let addons change what a key casts, so it keeps the spell it "
-        .. "had when the fight started; a small \"key:\" icon shows it.")
-
-    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.status:SetPoint("TOPLEFT", 16, -132)
-    f.status:SetWidth(388)
-    f.status:SetJustifyH("LEFT")
-
-    -- Row: max camera zoom (Camera.lua). Unticking restores the game default.
-    local zoom = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    zoom:SetSize(24, 24)
-    zoom:SetPoint("TOPLEFT", 12, -206)
-    local zoomLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    zoomLabel:SetPoint("LEFT", zoom, "RIGHT", 4, 0)
-    zoomLabel:SetText("Max camera zoom  |cff888888(off = game default)|r")
-    zoom:SetScript("OnClick", function(self)
+-- A tick box: label, grey note, tooltip; get() -> on, set(on).
+local function check(f, y, text, note, tip, get, set)
+    local c = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    c:SetSize(24, 24)
+    c:SetPoint("TOPLEFT", 14, y)
+    c.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    c.label:SetPoint("LEFT", c, "RIGHT", 4, 0)
+    c.label:SetText(text .. (note and ("  |cff888888" .. note .. "|r") or ""))
+    c.get = get
+    c:SetScript("OnClick", function(self)
         if InCombatLockdown() then
-            self:SetChecked(ns.camera:IsOn())
-            f.status:SetText("Camera settings can't change in combat.")
+            refresh()
+            frame.status:SetText("Settings can't change in combat.")
             return
         end
-        ns.camera:Set(self:GetChecked() and true or false)
+        local ok, err = pcall(set, self:GetChecked() and true or false)
+        if not ok then ns:Log("settings", text .. ": " .. tostring(err)) end
+        refresh()
     end)
-    f.zoom = zoom
+    if tip then
+        c:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(text)
+            GameTooltip:AddLine(tip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+    frame.checks[#frame.checks + 1] = c
+    return c, y - 28
+end
 
-    -- Row: colour-blind route colours (Theme.lua). Off = green route, yellow preview.
-    local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    cb:SetSize(24, 24)
-    cb:SetPoint("TOPLEFT", 12, -234)
-    local cbLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    cbLabel:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-    cbLabel:SetText("Colour-blind route colours  |cff888888(safer colours)|r")
-    cb:SetScript("OnClick", function(self) ns.theme:SetColorBlind(self:GetChecked() and true or false) end)
-    cb:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Route colours on the map and arrow")
-        GameTooltip:AddLine("The route and arrow colour shows the order: purple = Most XP first, blue = Shortest path, orange = From selected stop. Hovering a stop shows the route you would follow, in orange.", 1, 1, 1, true)
-        GameTooltip:AddLine("On: the same roles in colours that stay apart for the common kinds of colour blindness (reddish purple, blue, orange).", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.colorblind = cb
+local function build(parent)
+    local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 0, -4)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 4)
+    local f = CreateFrame("Frame", "FlowSettings", scroll)
+    f:SetSize(WIDTH, 900)
+    scroll:SetScrollChild(f)
+    f.scroll = scroll
+    frame = f
+    f.checks = {}
 
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    f.title:SetPoint("TOPLEFT", 16, -12)
+    f.title:SetText("Flow  |cff888888v" .. (ns.Version and ns.Version() or "?") .. "|r")
+
+    -- Cast key
+    local y = heading(f, -52, "Cast key")
+    local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    name:SetPoint("TOPLEFT", 16, y - 4)
+    name:SetText("Your key:")
+    f.keyValue = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.keyValue:SetPoint("LEFT", name, "RIGHT", 12, 0)
+    local set = button(f, "Set key", 90)
+    set:SetPoint("TOPLEFT", 250, y)
+    f.clear = button(f, "Clear", 80)
+    f.clear:SetPoint("LEFT", set, "RIGHT", 8, 0)
+    local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    help:SetPoint("TOPLEFT", 16, y - 32)
+    help:SetWidth(WIDTH - 40)
+    help:SetJustifyH("LEFT")
+    help:SetText("Press this key (or click the suggestion icon) to cast what Flow suggests. "
+        .. "In combat WoW doesn't let add-ons change what a key casts, so it keeps the spell it "
+        .. "had when the fight started; a small \"key:\" icon shows it.")
+    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.status:SetPoint("TOPLEFT", 16, y - 66)
+    f.status:SetWidth(WIDTH - 40)
+    f.status:SetJustifyH("LEFT")
     f.confirm = button(f, "Use it anyway", 120)
-    f.confirm:SetPoint("BOTTOMLEFT", 16, 14)
+    f.confirm:SetPoint("TOPLEFT", 16, y - 96)
     f.another = button(f, "Pick another", 110)
     f.another:SetPoint("LEFT", f.confirm, "RIGHT", 8, 0)
-    f.confirm:Hide()
-    f.another:Hide()
+    f.confirm:Hide(); f.another:Hide()
+    y = y - 126
 
-    -- Key capture overlay.
-    local cap = CreateFrame("Button", nil, f)
-    cap:SetAllPoints()
-    cap:SetFrameLevel(f:GetFrameLevel() + 20)
+    -- Flow's own options
+    y = heading(f, y, "Flow")
+    local _
+    _, y = check(f, y, "Colour-blind route colours", "(safer colours)",
+        "The route and arrow colour shows the order: purple = Most XP first, blue = Shortest path, orange = From selected stop. On: the same roles in colours that stay apart for the common kinds of colour blindness.",
+        function() return ns.theme:ColorBlind() end, function(on) ns.theme:SetColorBlind(on) end)
+    _, y = check(f, y, "3D arrow", "(off = flat line arrow)",
+        "A shaded chevron lying on the ground ahead of you. It turns left and right; WoW: Forever gives no heights, so it can't point up or down.",
+        function() return ns.db.nav.arrowStyle ~= "flat" end,
+        function(on) ns.nav:SetArrowStyle(on and "3d" or "flat") end)
+    _, y = check(f, y, "Stop areas on the minimap", nil,
+        "The area of the stop the arrow points at, on the minimap (and the stop you hover in the Flow Tracker).",
+        function() return ns.db.nav.minimapAreas ~= false end,
+        function(on) ns.db.nav.minimapAreas = on; if ns.minimapPin then ns.minimapPin:Hide() end end)
+    _, y = check(f, y, "Show the route on the world map", nil, nil,
+        function() return ns.db.nav.mapLines ~= false end,
+        function(on) ns.db.nav.mapLines = on end)
+    y = y - 10
+
+    -- Suggested WoW settings (Setup.lua rows)
+    f.suggestTop = y
+    y = heading(f, y, "Suggested WoW settings")
+    local intro = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    intro:SetPoint("TOPLEFT", 16, y + 4)
+    intro:SetWidth(WIDTH - 40)
+    intro:SetJustifyH("LEFT")
+    intro:SetText("Game settings that help while levelling. Each row says what Flow suggests; hover it for why.")
+    y = y - 20
+    local suggestions = {}
+    for _, r in ipairs(ns.setup and ns.setup:Rows() or {}) do
+        local item = r.item
+        if item.isOn then
+            _, y = check(f, y, item.label,
+                item.suggested and "|cff66ff66Flow suggests on|r" or "Flow suggests off",
+                item.why, item.isOn, item.set)
+            suggestions[#suggestions + 1] = item
+        elseif item.now and not item.action then
+            local t = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            t:SetPoint("TOPLEFT", 42, y - 4)
+            t:SetWidth(WIDTH - 70)
+            t:SetJustifyH("LEFT")
+            local ok, now = pcall(item.now)
+            t:SetText(item.label .. ":  |cffffd200" .. tostring(ok and now or "?") .. "|r  |cff888888" .. (item.why or "") .. "|r")
+            y = y - math.max(24, t:GetStringHeight() + 8)
+        end
+    end
+    local all = button(f, "Use Flow's suggestions", 190)
+    all:SetPoint("TOPLEFT", 16, y - 6)
+    all:SetScript("OnClick", function()
+        if InCombatLockdown() then f.status:SetText("Settings can't change in combat.") return end
+        local n = 0
+        for _, item in ipairs(suggestions) do
+            local want = item.suggested and true or false
+            if want ~= (item.isOn() and true or false) then pcall(item.set, want); n = n + 1 end
+        end
+        ns.db.setup.done = true
+        ns:Print(n .. " setting(s) changed to Flow's suggestions.")
+        refresh()
+    end)
+    y = y - 44
+    f:SetHeight(-y + 20)
+
+    -- Key capture overlay (over the visible page).
+    local cap = CreateFrame("Button", nil, parent)
+    cap:SetAllPoints(parent)
+    cap:SetFrameLevel(parent:GetFrameLevel() + 50)
     cap.bg = cap:CreateTexture(nil, "BACKGROUND")
     cap.bg:SetAllPoints()
     cap.bg:SetColorTexture(0, 0, 0, 0.85)
@@ -212,62 +282,78 @@ local function build()
         f.capturing = true
         cap:Show()
     end)
-
-    f:SetScript("OnShow", refresh)
-    f:Hide()
     return f
 end
 
-function S:Open()
-    frame = frame or build()
-    frame:Show()
-    refresh()
-end
+-------------------------------------------------------------------------------
+-- The page in Options > AddOns.
+-------------------------------------------------------------------------------
 
--- Entry in the game's Options > AddOns list (clients with the Settings API),
--- or the older Interface Options list.
-local function registerInOptions()
-    local canvas = CreateFrame("Frame")
+local canvas, category
+
+local function register()
+    canvas = CreateFrame("Frame")
     canvas.name = "Flow"
-    local t = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    t:SetPoint("TOPLEFT", 16, -16)
-    t:SetText("Flow")
-    local b = button(canvas, "Open Flow settings", 160)
-    b:SetPoint("TOPLEFT", 16, -48)
-    b:SetScript("OnClick", function()
-        if SettingsPanel and SettingsPanel:IsShown() and HideUIPanel then HideUIPanel(SettingsPanel) end
-        S:Open()
+    canvas:SetSize(WIDTH + 40, 600)
+    canvas:SetScript("OnShow", function(self)
+        if not frame then build(self) end
+        refresh()
     end)
     if Settings and Settings.RegisterCanvasLayoutCategory then
-        local cat = Settings.RegisterCanvasLayoutCategory(canvas, "Flow")
-        Settings.RegisterAddOnCategory(cat)
+        category = Settings.RegisterCanvasLayoutCategory(canvas, "Flow")
+        Settings.RegisterAddOnCategory(category)
     elseif InterfaceOptions_AddCategory then
         InterfaceOptions_AddCategory(canvas)
     end
 end
 
+-- Opens Flow's page in the game's Options. `section` "suggest" scrolls to
+-- the suggested WoW settings. Returns false if this client has no page.
+function S:Open(section)
+    if InCombatLockdown() then ns:Print("Options can't open in combat.") return true end
+    local opened = false
+    if category and Settings and Settings.OpenToCategory then
+        opened = pcall(Settings.OpenToCategory, (category.GetID and category:GetID()) or category)
+    elseif canvas and InterfaceOptionsFrame_OpenToCategory then
+        opened = pcall(InterfaceOptionsFrame_OpenToCategory, canvas)
+        pcall(InterfaceOptionsFrame_OpenToCategory, canvas)  -- (older clients need it twice)
+    end
+    if not opened then return false end
+    if not frame and canvas then build(canvas) end
+    refresh()
+    if section == "suggest" and frame and frame.scroll and frame.suggestTop then
+        C_Timer.After(0, function() frame.scroll:SetVerticalScroll(math.max(0, -frame.suggestTop - 10)) end)
+    end
+    return true
+end
+
+-- (Tests) the page's rows: Flow options and suggested WoW settings.
+function S:Checks()
+    return frame and frame.checks or {}
+end
+
 ns:OnLoad(function(saved)
     saved.settings = saved.settings or {}
-    pcall(registerInOptions)
+    pcall(register)
 end)
 
--- First run: open settings once so the key can be set.
+-- First run: open the page once so the key can be set.
 ns:On("PLAYER_ENTERING_WORLD", function()
     if ns.db.cast.key or ns.db.settings.prompted then return end
     ns.db.settings.prompted = true
     C_Timer.After(7, function()
-        if not InCombatLockdown() then
-            S:Open()
+        if not InCombatLockdown() and S:Open() and frame then
             frame.status:SetText("First setting: pick the key that casts Flow's suggestion.")
         end
     end)
 end)
 
-ns.commands.settings = function() S:Open() end
+ns.commands.settings = function() if not S:Open() then ns:Print("this client has no add-on options page") end end
 ns.commands.key = function(arg)
-    if (arg or ""):lower():match("^%s*test") then ns.cast:Test() else S:Open() end
+    if (arg or ""):lower():match("^%s*test") then ns.cast:Test() else ns.commands.settings() end
 end
 ns:Register("help", "settings", { order = 5, title = "Settings", lines = {
-    "/flow settings (or /flow key) - set the key that casts Flow's suggestion; /flow key test - check it",
-    "/flow zoom on|off - max camera zoom (also in /flow settings)",
+    "/flow settings (or Game Menu > Options > AddOns > Flow) - cast key, Flow options, suggested WoW settings",
+    "/flow key test - check the cast key",
+    "/flow zoom on|off - max camera zoom",
 } })

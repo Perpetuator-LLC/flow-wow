@@ -273,9 +273,17 @@ function S:Refresh()
     self:RefreshText()
 end
 
+-- The rows, for Flow's Options page ("Suggested WoW settings", Settings.lua).
+function S:Rows() return rows() end
+S.Value = function(v) if type(v) == "function" then return v() end return v end
+
+-- The suggestions live on Flow's page in the game's Options > AddOns now
+-- (Settings.lua); /flow setup and the first-run prompt open that page.
+-- The old stand-alone table is kept only for clients without that page.
 function S:Open()
-    frame = frame or build()
     self:MarkSeen()
+    if ns.settings and ns.settings.Open and ns.settings:Open("suggest") then return end
+    frame = frame or build()
     frame:Show()
     self:Refresh()
 end

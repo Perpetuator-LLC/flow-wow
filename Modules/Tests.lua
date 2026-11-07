@@ -559,3 +559,29 @@ ns:Register("test", "3D arrow: perspective and turning", function(t)
     local xl = P(0, 26, math.pi / 2)
     t:ok(xl < -20, "a quarter turn counter-clockwise points left")
 end)
+
+ns:Register("test", "diag: blocked actions are logged for read-diag", function(t)
+    local d = ns.db.diag
+    local savedLog, savedBlocked = #d.log, d.blocked and #d.blocked or 0
+    ns.diag._onBlocked("FORBIDDEN")("Flow", "TestProtectedFunction()")
+    t:ok(d.log[#d.log]:find("%[blocked%] FORBIDDEN: Flow blamed for TestProtectedFunction") ~= nil, "logged with [blocked]")
+    t:eq(d.blocked[#d.blocked].func, "TestProtectedFunction()", "kept in the blocked list")
+    -- Don't leave the test's entry where read-diag would flag it.
+    table.remove(d.log, #d.log); table.remove(d.blocked, #d.blocked)
+    t:eq(#d.log, savedLog, "log restored"); t:eq(#d.blocked, savedBlocked, "blocked list restored")
+end)
+
+ns:Register("test", "taint: Flow never replaces the game's global tables", function(t)
+    -- These globals must be Blizzard's own (written by secure code). If an
+    -- add-on assigns them, every Blizzard popup/menu that reads them is tainted.
+    for _, name in ipairs({ "StaticPopupDialogs", "UISpecialFrames", "SlashCmdList" }) do
+        local secure, by = issecurevariable(name)
+        t:ok(secure, name .. " is untainted" .. (by and (" (tainted by " .. by .. ")") or ""))
+    end
+end)
+
+ns:Register("test", "settings: suggested WoW settings are all on Flow's page", function(t)
+    local rows, toggles = ns.setup:Rows(), 0
+    for _, r in ipairs(rows) do if r.item.isOn then toggles = toggles + 1 end end
+    t:ok(toggles >= 5, "at least 5 suggested settings available here (" .. toggles .. ")")
+end)

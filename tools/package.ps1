@@ -24,6 +24,9 @@ foreach ($f in 'Flow.toc', 'Bindings.xml', 'Core.lua', 'README.md', 'CHANGELOG.m
     $src = Join-Path $root $f
     if (Test-Path $src) { Copy-Item $src $out }
 }
+# Releases aren't developer installs: no taint log for players (Diag.lua).
+$outToc = Join-Path $out 'Flow.toc'
+(Get-Content $outToc) | Where-Object { $_ -notmatch '^## X-Flow-Dev:' } | Set-Content $outToc -Encoding utf8
 foreach ($d in 'Modules', 'Classes') {
     Copy-Item (Join-Path $root $d) (Join-Path $out $d) -Recurse
 }

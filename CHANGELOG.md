@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.20
+- Fixed: "Flow has been blocked from an action only available to the Blizzard UI" when using
+  the game menu. Flow replaced the game's popup table (0.35.17), which taints every popup,
+  including Log Out and Exit. Flow also no longer closes the Options window from its own code.
+- Blocked actions are now logged (what was blocked, which add-on was blamed, what was open)
+  and tools/read-diag.ps1 shows them in their own section. Developer installs turn on the
+  game's taint log so the cause can be found. A self-test checks the game's global tables are
+  untainted.
+- Flow's settings now live in the game: Game Menu > Options > AddOns > Flow. The page has your
+  cast key, Flow's options (colour-blind colours, 3D arrow, minimap areas, route on the map) and
+  every **Suggested WoW setting** (auto loot, nameplates, target of target, instant quest text,
+  camera zoom, timestamps, ...) with what Flow suggests, plus "Use Flow's suggestions".
+  /flow settings and /flow setup open it.
+- Flow's target marker (o) everywhere: a ring in the route colour (epic purple in Most XP
+  order) around a dot, for the stop the arrow points at on the world map, on the minimap and in
+  the Flow Router, matching the arrow's ring when you arrive.
+
 ## 0.35.19
 - 3D arrow (the new default): a thick chevron lying on the ground ahead of you, tilted towards
   the horizon with perspective, a lit top, darker sides, a soft shadow and a slight float. Its

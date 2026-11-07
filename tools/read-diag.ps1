@@ -54,3 +54,21 @@ Write-Host "`n=== Snapshot ==="
 if ($snap) { Get-LuaList $snap | ForEach-Object { Write-Host $_ } } else { Write-Host "(none)" }
 Write-Host "`n=== Log (last $Tail) ==="
 if ($log) { Get-LuaList $log | Select-Object -Last $Tail | ForEach-Object { Write-Host $_ } } else { Write-Host "(empty)" }
+
+# Blocked actions: the "only available to the Blizzard UI" errors. Always
+# printed (also when there are none) so whoever reads this checks them.
+Write-Host "`n=== Blocked actions ==="
+$blockedLines = @()
+if ($log) { $blockedLines = Get-LuaList $log | Where-Object { $_ -match '\[blocked\]' } }
+if ($blockedLines.Count -gt 0) {
+    $blockedLines | ForEach-Object { Write-Host "!! $_" }
+    Write-Host "!! FIX THESE: find what tainted the blamed function (taint.log below), fix it, add a test."
+} else { Write-Host "none" }
+
+# The game's taint log (developer installs turn it on): lines about Flow.
+$taint = Join-Path $WowDir 'Logs\taint.log'
+Write-Host "`n=== taint.log (Flow lines) ==="
+if (Test-Path $taint) {
+    $t = Get-Content $taint -Tail 4000 | Select-String -Pattern 'Flow|blocked|forbidden' -SimpleMatch:$false
+    if ($t) { $t | Select-Object -Last 40 | ForEach-Object { Write-Host $_.Line } } else { Write-Host "nothing about Flow" }
+} else { Write-Host "(no taint.log yet: it starts after a /reload with a developer install)" }
