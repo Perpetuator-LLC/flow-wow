@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.23
+- Progress reads as a path everywhere Flow writes it: "Loot Stringy Wolf Meat 9 -> 66",
+  "Slimy Menace: 0 -> 7 Murloc slain".
+
 ## 0.35.22
 - Fixed: the Flow key and the icon did nothing out of combat (Devotion Aura, blessings, seals).
   Once the button had nothing to cast it hid itself and never came back until a fight started.

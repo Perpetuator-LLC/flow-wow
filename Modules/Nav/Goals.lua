@@ -152,9 +152,9 @@ ns:Register("navGoal", "questie", {
                                     weight = elite and 1.6 or nil, elite = elite or nil,
                                     npcs = #targets > 0 and targets or nil, area = true,
                                     kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
-                                    text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. (obj.text or (verb .. " " .. (what or ""))),
+                                    text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. ns.ProgressText(obj.text or (verb .. " " .. (what or ""))),
                                     details = (function()
-                                        local d = { "Quest: " .. (q.title or "?"), "Objective: " .. (obj.text or "?") }
+                                        local d = { "Quest: " .. (q.title or "?"), "Objective: " .. (ns.ProgressText(obj.text) or "?") }
                                         if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
                                         if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
                                         return d

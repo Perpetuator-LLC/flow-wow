@@ -529,7 +529,7 @@ local function planProfession(prof, t, out)
                   text = (function()
                       local have = 0
                       for _, aid in ipairs(ids) do watched[aid] = true; have = have + count(aid) end
-                      return string.format("Loot %s %d/%d (~%d kills)", table.concat(names, " or "), have, have + n, kills)
+                      return string.format("Loot %s %s (~%d kills)", table.concat(names, " or "), ns.Progress(have, have + n), kills)
                   end)(),
                   details = details,
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })

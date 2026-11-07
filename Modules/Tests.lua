@@ -620,3 +620,10 @@ ns:Register("test", "actions: fishing steps on the Flow key", function(t)
     t:eq(get("fish:restore", { at = false }), nil, "no restore without saved weapons")
     ns.db.actions.weapons = saved
 end)
+
+ns:Register("test", "text: progress reads X -> N", function(t)
+    t:eq(ns.Progress(9, 66), "9 -> 66", "Flow's own progress")
+    t:eq(ns.ProgressText("Slimy Menace: 0/7 Murloc slain"), "Slimy Menace: 0 -> 7 Murloc slain", "game objective text")
+    t:eq(ns.ProgressText("Murloc slain: 3 / 7"), "Murloc slain: 3 -> 7", "spaces around the slash")
+    t:eq(ns.ProgressText(nil), nil, "nil stays nil")
+end)

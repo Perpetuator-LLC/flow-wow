@@ -105,3 +105,11 @@ ns.theme.kinds = {
     waypoint     = { color = rgb("56B4E9"), icon = "Interface\\Minimap\\MinimapArrow", label = "Your waypoint" },
     party        = { color = rgb("56B4E9"), icon = "Interface\\FriendsFrame\\UI-Toast-FriendOnlineIcon", label = "Party route" },
 }
+
+-- Progress reads as a path, where you are -> where you're going: "9 -> 66",
+-- never "9/66". ProgressText rewrites the game's "0/7 Murloc slain".
+function ns.Progress(have, need) return tostring(have) .. " -> " .. tostring(need) end
+function ns.ProgressText(text)
+    if type(text) ~= "string" then return text end
+    return (text:gsub("(%d+)%s*/%s*(%d+)", "%1 -> %2"))
+end

@@ -218,7 +218,7 @@ ns:Register("advisor", "professions", {
             if p.primary then primaries = primaries + 1 end
             if p.max > 0 and p.rank >= p.max and p.max < 300 then
                 out[#out + 1] = { importance = 60,
-                    text = string.format("%s is capped at %d/%d: train the next tier", p.name, p.rank, p.max),
+                    text = string.format("%s is capped at %d (max %d): train the next tier", p.name, p.rank, p.max),
                     improves = { "Professions" }, goalKey = "train:" .. p.name }
             elseif p.rank + 15 < target then
                 out[#out + 1] = { importance = 30,
