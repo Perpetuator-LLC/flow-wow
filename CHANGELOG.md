@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.11
+- Clicking a stop (Flow Router row or point, Flow Tracker row, map area) opens Flow's own
+  card for it beside what you clicked, and the Flow Router stays open. The card has links:
+  "Open in quest log" (the old behaviour), "Show on map" and "Go here first". Click the stop
+  again, the X, or Esc to close it.
+- World map areas: only the patch the route actually goes to is drawn for each stop; point at
+  a stop to see every place its mobs live.
+- Fixed: the arrow panel's fallback icon path (single backslashes).
+
 ## 0.35.10
 - Farm stops count like quest objectives: "Loot Stringy Wolf Meat or Chunk of Boar Meat 9/66
   (~150 kills)". The count is what you carry out of what the plan uses.

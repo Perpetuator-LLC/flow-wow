@@ -443,3 +443,16 @@ ns:Register("test", "map areas: patches and their borders", function(t)
     local edge = M._hull({ { 0, 0 }, { 10, 0 }, { 10, 10 }, { 0, 10 }, { 5, 5 } })
     t:eq(#edge, 4, "a square's border has 4 corners (the middle point is inside)")
 end)
+
+ns:Register("test", "stop card: tooltip text and route patch", function(t)
+    local tt = ns.nav._textTooltip()
+    ns.nav:FillTooltip(tt, { key = "test:card", title = "A Quest", text = "A Quest: Kill 5 Wolves", details = { "XP: 120" } })
+    t:ok(#tt.lines >= 3, "card body has lines")
+    t:ok(tt.lines[3]:find("Kill 5 Wolves") ~= nil, "third line is the task (the band shows it, the body skips it)")
+    local found
+    for _, l in ipairs(tt.lines) do if l:find("XP: 120") then found = true end end
+    t:ok(found, "details come through")
+    local groups = { { { 0, 0 }, { 5, 0 } }, { { 100, 100 } } }
+    t:eq(ns.mapOverlay._routePatch(groups, 98, 99), 2, "the patch nearest the route's spot")
+    t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
+end)

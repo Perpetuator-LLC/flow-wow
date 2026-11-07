@@ -115,7 +115,7 @@ local function pin(c, x, y, label, color, stop, top)
             if button == "RightButton" then
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
-                    { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", func = function() ns.nav:Select(g.key) end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
@@ -124,7 +124,7 @@ local function pin(c, x, y, label, color, stop, top)
                 ns.menu:Open(items)
                 return
             end
-            ns.nav:OpenStop(g)
+            ns.nav:OpenStop(g, self)
         end)
         pins[nPins] = p
     end
@@ -238,14 +238,14 @@ local function blobClick(self, button)
     if button == "RightButton" then
         local items = {
             { title = true, text = g.text or g.title or "This stop" },
-            { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+            { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
             { text = "Go here first", func = function() ns.nav:Select(g.key) end },
             { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
         }
         ns.menu:Open(items)
         return
     end
-    ns.nav:OpenStop(g)
+    ns.nav:OpenStop(g, self)
 end
 
 -- Convex hull (monotone chain) of {x, y} points, counter-clockwise.
@@ -289,16 +289,42 @@ local function clusters(pts, gap)
 end
 M._hull, M._clusters = hull, clusters  -- (tests)
 
-local function drawArea(c, mapID, goal, color, strong, label)
+-- The patch the route actually goes to: the group holding the point nearest
+-- the route's spot for this stop (all of them when there's no route spot).
+local function routePatch(groups, rx, ry)
+    if not rx then return nil end
+    local best, bestD
+    for gi, group in ipairs(groups) do
+        for _, p in ipairs(group) do
+            local d = (p[1] - rx) ^ 2 + (p[2] - ry) ^ 2
+            if not bestD or d < bestD then best, bestD = gi, d end
+        end
+    end
+    return best
+end
+M._routePatch = routePatch  -- (tests)
+
+-- routePt: where the route goes for this stop. Only that patch is drawn,
+-- unless allPatches (the stop you point at: every place its mobs live).
+local function drawArea(c, mapID, goal, color, strong, label, routePt, allPatches)
     if not (goal and goal.area and goal.points) then return end
     local r = blobRadius(c, mapID)
     local w, h = c:GetWidth(), c:GetHeight()
     local alpha = strong and 0.28 or 0.1
-    local px = {}
+    local all = {}
     for _, pt in ipairs(goal.points) do
         local x, y = toMap(pt, mapID)
-        if x and nBlobs < 300 then
-            px[#px + 1] = { x * w, y * h }
+        if x then all[#all + 1] = { x * w, y * h } end
+    end
+    local groups = clusters(all, r * 3)
+    local rx, ry = toMap(routePt, mapID)
+    local keep = not allPatches and routePatch(groups, rx and rx * w, ry and ry * h)
+    if keep then groups = { groups[keep] } end
+    local px = {}
+    for _, group in ipairs(groups) do for _, p in ipairs(group) do px[#px + 1] = p end end
+    for _, p in ipairs(px) do
+        local x, y = p[1] / w, p[2] / h
+        if nBlobs < 300 then
             nBlobs = nBlobs + 1
             local b = blobs[nBlobs]
             if not b then
@@ -323,7 +349,7 @@ local function drawArea(c, mapID, goal, color, strong, label)
         end
     end
     -- A border around each patch: the outline of its discs.
-    for _, group in ipairs(clusters(px, r * 3)) do
+    for _, group in ipairs(groups) do
         local ring = {}
         for _, p in ipairs(group) do
             for k = 0, 11 do
@@ -747,7 +773,7 @@ local function buildList()
             elseif button == "RightButton" and g then
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
-                    { text = "Open it", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here first", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
@@ -757,7 +783,7 @@ local function buildList()
             elseif self.blocked then
                 ns:Print((g.text or "that stop") .. ": " .. (g.blockedBy or "blocked"))
             elseif g then
-                ns.nav:OpenStop(g)
+                ns.nav:OpenStop(g, self)
             end
             M:Redraw()
         end)
@@ -896,8 +922,10 @@ function M:Redraw()
         for i, s in ipairs(plan) do if s.goal.key == pointed then order[#order + 1] = i end end
         for _, i in ipairs(order) do
             local g = plan[i].goal
-            if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i])
-            else drawArea(c, mapID, g, T.route, i == 1, labels[i]) end
+            -- Only the patch the route goes to; the stop you point at shows
+            -- every place its mobs live.
+            if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
+            else drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
         end
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the

@@ -136,7 +136,7 @@ local function build()
             if button == "RightButton" then
                 local items = {
                     { title = true, text = g.text or g.title or "This stop" },
-                    { text = "Open it (quest / map)", func = function() ns.nav:OpenStop(g) end },
+                    { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Move on (hide this for now)", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
@@ -145,7 +145,7 @@ local function build()
             elseif self.blocked then
                 ns:Print((g.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked"))
             else
-                ns.nav:OpenStop(g)
+                ns.nav:OpenStop(g, self)
             end
         end)
         r:SetScript("OnEnter", function(self)

@@ -680,7 +680,17 @@ function N:FillTooltip(tt, goal, footer)
     if footer then tt:AddLine(" "); tt:AddLine(footer, 0.55, 0.55, 0.55, true) end
 end
 
-function N:OpenStop(goal)
+-- Clicking a stop (Flow Router row or pin, tracker row, map area) opens
+-- Flow's own card for it next to what you clicked (N:ShowStop, below). The
+-- game's quest log, which folds the Flow Router away, is a link on the card.
+function N:OpenStop(goal, anchor)
+    if not goal then return end
+    if N.ShowStop then return N:ShowStop(goal, anchor) end
+    return N:OpenInGame(goal)
+end
+
+-- The quest in the game's quest log (or, for other stops, the place on the world map).
+function N:OpenInGame(goal)
     if not goal then return end
     local id = tonumber(goal.key:match("^(%d+):"))
     local idx = id and questLogIndex(id)
@@ -918,8 +928,8 @@ local frame, panel
 --   [hero]  a band in the route colour: stop icon, TYPE in small caps,
 --           the task in large white text, distance and direction on the right
 --   then    quest name, objectives, details (small), the trip plan (smaller)
-local function buildPanel()
-    local f = CreateFrame("Frame", "FlowNavPanel", UIParent)
+local function buildPanel(name)
+    local f = CreateFrame("Frame", name or "FlowNavPanel", UIParent)
     f:SetSize(340, 140)
     f:SetFrameStrata("DIALOG")
     f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -960,23 +970,30 @@ local function buildPanel()
     return f
 end
 
-local function showPanel()
-    if not current then return end
-    panel = panel or buildPanel()
-    local g = current.goal
-    local h = panel.hero
+-- The coloured band at the top of the arrow panel and the stop card.
+local function fillHero(p, g, distText)
+    local h = p.hero
     local c = ns.theme.route
     h.bg:SetColorTexture(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35, 0.95)
     h.bar:SetColorTexture(c[1], c[2], c[3], 1)
     local kind = ns.theme.kinds[N:StopKind(g)]
-    h.icon:SetTexture(kind and kind.icon or "Interface\Icons\INV_Misc_Map_01")
+    h.icon:SetTexture(kind and kind.icon or "Interface\\Icons\\INV_Misc_Map_01")
     h.label:SetText(((kind and kind.label) or "Next stop"):upper())
     h.label:SetTextColor(c[1] + (1 - c[1]) * 0.5, c[2] + (1 - c[2]) * 0.5, c[3] + (1 - c[3]) * 0.5)
     local task = g.text or g.title or "Next stop"
     if g.title and task:sub(1, #g.title + 2) == g.title .. ": " then task = task:sub(#g.title + 3) end
     h.task:SetText(task)
-    h.dist:SetText(string.format("%d yd", current.d or 0))
+    h.dist:SetText(distText or "")
     h:SetHeight(math.max(64, h.task:GetStringHeight() + h.label:GetStringHeight() + 26))
+    return task
+end
+
+local function showPanel()
+    if not current then return end
+    panel = panel or buildPanel()
+    local g = current.goal
+    local h = panel.hero
+    local task = fillHero(panel, g, string.format("%d yd", current.d or 0))
 
     local lines = {}
     if g.title and g.title ~= task then lines[#lines + 1] = "|cffffd200" .. g.title .. "|r" end
@@ -1012,6 +1029,110 @@ local function showPanel()
     panel:Show()
 end
 
+-------------------------------------------------------------------------------
+-- Stop card: Flow's small view of one stop, opened by clicking it anywhere.
+-- Same look as the arrow panel; it stays where it is (the Flow Router stays
+-- open), and has links for the rarer things you might want instead.
+-------------------------------------------------------------------------------
+
+local card
+
+-- A tooltip stand-in that collects FillTooltip's lines as coloured text.
+local function textTooltip()
+    local tt = { lines = {} }
+    function tt:AddLine(text, r, g, b)
+        text = text or ""
+        if r then text = string.format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, text) end
+        self.lines[#self.lines + 1] = text
+    end
+    return tt
+end
+N._textTooltip = textTooltip  -- (tests)
+
+local function link(parent, label, fn)
+    local b = CreateFrame("Button", nil, parent)
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.text:SetPoint("LEFT")
+    b.text:SetText(label)
+    b.text:SetTextColor(0.35, 0.7, 1)
+    b.line = b:CreateTexture(nil, "ARTWORK")        -- underline: it's a link
+    b.line:SetPoint("TOPLEFT", b.text, "BOTTOMLEFT", 0, -1)
+    b.line:SetPoint("TOPRIGHT", b.text, "BOTTOMRIGHT", 0, -1)
+    b.line:SetHeight(1)
+    b.line:SetColorTexture(0.35, 0.7, 1, 0.6)
+    b:SetSize(b.text:GetStringWidth() + 2, 14)
+    b:SetScript("OnEnter", function(self) self.text:SetTextColor(1, 1, 1); N:ClickCursor(true) end)
+    b:SetScript("OnLeave", function(self) self.text:SetTextColor(0.35, 0.7, 1); N:ClickCursor(false) end)
+    b:SetScript("OnClick", function() fn(); N:ClickCursor(false) end)
+    return b
+end
+
+local function buildCard()
+    local f = buildPanel("FlowStopCard")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")          -- above the world map
+    f:SetClampedToScreen(true)
+    tinsert(UISpecialFrames, "FlowStopCard")         -- Esc closes it
+    f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    f.close:SetPoint("TOPRIGHT", 2, 2)
+    f.close:SetScale(0.8)
+    f.hero.dist:ClearAllPoints()
+    f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
+    f.links = {
+        quest = link(f, "Open in quest log", function() local g = f.goal; f:Hide(); N:OpenInGame(g) end),
+        map = link(f, "Show on map", function()
+            local g = f.goal
+            if WorldMapFrame:IsShown() and ns.mapOverlay then ns.mapOverlay:Focus(g.key) else N:OpenInGame(g) end
+        end),
+        first = link(f, "Go here first", function() N:Select(f.goal.key); f:Hide() end),
+    }
+    return f
+end
+
+function N:ShowStop(goal, anchor)
+    card = card or buildCard()
+    if card:IsShown() and card.goal and card.goal.key == goal.key then card:Hide() return end  -- click again: close
+    card.goal = goal
+    local p, pt = N:PlayerPos(), nil
+    for _, s in ipairs(N.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
+    pt = pt or (goal.points and goal.points[1])
+    local d = (p and pt and pt.wx and pt.cont == p.cont) and dist(p.wx, p.wy, pt.wx, pt.wy)
+    local task = fillHero(card, goal, d and string.format("%d yd", d) or "")
+
+    -- Body: what the tooltip says, minus the title and task the band shows.
+    local tt = textTooltip()
+    N:FillTooltip(tt, goal)
+    local body = {}
+    if goal.title and goal.title ~= task then body[1] = "|cffffd200" .. goal.title .. "|r" end
+    for i = 4, #tt.lines do body[#body + 1] = tt.lines[i] end
+    card.text:SetText(table.concat(body, "\n"))
+
+    -- Links under the text.
+    local id = tonumber(goal.key:match("^(%d+):"))
+    local inLog = id and questLogIndex(id)
+    local x = 12
+    for _, name in ipairs({ "quest", "map", "first" }) do
+        local l = card.links[name]
+        if name == "quest" and not inLog then l:Hide()
+        else
+            l:ClearAllPoints()
+            l:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", x, 10)
+            l:Show()
+            x = x + l:GetWidth() + 14
+        end
+    end
+    card:SetHeight(card.hero:GetHeight() + card.text:GetStringHeight() + 48)
+    card:ClearAllPoints()
+    if anchor and anchor.GetRight then
+        -- Beside what you clicked, on whichever side has room.
+        local right = anchor:GetRight() and anchor:GetRight() * anchor:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        if right and right + 350 > GetScreenWidth() then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -8, 0)
+        else card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 8, 0) end
+    else
+        card:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+    end
+    card:Show()
+end
+
 local function buildArrow()
     local f = CreateFrame("Button", "FlowNavArrow", UIParent)
     f:SetSize(56, 56)
@@ -1040,7 +1161,7 @@ local function buildArrow()
             if current then
                 local g = current.goal
                 items[#items + 1] = { title = true, text = g.text or g.title or "This stop" }
-                items[#items + 1] = { text = "Open it (quest / map)", func = function() N:OpenStop(g) end }
+                items[#items + 1] = { text = "Open it", func = function() N:OpenStop(g) end }
                 items[#items + 1] = { text = "Move on (hide this for now)", func = function() N:Hide(g.key) end }
                 items[#items + 1] = { sep = true }
             end
