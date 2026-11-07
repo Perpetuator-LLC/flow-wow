@@ -41,21 +41,67 @@ local function questOf(goal)
     return id and tonumber(id), k:find("^pickup:") ~= nil
 end
 
--- Route sorting, three modes (map list, arrow right-click, /flow nav xp|distance):
---   "xp"        Most XP first (default)
---   "distance"  Shortest path
+-------------------------------------------------------------------------------
+-- What the route optimises for: a registry, so the route can aim at anything
+-- (most XP, shortest walk, or one day "fishing only", "first to 300 Mining").
+-- The planner itself never changes: it minimises sum(distance x weight) over
+-- the stops it's given. An objective only (1) scales each stop's weight and
+-- (2) optionally says which stops count at all.
+--
+--   ns:Register("routeObjective", "<key>", {
+--       label = "Most XP", tip = "shown on hover",
+--       color = { r, g, b },                    -- optional route colour
+--       weigh = function(goal, ctx) return m end,   -- optional: weight x m
+--                                                -- (< 1 = worth a longer walk)
+--       keep  = function(goal, ctx) return bool end, -- optional: route only these
+--   })
+--   ctx = { level = your level, ref = typical quest XP at your level }
+-- Goals already carry what an objective needs: key, kind, prof (gathering /
+-- fishing stops), xp, level, levelsAbove, share, optional, milestone...
+-- Pick one with /flow nav sort <key> (or the Flow Router's radios for the
+-- built-in ones). Example, not built in:
+--   ns:Register("routeObjective", "fishing", { label = "Fishing only",
+--       keep = function(g) return ns.actions.GoalProf(g) == "Fishing" or g.kind == "merchant" end })
+-------------------------------------------------------------------------------
+
+ns:Register("routeObjective", "xp", {
+    label = "Most XP",
+    tip = "Shortest path, with quests weighed by XP and level: more XP is worth a longer walk; quests 3+ levels above you wait.",
+    weigh = function(g, ctx)
+        if not g.xp then return nil end
+        local m = math.sqrt(ctx.ref / math.max(g.xp, 1))
+        m = math.max(0.6, math.min(1.6, m))
+        local above = g.levelsAbove or 0
+        if above >= 3 then m = m * (1 + 0.4 * (above - 2))
+        elseif above == 2 then m = m * 1.15 end
+        if above <= -3 and g.share == 1 then m = m * 0.9 end   -- do it before its XP drops
+        return m
+    end,
+})
+ns:Register("routeObjective", "distance", {
+    label = "Shortest", tip = "Shortest path: nearest stops first, XP ignored.",
+})
+
+-- Route sorting modes (map list, arrow right-click, /flow nav xp|distance|sort):
+--   any routeObjective key ("xp" by default, "distance", ...)
 --   "selected"  From the stop you clicked on the map; the rest is planned
---               after it with the mode you had before ("base")
--- Picking "xp" or "distance" again clears the clicked stop.
+--               after it with the objective you had before ("base")
+-- Picking an objective again clears the clicked stop.
+local function known(m) return m and ns:Get("routeObjective", m) ~= nil end
 function X:Mode() return ns.db.nav.sorter or "xp" end
-function X:Base() return ns.db.nav.baseSorter or "xp" end
-function X:On()
-    -- Completionist route: every quest counts the same, so XP doesn't reorder it.
-    if ns.nav and ns.nav.Mode and ns.nav:Mode() == "complete" then return false end
-    local m = self:Mode()
-    if m == "selected" then m = self:Base() end
-    return m == "xp"
+function X:Base()
+    local b = ns.db.nav.baseSorter
+    return known(b) and b or "xp"
 end
+-- The objective in effect now (key, definition).
+function X:Objective()
+    -- Completionist route: every quest counts the same, so XP doesn't reorder it.
+    if ns.nav and ns.nav.Mode and ns.nav:Mode() == "complete" then return "distance", ns:Get("routeObjective", "distance") end
+    local m = self:Mode()
+    if m == "selected" or not known(m) then m = self:Base() end
+    return m, ns:Get("routeObjective", m)
+end
+function X:On() return (self:Objective()) == "xp" end
 function X:SetMode(m)
     if m == "selected" then
         if not (ns.nav.selection and ns.nav.selection.first) then
@@ -65,16 +111,18 @@ function X:SetMode(m)
         ns.db.nav.sorter = "selected"
         return
     end
+    if not known(m) then ns:Print("no route objective called '" .. tostring(m) .. "'") return end
     ns.db.nav.sorter, ns.db.nav.baseSorter = m, m
     ns.nav:ClearSelection()
     ns.nav:Collect()
 end
 function X:Set(on) self:SetMode(on and "xp" or "distance") end  -- older callers
 
+-- Adds XP to quest stops (tooltips), then lets the objective weigh and pick
+-- stops. Returns the stops to route (all of them unless it has `keep`).
 function X:Apply(goals)
     local me = UnitLevel("player")
     local ref = X.Estimate(me)
-    local on = self:On()
     for _, g in ipairs(goals) do
         local id, isPickup = questOf(g)
         if id and g.level then
@@ -91,15 +139,32 @@ function X:Apply(goals)
             else note = "full XP" end
             g.details = g.details or {}
             table.insert(g.details, string.format("XP: %s%d (%s)", real and "" or "about ", xp, note))
-            g.xp = xp
-            if on then
-                local m = math.sqrt(ref / math.max(xp, 1))
-                m = math.max(0.6, math.min(1.6, m))
-                if above >= 3 then m = m * (1 + 0.4 * (above - 2))
-                elseif above == 2 then m = m * 1.15 end
-                if me - g.level >= 3 and share == 1 then m = m * 0.9 end
-                g.weight = (g.weight or 1) * m
-            end
+            g.xp, g.levelsAbove, g.share = xp, above, share
         end
     end
+    local _, obj = self:Objective()
+    if not obj then return goals end
+    local ctx = { level = me, ref = ref }
+    local out = goals
+    if obj.keep then
+        out = {}
+        for _, g in ipairs(goals) do
+            local ok, keep = pcall(obj.keep, g, ctx)
+            if ok and keep then out[#out + 1] = g end
+        end
+    end
+    if obj.weigh then
+        for _, g in ipairs(out) do
+            local ok, m = pcall(obj.weigh, g, ctx)
+            if ok and type(m) == "number" and m > 0 then g.weight = (g.weight or 1) * m end
+        end
+    end
+    return out
+end
+
+-- /flow nav sort <key>: pick any registered objective; no key lists them.
+function X:List()
+    local out = {}
+    for key, o in ns:Each("routeObjective") do out[#out + 1] = { key = key, label = o.label or key } end
+    return out
 end

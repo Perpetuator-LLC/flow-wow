@@ -834,3 +834,22 @@ ns:Register("test", "taint: moving the cast icon never happens in combat", funct
     t:ok(ns.cast.moving == false, "no move in progress, nothing done")
     ns.cast.moving = was
 end)
+
+ns:Register("test", "route: what it optimises is pluggable", function(t)
+    local X = ns.xpValue
+    t:ok(ns:Get("routeObjective", "xp") and ns:Get("routeObjective", "distance"), "built-in objectives registered")
+    local saved = { s = ns.db.nav.sorter, b = ns.db.nav.baseSorter }
+    -- A test objective: only stops whose key starts with "keep:", each half weight.
+    if not ns:Get("routeObjective", "test-only") then
+        ns:Register("routeObjective", "test-only", { label = "Test",
+            keep = function(g) return g.key:find("^keep:") ~= nil end,
+            weigh = function() return 0.5 end })
+    end
+    ns.db.nav.sorter, ns.db.nav.baseSorter = "test-only", "test-only"
+    local out = X:Apply({ { key = "keep:1", weight = 1 }, { key = "drop:1", weight = 1 } })
+    t:eq(#out, 1, "keep picks the stops")
+    t:eq(out[1].weight, 0.5, "weigh scales the weight")
+    ns.db.nav.sorter, ns.db.nav.baseSorter = "nonsense", nil
+    t:eq((X:Objective()), "xp", "unknown objective falls back to Most XP")
+    ns.db.nav.sorter, ns.db.nav.baseSorter = saved.s, saved.b
+end)

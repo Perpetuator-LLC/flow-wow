@@ -365,7 +365,12 @@ function N:Collect()
     N.alongGoals = along
     shown = routed
     -- XP-first sorting (XpValue.lua): weights by XP and quest level; also adds XP to tooltips.
-    if ns.xpValue then pcall(ns.xpValue.Apply, ns.xpValue, shown) end
+    -- and the route objective (what the route optimises; XpValue.lua) weighs
+    -- the stops and may pick which ones count.
+    if ns.xpValue then
+        local okA, kept = pcall(ns.xpValue.Apply, ns.xpValue, shown)
+        if okA and kept then shown = kept end
+    end
     goals = shown
     N.planDirty = true
 end
@@ -1729,6 +1734,17 @@ ns.commands.nav = function(arg)
         cfg.professions = (v ~= "off")
         N:Collect()
         ns:Print("professions on the route: " .. (cfg.professions and "on" or "off"))
+    elseif arg:find("^sort") then
+        -- Any registered route objective (XpValue.lua): /flow nav sort <key>.
+        local key = arg:match("^sort%s+(%S+)")
+        if key then
+            ns.xpValue:SetMode(key)
+            ns:Print("route optimises for: " .. (select(2, ns.xpValue:Objective()).label or key))
+        else
+            ns:Print("route objectives (now: " .. (ns.xpValue:Objective()) .. "):")
+            for _, o in ipairs(ns.xpValue:List()) do print("  " .. o.key .. " - " .. o.label) end
+            print("  /flow nav sort <key>")
+        end
     elseif arg == "xp" or arg == "xp on" or arg == "xp off" or arg == "distance" then
         ns.xpValue:Set(arg ~= "xp off" and arg ~= "distance")
         ns:Print("route sorting: " .. (ns.xpValue:On() and "most XP first" or "shortest path"))

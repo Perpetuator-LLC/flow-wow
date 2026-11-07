@@ -58,7 +58,8 @@ function ns.theme:ModeText(mode, text) return "|cff" .. self:ModeColor(mode).hex
 function ns.theme:UpdateRoute()
     local p = PALETTES[self.palette or "standard"]
     local mode = ns.db and ns.db.nav and ns.db.nav.sorter or "xp"
-    set(self, "route", p.modes[mode] or p.modes.xp)
+    local obj = ns.Get and ns:Get("routeObjective", mode)
+    set(self, "route", p.modes[mode] or (obj and obj.color) or p.modes.xp)
     self.current = self.route  -- older name
 end
 
