@@ -36,13 +36,32 @@ can check its own work.
 
 ## Pull requests
 
+The repo is public: https://github.com/Perpetuator-LLC/flow-wow. With the
+[GitHub CLI](https://cli.github.com/) (`gh auth login` once):
+
+```
+gh repo fork Perpetuator-LLC/flow-wow --clone      # your copy, with "upstream" set
+git checkout -b my-change                          # one branch per change
+# ...edit, test, lint...
+git push -u origin my-change
+gh pr create --repo Perpetuator-LLC/flow-wow --base main
+```
+
+Before starting a new change, bring your copy up to date: `git checkout main`,
+`git pull upstream main`, then branch from there. If `main` moved while your PR was open,
+`git fetch upstream` and `git rebase upstream/main` (fix any conflicts, lint again, then
+`git push --force-with-lease`).
+
 - One feature or fix per PR, with a test in `Modules/Tests.lua`.
 - `powershell -ExecutionPolicy Bypass -File tools\lint.ps1` must say "lint OK" (needs
   [luacheck.exe](https://github.com/lunarmodules/luacheck/releases); the script says where to
   put it).
-- Bump the patch version in `Flow.toc` and add a player-facing line to `CHANGELOG.md`.
+- **Don't bump the version** in `Flow.toc`. Add a player-facing line under `## Unreleased` at
+  the top of `CHANGELOG.md` (add that heading if it isn't there). The maintainer gives it a
+  version number when merging, so PRs don't collide over the version line.
 - Say how you tested it in game (class, level, zone) and paste the `/flow test` result.
-- Don't include data copied from other addons or sites.
+- Don't commit `Learned/CombatLog.lua` changes (it's generated from your own combat logs),
+  anything from your `WTF` folder, or data copied from other addons or sites.
 - Flow is licensed under the [GPLv3](LICENSE). By sending a PR you agree your contribution is
   licensed the same way.
 

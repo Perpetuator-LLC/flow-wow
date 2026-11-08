@@ -20,7 +20,7 @@ registry first, or add one.
 |---|---|
 | `Flow.toc` | Load order. Every new file must be listed here or WoW never loads it. |
 | `Core.lua` | Event bus (`ns:On`), registries, saved data (`ns:OnLoad`), `/flow` commands (`ns.commands.x`). |
-| `Classes/<Class>/` | Class data, trainer spells, rotation. Only Paladin so far: adding a class is a great first contribution. |
+| `Classes/<Class>/` | Class data, trainer spells, rotation. Paladin and Druid so far: adding a class is a great first contribution. |
 | `Modules/Rotation/` | Rotation engine, cast button/key, the Forever API shims (`Compat.lua`, `ns.api`). |
 | `Modules/Nav/` | Route: goals (`Goals.lua`), planner, arrow and panels (`Nav.lua`), world map (`MapOverlay.lua`), tracker. |
 | `Modules/Crafting/` | Profession guides, recorded recipes, skill plans that become route stops. |
@@ -125,7 +125,9 @@ If anything is there, fix it before other work, even if nobody mentioned it:
    Lint can't see game values that differ on Forever (vectors that are plain tables, globals
    moved into `C_*`): those need an in-game test.
 3. Bump `## Version:` in `Flow.toc` (patch number) and add a `CHANGELOG.md` entry at the top,
-   written for players.
+   written for players. **Contributors sending a pull request** (anyone but the maintainer):
+   don't bump the version; put the entry under `## Unreleased` at the top of `CHANGELOG.md`.
+   The maintainer numbers it when merging. See CONTRIBUTING.md for the fork / branch / PR steps.
 4. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the
    README feature list.
 5. One commit per change, message `Flow x.y.z: what changed`.
