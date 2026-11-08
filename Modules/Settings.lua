@@ -335,6 +335,10 @@ local function build(parent)
         "Now and then (after you log in, when you level up, when a skill reaches its cap, in a town with a trainer you need) a small card says what to learn or train next for your professions, and can point the arrow at the trainer. It closes by itself after 8 s.",
         function() return ns.db.prof.remind ~= false end,
         function(on) ns.db.prof.remind = on end)
+    _, y = check(f, y, "Upgrade spell ranks on your bars", "(when you learn a rank)",
+        "When you learn a higher rank of a spell, every action bar slot with an older rank of it gets the new one (after the fight, if you're in one). A lower rank you put back on purpose stays until you learn the next rank.",
+        function() return ns.db.spellbar.upgradeRanks ~= false end,
+        function(on) ns.db.spellbar.upgradeRanks = on end)
     _, y = check(f, y, "Accept group invites from friends", "(/flow invites)",
         "Invites from your friends list and Battle.net friends are accepted for you. Anyone else gets the usual popup.",
         function() return ns.db.invites.friends ~= false end,

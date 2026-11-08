@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.94
+- **New spell ranks replace the old ones on your bars.** When you learn a higher rank, every
+  action bar slot with an older rank of that spell gets the new one. It happens right away, or
+  just after the fight if you're in one, and chat says how many slots changed. It only happens
+  when you learn the rank, so a lower rank you put back on purpose (to save mana) stays.
+  Setting: "Upgrade spell ranks on your bars" (on).
+- **The next stops' NPCs get a smaller (o) too.** Walking into a camp, everyone you need there
+  is marked. Pyall Silentstride, the cooking trainer for "Camping 101: Cooking", was stop 2 and
+  had no mark. Mobs to kill keep their skull or diamond.
+- **WoW: Forever's own trainers are found:**
+  - from Questie by their title ("Cooking Trainer", "Druid Trainer");
+  - from any trainer you've learned from, who counts as one for that profession from then on.
+  Profession trainer stops and the (o) include them.
+
 ## 0.35.93
 - **`/claude` opens a chat window** instead of only reloading (which looked like it did
   nothing). It shows what you asked and Claude's answers, with a box to type in, Send, and Check

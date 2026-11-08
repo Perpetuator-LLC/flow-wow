@@ -312,12 +312,82 @@ local function offerNew(name)
     show()
 end
 
+-------------------------------------------------------------------------------
+-- New ranks on your bars: when you learn a higher rank of a spell, every bar
+-- slot with an older rank of it gets the new one (out of combat: bars can't
+-- change in a fight). Only at the moment you learn the rank, so a lower rank
+-- you put back on purpose (to save mana) stays until the next one.
+-- Setting: "Upgrade spell ranks on your bars" (/flow settings).
+-------------------------------------------------------------------------------
+
+local knownIds          -- [name] = the spell ID of the rank you know (the highest)
+local upgradeWaiting = {}
+
+-- Names whose spell ID changed: a new rank. before, now: { [name] = id }.
+function NS.RankUps(before, now)
+    local out = {}
+    for name, id in pairs(now or {}) do
+        if before[name] and before[name] ~= id then out[#out + 1] = name end
+    end
+    table.sort(out)
+    return out
+end
+
+-- The bar slots holding an older rank of `name`. actions: { [slot] = spell ID }.
+function NS.OldRankSlots(actions, name, newId, nameOf)
+    local out = {}
+    for slot, id in pairs(actions) do
+        if id ~= newId and nameOf(id) == name then out[#out + 1] = slot end
+    end
+    table.sort(out)
+    return out
+end
+
+local function idsOf(names)
+    local ids = {}
+    for name in pairs(names) do
+        local _, _, _, id = ns.api.SpellInfo(name)
+        if id then ids[name] = id end
+    end
+    return ids
+end
+
+local function upgradeBars(name)
+    if ns.db.spellbar.upgradeRanks == false then return end
+    if InCombatLockdown() then upgradeWaiting[name] = true return end
+    local _, _, _, newId = ns.api.SpellInfo(name)
+    if not newId then return end
+    local actions = {}
+    for slot = 1, 120 do
+        if HasAction(slot) then
+            local kind, id = GetActionInfo(slot)
+            if kind == "spell" and id then actions[slot] = id end
+        end
+    end
+    local slots = NS.OldRankSlots(actions, name, newId, function(id) return (ns.api.SpellInfo(id)) end)
+    for _, slot in ipairs(slots) do
+        ClearCursor(); pickup(newId); PlaceAction(slot); ClearCursor()
+    end
+    if #slots > 0 then
+        ns:Log("newspell", string.format("%s: new rank put on %d bar slot(s) (%s)", name, #slots, table.concat(slots, ", ")))
+        ns:Print(string.format("%s: the new rank is on your bars now (%d slot(s)).", name, #slots))
+    end
+end
+
+ns:On("PLAYER_REGEN_ENABLED", function()
+    C_Timer.After(1, function()
+        for name in pairs(upgradeWaiting) do upgradeWaiting[name] = nil; pcall(upgradeBars, name) end
+    end)
+end)
+
 local function checkNew()
     checkPending = false
     local now = ns.api.KnownSpells and ns.api.KnownSpells() or {}
-    if not knownNames then knownNames = now return end   -- the first look: what you know already
+    local nowIds = idsOf(now)
+    if not knownNames then knownNames, knownIds = now, nowIds return end   -- the first look: what you know already
     for _, name in ipairs(NS.NewNames(knownNames, now)) do pcall(offerNew, name) end
-    knownNames = now
+    for _, name in ipairs(NS.RankUps(knownIds or {}, nowIds)) do pcall(upgradeBars, name) end
+    knownNames, knownIds = now, nowIds
 end
 -- (A second after a change: the game may put the spell on a bar by itself first.)
 local function scheduleCheck()

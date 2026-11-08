@@ -92,8 +92,16 @@ Q.QuestieDB = questieDB
 
 -- Find NPCs by name in Questie's data (e.g. profession trainers). The scan
 -- runs once in the background; until it's done, returns nil.
--- Returns { [name] = { id, spawns } } for the names found.
+-- Returns { [name] = { id, spawns, friendlyToFaction } } for the names found.
 local npcByName, npcScanState = {}, nil
+
+-- An NPC another pass found (Services.lua goes over every NPC once), so
+-- looking it up by name needs no pass of its own.
+function Q:RememberNPC(name, id, spawns, faction)
+    if name and not npcByName[name] then
+        npcByName[name] = { id = id, spawns = spawns, friendlyToFaction = faction }
+    end
+end
 function Q:NPCsByName(wanted)
     local db = questieDB()
     if not db or not db.NPCPointers then return nil end
@@ -109,7 +117,7 @@ function Q:NPCsByName(wanted)
         for id in pairs(db.NPCPointers) do
             local npc = Q:QuestieGet("GetNPC", id)
             if npc and npc.name and want[npc.name] and not npcByName[npc.name] then
-                npcByName[npc.name] = { id = id, spawns = npc.spawns }
+                npcByName[npc.name] = { id = id, spawns = npc.spawns, friendlyToFaction = npc.friendlyToFaction }
             end
             n = n + 1
             if n % 300 == 0 then coroutine.yield() end

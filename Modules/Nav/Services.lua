@@ -18,6 +18,24 @@ local band = bit and bit.band
 local found = { vendor = {}, repair = {}, flight = {}, inn = {}, bank = {}, auction = {} }   -- { { name, spawns, faction } }
 local scan                                         -- nil, "running", "done"
 S.KINDS = { "repair", "vendor", "flight", "inn", "bank", "auction", "mail" }
+local trainers = {}   -- [profession or "class:DRUID"] = { names }, from NPC titles
+
+-- An NPC's title as a trainer key: "Cooking Trainer" -> "Cooking", "Druid
+-- Trainer" -> "class:DRUID", anything else nil.
+local PROFESSIONS = { Mining = true, Herbalism = true, Skinning = true, Blacksmithing = true, Engineering = true,
+    Alchemy = true, Leatherworking = true, Tailoring = true, Enchanting = true, ["First Aid"] = true,
+    Cooking = true, Fishing = true }
+local CLASSES = { Warrior = true, Paladin = true, Hunter = true, Rogue = true, Priest = true, Shaman = true,
+    Mage = true, Warlock = true, Druid = true }
+function S.TrainerKey(subName)
+    local what = type(subName) == "string" and subName:match("^(.-) Trainer$")
+    if not what then return nil end
+    if PROFESSIONS[what] then return what end
+    if CLASSES[what] then return "class:" .. what:upper() end
+end
+
+-- Trainer names Questie gives that title (after the background pass).
+function S:TrainerNames(key) return trainers[key] or {} end
 
 -- One background pass over Questie's NPCs (a few hundred per frame, paused
 -- in combat), keeping the ones that offer a service.
@@ -37,6 +55,14 @@ function S:Scan()
                         found[kind][#found[kind] + 1] = { name = npc.name, spawns = npc.spawns, faction = npc.friendlyToFaction }
                     end
                 end
+            end
+            -- Trainers by their title ("Cooking Trainer", "Druid Trainer"):
+            -- WoW: Forever adds its own (Pyall Silentstride, Bloodhoof's cook).
+            local key = npc and npc.spawns and npc.name and S.TrainerKey(npc.subName)
+            if key then
+                trainers[key] = trainers[key] or {}
+                table.insert(trainers[key], npc.name)
+                ns.quests:RememberNPC(npc.name, id, npc.spawns, npc.friendlyToFaction)
             end
             n = n + 1
             if n % 300 == 0 then coroutine.yield() end

@@ -2792,3 +2792,34 @@ ns:Register("test", "easy button: your buffs on you, Ctrl + key on your target",
     t:ok(C._helpful({ spell = "Rejuvenation", kind = "heal" }) and not C._helpful({ spell = "Wrath", kind = "damage" }),
         "Ctrl + key only for heals and buffs")
 end)
+
+ns:Register("test", "spell ranks: a new rank replaces the old one on your bars", function(t)
+    local NS = ns.newSpell
+    local ups = NS.RankUps({ Wrath = 5176, Moonfire = 8921 }, { Wrath = 5177, Moonfire = 8921, Thorns = 467 })
+    t:eq(#ups, 1, "one new rank"); t:eq(ups[1], "Wrath", "Wrath went up a rank (Thorns is a new spell, not a rank)")
+    local names = { [5176] = "Wrath", [5177] = "Wrath", [8921] = "Moonfire" }
+    local slots = NS.OldRankSlots({ [1] = 5176, [2] = 8921, [14] = 5176, [25] = 5177 }, "Wrath", 5177, function(id) return names[id] end)
+    t:eq(#slots, 2, "both slots with the old Wrath"); t:eq(slots[1], 1, "slot 1"); t:eq(slots[2], 14, "and slot 14")
+end)
+
+ns:Register("test", "trainers: found by their title, the ones you've used, and the (o) on the next stops", function(t)
+    local S = ns.services
+    t:eq(S.TrainerKey("Cooking Trainer"), "Cooking", "Cooking Trainer -> Cooking")
+    t:eq(S.TrainerKey("Druid Trainer"), "class:DRUID", "Druid Trainer -> your class trainer")
+    t:eq(S.TrainerKey("Riding Trainer"), nil, "a riding trainer: neither")
+    t:eq(S.TrainerKey("General Goods"), nil, "not a trainer")
+    with(ns.db, "places", { ["Pyall Silentstride"] = { map = 1412, x = 0.5, y = 0.5, roles = { trainer = true }, trains = { Cooking = true } } }, function()
+        local found = false
+        for _, n in ipairs(ns.places:TrainersFor("Cooking")) do if n == "Pyall Silentstride" then found = true end end
+        t:ok(found, "a cooking trainer you learned from is one from then on")
+    end)
+    local plan = { { goal = { key = "99411:1", npcs = { "Kyle" } } }, { goal = { key = "96661:1", npcs = { "Pyall Silentstride" } } },
+                   { goal = { key = "96661:done", npcs = { "Pyall Silentstride" } } } }
+    local names = ns.nav.NextStopNames(plan, "99411:1", 5)
+    t:eq(#names, 1, "the next stops' NPCs, once each"); t:eq(names[1], "Pyall Silentstride", "Pyall gets the smaller (o)")
+    local QM = ns.questMarks
+    QM.SetRouteTarget({ "Kyle" }, { "Pyall Silentstride" })
+    t:eq(QM._routeNames["kyle"], "current", "the current stop's NPC: the full (o)")
+    t:eq(QM._routeNames["pyall silentstride"], "next", "the next stop's: the smaller one")
+    if ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) else QM.SetRouteTarget(nil) end
+end)

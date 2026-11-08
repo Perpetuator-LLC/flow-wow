@@ -888,6 +888,23 @@ function N:FormatBlocked(goal)
            "|cffff7070" .. (goal.blockedBy or "blocked") .. "|r"
 end
 
+-- The NPC names of the next `n` stops after the current one (currentKey), for
+-- the smaller (o) over their nameplates (QuestMarks.lua). Nameplates only
+-- show near you, so these are the ones around you.
+function N.NextStopNames(plan, currentKey, n)
+    local out, seen, taken = {}, {}, 0
+    for _, s in ipairs(plan or {}) do
+        if taken >= (n or 5) then break end
+        if s.goal and s.goal.key ~= currentKey then
+            taken = taken + 1
+            for _, name in ipairs(s.goal.npcs or {}) do
+                if not seen[name] then seen[name] = true; out[#out + 1] = name end
+            end
+        end
+    end
+    return out
+end
+
 function N:PlanLabels(plan)
     local out, pickups = {}, 0
     for i, s in ipairs(plan or {}) do
@@ -2122,9 +2139,14 @@ local function update()
     N.current = choice  -- for Flow Actions (Modules/Rotation/Actions.lua)
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, choice and choice.point, choice and choice.goal) end
     local tk = choice and choice.goal.key
-    if tk ~= N.lastTargetKey then
-        N.lastTargetKey = tk  -- mark the NPC of the new stop above its nameplate
-        if ns.questMarks and ns.questMarks.SetRouteTarget then pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs) end
+    local planKey = N.plan and #N.plan > 0 and (N.plan[1].goal.key .. ":" .. #N.plan) or ""
+    if tk ~= N.lastTargetKey or planKey ~= N.lastPlanKey then
+        N.lastTargetKey, N.lastPlanKey = tk, planKey
+        -- Mark the NPC of the new stop above its nameplate, and (smaller) the
+        -- NPCs of the next stops.
+        if ns.questMarks and ns.questMarks.SetRouteTarget then
+            pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs, N.NextStopNames(N.plan, tk, 5))
+        end
     end
     if not choice then
         if #goals == 0 and not ns.quests:Source() then

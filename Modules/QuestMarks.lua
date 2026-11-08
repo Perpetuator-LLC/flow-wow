@@ -148,9 +148,12 @@ end
 local MAX_MARKS = 3
 
 -- Who wears Flow's (o): the NPC your current route stop is about (a turn-in,
--- a quest giver, a trainer), in the route colour (purple on Most XP), or the
--- party member you follow (Nav/Follow.lua), in your waypoint's green.
--- Returns "route", "follow" or nil.
+-- a quest giver, a trainer), in the route colour (purple on Most XP); the
+-- NPCs of your next few stops, a smaller and fainter (o) (walking into a
+-- camp, everyone you need there is marked: Pyall Silentstride, the cooking
+-- trainer, was stop 2 and got no mark); or the party member you follow
+-- (Nav/Follow.lua), in your waypoint's green.
+-- Returns "route", "next", "follow" or nil.
 local function targetOf(unit)
     local name = ns.api.Safe(UnitName(unit))
     if type(name) ~= "string" then return nil end
@@ -160,7 +163,12 @@ local function targetOf(unit)
         if f and (f:match("^([^%-]+)") or f):lower() == lname then return "follow" end
         return nil
     end
-    if routeNames[lname] and not UnitIsDead(unit) then return "route" end
+    local rank = routeNames[lname]
+    if not rank or UnitIsDead(unit) then return nil end
+    if rank ~= "next" then return "route" end
+    -- Later stops: friendly NPCs only (mobs to kill keep their skull/diamond).
+    if UnitCanAttack("player", unit) then return nil end
+    return "next"
 end
 
 -- Flow's target marker: a ring in the colour, a dark gap, the dot (as on the
@@ -238,8 +246,10 @@ local function updateUnit(unit)
     local t = targetMark(m)
     if tgt then
         local c = tgt == "follow" and ns.theme.waypoint or ns.theme.route
-        t.ring:SetVertexColor(c[1], c[2], c[3], 1)
-        t.dot:SetVertexColor(c[1], c[2], c[3], 1)
+        local soon = tgt == "next"   -- a later stop: smaller, fainter
+        t.ring:SetVertexColor(c[1], c[2], c[3], soon and 0.6 or 1)
+        t.dot:SetVertexColor(c[1], c[2], c[3], soon and 0.6 or 1)
+        t:SetSize(soon and 17 or 24, soon and 17 or 24)
         t.count:SetText(count or "")
         t:ClearAllPoints()
         t:SetPoint("CENTER", m, "CENTER", 0, 0)
@@ -349,11 +359,13 @@ ns.commands.quest = function(arg)
     end
 end
 
--- Called by the route (Nav.lua) when the current stop changes.
+-- Called by the route (Nav.lua) when the current stop changes: the current
+-- stop's NPCs, and the NPCs of the next few stops (names).
 ns.questMarks = ns.questMarks or {}
-function ns.questMarks.SetRouteTarget(names)
+function ns.questMarks.SetRouteTarget(names, nextNames)
     wipe(routeNames)
-    for _, n in ipairs(names or {}) do routeNames[n:lower()] = true end
+    for _, n in ipairs(nextNames or {}) do routeNames[n:lower()] = "next" end
+    for _, n in ipairs(names or {}) do routeNames[n:lower()] = "current" end
     updateAll()
 end
 -- Redraw every marker (following someone started or stopped, colours changed).

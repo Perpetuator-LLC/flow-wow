@@ -100,12 +100,38 @@ function P:SpotsFor(profession)
     return out
 end
 
+-- Trainers for a profession (or "class:DRUID"): Flow's own list, the ones
+-- Questie titles "<Profession> Trainer" (WoW: Forever's own, like Pyall
+-- Silentstride in Bloodhoof Village), and the ones you've trained with.
 function P:TrainersFor(profession)
-    local out = {}
+    local out, seen = {}, {}
+    local function add(name) if name and not seen[name] then seen[name] = true; out[#out + 1] = name end end
     for _, t in ns:Each("trainerNames") do
-        for _, name in ipairs(t[profession] or {}) do out[#out + 1] = name end
+        for _, name in ipairs(t[profession] or {}) do add(name) end
+    end
+    for name, spot in pairs(ns.db.places or {}) do
+        if spot.trains and spot.trains[profession] then add(name) end
+    end
+    if ns.services and ns.services.TrainerNames then
+        for _, name in ipairs(ns.services:TrainerNames(profession)) do add(name) end
     end
     return out
+end
+
+-- What the trainer you're talking to teaches: "Cooking" (its title, "Cooking
+-- Trainer", or what it lists), or nil.
+function P.TrainerProfession()
+    if C_TooltipInfo and C_TooltipInfo.GetUnit then
+        local ok, data = pcall(C_TooltipInfo.GetUnit, "npc")
+        local line = ok and type(data) == "table" and data.lines and data.lines[2]
+        local key = line and ns.services and ns.services.TrainerKey(ns.api.Safe(line.leftText))
+        if key then return key end
+    end
+    if GetTrainerServiceSkillLine then
+        local ok, skill = pcall(GetTrainerServiceSkillLine, 1)
+        skill = ok and ns.api.Safe(skill)
+        if type(skill) == "string" and skill ~= "" then return skill end
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -136,6 +162,10 @@ function P.Learn(places, name, pos, role, extra, now)
     extra = extra or {}
     if extra.repair ~= nil then spot.roles.repair = extra.repair or nil; spot.repair = extra.repair end
     if extra.id then spot.id = extra.id end
+    if extra.trains then   -- what a trainer teaches ("Cooking", "class:DRUID")
+        spot.trains = spot.trains or {}
+        spot.trains[extra.trains] = true
+    end
     -- Which factions have used them (for sharing: an NPC a Horde player
     -- talked to is one Horde players can use).
     if extra.faction == "Horde" or extra.faction == "Alliance" then
@@ -393,5 +423,12 @@ ns:On("QUEST_DETAIL", function() remember("quest") end)
 ns:On("QUEST_GREETING", function() remember("quest") end)
 ns:On("QUEST_COMPLETE", function() remember("quest") end)
 -- (Which trainer is your class trainer: Trainer.lua decides, once the
--- window lists what it teaches.)
-ns:On("TRAINER_SHOW", function() remember("trainer") end)
+-- window lists what it teaches.) What a profession trainer teaches is
+-- remembered, so it's one of that profession's trainers from then on.
+ns:On("TRAINER_SHOW", function()
+    remember("trainer")
+    C_Timer.After(0.3, function()
+        local what = P.TrainerProfession()
+        if what then remember("trainer", { trains = what }) end
+    end)
+end)
