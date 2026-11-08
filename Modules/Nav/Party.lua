@@ -24,7 +24,6 @@ ns.party = P
 
 local PREFIX = "FlowWoW"
 local MAX_STOPS = 15
-local AUTO_SHARE_DELAY = 4
 
 local state = { joined = false, following = false, clock = 0, editor = "", stops = {} }
 local offer          -- latest route shared by someone while you're not joined
@@ -59,11 +58,6 @@ local function channel()
     if GetNumPartyMembers and GetNumPartyMembers() > 0 then return "PARTY" end
 end
 
-local function isLeader()
-    if UnitIsGroupLeader then return UnitIsGroupLeader("player") end
-    if IsPartyLeader then return IsPartyLeader() end
-    return false
-end
 
 local function send(msg)
     local ch = channel()
@@ -189,6 +183,7 @@ function P:InGroup() return channel() ~= nil end
 -- True when the arrow and plan should use the party route.
 function P:Following() return state.joined and state.following end
 function P:Stops() return state.stops end
+function P:Editor() return state.editor ~= "" and state.editor or nil end
 
 function P:SetFollowing(on)
     if not state.joined then return end
@@ -439,11 +434,8 @@ local function onRoster()
         inGroup = true
         send("Q|0")
         P:SendQuests()
-        C_Timer.After(AUTO_SHARE_DELAY, function()
-            if channel() and not state.joined and not offer and isLeader() then
-                ns:Print("in a group: share a party route with /flow party share (or right-click the arrow). Your own route stays as it is.")
-            end
-        end)
+        -- (Flow players in the group are asked about the party route by
+        -- PartyHelp.lua when their quest progress arrives.)
         return
     end
     -- Someone else joined: re-share (throttled) so they get the prompt.
@@ -463,9 +455,13 @@ ns.commands.party = function(arg)
     arg = (arg or ""):lower()
     if arg == "share" then P:Share(false)
     elseif arg == "join" or arg == "follow" then
-        if state.joined then P:SetFollowing(true) else P:Join(true) end
-    elseif arg == "mine" then P:SetFollowing(false)
-    elseif arg == "leave" then P:Leave()
+        -- The party route (PartyHelp.lua); a hand-made one someone shared
+        -- with /flow party share is joined if that's what's on offer.
+        if offer and not state.joined then P:Join(true)
+        elseif ns.partyHelp then ns.partyHelp:Join() end
+    elseif arg == "mine" or arg == "leave" then
+        if state.joined then P:Leave(true) end
+        if ns.partyHelp then ns.partyHelp:Stop() end
     elseif arg:find("^help") then
         if ns.partyHelp then ns.partyHelp:Command(arg:match("^help%s*(.*)$")) end
     elseif arg:find("^quests") then
@@ -482,14 +478,14 @@ ns.commands.party = function(arg)
             ns:Print("no party route.")
         end
         if ns.partyHelp then ns.partyHelp:Status() end
-        print("  /flow party share|follow|mine|leave, /flow party quests mine|combined|<name>, /flow follow <name>|off")
+        print("  /flow party join|leave, /flow party quests mine|<name>, /flow follow <name>|off")
     end
 end
 
-ns:Register("help", "party", { order = 45, title = "Party routes", lines = {
-    "Joining a group asks if you want to follow the party route; your own route always stays separate.",
-    "Forming a group as leader makes one (shared quests first). Toggle under the arrow: party / mine.",
-    "Flow players in a group share how far they are on each quest. Whose quests your route covers: Mine, Combined (one route for everyone's) or Just <name>'s: under the arrow or the route menu.",
+ns:Register("help", "party", { order = 45, title = "Party route", lines = {
+    "Flow players in a group share how far they are on each quest (only what changed, a few bytes at a time).",
+    "Join the party route: everyone on it gets one route for all their quests, the same route and the same next stop for all of you (one of you plans it).",
+    "Or keep your own route, or do just one member's quests. Choose under the arrow or in the route menu (right-click the arrow).",
     "Follow a party member: the arrow points at them (route menu, or /flow follow <name>).",
-    "/flow party share|follow|mine|leave, /flow party quests mine|combined|<name>",
+    "/flow party join|leave, /flow party quests mine|<name>",
 } })

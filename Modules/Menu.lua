@@ -171,25 +171,22 @@ function Menu:RouteItemsRaw()
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
     }) do items[#items + 1] = it end
-    -- In a group: your own route or the shared party route (never switched
-    -- for you), share one, or leave it.
+    -- In a group: your own route, join the party route (everyone on it: one
+    -- route for all their quests, the same for all of you), or just one
+    -- member's quests; then following a party member. Never switched for you.
     local P = ns.party
     if P and P:InGroup() then
-        local following = P:Following()
         items[#items + 1] = { sep = true }
         items[#items + 1] = { title = true, text = "Party" }
-        items[#items + 1] = { text = "Your own route", radio = true, checked = not following,
-            func = function() if following then P:SetFollowing(false) end end }
-        if P:Active() then
-            items[#items + 1] = { text = "Party route", radio = true, checked = following, func = function() P:SetFollowing(true) end }
-            items[#items + 1] = { text = "Leave the party route", func = function() P:Leave() end }
-        else
-            items[#items + 1] = { text = "Share a party route", func = function() P:Share() end }
-        end
-        -- Whose quests the route covers (Flow players who shared progress),
-        -- and following a party member with the arrow.
         local H = ns.partyHelp
         if H then for _, it in ipairs(H:MenuItems()) do items[#items + 1] = it end end
+        -- (A hand-made route someone shared with /flow party share.)
+        if P:Active() then
+            local following = P:Following()
+            items[#items + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = following,
+                func = function() P:SetFollowing(true) end }
+            items[#items + 1] = { text = "Drop the shared stops", func = function() P:Leave() end }
+        end
         if ns.follow then for _, it in ipairs(ns.follow:MenuItems()) do items[#items + 1] = it end end
     end
     return items

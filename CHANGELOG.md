@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.35.75
+- **Finish a zone before leaving it.** The route does this zone's quests before heading to
+  another zone. Exceptions:
+  - Quests too low (less XP) or 3+ levels above you don't hold you here.
+  - A stop just over the border, or your class trainer, can come any time.
+  - A turn-in here that needs the next zone first doesn't hold you either.
+
+  Waiting stops say "(Westfall, after this zone)". The Flow Router and the Flow Tracker say
+  "Finishing Elwynn Forest first". It's on by default; switch it off in /flow settings.
+- **Join the party route.** The Party section of the route menu (and the line under the
+  arrow) now offers Your own route, **Join the party route**, or Just Bob's quests.
+  - Everyone who joins gets one route for all their quests: objectives, quest items and
+    turn-ins.
+  - It's **the same route and the same next stop for all of you**. One of you plans it (the
+    group leader if they've joined, otherwise the first name) and sends the next 8 stops in
+    one short message whenever they change. If that planner goes quiet for 90 s, everyone
+    plans for themselves.
+  - Flow asks when a Flow player in your group first shares progress, and again when someone
+    joins the party route.
+  - `/flow party join` and `/flow party leave`.
+- Less party traffic: quest progress is now sent as **only what changed** (usually one short
+  message after a kill), with the full list only when someone joins or asks.
+- The party route is quests only, so everyone plans from the same kind of stops. A
+  hand-made route shared with `/flow party share` still works and shows as "Shared stops".
+
 ## 0.35.74
 - **Hover the easy button** to see the spell's (or item's) own tooltip, why Flow suggests it,
   what the key is locked to in a fight (when that's different), and the next three

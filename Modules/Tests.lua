@@ -2060,3 +2060,78 @@ ns:Register("test", "auction house: prices, money and the watch list", function(
     for i = 1, 20 do AH.Record(prices, 2589, i, 3000 + i) end
     t:ok(#prices[2589].looks <= 8, "history stays short")
 end)
+
+ns:Register("test", "route: finish this zone before leaving it", function(t)
+    local N = ns.nav
+    local zoneOf = function(map) return map end   -- map id = zone here
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local function g(key, map, wx, extra)
+        local goal = { key = key, points = { { map = map, cont = 0, wx = wx, wy = 0 } } }
+        for k, v in pairs(extra or {}) do goal[k] = v end
+        return goal
+    end
+    local list = {
+        g("10:1", 1, 500), g("11:1", 1, 900), g("12:1", 1, 300, { levelsAbove = 4 }), g("13:1", 1, 300, { share = 0.6 }),
+        g("20:1", 2, 2000), g("21:1", 2, 100), g("train:class", 2, 3000, { milestone = true }),
+        g("14:done", 1, 600, { deps = { "22:1" } }), g("22:1", 2, 2500),
+    }
+    local here, away = N.AreaSplit(list, 1, p, zoneOf)
+    t:ok(here and here["10:1"] and here["11:1"], "this zone's quests hold you here")
+    t:ok(not here["12:1"] and not here["13:1"], "too high or too low quests don't")
+    t:ok(away["20:1"], "the next zone's stop waits")
+    t:ok(not away["21:1"], "a stop just over the border doesn't wait (a short trip)")
+    t:ok(not away["train:class"], "your class trainer doesn't wait")
+    t:ok(not here["14:done"] and away["14:done"], "a turn-in here that needs the next zone first can't hold you")
+    local PL = ns.planner
+    local function s(key) return { key = key, goal = { key = key } } end
+    local opt = { here = { a = true }, away = { b = true } }
+    t:ok(PL._valid({ s("a"), s("b") }, opt), "here first, then away: fine")
+    t:ok(not PL._valid({ s("b"), s("a") }, opt), "away before here: not allowed")
+    t:eq(N.AreaSplit({ g("10:1", 1, 500) }, 1, p, zoneOf), nil, "nowhere else to go: no rule")
+end)
+
+ns:Register("test", "party route: only what changed is sent", function(t)
+    local H = ns.partyHelp
+    local last = { [83] = "83=1/6", [86] = "86=0/4" }
+    local now = { [83] = "83=2/6", [86] = "86=0/4", [90] = "90=0/1" }
+    local changed, gone = H.Diff(last, now)
+    t:eq(table.concat(changed, ","), "83=2/6,90=0/1", "a changed count and a new quest")
+    t:eq(#gone, 0, "nothing left")
+    local _, gone2 = H.Diff(now, { [86] = "86=0/4" })
+    t:eq(table.concat(gone2, ","), "83,90", "quests that left the log")
+    local prog = { [83] = { complete = false, objectives = { { have = 1, need = 6 } } }, [86] = { complete = false, objectives = {} } }
+    H.ApplyDiff(prog, "83=2/6,90=c", "86")
+    t:eq(prog[83].objectives[1].have, 2, "the change applied")
+    t:ok(prog[90] and prog[90].complete, "the new quest added")
+    t:eq(prog[86], nil, "the gone quest removed")
+    t:eq(H.EncodeEntry(5, { complete = true }), "5=c", "ready to hand in")
+end)
+
+ns:Register("test", "party route: everyone on it follows one planner's route", function(t)
+    local H = ns.partyHelp
+    t:eq(H.Leader("Amy", { "Zed" }, "Zed"), "Zed", "the group leader plans, if on the route")
+    t:eq(H.Leader("Zed", { "Amy" }, "Bob"), "Amy", "otherwise the first name, the same on everyone's screen")
+    t:eq(H.Leader("Amy", { "Zed" }, nil), H.Leader("Zed", { "Amy" }, nil), "both agree")
+    local plan = { { goal = { key = "help:83:1" }, point = { map = 1429, x = 0.5, y = 0.25 } },
+                   { goal = { key = "86:done" }, point = { map = 1429, x = 0.1, y = 0.9 } } }
+    local body = H.OrderBody(plan, 8)
+    t:eq(body, "83:1~1429~0.5000~0.2500,86:done~1429~0.1000~0.9000", "order and spots, whoever's quest")
+    local back = H.ParseOrder(body)
+    t:eq(#back, 2, "read back")
+    t:eq(back[1].key, "83:1", "same stop")
+    t:eq(back[2].map, 1429, "same place")
+    local cov = H.Covered("combined", nil, { Zed = {}, Amy = {} }, { Zed = true })
+    t:ok(cov and cov.Zed and not cov.Amy, "the party route has the quests of those who joined")
+    t:eq(H.Covered("mine", nil, { Zed = {} }, { Zed = true }), nil, "your own route: no one else's")
+    local kept = H.QuestsOnly({ { key = "83:1" }, { key = "help:86:2" }, { key = "pickup:5" }, { key = "train:class" } })
+    t:eq(#kept, 2, "the party route is quests only, the same kinds for everyone")
+end)
+
+ns:Register("test", "party route: the menu says Join the party route", function(t)
+    local found
+    for _, it in ipairs(ns.partyHelp:MenuItems()) do
+        if it.text and it.text:find("^Join the party route") then found = it end
+    end
+    t:ok(found ~= nil, "Join the party route is offered")
+    t:ok(ns.partyHelp:MenuItems()[1].text == "Your own route", "Your own route first")
+end)

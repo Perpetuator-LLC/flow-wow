@@ -10,9 +10,15 @@
 --     OPTIONAL_DETOUR extra yards, i.e. they're roughly on the way
 --   * a stop with many possible spots (mob spawns) uses whichever spot is
 --     closest to where you'll be at that point in the trip
+--   * finish this zone before leaving it: stops in another zone wait until
+--     this zone's are done (Nav.lua decides which: quests too low or too
+--     high for you don't hold you here, and a stop just over the border or
+--     your class trainer is a short trip that doesn't wait)
 -- Method: greedy nearest-first, then improved by moving single stops and
 -- reversing segments while the trip gets shorter (and still obeys the rules).
--- Distances are straight lines; the arrow then follows learned trails.
+-- This is a travelling-salesman problem with ordering rules, solved with a
+-- standard heuristic (nearest neighbour, then relocate and 2-opt moves).
+-- Distances are straight lines; the arrow then follows learned trails (A*).
 
 local _, ns = ...
 local P = {}
@@ -38,7 +44,15 @@ end
 --   first = goal key that must be the first stop (your choice)
 --   tour  = { [key] = true } stops that must all come before anything else
 --           (e.g. "pick up all these quests first")
+--   here  = { [key] = true } this zone's stops you should finish first
+--   away  = { [key] = true } stops in another zone: they wait until every
+--           `here` stop is done
 local OPT = {}
+
+-- Finish the zone first: an away stop may not come while a here stop is left.
+local function waits(key, hereLeft)
+    return hereLeft and OPT.away and OPT.away[key] and not (OPT.tour and OPT.tour[key]) and key ~= OPT.first
+end
 
 local function forced(key) return OPT.first == key or (OPT.tour and OPT.tour[key]) end
 
@@ -135,19 +149,31 @@ local function valid(order)
             elseif i < firstOther then firstOther = i end
         end
     end
-    return lastTour < firstOther
+    if lastTour >= firstOther then return false end
+    -- This zone's stops before the next zone's.
+    if OPT.here and OPT.away then
+        local lastHere, firstAway = 0, math.huge
+        for i, s in ipairs(order) do
+            if OPT.here[s.key] then lastHere = i
+            elseif waits(s.key, true) and i < firstAway then firstAway = i end
+        end
+        if lastHere > firstAway then return false end
+    end
+    return true
 end
+P._valid = function(order, opt) local old = OPT; OPT = opt or {}; local r = valid(order); OPT = old; return r end   -- (tests)
 
 local function greedy(p, stops)
     local remaining, order = {}, {}
     for _, s in ipairs(stops) do remaining[#remaining + 1] = s end
     local x, y = p.wx, p.wy
     while #remaining > 0 do
-        local left, tourLeft, firstLeft = {}, false, false
+        local left, tourLeft, firstLeft, hereLeft = {}, false, false, false
         for _, s in ipairs(remaining) do
             left[s.key] = true
             if OPT.tour and OPT.tour[s.key] then tourLeft = true end
             if s.key == OPT.first then firstLeft = true end
+            if OPT.here and OPT.here[s.key] then hereLeft = true end
         end
         local bestI, bestScore
         for i, s in ipairs(remaining) do
@@ -156,6 +182,7 @@ local function greedy(p, stops)
             -- Your chosen stop first, then the rest of the tour, then the others.
             if firstLeft and s.key ~= OPT.first then ready = false end
             if tourLeft and not (OPT.tour[s.key] or s.key == OPT.first) then ready = false end
+            if waits(s.key, hereLeft) then ready = false end   -- this zone first
             if ready then
                 local bd
                 for _, pt in ipairs(s.points) do

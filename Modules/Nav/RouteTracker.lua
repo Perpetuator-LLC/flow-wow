@@ -203,6 +203,11 @@ local function build()
     nb:SetScript("OnLeave", function() GameTooltip:Hide() end)
     nb:Hide()
     f.nearby = nb
+    -- "Finishing Elwynn Forest first": the route stays in this zone until its
+    -- quests are done (Nav.lua N.AreaSplit).
+    f.zone = f.body:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.zone:SetJustifyH("LEFT")
+    f.zone:Hide()
     return f
 end
 
@@ -307,6 +312,17 @@ function RT:Refresh()
         nb:Hide()
     end
     local extra = line and 17 or 0
+    local note = open and ns.nav and ns.nav.zoneNote
+    if note then
+        frame.zone:SetText(note .. ", then the next zone")
+        frame.zone:ClearAllPoints()
+        frame.zone:SetPoint("TOPLEFT", 8, -4 - shown * 17 - extra)
+        frame.zone:SetPoint("TOPRIGHT", -6, -4 - shown * 17 - extra)
+        frame.zone:Show()
+        extra = extra + 15
+    else
+        frame.zone:Hide()
+    end
     frame.body:SetHeight(8 + shown * 17 + extra)
     -- The order rail: as long as the list, chevron at the bottom (only with 2+ stops).
     local railLen = math.max(0, shown * 17 - 6)

@@ -237,6 +237,10 @@ local function build(parent)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)
+    _, y = check(f, y, "Finish a zone before leaving it", "(quests too low or high don't count)",
+        "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",
+        function() return ns.db.nav.zoneFirst ~= false end,
+        function(on) ns.db.nav.zoneFirst = on; if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end end)
     -- 0 = all (nil can't sit in the options list).
     f.stopsRow, y = choices(f, y, "Stops on the map",
         "How many of your next stops the world map and the Flow Tracker show. The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",

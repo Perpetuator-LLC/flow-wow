@@ -1364,12 +1364,13 @@ local function updateList()
         r:SetPoint("TOPLEFT", 8, top - (i - 1) * ROW_H)
         r:SetPoint("TOPRIGHT", -8, top - (i - 1) * ROW_H)
     end
-    local following = ns.party and ns.party:Following()
+    local following = (ns.party and ns.party:Following()) or (ns.partyHelp and ns.partyHelp:Joined())
     local nBlocked = ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
-    list.title:SetText(string.format("%s: %d stops, about %d yd%s",
+    list.title:SetText(string.format("%s: %d stops, about %d yd%s%s",
         following and "Party route" or (ns.xpValue:IsCustom() and ns.theme:ModeText("custom", "Custom route")) or "Your route",
         #plan, plan[#plan] and plan[#plan].cum or 0,
-        nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or ""))
+        nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or "",
+        ns.nav.zoneNote and ("  |cff888888" .. ns.nav.zoneNote .. "|r") or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
     local labels = ns.nav:PlanLabels(plan)
     local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108 - (wpShown and ROW_H or 0)) / ROW_H))

@@ -920,8 +920,87 @@ function N:FormatStop(i, goal, label)
     end
     local numColor = (i == 1) and ns.theme.route.hex or "999999"
     local textColor = kind and kind.color.hex or "ffffff"
-    return string.format("%s|cff%s%s|r |cff%s%s|r", icon, numColor, label or tostring(i),
-        textColor, goal.text or goal.title or "?")
+    -- A stop in another zone, waiting until this zone is done: says where.
+    local where = goal.awayZone and string.format(" |cff888888(%s, after this zone)|r", goal.awayZone) or ""
+    return string.format("%s|cff%s%s|r |cff%s%s|r%s", icon, numColor, label or tostring(i),
+        textColor, goal.text or goal.title or "?", where)
+end
+
+-------------------------------------------------------------------------------
+-- Finish a zone before leaving it. Quest stops in your zone come before
+-- stops in another zone, except:
+--   * quests too low (reduced XP) or too high (3+ levels above) for you: they
+--     don't hold you here
+--   * a stop just over the border (within BRIEF yards of you) and your class
+--     trainer (a milestone): short trips that don't wait
+--   * a stop here that needs one over there first (its objectives are in the
+--     next zone) can't hold you here either
+-- The waiting stops say "(Westfall, after this zone)", and the Flow Router and
+-- Tracker say "Finishing Elwynn Forest first". Setting: /flow settings.
+-------------------------------------------------------------------------------
+
+local BRIEF = 150
+local zoneCache = {}
+-- The zone a map belongs to (a town, cave or sub-zone map -> its zone).
+function N.ZoneOf(map)
+    if not map then return nil end
+    local z = zoneCache[map]
+    if z ~= nil then return z or nil end
+    local zoneType = (Enum and Enum.UIMapType and Enum.UIMapType.Zone) or 3
+    local m = map
+    for _ = 1, 6 do
+        local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(m)
+        if not info then break end
+        if (info.mapType or zoneType) <= zoneType then zoneCache[map] = m return m end
+        if not info.parentMapID or info.parentMapID == 0 then break end
+        m = info.parentMapID
+    end
+    zoneCache[map] = false
+    return nil
+end
+
+local function zoneName(map)
+    local info = map and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(map)
+    return info and info.name or "another zone"
+end
+
+local function isQuestStop(key)
+    return key:find("^%d+:") ~= nil or key:find("^pickup:") ~= nil or key:find("^help:") ~= nil
+end
+
+-- Which stops hold you in `zone` (here) and which wait (away); nil, nil when
+-- there's nothing to hold you or nowhere else to go.
+function N.AreaSplit(list, zone, p, zoneOf)
+    local here, away, byKey = {}, {}, {}
+    for _, g in ipairs(list) do
+        byKey[g.key] = g
+        local inZone, nearest = false, nil
+        for _, pt in ipairs(g.points or {}) do
+            if pt.map and zoneOf(pt.map) == zone then inZone = true end
+            if p and pt.wx and pt.cont == p.cont then
+                local d = dist(p.wx, p.wy, pt.wx, pt.wy)
+                if not nearest or d < nearest then nearest = d end
+            end
+        end
+        if inZone then
+            local tooHigh = (g.levelsAbove or 0) >= 3
+            local tooLow = g.share ~= nil and g.share < 1
+            if isQuestStop(g.key) and not (tooHigh or tooLow or g.optional) then here[g.key] = true end
+        elseif g.points and #g.points > 0 then
+            if not ((nearest and nearest < BRIEF) or g.milestone) then away[g.key] = true end
+        end
+    end
+    local changed = true
+    while changed do
+        changed = false
+        for key in pairs(here) do
+            for _, dep in ipairs(byKey[key].deps or {}) do
+                if away[dep] then here[key] = nil; away[key] = true; changed = true; break end
+            end
+        end
+    end
+    if not (next(here) and next(away)) then return nil, nil end
+    return here, away
 end
 
 -------------------------------------------------------------------------------
@@ -1153,7 +1232,21 @@ function N:Options(sel)
         end
         if partyFirst then first = partyFirst end
     end
-    return { first = first, tour = tour }
+    -- Finish this zone before leaving it (see N.AreaSplit).
+    local here, away
+    local p = self:PlayerPos()
+    local zone = p and N.ZoneOf(p.map)
+    if zone and ns.db.nav.zoneFirst ~= false then here, away = N.AreaSplit(goals, zone, p, N.ZoneOf) end
+    for _, g in ipairs(goals) do
+        local awayZone
+        if away and away[g.key] then
+            local pt = g.points and g.points[1]
+            awayZone = zoneName(N.ZoneOf(pt and pt.map))
+        end
+        g.awayZone = awayZone
+    end
+    N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
+    return { first = first, tour = tour, here = here, away = away }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
@@ -1204,9 +1297,15 @@ local function choose(p)
     local moved = not N.planPos or N.planPos.cont ~= p.cont
         or dist(p.wx, p.wy, N.planPos.wx, N.planPos.wy) > 30
     if ns.planner and (N.planDirty or not plan or (now - planAt > 8 and moved) or now - planAt > 60) then
-        local ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, N:Options())
+        -- On the party route, everyone follows the same route: one member
+        -- plans it and the rest take that order and those spots (PartyHelp.lua).
+        local shared = ns.partyHelp and ns.partyHelp.SharedPlan and ns.partyHelp:SharedPlan(p, goals)
+        local ok, result
+        if shared then ok, result = true, shared
+        else ok, result = pcall(ns.planner.Plan, ns.planner, p, goals, N:Options()) end
         plan = ok and result or nil
         if not ok then N.lastError = "planner: " .. tostring(result) end
+        if ok and not shared and ns.partyHelp and ns.partyHelp.Publish then pcall(ns.partyHelp.Publish, ns.partyHelp, plan) end
         planAt, N.planDirty = now, false
         N.planPos = { cont = p.cont, wx = p.wx, wy = p.wy }
         N.planVersion = N.planVersion + 1
