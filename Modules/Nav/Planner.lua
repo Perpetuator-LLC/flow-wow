@@ -56,20 +56,51 @@ end
 
 local function forced(key) return OPT.first == key or (OPT.tour and OPT.tour[key]) end
 
+-- The nearest spot of stop s from `from` (you, or a spot of another stop),
+-- and how far. The polish below asks this same question thousands of times
+-- per plan (every order it tries walks the whole trip), so each answer is
+-- worked out once per plan and kept. Same answer as looking every time.
+local nearPt, nearD = {}, {}
+local function nearest(from, s)
+    local m = nearPt[from]
+    if m then
+        local best = m[s]
+        if best then return best, nearD[from][s] end
+    else
+        m = {}
+        nearPt[from], nearD[from] = m, {}
+    end
+    local x, y = from.wx, from.wy
+    local best, bd
+    for _, pt in ipairs(s.points) do
+        local d = dist(x, y, pt.wx, pt.wy)
+        if not bd or d < bd then best, bd = pt, d end
+    end
+    m[s], nearD[from][s] = best, bd
+    return best, bd
+end
+
+local dk = {}   -- (candidates: each spot's distance from you)
+local function byNear(a, b) return dk[a] < dk[b] end
+local NONE = {}
+
 local function candidates(p, goals)
     local stops = {}
     for _, g in ipairs(goals) do
-        local pts = {}
-        for _, pt in ipairs(g.points or {}) do
+        -- This stop's spots on your continent, nearest first, at most MAX_POINTS.
+        local pts, n = {}, 0
+        for _, pt in ipairs(g.points or NONE) do
             if pt.wx and pt.cont == p.cont then
-                pts[#pts + 1] = { pt = pt, d = dist(p.wx, p.wy, pt.wx, pt.wy) }
+                n = n + 1
+                pts[n], dk[pt] = pt, dist(p.wx, p.wy, pt.wx, pt.wy)
             end
         end
-        if #pts > 0 then
-            table.sort(pts, function(a, b) return a.d < b.d end)
-            local keep = {}
-            for i = 1, math.min(MAX_POINTS, #pts) do keep[i] = pts[i].pt end
-            stops[#stops + 1] = { goal = g, key = g.key, points = keep, near = pts[1].d }
+        if n > 0 then
+            if n > 1 then table.sort(pts, byNear) end
+            local near = dk[pts[1]]
+            for i = 1, n do dk[pts[i]] = nil end
+            for i = n, MAX_POINTS + 1, -1 do pts[i] = nil end
+            stops[#stops + 1] = { goal = g, key = g.key, points = pts, near = near }
         end
     end
     -- Chosen stops always make the cut, then milestones (class training: it
@@ -120,23 +151,33 @@ end
 
 -- Walks an order from your position. Returns weighted cost, legs, points.
 local function walk(p, order)
-    local x, y, total = p.wx, p.wy, 0
+    local from, total = p, 0
     local legs, pts = {}, {}
     for i, s in ipairs(order) do
-        local best, bd
-        for _, pt in ipairs(s.points) do
-            local d = dist(x, y, pt.wx, pt.wy)
-            if not bd or d < bd then best, bd = pt, d end
-        end
+        local best, bd = nearest(from, s)
         legs[i], pts[i] = bd, best
         total = total + bd * (s.goal.weight or 1)
-        x, y = best.wx, best.wy
+        from = best
     end
     return total, legs, pts
 end
 
+-- The same weighted cost, without the lists (the polish only needs this).
+local function cost(p, order)
+    local from, total = p, 0
+    for i = 1, #order do
+        local s = order[i]
+        local best, bd = nearest(from, s)
+        total = total + bd * (s.goal.weight or 1)
+        from = best
+    end
+    return total
+end
+
+local posOf = {}   -- (valid: each stop's place in the order; reused)
 local function valid(order)
-    local pos = {}
+    local pos = posOf
+    for k in pairs(pos) do pos[k] = nil end
     for i, s in ipairs(order) do pos[s.key] = i end
     if OPT.first and pos[OPT.first] and pos[OPT.first] ~= 1 then return false end
     local lastTour, firstOther = 0, math.huge
@@ -164,11 +205,12 @@ end
 P._valid = function(order, opt) local old = OPT; OPT = opt or {}; local r = valid(order); OPT = old; return r end   -- (tests)
 
 local function greedy(p, stops)
-    local remaining, order = {}, {}
+    local remaining, order, left = {}, {}, {}
     for _, s in ipairs(stops) do remaining[#remaining + 1] = s end
-    local x, y = p.wx, p.wy
+    local from = p   -- where you are at this point of the trip
     while #remaining > 0 do
-        local left, tourLeft, firstLeft, hereLeft = {}, false, false, false
+        for k in pairs(left) do left[k] = nil end
+        local tourLeft, firstLeft, hereLeft = false, false, false
         for _, s in ipairs(remaining) do
             left[s.key] = true
             if OPT.tour and OPT.tour[s.key] then tourLeft = true end
@@ -184,11 +226,7 @@ local function greedy(p, stops)
             if tourLeft and not (OPT.tour[s.key] or s.key == OPT.first) then ready = false end
             if waits(s.key, hereLeft) then ready = false end   -- this zone first
             if ready then
-                local bd
-                for _, pt in ipairs(s.points) do
-                    local d = dist(x, y, pt.wx, pt.wy)
-                    if not bd or d < bd then bd = d end
-                end
+                local _, bd = nearest(from, s)
                 local score = bd * (s.goal.weight or 1)
                 if not bestScore or score < bestScore then bestI, bestScore = i, score end
             end
@@ -196,48 +234,57 @@ local function greedy(p, stops)
         if not bestI then bestI = 1 end  -- broken deps: don't loop forever
         local s = table.remove(remaining, bestI)
         order[#order + 1] = s
-        local _, _, pts = walk({ wx = x, wy = y }, { s })
-        x, y = pts[1].wx, pts[1].wy
+        from = nearest(from, s)
     end
     return order
 end
 
 local function copy(t) local c = {} for i, v in ipairs(t) do c[i] = v end return c end
 
+local function reverse(o, i, j)
+    for k = 0, math.floor((j - i) / 2) do o[i + k], o[j - k] = o[j - k], o[i + k] end
+end
+
+-- Tries each change in place and undoes it unless it's kept (no copy of
+-- the whole trip per try). Keeps the first change that saves over a yard,
+-- then carries on from there, until a pass finds nothing (or MAX_PASSES).
 local function improve(p, order)
-    local best = walk(p, order)
+    local best = cost(p, order)
+    local n = #order
     for _ = 1, MAX_PASSES do
         local improved = false
-        local n = #order
         -- Move one stop elsewhere.
         for i = 1, n do
             for j = 1, n do
                 if i ~= j then
-                    local o = copy(order)
-                    local s = table.remove(o, i)
-                    table.insert(o, j, s)
-                    if valid(o) then
-                        local c = walk(p, o)
-                        if c < best - 1 then order, best, improved = o, c, true end
+                    local s = table.remove(order, i)
+                    table.insert(order, j, s)
+                    local keep = false
+                    if valid(order) then
+                        local c = cost(p, order)
+                        if c < best - 1 then best, improved, keep = c, true, true end
                     end
+                    if not keep then table.remove(order, j); table.insert(order, i, s) end
                 end
             end
         end
         -- Reverse a segment.
         for i = 1, n - 1 do
             for j = i + 1, n do
-                local o = copy(order)
-                for k = 0, math.floor((j - i) / 2) do o[i + k], o[j - k] = o[j - k], o[i + k] end
-                if valid(o) then
-                    local c = walk(p, o)
-                    if c < best - 1 then order, best, improved = o, c, true end
+                reverse(order, i, j)
+                local keep = false
+                if valid(order) then
+                    local c = cost(p, order)
+                    if c < best - 1 then best, improved, keep = c, true, true end
                 end
+                if not keep then reverse(order, i, j) end
             end
         end
         if not improved then break end
     end
     return order
 end
+P._cost = function(p, order) nearPt, nearD = {}, {}; return cost(p, order) end   -- (tests)
 
 -- Drop optional stops that add more than OPTIONAL_DETOUR yards.
 local function prune(p, order)
@@ -269,6 +316,7 @@ end
 -- Returns the trip: { { goal, point, leg, cum }, ..., dropped = { text } }
 function P:Plan(p, goals, opts)
     OPT = opts or {}
+    nearPt, nearD = {}, {}   -- the nearest-spot answers are for this plan only
     local stops = candidates(p, goals)
     if #stops == 0 then return nil end
     local order = greedy(p, stops)
@@ -282,7 +330,7 @@ function P:Plan(p, goals, opts)
         local _, _, pts = walk(p, head)
         local last = pts[#pts]
         order = head
-        for _, s in ipairs(greedy({ wx = last.wx, wy = last.wy }, rest)) do order[#order + 1] = s end
+        for _, s in ipairs(greedy(last, rest)) do order[#order + 1] = s end
     else
         order = improve(p, order)
     end
@@ -294,6 +342,7 @@ function P:Plan(p, goals, opts)
         cum = cum + legs[i]
         plan[i] = { goal = s.goal, point = pts[i], leg = legs[i], cum = cum }
     end
+    nearPt, nearD = {}, {}
     return plan
 end
 

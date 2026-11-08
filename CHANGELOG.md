@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.91
+Performance pass: fewer stutters while the route is planned, less work for the arrow.
+- Planning the route is several times faster with exactly the same result: the nearest spot
+  of each stop from each place is worked out once per plan (the polish asked it thousands of
+  times), and trying a different order no longer copies the whole trip each time. Plans took
+  20-50 ms each, enough to feel as a stutter every few seconds.
+- Gathering the stops turns spawn spots into world positions with plain arithmetic on a flat
+  zone map (checked against the game per map) instead of asking the game for each of
+  thousands of spots.
+- The arrow no longer sorts every stop by distance 10 times a second; that list is only made
+  when there's no plan or you pinned a stop.
+- Minimap areas ask the minimap's zoom, size and rotation once per drawing instead of once
+  per spawn spot, and redraw when you've moved a pixel's worth (at least 2 yards).
+- /flow perf: each line counts its own time only (planning inside the arrow update was
+  counted twice), and stop gathering ("gather: questie", ...) and minimap areas have their
+  own lines.
+
 ## 0.35.90
 **Restart WoW once** for this version: it adds a file (Learned\Places.lua). Everything else works
 after a /reload.

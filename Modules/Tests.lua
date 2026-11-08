@@ -1021,6 +1021,85 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
 end)
 
+ns:Register("test", "perf: a timed call inside another counts once", function(t)
+    local P = ns.perf
+    local clock = debugprofilestop
+    local d0 = P._depth()
+    local inner = P.Wrap("test: inner", function() local t0 = clock(); while clock() - t0 < 3 do end end)
+    local outer = P.Wrap("test: outer", function() inner() end)
+    outer()
+    local o, i = P.stats["test: outer"], P.stats["test: inner"]
+    t:ok(i.total >= 3, "the inner one: its own 3 ms")
+    t:ok(o.total < 1, "the outer one: only its own time, not the inner's again")
+    local bad = P.Wrap("test: error", function() error("boom", 0) end)
+    local ok, err = pcall(bad)
+    t:ok(not ok and err == "boom", "errors pass through")
+    t:eq(P._depth(), d0, "and leave the timing straight")
+    P.stats["test: outer"], P.stats["test: inner"], P.stats["test: error"] = nil, nil, nil
+    t:ok(P.stats["minimap areas"] ~= nil, "minimap areas timed apart")
+end)
+
+ns:Register("test", "planner: each stop goes to its nearest spot from the last one", function(t)
+    local PL = ns.planner
+    local seed = 7   -- the same "random" stops every run
+    local function rnd() seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 end
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local goals = {}
+    for k = 1, 12 do
+        local pts = {}
+        for j = 1, 1 + (k % 4) * 3 do pts[j] = { cont = 0, wx = rnd() * 600 - 300, wy = rnd() * 600 - 300 } end
+        goals[k] = { key = "s" .. k, text = "s" .. k, points = pts }
+    end
+    local plan = PL:Plan(p, goals, {})
+    t:eq(plan and #plan, 12, "every stop planned")
+    -- Each leg: the stop's nearest spot from where the last leg ended
+    -- (worked out here the slow way, every spot).
+    local from, right, legsRight = p, true, true
+    for _, s in ipairs(plan or {}) do
+        local bd
+        for _, pt in ipairs(s.goal.points) do
+            local d = math.sqrt((pt.wx - from.wx) ^ 2 + (pt.wy - from.wy) ^ 2)
+            if not bd or d < bd then bd = d end
+        end
+        if math.abs(bd - s.leg) > 1e-6 then right = false end
+        local d = math.sqrt((s.point.wx - from.wx) ^ 2 + (s.point.wy - from.wy) ^ 2)
+        if math.abs(d - s.leg) > 1e-6 then legsRight = false end
+        from = s.point
+    end
+    t:ok(right, "every stop: its nearest spot")
+    t:ok(legsRight, "and the legs add up")
+    -- No longer than going nearest-next.
+    local left, order, at = {}, {}, p
+    for _, g in ipairs(goals) do left[#left + 1] = { goal = g, key = g.key, points = g.points } end
+    while #left > 0 do
+        local bi, bd, bp
+        for i, s in ipairs(left) do
+            for _, pt in ipairs(s.points) do
+                local d = math.sqrt((pt.wx - at.wx) ^ 2 + (pt.wy - at.wy) ^ 2)
+                if not bd or d < bd then bi, bd, bp = i, d, pt end
+            end
+        end
+        order[#order + 1] = table.remove(left, bi)
+        at = bp
+    end
+    local planned = {}
+    for i, s in ipairs(plan or {}) do planned[i] = { goal = s.goal, key = s.goal.key, points = s.goal.points } end
+    t:ok(PL._cost(p, planned) <= PL._cost(p, order) + 1e-6, "no longer than nearest-next")
+end)
+
+ns:Register("test", "nav: map spots turn into world spots like the game does", function(t)
+    local p = ns.nav:PlayerPos()
+    if not p then t:ok(true, "(no position)") return end
+    local worst = 0
+    for _, q in ipairs({ { 0.1, 0.2 }, { 0.5, 0.5 }, { 0.93, 0.07 }, { p.x, p.y } }) do
+        local c1, x1, y1 = ns.nav:ToWorld(p.map, q[1], q[2])
+        local c2, x2, y2 = ns.nav._gameToWorld(p.map, q[1], q[2])
+        t:eq(c1, c2, "same continent")
+        if x1 and x2 then worst = math.max(worst, math.abs(x1 - x2), math.abs(y1 - y2)) end
+    end
+    t:ok(worst < 0.05, string.format("same spot (off by %.4f yd at most)", worst))
+end)
+
 ns:Register("test", "actions: any fishing stop counts, not just the quest's", function(t)
     local P = ns.actions.GoalProf
     t:eq(P({ key = "skill:Fishing", text = "Fish at the lake (Fishing 20, aim for 58)" }), "Fishing", "skill errand (no prof field)")

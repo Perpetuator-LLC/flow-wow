@@ -52,12 +52,47 @@ function N:PlayerPos()
     return { map = map, x = x, y = y, cont = cont, wx = wx, wy = wy }
 end
 
--- World position (yards) of a point on a map.
-function N:ToWorld(map, x, y)
+-- World position (yards) of a point on a map, as the game works it out.
+local function gameToWorld(map, x, y)
     local cont, world = C_Map.GetWorldPosFromMapPos(map, CreateVector2D(x, y))
     if not world then return nil end
     local wx, wy = world:GetXY()
     return cont, wx, wy
+end
+N._gameToWorld = gameToWorld   -- (tests)
+
+-- A zone map is a flat rectangle of the world: from its corner and its two
+-- edges, any point on it is plain arithmetic (no game call, no garbage).
+-- Gathering the route turns thousands of spawn spots into world positions,
+-- so this matters. Each map is checked against the game on two more points
+-- first; a map that doesn't fit keeps asking the game (as before).
+local flatMaps = {}
+local CHECKS = { { 1, 1 }, { 0.37, 0.71 } }
+local function flatMap(map)
+    local f = flatMaps[map]
+    if f ~= nil then return f end
+    f = false
+    local c0, ox, oy = gameToWorld(map, 0, 0)
+    local c1, ax, ay = gameToWorld(map, 1, 0)
+    local c2, bx, by = gameToWorld(map, 0, 1)
+    if ox and ax and bx and c0 == c1 and c0 == c2 then
+        local t = { cont = c0, ox = ox, oy = oy, ux = ax - ox, uy = ay - oy, vx = bx - ox, vy = by - oy }
+        local fits = true
+        for _, q in ipairs(CHECKS) do
+            local c, wx, wy = gameToWorld(map, q[1], q[2])
+            local px, py = ox + q[1] * t.ux + q[2] * t.vx, oy + q[1] * t.uy + q[2] * t.vy
+            if not (wx and c == c0 and math.abs(wx - px) < 0.05 and math.abs(wy - py) < 0.05) then fits = false end
+        end
+        if fits then f = t end
+    end
+    flatMaps[map] = f
+    return f
+end
+
+function N:ToWorld(map, x, y)
+    local f = map and flatMap(map)
+    if f then return f.cont, f.ox + x * f.ux + y * f.vx, f.oy + x * f.uy + y * f.vy end
+    return gameToWorld(map, x, y)
 end
 
 -- East/south unit vectors of a map in world space, so world offsets can be
@@ -300,10 +335,16 @@ function N:Coin(c)
     return GetCoinTextureString and GetCoinTextureString(c or 0) or ((c or 0) .. "c")
 end
 
+local timedProviders = {}   -- each stop source timed on its own in /flow perf
 function N:Collect()
     local list = {}
     for key, provider in ns:Each("navGoal") do
-        local ok, found = pcall(provider.collect)
+        local t = timedProviders[key]
+        if not t or t.fn ~= provider.collect then
+            t = { fn = provider.collect, timed = ns.perf.Wrap("gather: " .. key, provider.collect) }
+            timedProviders[key] = t
+        end
+        local ok, found = pcall(t.timed)
         if ok then
             for _, goal in ipairs(found or {}) do
                 goal.provider = key
@@ -1285,21 +1326,45 @@ end
 -- The plan: the whole trip in order (see Planner.lua). Re-planned when goals
 -- change, and every few seconds as you move.
 local plan, planAt = nil, 0
-local function choose(p)
-    -- "Do it where you stand" stops (e.g. crafting with no station) follow you.
-    for _, goal in ipairs(goals) do
-        if goal.anywhere then goal.points = { { cont = p.cont, wx = p.wx, wy = p.wy, map = p.map, x = p.x, y = p.y } } end
-    end
+
+-- Every stop by (weighted) distance from you. Only needed for a stop you
+-- pinned, or when there's no plan: not on every arrow tick (it was ~90
+-- stops x up to 80 spots, 10 times a second).
+local function rank(p)
     local ranked = {}
     for _, goal in ipairs(goals) do
         local pt, d = nearestPoint(goal, p)
         if pt then ranked[#ranked + 1] = { goal = goal, point = pt, d = d, score = d * (goal.weight or 1) } end
     end
     table.sort(ranked, function(a, b) return a.score < b.score end)
-    N.ranked = ranked
-    if #ranked == 0 then N.plan = nil return nil end
+    return ranked
+end
+
+-- Is any stop on your continent at all? (Else there's nothing to plan.)
+-- Known again when the stops are gathered, you change continent, or after 5 s.
+local reach = { at = -10 }
+local function anyReachable(p)
+    if reach.goals == goals and reach.cont == p.cont and GetTime() - reach.at < 5 then return reach.yes end
+    local yes = false
+    for _, goal in ipairs(goals) do
+        if goal.anywhere then yes = true break end
+        for _, pt in ipairs(goal.points or {}) do
+            if pt.wx and pt.cont == p.cont then yes = true break end
+        end
+        if yes then break end
+    end
+    reach.goals, reach.cont, reach.yes, reach.at = goals, p.cont, yes, GetTime()
+    return yes
+end
+
+local function choose(p)
+    -- "Do it where you stand" stops (e.g. crafting with no station) follow you.
+    for _, goal in ipairs(goals) do
+        if goal.anywhere then goal.points = { { cont = p.cont, wx = p.wx, wy = p.wy, map = p.map, x = p.x, y = p.y } } end
+    end
+    if not anyReachable(p) then N.plan = nil return nil end
     if pinnedKey then
-        for _, r in ipairs(ranked) do if r.goal.key == pinnedKey then return r end end
+        for _, r in ipairs(rank(p)) do if r.goal.key == pinnedKey then return r end end
         pinnedKey = nil
     end
 
@@ -1328,6 +1393,9 @@ local function choose(p)
         local s = plan[1]
         return { goal = s.goal, point = s.point, d = dist(p.wx, p.wy, s.point.wx, s.point.wy) }
     end
+    -- No plan (no planner, or it failed): the nearest stop.
+    local ranked = rank(p)
+    if #ranked == 0 then return nil end
     -- Sticky: don't flip between goals unless the new one is clearly closer.
     if current then
         for _, r in ipairs(ranked) do

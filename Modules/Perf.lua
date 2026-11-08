@@ -10,24 +10,38 @@ ns.perf = P
 local clock = debugprofilestop
 
 -- fn wrapped so each call's time is added to `name`. Errors pass through
--- unchanged (callers keep their own pcall).
+-- (callers keep their own pcall).
+-- Own time only: when a timed function calls another timed one (the arrow
+-- update planning the route), the inner one's time and memory count for
+-- the inner one alone, so no time is counted twice and the total is true.
+local depth, childMs, childKb = 0, {}, {}
 function P.Wrap(name, fn)
     if not clock then return fn end
     local st = P.stats[name] or { calls = 0, total = 0, max = 0, kb = 0 }
     P.stats[name] = st
     return function(...)
+        depth = depth + 1
+        local lvl = depth
+        childMs[lvl], childKb[lvl] = 0, 0
         local m0, t0 = collectgarbage("count"), clock()
-        local a, b, c, d = fn(...)
-        local ms = clock() - t0
-        st.calls, st.total = st.calls + 1, st.total + ms
-        if ms > st.max then st.max = ms end
+        local ok, a, b, c, d = pcall(fn, ...)
+        local ms, made = clock() - t0, collectgarbage("count") - m0
+        depth = lvl - 1
+        if depth > 0 then
+            childMs[depth] = childMs[depth] + ms
+            if made > 0 then childKb[depth] = childKb[depth] + made end
+        end
+        local own, ownKb = ms - childMs[lvl], made - childKb[lvl]
+        st.calls, st.total = st.calls + 1, st.total + own
+        if own > st.max then st.max = own end
         -- Memory it made (garbage to clean up later): the cleaner's work is
         -- CPU too, and a big number here is what swells "memory".
-        local made = collectgarbage("count") - m0
-        if made > 0 then st.kb = st.kb + made end
+        if ownKb > 0 then st.kb = st.kb + ownKb end
+        if not ok then error(a, 0) end
         return a, b, c, d
     end
 end
+P._depth = function() return depth end   -- (tests)
 
 function P:Reset()
     for _, st in pairs(self.stats) do st.calls, st.total, st.max, st.kb = 0, 0, 0, 0 end
@@ -60,7 +74,7 @@ function P:Report()
         kept and string.format("%.1f MB", kept / 1024) or "?")
     for _, r in ipairs(rows) do
         local st = r.st
-        out[#out + 1] = string.format("  %-26s %6.2f ms/s  avg %5.2f ms  worst %6.1f ms  makes %6.1f KB/s  (%d calls)",
+        out[#out + 1] = string.format("  %-32s %6.2f ms/s  avg %5.2f ms  worst %6.1f ms  makes %6.1f KB/s  (%d calls)",
             r.name, st.total / secs, st.total / st.calls, st.max, (st.kb or 0) / secs, st.calls)
     end
     -- One frame at 60 fps is ~16 ms: anything near that is a hitch you'd feel.

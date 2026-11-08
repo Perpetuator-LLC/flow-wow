@@ -46,25 +46,35 @@ local function indoors()
     return IsIndoors and IsIndoors() or false
 end
 
--- World point -> minimap pixels from the centre (rotation included), and
--- pixels per yard.
-local function toMini(p, wx, wy)
-    local east, south = ns.nav:Offset(p, wx, wy)
-    if not east then return nil end
+-- How the minimap shows the world right now: pixels per yard, and the turn
+-- (cos, sin) of a rotating minimap. Asked once per drawing, not per spot
+-- (each spot used to ask the zoom, size, indoors, rotation and facing).
+local function view()
     local zoom = Minimap:GetZoom() or 0
     local yards = (indoors() and INDOOR or OUTDOOR)[zoom] or 466
     local radius = Minimap:GetWidth() / 2
     local scale = radius / (yards / 2)            -- pixels per yard
-    local x, y = east * scale, -south * scale
+    local c, s = 1, 0
     -- Rotating minimap: turn the offset with the player's facing.
     if GetCVar and GetCVar("rotateMinimap") == "1" then
         local f = ns.api.Safe(GetPlayerFacing and GetPlayerFacing())
-        if f then
-            local c, s = math.cos(f), -math.sin(f)   -- turn by -facing: what you face is up
-            x, y = x * c - y * s, x * s + y * c
-        end
+        if f then c, s = math.cos(f), -math.sin(f) end   -- turn by -facing: what you face is up
     end
+    return scale, c, s
+end
+
+-- World point -> minimap pixels from the centre (rotation included), and
+-- pixels per yard, for a view().
+local function toMiniWith(p, wx, wy, scale, c, s)
+    local east, south = ns.nav:Offset(p, wx, wy)
+    if not east then return nil end
+    local x, y = east * scale, -south * scale
+    if c ~= 1 or s ~= 0 then x, y = x * c - y * s, x * s + y * c end
     return x, y, scale, east, south
+end
+local function toMini(p, wx, wy)
+    local scale, c, s = view()
+    return toMiniWith(p, wx, wy, scale, c, s)
 end
 
 -------------------------------------------------------------------------------
@@ -157,9 +167,10 @@ local function drawAreaMini(p, goal, color, strong, yards)
     if not (goal and goal.area and goal.points) then return end
     local radius = Minimap:GetWidth() / 2
     local n, r = 0, nil
+    local vs, vc, vsin = view()
     for _, pt in ipairs(goal.points) do
         if pt.wx and pt.cont == p.cont then
-            local x, y, scale = toMini(p, pt.wx, pt.wy)
+            local x, y, scale = toMiniWith(p, pt.wx, pt.wy, vs, vc, vsin)
             if x then
                 r = r or math.max(3, (yards or AREA_YARDS) * scale)
                 if x * x + y * y < (radius + r) * (radius + r) then n = n + 1; xs_[n], ys_[n] = x, y end
@@ -259,13 +270,16 @@ function P.FillShape(poly, radius, color, alpha)
     end
 end
 
--- Redraw only when something you'd see changed: you moved a couple of yards,
+-- Redraw only when something you'd see changed: you moved a pixel's worth
+-- (at least 2 yards; zoomed out a pixel is ~3 yards, so less often there),
 -- turned (rotating minimap), zoomed, or the stop / hovered stop changed.
 local lastAreas, lastSig = 0, nil
 local function signature(p, goal)
     local rot = GetCVar and GetCVar("rotateMinimap") == "1"
     local f = rot and ns.api.Safe(GetPlayerFacing and GetPlayerFacing()) or 0
-    return string.format("%d:%d:%d:%d:%s:%s:%s:%d", math.floor(p.wx / 2), math.floor(p.wy / 2),
+    local scale = view()
+    local step = (scale and scale > 0) and math.max(2, 1 / scale) or 2   -- yards per pixel
+    return string.format("%d:%d:%d:%d:%s:%s:%s:%d", math.floor(p.wx / step), math.floor(p.wy / step),
         math.floor((f or 0) * 20), Minimap:GetZoom() or 0, tostring(goal and goal.key),
         tostring(hoverGoal and hoverGoal.key), tostring(ns.db.nav.minimapAreas), Minimap:GetWidth())
         .. ":" .. tostring(ns.db.nav.nearbyNodes) .. ":" .. tostring(ns.nearby and ns.nearby.version)
@@ -299,8 +313,8 @@ function P:UpdateAreas(p, goal, force)
         end
     end
     for i = nDiscs + 1, oldD do discs[i]:Hide() end
-
 end
+P.UpdateAreas = ns.perf.Wrap("minimap areas", P.UpdateAreas)   -- (/flow perf)
 
 -- The Flow Tracker calls this while you hover one of its rows (nil = none).
 function P:SetHover(goal)
