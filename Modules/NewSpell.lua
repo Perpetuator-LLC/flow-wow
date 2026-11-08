@@ -250,11 +250,24 @@ show = function()
     local _, icon = ns.api.SpellInfo(e.id)
     card.icon.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
     card.name:SetText(e.name)
-    card.status:SetText("Drag the icon onto any bar slot, or:")
+    -- The game may have put it on a bar already: say where (it can still be
+    -- dragged elsewhere or given a key).
+    local where = e.slot and NS.SlotName(e.slot)
+    card.status:SetText(where and ("The game put it on " .. where .. ". Drag the icon to move it, or:")
+        or "Drag the icon onto any bar slot, or:")
     card.left = SHOW
     card.timer:SetValue(SHOW)
     setMode("choose")
+    if e.slot then card.place:Hide() end
     card:Show()
+end
+
+-- "Action Bar 1, slot 5" for an action slot.
+function NS.SlotName(slot)
+    for _, r in ipairs(SLOT_ORDER) do
+        if slot >= r[1] and slot <= r[2] then return string.format("%s, slot %d", BAR_NAME[r[1]], slot - r[1] + 1) end
+    end
+    return "slot " .. tostring(slot)
 end
 
 -- Should a newly learned spell ask? Not passive, not muted, not already on a
@@ -263,20 +276,62 @@ function NS.ShouldAsk(id, name, passive, onBar, key, muted, enabled)
     return enabled and name ~= nil and not passive and not onBar and not key and not muted
 end
 
-local function learned(id)
-    id = tonumber(ns.api.Safe(id))
-    local name = id and ns.api.SpellInfo(id)
-    if not name then return end
+-- A brand-new spell (a name you didn't know before) asks even when the game
+-- put it on a bar by itself: you see where, and can bind a key.
+function NS.ShouldAskNew(name, passive, key, muted, enabled)
+    return enabled and name ~= nil and not passive and not key and not muted
+end
+
+-- Spells you learn are found by comparing your spellbook with the last look:
+-- new names get the card (new ranks of spells you have don't). The event this
+-- used ("LEARNED_SPELL_IN_TAB") doesn't exist on this client (it's
+-- "LEARNED_SPELL_IN_SKILL_LINE" there), so the card never showed.
+local knownNames, checkPending
+
+function NS.NewNames(before, now)
+    local out = {}
+    for name in pairs(now or {}) do if not before[name] then out[#out + 1] = name end end
+    table.sort(out)
+    return out
+end
+
+local function offerNew(name)
+    local spellName, _, _, id = ns.api.SpellInfo(name)
+    if not id then return end
     local passive = (C_Spell and C_Spell.IsSpellPassive and C_Spell.IsSpellPassive(id))
         or (IsPassiveSpell and IsPassiveSpell(id)) or false
-    -- (A moment later: the game may put it on a bar by itself, AutoPush.lua.)
-    C_Timer.After(1, function()
-        if not NS.ShouldAsk(id, name, passive, NS.OnBar(id, name), NS.KeyFor(name), NS.Muted(name), NS.Enabled()) then return end
-        for _, q in ipairs(queue) do if q.name == name then return end end
-        queue[#queue + 1] = { id = id, name = name }
-        show()
-    end)
+    local slot, key = NS.OnBar(id, spellName), NS.KeyFor(spellName)
+    if not NS.ShouldAskNew(spellName, passive, key, NS.Muted(spellName), NS.Enabled()) then
+        ns:Log("newspell", string.format("learned %s: no card (%s)", spellName,
+            not NS.Enabled() and "setting off" or passive and "passive" or key and ("key " .. key) or "you said not on your bars"))
+        return
+    end
+    for _, q in ipairs(queue) do if q.name == spellName then return end end
+    queue[#queue + 1] = { id = id, name = spellName, slot = slot }
+    ns:Log("newspell", string.format("learned %s: card%s", spellName, slot and (" (already on " .. NS.SlotName(slot) .. ")") or ""))
+    show()
 end
+
+local function checkNew()
+    checkPending = false
+    local now = ns.api.KnownSpells and ns.api.KnownSpells() or {}
+    if not knownNames then knownNames = now return end   -- the first look: what you know already
+    for _, name in ipairs(NS.NewNames(knownNames, now)) do pcall(offerNew, name) end
+    knownNames = now
+end
+-- (A second after a change: the game may put the spell on a bar by itself first.)
+local function scheduleCheck()
+    if checkPending then return end
+    checkPending = true
+    C_Timer.After(1, checkNew)
+end
+ns:On("PLAYER_ENTERING_WORLD", function()
+    knownNames, checkPending = nil, true
+    C_Timer.After(3, checkNew)
+end)
+ns:On("SPELLS_CHANGED", function() if knownNames then scheduleCheck() end end)
+ns:On("LEARNED_SPELL_IN_SKILL_LINE", scheduleCheck)
+ns:On("LEARNED_SPELL_IN_TAB", scheduleCheck)
 
 -- The card for a spell you already know (the link on "Put X on your action
 -- bars" in Flow's improvements list): place it, drag it or bind a key.
@@ -288,7 +343,6 @@ function NS:Offer(name)
     show()
 end
 
-ns:On("LEARNED_SPELL_IN_TAB", function(id) pcall(learned, id) end)
 ns:On("PLAYER_REGEN_ENABLED", function() C_Timer.After(1, show) end)
 
 ns:OnLoad(function(saved)

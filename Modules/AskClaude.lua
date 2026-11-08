@@ -5,7 +5,9 @@
 --     data to disk on a reload. The bridge sees it, asks Claude Code (in the
 --     Flow folder, so it can change Flow itself), and writes the answer to
 --     Learned\ClaudeInbox.lua.
---   /claude          check for answers (reloads: that's when WoW reads the
+--   /claude          the chat window: your questions and the answers, a box
+--                    to type in, Send, and Check now
+--   /claude check    look for answers (reloads: that's when WoW reads the
 --                    answer file, and any code Claude changed)
 -- Answers show in chat as "Claude: ...". Nothing goes anywhere but files on
 -- your own PC; the bridge only runs while you start it.
@@ -56,15 +58,109 @@ function AC:Send(text)
     chat.nextId = id + 1
     chat.outbox[#chat.outbox + 1] = AC.Entry(id, text)
     while #chat.outbox > MAX_OUTBOX do table.remove(chat.outbox, 1) end
+    -- What you asked, kept (the last 20) so the chat window can show it next
+    -- to Claude's answer.
+    chat.sent[id] = text
+    for old in pairs(chat.sent) do if old <= id - MAX_OUTBOX then chat.sent[old] = nil end end
     ns:Print("sent to Claude (reloading so it's saved where Claude can read it)...")
-    ReloadUI()   -- (from your slash command: allowed)
+    ReloadUI()   -- (from your slash command or the Send button: allowed)
+end
+
+-------------------------------------------------------------------------------
+-- The chat window (/claude on its own): your questions and Claude's answers,
+-- a box to type in, Send and "Check now". Sending and checking reload the UI
+-- for a moment: WoW only writes and reads add-on files on a reload.
+-- (/claude used to just reload, which looked like it did nothing.)
+-------------------------------------------------------------------------------
+
+-- The conversation as lines, oldest first, at most `max` exchanges:
+-- answers (with what you asked), then messages still waiting.
+function AC.History(inbox, chat, max)
+    local out = {}
+    for _, r in ipairs(inbox or {}) do
+        local q = r.replyTo and chat.sent and chat.sent[r.replyTo]
+        out[#out + 1] = { q = q, a = r.text, id = r.id or 0 }
+    end
+    table.sort(out, function(x, y) return x.id < y.id end)
+    for _, m in ipairs(chat.outbox or {}) do out[#out + 1] = { q = m.text, waiting = true, id = 1e9 + (m.id or 0) } end
+    local lines = {}
+    for i = math.max(1, #out - (max or 6) + 1), #out do
+        local e = out[i]
+        if e.q then lines[#lines + 1] = "|cff88ccffYou:|r " .. e.q end
+        if e.waiting then lines[#lines + 1] = "|cff888888(waiting for Claude...)|r"
+        elseif e.a then lines[#lines + 1] = "|cff" .. ORANGE .. "Claude:|r " .. e.a end
+    end
+    return lines
+end
+
+local box
+local function buildBox()
+    local f = CreateFrame("Frame", "FlowAskClaude", UIParent)
+    f:SetSize(480, 320)
+    f:SetPoint("CENTER", 0, 120)
+    f:SetFrameStrata("DIALOG")
+    f:EnableMouse(true)
+    f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints(); f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.95)
+    f.head = ns.theme:TitleBar(f, "Ask Claude", "Interface\\Icons\\INV_Misc_Book_09")
+    ns:MakeMovable(f, ns.db.chat, true)
+    tinsert(UISpecialFrames, "FlowAskClaude")
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
+    f.log = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.log:SetPoint("TOPLEFT", 12, -32); f.log:SetPoint("TOPRIGHT", -12, -32)
+    f.log:SetHeight(200)
+    f.log:SetJustifyH("LEFT"); f.log:SetJustifyV("BOTTOM")
+    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.status:SetPoint("BOTTOMLEFT", 12, 40); f.status:SetPoint("BOTTOMRIGHT", -12, 40)
+    f.status:SetJustifyH("LEFT")
+    f.edit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    f.edit:SetSize(300, 22)
+    f.edit:SetPoint("BOTTOMLEFT", 18, 10)
+    f.edit:SetAutoFocus(false)
+    f.edit:SetMaxLetters(400)
+    local function send()
+        local text = (f.edit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if text == "" then f.status:SetText("Type a message first.") return end
+        f.edit:SetText(""); f.edit:ClearFocus()
+        AC:Send(text)
+    end
+    f.edit:SetScript("OnEnterPressed", send)
+    f.edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.send = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.send:SetSize(60, 22); f.send:SetText("Send")
+    f.send:SetPoint("LEFT", f.edit, "RIGHT", 6, 0)
+    f.send:SetScript("OnClick", send)
+    f.check = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.check:SetSize(80, 22); f.check:SetText("Check now")
+    f.check:SetPoint("LEFT", f.send, "RIGHT", 4, 0)
+    f.check:SetScript("OnClick", function()
+        ns:Print("checking for Claude's answers (reloading)...")
+        ReloadUI()
+    end)
+    f:Hide()
+    return f
+end
+
+function AC:Open()
+    box = box or buildBox()
+    local chat = ns.db.chat
+    local lines = AC.History(ns.claudeInbox, chat, 6)
+    box.log:SetText(#lines > 0 and table.concat(lines, "\n")
+        or "|cff888888Ask anything about Flow or your character. A Claude session on your PC answers (docs/ASK-CLAUDE.md).|r")
+    box.status:SetText(#chat.outbox > 0
+        and string.format("Waiting on %d message(s). Answers arrive when you click Check now (it reloads), or at your next reload.", #chat.outbox)
+        or "Send reloads your UI for a moment so Claude can read it. Claude answers while its session is watching.")
+    box:Show()
+    box.edit:SetFocus()
 end
 
 local function check()
     local chat = ns.db.chat
-    for _, r in ipairs(AC.TakeNew(ns.claudeInbox, chat)) do show(r) end
+    local new = AC.TakeNew(ns.claudeInbox, chat)
+    for _, r in ipairs(new) do show(r) end
+    if #new > 0 then ns:Print("(/claude opens the chat window)") end
     if #chat.outbox > 0 then
-        ns:Print(string.format("waiting for Claude on %d message(s). /claude to check (it reloads). Is tools\\claude-bridge.ps1 running?", #chat.outbox))
+        ns:Print(string.format("waiting for Claude on %d message(s). /claude check looks again (it reloads). Is Claude watching (docs/ASK-CLAUDE.md)?", #chat.outbox))
     end
 end
 ns:On("PLAYER_LOGIN", function() C_Timer.After(3, function() pcall(check) end) end)
@@ -74,15 +170,13 @@ ns:OnLoad(function(saved)
     saved.chat.outbox = saved.chat.outbox or {}
     saved.chat.seen = saved.chat.seen or {}
     saved.chat.nextId = saved.chat.nextId or 1
+    saved.chat.sent = saved.chat.sent or {}
 end)
 
 local function command(arg)
     arg = (arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if arg == "" then
-        ns:Print("checking for Claude's answers (reloading)...")
-        ReloadUI()
-        return
-    end
+    if arg == "" then AC:Open() return end   -- the chat window
+    if arg == "check" then ns:Print("checking for Claude's answers (reloading)..."); ReloadUI() return end
     AC:Send(arg)
 end
 ns.commands.ask = command
@@ -96,6 +190,6 @@ ns:On("PLAYER_LOGIN", function()
 end)
 
 ns:Register("help", "claude", { order = 90, title = "Ask Claude", lines = {
-    "/claude <message>: ask Claude from the game (with tools\\claude-bridge.ps1 running on your PC). It reloads to send.",
-    "/claude: check for answers (reloads; any change Claude made to Flow loads too).",
+    "/claude: the chat window (your questions, Claude's answers, a box to type in).",
+    "/claude <message>: ask straight away (it reloads to send). /claude check: look for answers (reloads).",
 } })

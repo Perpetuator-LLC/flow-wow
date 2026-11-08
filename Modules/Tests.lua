@@ -2752,3 +2752,43 @@ ns:Register("test", "improvements: click hides, Hidden lists them, links open th
     end) end)
     Adv:Refresh()
 end)
+
+ns:Register("test", "/claude opens a chat window with what you asked and the answers", function(t)
+    local AC = ns.askClaude
+    local chat = { sent = { [3] = "make the arrow purple" }, outbox = { { id = 4, text = "and green?" } } }
+    local lines = AC.History({ { id = 3, replyTo = 3, text = "Done: /reload." } }, chat, 6)
+    t:ok(lines[1]:find("make the arrow purple", 1, true) ~= nil, "your question")
+    t:ok(lines[2]:find("Done: /reload.", 1, true) ~= nil, "Claude's answer under it")
+    t:ok(lines[3]:find("and green?", 1, true) ~= nil and lines[4]:find("waiting", 1, true) ~= nil, "a message still waiting")
+    -- Click test: /claude on its own opens the window (it used to only reload).
+    AC:Open()
+    local box = _G.FlowAskClaude
+    t:ok(box and box:IsShown(), "the chat window opens")
+    t:ok(box and box.edit and box.send and box.check, "with a box to type in, Send and Check now")
+    if box then box.edit:ClearFocus(); box:Hide() end
+end)
+
+ns:Register("test", "new spells: spotted from your spellbook, the card even if the game put it on a bar", function(t)
+    local NS = ns.newSpell
+    local new = NS.NewNames({ Wrath = true, Moonfire = true }, { Wrath = true, Moonfire = true, Thorns = true })
+    t:eq(#new, 1, "one new spell"); t:eq(new[1], "Thorns", "Thorns")
+    t:eq(#NS.NewNames({ Wrath = true }, { Wrath = true }), 0, "a new rank of Wrath isn't a new name: no card")
+    t:ok(NS.ShouldAskNew("Thorns", false, nil, false, true), "a brand-new spell asks, even on a bar")
+    t:ok(not NS.ShouldAskNew("Thorns", false, "F", false, true), "a key casts it: no")
+    t:ok(not NS.ShouldAskNew("Thorns", true, nil, false, true), "passive: no")
+    t:eq(NS.SlotName(5), "Action Bar 1, slot 5", "says where the game put it")
+end)
+
+ns:Register("test", "easy button: your buffs on you, Ctrl + key on your target", function(t)
+    local C = ns.cast
+    t:eq(C.UnitFor({ spell = "Mark of the Wild", kind = "buff" }), "player", "your own buff: on you, even with a friend targeted")
+    t:eq(C.UnitFor({ spell = "Mark of the Wild", kind = "buff", unit = "party1" }), "party1", "a group buff: on them")
+    t:eq(C.UnitFor({ spell = "Wrath", kind = "damage" }), nil, "an attack: your target")
+    t:eq(C._describe({ spell = "Thorns", kind = "buff" }), "/cast [@player] Thorns", "the press casts it on you")
+    t:eq(C.TargetKeyFor("`"), "CTRL-`", "Ctrl + your key")
+    t:eq(C.TargetKeyFor("SHIFT-E"), "CTRL-SHIFT-E", "in the game's order")
+    t:eq(C.TargetKeyFor("CTRL-Q"), nil, "a key with Ctrl already: none")
+    t:eq(C.HealKeyFor("CTRL-E"), "CTRL-SHIFT-E", "Shift + key still the heal")
+    t:ok(C._helpful({ spell = "Rejuvenation", kind = "heal" }) and not C._helpful({ spell = "Wrath", kind = "damage" }),
+        "Ctrl + key only for heals and buffs")
+end)

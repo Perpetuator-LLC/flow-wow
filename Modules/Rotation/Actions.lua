@@ -347,6 +347,7 @@ end })
 local learnables, learnDirty = {}, true
 ns:On("BAG_UPDATE_DELAYED", function() learnDirty = true end)
 ns:On("LEARNED_SPELL_IN_TAB", function() learnDirty = true end)
+ns:On("LEARNED_SPELL_IN_SKILL_LINE", function() learnDirty = true end)   -- (its name on newer clients, Forever too)
 ns:On("NEW_RECIPE_LEARNED", function() learnDirty = true end)
 local function tooltipLines(bag, slot)
     local T = C_TooltipInfo

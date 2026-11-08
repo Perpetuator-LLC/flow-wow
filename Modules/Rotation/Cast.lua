@@ -19,13 +19,29 @@ ns.cast = C
 local btn, keyText, lockIcon
 local macro, lockedSpell = nil, nil
 
+-- Who the press casts on: heals and your own buffs on you (with a friend
+-- targeted, a buff meant for you went on them), a group buff on its person
+-- (s.unit), anything else on your target as usual. Ctrl + key casts a heal
+-- or buff on your target instead (see "ontarget" below).
+function C.UnitFor(s)
+    if not s then return nil end
+    if s.kind == "heal" or s.kind == "emergency" then return "player" end
+    if s.unit then return s.unit end
+    if s.kind == "buff" then return "player" end
+    return nil
+end
+
 local function macroFor(s)
     if not s then return "" end
     if s.spell == "Attack" or s.spell == "Auto Attack" then return "/startattack" end
-    if s.kind == "heal" or s.kind == "emergency" then return "/cast [@player] " .. s.spell end
-    if s.unit then return "/cast [@" .. s.unit .. "] " .. s.spell end   -- a buff for someone in your group
+    local unit = C.UnitFor(s)
+    if unit then return "/cast [@" .. unit .. "] " .. s.spell end
     return "/cast " .. s.spell
 end
+
+-- A heal or buff that can go on someone else: Ctrl + key puts it on your target.
+local function helpful(s) return s and s.spell and (s.kind == "buff" or s.kind == "heal" or s.kind == "emergency") end
+C._helpful = helpful
 
 local interact = false   -- the key presses the game's Interact (bobber, vein)
 
@@ -53,14 +69,19 @@ local function setAction(s)
     if text == macro then return end
     for _, a in ipairs({ "spell", "item", "unit", "target-slot", "clickbutton" }) do btn:SetAttribute(a, nil) end
     local kind = s and (s.type or "spell")
+    -- Ctrl + key: the same heal or buff on your target (a second "button"
+    -- of the secure button, pressed only by the Ctrl binding).
+    local onTarget = helpful(s) and ns.db.cast.ctrlTarget ~= false
+    btn:SetAttribute("type-ontarget", onTarget and "spell" or nil)
+    btn:SetAttribute("spell-ontarget", onTarget and s.spell or nil)
+    btn:SetAttribute("unit-ontarget", onTarget and "target" or nil)
     if kind == "spell" and s.spell then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", s.spell)
-        -- Heals always on you: "player" as the unit. Flow Actions (Fishing,
-        -- Find Minerals) say unit = "player" too, so a target you have
-        -- selected (an NPC) never makes the cast fail.
-        local heal = s.kind == "heal" or s.kind == "emergency"
-        btn:SetAttribute("unit", (heal and "player") or s.unit or nil)
+        -- Heals and your own buffs on you: "player" as the unit (C.UnitFor).
+        -- Flow Actions (Fishing, Find Minerals) say unit = "player" too, so a
+        -- target you have selected (an NPC) never makes the cast fail.
+        btn:SetAttribute("unit", C.UnitFor(s))
     elseif kind == "click" and s.button then
         -- Presses one of Flow's own buttons (the profession panel's "Make N").
         btn:SetAttribute("type", "click")
@@ -174,6 +195,9 @@ function C:FillTooltip(tt)
     if key ~= "" and C:HealSpell() then
         tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too).", 0.4, 1, 0.4)
     end
+    if key ~= "" and helpful(s) and ns.db.cast.ctrlTarget ~= false then
+        tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
+    end
     tt:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.6, 0.6, 0.6)
 end
 
@@ -284,14 +308,19 @@ function C.HealFor(def, knows, castMs)
     return best
 end
 
--- "`" -> "SHIFT-`", "CTRL-E" -> "CTRL-SHIFT-E" (the game's order: ALT, CTRL,
--- SHIFT). A key that already uses Shift gets none.
-function C.HealKeyFor(key)
-    if type(key) ~= "string" or key == "" or key:find("SHIFT-", 1, true) then return nil end
-    local alt, ctrl = key:find("ALT-", 1, true), key:find("CTRL-", 1, true)
-    local base = key:gsub("ALT%-", ""):gsub("CTRL%-", "")
-    return (alt and "ALT-" or "") .. (ctrl and "CTRL-" or "") .. "SHIFT-" .. base
+-- Your key with a modifier added, in the game's order (ALT, CTRL, SHIFT):
+-- ModKey("`", "SHIFT") -> "SHIFT-`", ModKey("SHIFT-E", "CTRL") -> "CTRL-SHIFT-E".
+-- A key that already uses that modifier gets none.
+function C.ModKey(key, mod)
+    if type(key) ~= "string" or key == "" or key:find(mod .. "-", 1, true) then return nil end
+    local has = { ALT = key:find("ALT-", 1, true), CTRL = key:find("CTRL-", 1, true), SHIFT = key:find("SHIFT-", 1, true) }
+    has[mod] = true
+    local base = key:gsub("ALT%-", ""):gsub("CTRL%-", ""):gsub("SHIFT%-", "")
+    return (has.ALT and "ALT-" or "") .. (has.CTRL and "CTRL-" or "") .. (has.SHIFT and "SHIFT-" or "") .. base
 end
+-- Shift + key: your heal. Ctrl + key: the shown heal or buff on your target.
+function C.HealKeyFor(key) return C.ModKey(key, "SHIFT") end
+function C.TargetKeyFor(key) return C.ModKey(key, "CTRL") end
 
 function C:HealSpell() return healSpell end
 
@@ -329,6 +358,8 @@ function C:ApplyKey()
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
         local healKey = healSpell and C.HealKeyFor(key)
         if healKey then SetOverrideBindingClick(owner, true, healKey, "FlowCastButton", "heal") end
+        local targetKey = ns.db.cast.ctrlTarget ~= false and C.TargetKeyFor(key)
+        if targetKey then SetOverrideBindingClick(owner, true, targetKey, "FlowCastButton", "ontarget") end
     end
     refreshLabels()
 end
@@ -443,6 +474,11 @@ function C:Test()
     print("  shift + key: " .. (healSpell and first and C.HealKeyFor(first)
         and string.format("%s casts %s on you (bound to %s)", C.HealKeyFor(first), healSpell, tostring(GetBindingAction(C.HealKeyFor(first), true)))
         or "no heal on it"))
+    local tk = first and C.TargetKeyFor(first)
+    print("  ctrl + key: " .. (tk and ns.db.cast.ctrlTarget ~= false
+        and string.format("%s casts %s on your target (bound to %s)", tk, tostring(btn and btn:GetAttribute("spell-ontarget") or "nothing now"),
+            tostring(GetBindingAction(tk, true)))
+        or "off"))
     print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
         .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "

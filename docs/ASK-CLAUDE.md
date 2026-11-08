@@ -27,8 +27,9 @@ when the UI loads. So:
    folder, and answers with
    `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply 3 -Text "Done. Type /reload."`
    which writes `Learned\ClaudeInbox.lua`.
-4. `/claude` on its own reloads the UI: WoW reads the answers file (and any code Claude changed),
-   and Flow prints the answers.
+4. **Check now** in the chat window (or `/claude check`) reloads the UI: WoW reads the answers file
+   (and any code Claude changed), and Flow prints the answers. `/claude` on its own opens the chat
+   window: what you asked, the answers, a box to type in, Send and Check now.
 
 ## Setup
 

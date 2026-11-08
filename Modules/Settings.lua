@@ -323,6 +323,10 @@ local function build(parent)
         "Your easy key can't change what it casts during a fight (WoW's rule), so a heal Flow shows mid-fight can't be cast with it. Shift + your key always casts your fastest heal on you, fights included.",
         function() return ns.db.cast.shiftHeal ~= false end,
         function(on) ns.db.cast.shiftHeal = on end)
+    _, y = check(f, y, "Ctrl + easy key: on your target", "(heals and buffs)",
+        "Your buffs and heals always go on you, even with a friend targeted. Hold Ctrl with your easy key to cast the shown heal or buff on your target instead.",
+        function() return ns.db.cast.ctrlTarget ~= false end,
+        function(on) ns.db.cast.ctrlTarget = on; if ns.cast then ns.cast:ApplyKey() end end)
     _, y = check(f, y, "Easy button buffs your group", "(party and raid)",
         "Out of combat, with nothing else to press, the easy button casts your buffs on the people in your group who are missing them, the right one for each: a druid's Mark of the Wild for everyone and Thorns for tanks; a paladin's Might for melee, Wisdom for casters, healers and hunters, Kings for tanks.",
         function() return ns.db.rotation.groupBuffs ~= false end,

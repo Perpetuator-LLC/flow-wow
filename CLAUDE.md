@@ -61,7 +61,8 @@ When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
      player was told in game.
 2. On a clone that follows `main` (not the maintainer's branch), change files but don't commit or
    bump the version; offer to open a pull request (CONTRIBUTING.md).
-3. Every answer is shown only after the player's next reload (`/claude` on its own does one).
+3. Every answer is shown only after the player's next reload ("Check now" in the `/claude` chat
+   window, or `/claude check`, does one).
 
 ## "Share my Flow places" (send learned NPC spots to every Flow player)
 

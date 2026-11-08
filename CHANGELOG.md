@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.93
+- **`/claude` opens a chat window** instead of only reloading (which looked like it did
+  nothing). It shows what you asked and Claude's answers, with a box to type in, Send, and Check
+  now. Sending and checking still reload for a moment: that's when WoW saves and reads the files.
+  `/claude <message>` still sends straight away; `/claude check` looks for answers.
+- **The new-spell card shows again.** It waited for a game event this client doesn't have (on
+  newer clients it has another name), so it never appeared. Flow now compares your spellbook
+  after every change, so a spell you learn gets its card. That happens even when the game
+  already put it on a bar: the card says where, and offers to bind a key. New ranks of spells
+  you have still don't ask. The route and the Flow key's actions now notice new spells too.
+- **Your buffs go on you, even with a friend targeted.** A self-buff on the easy button (Mark
+  of the Wild, Thorns...) used to land on your target. Now it's always on you.
+- **Ctrl + easy key casts the shown heal or buff on your target instead.** (Shift + key is still
+  your heal on yourself.) Setting: "Ctrl + easy key: on your target" (on).
+
 ## 0.35.92
 - **Flow Improvements (the "!" list): click a row to hide it.** It goes under "+ Hidden (N)" at
   the bottom, collapsed. Click that to see what you hid, and click one there to bring it back.
