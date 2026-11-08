@@ -4,3 +4,6 @@ Thumbs.db
 .vscode/
 dist/
 reports/
+
+# Answers from tools/claude-bridge.ps1 (generated on your PC)
+Learned/ClaudeInbox.lua

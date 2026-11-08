@@ -46,6 +46,10 @@ ns:Register("learned", "combatlog", {
 })
 '@
 [IO.File]::WriteAllText((Join-Path $out 'Learned\CombatLog.lua'), $placeholder, (New-Object Text.UTF8Encoding $false))
+# The answers file Flow.toc lists (written by tools\claude-bridge.ps1 on a clone): empty here.
+[IO.File]::WriteAllText((Join-Path $out 'Learned\ClaudeInbox.lua'),
+    "-- Answers to /claude land here (docs/ASK-CLAUDE.md). Empty in a release.`nlocal _, ns = ...`nns.claudeInbox = ns.claudeInbox or {}`n",
+    (New-Object Text.UTF8Encoding $false))
 
 $zip = Join-Path $dist "Flow-$version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }

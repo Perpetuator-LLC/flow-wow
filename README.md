@@ -167,6 +167,10 @@ Flow for WoW is a separate project from Flow Engine.
 - A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
+- **Ask Claude from the game** (optional): `/claude make the arrow green`. A small script on your
+  PC hands it to Claude Code, which can answer and change Flow itself; the answer shows in chat
+  after `/reload`. The same script keeps a GitHub clone of Flow up to date by itself. Setup:
+  [docs/ASK-CLAUDE.md](docs/ASK-CLAUDE.md).
 
 ## Requirements and companions
 - World of Warcraft: Forever (interface 16001).
@@ -183,7 +187,9 @@ Flow for WoW is a separate project from Flow Engine.
 
 ## For developers
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). Using Claude or another AI assistant? Point it
-at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to test in game.
+at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to test in game. To
+talk to Claude from inside the game and get updates by themselves:
+[docs/ASK-CLAUDE.md](docs/ASK-CLAUDE.md).
 
 - `Flow.toc` sets the load order. `Core.lua` holds the event bus and the registries
   (`ns:Register` / `ns:Get` / `ns:Each`).

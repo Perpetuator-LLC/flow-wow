@@ -2260,3 +2260,17 @@ ns:Register("test", "arrow: straight at the stop unless a trail really helps", f
         t:ok(ns.db.nav.arrowPaths ~= true, "off by default: straight at the stop")
     end)
 end)
+
+ns:Register("test", "ask Claude: answers show once and clear what they answer", function(t)
+    local AC = ns.askClaude
+    local chat = { outbox = { { id = 1, text = "a" }, { id = 2, text = "b" } }, seen = { [5] = true }, nextId = 3 }
+    local inbox = { { id = 5, replyTo = nil, text = "old note" }, { id = 6, replyTo = 1, text = "done" }, { id = 7, text = "Flow updated" } }
+    local new = AC.TakeNew(inbox, chat)
+    t:eq(#new, 2, "only the answers you haven't seen")
+    t:eq(new[1].text, "done", "in order")
+    t:eq(#chat.outbox, 1, "the answered message leaves the outbox")
+    t:eq(chat.outbox[1].id, 2, "the other is still waiting")
+    t:eq(#AC.TakeNew(inbox, chat), 0, "nothing shown twice")
+    local e = AC.Entry(9, "hi", 100)
+    t:ok(e.id == 9 and e.text == "hi" and e.char ~= nil, "a message carries who you are and where")
+end)

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.82
+- **Ask Claude from inside the game.** `/claude make the arrow green` (or `/flow ask ...`) saves
+  your message and reloads. A small script on your PC, `tools\claude-bridge.ps1`, hands it to
+  Claude Code in your Flow folder, which can answer and change Flow itself. `/claude` on its own
+  reloads to show the answer ("Claude: ...") along with any change. The script is woken by
+  Windows when WoW saves (no polling) and keeps one conversation going.
+- **Updates by themselves.** The same script checks GitHub each time WoW saves. A clean clone on
+  `main` moves to the newest Flow, and you're told in game "Flow updated: 0.35.81 -> 0.35.82.
+  Type /reload to load it" (or to restart WoW when files were added). Clones with changes of
+  their own, or on another branch, are never touched.
+- Setup for everyone: [docs/ASK-CLAUDE.md](docs/ASK-CLAUDE.md). It covers Claude Code, starting
+  the bridge, starting it with Windows, and the options (`-NoClaude` for updates only).
+
 ## 0.35.81
 - **Two keys for the easy button.** /flow settings has a "Second key" row under "Your key",
   with its own Set and Clear buttons. Both keys cast Flow's suggestion, and the icon shows

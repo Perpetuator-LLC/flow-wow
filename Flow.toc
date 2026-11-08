@@ -2,7 +2,7 @@
 ## Title: Flow (unfettered)
 ## Notes: Levelling companion: rotation and heal advice, route planner, gear and bag sorting, quest help.
 ## Author: Sooth
-## Version: 0.35.81
+## Version: 0.35.82
 ## X-License: GPL-3.0
 ## SavedVariables: FlowDB
 ## SavedVariablesPerCharacter: FlowCharDB
@@ -19,6 +19,8 @@ Modules\Reveal.lua
 
 # Learned from your combat log files (written by tools/analyze-combatlog.ps1)
 Learned\CombatLog.lua
+# Answers to /claude and update notes (written by tools/claude-bridge.ps1; may not exist)
+Learned\ClaudeInbox.lua
 
 # Shared helpers
 Modules\Rotation\Compat.lua
@@ -82,6 +84,7 @@ Modules\Nav\PartyHelp.lua
 Modules\Nav\Follow.lua
 Modules\Quests\QuestShare.lua
 Modules\Invites.lua
+Modules\AskClaude.lua
 Modules\Nav\MapOverlay.lua
 Modules\Nav\RouteTracker.lua
 Modules\Advisor\Advisor.lua
