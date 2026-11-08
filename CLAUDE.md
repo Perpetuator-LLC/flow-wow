@@ -94,6 +94,11 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   at runtime when they're installed; that's the arrangement.
 - Profession and item data in `Modules/Crafting/Guides.lua` is our own, approximate, and
   corrected by what the game shows.
+- **Saved data is shared by every character on the account** (`FlowDB`) unless you declare it
+  per character. Anything about one character (its fights, trainer, recipes, spells, bars,
+  choices for this character) gets `ns:PerCharacter("section")` or
+  `ns:PerCharacter("section.field")` next to its `ns:OnLoad` (see `charData` in
+  docs/ARCHITECTURE.md). Settings, learned trails and NPC places stay shared.
 
 ## Style
 

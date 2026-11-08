@@ -32,7 +32,7 @@ read_globals = {
 -- Globals Flow sets on purpose (slash commands, key binding names, saved
 -- variables) and Blizzard tables it adds its own entries to.
 globals = {
-    "FlowDB",
+    "FlowDB", "FlowCharDB",
     "SLASH_FLOW1", "SLASH_FLOW2", "SLASH_FLOWWAY1",
     "BINDING_HEADER_FLOW",
     "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames",

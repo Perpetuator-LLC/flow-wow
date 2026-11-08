@@ -151,6 +151,9 @@ Flow for WoW is a separate project from Flow Engine.
   advice (`/flow spec`, `/flow talents`).
 
 ### Quality of life
+- **Each character keeps its own**: fights, trainer, recipes, profession plan, role, hidden
+  stops and the like are saved per character, so "Ways to improve" and the route are about the
+  character you're on. Settings, learned trails and NPC places are shared by all of them.
 - **Options > AddOns > Flow**: your cast key, Flow's own options, and Flow's suggested WoW
   settings (auto loot, nameplates, target of target, camera zoom, the camera staying where you
   put it, the low-health warning, the Interact key reaching objects, timestamps...) with a "Use

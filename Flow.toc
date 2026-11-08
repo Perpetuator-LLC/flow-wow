@@ -2,9 +2,10 @@
 ## Title: Flow (unfettered)
 ## Notes: Levelling companion: rotation and heal advice, route planner, gear and bag sorting, quest help.
 ## Author: Sooth
-## Version: 0.35.67
+## Version: 0.35.68
 ## X-License: GPL-3.0
 ## SavedVariables: FlowDB
+## SavedVariablesPerCharacter: FlowCharDB
 ## OptionalDeps: Questie, QuestieDB
 ## X-Flow-Dev: 1
 

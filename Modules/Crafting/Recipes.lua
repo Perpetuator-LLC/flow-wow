@@ -81,6 +81,22 @@ function R:Known(prof)
 end
 
 ns:OnLoad(function(saved) saved.crafting = saved.crafting or {} end)
+-- Your recipes are your character's. From the old shared data, a character
+-- takes the professions it has (checked at login, when the game knows).
+ns:PerCharacter("crafting", { later = true, adopt = function(old, _, current)
+    local mine = ns.api.ProfessionSet()
+    if next(mine) == nil then return false end   -- no professions seen yet: try next login
+    current = current or {}
+    for prof, rec in pairs(old) do
+        if mine[prof] and current[prof] == nil then current[prof] = rec end
+    end
+    current.active = current.active or {}
+    for prof, want in pairs(type(old.active) == "table" and old.active or {}) do
+        if mine[prof] and current.active[prof] == nil then current.active[prof] = want end
+    end
+    current.drops = current.drops or old.drops   -- where items drop: anyone's
+    return current
+end })
 
 for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIST_UPDATE" }) do
     ns:On(ev, function() C_Timer.After(0.3, function() R:Record() end) end)

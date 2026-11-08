@@ -64,19 +64,143 @@ function ns:On(event, fn)
 end
 
 frame:SetScript("OnEvent", function(_, event, ...)
-    local list = handlers[event]
-    if not list then return end
-    for _, fn in ipairs(list) do
+    for _, fn in ipairs(handlers[event] or {}) do
         local ok, err = pcall(fn, ...)
         if not ok then
             print("|cffff5555Flow error|r (" .. event .. "): " .. tostring(err))
         end
     end
+    -- After every module's own logout work: this character's data goes back
+    -- to FlowCharDB before the game writes the saved variables.
+    if event == "PLAYER_LOGOUT" and ns.db and ns.charDb then
+        local ok, err = pcall(ns.StoreCharacterData, ns, ns.db, ns.charDb)
+        if not ok then print("|cffff5555Flow error|r (saving character data): " .. tostring(err)) end
+    end
 end)
+frame:RegisterEvent("PLAYER_LOGOUT")
 
 function ns:Print(msg)
     print("|cff66ccffFlow|r: " .. tostring(msg))
 end
+
+-------------------------------------------------------------------------------
+-- Per-character data. FlowDB is shared by every character on the account
+-- (settings, learned trails, NPC places). Anything about one character (its
+-- fights, class trainer, recipes, hidden stops...) is declared per character
+-- by the module that owns it, next to its ns:OnLoad:
+--   ns:PerCharacter("trainer")                 a whole section of ns.db
+--   ns:PerCharacter("quests.notOffered")       one field of a section
+--   ns:PerCharacter(path, { adopt = fn })      plus what to keep from before
+-- It's saved in FlowCharDB (SavedVariablesPerCharacter, so the game keeps one
+-- per character) and sits at its usual place in ns.db while you play, so the
+-- module's code doesn't change. At logout it goes back to FlowCharDB.
+--
+-- Data saved before this split was shared by every character. It's parked
+-- in FlowDB.legacyShared, and the first time each character logs in it takes
+-- what adopt(old, ctx) returns (a copy; nil = start fresh, the default).
+-- ctx = { class, level, name }. later = true: adopt runs at PLAYER_LOGIN
+-- instead, as adopt(old, ctx, current), for checks that need the game ready
+-- (which professions you have); returning false there means "can't tell
+-- yet", and it's tried again at the next login.
+-------------------------------------------------------------------------------
+
+local function getPath(t, path)
+    for part in path:gmatch("[^%.]+") do
+        if type(t) ~= "table" then return nil end
+        t = t[part]
+    end
+    return t
+end
+local function setPath(t, path, value)
+    local parts = {}
+    for part in path:gmatch("[^%.]+") do parts[#parts + 1] = part end
+    for i = 1, #parts - 1 do
+        if type(t[parts[i]]) ~= "table" then
+            if value == nil then return end
+            t[parts[i]] = {}
+        end
+        t = t[parts[i]]
+    end
+    t[parts[#parts]] = value
+end
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local c = {}
+    for k, x in pairs(v) do c[k] = deepCopy(x) end
+    return c
+end
+ns.DeepCopy = deepCopy
+
+function ns:PerCharacter(path, def)
+    return self:Register("charData", path, def or {})
+end
+
+local function context()
+    local _, class = UnitClass("player")
+    return { class = class, level = UnitLevel("player"), name = UnitName("player") }
+end
+
+local function adoptOne(path, def, old, ctx, current)
+    if old == nil or not def.adopt then return nil end
+    local ok, keep
+    if def.later then ok, keep = pcall(def.adopt, deepCopy(old), ctx, current)
+    else ok, keep = pcall(def.adopt, deepCopy(old), ctx) end
+    if not ok then
+        print("|cffff5555Flow|r: couldn't sort old data (" .. path .. "): " .. tostring(keep))
+        return nil
+    end
+    return keep
+end
+
+-- At load: park pre-split shared data once, let this character adopt its
+-- share, then put this character's data where the modules look for it.
+-- (Tables passed in, so the tests can run it on their own.)
+function ns:SplitCharacterData(account, char, ctx)
+    account.charSplit = account.charSplit or {}
+    account.legacyShared = account.legacyShared or {}
+    char.data = char.data or {}
+    char.adopted = char.adopted or {}
+    local legacy, store = account.legacyShared, char.data
+    for path in self:Each("charData") do
+        if not account.charSplit[path] then
+            local v = getPath(account, path)
+            if v ~= nil then legacy[path] = v; setPath(account, path, nil) end
+            account.charSplit[path] = true
+        end
+    end
+    for path, def in self:Each("charData") do
+        if not char.adopted[path] and not def.later then
+            if store[path] == nil then store[path] = adoptOne(path, def, legacy[path], ctx) end
+            char.adopted[path] = true
+        end
+        setPath(account, path, store[path])
+    end
+end
+
+-- At login: adoption that needs the game ready, merged into the live value.
+function ns:AdoptLaterCharacterData(account, char, ctx)
+    local legacy = account.legacyShared or {}
+    for path, def in self:Each("charData") do
+        if def.later and not char.adopted[path] then
+            local keep = adoptOne(path, def, legacy[path], ctx, getPath(account, path))
+            -- false = the game isn't ready to tell yet: try again next login.
+            if keep ~= false then
+                if keep ~= nil then setPath(account, path, keep) end
+                char.adopted[path] = true
+            end
+        end
+    end
+end
+
+-- At logout: this character's data back to FlowCharDB, out of FlowDB.
+function ns:StoreCharacterData(account, char)
+    char.data = char.data or {}
+    for path in self:Each("charData") do
+        char.data[path] = getPath(account, path)
+        setPath(account, path, nil)
+    end
+end
+ns._getPath, ns._setPath = getPath, setPath   -- (tests)
 
 -- ns:OnLoad(fn): run fn once saved variables (ns.db) are available.
 local loaders = {}
@@ -87,13 +211,21 @@ end
 ns:On("ADDON_LOADED", function(name)
     if name ~= ADDON_NAME then return end
     FlowDB = FlowDB or {}
-    ns.db = FlowDB
+    FlowCharDB = FlowCharDB or {}
+    ns.db, ns.charDb = FlowDB, FlowCharDB
+    local splitOk, splitErr = pcall(ns.SplitCharacterData, ns, FlowDB, FlowCharDB, context())
+    if not splitOk then print("|cffff5555Flow load error|r (character data): " .. tostring(splitErr)) end
     for _, fn in ipairs(loaders) do
         local ok, err = pcall(fn, ns.db)
         if not ok then
             print("|cffff5555Flow load error|r: " .. tostring(err))
         end
     end
+end)
+
+ns:On("PLAYER_LOGIN", function()
+    if not (ns.db and ns.charDb) then return end
+    ns:AdoptLaterCharacterData(ns.db, ns.charDb, context())
 end)
 
 -- ns:MakeMovable(frame, save, clickable): every Flow element moves the same

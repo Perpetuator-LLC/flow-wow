@@ -87,6 +87,65 @@ local function with(tbl, key, value, fn)
     if not ok then error(err, 0) end
 end
 
+ns:Register("test", "core: each character has its own data", function(t)
+    -- Old shared data, as saved before the split: a druid's trainer, fights
+    -- from both characters, recipes, a hidden stop and shared settings.
+    local account = {
+        trainer = { npc = "Mardant Strongoak", services = { { name = "Moonfire" } } },
+        profiler = { fights = { { casts = { Moonfire = 2 } }, { casts = { ["Holy Light"] = 1 } }, { casts = { Attack = 5 } } } },
+        quests = { enabled = true, notOffered = { [101] = { at = 1 } } },
+        nav = { hidden = { ["7:1"] = true }, arrowStyle = "3d", graphs = { trail = true } },
+        crafting = { Mining = { rank = 50 }, Blacksmithing = { rank = 60 }, drops = { [2] = "x" } },
+    }
+    local druid, paladin = {}, {}
+    ns:SplitCharacterData(account, druid, { class = "DRUID" })
+    t:eq(account.trainer and account.trainer.npc, "Mardant Strongoak", "the druid gets the druid trainer")
+    t:ok(account.trainer ~= account.legacyShared.trainer, "as its own copy")
+    t:eq(account.profiler and #account.profiler.fights, 1, "only the druid's fight (no Holy Light, no Attack-only)")
+    t:eq(account.quests.notOffered, nil, "short-lived quest data starts fresh")
+    t:eq(account.quests.enabled, true, "settings stay shared")
+    t:ok(account.nav.hidden and account.nav.hidden["7:1"], "stops hidden before stay hidden")
+    t:ok(account.nav.graphs.trail, "learned trails stay shared")
+    t:eq(account.crafting, nil, "recipes wait for login (professions)")
+    account.crafting = {}   -- (what Recipes.lua's OnLoad does)
+    with(ns.api, "ProfessionSet", function() return { Mining = true } end, function()
+        ns:AdoptLaterCharacterData(account, druid, { class = "DRUID" })
+    end)
+    t:ok(account.crafting.Mining and not account.crafting.Blacksmithing, "recipes only for professions you have")
+    t:ok(druid.adopted.crafting, "done once")
+
+    -- Playing changes this character's data; logout stores it apart.
+    account.trainer.npc = "Someone else"
+    ns:StoreCharacterData(account, druid)
+    t:eq(account.trainer, nil, "logout: out of the shared data")
+    t:eq(druid.data.trainer.npc, "Someone else", "into this character's own")
+    t:eq(account.nav.arrowStyle, "3d", "shared settings untouched")
+    t:eq(account.nav.hidden, nil, "hidden stops are per character")
+
+    -- Another character: its own share of the old data, nothing of the druid's.
+    ns:SplitCharacterData(account, paladin, { class = "PALADIN" })
+    t:eq(account.trainer, nil, "no druid trainer for the paladin")
+    t:eq(account.profiler and #account.profiler.fights, 1, "only the paladin's fight")
+    t:ok(account.profiler.fights[1].casts["Holy Light"], "the Holy Light one")
+    with(ns.api, "ProfessionSet", function() return {} end, function()
+        ns:AdoptLaterCharacterData(account, paladin, { class = "PALADIN" })
+    end)
+    t:ok(not paladin.adopted.crafting, "professions not known yet: tried again next login")
+    ns:StoreCharacterData(account, paladin)
+
+    -- The druid again (a /reload or the next login): its data, not adopted twice.
+    ns:SplitCharacterData(account, druid, { class = "DRUID" })
+    t:eq(account.trainer and account.trainer.npc, "Someone else", "the druid's own data is back")
+    t:eq(account.legacyShared.trainer.npc, "Mardant Strongoak", "the parked old data never changes")
+end)
+
+ns:Register("test", "core: class spell sets tell classes apart", function(t)
+    local druid, paladin = ns:ClassSpellSet("DRUID"), ns:ClassSpellSet("PALADIN")
+    t:ok(druid.Moonfire and not paladin.Moonfire, "Moonfire is a druid's")
+    t:ok(paladin["Holy Light"] and not druid["Holy Light"], "Holy Light is a paladin's")
+    t:ok(not druid.Attack and not paladin.Attack, "Attack is nobody's")
+end)
+
 ns:Register("test", "core: registry keeps order and finds by key", function(t)
     local list = {}
     for k in ns:Each("profGuide") do list[#list + 1] = k end

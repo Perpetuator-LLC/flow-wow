@@ -58,6 +58,15 @@ local function record()
 end
 
 ns:OnLoad(function(saved) saved.trainer = saved.trainer or {} end)
+-- What your class trainer offers is your character's. The old shared copy
+-- goes to the class it lists spells of.
+ns:PerCharacter("trainer", { adopt = function(old, ctx)
+    local mine = ns:ClassSpellSet(ctx.class)
+    for _, s in ipairs(old.services or {}) do
+        if mine[s.name] then return old end
+    end
+    return nil
+end })
 
 ns:On("TRAINER_SHOW", function()
     -- Trainer list fills in a moment after the window opens.

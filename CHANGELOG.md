@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.68
+- Each character has its own Flow data now. "Ways to improve" (and the route) showed the last
+  character you played, because everything was saved once for the whole account. Fights,
+  learned heals, your class trainer, recipes, reagents, profession plan, role, hidden stops,
+  bought-back items and the like are now saved per character. Settings, learned trails, cave
+  entrances and NPC places stay shared, since they're the same for everyone.
+- Your old data is sorted out the first time each character logs in: fights and learned heals
+  go to the class whose spells they used, the class trainer list to its class, and recipes to
+  the characters with that profession. Plain-Attack fights can't be told apart, so they're
+  dropped, and short-lived things (quests an NPC didn't offer, money-blocked stops) start fresh.
+- The diagnostics snapshot says which character it's from.
+
 ## 0.35.67
 - The route looks further ahead: up to 30 stops instead of 14. The nearest stops are still
   ordered carefully, and the rest follow on nearest-next, so re-planning costs no more than

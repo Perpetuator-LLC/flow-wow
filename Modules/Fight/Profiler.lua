@@ -391,6 +391,23 @@ end
 -- Wiring
 -------------------------------------------------------------------------------
 
+-- Your fights are your character's (they drive "Ways to improve"). From the
+-- old shared history, keep the fights where one of your class's spells was
+-- cast; plain-Attack fights can't be told apart and are left out. The
+-- learned bias is worked out again from your own fights.
+local function fightOfClass(f, mine)
+    for spell in pairs(f.casts or {}) do if mine[spell] then return true end end
+    for _, spell in ipairs(f.opener or {}) do if mine[spell] then return true end end
+    return false
+end
+ns:PerCharacter("profiler", { adopt = function(old, ctx)
+    local mine, fights = ns:ClassSpellSet(ctx.class), {}
+    for _, f in ipairs(old.fights or {}) do
+        if fightOfClass(f, mine) then fights[#fights + 1] = f end
+    end
+    return { fights = fights, bias = {} }
+end })
+
 ns:OnLoad(function(saved)
     saved.profiler = saved.profiler or {}
     saved.profiler.fights = saved.profiler.fights or {}

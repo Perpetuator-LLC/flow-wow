@@ -424,6 +424,9 @@ ns:OnLoad(function(saved)
         for id, v in pairs(list) do if type(v) ~= "table" then list[id] = nil end end
     end
 end)
+-- Quests an NPC didn't offer *you* (race, class, day): per character, and
+-- short-lived, so nothing is kept from before.
+ns:PerCharacter("quests.notOffered")
 
 function Q:Available(q, levelSlack)
     local level = UnitLevel("player")

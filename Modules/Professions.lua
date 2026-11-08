@@ -139,6 +139,7 @@ function P:Open()
 end
 
 ns:OnLoad(function(saved) saved.prof = saved.prof or {} end)
+ns:PerCharacter("prof")   -- your profession plan
 
 -- Offered quietly from level 3 (advice list), never as a pop-up.
 ns:Register("advisor", "choosePro", {

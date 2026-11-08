@@ -2014,6 +2014,13 @@ ns:On("PLAYER_MONEY", function()
     end
 end)
 
+-- Per character: the stops you hid, money-blocked stops, your Custom route
+-- pick. (Trails, cave entrances and settings stay shared: they're the same
+-- for everyone.) Stops hidden before the split stay hidden for everyone.
+ns:PerCharacter("nav.hidden", { adopt = function(old) return old end })
+ns:PerCharacter("nav.deferred")
+ns:PerCharacter("nav.selectedKey")
+
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}
     saved.nav.graphs = saved.nav.graphs or {}

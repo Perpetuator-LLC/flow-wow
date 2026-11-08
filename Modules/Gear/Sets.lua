@@ -124,6 +124,9 @@ end
 ns:OnLoad(function(saved)
     saved.gear.setRoles = saved.gear.setRoles or {}
 end)
+-- Equipment sets are per character. Old roles are kept: they only apply to a
+-- set of that name, which only its own character has.
+ns:PerCharacter("gear.setRoles", { adopt = function(old) return old end })
 
 for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "EQUIPMENT_SETS_CHANGED",
                       "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE_DELAYED" }) do

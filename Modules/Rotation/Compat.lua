@@ -288,6 +288,15 @@ end
 -- Your professions: { { name, rank, max, primary } }. Uses the newer
 -- profession API where it exists (Forever), else the classic skills window.
 -- (Reading only the classic API made Flow miss professions you'd learned.)
+-- The professions you have, by name: { ["Mining"] = true } (no weapon skills).
+function A.ProfessionSet()
+    local set = {}
+    for _, p in ipairs(A.Professions()) do
+        if p.name and not p.other then set[p.name] = true end
+    end
+    return set
+end
+
 function A.Professions()
     local out = {}
     if GetProfessions and GetProfessionInfo then

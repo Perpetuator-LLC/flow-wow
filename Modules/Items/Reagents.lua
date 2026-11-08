@@ -64,6 +64,22 @@ function R:UsedBy(id)
 end
 
 ns:OnLoad(function(saved) saved.reagents = saved.reagents or {} end)
+-- Reagents come from your recipes: per character, and from the old shared
+-- data only for professions you have.
+ns:PerCharacter("reagents", { later = true, adopt = function(old, _, current)
+    local mine = ns.api.ProfessionSet()
+    if next(mine) == nil then return false end
+    current = current or {}
+    for id, uses in pairs(old) do
+        for prof, recipe in pairs(type(uses) == "table" and uses or {}) do
+            if mine[prof] then
+                current[id] = current[id] or {}
+                if current[id][prof] == nil then current[id][prof] = recipe end
+            end
+        end
+    end
+    return current
+end })
 
 for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIST_UPDATE" }) do
     ns:On(ev, function() C_Timer.After(0.3, scan) end)

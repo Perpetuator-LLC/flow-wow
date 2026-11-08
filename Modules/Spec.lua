@@ -33,6 +33,23 @@ function ns:ClassData()
     return ns:Get("class", class)
 end
 
+-- Every spell name a class trains or its rotation casts: { [name] = true }.
+-- Used to tell which character old shared data came from (per-character
+-- data, Core.lua): a fight with Moonfire in it was a druid's.
+function ns:ClassSpellSet(class)
+    local set = {}
+    for _, s in ipairs(ns:Get("classSpells", class or "") or {}) do
+        if s.spell then set[s.spell] = true end
+    end
+    local rot = ns:Get("rotation", class or "")
+    for _, field in ipairs({ "heals", "buffs", "spells" }) do
+        for _, s in ipairs(type(rot) == "table" and type(rot[field]) == "table" and rot[field] or {}) do
+            if type(s) == "string" then set[s] = true end
+        end
+    end
+    return set
+end
+
 -- The role you're levelling as: your own choice (/flow spec dps|heal|tank)
 -- or the class recommendation.
 function ns:LevelingRole()
@@ -62,6 +79,7 @@ local function describe()
 end
 
 ns:OnLoad(function(saved) saved.spec = saved.spec or {} end)
+ns:PerCharacter("spec")   -- your role choice; nothing kept from before (it was shared)
 
 ns:On("PLAYER_LOGIN", function()
     if UnitLevel("player") >= 10 and unspentPoints() > 0 then

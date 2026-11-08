@@ -30,6 +30,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `weaponMaster` | NPC name | `{ skills = { [itemSubclassID] = true } }` | Weapon master stops when an upgrade needs a weapon skill (`Modules/Gear/WeaponSkills.lua`) |
 | `routeObjective` | e.g. `xp`, `distance` | `{ label, tip, color, weigh = fn(goal, ctx) -> multiplier, keep = fn(goal, ctx) -> bool }` | What the route optimises (`Modules/Nav/XpValue.lua`); `/flow nav sort <key>` |
 | `test` | "area: what it checks" | `fn(t)` with `t:ok`, `t:eq`, `t:near` | `/flow test`, diagnostics snapshot |
+| `charData` | a path in `ns.db`: `"trainer"` or `"quests.notOffered"` | `{ adopt = fn(old, ctx) -> value, later = bool }`; register with `ns:PerCharacter(path, def)` | Per-character saved data (`Core.lua`): kept in `FlowCharDB`, at its usual place in `ns.db` while you play. `adopt` sorts data saved before the split (shared by all characters); `later` runs it at login as `adopt(old, ctx, current)`, `false` = try next login |
 | `mount` | race token, e.g. `Human` | `{ trainer, vendor, what }` NPC names | Mount milestone (`Modules/Nav/Mounts.lua`) |
 | `mountRule` | `default` | `{ level, ridingCost, mountCost, saveFrom, classMount = { CLASS = spell } }` | Mount milestone: when to save, learn and buy |
 | `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`) |

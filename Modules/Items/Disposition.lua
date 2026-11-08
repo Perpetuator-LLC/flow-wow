@@ -180,6 +180,9 @@ ns:OnLoad(function(saved)
     saved.sell = saved.sell or {}
     saved.sell.never = saved.sell.never or {}
 end)
+-- Items you bought back: per character. The old shared list is kept for
+-- every character (it only ever stops a sale).
+ns:PerCharacter("sell.never", { adopt = function(old) return old end })
 
 -------------------------------------------------------------------------------
 -- Built-in rules

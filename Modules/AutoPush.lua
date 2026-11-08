@@ -76,6 +76,7 @@ ns:OnLoad(function(saved)
     saved.autopush = saved.autopush or {}
     saved.autopush.seen = saved.autopush.seen or {}
 end)
+ns:PerCharacter("autopush.seen")   -- your action bars
 
 -- (spellID, slotIndex, slotPos) on clients that have this event.
 ns:On("SPELL_PUSHED_TO_ACTIONBAR", function(spellID, slot)

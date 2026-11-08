@@ -213,6 +213,15 @@ local function onCombatEnd()
     combatStart = nil
 end
 
+-- Learned heal sizes are your character's: from before, keep your class's
+-- spells. How hard mobs hit you depends on your armour: start fresh.
+ns:PerCharacter("rotation.heals", { adopt = function(old, ctx)
+    local mine, keep = ns:ClassSpellSet(ctx.class), {}
+    for spell, h in pairs(old) do if mine[spell] then keep[spell] = h end end
+    return keep
+end })
+ns:PerCharacter("rotation.mobs")
+
 ns:OnLoad(function(saved)
     saved.rotation = saved.rotation or {}
     local r = saved.rotation
