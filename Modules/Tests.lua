@@ -1912,3 +1912,14 @@ ns:Register("test", "nearby: ore and herbs around you and your next stop", funct
         t:ok(not NB.Enabled() and #NB.MinimapGroups({ map = 1, cont = 0, wx = 0, wy = 0 }, 200) == 0, "the setting turns it off")
     end)
 end)
+
+ns:Register("test", "party: your own messages echoed back are never someone else's", function(t)
+    local IsMe = ns.party.IsMe
+    t:ok(IsMe("Bob", "Bob", "Realm"), "plain name")
+    t:ok(IsMe("Bob-Realm", "Bob", "Realm"), "Name-Realm, as this client sends it")
+    t:ok(IsMe("Bob-Argent Dawn", "Bob", "ArgentDawn"), "realm with a space")
+    t:ok(not IsMe("Bob-Other", "Bob", "Realm"), "someone with your name from another realm isn't you")
+    t:ok(not IsMe("Alice-Realm", "Bob", "Realm"), "another player isn't you")
+    t:ok(not IsMe(nil, "Bob", "Realm"), "no sender: no")
+    t:ok(IsMe(UnitName("player")), "you, by your own name")
+end)

@@ -35,6 +35,23 @@ local inGroup = false
 
 local function me() return UnitName("player") or "?" end
 
+-- Is this addon-message sender you? The game echoes your own party messages
+-- back, and on WoW: Forever the sender carries your realm ("Name-Realm")
+-- even after Ambiguate, so comparing with your plain name let your own
+-- quest progress through ("Help <yourself>?").
+local function myRealm()
+    local r = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or ""
+    return (r:gsub("[%s%-']", ""))
+end
+function P.IsMe(sender, myName, realm)
+    if type(sender) ~= "string" then return false end
+    myName, realm = myName or me(), realm or myRealm()
+    if sender == myName then return true end
+    local name, senderRealm = sender:match("^([^%-]+)%-(.+)$")
+    if name ~= myName then return false end
+    return realm == "" or (senderRealm:gsub("[%s%-']", "")) == realm
+end
+
 local function channel()
     if IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
     if IsInRaid and IsInRaid() then return "RAID" end
@@ -399,8 +416,9 @@ end)
 
 ns:On("CHAT_MSG_ADDON", function(prefix, msg, _, sender)
     if prefix ~= PREFIX or not msg or not sender then return end
+    if P.IsMe(sender) then return end   -- your own message, echoed back
     local name = Ambiguate and Ambiguate(sender, "none") or sender
-    if name == me() then return end
+    if P.IsMe(name) then return end
     received(name, msg)
 end)
 

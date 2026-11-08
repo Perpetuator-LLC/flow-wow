@@ -152,7 +152,7 @@ end
 
 -- Ask once per person per group, when they have something left to do.
 function H:MaybeAsk(name)
-    if asked[name] or helping == name then return end
+    if asked[name] or helping == name or ns.party.IsMe(name) then return end
     local todo = H.ToDo(progress[name])
     if todo == 0 then return end
     asked[name] = true
@@ -163,6 +163,7 @@ ns.party.handlers.G = function(sender, rest)
     local part, parts, body = rest:match("^(%d+)|(%d+)|(.*)$")
     part, parts = tonumber(part), tonumber(parts)
     if not part then return end
+    if ns.party.IsMe(sender) then return end   -- (never your own progress)
     if part == 1 then buffers[sender] = {} end
     local buf = buffers[sender]
     if not buf then return end

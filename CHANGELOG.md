@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.71
+- Fixed: in a group, Flow asked "Help <you>?" about yourself. The game echoes your own party
+  messages back, and this client adds your realm to your name ("Name-Realm"), so Flow didn't
+  recognise them as yours. Your own messages (quest progress, party route) are now always
+  ignored, while someone with your name from another realm still counts as someone else.
+
 ## 0.35.70
 - Profession nodes near you: soft clouds on the minimap where ore (tan) and herbs (green) your
   professions can gather spawn, so you can mine Iron while you're in a quest's area without
