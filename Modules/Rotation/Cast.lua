@@ -92,6 +92,54 @@ function C:KeyLabel()
     return (GetBindingText and GetBindingText(key, "KEY_", true)) or key
 end
 
+-- The easy button's tooltip: what it does now (the spell's or item's own
+-- tooltip, then why Flow suggests it), what the key is locked to in a fight,
+-- and what's coming up next, each with its reason.
+--   shown: the suggestion (E.shown), locked: the spell the key holds in combat,
+--   deck: E:OnDeck(...) entries { spell, reason }
+function C.TooltipLines(shown, locked, deck, inCombat)
+    local lines = {}
+    if shown then
+        local what = shown.label or shown.spell or "?"
+        lines[#lines + 1] = { "Flow suggests: " .. what, 1, 0.82, 0 }
+        if shown.reason and shown.reason ~= what then lines[#lines + 1] = { "Why: " .. shown.reason, 1, 1, 1 } end
+    else
+        lines[#lines + 1] = { "Flow: nothing to press right now", 1, 0.82, 0 }
+    end
+    if inCombat and locked and (not shown or locked ~= shown.spell) then
+        lines[#lines + 1] = { "The key casts " .. locked .. " this fight (it can't change in combat).", 1, 0.6, 0.3 }
+    end
+    if deck and #deck > 0 then
+        lines[#lines + 1] = { "Coming up:", 1, 0.82, 0 }
+        for i, d in ipairs(deck) do
+            lines[#lines + 1] = { string.format("  %d. %s%s", i, d.spell, d.reason and ("  |cffaaaaaa(" .. d.reason .. ")|r") or ""), 1, 1, 1 }
+        end
+    end
+    return lines
+end
+
+function C:FillTooltip(tt)
+    local s = E.shown
+    -- The underlying cast: the spell's (or item's) own tooltip first.
+    local id = s and s.spell and select(4, A.SpellInfo(s.spell))
+    local item = s and s.item and tonumber(tostring(s.item):match("(%d+)"))
+    if id and tt.SetSpellByID then tt:SetSpellByID(id)
+    elseif item and tt.SetItemByID then tt:SetItemByID(item) end
+    if id or item then tt:AddLine(" ") end
+    local deck = {}
+    local ctx = E.lastCtx
+    if ctx and (ctx.inCombat or ctx.hostile) then
+        local ok, d = pcall(E.OnDeck, E, 3, s and s.spell)
+        if ok then deck = d end
+    end
+    for _, l in ipairs(C.TooltipLines(s, lockedSpell, deck, InCombatLockdown())) do
+        tt:AddLine(l[1], l[2], l[3], l[4], true)
+    end
+    local key = C:KeyLabel()
+    tt:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 0.8, 0.8, 0.8)
+    tt:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.6, 0.6, 0.6)
+end
+
 local function refreshLabels()
     if not keyText then return end
     keyText:SetText(C:KeyLabel())
@@ -131,11 +179,7 @@ local function build(cfg)
     btn:SetScript("OnDragStop", function() C:EndMove() end)
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Flow: click to cast the suggestion")
-        local key = C:KeyLabel()
-        GameTooltip:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 1, 1, 1)
-        GameTooltip:AddLine("In combat the key stays on the spell it had when the fight started.", 0.7, 0.7, 0.7, true)
-        GameTooltip:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.7, 0.7, 0.7)
+        pcall(C.FillTooltip, C, GameTooltip)
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)

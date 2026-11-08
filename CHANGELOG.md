@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.35.74
+- **Hover the easy button** to see the spell's (or item's) own tooltip, why Flow suggests it,
+  what the key is locked to in a fight (when that's different), and the next three
+  suggestions, each with its reason. Each **on deck** icon has its own tooltip too.
+- **Buff items on the Flow key.** At a kill or loot stop (quest mobs, farming meat or cloth),
+  or right after a fight, the key offers an elixir, flask or scroll you carry whose buff isn't
+  on. If your weapon has nothing on it, it offers a sharpening stone (edged weapons),
+  weightstone (blunt) or oil instead. It's out of combat only, never in inns or cities, and
+  one press uses it.
+- **Batch crafting bar.** Making several at once (Create All, or a count) shows a second bar
+  under your cast bar for the whole batch, "Making Charred Wolf Meat 3/10". It fills as each
+  one finishes and says "Stopped" if you move.
+- **Auction house prices and a watch list.**
+  - Opening an auction house looks up the cheapest buyout of what you'd sell there and of
+    your watch list, and records anything you browse.
+  - Item tooltips show "Auction house: 1g 20s each, 3 h ago". The Flow Seller uses these
+    prices to choose between the auction house and a vendor.
+  - `/flow ah watch <item> [gold]` tells you (with a sound) when an item is listed at or under
+    your price. `/flow ah` lists the watch list; `/flow ah unwatch <item>` removes one.
+- The Flow Tracker and world map now show **just the next stop** by default. Choose 3, 5, 10 or
+  All in /flow settings or the route menu.
+
 ## 0.35.73
 - **Whose quests your route covers**, in a group with other Flow players:
   - **Mine:** your own quests.

@@ -98,6 +98,9 @@ function D:AuctionPrice(link)
         local ok, p = pcall(Auctionator.API.v1.GetAuctionPriceByItemLink, "Flow", link)
         if ok and type(p) == "number" then return p end
     end
+    -- Flow's own prices from the auction houses you've opened (Items/Auction.lua).
+    local id = link and tonumber(link:match("item:(%d+)"))
+    return id and ns.auction and ns.auction:Price(id) or nil
 end
 
 -------------------------------------------------------------------------------

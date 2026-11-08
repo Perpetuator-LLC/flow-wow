@@ -118,6 +118,19 @@ local function buildIcon(cfg)
         d.timer:SetFont(STANDARD_TEXT_FONT, math.max(9, math.floor(sz * 0.42)), "OUTLINE")
         d.timer:SetPoint("CENTER")
         d:SetAlpha(1 - (i - 1) * 0.15)
+        -- Hover: that spell's own tooltip and why it's coming up.
+        d:EnableMouse(true)
+        d:SetScript("OnEnter", function(self)
+            local e = self.entry
+            if not e then return end
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            local id = select(4, A.SpellInfo(e.spell))
+            if id and GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(id); GameTooltip:AddLine(" ") end
+            GameTooltip:AddLine(string.format("Coming up %d: %s", i, e.spell), 1, 0.82, 0)
+            if e.reason then GameTooltip:AddLine("Why: " .. e.reason, 1, 1, 1, true) end
+            GameTooltip:Show()
+        end)
+        d:SetScript("OnLeave", function() GameTooltip:Hide() end)
         d:Hide()
         f.deck[i] = d
         prev = d
@@ -338,6 +351,7 @@ local function onUpdate(_, dt)
     local now = GetTime()
     for i, slot in ipairs(icon.deck) do
         local e = deck[i]
+        slot.entry = e
         if e then
             local _, tex = A.SpellInfo(e.spell)
             slot.tex:SetTexture(tex)

@@ -849,12 +849,15 @@ function N:PlanLabels(plan)
 end
 
 -- Stops on the map: how many upcoming stops the world map and the Flow
--- Tracker show. nil = all of them (the default), 1 = just the next stop.
+-- Tracker show. Returns the number, or nil for all of them. Saved: nothing
+-- = 1, just the next stop (the default); 0 = all.
 -- The whole trip is still planned (the next stop depends on everything after
 -- it), and the Flow Router still lists all of it so you can pick any stop.
 N.STOP_CHOICES = { 1, 3, 5, 10 }
 function N:StopsShown()
-    local n = tonumber(ns.db.nav.stopsShown)
+    local saved = ns.db.nav.stopsShown
+    if saved == nil then return 1 end
+    local n = tonumber(saved)
     if n and n >= 1 then return math.floor(n) end
     return nil
 end
@@ -865,7 +868,7 @@ function N:ShowStop(i, pointed)
 end
 function N:SetStopsShown(n)
     n = tonumber(n)
-    ns.db.nav.stopsShown = (n and n >= 1) and math.floor(n) or nil
+    ns.db.nav.stopsShown = (n and n >= 1) and math.floor(n) or 0   -- (0 = all; nothing saved = 1)
     if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
     if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
 end

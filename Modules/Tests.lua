@@ -1547,7 +1547,10 @@ ns:Register("test", "route: Stops on the map", function(t)
     local N = ns.nav
     with(ns.db.nav, "stopsShown", nil, function()
     with(ns, "Print", function() end, function()
-        t:eq(N:StopsShown(), nil, "default: all stops")
+        t:eq(N:StopsShown(), 1, "default: next stop only")
+        t:ok(not N:ShowStop(2, false), "default: stop 2 doesn't show")
+        N:SetStopsShown(nil)
+        t:eq(N:StopsShown(), nil, "all stops, when chosen")
         t:ok(N:ShowStop(25, false), "all: stop 25 shows")
         t:eq(N:StopsShownLabel(), "All stops", "label: all")
         N:SetStopsShown(1)
@@ -1592,9 +1595,13 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
             ns.routeTracker:Refresh()
             t:eq(rowsShown(), 1, "next stop only: one row")
         end)
-        with(ns.db.nav, "stopsShown", nil, function()
+        with(ns.db.nav, "stopsShown", 0, function()
             ns.routeTracker:Refresh()
             t:eq(rowsShown(), 6, "all: 5 stops and the blocked one")
+        end)
+        with(ns.db.nav, "stopsShown", nil, function()
+            ns.routeTracker:Refresh()
+            t:eq(rowsShown(), 1, "default: next stop only")
         end)
     end)
     end)
@@ -1987,4 +1994,69 @@ ns:Register("test", "follow: the arrow follows a party member only while you fol
     t:eq(F.Choice({ map = 1, cont = 0, wx = 0, wy = 0 }), nil, "no one to follow: the arrow stays on the route")
     t:eq(F.UnitOf("Nobody-Here"), nil, "someone not in your group has no unit")
     t:ok(type(F:MenuItems()) == "table", "menu items build")
+end)
+
+ns:Register("test", "easy button: hover says what, why, and what's coming", function(t)
+    local L = ns.cast.TooltipLines({ spell = "Judgement", reason = "Judge the seal" }, "Judgement",
+        { { spell = "Holy Strike", reason = "Holy Strike" }, { spell = "Seal of Righteousness", reason = "No seal, or running out" } }, false)
+    t:ok(L[1][1]:find("Judgement", 1, true), "what Flow suggests")
+    t:ok(L[2][1]:find("Judge the seal", 1, true), "why")
+    local all = {}
+    for _, l in ipairs(L) do all[#all + 1] = l[1] end
+    local text = table.concat(all, "\n")
+    t:ok(text:find("Coming up", 1, true) and text:find("1. Holy Strike", 1, true) and text:find("No seal", 1, true), "the next ones, with reasons")
+    local fight = ns.cast.TooltipLines({ spell = "Holy Strike" }, "Judgement", {}, true)
+    local says = false
+    for _, l in ipairs(fight) do if l[1]:find("key casts Judgement", 1, true) then says = true end end
+    t:ok(says, "in a fight: what the key is locked to, when it differs")
+end)
+
+ns:Register("test", "buff items: used when you're about to kill a lot, if not on already", function(t)
+    local BI = ns.buffItems
+    local items = {
+        { id = 1, sub = 2, name = "Elixir of Lion's Strength", spell = "Lesser Strength" },
+        { id = 2, sub = 6, name = "Rough Sharpening Stone" },
+        { id = 3, sub = 6, name = "Rough Weightstone" },
+    }
+    local none = function() return false end
+    local all = function() return true end
+    t:eq(BI.Pick(items, none, 7, false).id, 1, "elixir first, when its buff is missing")
+    t:eq(BI.Pick(items, all, 7, false).id, 2, "buff on: a sharpening stone for a sword")
+    t:eq(BI.Pick(items, all, 4, false).id, 3, "a weightstone for a mace")
+    t:eq(BI.Pick(items, all, 7, true), nil, "the weapon has one already: nothing")
+    t:ok(BI.FitsWeapon("Minor Wizard Oil", 10), "oil goes on anything")
+    t:ok(not BI.FitsWeapon("Rough Sharpening Stone", 4), "no sharpening stone on a mace")
+    t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill stop: yes")
+    t:ok(not BI.Killing({ at = false, goal = { key = "500:done", kind = "turnin" } }, GetTime() + 1000), "walking to a turn-in, no fight lately: no")
+end)
+
+ns:Register("test", "crafting: a bar for the whole batch", function(t)
+    local CB = ns.craftBar
+    CB.Start("Charred Wolf Meat", 3, nil)
+    t:eq(CB.Text(CB.Current()), "Making Charred Wolf Meat 0/3", "starts at 0/3")
+    CB.Step("Charred Wolf Meat", true)
+    CB.Step("Something Else", true)
+    t:eq(CB.Current().done, 1, "only that recipe counts")
+    CB.Step("Charred Wolf Meat", false)
+    t:ok(CB.Text(CB.Current()):find("^Stopped"), "interrupted: says so")
+    CB.Start("Linen Bandage", 1, nil)
+    t:eq(CB.Current(), nil, "making just one: the cast bar is enough")
+    t:eq(CB.Text({ name = "X", total = 2, done = 2 }), "Made 2 X", "done")
+end)
+
+ns:Register("test", "auction house: prices, money and the watch list", function(t)
+    local AH = ns.auction
+    t:eq(AH.Money(12345), "1g 23s 45c", "money text")
+    t:eq(AH.Money(0), "0c", "nothing")
+    t:eq(AH.ParseMoney("1.5"), 15000, "plain number = gold")
+    t:eq(AH.ParseMoney("1g50s"), 15000, "1g50s")
+    t:eq(AH.ParseMoney("75s"), 7500, "75s")
+    t:eq(AH.ParseMoney("cheap"), nil, "not a price")
+    local prices = {}
+    AH.Record(prices, 2589, 120.7, 1000)
+    local e = AH.Record(prices, 2589, 95, 2000)
+    t:eq(e.price, 95, "latest price kept")
+    t:eq(#e.looks, 2, "with its history")
+    for i = 1, 20 do AH.Record(prices, 2589, i, 3000 + i) end
+    t:ok(#prices[2589].looks <= 8, "history stays short")
 end)

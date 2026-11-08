@@ -356,7 +356,7 @@ function E:OnDeck(n, current)
             if rule.when then okW, w = pcall(rule.when, ctx) end
             if okW and w then
                 seen[s] = true
-                out[#out + 1] = { spell = s, cd = A.Cooldown(s), kind = rule.kind or "damage" }
+                out[#out + 1] = { spell = s, cd = A.Cooldown(s), kind = rule.kind or "damage", reason = rule.reason }
                 if #out >= n then break end
             end
         end
