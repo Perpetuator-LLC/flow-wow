@@ -184,6 +184,25 @@ local function build()
         end)
         f.rows[i] = r
     end
+    -- Under the stops: ore and herbs you can gather around you and your next
+    -- stop (Crafting/Nearby.lua). Not a stop, just "while you're here".
+    local nb = CreateFrame("Button", nil, f.body)
+    nb:SetHeight(16)
+    nb.text = nb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    nb.text:SetAllPoints(); nb.text:SetJustifyH("LEFT"); nb.text:SetWordWrap(false)
+    nb:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("Your professions, while you're here")
+        for _, e in ipairs(self.counts or {}) do
+            GameTooltip:AddDoubleLine(string.format("|T%s:14:14|t %s", ns.nearby.ICON[e.prof] or "", e.name),
+                string.format("%d spot(s)%s", e.n, e.skillUp and ", raises your skill" or ""), 1, 1, 1, 0.8, 0.8, 0.8)
+        end
+        GameTooltip:AddLine("Where they spawn within " .. ns.nearby.RADIUS .. " yd of you and your next stop: the tan (ore) and green (herb) clouds on the minimap. Not a stop of its own.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    nb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    nb:Hide()
+    f.nearby = nb
     return f
 end
 
@@ -273,7 +292,22 @@ function RT:Refresh()
             shown = 1
         end
     end
-    frame.body:SetHeight(8 + shown * 17)
+    -- "Nearby: Iron Deposit x3 +skill" under the stops (not part of the rail).
+    local line, counts
+    if open and ns.nearby then line, counts = ns.nearby.Now() end
+    local nb = frame.nearby
+    if line then
+        nb.text:SetText(line)
+        nb.counts = counts
+        nb:ClearAllPoints()
+        nb:SetPoint("TOPLEFT", 8, -4 - shown * 17)
+        nb:SetPoint("TOPRIGHT", -6, -4 - shown * 17)
+        nb:Show()
+    else
+        nb:Hide()
+    end
+    local extra = line and 17 or 0
+    frame.body:SetHeight(8 + shown * 17 + extra)
     -- The order rail: as long as the list, chevron at the bottom (only with 2+ stops).
     local railLen = math.max(0, shown * 17 - 6)
     local rail = frame.body.rail
@@ -284,7 +318,7 @@ function RT:Refresh()
         l:SetEndPoint("TOPLEFT", frame.body, 3.5, -6 - railLen)
         l:SetShown(shown > 1)
     end
-    frame:SetHeight(24 + (open and (8 + shown * 17) or 0))
+    frame:SetHeight(24 + (open and (8 + shown * 17 + extra) or 0))
 end
 
 ns:OnLoad(function(saved)

@@ -151,7 +151,9 @@ function P.Spans(pts, r, y, radius)
 end
 
 local xs_, ys_, spans_ = {}, {}, {}
-local function drawAreaMini(p, goal, color, strong)
+-- yards: cloud radius around each spot (default the stop areas' 45 yd;
+-- profession nodes use a smaller one, Crafting/Nearby.lua).
+local function drawAreaMini(p, goal, color, strong, yards)
     if not (goal and goal.area and goal.points) then return end
     local radius = Minimap:GetWidth() / 2
     local n, r = 0, nil
@@ -159,7 +161,7 @@ local function drawAreaMini(p, goal, color, strong)
         if pt.wx and pt.cont == p.cont then
             local x, y, scale = toMini(p, pt.wx, pt.wy)
             if x then
-                r = r or math.max(3, AREA_YARDS * scale)
+                r = r or math.max(3, (yards or AREA_YARDS) * scale)
                 if x * x + y * y < (radius + r) * (radius + r) then n = n + 1; xs_[n], ys_[n] = x, y end
             end
         end
@@ -266,6 +268,7 @@ local function signature(p, goal)
     return string.format("%d:%d:%d:%d:%s:%s:%s:%d", math.floor(p.wx / 2), math.floor(p.wy / 2),
         math.floor((f or 0) * 20), Minimap:GetZoom() or 0, tostring(goal and goal.key),
         tostring(hoverGoal and hoverGoal.key), tostring(ns.db.nav.minimapAreas), Minimap:GetWidth())
+        .. ":" .. tostring(ns.db.nav.nearbyNodes) .. ":" .. tostring(ns.nearby and ns.nearby.version)
 end
 function P:UpdateAreas(p, goal, force)
     if not Minimap then return end
@@ -286,6 +289,14 @@ function P:UpdateAreas(p, goal, force)
     if ns.db.nav.minimapPin ~= false and ns.db.nav.minimapAreas ~= false and p and not (ns.Lite and ns.Lite()) then
         if hoverGoal and hoverGoal ~= goal then drawAreaMini(p, hoverGoal, ns.theme.hover, true) end
         drawAreaMini(p, goal, ns.theme.route, hoverGoal == nil or hoverGoal == goal)
+    end
+    -- Ore and herbs you can gather, where they spawn near you (Crafting/Nearby.lua).
+    if ns.nearby and p and not (ns.Lite and ns.Lite()) then
+        local zoom = Minimap:GetZoom() or 0
+        local yards = ((IsIndoors and IsIndoors()) and INDOOR or OUTDOOR)[zoom] or 466
+        for _, g in ipairs(ns.nearby.MinimapGroups(p, yards / 2 + 20)) do
+            drawAreaMini(p, g, g.color, true, ns.nearby.MINIMAP_YARDS)
+        end
     end
     for i = nDiscs + 1, oldD do discs[i]:Hide() end
 

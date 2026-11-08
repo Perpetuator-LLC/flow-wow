@@ -230,6 +230,10 @@ local function build(parent)
         "The area of the stop the arrow points at, on the minimap (and the stop you hover in the Flow Tracker).",
         function() return ns.db.nav.minimapAreas ~= false end,
         function(on) ns.db.nav.minimapAreas = on; if ns.minimapPin then ns.minimapPin:Hide() end end)
+    _, y = check(f, y, "Profession nodes near you", "(minimap clouds, Flow Tracker line)",
+        "Where ore and herbs your professions can gather spawn around you and your next stop: tan (ore) and green (herb) clouds on the minimap, and \"Nearby: Iron Deposit x3\" under the Flow Tracker's stops (+skill when it still raises your skill).",
+        function() return ns.db.nav.nearbyNodes ~= false end,
+        function(on) ns.db.nav.nearbyNodes = on; if ns.minimapPin then ns.minimapPin:Hide() end end)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)

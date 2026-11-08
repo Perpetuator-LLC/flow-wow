@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.70
+- Profession nodes near you: soft clouds on the minimap where ore (tan) and herbs (green) your
+  professions can gather spawn, so you can mine Iron while you're in a quest's area without
+  it becoming a stop of its own.
+- The Flow Tracker gets a line under its stops: "Nearby: Iron Deposit x3 +skill, Kingsblood
+  x2", counting spawn spots within 120 yd of you and your next stop. +skill means the node
+  still raises your skill; hover the line for the details.
+- Only professions you've learned and nodes your skill can gather are shown (Copper to
+  Rich Thorium, Peacebloom to Black Lotus). These are spots where a node can appear; the
+  game's Find Minerals / Find Herbs shows which ones are up right now.
+- On by default: "Profession nodes near you" in /flow settings.
+
 ## 0.35.69
 - Party quest progress: Flow players in a group now share how far they are on every quest
   (each objective's count, like 3/10, and whether it's ready to hand in). It updates a couple

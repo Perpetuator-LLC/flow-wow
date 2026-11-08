@@ -1886,3 +1886,29 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
     ns.quests.QuestGoals(db, q, skipped, { prefix = "help:", who = "Bob", skip = function(k) return k == "help:500:1" end })
     t:eq(#skipped, 1, "skip leaves out what you already cover")
 end)
+
+ns:Register("test", "nearby: ore and herbs around you and your next stop", function(t)
+    local NB = ns.nearby
+    local spots = {
+        { name = "Iron Deposit", prof = "Mining", skill = 125, cont = 0, wx = 10, wy = 0 },
+        { name = "Iron Deposit", prof = "Mining", skill = 125, cont = 0, wx = 50, wy = 0 },
+        { name = "Kingsblood", prof = "Herbalism", skill = 125, cont = 0, wx = 500, wy = 10 },
+        { name = "Copper Vein", prof = "Mining", skill = 1, cont = 0, wx = 900, wy = 0 },
+        { name = "Iron Deposit", prof = "Mining", skill = 125, cont = 1, wx = 10, wy = 0 },
+    }
+    local ranks = { Mining = 140, Herbalism = 300 }
+    local you, stop = { cont = 0, wx = 0, wy = 0 }, { cont = 0, wx = 500, wy = 0 }
+    local c = NB.Count(spots, { you, stop }, 120, ranks)
+    t:eq(#c, 2, "Iron near you, Kingsblood near the next stop; the far Copper isn't")
+    t:eq(c[1].name, "Iron Deposit", "most spots first")
+    t:eq(c[1].n, 2, "only spots on your continent count")
+    t:ok(c[1].skillUp and not c[2].skillUp, "+skill only while it still raises yours")
+    local line = NB.Line(c)
+    t:ok(line and line:find("Iron Deposit x2", 1, true) and line:find("+skill", 1, true), "the Tracker line says it")
+    t:eq(NB.Line({}), nil, "nothing near: no line")
+    t:ok(NB.SkillUp(1, 99) and not NB.SkillUp(1, 101), "a node raises skill for ~100 points")
+    t:ok(ns:Get("gatherNode", "Iron Deposit") and ns:Get("gatherNode", "Peacebloom"), "ore and herb nodes listed")
+    with(ns.db.nav, "nearbyNodes", false, function()
+        t:ok(not NB.Enabled() and #NB.MinimapGroups({ map = 1, cont = 0, wx = 0, wy = 0 }, 200) == 0, "the setting turns it off")
+    end)
+end)
