@@ -2529,3 +2529,11 @@ ns:Register("test", "druid out of mana: hit it with your weapon", function(t)
     end
     t:ok(found ~= nil, "caster form has a melee fallback for when the mana's gone")
 end)
+
+ns:Register("test", "arrow: the same purple as the (o) on the NPC you're heading to", function(t)
+    local N = ns.nav
+    t:eq(N.ArrowSliceShade(4), 1, "the arrow's top is the route colour itself")
+    t:ok(N.ArrowSliceShade(0) >= 0.5 and N.ArrowSliceShade(0) < 1, "its sides a little darker, still the same purple")
+    local purple = ns.theme:ModeColor("xp")
+    t:eq(purple.hex, ns.theme:ColorBlind() and "CC79A7" or "A335EE", "Most XP first: epic purple, for the arrow and the (o)")
+end)

@@ -551,6 +551,13 @@ function N.Project3D(x, z, angle)
     return gx * k, gz * COS_T * k, k
 end
 
+-- Brightness of each slice of the 3D arrow's slab (0 = bottom): the top is
+-- the route colour itself (1), the sides below a little darker.
+function N.ArrowSliceShade(slice)
+    if slice >= SLICES - 1 then return 1 end
+    return 0.55 + 0.3 * slice / (SLICES - 1)
+end
+
 function N:MakeArrow3D(parent)
     local a = CreateFrame("Frame", nil, parent)
     a:SetSize(64, 64)
@@ -696,24 +703,27 @@ function N:MakeArrow3D(parent)
             -- Shadow on the ground: soft, offset down and right.
             outline(pts, 3, -5, "BACKGROUND", 7, 0, 0, 0, 0.22)
             outline(shrink(0.5), 3, -5, "BACKGROUND", 7, 0, 0, 0, 0.22)
-            -- The slab: slices from the bottom (dark sides) up.
+            -- The slab: slices from the bottom (the sides, a little darker) up.
+            -- The top is the route colour exactly, flat, the same purple as
+            -- the (o) over the NPC you're heading to (it used to be shaded per
+            -- edge and read as a muddier purple).
             local lift = 4 + a.bob
             for sl = 0, SLICES - 1 do
                 local top = (sl == SLICES - 1)
-                local m = top and 1 or (0.35 + 0.35 * sl / (SLICES - 1))
+                local m = N.ArrowSliceShade(sl)
                 local dy = lift + sl * THICK
                 for f = 1, (top and FILL or 1) do   -- lower slices: outline only (the sides)
                     local scale = 1 - (f - 1) / FILL
                     outline(scale == 1 and pts or shrink(scale), 0, dy, top and "ARTWORK" or "BORDER",
-                        top and 2.6 or 2.5, a.r * m, a.g * m, a.b * m, 1, top and f == 1)
+                        top and 2.6 or 2.5, a.r * m, a.g * m, a.b * m, 1, false)
                 end
             end
-            -- Ridge along the middle of the top: a white highlight.
+            -- Ridge along the middle of the top: a faint highlight.
             local ridge = line("OVERLAY", 1.2)
             local dy = lift + (SLICES - 1) * THICK
             ridge:SetStartPoint("CENTER", a, pts[1][1], pts[1][2] + dy)
             ridge:SetEndPoint("CENTER", a, pts[3][1], pts[3][2] + dy)
-            ridge:SetColorTexture(1, 1, 1, 0.75)
+            ridge:SetColorTexture(1, 1, 1, 0.3)
         end
         for i = a.n + 1, #a.lines do a.lines[i]:Hide() end
         -- The ring lies on the ground (an ellipse); its pillars stand up from it.

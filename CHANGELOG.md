@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.88
+- **The arrow is the same purple as the (o)** over the NPC you're heading to. Both always took
+  the route colour (purple for "Most XP first"), but the 3D arrow shaded every edge and darkened
+  its sides, so it read as a muddier purple. Its top is now the exact route colour, flat; the
+  sides are only a little darker, and the white ridge along the middle is fainter. Other route
+  colours (blue for Shortest path, orange for a Custom route, green for your waypoint) match
+  their (o) the same way.
+
 ## 0.35.87
 - **Heals come early now, long before your health is a problem.** Forever hides your health
   from add-ons all the time (Flow reads "0/0" even standing still), and its combat log is off,
