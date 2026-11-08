@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.64
+- Druids are supported. Flow suggests Mark of the Wild and Thorns, then Moonfire and Wrath as
+  a caster. In Bear Form it suggests Demoralizing Roar and Maul (Swipe on several enemies); in
+  Cat Form, Rake, Claw and Ferocious Bite at 4+ combo points. The cast key stays on your form's
+  main attack for the fight (Wrath, Maul or Claw). You get heal prompts (Rejuvenation, Healing
+  Touch, Regrowth) in caster form, Druid gear stats (Feral, Restoration), trainer spells and
+  class trainers (night elf and tauren), and Herbalism + Alchemy as the suggested professions.
+- A brand-new character now gets an arrow to their first quest. Quests to pick up used to
+  come only from zones where you'd already finished a quest, so with none finished there
+  were none. Now the zone you're standing in counts too, as do the zones of quests in your log.
+- When the game hides your target's debuffs, Flow remembers your Moonfire, Rake and
+  Demoralizing Roar on that mob, so it doesn't keep suggesting them.
+- Most XP: quests 3+ levels above you always wait, even at level 1 (a level-4 quest's
+  bigger XP used to put it first at level 1).
+
 ## 0.35.63
 - The world map costs far less while it's open. It used to draw your whole route again
   twice a second; now it does that only when something on it changes (the route, the map,

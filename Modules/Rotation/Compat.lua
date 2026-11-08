@@ -103,7 +103,9 @@ end
 -- Your own buffs from what you cast, for when the game won't let addons read
 -- auras (Forever hides them, often in combat: "Auras cannot be accessed when
 -- secret"). Seals and blessings are timed; auras last until changed.
-local DURATION = { ["^Seal of"] = 30, ["^Blessing of"] = 300, [" Aura$"] = math.huge }
+-- Druid: Mark of the Wild 30 min, Thorns 10 min.
+local DURATION = { ["^Seal of"] = 30, ["^Blessing of"] = 300, [" Aura$"] = math.huge,
+                   ["^Mark of the Wild$"] = 1800, ["^Thorns$"] = 600 }
 local cast = {}   -- [spell name] = { at, ends }
 local function remember(name)
     for pat, d in pairs(DURATION) do
@@ -336,10 +338,80 @@ function A.Casting()
     if name then return name, endMs and ((endMs / 1000) - GetTime()) or 0 end
 end
 
--- Feeds A.Buff's fallback: your successful casts.
+-- Your own debuffs on a target (Moonfire, Rake...): found, seconds left.
+-- When the game hides the target's auras, falls back to what you cast on
+-- it (A.RememberDebuff): the same target, within the debuff's duration.
+local DEBUFF_DURATION = { ["Moonfire"] = 9, ["Rake"] = 9, ["Rip"] = 12,
+                          ["Demoralizing Roar"] = 30, ["Faerie Fire"] = 40, ["Insect Swarm"] = 12 }
+local debuffs = {}   -- [spell] = { guid, ends }
+function A.RememberDebuff(name, guid, now)
+    local d = DEBUFF_DURATION[name]
+    if not d then return end
+    now = now or GetTime()
+    debuffs[name] = { guid = guid, ends = now + d }
+end
+function A.DebuffFromMemory(name, guid, now)
+    local e = debuffs[name]
+    now = now or GetTime()
+    if not (e and e.ends > now) then return false, 0 end
+    if e.guid and guid and e.guid ~= guid then return false, 0 end   -- a different mob
+    return true, e.ends - now
+end
+A._debuffMemory = debuffs  -- (tests)
+
+function A.Debuff(unit, name)
+    local guid = Safe(UnitGUID(unit))
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        for i = 1, 40 do
+            local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HARMFUL|PLAYER")
+            if not ok then return A.DebuffFromMemory(name, guid) end
+            if not a then return false, 0 end
+            local n, expires = Safe(a.name), Safe(a.expirationTime)
+            if n == nil then return A.DebuffFromMemory(name, guid) end
+            if n == name then
+                if expires and expires > 0 then return true, expires - GetTime() end
+                return true, math.huge
+            end
+        end
+        return false, 0
+    end
+    if UnitDebuff then
+        for i = 1, 40 do
+            local n, _, _, _, _, e, caster = UnitDebuff(unit, i)
+            if not n then break end
+            if n == name and (caster == nil or caster == "player") then
+                return true, (e and e > 0) and (e - GetTime()) or math.huge
+            end
+        end
+        return false, 0
+    end
+    return A.DebuffFromMemory(name, guid)
+end
+
+-- Combo points on your target (Cat Form), 0 if hidden.
+function A.ComboPoints()
+    local n
+    if GetComboPoints then n = Safe(GetComboPoints("player", "target")) end
+    if not n and UnitPower and Enum and Enum.PowerType and Enum.PowerType.ComboPoints then
+        n = Safe(UnitPower("player", Enum.PowerType.ComboPoints))
+    end
+    return tonumber(n) or 0
+end
+
+-- The shapeshift form you're in (its spell name), or nil.
+function A.Form()
+    for _, s in ipairs(A.StanceSpells()) do
+        if s.active then return s.name end
+    end
+end
+
+-- Feeds A.Buff's and A.Debuff's fallbacks: your successful casts.
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if unit ~= "player" then return end
     local id = A.Safe(spellID)
     local name = id and A.SpellInfo(id)
-    if type(name) == "string" then A.RememberCast(name) end
+    if type(name) == "string" then
+        A.RememberCast(name)
+        A.RememberDebuff(name, Safe(UnitGUID("target")))
+    end
 end)

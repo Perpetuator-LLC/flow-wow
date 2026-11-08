@@ -489,8 +489,8 @@ function Q:ZoneName(zoneId)
 end
 
 -------------------------------------------------------------------------------
--- Missed quests: doable quests in zones you've already quested in, that you
--- haven't done and aren't on. Expensive (thousands of quests), so it's
+-- Missed quests: doable quests in the zone you're in and zones you've already
+-- quested in (Q.PickupZones), that you haven't done and aren't on. Expensive (thousands of quests), so it's
 -- computed out of combat and cached until a quest is turned in or you level.
 -------------------------------------------------------------------------------
 
@@ -499,24 +499,63 @@ local dirty = true
 local running = false
 local BATCH = 150      -- quests checked per frame, so the game never freezes
 
+-- Your zone as Questie's area id (nil if unknown). A sub-zone map (a town,
+-- a cave) falls back to the zone it's in.
+function Q:HereArea()
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    if not (map and QuestieLoader) then return nil end
+    local ok, zdb = pcall(QuestieLoader.ImportModule, QuestieLoader, "ZoneDB")
+    if not (ok and zdb and type(zdb.GetAreaIdByUiMapId) == "function") then return nil end
+    for _ = 1, 3 do
+        local ok2, area = pcall(zdb.GetAreaIdByUiMapId, zdb, map)   -- (it errors when it can't tell)
+        if ok2 and area then return area end
+        local info = C_Map.GetMapInfo and C_Map.GetMapInfo(map)
+        local zoneType = Enum and Enum.UIMapType and Enum.UIMapType.Zone or 3
+        if not (info and info.parentMapID and info.parentMapID > 0 and (info.mapType or 0) > zoneType) then
+            return nil
+        end
+        map = info.parentMapID
+    end
+end
+
+-- Zones whose quests count for "Accept:" stops: where you've finished
+-- quests, where the quests in your log are, and the zone you're standing in.
+-- (Only the first used to count, so a brand-new character, who has finished
+-- nothing, got no pickups at all: no arrow to the first quest giver.)
+--   done, log : { [questId] = true };  get(id) -> { zoneId } or nil
+--   here      : your zone's area id;   yield : called every BATCH quests
+function Q.PickupZones(done, log, get, here, yield)
+    local zones, n = {}, 0
+    for _, ids in ipairs({ done or {}, log or {} }) do
+        for id in pairs(ids) do
+            local q = get(id)
+            if q and q.zoneId then zones[q.zoneId] = true end
+            n = n + 1
+            if yield and n % BATCH == 0 then yield() end
+        end
+    end
+    if here then zones[here] = true end
+    return zones
+end
+
+-- A quest counts when its zone, or its quest giver's zone, is one of those.
+function Q.InPickupZone(q, zones)
+    if not q then return false end
+    if q.zoneId and zones[q.zoneId] then return true end
+    return (q.starter and q.starter.zoneId and zones[q.starter.zoneId]) and true or false
+end
+
 -- Runs the scan in small batches across frames (pausing in combat).
 local function scan(src)
     running = true
     local level = UnitLevel("player")
     local co = coroutine.create(function()
-        local zones = {}
-        local n = 0
-        for id in pairs(completed) do
-            local q = src.get(id)
-            if q and q.zoneId then zones[q.zoneId] = true end
-            n = n + 1
-            if n % BATCH == 0 then coroutine.yield() end
-        end
+        local zones = Q.PickupZones(completed, inLog, src.get, Q:HereArea(), coroutine.yield)
         local out = {}
         for i, id in ipairs(src.allIds()) do
             if not completed[id] and not inLog[id] then
                 local q = src.get(id)
-                if q and q.zoneId and zones[q.zoneId] and (q.minLevel or 0) <= level then
+                if q and Q.InPickupZone(q, zones) and (q.minLevel or 0) <= level then
                     local doable = src.doable and src.doable(id, q.raw)
                     if doable ~= false then out[#out + 1] = q end
                 end
@@ -572,6 +611,7 @@ local function invalidate() dirty = true end
 ns:On("QUEST_TURNED_IN", invalidate)
 ns:On("QUEST_ACCEPTED", invalidate)
 ns:On("PLAYER_LEVEL_UP", invalidate)
+ns:On("ZONE_CHANGED_NEW_AREA", invalidate)   -- a new zone's quest givers count while you're there
 
 ns.commands.missed = function()
     local src = Q:Source()
@@ -584,7 +624,7 @@ ns.commands.missed = function()
         ns:Print("checking your quest history in the background... try again in a few seconds.")
         return
     end
-    ns:Print(string.format("%d quest(s) you skipped in zones you've quested in (source: %s):", #list, src.label))
+    ns:Print(string.format("%d quest(s) you haven't done, in this zone and zones you've quested in (source: %s):", #list, src.label))
     for i = 1, math.min(15, #list) do
         local q = list[i]
         print(string.format("  [%d] %s - %s%s", q.level or 0, q.name or ("quest " .. q.id),
@@ -627,13 +667,7 @@ local function scanQuestItems()
         end
         local src = Q:Source()
         if not (src and src.label == "Questie") then return end
-        local zones, n = {}, 0
-        for id in pairs(completed) do
-            local q = src.get(id)
-            if q and q.zoneId then zones[q.zoneId] = true end
-            n = n + 1
-            if n % 150 == 0 then coroutine.yield() end
-        end
+        local zones = Q.PickupZones(completed, inLog, src.get, Q:HereArea(), coroutine.yield)
         for i, id in ipairs(src.allIds()) do
             if not completed[id] and not inLog[id] then
                 local q = Q:QuestieGet("GetQuest", id)

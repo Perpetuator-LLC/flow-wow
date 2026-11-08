@@ -72,7 +72,10 @@ ns:Register("routeObjective", "xp", {
         local m = math.sqrt(ctx.ref / math.max(g.xp, 1))
         m = math.max(0.6, math.min(1.6, m))
         local above = g.levelsAbove or 0
-        if above >= 3 then m = m * (1 + 0.4 * (above - 2))
+        -- 3+ levels up always waits: its extra XP never makes it lighter than
+        -- a quest at your level. (At level 1 a level-4 quest has over twice
+        -- the XP, and that alone used to put it first.)
+        if above >= 3 then m = math.max(m, 1) * (1 + 0.4 * (above - 2))
         elseif above == 2 then m = m * 1.15 end
         if above <= -3 and g.share == 1 then m = m * 0.9 end   -- do it before its XP drops
         return m

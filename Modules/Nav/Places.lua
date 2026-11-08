@@ -27,6 +27,20 @@ ns:Register("trainerNames", "alliance-elwynn", {
                           "Lord Grayson Shadowbreaker" },
 })
 
+-- Druid trainers: night elves (Shadowglen, Dolanaar, Darnassus' Cenarion
+-- Enclave) and tauren (Camp Narache, Bloodhoof Village, Thunder Bluff).
+ns:Register("trainerNames", "druid", {
+    ["class:DRUID"] = { "Mardant Strongoak", "Kal", "Denatharion", "Fylerian Nightwing",
+                        "Mathrengyl Bearwalker", "Gart Mistrunner", "Gennia Runetotem",
+                        "Turak Runetotem", "Sheal Runetotem" },
+})
+ns:Register("npcIds", "druid", {
+    ["Mardant Strongoak"] = 3597, ["Kal"] = 3602, ["Denatharion"] = 4218,
+    ["Fylerian Nightwing"] = 4219, ["Mathrengyl Bearwalker"] = 4217,
+    ["Gart Mistrunner"] = 3060, ["Gennia Runetotem"] = 3064,
+    ["Turak Runetotem"] = 3033, ["Sheal Runetotem"] = 3034,
+})
+
 -- NPC IDs (stable since vanilla) so Questie can be asked directly. The
 -- lookup checks the name matches, so a wrong ID is ignored, not followed.
 ns:Register("npcIds", "alliance-elwynn", {
