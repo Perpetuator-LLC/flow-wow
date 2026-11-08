@@ -2223,3 +2223,16 @@ ns:Register("test", "nameplates: the unit you're heading to shows only the (o)",
     local _, none = L({}, "route")
     t:eq(none, nil, "an NPC with no objective: just the (o)")
 end)
+
+ns:Register("test", "first time: Flow's pieces come in one at a time", function(t)
+    local R = ns.reveal
+    t:eq(#R.STAGES, 4, "arrow, tracker, icon, advice")
+    t:ok(R.Moved({ cont = 0, wx = 0, wy = 0 }, { cont = 0, wx = 12, wy = 0 }, 10), "walked 12 yd: moved")
+    t:ok(not R.Moved({ cont = 0, wx = 0, wy = 0 }, { cont = 0, wx = 3, wy = 0 }, 10), "3 yd: not yet")
+    with(ns.db, "reveal", { arrow = true }, function()
+        t:ok(R:Shown("arrow") and not R:Shown("tracker"), "only what's come in so far")
+    end)
+    with(ns.db, "reveal", { all = true }, function()
+        t:ok(R:Shown("advice") and R:Shown("icon"), "someone already using Flow sees it all")
+    end)
+end)

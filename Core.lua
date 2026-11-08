@@ -210,6 +210,7 @@ end
 
 ns:On("ADDON_LOADED", function(name)
     if name ~= ADDON_NAME then return end
+    ns.freshInstall = (FlowDB == nil)   -- first time with Flow (Reveal.lua: a gentle start)
     FlowDB = FlowDB or {}
     FlowCharDB = FlowCharDB or {}
     ns.db, ns.charDb = FlowDB, FlowCharDB

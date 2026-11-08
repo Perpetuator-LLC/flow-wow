@@ -272,6 +272,14 @@ local function actionColor(s)
 end
 ns.ActionColor = actionColor  -- (tests)
 local function render(s, cfg)
+    -- New to Flow: the icon comes in at your first enemy (Reveal.lua). The
+    -- key still casts the suggestion meanwhile.
+    if ns.reveal and not ns.reveal:Shown("icon") then
+        current = nil
+        clearGlows()
+        icon:Hide()
+        return
+    end
     if not s then
         current = nil
         clearGlows()

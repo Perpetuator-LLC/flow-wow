@@ -377,6 +377,8 @@ ns:On("PLAYER_ENTERING_WORLD", function()
     if ns.db.setup.done and #S:Unseen() == 0 then return end
     C_Timer.After(30, function()  -- well after the splash, so new players aren't swamped
         if InCombatLockdown() then return end
+        -- New to Flow: not until the rest is on screen (Reveal.lua); next login.
+        if ns.reveal and not ns.reveal:Shown("advice") then return end
         local new = ns.db.setup.done and S:Unseen() or nil
         if new and #new == 0 then return end
         ns.db.setup.done = true

@@ -245,7 +245,8 @@ end
 
 function RT:Refresh()
     if not frame then return end
-    local enabled = ns.db.tracker.enabled ~= false
+    -- (New to Flow: it comes in a little after the arrow, Reveal.lua.)
+    local enabled = ns.db.tracker.enabled ~= false and not (ns.reveal and not ns.reveal:Shown("tracker"))
     frame:SetShown(enabled)
     if not enabled then return end
     layout(questieFrame())

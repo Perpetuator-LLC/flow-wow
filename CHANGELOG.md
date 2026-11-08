@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.80
+- **A gentle start for new players.** The first time anyone uses Flow, nothing is on screen at
+  login (no intro, no arrow, no Tracker). Flow's pieces fade in one at a time as you play, each
+  with one line saying what it is:
+  - the **arrow** (and the minimap marks), once you walk a few steps;
+  - the **Flow Tracker**, 20 s later or when you accept a quest;
+  - the **easy button's icon**, when you target an enemy or get into a fight (the key works
+    before that too);
+  - the **"!" advice button** and the setup suggestions, at your first level up or after
+    10 minutes.
+
+  Anyone already using Flow sees everything as before. `/flow reveal all` shows it all now;
+  `/flow reveal reset` replays the tour.
+
 ## 0.35.79
 - Nameplates: the unit you're heading to (the mob to kill or loot for your current stop, or
   its NPC) now shows **only Flow's (o)**, with the objective's count beside it, instead of the

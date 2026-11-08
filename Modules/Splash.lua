@@ -160,12 +160,16 @@ ns:On("PLAYER_ENTERING_WORLD", function(isInitialLogin, isReloadingUi)
     -- Only on login or /reload, not on every loading screen.
     if not shown or isInitialLogin or isReloadingUi then
         shown = true
-        if ns.db.splash.enabled then
+        -- (New to Flow: no intro on the very first login; the arrow fades in
+        -- when you start walking instead, Reveal.lua.)
+        if ns.db.splash.enabled and not (ns.reveal and not ns.reveal:Shown("arrow")) then
             -- At once: the status line fills in as quest data and the route arrive.
             local ok = pcall(I.Play, I)
             if not ok and ns.nav then ns.nav.intro = nil end
             -- Never leave the arrow held if the intro didn't run to the end.
             C_Timer.After(SPIN + TAIL + 2, function() if ns.nav and not driver:GetScript("OnUpdate") then ns.nav.intro = nil end end)
+        elseif ns.nav then
+            ns.nav.intro = nil   -- (no intro: never hold the arrow)
         end
     end
 end)

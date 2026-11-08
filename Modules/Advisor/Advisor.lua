@@ -141,7 +141,8 @@ function Adv:Refresh()
             C_Timer.After(4, function() button.pulse:Stop(); button:SetAlpha(1) end)
         end
         self.lastTop = top
-        button:Show()
+        -- (New to Flow: it comes in after your first level or 10 minutes, Reveal.lua.)
+        button:SetShown(not (ns.reveal and not ns.reveal:Shown("advice")))
     else
         button:Hide()
     end
