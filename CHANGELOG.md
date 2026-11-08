@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.83
+- **/claude without installing anything.** The bridge no longer runs the `claude` command line.
+  It prints each in-game message as an `ASK` line for a Claude session you already have open
+  (Claude desktop or Claude Code: tell it "watch Flow's in-game chat"). That session makes the
+  change and answers with `tools\claude-bridge.ps1 -Reply <id> -Text "..."`. CLAUDE.md tells any
+  Claude session how. The old automatic mode is still there as `-Cli`.
+- **Quest drops: one hint instead of a "!" everywhere.** Questie marks every spawn of every mob
+  that drops a quest-starting item with a "!", which fills the map and minimap. Flow now:
+  - shows one line in the Flow Tracker when those mobs are near you, "quest drop: Bloodstained
+    Note (Bristleback Quilboar)" (hover for details);
+  - puts a yellow "!" on those mobs' nameplates only;
+  - offers, in its setup suggestions, to turn off Questie's "Available Quests from Items"
+    markers (the same switch as in Questie's own settings).
+
 ## 0.35.82
 - **Ask Claude from inside the game.** `/claude make the arrow green` (or `/flow ask ...`) saves
   your message and reloads. A small script on your PC, `tools\claude-bridge.ps1`, hands it to

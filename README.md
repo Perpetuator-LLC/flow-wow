@@ -167,9 +167,10 @@ Flow for WoW is a separate project from Flow Engine.
 - A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
-- **Ask Claude from the game** (optional): `/claude make the arrow green`. A small script on your
-  PC hands it to Claude Code, which can answer and change Flow itself; the answer shows in chat
-  after `/reload`. The same script keeps a GitHub clone of Flow up to date by itself. Setup:
+- **Ask Claude from the game** (optional): `/claude make the arrow green`. A Claude session on
+  your PC (Claude desktop or Claude Code, told to "watch Flow's in-game chat") picks it up through
+  a small script, can answer and change Flow itself, and the answer shows in chat after
+  `/claude`. The same script keeps a GitHub clone of Flow up to date by itself. Setup:
   [docs/ASK-CLAUDE.md](docs/ASK-CLAUDE.md).
 
 ## Requirements and companions

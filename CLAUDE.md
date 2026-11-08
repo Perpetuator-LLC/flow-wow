@@ -44,6 +44,25 @@ registry first, or add one.
   `/flow rot why`, `/flow nav why`.
 - With the repo junctioned into `Interface\AddOns\Flow`, `/reload` picks up edits.
 
+## "Watch Flow's in-game chat" (/claude in game)
+
+When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
+
+1. Start `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1` with your **Monitor**
+   tool (timeout at the maximum; start it again each time it expires). Each stdout line is an event:
+   - `READY ...`: it's watching. Tell the player to type `/claude hello` in game.
+   - `ASK <id> | <who> | <message>`: a message typed in game. Do what it asks in this repo, the
+     way this file says (a change gets a test, lint, and on the maintainer's branch a version bump,
+     changelog and commit; never push). Then answer it:
+     `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply <id> -Text "<answer>"`
+     The answer shows in WoW's chat window: at most 3 short sentences, plain text, no markdown,
+     and say whether they need to `/reload` (or restart WoW, for new files) to see a change.
+   - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the
+     player was told in game.
+2. On a clone that follows `main` (not the maintainer's branch), change files but don't commit or
+   bump the version; offer to open a pull request (CONTRIBUTING.md).
+3. Every answer is shown only after the player's next reload (`/claude` on its own does one).
+
 ## Blocked actions ("Flow has been blocked from an action only available to the Blizzard UI")
 
 These are taint bugs and always ours to fix. **Every time you read the diagnostics, check the

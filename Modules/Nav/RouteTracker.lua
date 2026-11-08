@@ -192,6 +192,13 @@ local function build()
     nb.text:SetAllPoints(); nb.text:SetJustifyH("LEFT"); nb.text:SetWordWrap(false)
     nb:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        local d = self.drop
+        if d then
+            GameTooltip:AddLine("Quest drop around here")
+            GameTooltip:AddLine(string.format("%s, from %s, starts the quest %s. Kill them and loot it; their nameplates show a yellow !.",
+                d.item, d.mob or "mobs here", d.quest or "?"), 1, 1, 1, true)
+            GameTooltip:AddLine(" ")
+        end
         GameTooltip:AddLine("Your professions, while you're here")
         for _, e in ipairs(self.counts or {}) do
             GameTooltip:AddDoubleLine(string.format("|T%s:14:14|t %s", ns.nearby.ICON[e.prof] or "", e.name),
@@ -299,12 +306,12 @@ function RT:Refresh()
         end
     end
     -- "Nearby: Iron Deposit x3 +skill" under the stops (not part of the rail).
-    local line, counts
-    if open and ns.nearby then line, counts = ns.nearby.Now() end
+    local line, counts, drop
+    if open and ns.nearby then line, counts, drop = ns.nearby.Now() end
     local nb = frame.nearby
     if line then
         nb.text:SetText(line)
-        nb.counts = counts
+        nb.counts, nb.drop = counts, drop
         nb:ClearAllPoints()
         nb:SetPoint("TOPLEFT", 8, -4 - shown * 17)
         nb:SetPoint("TOPRIGHT", -6, -4 - shown * 17)

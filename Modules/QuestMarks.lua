@@ -20,6 +20,10 @@ local _, ns = ...
 
 local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
 local KIND_ICON = { kill = 8, item = 3, talk = 1 }   -- (the route stop's NPC gets Flow's (o): targetMark)
+-- A yellow "!": this mob drops an item that starts a quest you can take
+-- (instead of Questie's "!" at every spawn on the map: QuestData.lua).
+local KIND_TEXTURE = { drop = "Interface\\GossipFrame\\AvailableQuestIcon" }
+local dropStarts = {}  -- [lower mob name] = item name
 
 local kills = {}       -- [lower mob name] = { "3/10", ... } (one per quest)
 local items = {}       -- [lower item name] = "2/6"
@@ -129,6 +133,9 @@ local function classify(unit)
     end
 
     -- (The NPC your current route stop is about gets Flow's (o) on top: targetOf.)
+
+    -- It drops an item that starts a quest you can take: a yellow "!".
+    if dropStarts[lname] then marks[#marks + 1] = { kind = "drop" } end
 
     -- Modern clients can tell us directly (no count available).
     if #marks == 0 and C_QuestLog and C_QuestLog.UnitIsRelatedToActiveQuest
@@ -245,7 +252,7 @@ local function updateUnit(unit)
     for i = 1, MAX_MARKS do
         local s, mark = m.slots[i], marks[i]
         if mark then
-            s.icon:SetTexture(ICON:format(KIND_ICON[mark.kind]))
+            s.icon:SetTexture(KIND_TEXTURE[mark.kind] or ICON:format(KIND_ICON[mark.kind]))
             s.count:SetText(mark.label or "")
             widths[i] = 20 + (mark.label and mark.label ~= "" and (s.count:GetStringWidth() + 4) or 0)
             total = total + widths[i]
@@ -299,7 +306,18 @@ ns:On("NAME_PLATE_UNIT_REMOVED", function(unit)
     local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit(unit)
     if plate and plate.FlowQuestMark then plate.FlowQuestMark:Hide() end
 end)
-ns:On("QUEST_LOG_UPDATE", function() readQuests(); updateAll() end)
+-- Mobs that drop a quest-starting item you could use (QuestData.lua).
+local function readDrops()
+    wipe(dropStarts)
+    local ok, list = pcall(ns.quests.Drops, ns.quests)
+    for _, d in ipairs(ok and list or {}) do
+        for _, mob in ipairs(d.info.mobs) do dropStarts[mob:lower()] = d.info.item end
+    end
+end
+ns.questMarks = ns.questMarks or {}
+ns.questMarks._dropStarts = dropStarts   -- (tests)
+ns:On("QUEST_LOG_UPDATE", function() readQuests(); pcall(readDrops); updateAll() end)
+ns:On("PLAYER_LEVEL_UP", function() C_Timer.After(5, function() pcall(readDrops); updateAll() end) end)
 ns:On("PLAYER_ENTERING_WORLD", function() readQuests(); updateAll() end)
 ns:On("LOOT_OPENED", onLoot)
 

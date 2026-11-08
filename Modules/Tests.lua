@@ -2274,3 +2274,17 @@ ns:Register("test", "ask Claude: answers show once and clear what they answer", 
     local e = AC.Entry(9, "hi", 100)
     t:ok(e.id == 9 and e.text == "hi" and e.char ~= nil, "a message carries who you are and where")
 end)
+
+ns:Register("test", "quest drops: one hint instead of a ! at every spawn", function(t)
+    local Q = ns.quests
+    local list = { { id = 1, level = 5, dropItem = 99 }, { id = 2, level = 12, dropItem = 98 }, { id = 3, level = 5 } }
+    local info = { item = "Bloodstained Note", mobs = { "Bristleback Quilboar" }, spawns = {} }
+    local drops = Q.DropsFrom(list, 4, function() return info end)
+    t:eq(#drops, 1, "a drop quest you can take now (not one 8 levels up, not a normal quest)")
+    t:eq(drops[1].quest.id, 1, "the right one")
+    local line = ns.nearby.Line({}, nil, { item = "Bloodstained Note", mob = "Bristleback Quilboar" })
+    t:ok(line and line:find("quest drop", 1, true) and line:find("Bloodstained Note", 1, true), "the Tracker line says it once")
+    t:eq(ns.nearby.Line({}, nil, nil), nil, "nothing near: no line")
+    t:ok(type(ns.questMarks._dropStarts) == "table", "nameplates know which mobs drop one")
+    t:ok(ns:Get("setupItem", "questieDropIcons") ~= nil, "Flow offers to turn off Questie's ! for drops")
+end)

@@ -160,9 +160,16 @@ function NB.Count(spots, centres, radius, ranks)
 end
 
 -- "Nearby: [icon] Iron Deposit x3 +skill, [icon] Kingsblood x2" (or nil).
-function NB.Line(counts, max)
-    if #counts == 0 then return nil end
+-- drop: a quest that starts from a drop near you ({ item, mob }), shown
+-- first: one line instead of Questie's "!" at every spawn of those mobs.
+local DROP_ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
+function NB.Line(counts, max, drop)
+    if #counts == 0 and not drop then return nil end
     local parts = {}
+    if drop then
+        parts[#parts + 1] = string.format("|T%s:12:12|t |cffffd200quest drop:|r %s%s", DROP_ICON, drop.item,
+            drop.mob and (" (" .. drop.mob .. ")") or "")
+    end
     for i, e in ipairs(counts) do
         if i > (max or 3) then parts[#parts + 1] = "..." break end
         parts[#parts + 1] = string.format("|T%s:12:12|t %s x%d%s", NB.ICON[e.prof] or "", e.name, e.n,
@@ -178,21 +185,23 @@ end
 local last = { at = -10 }
 function NB.Now()
     if not NB.Enabled() then return nil end
-    if GetTime() - last.at < 2 then return last.line, last.counts end
+    if GetTime() - last.at < 2 then return last.line, last.counts, last.drop end
     last.at = GetTime()
     last.line, last.counts = nil, nil
     local p = ns.nav and ns.nav:PlayerPos()
     if not p then return nil end
     local ranks = myRanks()
     local spots = NB.Spots(p.map, ranks)
-    if #spots == 0 then return nil end
     local centres = { p }
     local s = ns.nav.plan and ns.nav.plan[1]
     local pt = s and s.point
     if pt and pt.wx and pt.cont == p.cont then centres[2] = pt end
+    -- A quest that starts from a drop of mobs near you (QuestData.lua).
+    local okD, drop = pcall(ns.quests.DropNear, ns.quests, p.map, centres, NB.RADIUS)
     last.counts = NB.Count(spots, centres, NB.RADIUS, ranks)
-    last.line = NB.Line(last.counts)
-    return last.line, last.counts
+    last.drop = okD and drop or nil
+    last.line = NB.Line(last.counts, nil, last.drop)
+    return last.line, last.counts, last.drop
 end
 
 -- Spots of one profession that the minimap shows (within `yards` of you),

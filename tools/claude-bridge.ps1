@@ -5,33 +5,49 @@
 
   In game:  /claude make the arrow green   (Flow saves it and reloads)
   This script waits for WoW to save Flow's data (a file-change event, no
-  polling), hands new messages to Claude Code in this folder, and writes the
-  answers to Learned\ClaudeInbox.lua. /claude in game (a reload) shows them,
-  together with any change Claude made to Flow.
+  polling) and prints each new message as one line:
+      ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green
+  A Claude session in Claude desktop (or any Claude Code) watches those lines
+  with its Monitor tool, does what's asked, and answers with
+      tools\claude-bridge.ps1 -Reply 3 -Text "Done: green arrow. Type /reload."
+  which writes Learned\ClaudeInbox.lua. /claude in game (a reload) shows the
+  answer, together with any change Claude made to Flow.
 
   Each time WoW saves, it also checks GitHub: a clean checkout on `main`
   fast-forwards to the newest Flow and tells you in game ("/reload to load
-  it"). A checkout on another branch, or with changes of its own, is never
-  touched.
+  it"), printing an UPDATE line. A checkout on another branch, or with changes
+  of its own, is never touched.
 
 .USAGE
-  powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1
-    [-WowDir PATH] [-Account NAME] [-AddonDir PATH] [-Claude PATH]
-    [-Permission acceptEdits|bypassPermissions] [-NoClaude] [-NoUpdate]
-  -AddonDir   your AddOns\Flow folder, when it isn't a link to this repo
-  -NoClaude   only keep Flow up to date (no Claude Code needed)
-  -NoUpdate   only answer /claude messages
+  powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 [options]
+    (no options)        listen: print ASK / UPDATE lines, keep Flow up to date
+    -Reply ID -Text T   answer message ID (shown in game after /reload), then exit
+    -Note T             tell the player something (no message to answer), then exit
+    -NoAsk              only keep Flow up to date (no ASK lines)
+    -NoUpdate           only pass messages on
+    -Cli                answer by itself with the `claude` command line (Claude
+                        Code), no session watching: -Permission acceptEdits|bypassPermissions
+    -AddonDir PATH      your AddOns\Flow folder, when it isn't a link to this repo
+    -SelfTest           check the file reading and writing on samples, then exit
 #>
 param(
     [string]$WowDir,
     [string]$Account,
     [string]$AddonDir,
+    [int]$Reply,
+    [string]$Text,
+    [string]$Note,
+    [switch]$NoAsk,
+    [switch]$NoUpdate,
+    [switch]$Cli,
     [string]$Claude,
     [string]$Permission = 'acceptEdits',
-    [switch]$NoClaude,
-    [switch]$NoUpdate,
-    [switch]$SelfTest     # check the file reading and writing on samples, then exit
+    [switch]$NoClaude,    # (older name for -NoAsk)
+    [switch]$SelfTest
 )
+if ($NoClaude) { $NoAsk = $true }
+# One event per line, out at once (a watching Claude session reads stdout).
+function Emit([string]$line) { [Console]::Out.WriteLine($line); [Console]::Out.Flush() }
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $repo = Split-Path $PSScriptRoot -Parent
@@ -40,7 +56,9 @@ if (-not $AddonDir) { $AddonDir = $repo }
 if ($SelfTest) {
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("flow-bridge-test-" + [guid]::NewGuid())
     New-Item -ItemType Directory -Force (Join-Path $tmp 'Learned') | Out-Null
-    $AddonDir = $tmp; $savedDir = $tmp; $saved = Join-Path $tmp 'Flow.lua'; $NoClaude = $true; $NoUpdate = $true
+    $AddonDir = $tmp; $savedDir = $tmp; $saved = Join-Path $tmp 'Flow.lua'; $Cli = $false; $NoUpdate = $true
+} elseif ($Reply -or $Note) {
+    $savedDir = $null; $saved = $null   # (answering: only the answers file is needed)
 } else {
     if (-not $WowDir) { $WowDir = Find-WowDir }
     if (-not $WowDir) { Write-Host "Can't find your WoW: Forever folder. Pass -WowDir or set FLOW_WOW_DIR."; exit 1 }
@@ -50,12 +68,11 @@ if ($SelfTest) {
     $saved = Join-Path $savedDir 'Flow.lua'
 }
 
-if (-not $NoClaude) {
+if ($Cli) {
     if (-not $Claude) { $Claude = $env:FLOW_CLAUDE }
     if (-not $Claude) { $c = Get-Command claude -ErrorAction SilentlyContinue; if ($c) { $Claude = $c.Source } }
     if (-not $Claude) {
-        Write-Host "Claude Code (the 'claude' command) isn't installed. Install it (https://docs.claude.com/en/docs/claude-code),"
-        Write-Host "run 'claude' once to log in, then start this again. Or use -NoClaude to only keep Flow up to date."
+        Write-Host "-Cli needs the 'claude' command line (Claude Code). Without -Cli, a Claude session watches this script instead (docs/ASK-CLAUDE.md)."
         exit 2
     }
 }
@@ -65,17 +82,23 @@ $stateDir = if ($SelfTest) { $AddonDir } else { Join-Path $repo 'reports' }
 $stateFile = Join-Path $stateDir 'claude-bridge.json'
 if (-not (Test-Path $stateDir)) { New-Item -ItemType Directory -Force $stateDir | Out-Null }
 
-# --- state: answered messages, Claude's session, the answers shown in game ---
-$state = @{ answered = @(); session = $null; replies = @(); nextId = 1 }
-if (Test-Path $stateFile) {
+# --- state: messages passed on / answered, the answers shown in game ---
+# Read from disk before every change: the listener and -Reply run as two
+# processes and must not overwrite each other's answers.
+$state = @{ answered = @(); delivered = @(); session = $null; replies = @(); nextId = 1 }
+function Load-State {
+    if (-not (Test-Path $stateFile)) { return }
     try {
         $s = Get-Content $stateFile -Raw | ConvertFrom-Json
-        $state.answered = @($s.answered)
+        $state.answered = @($s.answered | Where-Object { $_ -ne $null })
+        $state.delivered = @($s.delivered | Where-Object { $_ -ne $null })
         $state.session = $s.session
-        $state.replies = @($s.replies | ForEach-Object { @{ id = [int]$_.id; replyTo = $_.replyTo; at = [int]$_.at; text = [string]$_.text } })
-        $state.nextId = [int]$s.nextId
-    } catch { Write-Host "(starting fresh: couldn't read $stateFile)" }
+        $state.replies = @($s.replies | Where-Object { $_ } | ForEach-Object { @{ id = [int]$_.id; replyTo = $_.replyTo; at = [int]$_.at; text = [string]$_.text } })
+        if ($s.nextId) { $state.nextId = [int]$s.nextId }
+        $state.toldDirty = [bool]$s.toldDirty
+    } catch { Write-Host "(couldn't read ${stateFile}: starting fresh)" }
 }
+Load-State
 function Save-State { $state | ConvertTo-Json -Depth 5 | Set-Content $stateFile -Encoding utf8 }
 
 # --- the answers file WoW reads on /reload ---
@@ -93,10 +116,25 @@ function Write-Inbox {
     [IO.File]::WriteAllText($inboxFile, (($lines -join "`n") + "`n"), (New-Object Text.UTF8Encoding $false))
 }
 function Add-Reply([string]$text, $replyTo) {
+    Load-State
     $state.replies = @($state.replies) + @(@{ id = $state.nextId; replyTo = $replyTo; at = [int][DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); text = $text })
     $state.nextId++
+    if ($replyTo -and ($state.answered -notcontains [int]$replyTo)) { $state.answered = @($state.answered) + @([int]$replyTo) }
     Write-Inbox
     Save-State
+}
+
+# --- answering (a watching Claude session runs these) ---
+if ($Reply -or $Note) {
+    if ($Reply) {
+        if (-not $Text) { Write-Host "-Reply needs -Text `"the answer`""; exit 1 }
+        Add-Reply $Text $Reply
+        Write-Host "Answer to message $Reply written. In game: /claude (it reloads) to see it."
+    } else {
+        Add-Reply $Note $null
+        Write-Host "Note written. In game: /claude (it reloads) to see it."
+    }
+    exit 0
 }
 
 # --- reading /claude messages out of Flow's saved data ---
@@ -174,15 +212,22 @@ Message: $($msg.text)
 }
 
 function Handle-Messages {
-    if ($NoClaude) { return }
+    if ($NoAsk) { return }
     foreach ($m in (Get-Outbox)) {
-        if ($state.answered -contains $m.id) { continue }
-        Write-Host ("[{0}] WoW > {1}" -f (Get-Date -Format HH:mm:ss), $m.text)
-        $state.answered = @($state.answered) + @($m.id)
+        Load-State
+        if ($state.answered -contains $m.id -or $state.delivered -contains $m.id) { continue }
+        $state.delivered = @($state.delivered) + @($m.id)
         Save-State
-        $reply = Ask-Claude $m
-        Write-Host ("[{0}] Claude > {1}" -f (Get-Date -Format HH:mm:ss), $reply)
-        Add-Reply $reply $m.id
+        if ($Cli) {
+            Write-Host ("[{0}] WoW > {1}" -f (Get-Date -Format HH:mm:ss), $m.text)
+            $reply = Ask-Claude $m
+            Write-Host ("[{0}] Claude > {1}" -f (Get-Date -Format HH:mm:ss), $reply)
+            Add-Reply $reply $m.id
+        } else {
+            # For the watching Claude session: one line per message.
+            $who = "{0} ({1} {2}, {3})" -f $m.char, $m.class, $m.level, $m.zone
+            Emit ("ASK {0} | {1} | {2}" -f $m.id, $who, (($m.text -replace "`r?`n", ' ')))
+        }
     }
 }
 
@@ -202,20 +247,24 @@ function Sync-Flow {
         $behind = [int](git rev-list --count HEAD..FETCH_HEAD 2>$null)
         if ($behind -le 0) { return }
         if ($dirty) {
-            Write-Host "An update is waiting, but this folder has changes of its own: not updating."
-            if (-not $state.toldDirty) { Add-Reply "A Flow update is waiting, but your Flow folder has your own changes, so it wasn't updated. Ask Claude to open a pull request with them, or to set them aside." $null; $state.toldDirty = $true }
+            Load-State
+            if (-not $state.toldDirty) {
+                Emit "UPDATE waiting: this folder has changes of its own, so it wasn't updated"
+                Add-Reply "A Flow update is waiting, but your Flow folder has your own changes, so it wasn't updated. Ask Claude to open a pull request with them, or to set them aside." $null
+                $state.toldDirty = $true; Save-State
+            }
             return
         }
         $oldToc = Get-Content (Join-Path $repo 'Flow.toc') -Raw
         git merge --ff-only FETCH_HEAD --quiet 2>$null
         if ($LASTEXITCODE -ne 0) { return }
-        $state.toldDirty = $false
         $newToc = Get-Content (Join-Path $repo 'Flow.toc') -Raw
         $restart = (Compare-Object (Toc-Files $oldToc) (Toc-Files $newToc)) -ne $null
         $how = if ($restart) { 'Restart WoW to load it (it adds new files).' } else { 'Type /reload to load it.' }
         $msg = "Flow updated: $(Toc-Version $oldToc) -> $(Toc-Version $newToc). $how See CHANGELOG.md for what's new."
-        Write-Host $msg
+        Emit "UPDATE $msg"
         Add-Reply $msg $null
+        $state.toldDirty = $false; Save-State
     } finally { Pop-Location }
 }
 
@@ -249,7 +298,10 @@ FlowDB = {
     elseif ($box[0].id -ne 2) { Write-Host "FAIL id: $($box[0].id)"; $ok = $false }
     elseif ($box[0].text -ne 'make the {arrow} "green"') { Write-Host "FAIL text: $($box[0].text)"; $ok = $false }
     elseif ($box[0].zone -ne 'Mulgore') { Write-Host "FAIL zone: $($box[0].zone)"; $ok = $false }
+    Handle-Messages   # prints: ASK 2 | Sooth ( 9, Mulgore) | make the {arrow} "green"
+    if ($state.delivered -notcontains 2) { Write-Host "FAIL: message 2 not passed on"; $ok = $false }
     Add-Reply 'Done: the arrow is green. Type /reload.' 2
+    if ($state.answered -notcontains 2) { Write-Host "FAIL: message 2 not marked answered"; $ok = $false }
     $lua = Get-Content $inboxFile -Raw
     if ($lua -notmatch 'ns\.claudeInbox = \{' -or $lua -notmatch 'replyTo = 2' -or $lua -notmatch '\[==\[Done: the arrow is green\. Type /reload\.\]==\]') {
         Write-Host "FAIL inbox file:`n$lua"; $ok = $false
@@ -268,8 +320,8 @@ Register-ObjectEvent $watcher Created -SourceIdentifier $ids[1] | Out-Null
 Register-ObjectEvent $watcher Renamed -SourceIdentifier $ids[2] | Out-Null
 
 if (-not (Test-Path $inboxFile)) { Write-Inbox }   # (Flow.toc lists it: make sure it's there)
-Write-Host "Flow bridge: watching $saved"
-Write-Host ("  answers /claude: {0}; keeps Flow up to date: {1}; Ctrl+C to stop" -f (-not $NoClaude), (-not $NoUpdate))
+$mode = if ($NoAsk) { 'off' } elseif ($Cli) { 'by itself (claude -p)' } else { 'passed on as ASK lines (a Claude session answers with -Reply)' }
+Emit "READY watching $saved | /claude messages: $mode | updates: $(if ($NoUpdate) { 'off' } else { 'on' })"
 try {
     Sync-Flow
     Handle-Messages

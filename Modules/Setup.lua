@@ -64,6 +64,30 @@ cvarRow("instantQuest", 40, "Instant quest text", "Quest text appears at once in
 cvarRow("autoSelfCast", 45, "Heals land on you with no target",
     "With nobody friendly targeted, a heal or buff casts on you: no key to hold, no clicking yourself first.",
     "autoSelfCast", "1", "0", true, true)
+-- Questie puts a "!" at every spawn of every mob that drops a quest-starting
+-- item: the map and minimap fill with them. Flow suggests turning that off;
+-- it says it once instead (a "quest drop" line in the Flow Tracker when
+-- those mobs are near, and a "!" on their nameplates). Same switch as
+-- Questie's own "Available Quests from Items" option.
+local function questieQuest()
+    if not QuestieLoader then return nil end
+    local ok, qq = pcall(QuestieLoader.ImportModule, QuestieLoader, "QuestieQuest")
+    return ok and qq or nil
+end
+ns:Register("setupItem", "questieDropIcons", {
+    order = 46, label = "Questie: \"!\" at every mob that drops a quest item",
+    why = "Off: no ! all over the map for quests that start from a drop. Flow says it once instead: a \"quest drop\" line in the Flow Tracker when those mobs are near you, and a ! on their nameplates.",
+    available = function() return Questie and Questie.db and Questie.db.profile and Questie.db.profile.enableAvailableItems ~= nil end,
+    isOn = function() return Questie.db.profile.enableAvailableItems ~= false end,
+    set = function(on)
+        local profile = Questie.db.profile   -- (Questie's own option, the same switch as in its settings)
+        profile.enableAvailableItems = on and true or false
+        local qq = questieQuest()
+        if qq and qq.ToggleAvailableQuests then pcall(qq.ToggleAvailableQuests, on and true or false) end
+    end,
+    suggested = false, isNew = true,
+    default = function() return true end,
+})
 cvarRow("autoPush", 50, "Auto-place new spells on bars",
     "The game drops newly learned spells into empty bar slots. Leave off if you place spells yourself.",
     "AutoPushSpellToActionBar", "1", "0", false)

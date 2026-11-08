@@ -277,6 +277,8 @@ ns:Register("questSource", "questie", {
             id = id, name = q.name, level = q.level, minLevel = q.requiredLevel or 0,
             zoneId = (q.zoneOrSort and q.zoneOrSort > 0) and q.zoneOrSort or (starter and starter.zoneId),
             starter = starter, raw = q,
+            -- Started by an item a mob drops (no NPC to walk to): Q:DropInfo.
+            dropItem = (not starter) and q.Starts and q.Starts.Item and q.Starts.Item[1] or nil,
         }
     end,
     allIds = function()
@@ -629,6 +631,84 @@ function Q:Missed()
 end
 
 function Q:MissedScanning() return running end
+
+-------------------------------------------------------------------------------
+-- Quests that start from an item a mob drops ("This item begins a quest").
+-- Questie marks every spawn of every mob that drops it with a "!" on the map
+-- and minimap, which buries the map. Flow says it once instead: a line in
+-- the Flow Tracker when those mobs are near you, and a "!" on their
+-- nameplates (QuestMarks.lua); Flow's setup suggestions offer to turn
+-- Questie's drop markers off.
+-------------------------------------------------------------------------------
+
+local dropCache = {}   -- quest id -> { item, mobs = { names }, spawns = { tables } } or false
+function Q:DropInfo(q)
+    if not (q and q.dropItem) then return nil end
+    local c = dropCache[q.id]
+    if c ~= nil then return c or nil end
+    local item = self:QuestieGet("GetItem", q.dropItem)
+    if not item then dropCache[q.id] = false return nil end
+    local info = { item = item.name or "an item", mobs = {}, spawns = {} }
+    for _, npcId in ipairs(item.npcDrops or {}) do
+        local npc = self:QuestieGet("GetNPC", npcId)
+        if npc and npc.name then
+            info.mobs[#info.mobs + 1] = npc.name
+            if npc.spawns then info.spawns[#info.spawns + 1] = npc.spawns end
+        end
+    end
+    for _, objId in ipairs(item.objectDrops or {}) do
+        local o = self:QuestieGet("GetObject", objId)
+        if o and o.spawns then info.spawns[#info.spawns + 1] = o.spawns end
+    end
+    dropCache[q.id] = info
+    return info
+end
+
+-- Drop-started quests you could do now (from the missed-quests list, not
+-- more than 3 levels above you): { { quest, info } }.
+function Q.DropsFrom(list, level, infoOf)
+    local out = {}
+    for _, q in ipairs(list or {}) do
+        if q.dropItem and (q.level or 0) <= level + 3 then
+            local d = infoOf(q)
+            if d and #d.mobs > 0 then out[#out + 1] = { quest = q, info = d } end
+        end
+    end
+    return out
+end
+function Q:Drops()
+    return Q.DropsFrom(self:Missed(), UnitLevel("player"), function(q) return self:DropInfo(q) end)
+end
+
+-- The nearest drop-started quest whose mobs are within `radius` of any centre
+-- ({ cont, wx, wy }), or nil: { item, mob, quest }.
+local dropPoints = {}   -- "questId:map" -> world points
+function Q:DropNear(map, centres, radius)
+    local best, bestD
+    for _, d in ipairs(self:Drops()) do
+        local key = d.quest.id .. ":" .. tostring(map)
+        local pts = dropPoints[key]
+        if not pts then
+            pts = {}
+            for _, pt in ipairs((Q.SpreadPoints(d.info.spawns, 60, { map = map, onlyMap = true }))) do
+                local cont, wx, wy = ns.nav:ToWorld(pt.map, pt.x, pt.y)
+                if wx then pts[#pts + 1] = { cont = cont, wx = wx, wy = wy } end
+            end
+            dropPoints[key] = pts
+        end
+        for _, pt in ipairs(pts) do
+            for _, c in ipairs(centres) do
+                if c.cont == pt.cont then
+                    local dd = (pt.wx - c.wx) ^ 2 + (pt.wy - c.wy) ^ 2
+                    if dd <= radius * radius and (not bestD or dd < bestD) then
+                        best, bestD = { item = d.info.item, mob = d.info.mobs[1], quest = d.quest.name }, dd
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
 
 local function invalidate() dirty = true end
 ns:On("QUEST_TURNED_IN", invalidate)
