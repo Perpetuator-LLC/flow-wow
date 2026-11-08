@@ -2211,3 +2211,15 @@ ns:Register("test", "keys: hover-to-bind is easy to find", function(t)
     t:ok(found ~= nil, "in the arrow's route menu")
     t:ok(type(ns.bind.Start) == "function", "it opens hover-to-bind mode")
 end)
+
+ns:Register("test", "nameplates: the unit you're heading to shows only the (o)", function(t)
+    local L = ns.QuestMarksLayout
+    local marks = { { kind = "item", label = "2/6" }, { kind = "kill", label = "3/10" } }
+    local shown, count = L(marks, "route")
+    t:eq(#shown, 0, "no diamond or skull on top of the (o)")
+    t:eq(count, "2/6", "but the objective's count stays beside it")
+    local others = L(marks, nil)
+    t:eq(#others, 2, "every other unit keeps its icons")
+    local _, none = L({}, "route")
+    t:eq(none, nil, "an NPC with no objective: just the (o)")
+end)

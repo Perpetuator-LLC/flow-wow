@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.79
+- Nameplates: the unit you're heading to (the mob to kill or loot for your current stop, or
+  its NPC) now shows **only Flow's (o)**, with the objective's count beside it, instead of the
+  (o) plus a diamond or skull. Every other unit keeps its skull, diamond or star.
+
 ## 0.35.78
 - **New spell card.** When you learn a spell, a small card shows it for 10 s. It waits while
   your mouse is on it, while you drag, and while you choose a key. You can:

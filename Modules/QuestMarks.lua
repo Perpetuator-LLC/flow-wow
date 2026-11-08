@@ -2,9 +2,11 @@
 --   Skull   = kill it, with your count (e.g. 3/10)
 --   Diamond = it drops an item you need, with your count (e.g. 0/1)
 --   Star    = talk to / interact with it (an objective mentions its name)
---   (o)     = Flow's target marker: the NPC your current stop is about (the
---             turn-in, quest giver or trainer), in the route colour (purple
---             on Most XP); green on the party member you follow
+--   (o)     = Flow's target marker: the unit your current stop is about (the
+--             mob to kill or loot, the turn-in, quest giver or trainer), in
+--             the route colour (purple on Most XP), INSTEAD of the icons
+--             above (its count stays beside it); green on the party member
+--             you follow. Every other unit keeps its skull / diamond / star.
 -- One mob can show several, side by side: e.g. skull 3/10 and diamond 0/1
 -- when one quest wants it dead and another wants something it drops.
 --
@@ -172,9 +174,21 @@ local function targetMark(m)
     t.dot = t:CreateTexture(nil, "ARTWORK", nil, 2)
     t.dot:SetPoint("TOPLEFT", 7, -7); t.dot:SetPoint("BOTTOMRIGHT", -7, 7)
     t.dot:SetTexture(CIRCLE)
+    -- The objective's count stays next to it (the skull's or diamond's "3/10").
+    t.count = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    t.count:SetPoint("LEFT", t, "RIGHT", 2, 0)
     t:Hide()
     m.target = t
     return t
+end
+
+-- What a nameplate shows: the unit you're heading to gets only the (o), with
+-- the count of its objective beside it (no skull or diamond on top of it as
+-- well); every other unit keeps its skull / diamond / star.
+-- Returns the marks to draw and the (o)'s count text.
+function ns.QuestMarksLayout(marks, tgt)
+    if not tgt then return marks, nil end
+    return {}, marks[1] and marks[1].label or nil
 end
 
 -- A row of up to 3 icons above the nameplate, each with its own count.
@@ -211,14 +225,17 @@ local function updateUnit(unit)
         return
     end
     local m = markerFor(plate)
-    -- The (o): above the row of marks, or on its own.
+    -- The unit you're heading to: just the (o), with its objective's count.
+    local count
+    marks, count = ns.QuestMarksLayout(marks, tgt)
     local t = targetMark(m)
     if tgt then
         local c = tgt == "follow" and ns.theme.waypoint or ns.theme.route
         t.ring:SetVertexColor(c[1], c[2], c[3], 1)
         t.dot:SetVertexColor(c[1], c[2], c[3], 1)
+        t.count:SetText(count or "")
         t:ClearAllPoints()
-        if #marks > 0 then t:SetPoint("BOTTOM", m, "TOP", 0, 2) else t:SetPoint("CENTER", m, "CENTER", 0, 0) end
+        t:SetPoint("CENTER", m, "CENTER", 0, 0)
         t:Show()
     else
         t:Hide()
