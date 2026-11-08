@@ -170,7 +170,7 @@ local function build()
             if not self.goal then return end
             -- Its area lights up on the minimap (hover colour), next to the current stop's.
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            ns.Tip(self, "ANCHOR_LEFT")
             -- Clickable rows say so: hand cursor and an "open" hint.
             if not self.blocked then self.open:Show(); ns.nav:ClickCursor(true) end
             ns.nav:FillTooltip(GameTooltip, self.goal, self.blocked
@@ -191,7 +191,7 @@ local function build()
     nb.text = nb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     nb.text:SetAllPoints(); nb.text:SetJustifyH("LEFT"); nb.text:SetWordWrap(false)
     nb:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        ns.Tip(self, "ANCHOR_LEFT")
         local d = self.drop
         if d then
             GameTooltip:AddLine("Quest drop around here")

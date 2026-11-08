@@ -229,6 +229,37 @@ ns:On("PLAYER_LOGIN", function()
     ns:AdoptLaterCharacterData(ns.db, ns.charDb, context())
 end)
 
+-- Tooltips where WoW shows its own: the spot you set in Edit Mode or the
+-- interface options (bottom right by default, or at the cursor), not beside
+-- whatever you hovered. Setting: "Tooltips where WoW shows them" (on); off,
+-- each one opens next to what you hover (`anchor`, e.g. "ANCHOR_RIGHT").
+function ns.TipsAtGameSpot() return not (ns.db and ns.db.settings and ns.db.settings.tipsBeside) end
+
+function ns.Tip(owner, anchor, tooltip)
+    tooltip = tooltip or GameTooltip
+    if ns.TipsAtGameSpot() and GameTooltip_SetDefaultAnchor then
+        GameTooltip_SetDefaultAnchor(tooltip, owner)
+    else
+        tooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+    end
+    return tooltip
+end
+
+-- Put a Flow card (the stop card, the arrow's drawer) where WoW puts its
+-- tooltips. False when there's no fixed spot (tooltips at the cursor) or the
+-- setting is off: the caller places it its own way.
+function ns.PlaceAtTipSpot(frame, owner)
+    if not (ns.TipsAtGameSpot() and GameTooltip_SetDefaultAnchor and GameTooltip) then return false end
+    local ok = pcall(GameTooltip_SetDefaultAnchor, GameTooltip, owner or UIParent)
+    local point, rel, relPoint, x, y
+    if ok and GameTooltip:GetNumPoints() > 0 then point, rel, relPoint, x, y = GameTooltip:GetPoint(1) end
+    GameTooltip:Hide()
+    if not (point and rel) then return false end
+    frame:ClearAllPoints()
+    frame:SetPoint(point, rel, relPoint, x, y)
+    return true
+end
+
 -- ns:MakeMovable(frame, save, clickable): every Flow element moves the same
 -- way: hold Shift and drag. Position is stored in save.point. Frames that
 -- aren't clickable only take the mouse while Shift is held, so they never

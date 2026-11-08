@@ -42,7 +42,7 @@ local function markerFor(prefix)
     m.icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
     m:EnableMouse(true)
     m:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        ns.Tip(self, "ANCHOR_TOP")
         GameTooltip:AddLine("The game auto-places new spells on this bar")
         for _, e in ipairs(self.entries or {}) do
             GameTooltip:AddLine(string.format("%s  (slot %d, %s)", e.spell, e.pos, e.when), 1, 1, 1)

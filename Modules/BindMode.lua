@@ -223,7 +223,7 @@ local function overlayFor(btn, cmd, label)
     f:SetScript("OnEnter", function(self)
         hovered = entry
         self.hl:SetColorTexture(o[1], o[2], o[3], 0.45)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        ns.Tip(self, "ANCHOR_TOP")
         GameTooltip:AddLine(label)
         GameTooltip:AddLine("Press a key to bind. Right-click to clear.", 1, 1, 1)
         GameTooltip:Show()

@@ -1649,7 +1649,7 @@ function N.Draggable(f, key, home)
     h:SetScript("OnEnter", function(self)
         if self.hinted then return end
         self.hinted = true   -- once per session: how to move it
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        ns.Tip(self, "ANCHOR_TOP")
         GameTooltip:AddLine("Drag the title to move this.", 1, 1, 1)
         GameTooltip:AddLine("Right-click the title to put it back " .. home .. ".", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
@@ -1699,7 +1699,7 @@ local function makeDrawer(f)
     end
     tab:SetScript("OnEnter", function(self)
         for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 1) end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        ns.Tip(self, "ANCHOR_BOTTOM")
         GameTooltip:AddLine("Fold the drawer back up", 1, 1, 1)
         GameTooltip:Show()
     end)
@@ -1780,8 +1780,12 @@ local function showPanel()
     lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click the arrow or the ^ tab to fold this away.|r"
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
-    panel:ClearAllPoints()
-    panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)  -- the drawer, right under the arrow's text
+    -- Placed when it opens (it's refreshed all the time while open): where
+    -- WoW shows its tooltips, else the drawer right under the arrow's text.
+    if not panel:IsShown() and not ns.PlaceAtTipSpot(panel, frame) then
+        panel:ClearAllPoints()
+        panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)
+    end
     panel:Show()
 end
 
@@ -1888,13 +1892,16 @@ function N:ShowStop(goal, anchor)
     local saved = ns.db.nav.cardPoint
     if saved then
         card:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])   -- where you dragged it
-    elseif anchor and anchor.GetRight then
-        -- Beside what you clicked, on whichever side has room.
-        local right = anchor:GetRight() and anchor:GetRight() * anchor:GetEffectiveScale() / UIParent:GetEffectiveScale()
-        if right and right + 350 > GetScreenWidth() then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -8, 0)
-        else card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 8, 0) end
-    else
-        card:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+    -- Where WoW shows its tooltips (Edit Mode / interface options), else:
+    elseif not ns.PlaceAtTipSpot(card, anchor or UIParent) then
+        if anchor and anchor.GetRight then
+            -- Beside what you clicked, on whichever side has room.
+            local right = anchor:GetRight() and anchor:GetRight() * anchor:GetEffectiveScale() / UIParent:GetEffectiveScale()
+            if right and right + 350 > GetScreenWidth() then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -8, 0)
+            else card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 8, 0) end
+        else
+            card:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+        end
     end
     card:Show()
 end
@@ -1968,7 +1975,7 @@ local function buildArrow()
     -- Hover the arrow (or ring, or its text): the stop's details, e.g. quest progress.
     local function tip(owner)
         if not current or (panel and panel:IsShown()) then return end   -- the drawer already shows it
-        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        ns.Tip(owner, "ANCHOR_BOTTOM")
         N:FillTooltip(GameTooltip, current.goal, not N.arrived and "Click: details and the trip. Right-click: options." or nil)
         -- In an area: every other quest stop you're in the area for, with progress.
         if N.arrived then

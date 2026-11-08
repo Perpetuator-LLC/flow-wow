@@ -128,7 +128,7 @@ local function check(f, y, text, note, tip, get, set)
     end)
     if tip then
         c:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            ns.Tip(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(text)
             GameTooltip:AddLine(tip, 1, 1, 1, true)
             GameTooltip:Show()
@@ -159,7 +159,7 @@ local function choices(f, y, text, tip, options, get, set)
         end)
         if tip then
             b:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                ns.Tip(self, "ANCHOR_RIGHT")
                 GameTooltip:AddLine(text)
                 GameTooltip:AddLine(tip, 1, 1, 1, true)
                 GameTooltip:Show()
@@ -287,6 +287,10 @@ local function build(parent)
         { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 } },
         function() return ns.nav:StopsShown() or 0 end,
         function(v) ns.nav:SetStopsShown(v) end)
+    _, y = check(f, y, "Tooltips where WoW shows them", "(and the stop card, the arrow's drawer)",
+        "Flow's tooltips, its stop card and the arrow's drawer open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A stop card you dragged somewhere stays there.",
+        function() return ns.TipsAtGameSpot() end,
+        function(on) ns.db.settings.tipsBeside = not on end)
     _, y = check(f, y, "Intro on the arrow when you log in", "(/flow splash replays it)",
         "After logging in or /reload the arrow spins, shows FLOW in its ring, and the version and status underneath.",
         function() return ns.db.splash.enabled ~= false end,

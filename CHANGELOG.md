@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.95
+- **Flow's tooltips open where WoW shows its own:** the spot you set in Edit Mode or the
+  interface options, or at the cursor. Before, each opened next to whatever you hovered. That
+  covers every Flow tooltip: the easy button, the arrow, the Flow Tracker and Router, map pins,
+  the Improvements list, settings and the Seller.
+- **The stop card and the arrow's drawer open there too.** A stop card you dragged somewhere
+  stays where you put it. If your tooltips follow the cursor, the card and drawer keep their old
+  places. Setting: "Tooltips where WoW shows them" (on).
+- **Herbalism stops in Kalimdor.** The herbs there (Peacebloom, Silverleaf, Earthroot, Mageroyal,
+  Briarthorn, Bruiseweed) have their own game object numbers, which Flow didn't have. So
+  Mulgore had "no known Herbalism spot" and your "Camping 101: Herbalism" stop was stuck. The
+  Flow Tracker's "herbs nearby" line sees them now too, and each herb is checked by name.
+- **Heals keep coming until you're really topped up.** In your logs, after a 2-minute fight one
+  Rejuvenation and one Healing Touch made Flow think you were nearly full, yet you went on
+  healing. Each heal now makes up for less of the damage.
+
 ## 0.35.94
 - **New spell ranks replace the old ones on your bars.** When you learn a higher rank, every
   action bar slot with an older rank of that spell gets the new one. It happens right away, or

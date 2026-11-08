@@ -80,13 +80,27 @@ local function spawnPoints(spawnTables)
     return pts, onMap
 end
 
-local function objectPoints(ids)
+-- names (optional, same order as ids): an object whose Questie name differs
+-- is skipped, so a wrong ID never sends you to the wrong thing.
+local function objectPoints(ids, names)
     local spawns = {}
-    for _, id in ipairs(ids or {}) do
+    for i, id in ipairs(ids or {}) do
         local o = ns.quests:QuestieGet("GetObject", id)
-        if o and o.spawns then spawns[#spawns + 1] = o.spawns end
+        if o and o.spawns and not (names and names[i] and o.name ~= names[i]) then spawns[#spawns + 1] = o.spawns end
     end
     return spawnPoints(spawns)
+end
+
+-- The gathering nodes Flow knows for a profession (gatherNode, Nearby.lua)
+-- that still raise your skill: object IDs and their names.
+function SP.NodeObjects(prof, rank, nodes, skillUp)
+    local ids, names = {}, {}
+    for name, nd in pairs(nodes) do
+        if nd.prof == prof and rank >= (nd.skill or 1) and (not skillUp or skillUp(nd.skill or 1, rank)) then
+            for _, id in ipairs(nd.objects or {}) do ids[#ids + 1] = id; names[#names + 1] = name end
+        end
+    end
+    return ids, names
 end
 
 local function npcPoints(names)
@@ -516,6 +530,12 @@ local function planProfession(prof, t, out)
             end)())
             for _, pt in ipairs(o) do points[#points + 1] = pt end
         end
+        -- Every node Flow knows for it: Kalimdor's herbs have their own object
+        -- IDs, so Mulgore had no Herbalism spot at all ("no known spot").
+        local nodes = {}
+        for name, nd in ns:Each("gatherNode") do nodes[name] = nd end
+        local ids, names = SP.NodeObjects(prof, rank, nodes, ns.nearby and ns.nearby.SkillUp)
+        for _, pt in ipairs((objectPoints(ids, names))) do points[#points + 1] = pt end
         local tool, missing = SP:ToolGoal(prof)
         if tool then add(tool) end
         local lure = SP:LureGoal(prof)

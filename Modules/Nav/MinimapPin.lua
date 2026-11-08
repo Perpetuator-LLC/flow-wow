@@ -33,7 +33,7 @@ local function build()
     pin.dot:SetTexture(CIRCLE)
     pin:SetScript("OnEnter", function(self)
         if not self.goal then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.Tip(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Flow: " .. (self.goal.text or self.goal.title or "next stop"), 1, 1, 1, true)
         if self.yards then GameTooltip:AddLine(string.format("%d yd", self.yards), 0.8, 0.8, 0.8) end
         GameTooltip:Show()

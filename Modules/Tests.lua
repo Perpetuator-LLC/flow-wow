@@ -2823,3 +2823,42 @@ ns:Register("test", "trainers: found by their title, the ones you've used, and t
     t:eq(QM._routeNames["pyall silentstride"], "next", "the next stop's: the smaller one")
     if ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) else QM.SetRouteTarget(nil) end
 end)
+
+ns:Register("test", "tooltips and cards open where WoW shows its tooltips", function(t)
+    t:ok(type(ns.Tip) == "function" and type(ns.PlaceAtTipSpot) == "function", "the helpers exist")
+    local owner = CreateFrame("Frame", nil, UIParent)
+    owner:SetSize(10, 10); owner:SetPoint("CENTER")
+    with(ns.db.settings, "tipsBeside", nil, function()
+        ns.Tip(owner, "ANCHOR_RIGHT")
+        t:ok(GameTooltip:GetOwner() == owner, "a tooltip still belongs to what you hover")
+        GameTooltip:Hide()
+        local card = CreateFrame("Frame", nil, UIParent)
+        card:SetSize(50, 50)
+        local placed = ns.PlaceAtTipSpot(card, owner)
+        t:ok(placed == false or card:GetNumPoints() > 0, "a card goes where tooltips go (or keeps its own spot if they follow the cursor)")
+        card:Hide()
+    end)
+    with(ns.db.settings, "tipsBeside", true, function()
+        t:ok(not ns.TipsAtGameSpot(), "setting off: next to what you hover")
+        t:eq(ns.PlaceAtTipSpot(CreateFrame("Frame"), owner), false, "and cards keep their own spot")
+    end)
+    owner:Hide()
+end)
+
+ns:Register("test", "herbs in Kalimdor count for Herbalism stops; heals count for less", function(t)
+    local SP = ns.skillPlan
+    local nodes = { Peacebloom = { prof = "Herbalism", skill = 1, objects = { 1618, 3724 } },
+                    Earthroot = { prof = "Herbalism", skill = 15, objects = { 1619, 3726 } },
+                    ["Copper Vein"] = { prof = "Mining", skill = 1, objects = { 1731 } } }
+    local ids, names = SP.NodeObjects("Herbalism", 2, nodes)
+    local has = {}
+    for i, id in ipairs(ids) do has[id] = names[i] end
+    t:eq(has[3724], "Peacebloom", "Kalimdor's Peacebloom (Mulgore) is a Herbalism spot")
+    t:eq(has[3726], nil, "Earthroot waits for skill 15")
+    t:eq(has[1731], nil, "ore isn't a herb")
+    local pb = ns:Get("gatherNode", "Peacebloom")
+    local kal = false
+    for _, id in ipairs(pb and pb.objects or {}) do if id == 3724 then kal = true end end
+    t:ok(kal, "Flow's Peacebloom includes the Kalimdor node")
+    t:ok(ns.rotation.HEAL_VALUE.Rejuvenation <= 8 and ns.rotation.HEAL_VALUE["Healing Touch"] <= 15, "a heal makes up for fewer seconds of hits")
+end)

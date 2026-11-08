@@ -199,9 +199,12 @@ end
 -- Each fight's estimate goes in the log ("[heal]" lines, diagnostics).
 
 E.HURT = { outStart = 6, outBig = 15, inHot = 8, inHeal = 20, low = 40, regen = 1 / 3, eat = 3, max = 60 }
--- How much a heal takes off the estimate (seconds of being hit it makes up for).
-E.HEAL_VALUE = { Rejuvenation = 12, Regrowth = 18, ["Healing Touch"] = 25,
-                 ["Flash of Light"] = 15, ["Holy Light"] = 25, ["Word of Glory"] = 20, ["Lay on Hands"] = 60 }
+-- How much a heal takes off the estimate (seconds of being hit it makes up
+-- for). Lowered in 0.35.95: after a 2-minute fight (low-health warning on)
+-- one Rejuvenation and one Healing Touch took the estimate to nearly 0, yet
+-- the player went on casting Rejuvenation four more times: still hurt.
+E.HEAL_VALUE = { Rejuvenation = 8, Regrowth = 12, ["Healing Touch"] = 15,
+                 ["Flash of Light"] = 10, ["Holy Light"] = 15, ["Word of Glory"] = 12, ["Lay on Hands"] = 60 }
 E.hurt = 0
 
 -- How much an enemy is on you right now: 1 yes, 0 no, 0.5 the game won't say.

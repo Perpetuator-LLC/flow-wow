@@ -133,7 +133,7 @@ local function build()
         ClearCursor(); pickup(f.spellId)
     end)
     f.icon:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        ns.Tip(self, "ANCHOR_LEFT")
         if GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(f.spellId) end
         GameTooltip:AddLine("Drag it onto any action bar slot.", 0.6, 1, 0.6)
         GameTooltip:Show()

@@ -75,7 +75,7 @@ local function remaining(g)
 end
 
 local function tooltip(owner, g)
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    ns.Tip(owner, "ANCHOR_RIGHT")
     GameTooltip:AddLine(string.format("Make %s%d|r x %s", GOLD, remaining(g), g.recipe), 1, 1, 1)
     for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
     local nextStop = H.NextStop(g.key)

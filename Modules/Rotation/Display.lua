@@ -123,7 +123,7 @@ local function buildIcon(cfg)
         d:SetScript("OnEnter", function(self)
             local e = self.entry
             if not e then return end
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            ns.Tip(self, "ANCHOR_BOTTOM")
             local id = select(4, A.SpellInfo(e.spell))
             if id and GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(id); GameTooltip:AddLine(" ") end
             GameTooltip:AddLine(string.format("Coming up %d: %s", i, e.spell), 1, 0.82, 0)

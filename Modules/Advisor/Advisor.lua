@@ -151,7 +151,7 @@ local function buildButton()
     end)
     b:SetScript("OnClick", function() Adv:TogglePanel() end)
     b:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.Tip(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Flow: ways to improve")
         local shown, hidden = Adv:Shown()
         for i = 1, math.min(10, #shown) do
@@ -361,7 +361,7 @@ local function buildPanel()
         r.link:SetScript("OnClick", function(self) Adv.Open(r.row.item, self) end)
         r.link:SetScript("OnEnter", function(self)
             local _, label = Adv.LinkOf(r.row.item, goalFor)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            ns.Tip(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine("Open " .. tostring(label), 1, 1, 1, true)
             if r.row.item.goalKey and ns.mapOverlay then ns.mapOverlay:Preview(r.row.item.goalKey) end
             GameTooltip:Show()
@@ -372,7 +372,7 @@ local function buildPanel()
         end)
         r:SetScript("OnEnter", function(self)
             local row = self.row
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            ns.Tip(self, "ANCHOR_RIGHT")
             if row.kind == "header" then
                 GameTooltip:AddLine(row.open and "Click to fold the hidden ones away." or "Click to see what you hid.", 1, 1, 1, true)
             else
