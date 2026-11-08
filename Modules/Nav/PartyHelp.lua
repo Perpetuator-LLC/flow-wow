@@ -126,6 +126,7 @@ function H.ToDo(prog)
 end
 
 function H.Progress(name) return progress[name] end
+function H.All() return progress end   -- name -> progress (QuestShare.lua reads who has what)
 function H:Helping() return helping end
 
 local function changed()
@@ -172,6 +173,8 @@ ns.party.handlers.G = function(sender, rest)
     buffers[sender] = nil
     progress[sender] = buf
     if helping == sender then changed() else H:MaybeAsk(sender) end
+    -- Quests you have and they don't: shared one at a time (Quests/QuestShare.lua).
+    if ns.questShare then pcall(ns.questShare.ShareMissing, ns.questShare) end
 end
 ns.party.handlers.R = function() if GetTime() - lastSentAt > 2 then H.SendMine(true) end end
 

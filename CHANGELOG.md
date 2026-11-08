@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.72
+- Quest sharing in a party. A quest you pick up is shared when a party member doesn't have
+  it. When a Flow player joins (or their quest list comes in), the quests you have and they
+  don't are shared one every few seconds, skipping ones they're too low a level for. Each
+  quest is offered to each person once per group.
+- Quests a party member shares with you are accepted for you, and so are escort quests they
+  start, unless your quest log is full.
+- On by default: "Share quests with your party" in /flow settings, or /flow share on|off.
+
 ## 0.35.71
 - Fixed: in a group, Flow asked "Help <you>?" about yourself. The game echoes your own party
   messages back, and this client adds your realm to your name ("Name-Realm"), so Flow didn't

@@ -1923,3 +1923,17 @@ ns:Register("test", "party: your own messages echoed back are never someone else
     t:ok(not IsMe(nil, "Bob", "Realm"), "no sender: no")
     t:ok(IsMe(UnitName("player")), "you, by your own name")
 end)
+
+ns:Register("test", "quest sharing: share what party members are missing, once each", function(t)
+    local QS = ns.questShare
+    local members = { Zed = { [83] = true }, Amy = { [83] = true, [86] = true } }
+    t:ok(QS.ShouldShare(86, members, 0, {}, false), "Zed doesn't have 86: share it")
+    t:ok(not QS.ShouldShare(83, members, 0, {}, false), "everyone has 83: don't")
+    t:ok(not QS.ShouldShare(86, members, 0, { Zed = { [86] = true } }, false), "already offered to Zed: not again")
+    t:ok(QS.ShouldShare(83, members, 1, {}, true), "just picked up, and someone without Flow is here: share")
+    t:ok(not QS.ShouldShare(83, members, 1, {}, false), "your older quests aren't pushed on players without Flow")
+    t:ok(not QS.ShouldShare(86, members, 0, {}, false, function() return false end), "too low a level for it: not offered")
+    t:eq(QS.Count(members), 2, "two Flow players")
+    with(ns.db.quests, "share", false, function() t:ok(not QS.Enabled(), "the settings box turns it off") end)
+    with(ns.db.quests, "share", nil, function() t:ok(QS.Enabled(), "on by default") end)
+end)
