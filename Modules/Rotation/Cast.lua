@@ -441,8 +441,8 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     if not fight then return end
     local seen = {}
     for spell, n in pairs(fight.seen) do seen[#seen + 1] = spell .. " x" .. n end
-    ns:Log("cast", string.format("fight end (%.0f s): key pressed %d time(s), button got %d click(s) (%d key-down), %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
-        GetTime() - fight.at, fight.keys or 0, fight.clicks, fight.downs, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
+    ns:Log("cast", string.format("fight end (%.0f s): key pressed %d time(s), button got %d click(s) (%d key-down), shift + key %d, %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
+        GetTime() - fight.at, fight.keys or 0, fight.clicks, fight.downs, fight.healPresses or 0, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
         fight.empty, fight.ticks, tostring(E.lastError)))
     fight = nil
 end)
@@ -456,6 +456,16 @@ ns:OnLoad(function()
         if s and s.before and not InCombatLockdown() then pcall(s.before) end
     end)
     btn:HookScript("PostClick", function(_, button, down)
+        -- Shift + key (the "heal" button): every press logged, with Flow's
+        -- hurt estimate, so the diagnostics show whether the heal went off.
+        if button == "heal" then
+            if down ~= false then
+                ns:Log("heal", string.format("shift + key pressed: %s on you, hurt %.0f, in a fight %s",
+                    tostring(btn:GetAttribute("spell-heal")), E.hurt or 0, tostring(InCombatLockdown())))
+            end
+            if fight then fight.healPresses = (fight.healPresses or 0) + 1 end
+            return
+        end
         local s = E.shown
         local label = s and (s.label or s.key)
         -- (one press clicks twice, key down and up: log it once)

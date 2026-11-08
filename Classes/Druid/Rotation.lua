@@ -154,7 +154,10 @@ ns:Register("rotation", "DRUID", {
     -- Self-heals, considered before anything else (see Engine HealDecision).
     -- In Cat or Bear Form they're not usable, so they're skipped there.
     heals = { "Regrowth", "Healing Touch", "Rejuvenation" },
-    afterFightHeals = { "Rejuvenation", "Healing Touch", "Regrowth" },
+    -- Heals over time: put on early (Engine EarlyHeal), counted as on you for
+    -- their duration after you cast them.
+    hots = { "Rejuvenation" },
+    hotDuration = { Rejuvenation = 12 },
 
     -- What the cast key stays on for a fight (it can't change in combat):
     -- the form's main attack, so pressing it all fight keeps hitting.

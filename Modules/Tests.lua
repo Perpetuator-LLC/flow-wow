@@ -382,20 +382,41 @@ ns:Register("test", "spec badge: better / worse / same per spec", function(t)
     b:Hide()
 end)
 
-ns:Register("test", "rotation: after-fight heal only when it can help", function(t)
+ns:Register("test", "rotation: heals early on Flow's hurt estimate (health is hidden)", function(t)
     local E = ns.rotation
-    if not (E:Knows("Holy Light") and E:Ready("Holy Light")) then t:ok(true) return end
-    local def, now, old = E:Definition(), GetTime(), E.afterFight
-    E.afterFight = now + 5
+    local H = E.HURT
+    -- The estimate: hit time adds up, regen and eating take it down, the warning floors it.
+    t:eq(E.StepHurt(0, 10, true, 1, false, false), 10, "10 s with an enemy on you: 10")
+    t:eq(E.StepHurt(0, 10, true, 0.5, false, false), 5, "the game won't say: half")
+    t:near(E.StepHurt(10, 3, false, 0, false, false), 9, 0.01, "out of a fight: 1 every 3 s")
+    t:eq(E.StepHurt(10, 3, false, 0, true, false), 1, "eating: 3 a second")
+    t:eq(E.StepHurt(0, 0.5, true, 0, false, true), H.low, "the low-health warning: at least 40")
+    t:eq(E.StepHurt(5, 100, false, 0, false, false), 0, "never below 0")
+
+    local def = { heals = { "Healing Touch", "Rejuvenation" }, hots = { "Rejuvenation" }, hotDuration = { Rejuvenation = 12 } }
+    local ms = { ["Healing Touch"] = 2500, Rejuvenation = 0 }
     local quiet = { inCombat = false, hostile = false }
-    local h = E:AfterFightHeal(quiet, def, now)
-    t:eq(h and h.kind, "heal", "offered right after a long fight")
-    t:eq(E:AfterFightHeal({ inCombat = false, hostile = true }, def, now), nil, "not when you target an enemy (attacks first)")
-    t:eq(E:AfterFightHeal({ inCombat = true, hostile = true }, def, now), nil, "not in combat")
-    t:eq(E:AfterFightHeal(quiet, def, now + 6), nil, "gone after the window")
-    E.afterFight = nil
-    t:eq(E:AfterFightHeal(quiet, def, now), nil, "not without a long fight")
-    E.afterFight = old
+    local pulling = { inCombat = false, hostile = true }
+    local fight = { inCombat = true, hostile = true }
+    local far = GetTime() + 100000   -- (a Rejuvenation you cast just now never counts here)
+    with(E, "Ready", function() return true end, function()
+    with(ns.api, "SpellInfo", function(sp) return sp, nil, ms[sp] end, function()
+    with(ns.api, "Buff", function() return false, 0 end, function()
+        t:eq(E:EarlyHeal(quiet, def, 3, far), nil, "barely touched: no heal")
+        t:eq(E:EarlyHeal(quiet, def, 8, far).spell, "Rejuvenation", "a little hurt: the HoT")
+        t:eq(E:EarlyHeal(pulling, def, 8, far).spell, "Rejuvenation", "an enemy targeted: heal before the pull")
+        t:eq(E:EarlyHeal(quiet, def, 20, far).spell, "Healing Touch", "hurt from your fights: the big heal")
+        t:eq(E:EarlyHeal(fight, def, 5, far), nil, "early in a fight: attacks")
+        t:eq(E:EarlyHeal(fight, def, 10, far).spell, "Rejuvenation", "hit for a while: HoT in the fight")
+        t:eq(E:EarlyHeal(fight, def, 25, far).spell, "Rejuvenation", "hit a lot: the fastest heal (instant)")
+        t:ok(E:EarlyHeal(fight, def, 10, far).reason:find("Shift", 1, true) ~= nil, "says Shift + key casts it in a fight")
+    end) end) end)
+    with(E, "Ready", function() return true end, function()
+    with(ns.api, "SpellInfo", function(sp) return sp, nil, ms[sp] end, function()
+    with(ns.api, "Buff", function(_, sp) return sp == "Rejuvenation", 10 end, function()
+        t:eq(E:EarlyHeal(quiet, def, 8, far), nil, "HoT already on you: it's healing you")
+        t:eq(E:EarlyHeal(fight, def, 10, far), nil, "HoT on you in a fight: nothing more yet")
+    end) end) end)
 end)
 
 ns:Register("test", "cast key: never locked to nothing for a fight", function(t)

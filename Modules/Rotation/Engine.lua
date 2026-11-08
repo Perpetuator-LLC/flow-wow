@@ -177,24 +177,108 @@ local function suggest(rule, ctx, note)
              fightType = ctx.fightType }
 end
 
--- The after-fight heal prompt. Flow can't see your health in Forever, so it
--- only offers a heal when it's likely useful and never gets in the way:
---   * after any real fight (6 s or more), for 15 s: your health is hidden
---     from add-ons on Forever, so Flow can't tell how hurt you are; a 7 s
---     fight that left you at half health used to get no offer at all
---   * never in combat, and never once you target an enemy (you're pulling:
---     attacks come first)
---   * gone once you heal or fight again
-function E:AfterFightHeal(ctx, def, now)
-    now = now or GetTime()
-    if ctx.inCombat or ctx.hostile then return nil end
-    if not (self.afterFight and now < self.afterFight) then return nil end
-    for _, spell in ipairs(def and def.afterFightHeals or { "Holy Light", "Flash of Light" }) do
-        if self:Knows(spell) and self:Ready(spell) then
-            return { spell = spell, kind = "heal", fightType = ctx.fightType,
-                     reason = "After a long fight: top up if you're hurt (Flow can't see your health)" }
+-------------------------------------------------------------------------------
+-- Healing early, without seeing your health
+-------------------------------------------------------------------------------
+-- Forever hides your health from add-ons, in fights and out (Flow reads
+-- "0/0"), and its combat log is off, so Flow can't see damage either. Waiting
+-- for the game's red low-health warning (about a third left) was far too
+-- late. So Flow keeps an estimate, E.hurt, in "seconds of being hit":
+--   + 1 a second while an enemy is on you (you have its attention, or your
+--     target targets you); in a fight where the game won't say: half that
+--   - your heals (HEAL_VALUE), natural regen out of combat (1 every 3 s;
+--     eating or drinking: 3 a second); all of it when you level up
+--   = at least 40 while the game's low-health warning is on
+-- and heals on it, early (E.HURT):
+--   out of combat, hurt 6+: heal before the next pull, even with an enemy
+--     targeted (healing first is the point). The small one (your HoT, or the
+--     fastest heal) when a little hurt or about to pull; the big one at 15+.
+--   in a fight, hurt 8+: your HoT if it isn't on you; 20+: your fastest heal.
+--     The key can't change mid-fight, so they show on the icon with a green
+--     "Shift+key": Shift + your key casts your fastest heal on you.
+-- Each fight's estimate goes in the log ("[heal]" lines, diagnostics).
+
+E.HURT = { outStart = 6, outBig = 15, inHot = 8, inHeal = 20, low = 40, regen = 1 / 3, eat = 3, max = 60 }
+-- How much a heal takes off the estimate (seconds of being hit it makes up for).
+E.HEAL_VALUE = { Rejuvenation = 12, Regrowth = 18, ["Healing Touch"] = 25,
+                 ["Flash of Light"] = 15, ["Holy Light"] = 25, ["Word of Glory"] = 20, ["Lay on Hands"] = 60 }
+E.hurt = 0
+
+-- How much an enemy is on you right now: 1 yes, 0 no, 0.5 the game won't say.
+function E.BeingHit()
+    local threat = A.Safe(UnitThreatSituation and UnitThreatSituation("player"))
+    if threat ~= nil then return threat >= 2 and 1 or 0 end
+    if UnitExists("targettarget") then
+        local me = A.Safe(UnitIsUnit("targettarget", "player"))
+        if me ~= nil then return me and 1 or 0 end
+    end
+    return 0.5
+end
+
+local EATING = { Food = true, Drink = true, ["Food & Drink"] = true, Refreshment = true }
+local function eating() return (A.Buff("player", function(n) return EATING[n] end)) end
+
+-- One step of the estimate. inCombat, hit (0..1), eat, low: what the game says now.
+function E.StepHurt(hurt, dt, inCombat, hit, eat, low)
+    local H = E.HURT
+    if inCombat then hurt = hurt + dt * hit
+    else hurt = hurt - dt * (eat and H.eat or H.regen) end
+    if low then hurt = math.max(hurt, H.low) end
+    return math.max(0, math.min(H.max, hurt))
+end
+
+-- Your HoT counts as on you for its duration after you cast it (its buff
+-- may be hidden in a fight).
+local hotCastAt = {}
+local function hotUp(spell, def, now)
+    if A.Buff("player", spell) then return true end
+    local dur = def.hotDuration and def.hotDuration[spell] or 12
+    return hotCastAt[spell] ~= nil and now - hotCastAt[spell] < dur
+end
+
+-- The heal to suggest for the estimate, or nil. hurt defaults to E.hurt.
+function E:EarlyHeal(ctx, def, hurt, now)
+    hurt, now = hurt or E.hurt, now or GetTime()
+    local heals = def and def.heals
+    if not heals or UnitIsDeadOrGhost("player") then return nil end
+    if ctx.casting then
+        for _, h in ipairs(heals) do if h == ctx.casting then return nil end end
+    end
+    local H = E.HURT
+    local hot, ticking, isHot = nil, false, {}
+    for _, sp in ipairs(def.hots or {}) do
+        isHot[sp] = true
+        if hotUp(sp, def, now) then ticking = true
+        elseif not hot and self:Ready(sp) then hot = sp end
+    end
+    -- (A HoT already on you isn't cast again.)
+    local fast, fastMs, big, bigMs
+    for _, sp in ipairs(heals) do
+        if self:Ready(sp) and not (isHot[sp] and sp ~= hot) then
+            local _, _, ms = A.SpellInfo(sp)
+            ms = ms or 0
+            if not fastMs or ms < fastMs then fast, fastMs = sp, ms end
+            if not bigMs or ms > bigMs then big, bigMs = sp, ms end
         end
     end
+    local function heal(spell, why)
+        if not spell then return nil end
+        return { spell = spell, kind = "heal", fightType = ctx.fightType, early = true,
+                 reason = string.format("%s (Flow's estimate: about %d s of hits since you last healed; it can't see your health)", why, hurt) }
+    end
+    if ctx.inCombat then
+        if hurt >= H.inHeal then return heal(fast, "You've been hit a lot: heal now (Shift + key)") end
+        if hurt >= H.inHot and hot then return heal(hot, "Hit for a while: " .. hot .. " now, before it's a problem (Shift + key)") end
+        return nil
+    end
+    if hurt < H.outStart then return nil end
+    if hurt < H.outBig then
+        local why = ctx.hostile and "Top up before you pull" or "A little hurt: top up"
+        if hot then return heal(hot, why) end
+        if ticking then return nil end          -- your HoT is on: it's healing you
+        return heal(fast, why)                  -- (no HoT: the quick heal)
+    end
+    return heal(big or fast, ctx.hostile and "Hurt: heal up before you pull" or "Hurt from your fights: heal up before the next pull")
 end
 
 
@@ -275,8 +359,17 @@ function E:Choose()
         if h then h.fightType = ctx.fightType; return h end
     end
 
-    local h = self:AfterFightHeal(ctx, def)
-    if h then return h end
+    -- Your health is hidden: heal on Flow's estimate, long before the warning.
+    local h = self:EarlyHeal(ctx, def)
+    if h then
+        local key = h.spell .. (ctx.inCombat and " (in a fight)" or "")
+        if key ~= E.lastEarlyLog then
+            E.lastEarlyLog = key
+            ns:Log("heal", string.format("suggest %s: hurt %.0f%s", key, E.hurt, ctx.hostile and ", enemy targeted" or ""))
+        end
+        return h
+    end
+    E.lastEarlyLog = nil
 
     -- A curse, poison, disease or magic you can remove, on you or your group.
     local d = self:Dispel(ctx, def)
@@ -546,6 +639,9 @@ function E:Explain()
     end
     out[#out + 1] = string.format("Fight type %s, hostile target %s, in combat %s, health %s/%s",
         ctx.fightType, tostring(ctx.hostile), tostring(ctx.inCombat), tostring(ctx.hp), tostring(ctx.maxHp))
+    local H = E.HURT
+    out[#out + 1] = string.format("Hurt estimate: %.0f s of hits (heals out of a fight at %d+, big heal at %d+; in a fight HoT at %d+, heal at %d+); an enemy on you now: %s",
+        E.hurt, H.outStart, H.outBig, H.inHot, H.inHeal, tostring(E.BeingHit()))
     local s = self.current
     out[#out + 1] = "Suggesting now: " .. (s and (s.spell .. " (" .. s.reason .. ")") or "nothing")
     for _, rule in ipairs(priorityFor(def, ctx)) do
@@ -667,16 +763,60 @@ ns.commands.rot = function(arg)
     end
 end
 
--- After-fight heal window (see Choose): opens when a fight of 6 s or more
--- ends, closes when you cast a heal or start another fight.
-local fightStart
-ns:On("PLAYER_REGEN_DISABLED", function() fightStart = GetTime(); E.afterFight = nil end)
+-- The hurt estimate (see EarlyHeal), stepped twice a second, and a line per
+-- fight in the log: how long you were hit, the estimate before and after.
+local fightLog
+local probes = { wounds = 0, readable = 0 }
+C_Timer.NewTicker(0.5, function()
+    if UnitIsDeadOrGhost("player") then E.hurt = 0 return end
+    local inCombat = UnitAffectingCombat("player") and true or false
+    local hit = inCombat and E.BeingHit() or 0
+    if fightLog then
+        fightLog.hit = fightLog.hit + 0.5 * hit
+        if hit == 0.5 then fightLog.unknown = fightLog.unknown + 0.5 end
+    end
+    local low = A.LowHealthWarning() == true
+    if low and fightLog then fightLog.low = true end
+    E.hurt = E.StepHurt(E.hurt, 0.5, inCombat, hit, not inCombat and eating(), low)
+end)
+
+ns:On("PLAYER_REGEN_DISABLED", function()
+    fightLog = { start = GetTime(), hurt = E.hurt, hit = 0, unknown = 0 }
+end)
 ns:On("PLAYER_REGEN_ENABLED", function()
-    if fightStart and GetTime() - fightStart >= 6 then E.afterFight = GetTime() + 15 end
-    fightStart = nil
+    local f = fightLog
+    fightLog = nil
+    if not f then return end
+    local H = E.HURT
+    ns:Log("heal", string.format("fight %d s: an enemy on you ~%d s%s; hurt %.0f -> %.0f (Flow heals at %d out of a fight, HoT at %d / heal at %d in one)%s",
+        GetTime() - f.start, f.hit, f.unknown > 0 and string.format(" (%d s the game wouldn't say)", f.unknown) or "",
+        f.hurt, E.hurt, H.outStart, H.inHot, H.inHeal, f.low and "; the game's low-health warning came on" or ""))
+    -- Once a session: can Flow read any real numbers here? (If so, the
+    -- estimate could use them.)
+    if not probes.done then
+        probes.done = true
+        ns:Log("heal", string.format("probe: your health %s, max health %s, hits seen %d (numbers readable in %d)",
+            A.Safe(UnitHealth("player")) ~= nil and "readable" or "hidden",
+            A.Safe(UnitHealthMax("player")) ~= nil and "readable" or "hidden", probes.wounds, probes.readable))
+    end
+end)
+-- Damage numbers the game shows over your character (combat text): logged
+-- only, to learn whether they're readable on this client.
+ns:On("UNIT_COMBAT", function(unit, action, _, amount)
+    if unit ~= "player" or A.Safe(action) ~= "WOUND" then return end
+    probes.wounds = probes.wounds + 1
+    if A.Safe(amount) ~= nil then probes.readable = probes.readable + 1 end
 end)
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
-    if unit ~= "player" or not E.afterFight then return end
+    if unit ~= "player" then return end
     local name = A.SpellInfo(A.Safe(spellID) or 0)
-    if name == "Holy Light" or name == "Flash of Light" then E.afterFight = nil end
+    local value = name and E.HEAL_VALUE[name]
+    if not value then return end
+    local def = E:Definition()
+    for _, sp in ipairs(def and def.hots or {}) do if sp == name then hotCastAt[sp] = GetTime() end end
+    local before = E.hurt
+    E.hurt = math.max(0, E.hurt - value)
+    ns:Log("heal", string.format("cast %s: hurt %.0f -> %.0f", name, before, E.hurt))
 end)
+ns:On("PLAYER_LEVEL_UP", function() E.hurt = 0 end)                -- a new level fills your health
+ns:On("PLAYER_UNGHOST", function() E.hurt = E.HURT.outBig + 5 end)  -- back from the dead: about half

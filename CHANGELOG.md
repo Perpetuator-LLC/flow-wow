@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.35.87
+- **Heals come early now, long before your health is a problem.** Forever hides your health
+  from add-ons all the time (Flow reads "0/0" even standing still), and its combat log is off,
+  so Flow can't see damage either. It used to wait for the game's red low-health warning
+  (about a third left), which was far too late. Now it keeps an estimate of how hurt you are,
+  counted in seconds of being hit:
+  - it goes up while an enemy is on you;
+  - it goes down with your heals, with natural regen out of combat, and faster while you eat
+    or drink;
+  - levelling up resets it.
+- **When Flow heals on that estimate:**
+  - Out of a fight, a little hurt: your HoT (Rejuvenation) or a quick heal, even with an
+    enemy targeted, so you top up before the pull.
+  - Out of a fight, hurt more: the big heal (Healing Touch, Holy Light).
+  - In a fight, after about 8 s of being hit: Rejuvenation if it isn't on you. After about
+    20 s: your fastest heal. These show on the icon with a green "Shift+key", since Shift +
+    key casts them mid-fight.
+  - A HoT you just cast counts as on you for its duration, so it's never suggested twice.
+- **Heal debug lines in the log** (`[heal]`, in the diagnostics):
+  - each fight: how long an enemy was on you, and the estimate before and after;
+  - each heal suggested and each heal cast, with the estimate;
+  - each Shift + key press;
+  - once a session, whether any real health or damage numbers are readable;
+  - `/flow rot why` also shows the estimate.
+- Replaces the old "15 s after a long fight" heal prompt.
+
 ## 0.35.86
 - **Profession trainers are stops on your route, not a waypoint.** The reminder card no longer
   has "Show me the way" (which set one waypoint, for the first profession only). It now says
