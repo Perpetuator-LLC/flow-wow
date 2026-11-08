@@ -235,13 +235,20 @@ E.BREAKERS = {
     { spell = "Will of the Forsaken", types = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, SLEEP = true } },
     { spell = "Escape Artist", types = { ROOT = true } },  -- gnome
     { spell = "Blessing of Freedom", types = { ROOT = true } },
+    -- Druid: changing form frees you from roots (not into the form you're in:
+    -- that would only take you out of it).
+    { spell = "Travel Form", types = { ROOT = true }, form = true },
+    { spell = "Cat Form", types = { ROOT = true }, form = true },
+    { spell = "Bear Form", types = { ROOT = true }, form = true },
+    { spell = "Dire Bear Form", types = { ROOT = true }, form = true },
 }
 
 function E:BreakFree(ctx)
     local t = ctx.loc
     if not t then return nil end
+    local form = A.Form()
     for _, b in ipairs(E.BREAKERS) do
-        if (b.any or (b.types and b.types[t])) and self:Ready(b.spell) then
+        if (b.any or (b.types and b.types[t])) and not (b.form and form == b.spell) and self:Ready(b.spell) then
             return { spell = b.spell, kind = "emergency", fightType = ctx.fightType,
                      reason = string.format("You're held (%s): break free", t:lower():gsub("_", " ")) }
         end
@@ -270,6 +277,10 @@ function E:Choose()
 
     local h = self:AfterFightHeal(ctx, def)
     if h then return h end
+
+    -- A curse, poison, disease or magic you can remove, on you or your group.
+    local d = self:Dispel(ctx, def)
+    if d then return d end
 
     local list = priorityFor(def, ctx)
     local i = 1
@@ -437,11 +448,79 @@ function E:GroupBuff(ctx, def, now)
 end
 function E.ClearGroupCache() groupCache = nil end
 
+-------------------------------------------------------------------------------
+-- Removing curses, poisons, diseases and magic
+-------------------------------------------------------------------------------
+-- A rotation lists what it can remove (def.dispels, in order of preference):
+--   { spell, types = { Curse = true, Poison = true, ... } }
+--   dispels.canCast = fn() -> bool (a druid in caster form)
+-- You first, then your group's tank, healers and everyone else, alive and in
+-- range. Out of combat always (the key casts it). In a fight only for a
+-- healer, and only for someone else: the icon shows it (the key can't change
+-- mid-fight), so it never pushes your attacks off the icon for a poison on you.
+
+-- Debuff types on a unit, from the game: { Curse = "Curse of Weakness", ... },
+-- or nil if the game won't say (hidden in a fight on some clients).
+local function debuffTypes(unit)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return nil end
+    local out = {}
+    for i = 1, 40 do
+        local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HARMFUL")
+        if not ok then return nil end
+        if not a then break end
+        local kind = A.Safe(a.dispelName)
+        if kind and kind ~= "" and not out[kind] then out[kind] = A.Safe(a.name) or kind end
+    end
+    return out
+end
+E._debuffTypes = debuffTypes
+
+-- The first spell you know that removes one of these types: spell, type, debuff name.
+function E.DispelFor(dispels, types, knows)
+    for _, rule in ipairs(dispels or {}) do
+        if knows(rule.spell) then
+            for kind in pairs(rule.types) do
+                if types[kind] then return rule.spell, kind, types[kind] end
+            end
+        end
+    end
+end
+
+local ORDER = { tank = 1, healer = 2 }
+local dispelCache
+function E:Dispel(ctx, def, now, read)
+    local list = def and def.dispels
+    if not list or (list.canCast and not list.canCast()) then return nil end
+    if ctx.inCombat and ctx.role ~= "heal" then return nil end
+    now = now or GetTime()
+    if not read and dispelCache and now - dispelCache.at < 0.5 then return dispelCache.s end
+    local units = {}
+    if not ctx.inCombat then units[1] = { unit = "player", name = "you", kind = "self" } end
+    local group = E.GroupUnits()
+    table.sort(group, function(a, b) return (ORDER[a.kind] or 3) < (ORDER[b.kind] or 3) end)
+    for _, u in ipairs(group) do units[#units + 1] = u end
+    local s
+    for _, u in ipairs(units) do
+        local types = (read or debuffTypes)(u.unit)
+        local spell, kind, what = nil, nil, nil
+        if types then spell, kind, what = E.DispelFor(list, types, function(sp) return self:Knows(sp) end) end
+        if spell and self:Ready(spell, u.unit) then
+            s = { spell = spell, kind = "buff", unit = u.unit, target = u.unit ~= "player" and u.name or nil,
+                  fightType = ctx.fightType,
+                  reason = string.format("%s on %s: %s (%s)", spell, u.name, kind:lower(), tostring(what)) }
+            break
+        end
+    end
+    if not read then dispelCache = { at = now, s = s } end
+    return s
+end
+function E.ClearDispelCache() dispelCache = nil end
+
 -- Remember who got what (some clients hide other people's buffs), and look
 -- again at once after any cast of yours.
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellId)
     if unit ~= "player" then return end
-    groupCache = nil
+    groupCache, dispelCache = nil, nil
     local s = E.current
     if not (s and s.guid and s.unit) then return end
     local name = A.SpellInfo(A.Safe(spellId) or 0)

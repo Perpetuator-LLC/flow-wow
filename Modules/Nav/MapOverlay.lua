@@ -1607,7 +1607,28 @@ function M:Preview(key)
     pcall(M.Redraw, M)
 end
 
+-- The quest log key (L) shows the quest log, so the Flow Router steps
+-- aside while it's open, and comes back the next time you open the map
+-- (M). A hook after the game's own function: nothing of the game's runs
+-- from Flow's code.
+function M.QuestLogOpened(mapShown)
+    if mapShown and not collapsed() then
+        M.asideForQuestLog = true
+        ns.db.nav.mapListCollapsed = true
+        pcall(M.Redraw, M)
+    end
+end
+function M.MapClosed()
+    if M.asideForQuestLog then
+        M.asideForQuestLog = nil
+        ns.db.nav.mapListCollapsed = false
+    end
+end
+
 ns:OnLoad(function()
+    if ToggleQuestLog then
+        hooksecurefunc("ToggleQuestLog", function() M.QuestLogOpened(WorldMapFrame and WorldMapFrame:IsShown()) end)
+    end
     local acc, open = 0, false
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
@@ -1619,6 +1640,7 @@ ns:OnLoad(function()
             if open then pcall(M.Tick, M) else pcall(M.Redraw, M) end
             open = true
         else
+            if open then M.MapClosed() end
             open = false
         end
     end)

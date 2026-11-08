@@ -141,15 +141,33 @@ function C:FillTooltip(tt)
     end
     local key = C:KeyLabel()
     tt:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 0.8, 0.8, 0.8)
+    if key ~= "" and C:HealSpell() then
+        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too).", 0.4, 1, 0.4)
+    end
     tt:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.6, 0.6, 0.6)
 end
 
 local function refreshLabels()
     if not keyText then return end
-    keyText:SetText(C:KeyLabel())
+    -- A heal on the icon in a fight, while the key holds something else:
+    -- the label says Shift + your key casts it (it does, all fight).
+    local live = E.current
+    local first = C.KeysOf(ns.db.cast)[1]
+    local healKey = first and C.HealSpell and C:HealSpell() and C.HealKeyFor(first)
+    if InCombatLockdown() and healKey and live and (live.kind == "heal" or live.kind == "emergency")
+        and lockedSpell ~= live.spell then
+        keyText:SetText("|cff66ff66Shift+" .. ((GetBindingText and GetBindingText(first, "KEY_", true)) or first) .. "|r")
+        if not ns.db.cast.healTipShown then
+            ns.db.cast.healTipShown = true
+            ns:Print(string.format("tip: Shift + %s casts %s on you, even in a fight (the key itself can't change mid-fight).",
+                (GetBindingText and GetBindingText(first, "KEY_", true)) or first, C:HealSpell()))
+        end
+    else
+        keyText:SetText(C:KeyLabel())
+    end
     -- In combat, show what the key is locked to when it differs from the advice.
-    local live = E.current and E.current.spell
-    if InCombatLockdown() and lockedSpell and live and lockedSpell ~= live then
+    local liveSpell = live and live.spell
+    if InCombatLockdown() and lockedSpell and liveSpell and lockedSpell ~= liveSpell then
         local _, tex = A.SpellInfo(lockedSpell)
         lockIcon.tex:SetTexture(tex)
         lockIcon:Show()
@@ -215,6 +233,51 @@ end
 local owner = CreateFrame("Frame")
 local pendingKey = false
 
+-- Shift + your key: your heal, on you, any time, fights included. The key
+-- itself can't change in a fight (WoW's rule), so a heal Flow showed mid-fight
+-- couldn't be cast with it until the fight was over. The heal is set before
+-- the fight on a second "button" of the same secure button ("heal") that
+-- only the Shift binding presses: clicking or shift-dragging the icon is
+-- unchanged. Setting: "Shift + easy key heals you" (/flow settings).
+local healSpell
+
+-- Your heal for it: the fastest to cast of your class's heals that you know
+-- (a fight is no time for a slow one). knows(spell), castMs(spell).
+function C.HealFor(def, knows, castMs)
+    local best, bestMs
+    for _, spell in ipairs(def and def.heals or {}) do
+        if knows(spell) then
+            local ms = castMs(spell) or 0
+            if not best or ms < bestMs then best, bestMs = spell, ms end
+        end
+    end
+    return best
+end
+
+-- "`" -> "SHIFT-`", "CTRL-E" -> "CTRL-SHIFT-E" (the game's order: ALT, CTRL,
+-- SHIFT). A key that already uses Shift gets none.
+function C.HealKeyFor(key)
+    if type(key) ~= "string" or key == "" or key:find("SHIFT-", 1, true) then return nil end
+    local alt, ctrl = key:find("ALT-", 1, true), key:find("CTRL-", 1, true)
+    local base = key:gsub("ALT%-", ""):gsub("CTRL%-", "")
+    return (alt and "ALT-" or "") .. (ctrl and "CTRL-" or "") .. "SHIFT-" .. base
+end
+
+function C:HealSpell() return healSpell end
+
+local function setHeal()
+    if InCombatLockdown() or not btn then return end
+    local spell = ns.db.cast.shiftHeal ~= false and C.HealFor(E:Definition(),
+        function(s) return E:Knows(s) end, function(s) return select(3, A.SpellInfo(s)) end) or nil
+    if spell == healSpell then return end
+    healSpell = spell
+    btn:SetAttribute("type-heal", spell and "spell" or nil)
+    btn:SetAttribute("spell-heal", spell)
+    btn:SetAttribute("unit-heal", spell and "player" or nil)
+    C:ApplyKey()   -- the Shift binding comes and goes with the heal
+end
+C._setHeal = setHeal
+
 -- Your easy-button keys: up to two (ns.db.cast.key and .key2), both cast the
 -- suggestion. Returns the ones set, without repeats.
 function C.KeysOf(cast)
@@ -234,6 +297,8 @@ function C:ApplyKey()
     for _, key in ipairs(self:Keys()) do
         if interact then SetOverrideBinding(owner, true, key, "INTERACTTARGET")
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
+        local healKey = healSpell and C.HealKeyFor(key)
+        if healKey then SetOverrideBindingClick(owner, true, healKey, "FlowCastButton", "heal") end
     end
     refreshLabels()
 end
@@ -291,6 +356,7 @@ ns:OnLoad(function(saved)
         if not InCombatLockdown() then
             local s = E.shown
             setAction(s)
+            setHeal()
             -- Hidden when there's nothing to press, so it never blocks clicks
             -- on the world. (Can only change out of combat.)
             local want = s ~= nil or not ns.db.rotation.locked
@@ -303,6 +369,7 @@ end)
 -- Last moment before combat lockdown: lock in the spell for this fight.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if btn and not btn:IsShown() then btn:Show() end  -- key must work all fight
+    setHeal()   -- Shift + key: your heal, all fight
     -- The key goes back to Flow's button for the fight (not Interact). This
     -- event comes just before the lockdown, so changes are still allowed.
     if interact then interact = false; C:ApplyKey() end
@@ -342,6 +409,10 @@ function C:Test()
         print(string.format("  key%s: %s (%s), bound to %s", i == 1 and "" or " " .. i,
             (GetBindingText and GetBindingText(key, "KEY_", true)) or key, key, tostring(GetBindingAction(key, true))))
     end
+    local first = keys[1]
+    print("  shift + key: " .. (healSpell and first and C.HealKeyFor(first)
+        and string.format("%s casts %s on you (bound to %s)", C.HealKeyFor(first), healSpell, tostring(GetBindingAction(C.HealKeyFor(first), true)))
+        or "no heal on it"))
     print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
         .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "

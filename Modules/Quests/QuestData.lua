@@ -14,6 +14,10 @@ local _, ns = ...
 local Q = {}
 ns.quests = Q
 
+-- A quest this many levels above you is hard (orange, then red in the
+-- quest log): not offered to pick up, and planned last if it's in your log.
+Q.HARD_ABOVE = 3
+
 -------------------------------------------------------------------------------
 -- Native game API: completed quests and quest log (always works)
 -------------------------------------------------------------------------------

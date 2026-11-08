@@ -162,6 +162,11 @@ ns:Register("rotation", "PALADIN", {
     guide = guide,
     wantSeal = wantSeal,   -- (tests)
     groupBuffs = groupBuffs,
+    -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).
+    dispels = {
+        { spell = "Cleanse", types = { Poison = true, Disease = true, Magic = true } },
+        { spell = "Purify", types = { Poison = true, Disease = true } },
+    },
 
     -- Self-heals, considered before anything else (see Engine HealDecision).
     heals = { "Flash of Light", "Holy Light", "Word of Glory" },

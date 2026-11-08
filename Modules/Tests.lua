@@ -1908,6 +1908,36 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
     local skipped = {}
     ns.quests.QuestGoals(db, q, skipped, { prefix = "help:", who = "Bob", skip = function(k) return k == "help:500:1" end })
     t:eq(#skipped, 1, "skip leaves out what you already cover")
+    -- A level-5 quest at level 2 (3 above you): hard, planned after the easy ones.
+    local hardGoals = {}
+    ns.quests.QuestGoals(db, q, hardGoals, { level = 2 })
+    if hardGoals[2] then
+        t:ok(hardGoals[2].hard and hardGoals[2].weight == 1.6, "3 levels above you: hard, planned later")
+        local easy = {}
+        ns.quests.QuestGoals(db, q, easy, { level = 3 })
+        t:ok(easy[2] and not easy[2].hard, "2 above: not hard")
+    else
+        t:ok(true, "(no map for the test zone here: objective stop not placed)")
+    end
+    t:eq(ns.quests.HARD_ABOVE, 3, "quests 3+ levels up are the hard ones (not offered to pick up)")
+end)
+
+ns:Register("test", "quest log key (L): the Flow Router steps aside, back with the map", function(t)
+    local M = ns.mapOverlay
+    with(ns.db.nav, "mapListCollapsed", false, function()
+        with(M, "Redraw", function() end, function()
+            M.QuestLogOpened(true)
+            t:ok(ns.db.nav.mapListCollapsed == true, "L: the Router closes over the quest log")
+            M.MapClosed()
+            t:ok(ns.db.nav.mapListCollapsed == false, "the map closed: the Router is back next time")
+            M.QuestLogOpened(false)
+            t:ok(ns.db.nav.mapListCollapsed == false, "L closed the map: nothing changes")
+        end)
+    end)
+    with(ns.db.nav, "mapListCollapsed", true, function()
+        M.QuestLogOpened(true); M.MapClosed()
+        t:ok(ns.db.nav.mapListCollapsed == true, "you had it closed: it stays closed")
+    end)
 end)
 
 ns:Register("test", "nearby: ore and herbs around you and your next stop", function(t)
@@ -2400,4 +2430,55 @@ ns:Register("test", "bonus mode: off by default; Spoken picks a voice and clean 
     t:eq(B.PickVoice({}, 2), nil, "no voices: nothing")
     t:eq(B.Clean("|cffffd200Hello|r, $Bfriend.\n Go  now."), "Hello, friend. Go now.", "colour codes and line breaks out")
     t:eq(B.Clean("   "), nil, "nothing to say")
+end)
+
+ns:Register("test", "shift + easy key: your heal on you, even in a fight", function(t)
+    local C = ns.cast
+    t:eq(C.HealKeyFor("`"), "SHIFT-`", "the key with Shift")
+    t:eq(C.HealKeyFor("CTRL-E"), "CTRL-SHIFT-E", "in the game's order")
+    t:eq(C.HealKeyFor("ALT-CTRL-Q"), "ALT-CTRL-SHIFT-Q", "all modifiers")
+    t:eq(C.HealKeyFor("SHIFT-F"), nil, "a key that already uses Shift: none")
+    t:eq(C.HealKeyFor(nil), nil, "no key: none")
+    local def = { heals = { "Healing Touch", "Rejuvenation", "Regrowth" } }
+    local ms = { ["Healing Touch"] = 1500, Rejuvenation = 0, Regrowth = 2000 }
+    local function knows(s) return s ~= "Regrowth" end
+    t:eq(C.HealFor(def, knows, function(s) return ms[s] end), "Rejuvenation", "the fastest heal you know")
+    t:eq(C.HealFor(def, function() return false end, function() return 0 end), nil, "no heal known: nothing")
+    t:eq(C.HealFor({ heals = { "Flash of Light", "Holy Light" } }, function() return true end,
+        function(s) return s == "Holy Light" and 2500 or 1500 end), "Flash of Light", "paladin: Flash of Light")
+end)
+
+ns:Register("test", "cleanse: curses and poisons off you and your group; break free of roots", function(t)
+    local E = ns.rotation
+    local dru = ns:Get("rotation", "DRUID").dispels
+    local function knows(s) return s == "Remove Curse" or s == "Cure Poison" end
+    t:eq(E.DispelFor(dru, { Curse = "Curse of Weakness" }, knows), "Remove Curse", "a curse: Remove Curse")
+    t:eq(E.DispelFor(dru, { Poison = "Weak Poison" }, knows), "Cure Poison", "a poison: Cure Poison (Abolish not known)")
+    t:eq(E.DispelFor(dru, { Magic = "Sleep" }, knows), nil, "magic: a druid can't")
+    local pal = ns:Get("rotation", "PALADIN").dispels
+    t:eq(E.DispelFor(pal, { Disease = "Plague" }, function(s) return s == "Purify" end), "Purify", "paladin: Purify a disease")
+    t:eq(E.DispelFor(pal, { Magic = "Frost Nova" }, function(s) return s == "Purify" end), nil, "magic needs Cleanse")
+
+    local units = { { unit = "party1", name = "Zed", kind = "melee" }, { unit = "party2", name = "Tank", kind = "tank" } }
+    local debuffs = { player = {}, party1 = { Curse = "Curse of Weakness" }, party2 = { Curse = "Curse of Recklessness" } }
+    local def = { dispels = { { spell = "Remove Curse", types = { Curse = true } } } }
+    local s
+    with(E, "GroupUnits", function() return units end, function()
+    with(E, "Knows", function(_, sp) return sp == "Remove Curse" end, function()
+    with(E, "Ready", function() return true end, function()
+        s = E:Dispel({ inCombat = false, role = "dps" }, def, 0, function(u) return debuffs[u] end)
+        t:eq(s and s.target, "Tank", "the tank first")
+        t:eq(s and s.unit, "party2", "cast on them")
+        debuffs.player = { Curse = "Curse of Agony" }
+        s = E:Dispel({ inCombat = false, role = "dps" }, def, 0, function(u) return debuffs[u] end)
+        t:eq(s and s.unit, "player", "you before anyone")
+        t:eq(E:Dispel({ inCombat = true, role = "dps" }, def, 0, function(u) return debuffs[u] end), nil,
+            "in a fight, not as damage: your attacks stay on the icon")
+        s = E:Dispel({ inCombat = true, role = "heal" }, def, 0, function(u) return debuffs[u] end)
+        t:eq(s and s.target, "Tank", "in a fight as the healer: your group, not you")
+    end) end) end)
+
+    local root
+    for _, b in ipairs(E.BREAKERS) do if b.spell == "Bear Form" then root = b end end
+    t:ok(root and root.types.ROOT and root.form, "a druid's forms break roots")
 end)

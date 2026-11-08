@@ -127,9 +127,18 @@ local groupBuffs = {
       who = function(u) return u.kind == "tank" or u.class == "WARRIOR" end },
 }
 
+-- Curses and poisons on you or your group (Engine Dispel). Caster form only.
+local dispels = {
+    canCast = caster,
+    { spell = "Remove Curse", types = { Curse = true } },
+    { spell = "Abolish Poison", types = { Poison = true } },
+    { spell = "Cure Poison", types = { Poison = true } },
+}
+
 ns:Register("rotation", "DRUID", {
     guide = guide,
     groupBuffs = groupBuffs,
+    dispels = dispels,
 
     -- Self-heals, considered before anything else (see Engine HealDecision).
     -- In Cat or Bear Form they're not usable, so they're skipped there.

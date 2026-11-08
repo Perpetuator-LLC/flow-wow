@@ -163,6 +163,9 @@ local function questGoals(db, q, goals, opts)
                 for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
             end
             local points, known = pointsFrom(spawns)
+            -- A quest 3+ levels above you (orange or red): its mobs hit hard.
+            -- Planned later, like elites, so the easier ones come first.
+            local hard = (quest.level or 0) - (opts.level or UnitLevel("player")) >= ns.quests.HARD_ABOVE
             if verb and #points > 0 then
                 table.insert(turnIn.deps, key)
                 -- A party member's objective has no text of its own: "Kill X 3/10".
@@ -171,7 +174,7 @@ local function questGoals(db, q, goals, opts)
                 if not skip(key) then
                     goals[#goals + 1] = {
                         key = key, points = points, known = known, title = title, level = quest.level,
-                        weight = elite and 1.6 or nil, elite = elite or nil, helping = opts.who,
+                        weight = (elite or hard) and 1.6 or nil, elite = elite or nil, hard = hard or nil, helping = opts.who,
                         npcs = #targets > 0 and targets or nil, area = true, target = what,
                         kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                         text = whose .. (elite and "[Elite] " or "") .. (title and (title .. ": ") or "") .. ns.ProgressText(objText),
@@ -179,6 +182,7 @@ local function questGoals(db, q, goals, opts)
                             local d = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(objText) or "?") }
                             if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
                             if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
+                            if hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
                             return d
                         end)(),
@@ -222,9 +226,10 @@ ns:Register("navGoal", "pickups", {
         -- Levelling: only quests still worth the XP (down to 4 levels below you).
         -- Completionist mode: all of them, grey ones too.
         local floor = ns.nav:Mode() == "complete" and -math.huge or level - 4
-        -- And not ones far above you (red, 4+ levels up): they come back as you
-        -- level. (A new level-1 tauren was sent 700 yd for a level-8 quest.)
-        local ceiling = level + 3
+        -- And not ones above you that are hard (orange or red, 3+ levels up):
+        -- they come back as you level. (A level-5 tauren was offered level-8
+        -- quests and found them very hard; a level-1 one was sent 700 yd for one.)
+        local ceiling = level + ns.quests.HARD_ABOVE - 1
         local goals = {}
         for _, q in ipairs(list) do
             if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns then

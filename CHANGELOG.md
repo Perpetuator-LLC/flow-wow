@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.85
+- **Shift + your easy key heals you, even in a fight.** WoW doesn't let the easy key change
+  what it casts during a fight, so a heal Flow showed mid-fight couldn't be cast until your
+  enemy died. Shift + key now always casts your fastest heal on you (Rejuvenation, Flash of
+  Light...). It's set before each fight. When the icon shows a heal in a fight, the key label
+  turns green: "Shift+`". Clicking or shift-dragging the icon is unchanged. Setting: "Shift +
+  easy key heals you" (on).
+- **Curses, poisons and diseases.** Out of combat, the easy button removes them from you first,
+  then your group's tank, healers and everyone else, alive and in range.
+  - Druid: Remove Curse, Abolish Poison or Cure Poison.
+  - Paladin: Cleanse or Purify.
+  - In a fight, only a healer is shown them, and only for someone else, so a poison on you
+    never pushes your attacks off the icon.
+- **Breaking free:** a druid shown how to escape roots by changing form (never into the form
+  you're already in). This joins the racials and Blessing of Freedom.
+- **No hard quests offered:** quests to pick up stop at 2 levels above you (orange and red ones,
+  3+ up, come back as you level). Quests already in your log that are 3+ levels up are planned
+  after the easier ones, with a note saying why.
+- **L (quest log) moves the Flow Router aside** so you see the quest log. It's back the next
+  time you open the map.
+
 ## 0.35.84
 **Restart WoW once** for this version: it adds a file (Bonus.lua). Everything else works after
 a /reload.

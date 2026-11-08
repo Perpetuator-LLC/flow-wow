@@ -319,6 +319,10 @@ local function build(parent)
         "When you learn a spell, a small card shows it for 10 s: put it on your bar, drag it where you want it, bind a key to it (you confirm first), or say you don't want it on your bars (Flow then stops asking).",
         function() return ns.db.spellbar.offer ~= false end,
         function(on) ns.db.spellbar.offer = on end)
+    _, y = check(f, y, "Shift + easy key heals you", "(works in fights too)",
+        "Your easy key can't change what it casts during a fight (WoW's rule), so a heal Flow shows mid-fight can't be cast with it. Shift + your key always casts your fastest heal on you, fights included.",
+        function() return ns.db.cast.shiftHeal ~= false end,
+        function(on) ns.db.cast.shiftHeal = on end)
     _, y = check(f, y, "Easy button buffs your group", "(party and raid)",
         "Out of combat, with nothing else to press, the easy button casts your buffs on the people in your group who are missing them, the right one for each: a druid's Mark of the Wild for everyone and Thorns for tanks; a paladin's Might for melee, Wisdom for casters, healers and hunters, Kings for tanks.",
         function() return ns.db.rotation.groupBuffs ~= false end,
