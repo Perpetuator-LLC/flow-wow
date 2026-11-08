@@ -547,7 +547,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
         local x, y = toMap(s.point, mapID)
         local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
         -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
-        local beyond = not ns.nav:ShowStop(i, false)
+        local beyond = not ns.nav:StopVisible(i, false)
         if x and (not beyond or (pointed and withPins)) then
             if px and not pinsOnly and not beyond then
                 -- From you to the first stop: brighter, so it's clear where to go now.
@@ -1540,7 +1540,7 @@ local function fullDraw()
             -- every place its mobs live. Past your Stops on the map limit,
             -- only the stop you point at.
             if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
-            elseif ns.nav:ShowStop(i, false) then drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
+            elseif ns.nav:StopVisible(i, false) then drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
         end
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the

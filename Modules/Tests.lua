@@ -400,7 +400,7 @@ end)
 
 ns:Register("test", "cast key: never locked to nothing for a fight", function(t)
     local E = ns.rotation
-    local def = E:Definition()
+    local def = ns:Get("rotation", "PALADIN")   -- (Paladin rules, whatever class you're on)
     if not (def and def.pullLock) then t:ok(true) return end
     local main = E:Knows("Judgement") and "Judgement" or nil
     if main then
@@ -677,7 +677,8 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
         t:ok(M._changed(st, canvas, 1429, nil), "a stop's progress changed: redraw")
         t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a stop: redraw")
         t:ok(M._changed(st, canvas, 1430, "t:b"), "another map: redraw")
-        with(ns.db.nav, "stopsShown", 1, function()
+        -- (a different number of stops from yours, whatever yours is)
+        with(ns.db.nav, "stopsShown", ns.nav:StopsShown() == 3 and 1 or 3, function()
             t:ok(M._changed(st, canvas, 1430, "t:b"), "fewer stops on the map: redraw")
             t:ok(not M._changed(st, canvas, 1430, "t:b"), "then no redraw again")
         end)
@@ -1548,16 +1549,16 @@ ns:Register("test", "route: Stops on the map", function(t)
     with(ns.db.nav, "stopsShown", nil, function()
     with(ns, "Print", function() end, function()
         t:eq(N:StopsShown(), 1, "default: next stop only")
-        t:ok(not N:ShowStop(2, false), "default: stop 2 doesn't show")
+        t:ok(not N:StopVisible(2, false), "default: stop 2 doesn't show")
         N:SetStopsShown(nil)
         t:eq(N:StopsShown(), nil, "all stops, when chosen")
-        t:ok(N:ShowStop(25, false), "all: stop 25 shows")
+        t:ok(N:StopVisible(25, false), "all: stop 25 shows")
         t:eq(N:StopsShownLabel(), "All stops", "label: all")
         N:SetStopsShown(1)
         t:eq(N:StopsShown(), 1, "next stop only")
-        t:ok(N:ShowStop(1, false), "the next stop shows")
-        t:ok(not N:ShowStop(2, false), "the one after doesn't")
-        t:ok(N:ShowStop(2, true), "unless you point at it (Flow Router)")
+        t:ok(N:StopVisible(1, false), "the next stop shows")
+        t:ok(not N:StopVisible(2, false), "the one after doesn't")
+        t:ok(N:StopVisible(2, true), "unless you point at it (Flow Router)")
         t:eq(N:StopsShownLabel(), "Next stop only", "label: next only")
         t:eq(N:StopsShownLabel(5), "Next 5 stops", "label: next 5")
         N:SetStopsShown(0)
@@ -1943,7 +1944,7 @@ ns:Register("test", "party: your own messages echoed back are never someone else
     t:ok(not IsMe("Bob-Other", "Bob", "Realm"), "someone with your name from another realm isn't you")
     t:ok(not IsMe("Alice-Realm", "Bob", "Realm"), "another player isn't you")
     t:ok(not IsMe(nil, "Bob", "Realm"), "no sender: no")
-    t:ok(IsMe(UnitName("player")), "you, by your own name")
+    t:ok(IsMe((UnitName("player"))), "you, by your own name")
 end)
 
 ns:Register("test", "quest sharing: share what party members are missing, once each", function(t)
@@ -2134,4 +2135,26 @@ ns:Register("test", "party route: the menu says Join the party route", function(
     end
     t:ok(found ~= nil, "Join the party route is offered")
     t:ok(ns.partyHelp:MenuItems()[1].text == "Your own route", "Your own route first")
+end)
+
+ns:Register("test", "nav: stops on the map and the stop card are separate", function(t)
+    local N = ns.nav
+    t:ok(type(N.StopVisible) == "function" and type(N.ShowStop) == "function", "both exist")
+    t:ok(N.StopVisible ~= N.ShowStop, "under different names (one used to replace the other)")
+    with(ns.db.nav, "stopsShown", 0, function()
+        local ok, v = pcall(N.StopVisible, N, 3, false)
+        t:ok(ok and v == true, "all stops: stop 3 shows, no error")
+    end)
+end)
+
+ns:Register("test", "trainers and pickups: your faction, your level, chains in order", function(t)
+    local P = ns.places
+    t:ok(P.FriendlyTo("H", "Horde") and P.FriendlyTo("AH", "Horde"), "Horde NPCs for Horde")
+    t:ok(not P.FriendlyTo("A", "Horde"), "no Alliance trainer for a tauren")
+    t:ok(P.FriendlyTo(nil, "Horde"), "unknown: counts as friendly")
+    t:ok(#P:TrainersFor("Herbalism") >= 4, "Horde Herbalism trainers listed too")
+    local Q = ns.quests
+    local kept = Q.WithoutBlocked({ { id = 752 }, { id = 753 }, { id = 747 } }, { [753] = true })
+    t:eq(#kept, 2, "part 2 of a chain waits for part 1")
+    t:eq(kept[2].id, 747, "the rest stay")
 end)

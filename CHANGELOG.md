@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.76
+- Fixed a Lua error that broke "Stops on the map". Two Flow functions had the same name, and
+  the one that opens a stop's card replaced the one that decides which stops the map and the
+  Flow Tracker draw, so every redraw failed ("attempt to index local 'goal'").
+- Horde characters are no longer sent to Alliance trainers. Profession trainers now include
+  Thunder Bluff, Orgrimmar and Undercity, and an NPC of the other faction is never used as a
+  stop.
+- Quests to pick up: none 4+ levels above you (a new level-1 tauren was sent 700 yd for a
+  level-8 quest; they come back as you level). The next part of a quest chain no longer
+  shows before you've done the part before it.
+- The menu's full-screen "click outside to close" layer can never stay up without the menu
+  (if it ever did, the game couldn't be clicked). If that's ever caught, it's logged.
+- Self-tests that assumed a Paladin, or the old "all stops" default, now work on any class.
+
 ## 0.35.75
 - **Finish a zone before leaving it.** The route does this zone's quests before heading to
   another zone. Exceptions:

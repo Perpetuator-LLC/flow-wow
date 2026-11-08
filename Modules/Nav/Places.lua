@@ -41,6 +41,22 @@ ns:Register("npcIds", "druid", {
     ["Turak Runetotem"] = 3033, ["Sheal Runetotem"] = 3034,
 })
 
+-- Horde profession trainers (Thunder Bluff, Orgrimmar, Undercity), so a
+-- tauren, orc, troll or undead isn't sent to Elwynn Forest. Names are looked
+-- up in Questie (a name it doesn't know is just skipped), and a trainer of
+-- the other faction is never used (P:Points checks who they're friendly to).
+ns:Register("trainerNames", "horde", {
+    ["Alchemy"]        = { "Bena Winterhoof", "Yelmak", "Doctor Herbert Halsey" },
+    ["Herbalism"]      = { "Komin Winterhoof", "Jandi", "Martha Alliestar" },
+    ["Mining"]         = { "Brek Stonehoof", "Makaru", "Brom Killian" },
+    ["Blacksmithing"]  = { "Karn Stonehoof", "Saru Steelfury", "James Van Brunt" },
+    ["Skinning"]       = { "Mooranta", "Thuwd" },
+    ["Leatherworking"] = { "Una", "Karolek" },
+    ["First Aid"]      = { "Pand Stonebinder", "Arnok", "Mary Edras" },
+    ["Cooking"]        = { "Aska Mistrunner", "Zamja", "Eunice Burch" },
+    ["Fishing"]        = { "Kah Mistrunner", "Lumak", "Armand Cromwell" },
+})
+
 -- NPC IDs (stable since vanilla) so Questie can be asked directly. The
 -- lookup checks the name matches, so a wrong ID is ignored, not followed.
 ns:Register("npcIds", "alliance-elwynn", {
@@ -96,6 +112,13 @@ P.missing = {}
 
 -- Map points for an NPC name: where you've talked to them before, then
 -- Questie by NPC ID (name checked), then Questie by name.
+-- Is an NPC friendly to your faction? flag: Questie's "A", "H", "AH" (or
+-- nil: unknown, counts as friendly). faction: "Alliance" / "Horde".
+function P.FriendlyTo(flag, faction)
+    if type(flag) ~= "string" or flag == "" or not faction then return true end
+    return flag:find(faction == "Horde" and "H" or "A", 1, true) ~= nil
+end
+
 function P:Points(name)
     local points = {}
     local spot = ns.db.places[name]
@@ -109,6 +132,11 @@ function P:Points(name)
     if not npc then
         local found = ns.quests.NPCsByName and ns.quests:NPCsByName({ name })
         npc = found and found[name] or nil
+    end
+    -- Only your own faction's NPCs (Questie: friendly to "A", "H" or "AH").
+    if npc and not P.FriendlyTo(npc.friendlyToFaction, UnitFactionGroup and UnitFactionGroup("player")) then
+        self.missing[name] = nil
+        return {}
     end
     if npc and npc.spawns then
         for areaId, list in pairs(npc.spawns) do

@@ -222,9 +222,12 @@ ns:Register("navGoal", "pickups", {
         -- Levelling: only quests still worth the XP (down to 4 levels below you).
         -- Completionist mode: all of them, grey ones too.
         local floor = ns.nav:Mode() == "complete" and -math.huge or level - 4
+        -- And not ones far above you (red, 4+ levels up): they come back as you
+        -- level. (A new level-1 tauren was sent 700 yd for a level-8 quest.)
+        local ceiling = level + 3
         local goals = {}
         for _, q in ipairs(list) do
-            if (q.level or 0) >= floor and q.starter and q.starter.spawns then
+            if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns then
                 goals[#goals + 1] = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
                     npcs = q.starter.name and { q.starter.name } or nil,

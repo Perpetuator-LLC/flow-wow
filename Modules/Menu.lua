@@ -18,6 +18,12 @@ local function build()
     catcher:SetFrameStrata("FULLSCREEN_DIALOG")
     catcher:RegisterForClicks("AnyUp")
     catcher:SetScript("OnClick", function() Menu:Close() end)
+    -- The catcher covers the whole screen to close the menu on a click
+    -- outside it: never leave it up without the menu, or no click would get
+    -- through to the game.
+    catcher:SetScript("OnUpdate", function(self)
+        if not (frame and frame:IsShown()) then self:Hide(); ns:Log("menu", "click catcher was up without a menu: hidden") end
+    end)
     catcher:Hide()
 
     frame = CreateFrame("Frame", "FlowMenu", UIParent)

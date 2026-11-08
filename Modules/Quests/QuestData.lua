@@ -548,16 +548,35 @@ function Q.InPickupZone(q, zones)
     return (q.starter and q.starter.zoneId and zones[q.starter.zoneId]) and true or false
 end
 
+-- Drop quests that are the next part of a chain you haven't finished.
+-- list: { { id } }, blocked: { [id] = true }
+function Q.WithoutBlocked(list, blocked)
+    local out = {}
+    for _, q in ipairs(list) do if not blocked[q.id] then out[#out + 1] = q end end
+    return out
+end
+
 -- Runs the scan in small batches across frames (pausing in combat).
 local function scan(src)
     running = true
     local level = UnitLevel("player")
     local co = coroutine.create(function()
         local zones = Q.PickupZones(completed, inLog, src.get, Q:HereArea(), coroutine.yield)
+        -- The next part of a chain isn't on offer before the part before it is
+        -- done: Questie links them with nextQuestInChain (some follow-ups list
+        -- no prerequisite of their own, so "A Humble Task" part 2 showed up
+        -- before part 1). Any quest not done yet blocks its next part.
+        local blocked = {}
+        for id in pairs(inLog) do
+            local raw = Q:QuestieGet("GetQuest", id)
+            if raw and raw.nextQuestInChain and raw.nextQuestInChain ~= 0 then blocked[raw.nextQuestInChain] = true end
+        end
         local out = {}
         for i, id in ipairs(src.allIds()) do
             if not completed[id] and not inLog[id] then
                 local q = src.get(id)
+                local nextId = q and q.raw and q.raw.nextQuestInChain
+                if nextId and nextId ~= 0 then blocked[nextId] = true end
                 if q and Q.InPickupZone(q, zones) and (q.minLevel or 0) <= level then
                     local doable = src.doable and src.doable(id, q.raw)
                     if doable ~= false then out[#out + 1] = q end
@@ -565,6 +584,7 @@ local function scan(src)
             end
             if i % BATCH == 0 then coroutine.yield() end
         end
+        out = Q.WithoutBlocked(out, blocked)
         table.sort(out, function(a, b) return (a.level or 0) > (b.level or 0) end)
         return out
     end)

@@ -862,7 +862,10 @@ function N:StopsShown()
     return nil
 end
 -- Is stop i drawn? Past your limit only the stop you point at is.
-function N:ShowStop(i, pointed)
+-- (Named StopVisible: it was ShowStop too, the same name as the stop card
+-- below, and the card's later definition replaced it, so every map and
+-- Tracker call failed with "attempt to index local 'goal' (a number)".)
+function N:StopVisible(i, pointed)
     local limit = self:StopsShown()
     return (pointed and true) or limit == nil or i <= limit
 end
