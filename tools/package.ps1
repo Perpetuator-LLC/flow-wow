@@ -26,7 +26,11 @@ foreach ($f in 'Flow.toc', 'Bindings.xml', 'Core.lua', 'README.md', 'CHANGELOG.m
 }
 # Releases aren't developer installs: no taint log for players (Diag.lua).
 $outToc = Join-Path $out 'Flow.toc'
-(Get-Content $outToc) | Where-Object { $_ -notmatch '^## X-Flow-Dev:' } | Set-Content $outToc -Encoding utf8
+# Written without a byte-order mark: Set-Content -Encoding utf8 (Windows
+# PowerShell) put one in front of "## Interface", which WoW can misread as an
+# out-of-date add-on. Every release zip before 0.35.87 had it.
+$tocLines = @(Get-Content $outToc | Where-Object { $_ -notmatch '^## X-Flow-Dev:' })
+[IO.File]::WriteAllLines($outToc, [string[]]$tocLines, (New-Object Text.UTF8Encoding $false))
 foreach ($d in 'Modules', 'Classes') {
     Copy-Item (Join-Path $root $d) (Join-Path $out $d) -Recurse
 }

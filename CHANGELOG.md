@@ -25,6 +25,9 @@
   - once a session, whether any real health or damage numbers are readable;
   - `/flow rot why` also shows the estimate.
 - Replaces the old "15 s after a long fight" heal prompt.
+- **Release zips:** `Flow.toc` no longer starts with an invisible byte-order mark, which WoW can
+  misread as an out-of-date add-on (`tools\package.ps1`). Releases now also go on
+  [GitHub Releases](https://github.com/Perpetuator-LLC/flow-wow/releases).
 
 ## 0.35.86
 - **Profession trainers are stops on your route, not a waypoint.** The reminder card no longer
