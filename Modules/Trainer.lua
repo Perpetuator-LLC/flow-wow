@@ -3,6 +3,27 @@
 -- there's something new to learn.
 
 local _, ns = ...
+local TR = {}
+ns.trainer = TR
+
+-- Is this your class trainer? Not a profession trainer, and not a riding (or
+-- other) trainer: one of your class's trainers by name, or what it teaches
+-- includes your class's spells. (Kar Stormsinger, the tauren riding trainer,
+-- was taken for a druid's class trainer: every trainer that wasn't a
+-- profession trainer counted, and his riding lessons replaced the spell list.)
+--   services: names it teaches; classSet: { [spell] = true }; classTrainers: names
+function TR.IsClassTrainer(name, services, classSet, classTrainers, isTrade)
+    if isTrade then return false end
+    for _, n in ipairs(classTrainers or {}) do if n == name then return true end end
+    for _, s in ipairs(services or {}) do if classSet[s] then return true end end
+    return false
+end
+
+local function classTrainerCheck(name, services, isTrade)
+    local _, class = UnitClass("player")
+    return TR.IsClassTrainer(name, services, ns:ClassSpellSet(class),
+        ns.places and ns.places:TrainersFor("class:" .. class) or {}, isTrade)
+end
 
 local CATEGORIES = { available = true, unavailable = true, used = true, header = true }
 
@@ -39,11 +60,11 @@ end
 -- now" later, using the real list for this game version.
 local function record()
     if not GetNumTrainerServices then return end
-    if IsTradeskillTrainer and IsTradeskillTrainer() then return end  -- class trainers only
-    local list = {}
+    local list, names = {}, {}
     for i = 1, GetNumTrainerServices() do
         local name, category, sub, modern = serviceInfo(i)
         if name and category ~= "header" then
+            names[#names + 1] = name
             list[#list + 1] = {
                 name = name, sub = sub or "", category = category, modern = modern,
                 level = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0,
@@ -51,11 +72,26 @@ local function record()
             }
         end
     end
-    if #list > 0 then
-        ns.db.trainer.services = list
-        ns.db.trainer.seenAt = UnitLevel("player")
-    end
+    -- Class trainers only (where "go train" errands send you).
+    local npc = ns.api.Safe(UnitName("npc"))
+    if #list == 0 or not classTrainerCheck(npc, names, IsTradeskillTrainer and IsTradeskillTrainer()) then return end
+    ns.db.trainer.npc = npc
+    ns.db.trainer.services = list
+    ns.db.trainer.seenAt = UnitLevel("player")
 end
+
+-- A riding (or other) trainer saved as your class trainer before 0.35.90:
+-- forgotten, so the errands use your class's trainers again.
+ns:On("PLAYER_LOGIN", function()
+    local t = ns.db.trainer
+    if not (t and t.npc) then return end
+    local names = {}
+    for _, s in ipairs(t.services or {}) do names[#names + 1] = s.name end
+    if not classTrainerCheck(t.npc, names, false) then
+        ns:Log("trainer", "forgot " .. tostring(t.npc) .. " as your class trainer (not a trainer for your class)")
+        t.npc, t.services = nil, nil
+    end
+end)
 
 ns:OnLoad(function(saved) saved.trainer = saved.trainer or {} end)
 -- What your class trainer offers is your character's. The old shared copy

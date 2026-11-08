@@ -136,6 +136,12 @@ function P.Learn(places, name, pos, role, extra, now)
     extra = extra or {}
     if extra.repair ~= nil then spot.roles.repair = extra.repair or nil; spot.repair = extra.repair end
     if extra.id then spot.id = extra.id end
+    -- Which factions have used them (for sharing: an NPC a Horde player
+    -- talked to is one Horde players can use).
+    if extra.faction == "Horde" or extra.faction == "Alliance" then
+        spot.factions = spot.factions or {}
+        spot.factions[extra.faction] = true
+    end
     for _, k in ipairs(KIND_ORDER) do
         if spot.roles[k] then spot.kind = k break end
     end
@@ -168,9 +174,53 @@ local function remember(role, extra)
     if not p then return end
     extra = extra or {}
     extra.id = extra.id or P.NpcIdOf(UnitGUID("npc"))
+    extra.faction = UnitFactionGroup and UnitFactionGroup("player")
     P.Learn(ns.db.places, name, p, role, extra)
 end
 P._remember = remember
+
+-------------------------------------------------------------------------------
+-- Sharing what you've learned (opt in: /flow places share)
+-------------------------------------------------------------------------------
+-- Your learned spots go in a plain list in your saved data (FlowDB.share),
+-- NPCs only: name, NPC ID, where, what they do, which faction used them.
+-- Nothing about you or your characters. tools\share-places.ps1 merges the list
+-- into Learned\Places.lua, which a pull request then brings to every Flow
+-- player (docs/SHARE-PLACES.md). /flow places share off removes the list.
+--   "P|name|id|map|x|y|roles|factions"   an NPC (roles: vendor,repair,...; factions: H, A or AH)
+--   "M|map|x|y"                          a mailbox
+local SHARE_ROLES = { "vendor", "repair", "trainer", "flight", "inn", "bank", "auction", "quest" }
+
+function P.ShareLines(places, mailboxes)
+    local lines = {}
+    for name, spot in pairs(places or {}) do
+        local roles = {}
+        for _, r in ipairs(SHARE_ROLES) do if P.HasRole(spot, r) then roles[#roles + 1] = r end end
+        -- Only NPCs that do something for you, with a place, and a name that fits the format.
+        if #roles > 0 and spot.map and spot.x and spot.y and not name:find("|", 1, true) then
+            local f = spot.factions or {}
+            lines[#lines + 1] = string.format("P|%s|%s|%d|%.4f|%.4f|%s|%s", name, spot.id and tostring(spot.id) or "",
+                spot.map, spot.x, spot.y, table.concat(roles, ","), (f.Alliance and "A" or "") .. (f.Horde and "H" or ""))
+        end
+    end
+    for _, m in ipairs(mailboxes or {}) do
+        lines[#lines + 1] = string.format("M|%d|%.4f|%.4f", m.map, m.x, m.y)
+    end
+    table.sort(lines)
+    return lines
+end
+
+function P:Share(on)
+    if not on then
+        ns.db.share = nil
+        ns:Print("sharing off: your list is gone from your saved data (at your next /reload).")
+        return
+    end
+    local lines = P.ShareLines(ns.db.places, ns.db.mailboxes)
+    ns.db.share = { places = lines, at = date("%Y-%m-%d"), version = ns.Version and ns.Version() or "?" }
+    ns:Print(string.format("sharing %d spots (NPCs only: names, where, what they do; nothing about you). "
+        .. "/reload to save the list, then send it to Flow: docs/SHARE-PLACES.md (or ask your Claude: \"share my Flow places\").", #lines))
+end
 
 -- A mailbox where you stand, unless one is already known right there.
 function P.LearnMailbox(list, pos)
@@ -193,10 +243,40 @@ function P.FriendlyTo(flag, faction)
     return flag:find(faction == "Horde" and "H" or "A", 1, true) ~= nil
 end
 
+-- Spots other Flow players shared (Learned\Places.lua comes with Flow):
+--   { npcs = { [name] = { id, map, x, y, roles = { vendor = true, ... }, f = "H" | "A" | "AH" } },
+--     mailboxes = { { map, x, y }, ... } }
+local shared
+function P.Shared()
+    if shared then return shared end
+    shared = { npcs = {}, mailboxes = {} }
+    for _, data in ns:Each("sharedPlaces") do
+        for name, s in pairs(data.npcs or {}) do
+            local roles = {}
+            for r in tostring(s.roles or ""):gmatch("[^,]+") do roles[r] = true end
+            shared.npcs[name] = { id = s.id, map = s.map, x = s.x, y = s.y, roles = roles, f = s.f }
+        end
+        for _, m in ipairs(data.mailboxes or {}) do shared.mailboxes[#shared.mailboxes + 1] = m end
+    end
+    return shared
+end
+function P.ResetShared() shared = nil end   -- (tests)
+
+-- A shared spot for this NPC that your faction can use, or nil.
+function P.SharedSpot(name, faction)
+    local s = P.Shared().npcs[name]
+    if s and s.map and P.FriendlyTo(s.f, faction) then return s end
+end
+
 function P:Points(name)
     local points = {}
     local spot = ns.db.places[name]
-    if spot then points[#points + 1] = { map = spot.map, x = spot.x, y = spot.y } end
+    if spot then points[#points + 1] = { map = spot.map, x = spot.x, y = spot.y }
+    else
+        -- Never talked to them: where another Flow player found them.
+        local s = P.SharedSpot(name, UnitFactionGroup and UnitFactionGroup("player"))
+        if s then points[#points + 1] = { map = s.map, x = s.x, y = s.y } end
+    end
     local npc
     local id = npcId(name)
     if id and ns.quests.QuestieGet then
@@ -263,10 +343,19 @@ function P:Summary()
     end
     return total, counts, #(ns.db.mailboxes or {})
 end
-ns.commands.places = function()
+ns.commands.places = function(arg)
+    arg = (arg or ""):lower()
+    if arg == "share" then return P:Share(true) end
+    if arg == "share off" or arg == "unshare" then return P:Share(false) end
     local total, c, mail = P:Summary()
     ns:Print(string.format("learned while you play (all your characters): %d NPCs - %d vendors (%d repair), %d trainers, %d flight masters, %d innkeepers, %d bankers, %d auctioneers, %d quest givers; %d mailboxes",
         total, c.vendor or 0, c.repair or 0, c.trainer or 0, c.flight or 0, c.inn or 0, c.bank or 0, c.auction or 0, c.quest or 0, mail))
+    local nShared = 0
+    for _ in pairs(P.Shared().npcs) do nShared = nShared + 1 end
+    print(string.format("  from other players (comes with Flow): %d NPCs, %d mailboxes", nShared, #P.Shared().mailboxes))
+    local s = ns.db.share
+    print(s and string.format("  you're sharing: %d spots (listed %s). /flow places share refreshes it, /flow places share off stops.", #(s.places or {}), tostring(s.at))
+        or "  share yours with every Flow player: /flow places share (NPCs only, nothing about you)")
 end
 
 -- An innkeeper's chat offers to make the inn your home.
@@ -300,9 +389,6 @@ end)
 ns:On("QUEST_DETAIL", function() remember("quest") end)
 ns:On("QUEST_GREETING", function() remember("quest") end)
 ns:On("QUEST_COMPLETE", function() remember("quest") end)
-ns:On("TRAINER_SHOW", function()
-    remember("trainer")
-    -- Remember which NPC is your class trainer, for "go train" errands.
-    local isTrade = IsTradeskillTrainer and IsTradeskillTrainer()
-    if not isTrade then ns.db.trainer.npc = ns.api.Safe(UnitName("npc")) end
-end)
+-- (Which trainer is your class trainer: Trainer.lua decides, once the
+-- window lists what it teaches.)
+ns:On("TRAINER_SHOW", function() remember("trainer") end)

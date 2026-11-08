@@ -2565,3 +2565,34 @@ ns:Register("test", "places: Flow learns who does what as you play, and never fo
         t:ok(S.LABEL[k] ~= nil, "nearest " .. k .. " is offered")
     end
 end)
+
+ns:Register("test", "class trainer: never the riding trainer", function(t)
+    local TR = ns.trainer
+    local druid = { ["Healing Touch"] = true, Moonfire = true }
+    t:ok(not TR.IsClassTrainer("Kar Stormsinger", { "Apprentice Riding" }, druid, { "Gennia Runetotem" }, false),
+        "Kar Stormsinger teaches riding: not your class trainer")
+    t:ok(TR.IsClassTrainer("Gennia Runetotem", {}, druid, { "Gennia Runetotem" }, false), "a druid trainer by name")
+    t:ok(TR.IsClassTrainer("Someone New", { "Moonfire", "Healing Touch" }, druid, {}, false), "teaches druid spells: a druid trainer")
+    t:ok(not TR.IsClassTrainer("Komin Winterhoof", { "Herbalism" }, druid, {}, true), "a profession trainer: no")
+end)
+
+ns:Register("test", "sharing places: NPCs only, opt in, and other players' spots used for your faction", function(t)
+    local P = ns.places
+    local places = {
+        ["Harb Clawhoof"] = { map = 1412, x = 0.47123, y = 0.6034, id = 3685, roles = { vendor = true, repair = true, npc = true }, factions = { Horde = true } },
+        ["Just Talking"] = { map = 1412, x = 0.5, y = 0.5, roles = { npc = true } },
+        ["Pipe|Name"] = { map = 1412, x = 0.5, y = 0.5, roles = { vendor = true } },
+    }
+    local lines = P.ShareLines(places, { { map = 1412, x = 0.46, y = 0.58 } })
+    t:eq(#lines, 2, "the vendor and the mailbox (not a plain chat, not a name that breaks the format)")
+    t:eq(lines[1], "M|1412|0.4600|0.5800", "a mailbox line")
+    t:eq(lines[2], "P|Harb Clawhoof|3685|1412|0.4712|0.6034|vendor,repair|H", "an NPC line: name, ID, where, roles, faction")
+    -- Shared spots (Learned\Places.lua) used for your faction only.
+    P.ResetShared()
+    local s = P.Shared()
+    t:ok(type(s.npcs) == "table" and type(s.mailboxes) == "table", "the shared list loads (empty until players share)")
+    s.npcs["Test Vendor"] = { map = 1412, x = 0.1, y = 0.1, roles = { vendor = true }, f = "H" }
+    t:ok(P.SharedSpot("Test Vendor", "Horde") ~= nil, "a Horde player's vendor: yours too")
+    t:eq(P.SharedSpot("Test Vendor", "Alliance"), nil, "never for the other faction")
+    P.ResetShared()
+end)

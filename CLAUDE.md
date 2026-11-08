@@ -63,6 +63,21 @@ When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
    bump the version; offer to open a pull request (CONTRIBUTING.md).
 3. Every answer is shown only after the player's next reload (`/claude` on its own does one).
 
+## "Share my Flow places" (send learned NPC spots to every Flow player)
+
+Flow learns every NPC the player talks to (vendors, repair, trainers, flight masters, innkeepers,
+bankers, auctioneers, quest givers) and mailboxes. A player can share those with everyone
+(docs/SHARE-PLACES.md). When they ask you to:
+
+1. In game they type `/flow places share`, then `/reload` (the game saves the list on reload).
+2. Run `powershell -ExecutionPolicy Bypass -File tools\share-places.ps1` (`-DryRun` first if you
+   like). It merges their list into `Learned\Places.lua` and says how many spots it added.
+3. On a clone that follows `main`: a branch, commit only `Learned\Places.lua`, and open a pull
+   request to Perpetuator-LLC/flow-wow (CONTRIBUTING.md). Data-only pull requests need **no version
+   bump and no CHANGELOG entry**. On the maintainer's branch: commit it with the next version.
+4. Never put anything about the player in it: the script only writes NPC names, NPC IDs, where
+   they stand, their roles and the faction that used them. Don't hand-edit the file.
+
 ## Blocked actions ("Flow has been blocked from an action only available to the Blizzard UI")
 
 These are taint bugs and always ours to fix. **Every time you read the diagnostics, check the

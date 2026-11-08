@@ -54,6 +54,8 @@ ns:Register("learned", "combatlog", {
 [IO.File]::WriteAllText((Join-Path $out 'Learned\ClaudeInbox.lua'),
     "-- Answers to /claude land here (docs/ASK-CLAUDE.md). Empty in a release.`nlocal _, ns = ...`nns.claudeInbox = ns.claudeInbox or {}`n",
     (New-Object Text.UTF8Encoding $false))
+# NPC spots Flow players shared (community data): shipped as it is.
+Copy-Item (Join-Path $root 'Learned\Places.lua') (Join-Path $out 'Learned\Places.lua')
 
 $zip = Join-Path $dist "Flow-$version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }

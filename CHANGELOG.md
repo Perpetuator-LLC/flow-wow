@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.90
+**Restart WoW once** for this version: it adds a file (Learned\Places.lua). Everything else works
+after a /reload.
+- **Share what your Flow has learned with every Flow player** (opt in). `/flow places share`, then
+  `/reload`, then send it with a pull request; your Claude session can do that part if you ask it
+  to "share my Flow places". Guide: [docs/SHARE-PLACES.md](docs/SHARE-PLACES.md).
+  - What's shared: NPC names, NPC IDs, where they stand, what they do, and which faction used
+    them, plus mailboxes. Nothing about you.
+  - `/flow places share off` stops it.
+  - `tools\share-places.ps1` merges a player's list into `Learned\Places.lua`, which ships with
+    Flow. It checks every field and keeps the file sorted.
+- **Flow uses spots other players shared** for NPCs you haven't talked to yourself, and only ones
+  your faction can use. This covers your route's trainers and quest givers and "Nearest ...",
+  which says when another Flow player found it. `/flow places` shows how many came with Flow.
+- Each NPC Flow learns now also notes which faction used them.
+- **Fixed: the riding trainer was taken for your class trainer.** Kar Stormsinger (the tauren
+  kodo trainer) counted as a druid's class trainer: every trainer that wasn't a profession
+  trainer did, and his riding lessons replaced your class spell list. Now a trainer counts only
+  if it's one of your class's trainers, or teaches your class's spells. One saved wrongly is
+  forgotten at login.
+
 ## 0.35.89
 - **Flow learns who does what as you play**, for all your characters. Every NPC you talk to is
   remembered: where you stood, their NPC ID, and what they do for you. That covers vendors (and

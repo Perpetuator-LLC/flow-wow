@@ -52,7 +52,8 @@ function S:Scan()
 end
 
 -- Nearest one of `kind` (S.KINDS) on your continent:
--- { name, map, x, y, yards, learned = true if you've used it } or nil.
+-- { name, map, x, y, yards, learned = "you" (you've used it) | "shared" (another
+-- Flow player found it) | nil (Questie) } or nil.
 function S:Nearest(kind)
     local nav = ns.nav
     local p = nav and nav:PlayerPos()
@@ -67,13 +68,23 @@ function S:Nearest(kind)
     end
     -- What you've learned yourself.
     for name, spot in pairs(ns.db.places or {}) do
-        if spot.map and ns.places.HasRole(spot, kind) then pcall(consider, name, spot.map, spot.x, spot.y, true) end
+        if spot.map and ns.places.HasRole(spot, kind) then pcall(consider, name, spot.map, spot.x, spot.y, "you") end
     end
     if kind == "mail" then
-        for _, m in ipairs(ns.db.mailboxes or {}) do pcall(consider, "Mailbox", m.map, m.x, m.y, true) end
+        for _, m in ipairs(ns.db.mailboxes or {}) do pcall(consider, "Mailbox", m.map, m.x, m.y, "you") end
+    end
+    -- What other Flow players shared (only NPCs your faction can use).
+    local faction = UnitFactionGroup and UnitFactionGroup("player")
+    local sh = ns.places.Shared()
+    for name, s in pairs(sh.npcs) do
+        if s.roles[kind] and not (ns.db.places or {})[name] and ns.places.FriendlyTo(s.f, faction) then
+            pcall(consider, name, s.map, s.x, s.y, "shared")
+        end
+    end
+    if kind == "mail" then
+        for _, m in ipairs(sh.mailboxes) do pcall(consider, "Mailbox", m.map, m.x, m.y, "shared") end
     end
     -- Questie's data: only your own faction's NPCs.
-    local faction = UnitFactionGroup and UnitFactionGroup("player")
     for _, npc in ipairs(found[kind] or {}) do
         if ns.places.FriendlyTo(npc.faction, faction) then
             for areaId, list in pairs(npc.spawns) do
@@ -104,7 +115,7 @@ function S:GoTo(kind)
     ns.waypoint:Set(n.map, n.x, n.y, n.name .. " (" .. LABEL[kind] .. ")")
     local bind = GetBindLocation and GetBindLocation()
     ns:Print(string.format("nearest %s: %s, %d yd%s.%s", LABEL[kind], n.name, n.yards,
-        n.learned and " (you've been there)" or "",
+        (n.learned == "you" and " (you've been there)") or (n.learned == "shared" and " (found by another Flow player)") or "",
         (n.yards > 600 and bind) and (" Far: your hearthstone goes to " .. bind .. ".") or ""))
 end
 

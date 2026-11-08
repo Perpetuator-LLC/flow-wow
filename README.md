@@ -158,7 +158,11 @@ Flow for WoW is a separate project from Flow Engine.
   settings (auto loot, nameplates, target of target, camera zoom, the camera staying where you
   put it, the low-health warning, the Interact key reaching objects, timestamps...) with a "Use
   Flow's suggestions" button. When an update adds a suggestion, the page shows once more.
-- **Nearest repair or vendor**: right-click the arrow, or `/flow way repair` / `vendor`.
+- **Nearest repair, vendor, flight master, innkeeper, banker, auctioneer or mailbox**: right-click
+  the arrow, or `/flow way repair` / `vendor` / `flight` / `inn` / `bank` / `auction` / `mail`.
+- **Learns where things are as you play** (every NPC you talk to and what they do, for all your
+  characters; `/flow places`), and you can **share** that with every Flow player: opt in, NPCs
+  only, nothing about you ([docs/SHARE-PLACES.md](docs/SHARE-PLACES.md)).
 - **Performance**: `/flow perf` shows Flow's CPU and memory per part; it's saved with the
   diagnostics so slow spots get noticed.
 - **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
