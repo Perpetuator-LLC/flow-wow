@@ -43,6 +43,8 @@ can check its own work.
 - Bump the patch version in `Flow.toc` and add a player-facing line to `CHANGELOG.md`.
 - Say how you tested it in game (class, level, zone) and paste the `/flow test` result.
 - Don't include data copied from other addons or sites.
+- Flow is licensed under the [GPLv3](LICENSE). By sending a PR you agree your contribution is
+  licensed the same way.
 
 ## Reporting a bug
 

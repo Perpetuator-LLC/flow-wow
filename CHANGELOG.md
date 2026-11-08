@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.62
+- Flow is free software under the GNU GPL v3 (see LICENSE). You can use it, change it and
+  share it, as long as what you share stays under the same licence and keeps the credits.
+
 ## 0.35.61
 - Your own waypoint is green now (arrow, map line and (o), and its line in the Flow Router),
   so it never looks like a Custom route. Orange means Custom route only. (Colour-blind

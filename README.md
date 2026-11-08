@@ -193,3 +193,8 @@ at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to tes
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
 - **Packaging:** `tools/package.ps1` builds a release zip; see [docs/PUBLISHING.md](docs/PUBLISHING.md).
+
+## Licence
+Copyright (C) 2026 Sooth. Flow is free software: you can redistribute it and/or modify it
+under the terms of the [GNU General Public License, version 3](LICENSE). It comes with no
+warranty.

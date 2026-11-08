@@ -4,9 +4,9 @@ Status: prepared, not published. Building the zip works today (`tools/package.ps
 steps that need your accounts and decisions are listed below.
 
 ## Before the first upload (decisions)
-- [ ] **Licence.** Pick MIT or GPLv3 and add a `LICENSE` file; the package script includes it.
-  Either works: Flow ships no third-party data and only reads Questie/QuestieDB/Auctionator at
-  runtime.
+- [x] **Licence.** GPLv3 (`LICENSE`, the official gnu.org text; `## X-License: GPL-3.0` in the
+  TOC). Pick "GNU General Public License version 3 (GPLv3)" on CurseForge. The package
+  script puts `LICENSE` in the zip.
 - [x] **Public name.** "Flow" is taken on CurseForge (an unlisted Forever project, checked
   2026-11-07), and names must be unique. Use **"Flow (unfettered)"**, the TOC title. Leave
   "Forever"/"WoW" out of the name: CurseForge's rules say no game names.
