@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.35.62
+## 0.35.62: first public release
+Flow's first release on CurseForge, for World of Warcraft: Forever. What's in it:
+- **Rotation helper** (paladin): shows the spell to press next and lights up its action bar
+  button; click the icon or press your Flow key to cast it. Keeps your seal, blessing and aura
+  up, and still heals in time although Forever hides your health from add-ons.
+- **Route planner and 3D arrow**: plans your quests and town errands by most XP, shortest path
+  or your own pick, on the world map, the minimap and the Flow Tracker. Shows the quests you
+  missed and which quests a mob is part of. Best with Questie + QuestieDB installed.
+- **Gear and bags**: gear scores for your role, badges on quest rewards, bag icons that say why
+  to keep or sell, and the Flow Seller to sell the junk in one go.
+- **Professions**: skill plans that become stops on your route, and "make exactly enough" on
+  the profession window.
+- **Advice list**: training, talents, skill books and other things worth doing now.
+- Colour-blind palette, lite mode, Shift-drag to move anything, `/flow help` for every command.
+- Paladin only for now. Flow is built so other classes can be added: see CONTRIBUTING.md.
 - Flow is free software under the GNU GPL v3 (see LICENSE). You can use it, change it and
   share it, as long as what you share stays under the same licence and keeps the credits.
 

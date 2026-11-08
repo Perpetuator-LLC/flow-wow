@@ -21,7 +21,9 @@ steps that need your accounts and decisions are listed below.
 1. Create a CurseForge author account and a new World of Warcraft addon project.
 2. Run `powershell -ExecutionPolicy Bypass -File tools\package.ps1`; it builds
    `dist\Flow-<version>.zip`.
-3. Upload the zip, choose the game version, and paste in the changelog section for that version.
+3. Upload the zip, choose the game version, and paste in the changelog section for that version
+   (only the newest `## x.y.z` section of `CHANGELOG.md`; set the changelog type to Markdown).
+   The project **description** is where the feature list goes: adapt the README's Features.
 4. Copy the project ID into `Flow.toc` as `## X-Curse-Project-ID: <id>`.
 
 ## Later: automatic releases
