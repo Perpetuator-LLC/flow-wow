@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.35.84
+**Restart WoW once** for this version: it adds a file (Bonus.lua). Everything else works after
+a /reload.
+- **The easy button buffs your party and raid**, the right buff for each person. Out of combat,
+  with nothing else to press, it casts on whoever is missing one (alive and in range), and the
+  icon says who it's for ("on Zed").
+  - Druid: Mark of the Wild for everyone; Thorns for tanks and warriors.
+  - Paladin: one blessing each. Kings for a tank (once you have it), Might for melee, Wisdom for
+    casters, healers and hunters (Might doesn't help them).
+  - Roles come from the group finder, else the class (a druid by its form).
+  - Setting: "Easy button buffs your group" (on).
+- **Profession reminders.** A small card says what to learn or train next and which trainer,
+  with "Show me the way" to point the arrow there. It opens for 8 s (it waits while your mouse
+  is on it) after you log in, when you level up, when a skill reaches its cap, and in a town
+  where a trainer you need stands. Buttons: "Not now" (until your next level) and "stop
+  reminding". From level 5. Setting: "Profession reminders"; `/flow prof remind` shows it now.
+- **Druids level with Herbalism + Skinning** (was Herbalism + Alchemy). Two gathering skills
+  earn the most gold with no time spent crafting; tauren get +15 Herbalism. At max level, swap
+  Skinning for Alchemy.
+- **Bonus mode** (off by default): extras just for fun, in /flow settings or `/flow bonus on`.
+  The first is **Spoken**: NPCs read their words aloud with the game's text-to-speech, in a
+  man's or a woman's voice to match them. `/flow bonus say` tests it.
+- **Quests missing from the route:**
+  - The next part of a chain now waits only for an earlier part you can actually do (in your
+    log, or on offer). Optional lead-in quests you'd never get were hiding real quests.
+  - A failed scan for quests to pick up is logged and tried again 30 s later; before, it stayed
+    empty until your next turn-in.
+  - `/flow nav why` says what the scan found and why it left quests out.
+- **Horde city trainers** (Thunder Bluff, Orgrimmar, Undercity) are looked up by NPC ID too.
+  `/flow nav why` explains where the lookup stops for any it still can't place.
+- "Follow current quests" is now called **"Quests only"** (route menu and map panel).
+- Diagnostics: the rotation check saved at logout is the last one taken while playing. At
+  logout the game reports nothing as castable, which looked like a missing-buff bug.
+
 ## 0.35.83
 - **/claude without installing anything.** The bridge no longer runs the `claude` command line.
   It prints each in-game message as an `ASK` line for a Claude session you already have open
