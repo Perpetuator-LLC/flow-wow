@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.77
+- **Flow's (o) over the NPC you're heading to.** The turn-in, quest giver or trainer of your
+  current stop wears Flow's target marker above their nameplate, in the route colour (purple
+  on Most XP), on top of any quest marks. The party member you follow gets a green one.
+  Friendly nameplates need to be on (Shift+V, or /flow quest plates). This replaces the
+  orange raid circle, which only showed when nothing else was marked.
+- **Following a party member works from the waypoint menu.**
+  - "Follow Zed" and "Waypoint at Zed" are now in the route menu's **Your waypoint** section.
+  - You can also type a party member's name into "Set a waypoint...", or `/way Zed`.
+  - "Clear your waypoint" also stops following.
+  - Party members are found by name more reliably, and Flow players who shared progress
+    count even if the game hides their name. Following no longer stops at the first roster
+    update.
+  - `/flow party` and the diagnostics say where the position comes from: the game, sent by
+    their Flow, or unknown.
+
 ## 0.35.76
 - Fixed a Lua error that broke "Stops on the map". Two Flow functions had the same name, and
   the one that opens a stop's card replaced the one that decides which stops the map and the

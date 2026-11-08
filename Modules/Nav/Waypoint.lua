@@ -129,6 +129,13 @@ end
 
 -- Set from pasted text; returns true if it worked (prints why not).
 function W:SetFromText(text)
+    -- A party member's name: follow them (Follow.lua), the arrow keeps
+    -- pointing at them as they move.
+    local who = (text or ""):gsub("^%s*/%a+%s*", ""):gsub("^[Ww]ay%s+", ""):match("^%s*(%S+)%s*$")
+    if who and not who:find("%d") and ns.follow then
+        local name = ns.follow.MemberNamed(who)
+        if name then ns.follow:Start(name) return true end
+    end
     local p, why = W.Parse(text)
     if not p then
         ns:Print("couldn't read that: " .. why .. ". Try: 45.2 63.1, or Elwynn Forest 45.2 63.1 Hogger")
@@ -144,7 +151,7 @@ end
 -- (Only our own key in the game's popup table: replacing the table itself taints
 -- every popup in the game.)
 StaticPopupDialogs["FLOW_WAYPOINT"] = {
-    text = "Paste or type coordinates:\n|cff999999e.g. 45.2 63.1  or  Elwynn Forest 45.2 63.1 Hogger|r",
+    text = "Paste or type coordinates, or a party member's name to follow them:\n|cff999999e.g. 45.2 63.1  or  Elwynn Forest 45.2 63.1 Hogger  or  Zed|r",
     button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",
     hasEditBox = true, editBoxWidth = 260,
     OnAccept = function(self)
@@ -172,7 +179,7 @@ ns.commands.way = function(arg)
         return
     end
     if arg:match("^%s*$") then
-        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way repair, /flow way vendor, /flow way clear. Or Alt-click the world map, or right-click the arrow.")
+        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way <party member> (follow them), /flow way repair, /flow way vendor, /flow way clear. Or Alt-click the world map, or right-click the arrow.")
         return
     end
     W:SetFromText(arg)

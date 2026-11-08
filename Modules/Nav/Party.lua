@@ -478,6 +478,7 @@ ns.commands.party = function(arg)
             ns:Print("no party route.")
         end
         if ns.partyHelp then ns.partyHelp:Status() end
+        if ns.follow then print("  " .. ns.follow:Status()) end
         print("  /flow party join|leave, /flow party quests mine|<name>, /flow follow <name>|off")
     end
 end

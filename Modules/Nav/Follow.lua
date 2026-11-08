@@ -23,34 +23,54 @@ local lostSince       -- when we stopped seeing them
 
 local function plain(n) return n and (n:match("^([^%-]+)") or n) end
 
--- The group unit (party1, raid3...) for a name, or nil.
-function F.UnitOf(name)
-    if not name then return nil end
-    local raid = IsInRaid and IsInRaid()
-    for i = 1, raid and 40 or 4 do
-        local u = (raid and "raid" or "party") .. i
-        if UnitExists(u) and not UnitIsUnit(u, "player") then
-            local n, realm = UnitName(u)
-            n = ns.api.Safe(n)
-            local full = n and realm and realm ~= "" and (n .. "-" .. realm) or n
-            if n and (n == name or full == name or n == plain(name)) then return u end
-        end
-    end
+-- A group member's name, however this client gives it (nil if hidden).
+local function unitName(u)
+    local n = ns.api.Safe((UnitName(u)))
+    if type(n) ~= "string" and GetUnitName then n = ns.api.Safe(GetUnitName(u, false)) end
+    return type(n) == "string" and n ~= "" and n or nil
 end
 
--- Party members you could follow: { name, ... }.
-function F.Members()
+local function groupUnits()
     local out = {}
     local raid = IsInRaid and IsInRaid()
     for i = 1, raid and 40 or 4 do
         local u = (raid and "raid" or "party") .. i
-        if UnitExists(u) and not UnitIsUnit(u, "player") then
-            local n = ns.api.Safe(UnitName(u))
-            if n then out[#out + 1] = n end
-        end
+        if UnitExists(u) and not UnitIsUnit(u, "player") then out[#out + 1] = u end
+    end
+    return out
+end
+
+-- The group unit (party1, raid3...) for a name, or nil.
+function F.UnitOf(name)
+    if not name then return nil end
+    for _, u in ipairs(groupUnits()) do
+        local n = unitName(u)
+        if n and plain(n):lower() == plain(name):lower() then return u end
+    end
+end
+
+-- Party members you could follow: { name, ... }. Flow players who shared
+-- their progress count too, even if the game hides their unit's name.
+function F.Members()
+    local out, seen = {}, {}
+    for _, u in ipairs(groupUnits()) do
+        local n = unitName(u)
+        if n and not seen[plain(n):lower()] then seen[plain(n):lower()] = true; out[#out + 1] = n end
+    end
+    for name in pairs(ns.partyHelp and ns.partyHelp.All() or {}) do
+        if not seen[plain(name):lower()] then seen[plain(name):lower()] = true; out[#out + 1] = plain(name) end
     end
     table.sort(out)
     return out
+end
+
+-- The party member a typed name means ("zed", "Zed", "Zed-Realm"), or nil.
+function F.MemberNamed(text)
+    text = plain(text or ""):lower()
+    if text == "" then return nil end
+    for _, n in ipairs(F.Members()) do
+        if plain(n):lower() == text then return n end
+    end
 end
 
 -- Where a party member is: map, x, y (0-1), from the game or their messages.
@@ -69,6 +89,7 @@ function F.Where(name)
     if map then return map, x, y, "live" end
     local p = posts[name] or posts[plain(name)]
     if p and GetTime() - p.at < 6 then return p.map, p.x, p.y, "sent" end
+    return nil, nil, nil, "none"
 end
 
 -------------------------------------------------------------------------------
@@ -78,7 +99,13 @@ end
 local goal = { key = "user:follow", kind = "waypoint", points = {} }
 function F.Choice(p)
     if not (target and p) then return nil end
-    local map, x, y = F.Where(target)
+    local map, x, y, source = F.Where(target)
+    -- (for the diagnostics: where their position comes from, when that changes)
+    if source ~= F.source then
+        F.source = source
+        ns:Log("follow", string.format("%s's position: %s", target, source == "live" and "from the game"
+            or source == "sent" and "sent by their Flow" or "unknown (no position from the game, nothing sent by their Flow)"))
+    end
     local cont, wx, wy
     if map then cont, wx, wy = ns.nav:ToWorld(map, x, y) end
     if not wx or cont ~= p.cont then
@@ -108,11 +135,22 @@ end
 function F:Target() return target end
 
 function F:Start(name)
-    if not F.UnitOf(name) then ns:Print(tostring(name) .. " isn't in your group") return end
-    target, lostSince, F.saidLost = name, nil, nil
+    if not F.MemberNamed(name) then ns:Print(tostring(name) .. " isn't in your group") return end
+    target, lostSince, F.saidLost, F.source = F.MemberNamed(name), nil, nil, nil
     F.Ask()
-    ns:Print("following " .. name .. ": the arrow points at them (green) until you stop it.")
+    ns:Log("follow", "following " .. target .. " (unit " .. tostring(F.UnitOf(target)) .. ")")
+    ns:Print("following " .. target .. ": the arrow points at them (green) until you stop it.")
     F:RefreshToggle()
+    if ns.questMarks and ns.questMarks.Refresh then pcall(ns.questMarks.Refresh) end   -- their green (o)
+end
+
+-- For /flow party and the diagnostics.
+function F:Status()
+    if not target then return "not following anyone" end
+    local _, _, _, source = F.Where(target)
+    return string.format("following %s: position %s", target,
+        source == "live" and "from the game" or source == "sent" and "sent by their Flow"
+        or "unknown (they need Flow 0.35.73+ if the game hides it)")
 end
 
 function F:Stop(why)
@@ -121,6 +159,7 @@ function F:Stop(why)
     target = nil
     ns:Print("stopped following " .. was .. (why and (": " .. why) or "") .. "; the arrow is back on your route")
     F:RefreshToggle()
+    if ns.questMarks and ns.questMarks.Refresh then pcall(ns.questMarks.Refresh) end   -- their green (o)
 end
 
 -- Your waypoint where they are right now (it stays there).
@@ -143,7 +182,7 @@ end
 
 if ns.party and ns.party.handlers then
     ns.party.handlers.W = function(_, who)
-        if who and plain(who) == UnitName("player") then askedAt = GetTime() end
+        if who and plain(who):lower() == (UnitName("player") or ""):lower() then askedAt = GetTime() end
     end
     ns.party.handlers.X = function(sender, rest)
         local map, x, y = rest:match("^(%d+)|([%d%.]+)|([%d%.]+)$")
@@ -177,15 +216,15 @@ end)
 -- UI: menu items, the line under the arrow
 -------------------------------------------------------------------------------
 
+-- Menu entries (the route menu's "Your waypoint" section): follow each party
+-- member, or drop your waypoint where they are.
 function F:MenuItems()
-    local names = F.Members()
-    if #names == 0 then return {} end
-    local items = { { sep = true }, { title = true, text = "Party members" } }
+    local items = {}
     if target then
         items[#items + 1] = { text = "Stop following " .. target, func = function() F:Stop() end }
     end
-    for _, n in ipairs(names) do
-        items[#items + 1] = { text = "Follow " .. n, radio = true, checked = target == n,
+    for _, n in ipairs(F.Members()) do
+        items[#items + 1] = { text = "Follow " .. n .. " (the arrow follows them)", radio = true, checked = target == n,
             func = function() if target == n then F:Stop() else F:Start(n) end end }
         items[#items + 1] = { text = "Waypoint at " .. n .. " (where they are now)", func = function() F:WaypointAt(n) end }
     end
@@ -211,7 +250,13 @@ end
 
 -- They left the group, or you did: stop.
 ns:On("GROUP_ROSTER_UPDATE", function()
-    if target and not F.UnitOf(target) then F:Stop("they're not in your group any more") end
+    -- (After a moment: the roster settles first. Out of the group entirely,
+    -- or no longer a member by name.)
+    C_Timer.After(1, function()
+        if target and (not (ns.party and ns.party:InGroup()) or not F.MemberNamed(target)) then
+            F:Stop("they're not in your group any more")
+        end
+    end)
 end)
 
 function F:Command(arg)

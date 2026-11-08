@@ -2158,3 +2158,27 @@ ns:Register("test", "trainers and pickups: your faction, your level, chains in o
     t:eq(#kept, 2, "part 2 of a chain waits for part 1")
     t:eq(kept[2].id, 747, "the rest stay")
 end)
+
+ns:Register("test", "follow: by name, typed or picked, even if the game hides the unit", function(t)
+    local F = ns.follow
+    with(F, "Members", function() return { "Zed" } end, function()
+        t:eq(F.MemberNamed("zed"), "Zed", "typed in lower case")
+        t:eq(F.MemberNamed("Zed-Realm"), "Zed", "with a realm")
+        t:eq(F.MemberNamed("Amy"), nil, "not in the group")
+        local items = F:MenuItems()
+        local found = false
+        for _, it in ipairs(items) do if it.text and it.text:find("^Follow Zed") then found = true end end
+        t:ok(found, "the waypoint menu offers Follow Zed")
+    end)
+    t:ok(F:Status():find("not following", 1, true) ~= nil, "status says when you aren't following")
+end)
+
+ns:Register("test", "nameplates: Flow's (o) over your stop's NPC", function(t)
+    local QM = ns.questMarks
+    t:ok(type(QM._targetOf) == "function" and type(QM.Refresh) == "function", "marker hooks exist")
+    QM.SetRouteTarget({ "Grull Hawkwind" })
+    t:ok(QM._routeNames["grull hawkwind"], "the stop's NPC is remembered by name")
+    QM.SetRouteTarget(nil)
+    t:ok(not next(QM._routeNames), "cleared with the stop")
+    if ns.nav and ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) end   -- (back to yours)
+end)

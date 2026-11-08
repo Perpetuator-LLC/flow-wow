@@ -165,14 +165,26 @@ function Menu:RouteItemsRaw()
     end
     items[#items + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
         radio = true, checked = shown == nil, func = function() nav:SetStopsShown(nil) end }
+    local following = ns.follow and ns.follow:Target()
     for _, it in ipairs({
         { sep = true },
         { title = true, text = "Your waypoint" },
-        { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },
+        { text = "Set a waypoint (coordinates, or a party member's name)...", func = function() ns.waypoint:Prompt() end },
         { text = "Nearest repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
         { text = "Nearest vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
-        { text = "Clear your waypoint", disabled = ns.waypoint:Get() == nil,
-          func = function() ns.waypoint:Clear(); ns:Print("waypoint cleared") end },
+    }) do items[#items + 1] = it end
+    -- In a group: follow a party member (the arrow keeps pointing at them),
+    -- or drop your waypoint where they are.
+    if ns.follow and ns.party and ns.party:InGroup() then
+        for _, it in ipairs(ns.follow:MenuItems()) do items[#items + 1] = it end
+    end
+    for _, it in ipairs({
+        { text = following and ("Clear your waypoint (stop following " .. following .. ")") or "Clear your waypoint",
+          disabled = ns.waypoint:Get() == nil and not following,
+          func = function()
+              if following then ns.follow:Stop() end
+              if ns.waypoint:Get() then ns.waypoint:Clear(); ns:Print("waypoint cleared") end
+          end },
         { sep = true },
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
@@ -188,12 +200,10 @@ function Menu:RouteItemsRaw()
         if H then for _, it in ipairs(H:MenuItems()) do items[#items + 1] = it end end
         -- (A hand-made route someone shared with /flow party share.)
         if P:Active() then
-            local following = P:Following()
-            items[#items + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = following,
+            items[#items + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = P:Following(),
                 func = function() P:SetFollowing(true) end }
             items[#items + 1] = { text = "Drop the shared stops", func = function() P:Leave() end }
         end
-        if ns.follow then for _, it in ipairs(ns.follow:MenuItems()) do items[#items + 1] = it end end
     end
     return items
 end
