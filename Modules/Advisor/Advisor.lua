@@ -37,10 +37,47 @@ local function line(item)
     return item.text .. tags
 end
 
+-------------------------------------------------------------------------------
+-- Hiding advice: click a row in the list and it goes under "Hidden" at the
+-- bottom (collapsed); click it there to bring it back. Kept per character.
+-- The key ignores numbers and colours, so "Train 2 spells" stays hidden as
+-- "Train 3 spells".
+-------------------------------------------------------------------------------
+
+function Adv.KeyOf(item)
+    local text = tostring(item.text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        :gsub("|H.-|h(.-)|h", "%1"):gsub("%d+", "#")
+    return tostring(item.source or "?") .. "|" .. text
+end
+function Adv:IsHidden(item) return ns.db.advisor.hidden[Adv.KeyOf(item)] ~= nil end
+function Adv:Hide(item)
+    ns.db.advisor.hidden[Adv.KeyOf(item)] = { text = item.text, at = time and time() or 0 }
+    self:Refresh()
+end
+function Adv:Unhide(item)
+    ns.db.advisor.hidden[Adv.KeyOf(item)] = nil
+    self:Refresh()
+end
+
+-- The advice you haven't hidden, and the hidden advice that still applies.
+function Adv.Split(list, isHidden)
+    local shown, hidden = {}, {}
+    for _, item in ipairs(list) do
+        if isHidden(item) then hidden[#hidden + 1] = item else shown[#shown + 1] = item end
+    end
+    return shown, hidden
+end
+function Adv:Shown()
+    local shown, hidden = Adv.Split(items, function(item) return self:IsHidden(item) end)
+    return shown, hidden
+end
+
 function Adv:Print(limit)
-    if #items == 0 then ns:Print("nothing to improve right now |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r.") return end
-    ns:Print("ways to improve |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r:")
-    for i = 1, math.min(limit or #items, #items) do print("  " .. i .. ". " .. line(items[i])) end
+    local shown, hidden = self:Shown()
+    local more = #hidden > 0 and string.format(" |cff888888(%d hidden)|r", #hidden) or ""
+    if #shown == 0 then ns:Print("nothing to improve right now |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r." .. more) return end
+    ns:Print("ways to improve |cff888888(Flow v" .. (ns.Version and ns.Version() or "?") .. ")|r:" .. more)
+    for i = 1, math.min(limit or #shown, #shown) do print("  " .. i .. ". " .. line(shown[i])) end
 end
 
 local function buildButton()
@@ -116,10 +153,12 @@ local function buildButton()
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Flow: ways to improve")
-        for i = 1, math.min(10, #items) do
-            GameTooltip:AddLine(i .. ". " .. line(items[i]), 1, 1, 1, true)
+        local shown, hidden = Adv:Shown()
+        for i = 1, math.min(10, #shown) do
+            GameTooltip:AddLine(i .. ". " .. line(shown[i]), 1, 1, 1, true)
         end
-        GameTooltip:AddLine("Click to open the list (pick a place to route there). Shift-drag to move.", 0.6, 0.6, 0.6)
+        if #hidden > 0 then GameTooltip:AddLine(string.format("(%d hidden)", #hidden), 0.6, 0.6, 0.6) end
+        GameTooltip:AddLine("Click to open the list. Shift-drag to move.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -131,11 +170,12 @@ function Adv:Refresh()
     if InCombatLockdown and InCombatLockdown() then return end
     items = self:Collect()
     if not button then return end
-    if ns.db.advisor.enabled and #items > 0 then
-        button.text:SetText(#items > 99 and "99+" or tostring(#items))
+    local shown = self:Shown()
+    if ns.db.advisor.enabled and #shown > 0 then
+        button.text:SetText(#shown > 99 and "99+" or tostring(#shown))
         -- Pulse a few times when something important (an upgrade, training,
         -- a capped profession) shows up that wasn't there before.
-        local top = items[1] and items[1].importance or 0
+        local top = shown[1] and shown[1].importance or 0
         if top >= 60 and top > (self.lastTop or 0) then
             button.pulse:Play()
             C_Timer.After(4, function() button.pulse:Stop(); button:SetAlpha(1) end)
@@ -162,9 +202,11 @@ end
 
 ns:OnLoad(function(saved)
     saved.advisor = saved.advisor or {}
+    saved.advisor.hidden = saved.advisor.hidden or {}
     if saved.advisor.enabled == nil then saved.advisor.enabled = true end
     button = buildButton()
 end)
+ns:PerCharacter("advisor.hidden")   -- what you hid is about your character
 
 for _, ev in ipairs({ "PLAYER_LEVEL_UP", "SPELLS_CHANGED", "PLAYER_EQUIPMENT_CHANGED",
                       "BAG_UPDATE_DELAYED", "SKILL_LINES_CHANGED", "TRAINER_CLOSED",
@@ -197,14 +239,89 @@ ns.commands.advice = function(arg)
 end
 
 -------------------------------------------------------------------------------
--- Advice panel (click the ! button). Rows that are places (quests to pick up,
--- trainers, skill spots) have an arrow: hover to preview that route on the
--- world map, click to make it your route. Picking a "!" quest pickup routes
--- you through all the pickups first, then the rest of your plan.
+-- Advice panel (click the ! button):
+--   * click a row: it's hidden (under "Hidden" at the bottom, collapsed);
+--     click "Hidden (N)" to open that list, click a row there to bring it back
+--   * the link button on the right of a row opens what it's about: the stop on
+--     your route (its card: go here next...), the spell (place it or bind a
+--     key), the item, the profession picker, the talent plan
 -------------------------------------------------------------------------------
 
 local panel
 local ROWS = 16
+
+local function goalFor(key)
+    if not (key and ns.nav) then return nil end
+    for _, g in ipairs(ns.nav:Goals()) do
+        if g.key == key and g.points and #g.points > 0 then return g end
+    end
+end
+
+-- What a row's link opens: kind ("open", "goal", "spell", "item") and a label,
+-- or nil when there's nothing to open. goalOf(key) -> the route stop or nil.
+function Adv.LinkOf(item, goalOf)
+    if item.onClick or item.open then return "open", item.openLabel or "it" end
+    local g = item.goalKey and goalOf(item.goalKey)
+    if g then return "goal", "the stop on your route: " .. tostring(g.text or g.title or item.goalKey) end
+    if item.spell then return "spell", item.spell .. " (put it on a bar or bind a key)" end
+    local link = tostring(item.text or ""):match("(|c%x+|Hitem:.-|h.-|h|r)")
+    if link then return "item", link end
+end
+
+function Adv.Open(item, anchor)
+    local kind = Adv.LinkOf(item, goalFor)
+    if kind == "open" then
+        local fn = item.onClick or item.open
+        local ok, err = pcall(fn)
+        if not ok then ns:Print("couldn't open it: " .. tostring(err)) end
+    elseif kind == "goal" then
+        ns.nav:OpenStop(goalFor(item.goalKey), anchor)
+    elseif kind == "spell" then
+        if ns.newSpell and ns.newSpell.Offer then ns.newSpell:Offer(item.spell) end
+    elseif kind == "item" then
+        local link = tostring(item.text):match("(|c%x+|Hitem:.-|h.-|h|r)")
+        if ItemRefTooltip and link then
+            ItemRefTooltip:SetOwner(UIParent, "ANCHOR_PRESERVE")
+            ItemRefTooltip:SetHyperlink(link:match("|H(.-)|h"))
+            ItemRefTooltip:Show()
+        end
+    end
+end
+
+-- The rows on screen: your advice, then "Hidden (N)" and (opened) the hidden ones.
+--   -> { { kind = "item" | "header" | "hidden", item } }, at most `max`
+function Adv.Rows(shown, hidden, open, max)
+    local rows = {}
+    local room = #hidden > 0 and max - 1 or max
+    for i = 1, math.min(#shown, room) do rows[#rows + 1] = { kind = "item", item = shown[i] } end
+    if #hidden > 0 then
+        rows[#rows + 1] = { kind = "header", count = #hidden, open = open }
+        if open then
+            for _, item in ipairs(hidden) do
+                if #rows >= max then break end
+                rows[#rows + 1] = { kind = "hidden", item = item }
+            end
+        end
+    end
+    return rows
+end
+
+-- The link button's picture: a chain link where the game has one, else a spyglass.
+local LINK_ICON, LINK_FALLBACK = "Interface\\Buttons\\UI-LinkProfession-Up", "Interface\\Icons\\INV_Misc_Spyglass_02"
+local function linkButton(parent)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(16, 16)
+    b:SetPoint("RIGHT", -2, 0)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    local ok = b.tex:SetTexture(LINK_ICON)
+    if ok == false or (b.tex.GetTextureFileID and not b.tex:GetTextureFileID()) then
+        b.tex:SetTexture(LINK_FALLBACK); b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.25)
+    return b
+end
 
 local function buildPanel()
     local f = CreateFrame("Frame", "FlowAdvicePanel", UIParent)
@@ -224,7 +341,7 @@ local function buildPanel()
     tinsert(UISpecialFrames, "FlowAdvicePanel")
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOPLEFT", 12, -10)
-    f.title:SetText("Flow: ways to improve")
+    f.title:SetText("Flow Improvements")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
     f.rows = {}
@@ -235,35 +352,47 @@ local function buildPanel()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT")
         r.hl:SetAllPoints()
         r.hl:SetColorTexture(1, 1, 1, 0.08)
-        r.go = r:CreateTexture(nil, "OVERLAY")
-        r.go:SetSize(14, 14)
-        r.go:SetPoint("LEFT")
-        r.go:SetTexture("Interface\\Minimap\\MinimapArrow")
-        r.go:SetRotation(-math.pi / 2)
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetPoint("LEFT", 18, 0)
-        r.text:SetWidth(396)
+        r.text:SetPoint("LEFT", 2, 0)
+        r.text:SetPoint("RIGHT", -22, 0)
         r.text:SetJustifyH("LEFT")
         r.text:SetWordWrap(false)
-        r:SetScript("OnEnter", function(self)
+        r.link = linkButton(r)
+        r.link:SetScript("OnClick", function(self) Adv.Open(r.row.item, self) end)
+        r.link:SetScript("OnEnter", function(self)
+            local _, label = Adv.LinkOf(r.row.item, goalFor)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(self.item.text, 1, 1, 1, true)
-            if self.item.improves then GameTooltip:AddLine("Improves: " .. table.concat(self.item.improves, ", "), 0.7, 0.7, 0.7) end
-            if self.goal then
-                GameTooltip:AddLine("Click to go here first. Open your map to see the route.", 1, 0.65, 0)
-                if ns.mapOverlay then ns.mapOverlay:Preview(self.item.goalKey) end
-            end
+            GameTooltip:AddLine("Open " .. tostring(label), 1, 1, 1, true)
+            if r.row.item.goalKey and ns.mapOverlay then ns.mapOverlay:Preview(r.row.item.goalKey) end
             GameTooltip:Show()
         end)
-        r:SetScript("OnLeave", function()
+        r.link:SetScript("OnLeave", function()
             GameTooltip:Hide()
             if ns.mapOverlay then ns.mapOverlay:Preview(nil) end
         end)
+        r:SetScript("OnEnter", function(self)
+            local row = self.row
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if row.kind == "header" then
+                GameTooltip:AddLine(row.open and "Click to fold the hidden ones away." or "Click to see what you hid.", 1, 1, 1, true)
+            else
+                GameTooltip:AddLine(row.item.text, 1, 1, 1, true)
+                if row.item.improves then GameTooltip:AddLine("Improves: " .. table.concat(row.item.improves, ", "), 0.7, 0.7, 0.7) end
+                GameTooltip:AddLine(row.kind == "hidden" and "Click to bring it back." or "Click to hide it (it goes under Hidden at the bottom).", 1, 0.65, 0)
+            end
+            GameTooltip:Show()
+        end)
+        r:SetScript("OnLeave", function() GameTooltip:Hide() end)
         r:SetScript("OnClick", function(self)
-            if self.item.onClick then self.item.onClick() return end
-            if not self.goal then return end
-            ns.nav:Select(self.item.goalKey)
-            ns:Print("route updated: " .. (self.goal.text or self.item.text) .. " first")
+            local row = self.row
+            if row.kind == "header" then
+                f.hiddenOpen = not f.hiddenOpen
+                Adv:FillPanel()
+            elseif row.kind == "hidden" then
+                Adv:Unhide(row.item)
+            else
+                Adv:Hide(row.item)
+            end
         end)
         f.rows[i] = r
     end
@@ -271,34 +400,40 @@ local function buildPanel()
     return f
 end
 
-local function goalFor(key)
-    if not (key and ns.nav) then return nil end
-    for _, g in ipairs(ns.nav:Goals()) do
-        if g.key == key and g.points and #g.points > 0 then return g end
-    end
-end
-
 function Adv:FillPanel()
     if not (panel and panel:IsShown()) then return end
+    local shown, hidden = self:Shown()
+    local rows = Adv.Rows(shown, hidden, panel.hiddenOpen, ROWS)
     local pickup = 0
     for i = 1, ROWS do
-        local r, item = panel.rows[i], items[i]
-        if item then
-            r.item = item
-            r.goal = goalFor(item.goalKey)
-            local label = item.text
-            if item.goalKey and item.goalKey:find("^pickup:") then
-                pickup = pickup + 1
-                local c = ns.theme and ns.theme.changed
-                label = string.format("|cff%s!%d|r %s", c and c.hex or "0072B2", pickup, label)
+        local r, row = panel.rows[i], rows[i]
+        if row then
+            r.row = row
+            local label
+            if row.kind == "header" then
+                label = string.format("|cffffd200%s Hidden (%d)|r", row.open and "-" or "+", row.count)
+            else
+                label = row.item.text
+                if row.item.goalKey and row.item.goalKey:find("^pickup:") then
+                    pickup = pickup + 1
+                    local c = ns.theme and ns.theme.changed
+                    label = string.format("|cff%s!%d|r %s", c and c.hex or "0072B2", pickup, label)
+                end
+                if row.kind == "hidden" then label = "|cff888888" .. label:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. "|r" end
             end
             r.text:SetText(label)
-            r.go:SetShown(r.goal ~= nil or item.onClick ~= nil)
-            if r.goal then local c = ns.theme.arrow; r.go:SetVertexColor(c[1], c[2], c[3]) end
+            r.link:SetShown(row.kind ~= "header" and Adv.LinkOf(row.item, goalFor) ~= nil)
             r:Show()
         else
             r:Hide()
         end
+    end
+    panel:SetHeight(46 + math.max(1, #rows) * 20)
+    if #rows == 0 then
+        panel.rows[1].row = { kind = "header", count = 0 }
+        panel.rows[1].text:SetText("|cff888888Nothing to improve right now.|r")
+        panel.rows[1].link:Hide()
+        panel.rows[1]:Show()
     end
 end
 

@@ -99,14 +99,20 @@ ns.quests.LogEntries = questLog  -- shared with SkillPlan.lua
 -- quests (Party.lua: "help Bob").
 --   q    = { id, title, complete, objectives = { { text, finished, have, need } } }
 --   opts = { prefix = "help:" (key prefix), who = "Bob" (shown in the text),
---            skip = function(key) -> true to leave a goal out }
--- Appends to `goals`.
+--            skip = function(key) -> true to leave a goal out,
+--            unplaced = {} (gets { id, title, why } for what can't be placed) }
+-- Appends to `goals`. A quest Flow can't place used to drop off the route
+-- without a word ("Dirt-stained Map"); `unplaced` says which and why, for
+-- /flow nav why and the diagnostics.
 local function questGoals(db, q, goals, opts)
     opts = opts or {}
     local prefix, skip = opts.prefix or "", opts.skip or function() return false end
     local whose = opts.who and (opts.who .. ": ") or ""
+    local function cant(why)
+        if opts.unplaced then opts.unplaced[#opts.unplaced + 1] = { id = q.id, title = q.title, why = why } end
+    end
     local quest = call(db, "GetQuest", q.id)
-    if not quest then return end
+    if not quest then cant("Questie doesn't know this quest (a WoW: Forever one?), so Flow has no place for it") return end
     local title = q.title or quest.name
     -- Where the quest is handed in. For unfinished quests this is a later
     -- stop that the planner puts after the objectives (deps), so it can
@@ -130,6 +136,9 @@ local function questGoals(db, q, goals, opts)
         deps = {},
     }
     if not skip(turnIn.key) then goals[#goals + 1] = turnIn end
+    if #turnIn.points == 0 then
+        cant("Flow doesn't know where it's handed in (" .. (who or "no NPC or object in Questie") .. ")")
+    end
     if q.complete then return end
     for i, obj in ipairs(q.objectives) do
         local od = quest.ObjectiveData and quest.ObjectiveData[i]
@@ -137,6 +146,9 @@ local function questGoals(db, q, goals, opts)
         -- smelt, craft), not by walking to the trainer.
         local skillObj = obj.text and ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
         local key = prefix .. q.id .. ":" .. i
+        if not obj.finished and not od and not skillObj then
+            cant(string.format("objective %d (%s): Questie has no data for it", i, tostring(obj.text or "?")))
+        end
         if not obj.finished and od and not skillObj then
             local spawns, verb, what, elite = {}, nil, nil, false
             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
@@ -188,6 +200,10 @@ local function questGoals(db, q, goals, opts)
                         end)(),
                     }
                 end
+            elseif verb then
+                cant(string.format("objective %d (%s): Questie has no spot for %s", i, tostring(obj.text or "?"), tostring(what or "it")))
+            elseif od then
+                cant(string.format("objective %d (%s): a kind Flow can't place (%s)", i, tostring(obj.text or "?"), tostring(od.Type)))
             end
         end
     end
@@ -195,7 +211,10 @@ local function questGoals(db, q, goals, opts)
     -- the turn-in yet, it could come too early.
     local unfinished = 0
     for _, obj in ipairs(q.objectives) do if not obj.finished then unfinished = unfinished + 1 end end
-    if unfinished > #turnIn.deps then turnIn.points = {} end
+    if unfinished > #turnIn.deps then
+        if #turnIn.points > 0 then cant("waits for an objective Flow can't place, so the turn-in isn't planned yet") end
+        turnIn.points = {}
+    end
 end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 
@@ -203,8 +222,9 @@ ns:Register("navGoal", "questie", {
     collect = function()
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
         if not db then return nil end
-        local goals = {}
-        for _, q in ipairs(questLog()) do questGoals(db, q, goals) end
+        local goals, unplaced = {}, {}
+        for _, q in ipairs(questLog()) do questGoals(db, q, goals, { unplaced = unplaced }) end
+        ns.quests.unplaced = unplaced   -- (/flow nav why)
         return goals
     end,
 })

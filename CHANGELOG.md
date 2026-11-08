@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.92
+- **Flow Improvements (the "!" list): click a row to hide it.** It goes under "+ Hidden (N)" at
+  the bottom, collapsed. Click that to see what you hid, and click one there to bring it back.
+  Hidden advice is kept per character. The count on the "!" button and the chat summary leave
+  hidden ones out. A line stays hidden when only its numbers change ("Train 2 spells" ->
+  "Train 3 spells").
+- **A link button on each row opens what it's about:**
+  - the stop on your route (its card, where you can go there next);
+  - the spell (the card to put it on a bar or bind a key);
+  - the item (its tooltip);
+  - the profession picker, or the talent plan.
+  The panel is now titled "Flow Improvements".
+- **Short key names on the easy button:** "Mouse Button 5" shows as MB5 ("` / MB5"), with
+  modifiers as S-, C- and A-, and Num Pad 3 as N3. The tooltip keeps the full names.
+- **Quests Flow can't place are listed in `/flow nav why`** (and the diagnostics), with the
+  reason: a quest Questie doesn't know, an objective with no location or of a kind Flow can't
+  place, or no place to hand it in. They used to drop off the route without a word ("Dirt-stained
+  Map").
+
 ## 0.35.91
 Performance pass: fewer stutters while the route is planned, less work for the arrow.
 - Planning the route is several times faster with exactly the same result: the nearest spot

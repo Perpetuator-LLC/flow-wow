@@ -87,11 +87,41 @@ local function assistantSpell()
     if ok and id then return (A.SpellInfo(id)) end
 end
 
--- "`" or "` / F" (both keys).
-function C:KeyLabel()
+-- A key's name short enough for the corner of the easy button: "Mouse
+-- Button 5" -> "MB5", "SHIFT-NUMPAD3" -> "S-N3", "SPACE" -> "Spc". Keys
+-- already short ("`", "F", "1") stay as the game names them.
+local SHORT = {
+    SPACE = "Spc", ESCAPE = "Esc", BACKSPACE = "Bksp", CAPSLOCK = "Caps", ENTER = "Ent", TAB = "Tab",
+    PAGEUP = "PgUp", PAGEDOWN = "PgDn", INSERT = "Ins", DELETE = "Del", HOME = "Home", END = "End",
+    UP = "Up", DOWN = "Dn", LEFT = "Lt", RIGHT = "Rt",
+    MOUSEWHEELUP = "WhUp", MOUSEWHEELDOWN = "WhDn",
+    NUMPADPLUS = "N+", NUMPADMINUS = "N-", NUMPADMULTIPLY = "N*", NUMPADDIVIDE = "N/", NUMPADDECIMAL = "N.",
+}
+local MOD = { ALT = "A-", CTRL = "C-", SHIFT = "S-", META = "M-" }
+function C.ShortKey(key, bindingText)
+    if type(key) ~= "string" or key == "" then return "" end
+    local mods, base = "", key
+    while true do
+        local m, rest = base:match("^(%u+)%-(.+)$")
+        if not (m and MOD[m]) then break end
+        mods, base = mods .. MOD[m], rest
+    end
+    local short = SHORT[base] or (base:match("^BUTTON(%d+)$") and "MB" .. base:match("^BUTTON(%d+)$"))
+        or (base:match("^NUMPAD(%d)$") and "N" .. base:match("^NUMPAD(%d)$"))
+    if not short then
+        local text = bindingText and bindingText(base) or nil
+        short = (text and #text <= 3) and text or base
+    end
+    return mods .. short
+end
+
+-- "`" or "` / F" (both keys). short: the easy button's corner ("` / MB5");
+-- otherwise the game's full names (tooltips, settings).
+function C:KeyLabel(short)
     local out = {}
+    local text = GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end
     for _, key in ipairs(C.KeysOf(ns.db.cast)) do
-        out[#out + 1] = (GetBindingText and GetBindingText(key, "KEY_", true)) or key
+        out[#out + 1] = short and C.ShortKey(key, text) or (text and text(key)) or key
     end
     return table.concat(out, " / ")
 end
@@ -156,14 +186,14 @@ local function refreshLabels()
     local healKey = first and C.HealSpell and C:HealSpell() and C.HealKeyFor(first)
     if InCombatLockdown() and healKey and live and (live.kind == "heal" or live.kind == "emergency")
         and lockedSpell ~= live.spell then
-        keyText:SetText("|cff66ff66Shift+" .. ((GetBindingText and GetBindingText(first, "KEY_", true)) or first) .. "|r")
+        keyText:SetText("|cff66ff66S-" .. C.ShortKey(first, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end) .. "|r")
         if not ns.db.cast.healTipShown then
             ns.db.cast.healTipShown = true
             ns:Print(string.format("tip: Shift + %s casts %s on you, even in a fight (the key itself can't change mid-fight).",
                 (GetBindingText and GetBindingText(first, "KEY_", true)) or first, C:HealSpell()))
         end
     else
-        keyText:SetText(C:KeyLabel())
+        keyText:SetText(C:KeyLabel(true))
     end
     -- In combat, show what the key is locked to when it differs from the advice.
     local liveSpell = live and live.spell

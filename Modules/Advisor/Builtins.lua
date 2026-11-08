@@ -59,6 +59,7 @@ ns:Register("advisor", "trainer", {
                     text = string.format("Get %s (level %d%s)", s.spell, s.level,
                         s.note and (", " .. s.note) or ", class trainer"),
                     improves = s.improves,
+                    goalKey = not s.note and "train:class" or nil,   -- (its link: your class trainer's stop)
                 }
             end
         end
@@ -98,7 +99,7 @@ ns:Register("advisor", "bars", {
                 seen[spell] = true
                 out[#out + 1] = { importance = 70,
                     text = "Put " .. spell .. " on your action bars: Flow will suggest it",
-                    improves = why }
+                    improves = why, spell = spell }   -- (its link: the place-or-bind card)
             end
         end
         for _, rule in ipairs(def.priority or {}) do consider(rule.spell, { "Rotation" }) end
@@ -159,7 +160,8 @@ ns:Register("advisor", "talents", {
         if points and points > 0 then
             return { { importance = 85,
                 text = string.format("Spend %d talent point(s): /flow spec for the plan", points),
-                improves = { "DPS", "Survival" } } }
+                improves = { "DPS", "Survival" },
+                open = function() ns.commands.spec("") end, openLabel = "the talent plan (/flow spec)" } }
         end
     end,
 })

@@ -278,6 +278,16 @@ local function learned(id)
     end)
 end
 
+-- The card for a spell you already know (the link on "Put X on your action
+-- bars" in Flow's improvements list): place it, drag it or bind a key.
+function NS:Offer(name)
+    local spellName, _, _, id = ns.api.SpellInfo(name)
+    if not (spellName and id) then ns:Print("Flow can't find the spell " .. tostring(name) .. " in your spellbook.") return end
+    for _, q in ipairs(queue) do if q.name == spellName then show() return end end
+    queue[#queue + 1] = { id = id, name = spellName }
+    show()
+end
+
 ns:On("LEARNED_SPELL_IN_TAB", function(id) pcall(learned, id) end)
 ns:On("PLAYER_REGEN_ENABLED", function() C_Timer.After(1, show) end)
 

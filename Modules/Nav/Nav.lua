@@ -2375,6 +2375,10 @@ ns.commands.nav = function(arg)
             table.sort(missing)
             for i = 1, math.min(3, #missing) do print("    " .. ns.places:Explain(missing[i])) end
         end
+        -- Quests in your log Flow can't put on the route, and why (Goals.lua).
+        for _, u in ipairs(ns.quests.unplaced or {}) do
+            print(string.format("  can't place: %s [%s] - %s", tostring(u.title), tostring(u.id), u.why))
+        end
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
         print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")

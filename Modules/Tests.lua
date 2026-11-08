@@ -2676,3 +2676,79 @@ ns:Register("test", "sharing places: NPCs only, opt in, and other players' spots
     t:eq(P.SharedSpot("Test Vendor", "Alliance"), nil, "never for the other faction")
     P.ResetShared()
 end)
+
+ns:Register("test", "route: quests Flow can't place are listed with the reason", function(t)
+    local db = {
+        GetQuest = function(id)
+            if id == 600 then return { name = "No Finisher", level = 6, ObjectiveData = { { Type = "event", Id = 1 } } } end
+        end,
+        GetNPC = function() return nil end,
+    }
+    local unplaced, goals = {}, {}
+    ns.quests.QuestGoals(db, { id = 599, title = "Dirt-stained Map", complete = false, objectives = {} }, goals, { unplaced = unplaced })
+    t:eq(unplaced[1] and unplaced[1].title, "Dirt-stained Map", "a quest Questie doesn't know is listed")
+    t:ok(unplaced[1] and unplaced[1].why:find("doesn't know", 1, true) ~= nil, "with why")
+    unplaced = {}
+    ns.quests.QuestGoals(db, { id = 600, title = "No Finisher", complete = false,
+        objectives = { { text = "Find the spot", finished = false } } }, goals, { unplaced = unplaced })
+    local whys = {}
+    for _, u in ipairs(unplaced) do whys[#whys + 1] = u.why end
+    local all = table.concat(whys, " | ")
+    t:ok(all:find("handed in", 1, true) ~= nil, "no turn-in place: said")
+    t:ok(all:find("can't place (event)", 1, true) ~= nil, "an event objective: said")
+end)
+
+ns:Register("test", "easy button: short key names in its corner", function(t)
+    local C = ns.cast
+    local text = function(k) return ({ ["`"] = "`", F = "F", BUTTON5 = "Mouse Button 5", F12 = "F12" })[k] end
+    t:eq(C.ShortKey("BUTTON5", text), "MB5", "Mouse Button 5 -> MB5")
+    t:eq(C.ShortKey("`", text), "`", "short keys stay")
+    t:eq(C.ShortKey("SHIFT-BUTTON4", text), "S-MB4", "with Shift")
+    t:eq(C.ShortKey("ALT-CTRL-NUMPAD3", text), "A-C-N3", "modifiers and the num pad")
+    t:eq(C.ShortKey("SPACE", text), "Spc", "Spacebar -> Spc")
+    t:eq(C.ShortKey("F12", text), "F12", "F12 stays")
+    t:eq(C.ShortKey(nil, text), "", "no key: nothing")
+end)
+
+ns:Register("test", "improvements: click hides, Hidden lists them, links open the thing", function(t)
+    local Adv = ns.advisor
+    t:eq(Adv.KeyOf({ source = "train", text = "Train 2 spell(s)" }), Adv.KeyOf({ source = "train", text = "Train 3 spell(s)" }),
+        "a hidden line stays hidden when only its numbers change")
+    local a, b, c = { text = "A" }, { text = "B" }, { text = "C" }
+    local shown, hidden = Adv.Split({ a, b, c }, function(i) return i == b end)
+    t:eq(#shown, 2, "two shown"); t:eq(hidden[1], b, "one hidden")
+    local rows = Adv.Rows(shown, hidden, false, 16)
+    t:eq(rows[#rows].kind, "header", "Hidden (1) at the bottom, collapsed")
+    t:eq(#Adv.Rows(shown, hidden, true, 16), 4, "opened: the hidden one under it")
+    t:eq(#Adv.Rows({ a, b, c }, {}, false, 2), 2, "never more rows than fit")
+    local goal = function(k) return k == "train:class" and { text = "Train at Gennia" } or nil end
+    t:eq((Adv.LinkOf({ text = "x", goalKey = "train:class" }, goal)), "goal", "a route stop: its card")
+    t:eq((Adv.LinkOf({ text = "x", spell = "Moonfire" }, goal)), "spell", "a spell: place or bind it")
+    t:eq((Adv.LinkOf({ text = "Equip |cff1eff00|Hitem:123::|h[Sword]|h|r from your bags" }, goal)), "item", "an item: its tooltip")
+    t:eq((Adv.LinkOf({ text = "x", onClick = function() end }, goal)), "open", "its own action")
+    t:eq(Adv.LinkOf({ text = "Rotation habit" }, goal), nil, "nothing to open: no link")
+
+    -- Click test: open the list, click a row (hidden), open Hidden, click it (back).
+    local fake = { { text = "Fake advice one", source = "test", importance = 50 }, { text = "Fake advice two", source = "test", importance = 40 } }
+    with(ns.db.advisor, "hidden", {}, function()
+    with(Adv, "Collect", function() return fake end, function()
+        local panel = _G.FlowAdvicePanel
+        if not (panel and panel:IsShown()) then Adv:TogglePanel() end
+        panel = _G.FlowAdvicePanel
+        Adv:Refresh()   -- (the list from the fake advice, even if it was already open)
+        local first = panel.rows[1]
+        t:eq(first.row and first.row.item and first.row.item.text, "Fake advice one", "the list shows the advice")
+        pcall(first:GetScript("OnClick"), first)
+        t:ok(Adv:IsHidden(fake[1]), "click: hidden")
+        local header = panel.rows[2]
+        t:eq(header.row and header.row.kind, "header", "Hidden (1) under the rest")
+        pcall(header:GetScript("OnClick"), header)
+        local back = panel.rows[3]
+        t:eq(back.row and back.row.kind, "hidden", "opened: the hidden one is listed")
+        pcall(back:GetScript("OnClick"), back)
+        t:ok(not Adv:IsHidden(fake[1]), "click it there: back")
+        panel.hiddenOpen = nil
+        panel:Hide()
+    end) end)
+    Adv:Refresh()
+end)
