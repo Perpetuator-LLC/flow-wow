@@ -198,6 +198,18 @@ local legs, ants, nAnts = {}, {}, 0
 local antPhase = 0
 local ANT_GAP = 46    -- screen pixels between chevrons
 local ANT_SIZE = 4
+local WHITE = { 1, 1, 1 }   -- chevrons are white on every leg (one shared colour)
+
+-- Lines that start at you (to the first stop, to your waypoint). Between
+-- route changes only these move, so the 0.5 s map tick moves just them
+-- (followPlayer) instead of drawing everything again.
+local links = { n = 0 }
+local function addLink(st, l, leg)
+    st.n = st.n + 1
+    local k = st[st.n] or {}
+    k.line, k.leg = l, leg
+    st[st.n] = k
+end
 
 local function antLine()
     nAnts = nAnts + 1
@@ -212,7 +224,7 @@ local function drawAnts()
     local old = nAnts
     nAnts = 0
     local w, h, sc = c:GetWidth(), c:GetHeight(), canvasScale()
-    local gap, size = ANT_GAP / sc, ANT_SIZE / sc
+    local gap, size, th = ANT_GAP / sc, ANT_SIZE / sc, 1.6 / sc
     for _, leg in ipairs(legs) do
         local x1, y1, x2, y2 = leg[1] * w, -leg[2] * h, leg[3] * w, -leg[4] * h
         local dx, dy = x2 - x1, y2 - y1
@@ -221,23 +233,29 @@ local function drawAnts()
             local ux, uy = dx / len, dy / len
             local d = (antPhase * gap) % gap
             local col = leg.color
+            local a = leg.alpha or 0.95
             while d < len and nAnts < 400 do
                 local cx, cy = x1 + ux * d, y1 + uy * d
                 -- ">" pointing along the leg: two arms back from the tip.
+                -- 20 times a second: only the ends move; thickness, colour
+                -- and showing are set only when they change.
                 for side = -1, 1, 2 do
                     local l = antLine()
-                    l:SetThickness(1.6 / sc)
-                    l:SetColorTexture(col[1], col[2], col[3], leg.alpha or 0.95)
+                    if l.th ~= th then l:SetThickness(th); l.th = th end
+                    if l.a ~= a or l.col ~= col then l:SetColorTexture(col[1], col[2], col[3], a); l.a, l.col = a, col end
                     l:SetStartPoint("TOPLEFT", c, cx - ux * size + side * uy * size * 0.8, cy - uy * size - side * ux * size * 0.8)
                     l:SetEndPoint("TOPLEFT", c, cx + ux * size * 0.4, cy + uy * size * 0.4)
-                    l:Show()
+                    if not l.on then l:Show(); l.on = true end
                 end
                 d = d + gap
             end
         end
     end
-    for i = nAnts + 1, old do ants[i]:Hide() end
+    for i = nAnts + 1, old do ants[i]:Hide(); ants[i].on = false end
 end
+-- The chevrons' own clock (20 times a second while the map is open), timed
+-- apart from the redraws so /flow perf shows it.
+local drawAntsTimed = ns.perf.Wrap("world map (moving chevrons)", drawAnts)
 
 -- The stop you moved to the front (the ^ handle, "Go here first"). The route
 -- is planned from it, so it's stop 1 and wears the (o) like any first stop;
@@ -353,26 +371,72 @@ local function routePatch(groups, rx, ry)
 end
 M._routePatch = routePatch  -- (tests)
 
--- routePt: where the route goes for this stop. Only that patch is drawn,
--- unless allPatches (the stop you point at: every place its mobs live).
-local function drawArea(c, mapID, goal, color, strong, label, routePt, allPatches)
-    if not (goal and goal.area and goal.points) then return end
+-- An area's shape (its discs and the border round each patch) as flat lists
+-- of 0-1 map positions: discs = x1, y1, x2, y2...; edges = x1, y1, x2, y2 per
+-- border piece. Working it out is the slow part (grouping up to 80 spawns,
+-- then a hull over 12 points round each), so it's kept per stop and map
+-- and only worked out again when its spawns, its route spot, the map or
+-- the zoom change. Shapes not drawn in a full redraw are dropped.
+local shapes, shapesNext = {}, {}
+M._shapeBuilds = 0   -- (tests)
+local function areaShape(c, mapID, goal, routePt, allPatches)
     local r = blobRadius(c, mapID)
     local w, h = c:GetWidth(), c:GetHeight()
-    local alpha = strong and 0.28 or 0.1
+    local n, sum = #goal.points, 0
+    for _, pt in ipairs(goal.points) do sum = sum + (pt.x or pt.wx or 0) * 7 + (pt.y or pt.wy or 0) end
+    local rx, ry = toMap(routePt, mapID)
+    local key = goal.key .. (allPatches and "|all|" or "|") .. tostring(mapID)
+    local s = shapesNext[key] or shapes[key]
+    if s and s.n == n and s.sum == sum and s.r == r and s.w == w and s.h == h
+        and (allPatches or (s.rx == rx and s.ry == ry)) then
+        shapesNext[key] = s
+        return s
+    end
+    M._shapeBuilds = M._shapeBuilds + 1
     local all = {}
     for _, pt in ipairs(goal.points) do
         local x, y = toMap(pt, mapID)
         if x then all[#all + 1] = { x * w, y * h } end
     end
     local groups = clusters(all, r * 3)
-    local rx, ry = toMap(routePt, mapID)
     local keep = not allPatches and routePatch(groups, rx and rx * w, ry and ry * h)
     if keep then groups = { groups[keep] } end
-    local px = {}
-    for _, group in ipairs(groups) do for _, p in ipairs(group) do px[#px + 1] = p end end
-    for _, p in ipairs(px) do
-        local x, y = p[1] / w, p[2] / h
+    s = { n = n, sum = sum, r = r, w = w, h = h, rx = rx, ry = ry, discs = {}, edges = {} }
+    for _, group in ipairs(groups) do
+        for _, p in ipairs(group) do
+            s.discs[#s.discs + 1] = p[1] / w
+            s.discs[#s.discs + 1] = p[2] / h
+        end
+        -- A border around each patch: the outline of its discs.
+        local ring = {}
+        for _, p in ipairs(group) do
+            for k = 0, 11 do
+                local a = k * math.pi / 6
+                ring[#ring + 1] = { p[1] + r * math.cos(a), p[2] + r * math.sin(a) }
+            end
+        end
+        local edge = hull(ring)
+        for i = 1, #edge do
+            local a, b = edge[i], edge[i % #edge + 1]
+            local e = s.edges
+            e[#e + 1], e[#e + 2], e[#e + 3], e[#e + 4] = a[1] / w, a[2] / h, b[1] / w, b[2] / h
+        end
+    end
+    shapesNext[key] = s
+    return s
+end
+M._areaShape = areaShape   -- (tests)
+
+-- routePt: where the route goes for this stop. Only that patch is drawn,
+-- unless allPatches (the stop you point at: every place its mobs live).
+local function drawArea(c, mapID, goal, color, strong, label, routePt, allPatches)
+    if not (goal and goal.area and goal.points) then return end
+    local s = areaShape(c, mapID, goal, routePt, allPatches)
+    local r, w, h = s.r, s.w, s.h
+    local alpha = strong and 0.28 or 0.1
+    local discs = s.discs
+    for i = 1, #discs - 1, 2 do
+        local x, y = discs[i], discs[i + 1]
         if nBlobs < 300 then
             nBlobs = nBlobs + 1
             local b = blobs[nBlobs]
@@ -397,20 +461,9 @@ local function drawArea(c, mapID, goal, color, strong, label, routePt, allPatche
             b:Show()
         end
     end
-    -- A border around each patch: the outline of its discs.
-    for _, group in ipairs(groups) do
-        local ring = {}
-        for _, p in ipairs(group) do
-            for k = 0, 11 do
-                local a = k * math.pi / 6
-                ring[#ring + 1] = { p[1] + r * math.cos(a), p[2] + r * math.sin(a) }
-            end
-        end
-        local edge = hull(ring)
-        for i = 1, #edge do
-            local a, b = edge[i], edge[i % #edge + 1]
-            line(c, a[1] / w, a[2] / h, b[1] / w, b[2] / h, color, strong and 0.9 or 0.6)
-        end
+    local e = s.edges
+    for i = 1, #e - 3, 4 do
+        line(c, e[i], e[i + 1], e[i + 2], e[i + 3], color, strong and 0.9 or 0.6)
     end
 end
 
@@ -489,6 +542,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     local px, py = toMap(ns.nav:PlayerPos(), mapID)
     local labels = ns.nav:PlanLabels(plan)
     local hovered
+    local fromYou = px ~= nil   -- the next line drawn starts at you
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
         if x then
@@ -496,8 +550,10 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 -- From you to the first stop: brighter, so it's clear where to go now.
                 local first = (i == 1)
                 line(c, px, py, x, y, first and theme().route or color, alpha or 1)
-                legs[#legs + 1] = { px, py, x, y, color = { 1, 1, 1 }, alpha = first and 1 or 0.9 }  -- chevrons are white on every leg
+                legs[#legs + 1] = { px, py, x, y, color = WHITE, alpha = first and 1 or 0.9 }  -- chevrons are white on every leg
+                if fromYou then addLink(links, lines[nLines], legs[#legs]) end
             end
+            fromYou = false
             px, py = x, y
             if withPins then
                 local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
@@ -565,7 +621,8 @@ local function drawWaypoint(c, mapID)
     local px, py = toMap(ns.nav:PlayerPos(), mapID)
     if px and host then   -- (host: the map's line layer, made on the first redraw)
         line(c, px, py, x, y, col, 1)
-        legs[#legs + 1] = { px, py, x, y, color = { 1, 1, 1 }, alpha = 1 }   -- white chevrons, like the route
+        legs[#legs + 1] = { px, py, x, y, color = WHITE, alpha = 1 }   -- white chevrons, like the route
+        addLink(links, lines[nLines], legs[#legs])
     end
     wpPin = wpPin or makeWaypointPin()
     wpPin:SetParent(c)
@@ -1365,7 +1422,80 @@ local function updateList()
 end
 M._updateList = function() updateList() end   -- (tests)
 
-function M:Redraw()
+-- The stop you point at: under the mouse, opened from the tracker, or previewed.
+local function pointedKey()
+    return hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey or nil
+end
+
+-- What the map drawing depends on, apart from where you stand: the map and
+-- its zoom, the route (each stop, its spot, its text and how many spawns it
+-- has), the stop you point at, the route colour, your waypoint and whether
+-- you're on this map. The route's tables are made again every few seconds
+-- with the same stops in them, so this compares what's in them, not which
+-- table it is. st keeps the last values; true = something changed.
+local EMPTY = {}
+local function setv(st, k, v)
+    if st[k] ~= v then st[k] = v; return true end
+    return false
+end
+local function changed(st, c, mapID, pointed)
+    local T, p = theme(), ns.nav:PlayerPos()
+    local w = ns.waypoint and ns.waypoint:Get()
+    local route = T.route or WHITE
+    local d = false
+    d = setv(st, "map", mapID or false) or d
+    d = setv(st, "w", c:GetWidth()) or d
+    d = setv(st, "h", c:GetHeight()) or d
+    d = setv(st, "scale", canvasScale()) or d
+    d = setv(st, "pointed", pointed or false) or d
+    d = setv(st, "preview", previewKey or false) or d
+    d = setv(st, "lines", ns.db.nav.mapLines ~= false) or d
+    d = setv(st, "palette", T.palette or false) or d
+    d = setv(st, "r", route[1]) or d
+    d = setv(st, "g", route[2]) or d
+    d = setv(st, "b", route[3]) or d
+    d = setv(st, "wpMap", w and w.map or false) or d
+    d = setv(st, "wpX", w and w.x or false) or d
+    d = setv(st, "wpY", w and w.y or false) or d
+    d = setv(st, "cont", p and p.cont or false) or d
+    d = setv(st, "here", (mapID and toMap(p, mapID)) ~= nil) or d
+    local plan = ns.nav.plan or EMPTY
+    local sp = st.plan or {}
+    st.plan = sp
+    d = setv(st, "stops", #plan) or d
+    for i, s in ipairs(plan) do
+        local g, pt, b = s.goal, s.point or EMPTY, (i - 1) * 6
+        local key, text, n = g.key, g.text or g.title or false, g.points and #g.points or 0
+        local m, x, y = pt.map or false, pt.x or pt.wx or false, pt.y or pt.wy or false
+        if sp[b + 1] ~= key or sp[b + 2] ~= m or sp[b + 3] ~= x or sp[b + 4] ~= y or sp[b + 5] ~= n or sp[b + 6] ~= text then
+            sp[b + 1], sp[b + 2], sp[b + 3], sp[b + 4], sp[b + 5], sp[b + 6] = key, m, x, y, n, text
+            d = true
+        end
+    end
+    return d
+end
+M._changed = changed   -- (tests)
+
+-- Nothing changed but you moved: move the lines that start at you (and the
+-- chevrons' legs with them). st = the lines (links); false = nothing to move.
+local function followPlayer(st, c, mapID)
+    local px, py = toMap(ns.nav:PlayerPos(), mapID)
+    if not px or (px == st.px and py == st.py) then return false end
+    st.px, st.py = px, py
+    local w, h = c:GetWidth(), c:GetHeight()
+    for i = 1, st.n do
+        local k = st[i]
+        k.line:SetStartPoint("TOPLEFT", c, px * w, -py * h)
+        k.leg[1], k.leg[2] = px, py
+    end
+    return true
+end
+M._followPlayer, M._links = followPlayer, links   -- (tests)
+
+local last = {}          -- what the last full redraw drew (changed())
+M._fullDraws = 0         -- (tests)
+
+local function fullDraw()
     local c = canvas()
     if not (c and WorldMapFrame:IsShown() and ns.nav and ns.db.nav.mapRoute ~= false) then return end
     if not host then
@@ -1373,20 +1503,25 @@ function M:Redraw()
         host:SetAllPoints(c)
         host:EnableMouse(false)
     end
+    M._fullDraws = M._fullDraws + 1
     host:SetFrameStrata(aboveMap())
     host:SetFrameLevel(math.min(c:GetFrameLevel() + 1000, 9000))
     -- Reuse frames in place and only hide leftovers afterwards: hiding the
     -- pin under the mouse would fire OnLeave and make previews flicker.
     local oldLines, oldPins = nLines, nPins
     legs = {}
+    links.n = 0
     nLines, nPins = 0, 0
     local oldBlobs = nBlobs
     nBlobs = 0
+    shapesNext = {}
     local mapID = WorldMapFrame:GetMapID()
+    changed(last, c, mapID, pointedKey())   -- remember what this draw is of
+    links.px, links.py = toMap(ns.nav:PlayerPos(), mapID)
     if mapID and ns.db.nav.mapLines ~= false then  -- "Show route on map" (Flow Router)
         local T = theme()
         local plan = ns.nav.plan or {}
-        local pointed = hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey or nil
+        local pointed = pointedKey()
         local labels = ns.nav:PlanLabels(plan)
         -- Every area stop gets its own bordered patch: faint, the next stop
         -- stronger, the one you point at in the hover colour. Drawn last = on top.
@@ -1418,16 +1553,39 @@ function M:Redraw()
     for i = nPins + 1, oldPins do pins[i]:Hide() end
     pcall(declutter)   -- labels push apart
     for i = nBlobs + 1, oldBlobs do blobs[i]:Hide() end
+    shapes = shapesNext   -- area shapes not drawn this time are dropped
     drawAnts()
     if not host.antsOn then
         host.antsOn = true
         host:SetScript("OnUpdate", function(_, dt)
             antPhase = antPhase + dt * 0.6   -- chevrons crawl along the route
             host.antT = (host.antT or 0) + dt
-            if host.antT > 0.05 then host.antT = 0; drawAnts() end
+            if host.antT > 0.05 then host.antT = 0; drawAntsTimed() end
         end)
     end
     updateList()
+end
+
+-- Everything drawn again: on a click, hover, preview, colour or waypoint
+-- change (whoever calls it), and when the map opens.
+function M:Redraw() fullDraw() end
+
+-- The map's 0.5 s tick. Only when something on it changed (changed())
+-- is it all drawn again; otherwise only the lines from you follow you and
+-- the Flow Router's rows refresh. Returns true when a full redraw is due
+-- (M:Tick does it, so the two are timed apart in /flow perf).
+local function keepUp()
+    local c = canvas()
+    if not (c and WorldMapFrame:IsShown() and ns.nav and ns.db.nav.mapRoute ~= false) then return false end
+    local mapID = WorldMapFrame:GetMapID()
+    if not host or changed(last, c, mapID, pointedKey()) then return true end
+    followPlayer(links, c, mapID)
+    updateList()
+    return false
+end
+keepUp = ns.perf.Wrap("world map (keeping up with you)", keepUp)
+function M:Tick()
+    if keepUp() then M:Redraw() end
 end
 
 -- Highlight one stop for a few seconds (opened from the tracker or arrow menu).
@@ -1444,13 +1602,19 @@ function M:Preview(key)
 end
 
 ns:OnLoad(function()
-    local acc = 0
+    local acc, open = 0, false
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
         acc = acc + dt
         if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end   -- lite: every 2 s
         acc = 0
-        if WorldMapFrame and WorldMapFrame:IsShown() then pcall(M.Redraw, M) end
+        if WorldMapFrame and WorldMapFrame:IsShown() then
+            -- Just opened: draw it all; open: keep up (cheap unless it changed).
+            if open then pcall(M.Tick, M) else pcall(M.Redraw, M) end
+            open = true
+        else
+            open = false
+        end
     end)
 end)
 
@@ -1463,6 +1627,9 @@ ns.commands.map = function(arg)
             for i = 1, nPins do pins[i]:Hide() end
             for i = 1, nBlobs do blobs[i]:Hide() end
             if list then list:Hide() end
+            legs, links.n = {}, 0
+            drawAnts()   -- no legs: the chevrons go too
+            for k in pairs(last) do last[k] = nil end
         end
         ns:Print("route on the world map " .. arg)
     else
@@ -1470,5 +1637,5 @@ ns.commands.map = function(arg)
     end
 end
 
--- Timed for /flow perf.
-M.Redraw = ns.perf.Wrap("world map", M.Redraw)
+-- Timed for /flow perf (with "keeping up with you" and "moving chevrons").
+M.Redraw = ns.perf.Wrap("world map (full redraw)", M.Redraw)

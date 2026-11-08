@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.63
+- The world map costs far less while it's open. It used to draw your whole route again
+  twice a second; now it does that only when something on it changes (the route, the map,
+  the zoom, the stop you point at, the colours or your waypoint). In between, only the lines
+  that start at you follow you.
+- Mob areas on the map keep their worked-out shape, instead of grouping every spawn again on
+  each redraw (that made most of the map's garbage). The moving chevrons only change what moved.
+- /flow perf splits the map into "full redraw", "keeping up with you" and "moving chevrons"
+  (the chevrons weren't counted before).
+
 ## 0.35.62: first public release
 Flow's first release on CurseForge, for World of Warcraft: Forever. What's in it:
 - **Rotation helper** (paladin): shows the spell to press next and lights up its action bar

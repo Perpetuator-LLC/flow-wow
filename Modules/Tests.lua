@@ -563,6 +563,59 @@ ns:Register("test", "map: the stop you're heading to has a white ring, the rest 
     if WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
 end)
 
+ns:Register("test", "map: the 0.5 s tick only redraws when something changed", function(t)
+    local M = ns.mapOverlay
+    local canvas = { GetWidth = function() return 1000 end, GetHeight = function() return 700 end }
+    local pos = { map = 1429, x = 0.40, y = 0.60, cont = 0 }
+    local function stop(key, x, y)
+        return { goal = { key = key, text = key, points = { { map = 1429, x = x, y = y } } }, point = { map = 1429, x = x, y = y } }
+    end
+    with(ns.nav, "PlayerPos", function() return pos end, function()
+    with(ns, "waypoint", nil, function()
+    with(ns.nav, "plan", { stop("t:a", 0.5, 0.5), stop("t:b", 0.6, 0.4) }, function()
+        -- When to draw it all again.
+        local st = {}
+        t:ok(M._changed(st, canvas, 1429, nil), "first look: draw it all")
+        t:ok(not M._changed(st, canvas, 1429, nil), "nothing changed: no redraw")
+        ns.nav.plan = { stop("t:a", 0.5, 0.5), stop("t:b", 0.6, 0.4) }
+        t:ok(not M._changed(st, canvas, 1429, nil), "the same route made again: still no redraw")
+        pos.x = 0.45
+        t:ok(not M._changed(st, canvas, 1429, nil), "you walking: no redraw (only your lines move)")
+        ns.nav.plan[2].point.x = 0.7
+        t:ok(M._changed(st, canvas, 1429, nil), "a stop moved: redraw")
+        ns.nav.plan[1].goal.text = "t:a 1/6"
+        t:ok(M._changed(st, canvas, 1429, nil), "a stop's progress changed: redraw")
+        t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a stop: redraw")
+        t:ok(M._changed(st, canvas, 1430, "t:b"), "another map: redraw")
+
+        -- Between redraws, the lines that start at you follow you.
+        local calls = {}
+        local line = { SetStartPoint = function(_, _, _, x, y) calls[#calls + 1] = { x, y } end }
+        local leg = { 0.40, 0.60, 0.5, 0.5 }
+        local links = { n = 1, { line = line, leg = leg } }
+        links.px, links.py = 0.45, 0.60
+        t:ok(not M._followPlayer(links, canvas, 1429), "standing still: nothing to move")
+        pos.x = 0.42
+        t:ok(M._followPlayer(links, canvas, 1429), "you moved: your lines follow")
+        t:near(leg[1], 0.42, 1e-6, "the chevrons' leg starts at you")
+        t:near(calls[#calls] and calls[#calls][1] or 0, 420, 1e-6, "the line starts at you (x)")
+        t:near(calls[#calls] and calls[#calls][2] or 0, -420, 1e-6, "the line starts at you (y)")
+
+        -- An area's shape is worked out once, again only when its spawns change.
+        local g = { key = "t:area", area = true, points = {} }
+        for i = 1, 30 do g.points[i] = { map = 1429, x = 0.3 + (i % 6) * 0.004, y = 0.3 + math.floor(i / 6) * 0.004 } end
+        local built = M._shapeBuilds
+        local s1 = M._areaShape(canvas, 1429, g, g.points[1], false)
+        local s2 = M._areaShape(canvas, 1429, g, g.points[1], false)
+        t:eq(M._shapeBuilds - built, 1, "worked out once")
+        t:ok(s1 == s2, "then kept")
+        t:ok(#s1.discs > 0 and #s1.edges > 0, "with discs and a border")
+        g.points[5] = { map = 1429, x = 0.9, y = 0.9 }
+        M._areaShape(canvas, 1429, g, g.points[1], false)
+        t:eq(M._shapeBuilds - built, 2, "worked out again when its spawns change")
+    end) end) end)
+end)
+
 ns:Register("test", "waypoint: your own is a green path, not a route stop", function(t)
     t:ok(ns:Get("navGoal", "userWaypoint") == nil, "not a route goal any more")
     local p = ns.nav:PlayerPos()
