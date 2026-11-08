@@ -188,6 +188,9 @@ function Menu:RouteItemsRaw()
         { sep = true },
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
+        -- Hover-to-bind mode, easy to find (also in /flow settings and /flow bind).
+        { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
+          func = function() if ns.bind then ns.bind:Start() end end },
     }) do items[#items + 1] = it end
     -- In a group: your own route, join the party route (everyone on it: one
     -- route for all their quests, the same for all of you), or just one

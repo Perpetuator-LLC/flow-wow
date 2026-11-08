@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.78
+- **New spell card.** When you learn a spell, a small card shows it for 10 s. It waits while
+  your mouse is on it, while you drag, and while you choose a key. You can:
+  - drag its icon onto any bar slot;
+  - **Put it on my bar** (the first empty slot, main bar first; it says where);
+  - **Bind a key...**: press the key you want. Flow shows what that key does now, warns if it
+    moves you, and changes nothing until you click "Yes, bind it". The key casts the spell
+    directly, no bar slot needed;
+  - **Not on my bars**: Flow stops asking you to put that spell on your bars.
+
+  New ranks of spells you already have, passive spells, and spells learned mid-fight (they
+  wait until it ends) don't ask. Setting: "New spells: offer to place or bind them".
+- **Hover-to-bind is easier to find.** It's in the arrow's right-click menu ("Key bindings:
+  hover a button, press a key..."), on Flow's settings page under your cast key, and on the
+  new spell card. Nothing changes until you click Save, as before.
+- **Heals land on you with no target.** The game's Auto Self Cast is now one of Flow's setup
+  suggestions. Flow's settings show the key that forces a heal onto yourself even with
+  someone else targeted ("Heal yourself: hold": Alt, Ctrl, Shift or None).
+- The "Put X on your action bars" advice skips spells you said no to and spells a key casts
+  directly.
+
 ## 0.35.77
 - **Flow's (o) over the NPC you're heading to.** The turn-in, quest giver or trainer of your
   current stop wears Flow's target marker above their nameplate, in the route colour (purple

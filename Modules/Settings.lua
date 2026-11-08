@@ -216,6 +216,29 @@ local function build(parent)
     f.confirm:Hide(); f.another:Hide()
     y = y - 126
 
+    -- Every other key: hover-to-bind mode (Modules/BindMode.lua), here so
+    -- it's easy to find (also in the arrow's menu and /flow bind).
+    local hover = button(f, "Hover to bind keys...", 170)
+    hover:SetPoint("TOPLEFT", 16, y)
+    hover:SetScript("OnClick", function() if ns.bind then ns.bind:Start() end end)
+    local hoverHelp = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hoverHelp:SetPoint("LEFT", hover, "RIGHT", 10, 0)
+    hoverHelp:SetWidth(WIDTH - 220)
+    hoverHelp:SetJustifyH("LEFT")
+    hoverHelp:SetText("Hover any action button and press a key. Nothing changes until you click Save.")
+    y = y - 32
+    -- Heals land on you when nobody friendly is targeted (the game's Auto
+    -- Self Cast, in the setup suggestions); this key forces it on you anyway.
+    f.selfCastRow, y = choices(f, y, "Heal yourself: hold",
+        "Hold this while casting a heal to put it on yourself even with someone else targeted. With nobody friendly targeted, heals land on you with no key at all (Auto Self Cast, in Flow's suggestions below).",
+        { { "Alt", "ALT", 46 }, { "Ctrl", "CTRL", 46 }, { "Shift", "SHIFT", 50 }, { "None", "NONE", 50 } },
+        function() return GetModifiedClick and GetModifiedClick("SELFCAST") or "ALT" end,
+        function(v)
+            if InCombatLockdown() then ns:Print("can't change that in combat") return end
+            if SetModifiedClick then SetModifiedClick("SELFCAST", v) end
+            if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+        end)
+
     -- Flow's own options
     y = heading(f, y, "Flow")
     local _
@@ -275,6 +298,10 @@ local function build(parent)
         "In a group: a quest you pick up is shared when a party member doesn't have it, and Flow players get your quests they're missing, one every few seconds. Quests your party shares with you are accepted (unless your log is full). Each quest is offered to each person once.",
         function() return ns.db.quests.share ~= false end,
         function(on) ns.db.quests.share = on end)
+    _, y = check(f, y, "New spells: offer to place or bind them", "(/flow newspell)",
+        "When you learn a spell, a small card shows it for 10 s: put it on your bar, drag it where you want it, bind a key to it (you confirm first), or say you don't want it on your bars (Flow then stops asking).",
+        function() return ns.db.spellbar.offer ~= false end,
+        function(on) ns.db.spellbar.offer = on end)
     _, y = check(f, y, "Accept group invites from friends", "(/flow invites)",
         "Invites from your friends list and Battle.net friends are accepted for you. Anyone else gets the usual popup.",
         function() return ns.db.invites.friends ~= false end,

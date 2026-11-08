@@ -2182,3 +2182,32 @@ ns:Register("test", "nameplates: Flow's (o) over your stop's NPC", function(t)
     t:ok(not next(QM._routeNames), "cleared with the stop")
     if ns.nav and ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) end   -- (back to yours)
 end)
+
+ns:Register("test", "new spells: the card asks only when it's useful", function(t)
+    local NS = ns.newSpell
+    t:ok(NS.ShouldAsk(1, "Moonfire", false, nil, nil, false, true), "a new spell, not on a bar or key: ask")
+    t:ok(not NS.ShouldAsk(1, "Moonfire", true, nil, nil, false, true), "passive: no")
+    t:ok(not NS.ShouldAsk(1, "Moonfire", false, 5, nil, false, true), "already on a bar (a new rank): no")
+    t:ok(not NS.ShouldAsk(1, "Moonfire", false, nil, "F", false, true), "a key casts it: no")
+    t:ok(not NS.ShouldAsk(1, "Moonfire", false, nil, nil, true, true), "you said not on your bars: no")
+    t:ok(not NS.ShouldAsk(1, "Moonfire", false, nil, nil, false, false), "setting off: no")
+    local used = { [1] = true, [2] = true }
+    local slot, bar, pos = NS.EmptySlot(function(s) return used[s] or false end)
+    t:eq(slot, 3, "the first empty slot on the main bar")
+    t:eq(bar, "Action Bar 1", "says which bar")
+    t:eq(pos, 3, "and which button")
+    local full = NS.EmptySlot(function(s) return s <= 12 end)
+    t:eq(full, 61, "main bar full: the bottom left bar")
+    with(ns.db.spellbar.muted, "Test Spell XYZ", true, function()
+        t:ok(NS.Covered("Test Spell XYZ"), "said no: the bar advice leaves it alone")
+    end)
+end)
+
+ns:Register("test", "keys: hover-to-bind is easy to find", function(t)
+    local found
+    for _, it in ipairs(ns.menu:RouteItems()) do
+        if it.text and it.text:find("^Key bindings: hover") then found = it end
+    end
+    t:ok(found ~= nil, "in the arrow's route menu")
+    t:ok(type(ns.bind.Start) == "function", "it opens hover-to-bind mode")
+end)

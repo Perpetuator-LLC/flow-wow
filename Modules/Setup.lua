@@ -55,10 +55,15 @@ ns:Register("setupItem", "autoLoot", {
 })
 cvarRow("enemyPlates", 20, "Enemy nameplates", "Flow's quest marks (skull, diamond) sit on nameplates.",
     "nameplateShowEnemies", "1", "0", true)
-cvarRow("friendPlates", 30, "Friendly nameplates", "Shows Flow's star on NPCs your quests mention.",
+cvarRow("friendPlates", 30, "Friendly nameplates", "Shows Flow's star on NPCs your quests mention, and its (o) over the one you're heading to.",
     "nameplateShowFriends", "1", "0", true)
 cvarRow("instantQuest", 40, "Instant quest text", "Quest text appears at once instead of scrolling.",
     "instantQuestText", "1", "0", true)
+-- Heals with no friendly target land on you, no key to hold (the key that
+-- forces it on you anyway is in Flow's settings: "Heal yourself: hold").
+cvarRow("autoSelfCast", 45, "Heals land on you with no target",
+    "With nobody friendly targeted, a heal or buff casts on you: no key to hold, no clicking yourself first.",
+    "autoSelfCast", "1", "0", true, true)
 cvarRow("autoPush", 50, "Auto-place new spells on bars",
     "The game drops newly learned spells into empty bar slots. Leave off if you place spells yourself.",
     "AutoPushSpellToActionBar", "1", "0", false)

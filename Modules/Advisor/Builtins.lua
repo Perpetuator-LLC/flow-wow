@@ -92,7 +92,9 @@ ns:Register("advisor", "bars", {
         if not def then return end
         local known, on, seen, out = ns.rotation:KnownSpells(), spellsOnBars(), {}, {}
         local function consider(spell, why)
-            if known[spell] and not on[spell] and not seen[spell] then
+            -- (Not one you said no to, or one a key casts directly: NewSpell.lua.)
+            local covered = ns.newSpell and ns.newSpell.Covered(spell)
+            if known[spell] and not on[spell] and not seen[spell] and not covered then
                 seen[spell] = true
                 out[#out + 1] = { importance = 70,
                     text = "Put " .. spell .. " on your action bars: Flow will suggest it",
