@@ -2537,3 +2537,31 @@ ns:Register("test", "arrow: the same purple as the (o) on the NPC you're heading
     local purple = ns.theme:ModeColor("xp")
     t:eq(purple.hex, ns.theme:ColorBlind() and "CC79A7" or "A335EE", "Most XP first: epic purple, for the arrow and the (o)")
 end)
+
+ns:Register("test", "places: Flow learns who does what as you play, and never forgets it", function(t)
+    local P = ns.places
+    local places, pos = {}, { map = 1412, x = 0.5, y = 0.6 }
+    P.Learn(places, "Harb", pos, "vendor", { repair = true, id = 3080 }, 100)
+    P.Learn(places, "Harb", pos, "npc", nil, 200)       -- talking to him again (his chat window)
+    local h = places.Harb
+    t:ok(P.HasRole(h, "vendor") and P.HasRole(h, "repair"), "a chat later doesn't forget he sells and repairs")
+    t:eq(h.kind, "vendor", "still a vendor (the sell route reads .kind)")
+    t:eq(h.id, 3080, "his NPC ID is kept")
+    t:eq(h.n, 2, "seen twice")
+    -- An older save: { kind = "vendor", repair = true } only.
+    local old = { map = 1, x = 0.1, y = 0.1, kind = "vendor", repair = true }
+    t:ok(P.HasRole(old, "vendor") and P.HasRole(old, "repair"), "older saves still count")
+    P.Learn({ Old = old }, "Old", pos, "inn")
+    t:ok(old.roles.vendor and old.roles.inn, "an older save keeps its role when it learns another")
+    P.Learn(places, "Smith", pos, "vendor", { repair = false })
+    t:ok(not P.HasRole(places.Smith, "repair"), "a merchant who can't repair")
+    local boxes = {}
+    t:ok(P.LearnMailbox(boxes, pos), "a new mailbox")
+    t:ok(not P.LearnMailbox(boxes, { map = 1412, x = 0.505, y = 0.6 }), "the same one again: not added twice")
+    t:eq(P.NpcIdOf("Creature-0-1-2-3-3080-0000ABCD"), 3080, "NPC ID from its GUID")
+    t:eq(P.NpcIdOf("Player-1-0ABC"), nil, "a player has none")
+    local S = ns.services
+    for _, k in ipairs({ "repair", "vendor", "flight", "inn", "bank", "auction", "mail" }) do
+        t:ok(S.LABEL[k] ~= nil, "nearest " .. k .. " is offered")
+    end
+end)

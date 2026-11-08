@@ -173,13 +173,18 @@ ns.commands.way = function(arg)
         ns:Print("waypoint cleared")
         return
     end
+    -- A service: nearest repair, vendor, flight master, innkeeper, banker,
+    -- auctioneer or mailbox (Services.lua). A few other words for them too.
+    local ALIAS = { sell = "vendor", taxi = "flight", fly = "flight", flightmaster = "flight", innkeeper = "inn",
+                    hearth = "inn", banker = "bank", ah = "auction", auctioneer = "auction", mailbox = "mail" }
     local svc = arg:lower():match("^%s*(%a+)%s*$")
-    if (svc == "repair" or svc == "vendor" or svc == "sell") and ns.services then
-        ns.services:GoTo(svc == "repair" and "repair" or "vendor")
+    svc = svc and (ALIAS[svc] or svc)
+    if svc and ns.services and ns.services.LABEL and ns.services.LABEL[svc] then
+        ns.services:GoTo(svc)
         return
     end
     if arg:match("^%s*$") then
-        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way <party member> (follow them), /flow way repair, /flow way vendor, /flow way clear. Or Alt-click the world map, or right-click the arrow.")
+        ns:Print("/flow way <x> <y> [note], /flow way <zone> <x> <y> [note], /flow way <party member> (follow them), /flow way repair | vendor | flight | inn | bank | auction | mail, /flow way clear. Or Alt-click the world map, or right-click the arrow.")
         return
     end
     W:SetFromText(arg)

@@ -108,12 +108,77 @@ function P:TrainersFor(profession)
     return out
 end
 
-local function remember(kind)
+-------------------------------------------------------------------------------
+-- What Flow learns as you play: every NPC you talk to, where you stood, and
+-- what they do for you. Saved for your account, so your other characters know
+-- it too. Used by the route (where a trainer or quest giver stands) and by
+-- "Nearest repair / vendor / flight master..." (Services.lua).
+--   ns.db.places[name] = { map, x, y, kind, roles = { vendor = true, repair = true, ... },
+--                          id (NPC ID), seen (time), n (times seen) }
+--   roles: npc, quest, vendor, repair, trainer, flight, inn, bank, auction
+--   kind: the main role (older saves have only this; "vendor" whenever it sells)
+-- Mailboxes (objects, no name) go in ns.db.mailboxes: { { map, x, y }, ... }.
+-- Talking to someone again only adds to what Flow knows: before 0.35.89 a
+-- chat with a merchant overwrote them as a plain NPC, so Flow forgot they
+-- sell and repair.
+-------------------------------------------------------------------------------
+
+local KIND_ORDER = { "vendor", "trainer", "flight", "inn", "bank", "auction", "quest", "npc" }
+
+-- Add what you just saw to a remembered NPC (pure: tests call it).
+--   pos { map, x, y }, role, extra { id, repair = true/false }
+function P.Learn(places, name, pos, role, extra, now)
+    local spot = places[name] or {}
+    spot.map, spot.x, spot.y = pos.map, pos.x, pos.y
+    spot.roles = spot.roles or {}
+    if spot.kind and spot.kind ~= "npc" then spot.roles[spot.kind] = true end   -- (older saves)
+    spot.roles[role] = true
+    extra = extra or {}
+    if extra.repair ~= nil then spot.roles.repair = extra.repair or nil; spot.repair = extra.repair end
+    if extra.id then spot.id = extra.id end
+    for _, k in ipairs(KIND_ORDER) do
+        if spot.roles[k] then spot.kind = k break end
+    end
+    spot.seen, spot.n = now or (time and time()) or 0, (spot.n or 0) + 1
+    places[name] = spot
+    return spot
+end
+
+-- Does a remembered NPC do this? ("repair" also from the older .repair flag.)
+function P.HasRole(spot, role)
+    if not spot then return false end
+    if spot.roles and spot.roles[role] then return true end
+    if role == "repair" then return spot.repair == true end
+    return spot.kind == role
+end
+
+-- The NPC ID from a unit's GUID ("Creature-0-...-<id>-..."), or nil.
+function P.NpcIdOf(guid)
+    guid = ns.api.Safe(guid)
+    if type(guid) ~= "string" then return nil end
+    local kind, _, _, _, _, id = strsplit("-", guid)
+    if kind ~= "Creature" then return nil end
+    return tonumber(id)
+end
+
+local function remember(role, extra)
     local name = ns.api.Safe(UnitName("npc"))
     if not name or UnitIsPlayer("npc") then return end
     local p = ns.nav and ns.nav:PlayerPos()
     if not p then return end
-    ns.db.places[name] = { map = p.map, x = p.x, y = p.y, kind = kind }
+    extra = extra or {}
+    extra.id = extra.id or P.NpcIdOf(UnitGUID("npc"))
+    P.Learn(ns.db.places, name, p, role, extra)
+end
+P._remember = remember
+
+-- A mailbox where you stand, unless one is already known right there.
+function P.LearnMailbox(list, pos)
+    for _, m in ipairs(list) do
+        if m.map == pos.map and math.abs(m.x - pos.x) < 0.01 and math.abs(m.y - pos.y) < 0.01 then return false end
+    end
+    list[#list + 1] = { map = pos.map, x = pos.x, y = pos.y }
+    return true
 end
 
 -- Names Flow wanted to route to but couldn't place (for /flow nav why).
@@ -182,10 +247,56 @@ function P:Explain(name)
     return table.concat(parts, " ")
 end
 
-ns:OnLoad(function(saved) saved.places = saved.places or {} end)
+ns:OnLoad(function(saved)
+    saved.places = saved.places or {}
+    saved.mailboxes = saved.mailboxes or {}
+end)
 
-ns:On("GOSSIP_SHOW", function() remember("npc") end)
-ns:On("MERCHANT_SHOW", function() remember("vendor") end)
+-- /flow places: what Flow has learned so far, by role.
+function P:Summary()
+    local counts, total = {}, 0
+    for _, spot in pairs(ns.db.places or {}) do
+        total = total + 1
+        for _, role in ipairs({ "vendor", "repair", "trainer", "flight", "inn", "bank", "auction", "quest" }) do
+            if P.HasRole(spot, role) then counts[role] = (counts[role] or 0) + 1 end
+        end
+    end
+    return total, counts, #(ns.db.mailboxes or {})
+end
+ns.commands.places = function()
+    local total, c, mail = P:Summary()
+    ns:Print(string.format("learned while you play (all your characters): %d NPCs - %d vendors (%d repair), %d trainers, %d flight masters, %d innkeepers, %d bankers, %d auctioneers, %d quest givers; %d mailboxes",
+        total, c.vendor or 0, c.repair or 0, c.trainer or 0, c.flight or 0, c.inn or 0, c.bank or 0, c.auction or 0, c.quest or 0, mail))
+end
+
+-- An innkeeper's chat offers to make the inn your home.
+local function isInnkeeper()
+    if not (C_GossipInfo and C_GossipInfo.GetOptions) then return false end
+    local ok, options = pcall(C_GossipInfo.GetOptions)
+    if not ok or type(options) ~= "table" then return false end
+    for _, o in ipairs(options) do
+        local text = ns.api.Safe(o.name)
+        if type(text) == "string" and text:lower():find("inn your home", 1, true) then return true end
+    end
+    return false
+end
+
+ns:On("GOSSIP_SHOW", function() remember(isInnkeeper() and "inn" or "npc") end)
+ns:On("MERCHANT_SHOW", function()
+    -- (whether they repair: asked a moment later, once the window is up)
+    remember("vendor")
+    C_Timer.After(0.2, function()
+        if CanMerchantRepair then remember("vendor", { repair = CanMerchantRepair() and true or false }) end
+    end)
+end)
+ns:On("TAXIMAP_OPENED", function() remember("flight") end)
+ns:On("BANKFRAME_OPENED", function() remember("bank") end)
+ns:On("AUCTION_HOUSE_SHOW", function() remember("auction") end)
+ns:On("CONFIRM_BINDER", function() remember("inn") end)
+ns:On("MAIL_SHOW", function()
+    local p = ns.nav and ns.nav:PlayerPos()
+    if p then P.LearnMailbox(ns.db.mailboxes, p) end
+end)
 ns:On("QUEST_DETAIL", function() remember("quest") end)
 ns:On("QUEST_GREETING", function() remember("quest") end)
 ns:On("QUEST_COMPLETE", function() remember("quest") end)

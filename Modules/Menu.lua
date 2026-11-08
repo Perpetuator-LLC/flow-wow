@@ -172,6 +172,9 @@ function Menu:RouteItemsRaw()
         { text = "Set a waypoint (coordinates, or a party member's name)...", func = function() ns.waypoint:Prompt() end },
         { text = "Nearest repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
         { text = "Nearest vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
+        { text = "Nearest flight master", func = function() if ns.services then ns.services:GoTo("flight") end end },
+        { text = "Nearest innkeeper", func = function() if ns.services then ns.services:GoTo("inn") end end },
+        { text = "Nearest mailbox", func = function() if ns.services then ns.services:GoTo("mail") end end },
     }) do items[#items + 1] = it end
     -- In a group: follow a party member (the arrow keeps pointing at them),
     -- or drop your waypoint where they are.

@@ -61,6 +61,7 @@ function D:Snapshot(reason)
     local checks = {
         { "api", function() c.api("") end },
         { "nav why", function() c.nav("why") end },
+        { "places", function() if c.places then c.places() end end },
         -- At logout the game reports nothing as castable (health 0/0), so the
         -- rotation check from while you were playing is the one kept.
         { "rot why", function()

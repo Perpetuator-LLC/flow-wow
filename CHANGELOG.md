@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.89
+- **Flow learns who does what as you play**, for all your characters. Every NPC you talk to is
+  remembered: where you stood, their NPC ID, and what they do for you. That covers vendors (and
+  whether they repair), trainers, flight masters, innkeepers, bankers, auctioneers and quest
+  givers. Mailboxes you open are remembered too. `/flow places` shows what it has learned (also
+  in the diagnostics).
+- **Fixed: Flow forgot merchants.** Talking to a merchant through their chat window overwrote
+  them as a plain NPC, so Flow forgot they sell and repair. Now each visit only adds to what it
+  knows.
+- **Nearest flight master, innkeeper, banker, auctioneer and mailbox**, besides repair and
+  vendor: in the arrow's right-click menu, or `/flow way flight | inn | bank | auction | mail`.
+  It uses the ones you've used yourself plus Questie's data, and says when it's one you've been
+  to.
+- **Fixed: "Nearest" could pick the other faction's NPC.** A tauren could be sent to an Alliance
+  vendor; now only NPCs friendly to you count.
+
 ## 0.35.88
 - **The arrow is the same purple as the (o)** over the NPC you're heading to. Both always took
   the route colour (purple for "Most XP first"), but the 3D arrow shaded every edge and darkened
