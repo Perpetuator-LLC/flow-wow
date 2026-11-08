@@ -2482,3 +2482,29 @@ ns:Register("test", "cleanse: curses and poisons off you and your group; break f
     for _, b in ipairs(E.BREAKERS) do if b.spell == "Bear Form" then root = b end end
     t:ok(root and root.types.ROOT and root.form, "a druid's forms break roots")
 end)
+
+ns:Register("test", "profession trainers: stops on your route, never a waypoint", function(t)
+    local P = ns.professions
+    local nav = { mode = "optimal",
+        plan = { { goal = { key = "748:2" } }, { goal = { key = "train:Herbalism" } } },
+        goals = { { key = "train:Herbalism" }, { key = "train:Skinning" } } }
+    function nav:Mode() return self.mode end
+    function nav:Goals() return self.goals end
+    local status, n = P.RouteStatus("Herbalism", nav, {})
+    t:eq(status, "planned", "Herbalism's trainer is on the route")
+    t:eq(n, 2, "as stop 2")
+    t:eq(P.RouteStatus("Skinning", nav, {}), "later", "Skinning: on the list, not planned in yet")
+    t:eq(P.RouteStatus("Alchemy", nav, {}), "unplaced", "no trainer Flow can place: says so")
+    t:eq(P.RouteStatus("Herbalism", nav, { professions = false }), "off", "route without professions: off (Add to my route)")
+    nav.mode = "quests"
+    t:eq(P.RouteStatus("Herbalism", nav, {}), "off", "Quests only: off")
+end)
+
+ns:Register("test", "druid out of mana: hit it with your weapon", function(t)
+    local def = ns:Get("rotation", "DRUID")
+    local found
+    for _, r in ipairs(def.priority or {}) do
+        if r.spell == "Attack" and r.reason:find("Out of mana", 1, true) then found = r end
+    end
+    t:ok(found ~= nil, "caster form has a melee fallback for when the mana's gone")
+end)

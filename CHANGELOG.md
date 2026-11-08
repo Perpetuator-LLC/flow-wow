@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.86
+- **Profession trainers are stops on your route, not a waypoint.** The reminder card no longer
+  has "Show me the way" (which set one waypoint, for the first profession only). It now says
+  where each trainer is on your optimal route, however many there are. For example: "Learn
+  Herbalism: stop 4 on your route (Komin Winterhoof, Thunder Bluff, 1240 yd)". To go to one
+  next, click its ^ in the Flow Router, as with any stop.
+  - If your route leaves trainers out (Quests only, or Optimal without professions), the card
+    shows "Add to my route", which switches to Optimal with professions.
+  - If Flow can't place a trainer yet, the card says so.
+- **Druid out of mana:** in caster form with no mana for Wrath, the easy button now says to hit
+  it with your weapon. Before, it showed nothing (52 of 131 checks in one fight).
+
 ## 0.35.85
 - **Shift + your easy key heals you, even in a fight.** WoW doesn't let the easy key change
   what it casts during a fight, so a heal Flow showed mid-fight couldn't be cast until your

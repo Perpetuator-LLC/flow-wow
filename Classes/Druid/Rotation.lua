@@ -18,6 +18,11 @@ local function caster()
     return f == nil or f == "Moonkin Form"
 end
 local function inAnimal() return inCat() or inBear() end
+-- Not enough mana for Wrath (the game says so: "usable, but no mana").
+local function outOfMana()
+    local _, noMana = A.Usable("Wrath")
+    return noMana == true
+end
 
 -- Missing, or under `secs` left.
 local function needBuff(name, secs)
@@ -75,6 +80,12 @@ local casterDamage = {
       when = function(c) return c.hostile and caster() and missingOnTarget("Moonfire") end },
     { spell = "Wrath", target = true, reason = "Wrath",
       when = function(c) return c.hostile and caster() end },
+    -- Out of mana in caster form: hit it with your staff (in one 66 s fight
+    -- Flow had nothing to suggest for 52 of 131 checks once the mana ran out).
+    { spell = "Attack", target = true, reason = "Out of mana: hit it with your weapon",
+      when = function(c) return c.hostile and caster() and outOfMana() and not A.IsCurrent("Attack") end },
+    { spell = "Auto Attack", target = true, reason = "Out of mana: hit it with your weapon",
+      when = function(c) return c.hostile and caster() and outOfMana() and not A.IsCurrent("Auto Attack") end },
 }
 
 local function join(...)

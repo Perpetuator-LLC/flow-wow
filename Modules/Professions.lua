@@ -170,8 +170,15 @@ ns:Register("setupItem", "professions", {
 -- Reminder card: what to do next for your professions, for a few seconds
 --
 --   [book]  Professions: Flow suggests Herbalism + Skinning
---           - Learn Herbalism: Komin Winterhoof, Thunder Bluff (1240 yd)
---   [Show me the way]  [Choose others...]  [Not now]      stop reminding
+--           - Learn Herbalism: stop 4 on your route (Komin Winterhoof, Thunder Bluff, 1240 yd)
+--           - Learn Skinning: stop 6 on your route (Mooranta, Thunder Bluff, 1260 yd)
+--           Trainers are stops on your optimal route. To go to one next, click its ^ in the Flow Router.
+--   [Add to my route]  [Choose others...]  [Not now]      stop reminding
+--
+-- The trainers are never a waypoint: they're stops the route plans in with
+-- everything else (Goals.lua "errands"), however many there are. "Add to my
+-- route" shows only when your route leaves trainers out ("Quests only", or
+-- "Optimal without professions"), and switches it to "Optimal with professions".
 --
 -- Opens for 8 s (it waits while your mouse is on it) when there's something
 -- to do: a while after you log in, when you level up, when what's needed
@@ -239,6 +246,30 @@ local function mapName(map)
     return info and info.name or "?"
 end
 
+-- Where a profession's trainer stands on your route:
+--   "planned", n   stop n of the route
+--   "off"          your route leaves trainers out (Quests only, or without professions)
+--   "later"        on the route's list, not planned in yet (blocked or optional)
+--   "unplaced"     Flow doesn't know where a trainer stands yet
+-- nav: ns.nav (Mode, plan, Goals); cfg: ns.db.nav.
+function P.RouteStatus(name, nav, cfg)
+    if cfg.professions == false or nav:Mode() == "quests" then return "off" end
+    local key = "train:" .. name
+    for i, s in ipairs(nav.plan or {}) do
+        if s.goal and s.goal.key == key then return "planned", i end
+    end
+    for _, g in ipairs(nav:Goals() or {}) do
+        if g.key == key then return "later" end
+    end
+    return "unplaced"
+end
+
+local STATUS_TEXT = {
+    off = "not on your route (it leaves trainers out)",
+    later = "on your route, after the stops nearer you",
+    unplaced = "Flow doesn't know where a trainer stands yet (talk to one once and it remembers)",
+}
+
 local remindCard
 
 local function closeCard()
@@ -259,15 +290,18 @@ local function buildCard()
     f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.body:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
     f.body:SetWidth(396); f.body:SetJustifyH("LEFT"); f.body:SetJustifyV("TOP")
+    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.hint:SetPoint("TOPLEFT", f.body, "BOTTOMLEFT", 0, -6)
+    f.hint:SetWidth(396); f.hint:SetJustifyH("LEFT")
+    f.hint:SetText("Trainers are stops on your optimal route. To go to one next, click its ^ in the Flow Router.")
     local function button(text, w)
         local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
         b:SetSize(w, 22); b:SetText(text)
         return b
     end
-    f.go = button("Show me the way", 130)
-    f.go:SetPoint("BOTTOMLEFT", 10, 10)
+    f.add = button("Add to my route", 130)
+    f.add:SetPoint("BOTTOMLEFT", 10, 10)
     f.choose = button("Choose others...", 120)
-    f.choose:SetPoint("LEFT", f.go, "RIGHT", 6, 0)
     f.later = button("Not now", 80)
     f.later:SetPoint("LEFT", f.choose, "RIGHT", 6, 0)
     f.stop = CreateFrame("Button", nil, f)
@@ -283,11 +317,13 @@ local function buildCard()
     f.timer:SetStatusBarColor(o[1], o[2], o[3])
     f.timer:SetMinMaxValues(0, SHOW)
 
-    f.go:SetScript("OnClick", function()
-        local t = f.trainer
-        closeCard()
-        if t then ns.waypoint:Set(t.map, t.x, t.y, t.name .. " (" .. f.forProf .. " trainer)")
-        else ns:Print("Flow doesn't know where a " .. (f.forProf or "") .. " trainer stands on this continent yet.") end
+    -- Your route with trainers in it: "Optimal with professions".
+    f.add:SetScript("OnClick", function()
+        ns.db.nav.professions = true
+        if ns.nav:Mode() == "quests" then ns.nav:SetMode("optimal") else ns.nav:Collect() end
+        ns:Print("route: Optimal with professions. Your trainers are stops on it now.")
+        -- (Show where they landed once the route is planned again.)
+        C_Timer.After(1.5, function() if f:IsShown() then P:ShowReminder() end end)
     end)
     f.choose:SetScript("OnClick", function() closeCard(); P:Open() end)
     f.later:SetScript("OnClick", function()
@@ -321,16 +357,25 @@ function P:ShowReminder(steps)
     end
     f.title:SetText((ns.db.prof.chosen and "Your plan: " or "Flow suggests: ")
         .. (#names > 0 and table.concat(names, " + ") or "no main professions"))
-    local lines = {}
-    f.trainer, f.forProf = nil, steps[1].name
+    local lines, anyOff = {}, false
     for i, s in ipairs(steps) do
-        if i > 3 then break end
-        local t = P.NearestTrainer(s.name)
-        if i == 1 then f.trainer = t end
-        lines[#lines + 1] = "- " .. s.text .. (t and string.format(": %s, %s (%d yd)", t.name, mapName(t.map), t.yards) or "")
+        if i > 4 then break end
+        local status, n = P.RouteStatus(s.name, ns.nav, ns.db.nav)
+        if status == "off" then anyOff = true end
+        local t = status ~= "unplaced" and P.NearestTrainer(s.name) or nil
+        local where = t and string.format("%s, %s, %d yd", t.name, mapName(t.map), t.yards) or nil
+        local text = status == "planned" and ("|cff66ff66stop " .. n .. " on your route|r") or STATUS_TEXT[status]
+        lines[#lines + 1] = "- " .. s.text .. ": " .. text .. (where and (" (" .. where .. ")") or "")
     end
     f.body:SetText(table.concat(lines, "\n"))
-    f.go:SetEnabled(f.trainer ~= nil)
+    -- Only offered when the route leaves trainers out.
+    f.add:SetShown(anyOff)
+    f.choose:ClearAllPoints()
+    if anyOff then f.choose:SetPoint("LEFT", f.add, "RIGHT", 6, 0) else f.choose:SetPoint("BOTTOMLEFT", 10, 10) end
+    f.later:ClearAllPoints()
+    f.later:SetPoint("LEFT", f.choose, "RIGHT", 6, 0)
+    f:SetHeight(30 + (f.title:GetStringHeight() or 14) + 4 + (f.body:GetStringHeight() or 14)
+        + 6 + (f.hint:GetStringHeight() or 12) + 44)
     f.left = SHOW
     f.timer:SetValue(SHOW)
     f:Show()
