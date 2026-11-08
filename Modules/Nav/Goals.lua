@@ -94,95 +94,113 @@ local function objectSpawns(db, tables, id)
 end
 ns.quests.LogEntries = questLog  -- shared with SkillPlan.lua
 
+-- The goals for one quest: its turn-in, and (while unfinished) a goal per
+-- objective you still need. Used for your own log and for a party member's
+-- quests (Party.lua: "help Bob").
+--   q    = { id, title, complete, objectives = { { text, finished, have, need } } }
+--   opts = { prefix = "help:" (key prefix), who = "Bob" (shown in the text),
+--            skip = function(key) -> true to leave a goal out }
+-- Appends to `goals`.
+local function questGoals(db, q, goals, opts)
+    opts = opts or {}
+    local prefix, skip = opts.prefix or "", opts.skip or function() return false end
+    local whose = opts.who and (opts.who .. ": ") or ""
+    local quest = call(db, "GetQuest", q.id)
+    if not quest then return end
+    local title = q.title or quest.name
+    -- Where the quest is handed in. For unfinished quests this is a later
+    -- stop that the planner puts after the objectives (deps), so it can
+    -- decide "finish, then turn in on the way".
+    local turnSpawns, who = {}, nil
+    local fin = ns.quests.FinisherOf(quest)
+    for _, id in ipairs(fin.NPC or {}) do
+        who = npcSpawns(db, turnSpawns, id) or who
+    end
+    for _, id in ipairs(fin.GameObject or {}) do
+        who = objectSpawns(db, turnSpawns, id) or who
+    end
+    local turnIn = {
+        key = prefix .. q.id .. ":done", weight = 0.8, points = pointsFrom(turnSpawns), level = quest.level,
+        npcs = who and { who } or nil,
+        kind = isDaily(quest) and "daily" or "turnin",
+        title = title, helping = opts.who,
+        text = whose .. "Turn in: " .. (title or "quest"),
+        details = { (q.complete and "Quest complete. " or "After the objectives. ")
+            .. "Hand it in to " .. (who or "the quest giver") .. "." },
+        deps = {},
+    }
+    if not skip(turnIn.key) then goals[#goals + 1] = turnIn end
+    if q.complete then return end
+    for i, obj in ipairs(q.objectives) do
+        local od = quest.ObjectiveData and quest.ObjectiveData[i]
+        -- "Raise your X skill to N": planned by SkillPlan.lua (gather,
+        -- smelt, craft), not by walking to the trainer.
+        local skillObj = obj.text and ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
+        local key = prefix .. q.id .. ":" .. i
+        if not obj.finished and od and not skillObj then
+            local spawns, verb, what, elite = {}, nil, nil, false
+            local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
+            if od.Type == "monster" then
+                local npcRaw
+                what, npcRaw = npcSpawns(db, spawns, od.Id); verb = "Kill"
+                if what then targets[#targets + 1] = what end
+                -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
+                if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
+            elseif od.Type == "object" then
+                what = objectSpawns(db, spawns, od.Id); verb = "Use"
+            elseif od.Type == "item" then
+                local item = call(db, "GetItem", od.Id)
+                verb = "Collect"; what = item and item.name
+                -- Elite only if EVERY mob that drops it is elite (one elite
+                -- among normal kobolds doesn't make the objective elite).
+                local anyNormal, anyElite = false, false
+                for _, npcId in ipairs(item and item.npcDrops or {}) do
+                    local dropper, npcRaw = npcSpawns(db, spawns, npcId)
+                    if dropper then targets[#targets + 1] = dropper end
+                    if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
+                end
+                elite = anyElite and not anyNormal
+                for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
+            end
+            local points, known = pointsFrom(spawns)
+            if verb and #points > 0 then
+                table.insert(turnIn.deps, key)
+                -- A party member's objective has no text of its own: "Kill X 3/10".
+                local objText = obj.text or string.format("%s %s%s", verb, what or "",
+                    obj.need and string.format(" %d/%d", obj.have or 0, obj.need) or "")
+                if not skip(key) then
+                    goals[#goals + 1] = {
+                        key = key, points = points, known = known, title = title, level = quest.level,
+                        weight = elite and 1.6 or nil, elite = elite or nil, helping = opts.who,
+                        npcs = #targets > 0 and targets or nil, area = true, target = what,
+                        kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
+                        text = whose .. (elite and "[Elite] " or "") .. (title and (title .. ": ") or "") .. ns.ProgressText(objText),
+                        details = (function()
+                            local d = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(objText) or "?") }
+                            if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
+                            if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
+                            if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
+                            return d
+                        end)(),
+                    }
+                end
+            end
+        end
+    end
+    -- An unfinished objective Flow can't locate (e.g. an event): don't plan
+    -- the turn-in yet, it could come too early.
+    local unfinished = 0
+    for _, obj in ipairs(q.objectives) do if not obj.finished then unfinished = unfinished + 1 end end
+    if unfinished > #turnIn.deps then turnIn.points = {} end
+end
+ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
+
 ns:Register("navGoal", "questie", {
     collect = function()
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
         if not db then return nil end
         local goals = {}
-        for _, q in ipairs(questLog()) do
-            local quest = call(db, "GetQuest", q.id)
-            if quest then
-                -- Where the quest is handed in. For unfinished quests this is a
-                -- later stop that the planner puts after the objectives
-                -- (deps), so it can decide "finish, then turn in on the way".
-                local turnSpawns, who = {}, nil
-                local fin = ns.quests.FinisherOf(quest)
-                for _, id in ipairs(fin.NPC or {}) do
-                    who = npcSpawns(db, turnSpawns, id) or who
-                end
-                for _, id in ipairs(fin.GameObject or {}) do
-                    who = objectSpawns(db, turnSpawns, id) or who
-                end
-                local turnPoints = pointsFrom(turnSpawns)
-                local turnIn = {
-                    key = q.id .. ":done", weight = 0.8, points = turnPoints, level = quest.level,
-                    npcs = who and { who } or nil,
-                    kind = isDaily(quest) and "daily" or "turnin",
-                    title = q.title,
-                    text = "Turn in: " .. (q.title or "quest"),
-                    details = { (q.complete and "Quest complete. " or "After the objectives. ")
-                        .. "Hand it in to " .. (who or "the quest giver") .. "." },
-                    deps = {},
-                }
-                goals[#goals + 1] = turnIn
-                if not q.complete then
-                    for i, obj in ipairs(q.objectives) do
-                        local od = quest.ObjectiveData and quest.ObjectiveData[i]
-                        -- "Raise your X skill to N": planned by SkillPlan.lua (gather,
-                        -- smelt, craft), not by walking to the trainer.
-                        local skillObj = ns.skillPlan and ns.skillPlan.ParseObjective(obj.text)
-                        if not obj.finished and od and not skillObj then
-                            local spawns, verb, what, elite = {}, nil, nil, false
-                            local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
-                            if od.Type == "monster" then
-                                local npcRaw
-                                what, npcRaw = npcSpawns(db, spawns, od.Id); verb = "Kill"
-                                if what then targets[#targets + 1] = what end
-                                -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
-                                if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
-                            elseif od.Type == "object" then
-                                what = objectSpawns(db, spawns, od.Id); verb = "Use"
-                            elseif od.Type == "item" then
-                                local item = call(db, "GetItem", od.Id)
-                                verb = "Collect"; what = item and item.name
-                                -- Elite only if EVERY mob that drops it is elite (one elite
-                                -- among normal kobolds doesn't make the objective elite).
-                                local anyNormal, anyElite = false, false
-                                for _, npcId in ipairs(item and item.npcDrops or {}) do
-                                    local dropper, npcRaw = npcSpawns(db, spawns, npcId)
-                                    if dropper then targets[#targets + 1] = dropper end
-                                    if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
-                                end
-                                elite = anyElite and not anyNormal
-                                for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
-                            end
-                            local points, known = pointsFrom(spawns)
-                            if verb and #points > 0 then
-                                table.insert(turnIn.deps, q.id .. ":" .. i)
-                                goals[#goals + 1] = {
-                                    key = q.id .. ":" .. i, points = points, known = known, title = q.title, level = quest.level,
-                                    weight = elite and 1.6 or nil, elite = elite or nil,
-                                    npcs = #targets > 0 and targets or nil, area = true, target = what,
-                                    kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
-                                    text = (elite and "[Elite] " or "") .. (q.title and (q.title .. ": ") or "") .. ns.ProgressText(obj.text or (verb .. " " .. (what or ""))),
-                                    details = (function()
-                                        local d = { "Quest: " .. (q.title or "?"), "Objective: " .. (ns.ProgressText(obj.text) or "?") }
-                                        if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
-                                        if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
-                                        return d
-                                    end)(),
-                                }
-                            end
-                        end
-                    end
-                    -- An unfinished objective Flow can't locate (e.g. an event):
-                    -- don't plan the turn-in yet, it could come too early.
-                    local unfinished = 0
-                    for _, obj in ipairs(q.objectives) do if not obj.finished then unfinished = unfinished + 1 end end
-                    if unfinished > #turnIn.deps then turnIn.points = {} end
-                end
-            end
-        end
+        for _, q in ipairs(questLog()) do questGoals(db, q, goals) end
         return goals
     end,
 })

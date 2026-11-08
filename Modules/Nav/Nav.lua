@@ -355,7 +355,7 @@ function N:Collect()
     if N:Mode() == "quests" then
         local questsOnly = {}
         for _, g in ipairs(list) do
-            if g.key:find("^%d+:") or g.key:find("^party:") then
+            if g.key:find("^%d+:") or g.key:find("^party:") or g.key:find("^help:") then
                 questsOnly[#questsOnly + 1] = g
             end
         end
@@ -1129,6 +1129,12 @@ function N:Options(sel)
     -- out, like a walkthrough does, as long as your quest log has room.
     if not tour and not sel.first and self:Mode() ~= "quests" then
         tour = self:PickupKeys()
+    end
+    -- Helping a party member (PartyHelp.lua): their priority list first,
+    -- unless you picked a stop yourself.
+    if ns.partyHelp and ns.partyHelp:Helping() and not sel.first and not sel.tour then
+        local help = ns.partyHelp:TourNow(present)
+        if next(help) then tour = help end
     end
     -- Shared party route: its stops come first, in the shared order (their
     -- deps chain), before your own goals.

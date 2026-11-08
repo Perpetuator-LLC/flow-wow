@@ -153,8 +153,15 @@ local function received(sender, msg)
         members[sender] = members[sender] or { quests = {} }
         if tonumber(part) == 1 then members[sender].quests = {} end
         for id in (list or ""):gmatch("%d+") do members[sender].quests[tonumber(id)] = true end
+    elseif kind and P.handlers[kind] then
+        P.handlers[kind](sender, rest)   -- other modules' messages (PartyHelp.lua: quest progress)
     end
 end
+
+-- Other modules can use the same addon channel: P.handlers[letter] =
+-- function(sender, rest) receives "letter|rest"; P.Send(msg) sends one.
+P.handlers = {}
+P.Send = function(msg) send(msg) end
 
 -------------------------------------------------------------------------------
 -- State
@@ -226,7 +233,8 @@ function P:EstimateStops()
     if not p then return {}, "no position" end
     local goals = {}
     for _, g in ipairs(ns.nav:Goals()) do
-        if not g.key:find("^party:") and g.key ~= "user:wp" then goals[#goals + 1] = g end
+        -- (not party stops, and not a friend's quests you're helping with: only your own)
+        if not g.key:find("^party:") and not g.key:find("^help:") and g.key ~= "user:wp" then goals[#goals + 1] = g end
     end
     local counts = {}
     for id in pairs(ns.quests:LogIds()) do counts[id] = 1 end
@@ -440,6 +448,8 @@ ns.commands.party = function(arg)
         if state.joined then P:SetFollowing(true) else P:Join(true) end
     elseif arg == "mine" then P:SetFollowing(false)
     elseif arg == "leave" then P:Leave()
+    elseif arg:find("^help") then
+        if ns.partyHelp then ns.partyHelp:Command(arg:match("^help%s*(.*)$")) end
     else
         if state.joined then
             ns:Print(string.format("party route: %d stops, last edit by %s. You're following %s.",
@@ -449,12 +459,14 @@ ns.commands.party = function(arg)
         else
             ns:Print("no party route.")
         end
-        print("  /flow party share|follow|mine|leave")
+        if ns.partyHelp then ns.partyHelp:Status() end
+        print("  /flow party share|follow|mine|leave|help <name>|help off")
     end
 end
 
 ns:Register("help", "party", { order = 45, title = "Party routes", lines = {
     "Joining a group asks if you want to follow the party route; your own route always stays separate.",
     "Forming a group as leader makes one (shared quests first). Toggle under the arrow: party / mine.",
-    "/flow party share|follow|mine|leave",
+    "Flow players in a group share how far they are on each quest; Flow asks if you want to help one (their quests first on your route).",
+    "/flow party share|follow|mine|leave, /flow party help <name>|off",
 } })

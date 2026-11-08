@@ -1818,3 +1818,71 @@ ns:Register("test", "quests: finished ones are turned in for you, choices left t
         t:ok(AT.Enabled() or IsShiftKeyDown(), "on by default")
     end)
 end)
+
+ns:Register("test", "party help: quest progress is shared and read back", function(t)
+    local H = ns.partyHelp
+    local prog = {
+        [83] = { complete = true, objectives = {} },
+        [86] = { complete = false, objectives = { { have = 2, need = 4 }, { have = 1, need = 1 } } },
+    }
+    local parts = H.Encode(prog)
+    t:eq(#parts, 1, "a short log fits one message")
+    t:eq(parts[1], "83=c,86=2/4.1/1", "compact: done, or each objective's count")
+    local back = H.Decode(parts[1])
+    t:ok(back[83].complete, "ready to hand in comes back")
+    t:eq(back[86].objectives[1].have, 2, "counts come back")
+    t:ok(back[86].objectives[2].finished and not back[86].objectives[1].finished, "finished = count reached")
+    local big = {}
+    for id = 1000, 1039 do big[id] = { complete = false, objectives = { { have = 3, need = 10 }, { have = 0, need = 8 } } } end
+    local many = H.Encode(big)
+    t:ok(#many > 1, "a full log is split into several messages")
+    local ok = true
+    for _, p in ipairs(many) do if #p > 230 then ok = false end end
+    t:ok(ok, "each fits an addon message")
+    local all = {}
+    for _, p in ipairs(many) do H.Decode(p, all) end
+    local n = 0
+    for _ in pairs(all) do n = n + 1 end
+    t:eq(n, 40, "every quest arrives")
+    t:eq(H.ToDo(back), 1, "one quest left to do (the other is ready to hand in)")
+end)
+
+ns:Register("test", "party help: their priority list goes first, without doubling yours", function(t)
+    local H = ns.partyHelp
+    local mine = { [86] = { objectives = { { finished = false }, { finished = true } } } }
+    t:ok(H.Skip("help:86:1", mine), "an objective you still need too: your own stop covers it")
+    t:ok(not H.Skip("help:86:2", mine), "one you've finished but they haven't: theirs is added")
+    t:ok(H.Skip("help:86:done", mine), "a quest you both have: your own turn-in")
+    t:ok(not H.Skip("help:90:1", mine), "a quest only they have: added")
+    local their = { [86] = { complete = false, objectives = { { finished = false }, { finished = true } } } }
+    local tour = H.Tour({ ["help:90:1"] = true, ["86:1"] = true, ["86:2"] = true, ["77:1"] = true }, their)
+    t:ok(tour["help:90:1"] and tour["86:1"], "their stops and your shared ones come first")
+    t:ok(not tour["86:2"] and not tour["77:1"], "not what they've done, nor your own other quests")
+end)
+
+ns:Register("test", "party help: a member's quest becomes stops with their name on", function(t)
+    local db = {
+        GetQuest = function(id)
+            if id == 500 then return { name = "Wolves", level = 5, ObjectiveData = { { Type = "monster", Id = 1 } },
+                                        Finisher = { NPC = { 2 } } } end
+        end,
+        GetNPC = function(id)
+            if id == 1 then return { name = "Wolf", spawns = { [12] = { { 40, 50 } } } } end
+            if id == 2 then return { name = "Farmer", spawns = { [12] = { { 42, 60 } } } } end
+        end,
+    }
+    local q = { id = 500, complete = false, objectives = { { have = 3, need = 10, finished = false } } }
+    local goals = {}
+    ns.quests.QuestGoals(db, q, goals, { prefix = "help:", who = "Bob" })
+    t:eq(goals[1] and goals[1].key, "help:500:done", "their turn-in")
+    t:ok(goals[1] and goals[1].text:find("^Bob: Turn in: Wolves") ~= nil, "says whose it is")
+    if goals[2] then
+        t:eq(goals[2].key, "help:500:1", "their objective")
+        t:ok(goals[2].text:find("Wolf") and goals[2].text:find("3") and goals[2].helping == "Bob", "Kill Wolf 3/10, marked as helping Bob")
+    else
+        t:ok(true, "(no map for the test zone here: objective stop not placed)")
+    end
+    local skipped = {}
+    ns.quests.QuestGoals(db, q, skipped, { prefix = "help:", who = "Bob", skip = function(k) return k == "help:500:1" end })
+    t:eq(#skipped, 1, "skip leaves out what you already cover")
+end)

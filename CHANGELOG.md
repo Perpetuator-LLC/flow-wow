@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.69
+- Party quest progress: Flow players in a group now share how far they are on every quest
+  (each objective's count, like 3/10, and whether it's ready to hand in). It updates a couple
+  of seconds after anyone's quest log changes.
+- When a party member's progress arrives, Flow asks once: "Put Bob's priority list first on
+  your route?" Click **Help Bob** and the objectives Bob still needs come first on your route
+  (kill credit is shared in a party), plus where Bob hands in, then your own stops. Bob's
+  stops say "Bob: ...". Anything your own quests already cover isn't doubled up.
+- "Helping Bob (click: stop)" shows under the arrow. `/flow party help Bob` starts it,
+  `/flow party help off` stops it, and it stops by itself when either of you leaves the group.
+  `/flow party` lists who has shared progress.
+
 ## 0.35.68
 - Each character has its own Flow data now. "Ways to improve" (and the route) showed the last
   character you played, because everything was saved once for the whole account. Fights,
