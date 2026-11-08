@@ -245,7 +245,7 @@ local function build()
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -14)
-    title:SetText("Flow settings")
+    title:SetText("Flow Setup")
     local sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     sub:SetPoint("TOPLEFT", 16, -36)
     sub:SetText("Ticked = on. Change what you like and click Apply. Hover a row for why. /flow setup reopens this.")

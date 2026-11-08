@@ -152,7 +152,7 @@ local function buildButton()
     b:SetScript("OnClick", function() Adv:TogglePanel() end)
     b:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Flow: ways to improve")
+        GameTooltip:AddLine("Flow Improvements")
         local shown, hidden = Adv:Shown()
         for i = 1, math.min(10, #shown) do
             GameTooltip:AddLine(i .. ". " .. line(shown[i]), 1, 1, 1, true)

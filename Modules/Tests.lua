@@ -2862,3 +2862,16 @@ ns:Register("test", "herbs in Kalimdor count for Herbalism stops; heals count fo
     t:ok(kal, "Flow's Peacebloom includes the Kalimdor node")
     t:ok(ns.rotation.HEAL_VALUE.Rejuvenation <= 8 and ns.rotation.HEAL_VALUE["Healing Touch"] <= 15, "a heal makes up for fewer seconds of hits")
 end)
+
+ns:Register("test", "Flow Seller: Auto-cleanup tidies your bags after auto-sell", function(t)
+    local V = ns.vendor
+    if not V then t:ok(true, "(no Seller module)") return end
+    t:ok(V.ShouldCleanup(3, nil, true, false), "sold 3, on (by default): clean up")
+    t:ok(not V.ShouldCleanup(0, true, true, false), "nothing sold: bags left as they are")
+    t:ok(not V.ShouldCleanup(3, false, true, false), "Auto-cleanup off: no")
+    t:ok(not V.ShouldCleanup(3, true, false, false), "no Clean Up Bags on this client: no")
+    t:ok(not V.ShouldCleanup(3, true, true, true), "in a fight: no")
+    local f = V:Panel()
+    t:ok(f.clean and f.clean.label and f.clean.label:GetText() == "Auto-cleanup", "an Auto-cleanup checkbox next to Auto-sell")
+    t:eq(f.head.text:GetText():match("^Flow Seller") and "Flow Seller", "Flow Seller", "named Flow Seller")
+end)

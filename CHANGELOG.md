@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.96
+- **Flow Seller: Auto-cleanup.** After the Flow Seller sells something (auto-sell, or your
+  click), your bags are tidied with the game's Clean Up Bags (the broom on your bags). It's an
+  "Auto-cleanup" checkbox next to Auto-sell in the Flow Seller's header (on), and also in Flow
+  Settings. If this client has no Clean Up Bags, the checkbox is greyed out and says so.
+- **Every view is named "Flow ...":**
+  - Ask Claude -> **Flow Chat**; New spell -> **Flow Spells**;
+  - Professions / Your professions -> **Flow Professions**;
+  - Key binding mode -> **Flow Key Bindings**;
+  - the settings and setup pages -> **Flow Settings** and **Flow Setup**;
+  - the "!" button's tooltip -> **Flow Improvements**;
+  - chat messages name the **Flow Seller** (it was "vendor drawer").
+  New views will follow the same rule.
+
 ## 0.35.95
 - **Flow's tooltips open where WoW shows its own:** the spot you set in Edit Mode or the
   interface options, or at the cursor. Before, each opened next to whatever you hovered. That

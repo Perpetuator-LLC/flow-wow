@@ -120,7 +120,7 @@ end
 
 local function build()
     local f = CreateFrame("Frame", "FlowVendorPanel", UIParent)
-    f:SetWidth(340)
+    f:SetWidth(400)   -- (room in the header for Auto-sell and Auto-cleanup)
     f:SetFrameStrata("HIGH")
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
@@ -154,6 +154,26 @@ local function build()
         GameTooltip:Show()
     end)
     f.auto:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Auto-cleanup on/off, beside it: the game's Clean Up Bags after auto-sell.
+    f.clean = CreateFrame("CheckButton", nil, f.head, "UICheckButtonTemplate")
+    f.clean:SetSize(20, 20)
+    f.clean:SetPoint("RIGHT", f.auto.label, "LEFT", -8, 0)
+    f.clean.label = f.head:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.clean.label:SetPoint("RIGHT", f.clean, "LEFT", 0, 0)
+    f.clean.label:SetText("Auto-cleanup")
+    f.clean:SetChecked(ns.db.sell.autoCleanup ~= false)
+    f.clean:SetScript("OnClick", function(self)
+        ns.db.sell.autoCleanup = self:GetChecked() and true or false
+        ns:Print("clean up bags after auto-sell " .. (ns.db.sell.autoCleanup and "on" or "off"))
+    end)
+    f.clean:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Auto-cleanup", 1, 1, 1)
+        GameTooltip:AddLine(V.CanCleanup() and "After auto-sell sells something, Flow tidies your bags with the game's Clean Up Bags (the broom on your bags)."
+            or "This client has no Clean Up Bags, so there's nothing for Flow to run.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    f.clean:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     f.junk = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     f.junk:SetSize(22, 22)
@@ -214,6 +234,8 @@ function V:Refresh()
         nSell, nSell == 1 and "" or "s"))
     f.head.pm:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
     f.auto:SetChecked(ns.db.sell.autoAll == true)
+    f.clean:SetChecked(ns.db.sell.autoCleanup ~= false)
+    f.clean:SetEnabled(V.CanCleanup())
     local parts = { f.junk, f.junkLabel, f.propHeader, f.soldHeader, f.footer, f.sellAll, f.close }
     for _, r in ipairs(f.propRows) do parts[#parts + 1] = r end
     for _, r in ipairs(f.soldRows) do parts[#parts + 1] = r end
@@ -341,6 +363,30 @@ function V:SellJunk()
         ns:Print(string.format("sold %d junk item(s) for %s", #junk, money(value)))
         D:Invalidate()
     end
+    return #junk
+end
+
+-------------------------------------------------------------------------------
+-- Auto-cleanup: after auto-sell sold something, the game's Clean Up Bags
+-- (the broom on your bags) tidies them, once the sales have gone through.
+-- Checkbox "Auto-cleanup" in the Flow Seller's header (on).
+-------------------------------------------------------------------------------
+
+local function sortBags() return (C_Container and C_Container.SortBags) or _G.SortBags end
+function V.CanCleanup() return sortBags() ~= nil end
+
+function V.ShouldCleanup(sold, on, canSort, inCombat)
+    return (sold or 0) > 0 and on ~= false and canSort and not inCombat
+end
+
+function V:Cleanup(sold)
+    if not V.ShouldCleanup(sold, ns.db.sell.autoCleanup, V.CanCleanup(), InCombatLockdown()) then return end
+    -- A moment later: the sold items leave your bags first.
+    C_Timer.After(1, function()
+        if InCombatLockdown() then return end
+        local ok, err = pcall(sortBags())
+        ns:Log("sell", ok and string.format("cleaned up bags after selling %d item(s)", sold) or ("bag cleanup failed: " .. tostring(err)))
+    end)
 end
 
 -- Junk first (all of it, if ticked), then up to 12 proposed items. Runs from
@@ -348,10 +394,12 @@ end
 function V:SellAll()
     if not canSell() then return end
     local junk, proposed = self:Candidates()
+    local count = 0
     if ns.db.sell.junkAll ~= false then
-        for _, e in ipairs(junk) do useItem(e.bag, e.slot); junkSold = junkSold + 1 end
+        for _, e in ipairs(junk) do useItem(e.bag, e.slot); junkSold = junkSold + 1; count = count + 1 end
     end
-    for i = 1, math.min(BATCH, #proposed) do sellOne(proposed[i]) end
+    for i = 1, math.min(BATCH, #proposed) do sellOne(proposed[i]); count = count + 1 end
+    V:Cleanup(count)   -- (Auto-cleanup after this sale too)
     D:Invalidate()
     C_Timer.After(0.4, function() V:Refresh() end)
 end
@@ -374,8 +422,10 @@ ns:On("MERCHANT_SHOW", function()
         if not merchantOpen then return end
         panel:ClearAllPoints()
         panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
-        if ns.db.sell.autoJunk then V:SellJunk() end
-        if ns.db.sell.autoAll then V:SellProposed() end
+        local sold = 0
+        if ns.db.sell.autoJunk then sold = sold + (V:SellJunk() or 0) end
+        if ns.db.sell.autoAll then sold = sold + (V:SellProposed() or 0) end
+        V:Cleanup(sold)   -- Auto-cleanup: tidy your bags after auto-sell
         V:Refresh()
     end)
 end)
@@ -396,9 +446,10 @@ function V:SellProposed()
     end
     if n > 0 then
         D:Invalidate()
-        ns:Print(string.format("sold %d item(s) you don't need for %s%s. Wrong one? Buy it back in Flow's vendor drawer: Flow won't sell it again.",
+        ns:Print(string.format("sold %d item(s) you don't need for %s%s. Wrong one? Buy it back in the Flow Seller: Flow won't sell it again.",
             n, money(value), #proposed > n and string.format(" (%d more next visit)", #proposed - n) or ""))
     end
+    return n
 end
 
 ns:On("MERCHANT_CLOSED", function()
@@ -437,7 +488,7 @@ ns.commands.sell = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
         ns.db.sell.enabled = (arg == "on")
-        ns:Print("vendor drawer " .. arg)
+        ns:Print("Flow Seller " .. arg)
     elseif arg == "forget" then
         wipe(ns.db.sell.never)
         D:Invalidate()
@@ -445,7 +496,7 @@ ns.commands.sell = function(arg)
     else
         local n = 0
         for _ in pairs(ns.db.sell.never) do n = n + 1 end
-        ns:Print(string.format("vendor drawer %s; %d item(s) on your never-sell list. /flow sell on|off|forget",
+        ns:Print(string.format("Flow Seller %s; %d item(s) on your never-sell list. /flow sell on|off|forget",
             ns.db.sell.enabled and "on" or "off", n))
     end
 end

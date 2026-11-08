@@ -121,7 +121,7 @@ local function build()
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(true)
     f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints(); f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.95)
-    f.head = ns.theme:TitleBar(f, "New spell", "Interface\\Icons\\INV_Misc_Book_09")
+    f.head = ns.theme:TitleBar(f, "Flow Spells", "Interface\\Icons\\INV_Misc_Book_09")
     -- The spell's icon: drag it onto any bar slot.
     f.icon = CreateFrame("Button", nil, f)
     f.icon:SetSize(40, 40)
