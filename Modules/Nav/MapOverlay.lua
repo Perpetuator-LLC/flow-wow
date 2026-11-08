@@ -545,8 +545,11 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     local fromYou = px ~= nil   -- the next line drawn starts at you
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
-        if x then
-            if px and not pinsOnly then
+        local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
+        -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
+        local beyond = not ns.nav:ShowStop(i, false)
+        if x and (not beyond or (pointed and withPins)) then
+            if px and not pinsOnly and not beyond then
                 -- From you to the first stop: brighter, so it's clear where to go now.
                 local first = (i == 1)
                 line(c, px, py, x, y, first and theme().route or color, alpha or 1)
@@ -558,7 +561,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
             if withPins then
                 local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
                 local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
-                if s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil) then
+                if pointed then
                     hovered = { x, y, icon .. labels[i], s }
                 else
                     pin(c, x, y, icon .. labels[i], color, s, nil, i == 1 and not pinsOnly)
@@ -1463,6 +1466,7 @@ local function changed(st, c, mapID, pointed)
     local sp = st.plan or {}
     st.plan = sp
     d = setv(st, "stops", #plan) or d
+    d = setv(st, "limit", ns.nav:StopsShown() or false) or d   -- Stops on the map changed
     for i, s in ipairs(plan) do
         local g, pt, b = s.goal, s.point or EMPTY, (i - 1) * 6
         local key, text, n = g.key, g.text or g.title or false, g.points and #g.points or 0
@@ -1532,9 +1536,10 @@ local function fullDraw()
         for _, i in ipairs(order) do
             local g = plan[i].goal
             -- Only the patch the route goes to; the stop you point at shows
-            -- every place its mobs live.
+            -- every place its mobs live. Past your Stops on the map limit,
+            -- only the stop you point at.
             if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
-            else drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
+            elseif ns.nav:ShowStop(i, false) then drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
         end
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the

@@ -202,6 +202,37 @@ ns:Register("test", "planner: nearest first, turn-in after its objective", funct
     t:eq(plan and plan[1].goal.key, "1:1", "objective before its turn-in")
 end)
 
+ns:Register("test", "planner: plans 30 stops, the far end nearest-next", function(t)
+    local function goal(key, x, y, extra)
+        local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = y or 0 } } }
+        for k, v in pairs(extra or {}) do g[k] = v end
+        return g
+    end
+    local p = { cont = 0, wx = 0, wy = 0 }
+    -- 40 stops in a line, given out of order: the nearest 30 make the plan.
+    local goals = {}
+    for k = 40, 1, -1 do goals[#goals + 1] = goal("g" .. k, k * 10) end
+    local plan = ns.planner:Plan(p, goals, {})
+    t:eq(plan and #plan, 30, "30 stops planned (was 14)")
+    t:eq(plan and plan[1] and plan[1].goal.key, "g1", "nearest first")
+    t:eq(plan and plan[30] and plan[30].goal.key, "g30", "the 30th nearest last")
+    local inOrder = true
+    for i = 2, plan and #plan or 0 do
+        if plan[i].point.wx < plan[i - 1].point.wx then inOrder = false end
+    end
+    t:ok(inOrder, "past the polished part, still nearest-next (no back and forth)")
+    -- A turn-in out in the nearest-next part still comes after its objective.
+    goals = {}
+    for k = 1, 28 do goals[#goals + 1] = goal("g" .. k, k * 10) end
+    goals[#goals + 1] = goal("q:done", 245, 5, { deps = { "q:1" } })
+    goals[#goals + 1] = goal("q:1", 255, 5)
+    plan = ns.planner:Plan(p, goals, {})
+    local at = {}
+    for i, s in ipairs(plan or {}) do at[s.goal.key] = i end
+    t:ok(at["q:1"] and at["q:done"] and at["q:1"] > 14, "both far out (after the first 14)")
+    t:ok(at["q:1"] and at["q:done"] and at["q:1"] < at["q:done"], "objective before its turn-in")
+end)
+
 ns:Register("test", "blocked stops: label and reason", function(t)
     local text, why = ns.nav:FormatBlocked({ text = "Buy a Mining Pick", blockedBy = "needs 16c (you have 6c)" })
     t:ok(text:find("Buy a Mining Pick", 1, true) ~= nil, "text kept")
@@ -587,6 +618,11 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
         t:ok(M._changed(st, canvas, 1429, nil), "a stop's progress changed: redraw")
         t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a stop: redraw")
         t:ok(M._changed(st, canvas, 1430, "t:b"), "another map: redraw")
+        with(ns.db.nav, "stopsShown", 1, function()
+            t:ok(M._changed(st, canvas, 1430, "t:b"), "fewer stops on the map: redraw")
+            t:ok(not M._changed(st, canvas, 1430, "t:b"), "then no redraw again")
+        end)
+        M._changed(st, canvas, 1430, "t:b")   -- (back to your setting)
 
         -- Between redraws, the lines that start at you follow you.
         local calls = {}
@@ -1446,6 +1482,94 @@ ns:Register("test", "click: every route menu entry is well formed", function(t)
         local good = it.sep or it.title or (type(it.text) == "string" and (it.func == nil or type(it.func) == "function"))
         t:ok(good, "entry " .. i .. " (" .. tostring(it.text) .. ")")
     end
+end)
+
+ns:Register("test", "route: Stops on the map", function(t)
+    local N = ns.nav
+    with(ns.db.nav, "stopsShown", nil, function()
+    with(ns, "Print", function() end, function()
+        t:eq(N:StopsShown(), nil, "default: all stops")
+        t:ok(N:ShowStop(25, false), "all: stop 25 shows")
+        t:eq(N:StopsShownLabel(), "All stops", "label: all")
+        N:SetStopsShown(1)
+        t:eq(N:StopsShown(), 1, "next stop only")
+        t:ok(N:ShowStop(1, false), "the next stop shows")
+        t:ok(not N:ShowStop(2, false), "the one after doesn't")
+        t:ok(N:ShowStop(2, true), "unless you point at it (Flow Router)")
+        t:eq(N:StopsShownLabel(), "Next stop only", "label: next only")
+        t:eq(N:StopsShownLabel(5), "Next 5 stops", "label: next 5")
+        N:SetStopsShown(0)
+        t:eq(N:StopsShown(), nil, "0 = all")
+        ns.commands.nav("stops 3")
+        t:eq(N:StopsShown(), 3, "/flow nav stops 3")
+        ns.commands.nav("stops bogus")
+        t:eq(N:StopsShown(), 3, "a typo changes nothing")
+        ns.commands.nav("stops all")
+        t:eq(N:StopsShown(), nil, "/flow nav stops all")
+    end)
+    end)
+    if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
+end)
+
+ns:Register("test", "route: the Flow Tracker shows your Stops on the map", function(t)
+    local frame = _G.FlowTracker
+    if not (frame and frame.rows and ns.db.tracker) then t:ok(true, "(no Flow Tracker yet)") return end
+    local function stop(key) return { goal = { key = key, text = key }, point = { map = 1429, x = 0.5, y = 0.5 } } end
+    local function rowsShown()
+        local n = 0
+        for _, r in ipairs(frame.rows) do if r:IsShown() then n = n + 1 end end
+        return n
+    end
+    with(ns.db.tracker, "enabled", true, function()
+    with(ns.db.tracker, "open", "flow", function()
+    with(ns.nav, "plan", { stop("t:1"), stop("t:2"), stop("t:3"), stop("t:4"), stop("t:5") }, function()
+    with(ns.nav, "blockedGoals", { { key = "t:x", text = "t:x", blockedBy = "needs 1g" } }, function()
+        with(ns.db.nav, "stopsShown", 2, function()
+            ns.routeTracker:Refresh()
+            t:eq(rowsShown(), 2, "next 2: two rows")
+            t:eq(frame.rows[2].key, "t:2", "the second stop")
+        end)
+        with(ns.db.nav, "stopsShown", 1, function()
+            ns.routeTracker:Refresh()
+            t:eq(rowsShown(), 1, "next stop only: one row")
+        end)
+        with(ns.db.nav, "stopsShown", nil, function()
+            ns.routeTracker:Refresh()
+            t:eq(rowsShown(), 6, "all: 5 stops and the blocked one")
+        end)
+    end)
+    end)
+    end)
+    end)
+    ns.routeTracker:Refresh()   -- back to your real route
+end)
+
+ns:Register("test", "click: Stops on the map in the menu and on the settings page", function(t)
+    with(ns.db.nav, "stopsShown", nil, function()
+        local next1, all
+        for _, it in ipairs(ns.menu:RouteItems()) do
+            if it.text == "Next stop only" then next1 = it end
+            if it.text and it.text:find("^All stops") then all = it end
+        end
+        t:ok(next1 and all, "the menu has Next stop only and All stops")
+        if next1 then pcall(next1.func) end
+        t:eq(ns.nav:StopsShown(), 1, "Next stop only: one stop")
+        if all then pcall(all.func) end
+        t:eq(ns.nav:StopsShown(), nil, "All stops: all of them")
+        local row
+        for _, r in ipairs(ns.settings:Choices()) do
+            if r.label and r.label:GetText() == "Stops on the map" then row = r end
+        end
+        if not row then t:ok(true, "(settings page not built yet: open /flow settings once)") return end
+        for _, b in ipairs(row.buttons) do
+            if b.value == 5 then
+                local ok, err = pcall(b:GetScript("OnClick"), b, "LeftButton")
+                t:ok(ok, "the 5 button runs" .. (ok and "" or (": " .. tostring(err))))
+            end
+        end
+        t:eq(ns.nav:StopsShown(), 5, "settings button: next 5")
+    end)
+    if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
 end)
 
 ns:Register("test", "click: Flow Tracker rows open the menu on right-click", function(t)

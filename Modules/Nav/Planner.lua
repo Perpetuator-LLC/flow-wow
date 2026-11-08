@@ -18,7 +18,12 @@ local _, ns = ...
 local P = {}
 ns.planner = P
 
-local MAX_STOPS = 14          -- nearest goals considered per plan
+local MAX_STOPS = 30          -- nearest goals considered per plan
+-- Only the first stops get the slow polish (improve() costs ~n^3); the rest
+-- of the trip is nearest-next from there. It's planned again as you go, so
+-- the far end gets polished by the time you reach it. 14 = what the whole
+-- plan used to be, so a plan costs no more than before (/flow perf).
+local IMPROVE_HEAD = 14
 local MAX_POINTS = 25         -- spots per stop considered (nearest to you)
 local OPTIONAL_DETOUR = 250   -- yards an optional stop may add
 local MAX_PASSES = 6
@@ -239,7 +244,21 @@ function P:Plan(p, goals, opts)
     OPT = opts or {}
     local stops = candidates(p, goals)
     if #stops == 0 then return nil end
-    local order = improve(p, greedy(p, stops))
+    local order = greedy(p, stops)
+    if #order > IMPROVE_HEAD then
+        -- Polish the near part, then carry on nearest-next from its last stop.
+        local head, rest = {}, {}
+        for i, s in ipairs(order) do
+            if i <= IMPROVE_HEAD then head[#head + 1] = s else rest[#rest + 1] = s end
+        end
+        head = improve(p, head)
+        local _, _, pts = walk(p, head)
+        local last = pts[#pts]
+        order = head
+        for _, s in ipairs(greedy({ wx = last.wx, wy = last.wy }, rest)) do order[#order + 1] = s end
+    else
+        order = improve(p, order)
+    end
     local dropped
     order, dropped = prune(p, order)
     local _, legs, pts = walk(p, order)

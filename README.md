@@ -90,6 +90,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
   order). Click a row for its stop card; hover it to see its area on the minimap; Shift-drag
   the header to move it.
+- **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
+  the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
+  the arrow's right-click menu, or `/flow nav stops 1|3|5|10|all`). The Flow Router always lists
+  the whole route.
 - **Lite mode**: in dungeons, raids and boss fights Flow eases off route planning and map
   updates so it never adds lag; the rotation and the Flow key run as normal.
 - **Arrow menu**: right-click the arrow for route (quests only, optimal with or without
@@ -170,7 +174,7 @@ Flow for WoW is a separate project from Flow Engine.
 ## Commands
 `/flow help` lists everything. The main ones: `/flow settings`, `/flow rot why`,
 `/flow action`, `/flow advice`, `/flow way` (`repair`, `vendor`, `clear`), `/flow map`,
-`/flow nav xp|distance|northup|unhide|sort`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
+`/flow nav xp|distance|northup|unhide|sort|stops`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
 `/flow test`, `/flow api`.
 

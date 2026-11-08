@@ -243,9 +243,13 @@ function RT:Refresh()
     if open then
         local labels = ns.nav:PlanLabels(plan)
         local blocked = ns.nav.blockedGoals or {}
+        -- Stops on the map (also here): only your next N rows, blocked ones after the route.
+        local nRows = math.min(ROWS, ns.nav:StopsShown() or ROWS)
+        local nPlan = math.min(#plan, nRows)
         for i = 1, ROWS do
-            local r, s = frame.rows[i], plan[i]
-            local bl = (not s) and blocked[i - #plan] or nil
+            local r = frame.rows[i]
+            local s = (i <= nPlan) and plan[i] or nil
+            local bl = (not s and i <= nRows) and blocked[i - nPlan] or nil
             if s then
                 -- (row colour comes from FormatStop)
                 r.key, r.goal, r.blocked = s.goal.key, s.goal, nil

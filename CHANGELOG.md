@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.67
+- The route looks further ahead: up to 30 stops instead of 14. The nearest stops are still
+  ordered carefully, and the rest follow on nearest-next, so re-planning costs no more than
+  before.
+- New: **Stops on the map**. Choose how many of your next stops the world map and the Flow
+  Tracker show: just the next one, the next 3, 5 or 10, or all of them. It's in /flow settings,
+  in the arrow's (and Tracker's) right-click menu, and `/flow nav stops 1|3|5|10|all`. The
+  Flow Router still lists the whole route, and a stop you point at there always shows on the map.
+
 ## 0.35.66
 - Finished quests are turned in for you: talk to the NPC and Flow opens the finished quest,
   presses Complete and takes the reward. With several rewards to choose from, you pick (the

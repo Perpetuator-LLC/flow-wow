@@ -57,6 +57,13 @@ local function refresh()
         c:SetChecked(ok and on and true or false)
         if c.now then local ok2, t = pcall(c.nowText); c.now:SetText(ok2 and t or "") end
     end
+    -- Button rows: the choice in use is lit.
+    for _, row in ipairs(frame.choices or {}) do
+        local ok, v = pcall(row.get)
+        for _, b in ipairs(row.buttons) do
+            if ok and v == b.value then b:LockHighlight() else b:UnlockHighlight() end
+        end
+    end
 end
 
 local function stopCapture(msg)
@@ -130,6 +137,40 @@ local function check(f, y, text, note, tip, get, set)
     return c, y - 28
 end
 
+-- A row of buttons, one per choice; the one in use is lit.
+-- options = { { label, value, width }, ... }; get() -> value, set(value).
+local function choices(f, y, text, tip, options, get, set)
+    local l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    l:SetPoint("TOPLEFT", 18, y - 5)
+    l:SetText(text)
+    local row = { get = get, buttons = {}, label = l }
+    local prev
+    for _, o in ipairs(options) do
+        local b = button(f, o[1], o[3] or 40)
+        b:SetHeight(22)
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0) else b:SetPoint("TOPLEFT", 250, y) end
+        b.value = o[2]
+        b:SetScript("OnClick", function(self)
+            local ok, err = pcall(set, self.value)
+            if not ok then ns:Log("settings", text .. ": " .. tostring(err)) end
+            refresh()
+        end)
+        if tip then
+            b:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(text)
+                GameTooltip:AddLine(tip, 1, 1, 1, true)
+                GameTooltip:Show()
+            end)
+            b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        end
+        row.buttons[#row.buttons + 1] = b
+        prev = b
+    end
+    frame.choices[#frame.choices + 1] = row
+    return row, y - 30
+end
+
 local function build(parent)
     local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 0, -4)
@@ -140,6 +181,7 @@ local function build(parent)
     f.scroll = scroll
     frame = f
     f.checks = {}
+    f.choices = {}
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     f.title:SetPoint("TOPLEFT", 16, -12)
@@ -191,6 +233,12 @@ local function build(parent)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)
+    -- 0 = all (nil can't sit in the options list).
+    f.stopsRow, y = choices(f, y, "Stops on the map",
+        "How many of your next stops the world map and the Flow Tracker show. The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
+        { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 } },
+        function() return ns.nav:StopsShown() or 0 end,
+        function(v) ns.nav:SetStopsShown(v) end)
     _, y = check(f, y, "Intro on the arrow when you log in", "(/flow splash replays it)",
         "After logging in or /reload the arrow spins, shows FLOW in its ring, and the version and status underneath.",
         function() return ns.db.splash.enabled ~= false end,
@@ -354,6 +402,9 @@ end
 -- (Tests) the page's rows: Flow options and suggested WoW settings.
 function S:Checks()
     return frame and frame.checks or {}
+end
+function S:Choices()
+    return frame and frame.choices or {}
 end
 
 ns:OnLoad(function(saved)

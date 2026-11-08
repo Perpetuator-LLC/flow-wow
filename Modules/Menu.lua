@@ -148,6 +148,19 @@ function Menu:RouteItemsRaw()
           radio = true, checked = sort == "custom", disabled = sort ~= "custom",
           func = function() ns.xpValue:SetMode("custom") end },
         { sep = true },
+        { title = true, text = "Stops on the map" },
+    }
+    -- How many upcoming stops the map and the Flow Tracker show (the Flow
+    -- Router always lists them all).
+    local shown = nav:StopsShown()
+    for _, n in ipairs(nav.STOP_CHOICES) do
+        items[#items + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = shown == n,
+            func = function() nav:SetStopsShown(n) end }
+    end
+    items[#items + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
+        radio = true, checked = shown == nil, func = function() nav:SetStopsShown(nil) end }
+    for _, it in ipairs({
+        { sep = true },
         { title = true, text = "Your waypoint" },
         { text = "Set a waypoint (paste coordinates)...", func = function() ns.waypoint:Prompt() end },
         { text = "Nearest repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
@@ -157,7 +170,7 @@ function Menu:RouteItemsRaw()
         { sep = true },
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },
-    }
+    }) do items[#items + 1] = it end
     -- In a group: your own route or the shared party route (never switched
     -- for you), share one, or leave it.
     local P = ns.party

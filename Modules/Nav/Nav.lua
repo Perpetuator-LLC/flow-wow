@@ -845,6 +845,34 @@ function N:PlanLabels(plan)
     return out
 end
 
+-- Stops on the map: how many upcoming stops the world map and the Flow
+-- Tracker show. nil = all of them (the default), 1 = just the next stop.
+-- The whole trip is still planned (the next stop depends on everything after
+-- it), and the Flow Router still lists all of it so you can pick any stop.
+N.STOP_CHOICES = { 1, 3, 5, 10 }
+function N:StopsShown()
+    local n = tonumber(ns.db.nav.stopsShown)
+    if n and n >= 1 then return math.floor(n) end
+    return nil
+end
+-- Is stop i drawn? Past your limit only the stop you point at is.
+function N:ShowStop(i, pointed)
+    local limit = self:StopsShown()
+    return (pointed and true) or limit == nil or i <= limit
+end
+function N:SetStopsShown(n)
+    n = tonumber(n)
+    ns.db.nav.stopsShown = (n and n >= 1) and math.floor(n) or nil
+    if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
+    if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
+end
+function N:StopsShownLabel(n)
+    if n == nil then n = self:StopsShown() end
+    if not n or n < 1 then return "All stops" end
+    if n == 1 then return "Next stop only" end
+    return string.format("Next %d stops", n)
+end
+
 -- The kind of a stop (accept, turnin, kill, collect, ...): set by the goal's
 -- provider, or worked out from its key for older goals.
 function N:StopKind(goal)
@@ -2046,6 +2074,16 @@ ns.commands.nav = function(arg)
             ns:Print("route objectives (now: " .. (ns.xpValue:Objective()) .. "):")
             for _, o in ipairs(ns.xpValue:List()) do print("  " .. o.key .. " - " .. o.label) end
             print("  /flow nav sort <key>")
+        end
+    elseif arg:find("^stops") then
+        -- How many upcoming stops the map and the Flow Tracker show.
+        local v = arg:match("^stops%s+(%S+)")
+        local n = v and tonumber(v)
+        if v == "all" or (n and n >= 1) then
+            N:SetStopsShown(n)
+            ns:Print("stops on the map and in the Flow Tracker: " .. N:StopsShownLabel())
+        else
+            ns:Print("stops shown: " .. N:StopsShownLabel() .. ". /flow nav stops 1|3|5|10|all (any number works)")
         end
     elseif arg == "xp" or arg == "xp on" or arg == "xp off" or arg == "distance" then
         ns.xpValue:Set(arg ~= "xp off" and arg ~= "distance")
