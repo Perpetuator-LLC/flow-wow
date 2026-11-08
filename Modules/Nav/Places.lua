@@ -196,9 +196,12 @@ function P.ShareLines(places, mailboxes)
     for name, spot in pairs(places or {}) do
         local roles = {}
         for _, r in ipairs(SHARE_ROLES) do if P.HasRole(spot, r) then roles[#roles + 1] = r end end
-        -- Only NPCs that do something for you, with a place, and a name that fits the format.
-        if #roles > 0 and spot.map and spot.x and spot.y and not name:find("|", 1, true) then
-            local f = spot.factions or {}
+        -- Only NPCs that do something for you, with a place, a name that fits the
+        -- format, and a known faction (spots learned before 0.35.90 don't say,
+        -- and an account can have both: Elwynn's vendors must never reach a
+        -- tauren; they get it the next time you talk to them).
+        local f = spot.factions or {}
+        if #roles > 0 and spot.map and spot.x and spot.y and not name:find("|", 1, true) and (f.Alliance or f.Horde) then
             lines[#lines + 1] = string.format("P|%s|%s|%d|%.4f|%.4f|%s|%s", name, spot.id and tostring(spot.id) or "",
                 spot.map, spot.x, spot.y, table.concat(roles, ","), (f.Alliance and "A" or "") .. (f.Horde and "H" or ""))
         end

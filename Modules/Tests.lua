@@ -2581,10 +2581,11 @@ ns:Register("test", "sharing places: NPCs only, opt in, and other players' spots
     local places = {
         ["Harb Clawhoof"] = { map = 1412, x = 0.47123, y = 0.6034, id = 3685, roles = { vendor = true, repair = true, npc = true }, factions = { Horde = true } },
         ["Just Talking"] = { map = 1412, x = 0.5, y = 0.5, roles = { npc = true } },
-        ["Pipe|Name"] = { map = 1412, x = 0.5, y = 0.5, roles = { vendor = true } },
+        ["Pipe|Name"] = { map = 1412, x = 0.5, y = 0.5, roles = { vendor = true }, factions = { Horde = true } },
+        ["Old Spot"] = { map = 1429, x = 0.4, y = 0.6, roles = { vendor = true } },   -- learned before factions: not shared
     }
     local lines = P.ShareLines(places, { { map = 1412, x = 0.46, y = 0.58 } })
-    t:eq(#lines, 2, "the vendor and the mailbox (not a plain chat, not a name that breaks the format)")
+    t:eq(#lines, 2, "the vendor and the mailbox (not a plain chat, a name that breaks the format, or a spot with no faction)")
     t:eq(lines[1], "M|1412|0.4600|0.5800", "a mailbox line")
     t:eq(lines[2], "P|Harb Clawhoof|3685|1412|0.4712|0.6034|vendor,repair|H", "an NPC line: name, ID, where, roles, faction")
     -- Shared spots (Learned\Places.lua) used for your faction only.
