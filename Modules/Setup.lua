@@ -35,8 +35,24 @@ local function cvarRow(key, order, label, why, name, onValue, offValue, suggeste
     })
 end
 
-cvarRow("autoLoot", 10, "Auto loot", "Loot everything with one click instead of picking each item.",
-    "autoLootDefault", "1", "0", true)
+-- Auto loot: while "Leave junk behind" is on (Items/LootFilter.lua), Flow
+-- does the auto-looting and the game's own is off, so this row follows Flow's.
+ns:Register("setupItem", "autoLoot", {
+    order = 10, label = "Auto loot", why = "Loot everything with one click instead of picking each item.",
+    available = function() return cvar("autoLootDefault") ~= nil end,
+    isOn = function()
+        local L = ns.db.loot
+        if L and L.skipJunk then return L.auto ~= false end
+        return cvar("autoLootDefault") == "1"
+    end,
+    set = function(on)
+        local L = ns.db.loot
+        if L and L.skipJunk then L.auto = on and true or false return end
+        SetCVar("autoLootDefault", on and "1" or "0")
+    end,
+    suggested = true,
+    default = function() return cvarDefault("autoLootDefault") == "1" end,
+})
 cvarRow("enemyPlates", 20, "Enemy nameplates", "Flow's quest marks (skull, diamond) sit on nameplates.",
     "nameplateShowEnemies", "1", "0", true)
 cvarRow("friendPlates", 30, "Friendly nameplates", "Shows Flow's star on NPCs your quests mention.",

@@ -259,6 +259,10 @@ local function build(parent)
         "Sells every grey item as soon as you open a vendor.",
         function() return ns.db.sell.autoJunk == true end,
         function(on) ns.db.sell.autoJunk = on end)
+    _, y = check(f, y, "Leave junk behind when looting", "(Flow auto-loots the rest)",
+        "Grey items stay in the corpse; everything else (money, quest items, gear, materials) is looted for you. The game's own Auto Loot can't skip junk, so Flow does the looting while this is on and gives it back when you turn this off. Hold Shift to loot by hand.",
+        function() return ns.db.loot.skipJunk == true end,
+        function(on) ns.lootFilter:SetEnabled(on) end)
     _, y = check(f, y, "Turn in finished quests for you", "(hold Shift at the NPC to skip)",
         "Talk to the NPC and Flow picks the finished quest, completes it and takes the reward. With several rewards to choose from, you pick (the green arrow is Flow's pick). Quests that take gold are left to you.",
         function() return ns.db.quests.autoTurnIn ~= false end,

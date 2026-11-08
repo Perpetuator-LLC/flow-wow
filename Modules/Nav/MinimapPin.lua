@@ -322,7 +322,8 @@ function P:Update(p, pt, goal)
     local d = math.sqrt(x * x + y * y)
     local edge = d > radius - 6
     if edge then x, y = x / d * (radius - 6), y / d * (radius - 6) end
-    local col = (goal and goal.key == "user:wp") and ns.theme.waypoint or ns.theme.route   -- your waypoint: green
+    -- Your waypoint, or a party member you follow: green.
+    local col = (goal and (goal.key == "user:wp" or goal.key == "user:follow")) and ns.theme.waypoint or ns.theme.route
     pin.dot:SetVertexColor(col[1], col[2], col[3], 1)
     pin.ring:SetVertexColor(col[1], col[2], col[3], 1)
     pin:SetSize(edge and 12 or 16, edge and 12 or 16)

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.35.73
+- **Whose quests your route covers**, in a group with other Flow players:
+  - **Mine:** your own quests.
+  - **Combined:** yours and every Flow party member's, planned as one optimal route. Each
+    spot is visited once and says who it's for.
+  - **Just Bob's:** only what Bob still needs, where he hands in, and your own stops only
+    where you need the same thing.
+
+  Choose it from the "Quests: ... (click: change)" line under the arrow, the route menu
+  (right-click the arrow, or the Flow Router's Route menu), or
+  `/flow party quests mine|combined|<name>`. When someone's progress first comes in, Flow
+  asks once: Combined, Just Bob's, or Not now.
+- A party member's stop that you've already done yourself (that objective, or the whole
+  quest) now says **(done for you)**, so it's clear it's only for them.
+- **Follow a party member:** the arrow points at them in green and keeps following as they
+  move. "Following Bob (click: stop)" shows under the arrow; the route carries on underneath.
+  **Waypoint at Bob** drops your waypoint where Bob is right now. Both are in the route menu's
+  "Party members" section, or use `/flow follow <name>|off`. Where the game hides a party
+  member's position, Flow players send it to whoever follows them.
+- Paladin: a seal is suggested whenever you have none, not only once you target an enemy, so
+  it's already up when a fight starts. (A fight that started without one locked the key to
+  Judgement, which can't work without a seal.) Not in inns and cities.
+- New, off by default: **Leave junk behind when looting** (/flow settings). Grey items stay in
+  the corpse and everything else is looted for you. The game's Auto Loot can't skip junk, so
+  Flow does the looting while this is on and gives Auto Loot back when you turn it off. Hold
+  Shift to loot by hand.
+
 ## 0.35.72
 - Quest sharing in a party. A quest you pick up is shared when a party member doesn't have
   it. When a Flow player joins (or their quest list comes in), the quests you have and they

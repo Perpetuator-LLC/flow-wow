@@ -186,6 +186,11 @@ function Menu:RouteItemsRaw()
         else
             items[#items + 1] = { text = "Share a party route", func = function() P:Share() end }
         end
+        -- Whose quests the route covers (Flow players who shared progress),
+        -- and following a party member with the arrow.
+        local H = ns.partyHelp
+        if H then for _, it in ipairs(H:MenuItems()) do items[#items + 1] = it end end
+        if ns.follow then for _, it in ipairs(ns.follow:MenuItems()) do items[#items + 1] = it end end
     end
     return items
 end

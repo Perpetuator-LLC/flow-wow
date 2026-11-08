@@ -361,6 +361,9 @@ function N:Collect()
         end
         list = questsOnly
     end
+    -- "Just <name>'s" quests (PartyHelp.lua): only theirs, and yours where
+    -- they need the same thing.
+    if ns.partyHelp then list = ns.partyHelp:FilterGoals(list) end
     -- Stops you hid (right-click on the map) stay out of the route; they're
     -- kept in N.hiddenGoals so the map panel can list and unhide them.
     local hidden = ns.db.nav.hidden or {}
@@ -1130,12 +1133,9 @@ function N:Options(sel)
     if not tour and not sel.first and self:Mode() ~= "quests" then
         tour = self:PickupKeys()
     end
-    -- Helping a party member (PartyHelp.lua): their priority list first,
-    -- unless you picked a stop yourself.
-    if ns.partyHelp and ns.partyHelp:Helping() and not sel.first and not sel.tour then
-        local help = ns.partyHelp:TourNow(present)
-        if next(help) then tour = help end
-    end
+    -- (Party members' quests, PartyHelp.lua, need no order of their own:
+    -- "Combined" is one optimal route over everyone's stops, and "Just
+    -- <name>'s" leaves only theirs on the route.)
     -- Shared party route: its stops come first, in the shared order (their
     -- deps chain), before your own goals.
     if ns.party and ns.party:Following() then
@@ -1692,7 +1692,12 @@ local function buildArrow()
         if button == "RightButton" then
             -- Menu: this stop, then route and order choices, unhide all.
             local items = {}
-            if current and current.waypoint then
+            if current and current.follow then
+                -- Following a party member (Follow.lua).
+                items[#items + 1] = { title = true, text = current.goal.text or "Following" }
+                items[#items + 1] = { text = "Stop following (back to the route)", func = function() ns.follow:Stop() end }
+                items[#items + 1] = { sep = true }
+            elseif current and current.waypoint then
                 -- Following your own waypoint (not a route stop).
                 items[#items + 1] = { title = true, text = current.goal.text or "Your waypoint" }
                 items[#items + 1] = { text = "Clear it (back to the route)", func = function()
@@ -1893,7 +1898,8 @@ local function update()
     if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then return end
 
     local choice = choose(p)          -- (keeps the route planned, waypoint or not)
-    choice = N.WaypointChoice(p) or choice
+    -- A party member you follow (Follow.lua), else your own waypoint, else the route.
+    choice = (ns.follow and ns.follow.Choice(p)) or N.WaypointChoice(p) or choice
     current = choice
     N.current = choice  -- for Flow Actions (Modules/Rotation/Actions.lua)
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, choice and choice.point, choice and choice.goal) end

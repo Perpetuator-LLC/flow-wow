@@ -22,6 +22,16 @@ local function needSeal(c)
     return left < (c.inCombat and 3 or 8)
 end
 
+-- When to put a seal on: missing or running out at a pull or in a fight,
+-- and also out of combat whenever you have none at all, so it's already up
+-- when a fight starts. (A fight that started without one locked the key to
+-- Judgement, which fails with no seal: "cast failed: Judgement" in the log.)
+-- Not in inns and cities: the engine skips buffs while you're resting.
+local function wantSeal(c)
+    if c.hostile or c.inCombat then return needSeal(c) end
+    return not hasSeal()
+end
+
 -- Blessing missing, or under 30 seconds left while you're out of combat.
 local function needBlessing()
     local up, left = A.Buff("player", function(n) return n and n:find("^Blessing of") end)
@@ -53,12 +63,12 @@ local buffs = {
           return not c.inCombat and needBlessing() and not c.engine:Knows("Blessing of Might")
       end },
     -- Tanks use Seal of Fury (Forever, level 10); everyone else Righteousness.
-    { spell = "Seal of Fury", kind = "buff", reason = "Seal missing or running out (tanking)",
-      when = function(c) return c.role == "tank" and (c.hostile or c.inCombat) and needSeal(c) end },
-    { spell = "Seal of Righteousness", kind = "buff", reason = "Seal missing or running out",
+    { spell = "Seal of Fury", kind = "buff", reason = "No seal, or running out (tanking)",
+      when = function(c) return c.role == "tank" and wantSeal(c) end },
+    { spell = "Seal of Righteousness", kind = "buff", reason = "No seal, or running out",
       when = function(c)
           local tankSeal = c.role == "tank" and c.engine:Knows("Seal of Fury")
-          return not tankSeal and (c.hostile or c.inCombat) and needSeal(c)
+          return not tankSeal and wantSeal(c)
       end },
 }
 
@@ -136,6 +146,7 @@ end
 
 ns:Register("rotation", "PALADIN", {
     guide = guide,
+    wantSeal = wantSeal,   -- (tests)
 
     -- Self-heals, considered before anything else (see Engine HealDecision).
     heals = { "Flash of Light", "Holy Light", "Word of Glory" },

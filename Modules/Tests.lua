@@ -1847,7 +1847,7 @@ ns:Register("test", "party help: quest progress is shared and read back", functi
     t:eq(H.ToDo(back), 1, "one quest left to do (the other is ready to hand in)")
 end)
 
-ns:Register("test", "party help: their priority list goes first, without doubling yours", function(t)
+ns:Register("test", "party quests: just theirs keeps their stops, without doubling yours", function(t)
     local H = ns.partyHelp
     local mine = { [86] = { objectives = { { finished = false }, { finished = true } } } }
     t:ok(H.Skip("help:86:1", mine), "an objective you still need too: your own stop covers it")
@@ -1855,9 +1855,24 @@ ns:Register("test", "party help: their priority list goes first, without doublin
     t:ok(H.Skip("help:86:done", mine), "a quest you both have: your own turn-in")
     t:ok(not H.Skip("help:90:1", mine), "a quest only they have: added")
     local their = { [86] = { complete = false, objectives = { { finished = false }, { finished = true } } } }
-    local tour = H.Tour({ ["help:90:1"] = true, ["86:1"] = true, ["86:2"] = true, ["77:1"] = true }, their)
-    t:ok(tour["help:90:1"] and tour["86:1"], "their stops and your shared ones come first")
-    t:ok(not tour["86:2"] and not tour["77:1"], "not what they've done, nor your own other quests")
+    local list = { { key = "help:90:1" }, { key = "86:1" }, { key = "86:2" }, { key = "86:done" },
+                   { key = "77:1" }, { key = "pickup:5" }, { key = "party:x1" } }
+    local kept = {}
+    for _, g in ipairs(H.Keep(list, their)) do kept[g.key] = true end
+    t:ok(kept["help:90:1"] and kept["86:1"] and kept["86:done"], "their stops, and yours where they need the same")
+    t:ok(not kept["86:2"] and not kept["77:1"] and not kept["pickup:5"], "not what they've done, nor your other quests or pickups")
+    t:ok(kept["party:x1"], "party-route stops stay")
+end)
+
+ns:Register("test", "party quests: a stop you've done yourself says so", function(t)
+    local H = ns.partyHelp
+    local mineE = { complete = false, objectives = { { finished = true }, { finished = false } } }
+    t:ok(H.DoneForYou("help:86:1", mineE, false), "your objective 1 is finished: done for you")
+    t:ok(not H.DoneForYou("help:86:2", mineE, false), "objective 2 isn't: no mark")
+    t:ok(H.DoneForYou("help:86:2", { complete = true, objectives = {} }, false), "your quest is ready to hand in: done")
+    t:ok(H.DoneForYou("help:90:done", nil, true), "a quest you handed in before: done")
+    t:ok(not H.DoneForYou("help:90:1", nil, false), "a quest you've never had: no mark")
+    t:ok(not H.DoneForYou("86:1", mineE, false), "only their stops get the mark")
 end)
 
 ns:Register("test", "party help: a member's quest becomes stops with their name on", function(t)
@@ -1936,4 +1951,40 @@ ns:Register("test", "quest sharing: share what party members are missing, once e
     t:eq(QS.Count(members), 2, "two Flow players")
     with(ns.db.quests, "share", false, function() t:ok(not QS.Enabled(), "the settings box turns it off") end)
     with(ns.db.quests, "share", nil, function() t:ok(QS.Enabled(), "on by default") end)
+end)
+
+ns:Register("test", "loot: leave junk behind, take everything else", function(t)
+    local L = ns.lootFilter
+    local ITEM, MONEY = (Enum and Enum.LootSlotType and Enum.LootSlotType.Item) or 1, (Enum and Enum.LootSlotType and Enum.LootSlotType.Money) or 2
+    t:ok(not L.Take(ITEM, 0, false, false), "a grey item stays")
+    t:ok(L.Take(ITEM, 1, false, false), "a white item is taken")
+    t:ok(L.Take(ITEM, 0, true, false), "a quest item is always taken, even grey")
+    t:ok(L.Take(MONEY, 0, false, false), "money is always taken")
+    t:ok(not L.Take(ITEM, 2, false, true), "a locked slot (someone's roll) is left alone")
+    with(ns.db.loot, "skipJunk", nil, function() t:ok(not L.Enabled(), "off by default") end)
+end)
+
+ns:Register("test", "paladin: a seal goes on whenever you have none", function(t)
+    local def = ns:Get("rotation", "PALADIN")
+    local A = ns.api
+    with(A, "Buff", function() return false, 0 end, function()
+        t:ok(def.wantSeal({ hostile = false, inCombat = false }), "out of combat, no seal: put one on")
+        t:ok(def.wantSeal({ hostile = true, inCombat = false }), "an enemy targeted, no seal: put one on")
+    end)
+    with(A, "Buff", function() return true, 20 end, function()
+        t:ok(not def.wantSeal({ hostile = false, inCombat = false }), "seal up: nothing")
+        t:ok(not def.wantSeal({ hostile = false, inCombat = true }), "in a fight with 20 s left: nothing")
+    end)
+    with(A, "Buff", function() return true, 2 end, function()
+        t:ok(def.wantSeal({ hostile = true, inCombat = true }), "in a fight, about to drop: refresh")
+        t:ok(not def.wantSeal({ hostile = false, inCombat = false }), "out of combat, still up: no nagging")
+    end)
+end)
+
+ns:Register("test", "follow: the arrow follows a party member only while you follow one", function(t)
+    local F = ns.follow
+    t:eq(F:Target(), nil, "not following anyone at first")
+    t:eq(F.Choice({ map = 1, cont = 0, wx = 0, wy = 0 }), nil, "no one to follow: the arrow stays on the route")
+    t:eq(F.UnitOf("Nobody-Here"), nil, "someone not in your group has no unit")
+    t:ok(type(F:MenuItems()) == "table", "menu items build")
 end)

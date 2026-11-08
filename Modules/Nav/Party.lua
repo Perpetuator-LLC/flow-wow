@@ -468,6 +468,10 @@ ns.commands.party = function(arg)
     elseif arg == "leave" then P:Leave()
     elseif arg:find("^help") then
         if ns.partyHelp then ns.partyHelp:Command(arg:match("^help%s*(.*)$")) end
+    elseif arg:find("^quests") then
+        if ns.partyHelp then ns.partyHelp:Command(arg:match("^quests%s*(.*)$")) end
+    elseif arg:find("^follow%s+%S") then
+        if ns.follow then ns.follow:Command(arg:match("^follow%s+(.*)$")) end
     else
         if state.joined then
             ns:Print(string.format("party route: %d stops, last edit by %s. You're following %s.",
@@ -478,13 +482,14 @@ ns.commands.party = function(arg)
             ns:Print("no party route.")
         end
         if ns.partyHelp then ns.partyHelp:Status() end
-        print("  /flow party share|follow|mine|leave|help <name>|help off")
+        print("  /flow party share|follow|mine|leave, /flow party quests mine|combined|<name>, /flow follow <name>|off")
     end
 end
 
 ns:Register("help", "party", { order = 45, title = "Party routes", lines = {
     "Joining a group asks if you want to follow the party route; your own route always stays separate.",
     "Forming a group as leader makes one (shared quests first). Toggle under the arrow: party / mine.",
-    "Flow players in a group share how far they are on each quest; Flow asks if you want to help one (their quests first on your route).",
-    "/flow party share|follow|mine|leave, /flow party help <name>|off",
+    "Flow players in a group share how far they are on each quest. Whose quests your route covers: Mine, Combined (one route for everyone's) or Just <name>'s: under the arrow or the route menu.",
+    "Follow a party member: the arrow points at them (route menu, or /flow follow <name>).",
+    "/flow party share|follow|mine|leave, /flow party quests mine|combined|<name>",
 } })
