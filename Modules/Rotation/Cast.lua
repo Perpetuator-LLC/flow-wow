@@ -294,6 +294,7 @@ end
 
 local fight
 local afterUntil = 0   -- the after-fight heal window is recorded too (15 s after a fight)
+local lastAction       -- the Flow Action you just pressed: { label, at } (see complain below)
 ns:On("PLAYER_REGEN_DISABLED", function()
     local key = ns.db.cast.key
     fight = { at = GetTime(), ticks = 0, empty = 0, seen = {}, clicks = 0, downs = 0 }
@@ -322,6 +323,15 @@ ns:OnLoad(function()
         if s and s.before and not InCombatLockdown() then pcall(s.before) end
     end)
     btn:HookScript("PostClick", function(_, button, down)
+        local s = E.shown
+        local label = s and (s.label or s.key)
+        -- (one press clicks twice, key down and up: log it once)
+        local again = lastAction and lastAction.label == label and GetTime() - lastAction.at < 0.4
+        if not fight and s and s.kind == "action" and not again then
+            lastAction = { label = label, at = GetTime() }
+            ns:Log("action", string.format("pressed: %s (%s %s)", tostring(lastAction.label),
+                tostring(btn:GetAttribute("type")), tostring(btn:GetAttribute("item") or btn:GetAttribute("spell"))))
+        end
         if not fight and GetTime() < afterUntil then
             ns:Log("cast", string.format("after-fight press: %s down=%s spell %s unit %s", tostring(button), tostring(down),
                 tostring(btn:GetAttribute("spell")), tostring(btn:GetAttribute("unit"))))
@@ -351,7 +361,14 @@ end)
 -- target...) and failed casts go into the fight record too (first few).
 -- (afterUntil: declared with `fight` above)
 ns:On("PLAYER_REGEN_ENABLED", function() afterUntil = GetTime() + 15 end)
+-- A Flow Action you just pressed (equip an upgrade, the fishing pole...):
+-- what the game said back in the next 2 s goes in the log too, so a failing
+-- "Equip X" shows why ("You can't use that item", a level too low...).
 local function complain(what)
+    if not fight and lastAction and GetTime() - lastAction.at < 2 then
+        ns:Log("action", string.format("%s: game said: %s", tostring(lastAction.label), tostring(what)))
+        return
+    end
     if not fight and GetTime() < afterUntil then ns:Log("cast", "after fight, game said: " .. tostring(what)) return end
     if not fight then return end
     fight.errors = (fight.errors or 0) + 1

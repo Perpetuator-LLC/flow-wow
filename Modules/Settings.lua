@@ -207,6 +207,10 @@ local function build(parent)
         "Sells every grey item as soon as you open a vendor.",
         function() return ns.db.sell.autoJunk == true end,
         function(on) ns.db.sell.autoJunk = on end)
+    _, y = check(f, y, "Accept group invites from friends", "(/flow invites)",
+        "Invites from your friends list and Battle.net friends are accepted for you. Anyone else gets the usual popup.",
+        function() return ns.db.invites.friends ~= false end,
+        function(on) ns.db.invites.friends = on end)
     y = y - 10
 
     -- Suggested WoW settings (Setup.lua rows)

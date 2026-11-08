@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.65
+- Group invites from your friends (WoW friends list and Battle.net friends) are accepted for
+  you. Anyone else still gets the usual popup. Turn it off in /flow settings or with
+  /flow invites off.
+- Quest rewards: a big green arrow (the same one as "equip this" in your bags) marks the best
+  pick for your character, the biggest upgrade for the spec you're levelling. It shows when
+  you're offered the quest and again when you turn it in.
+- Gear advice never suggests something your class can't wear or wield, even for a class Flow
+  has no class data for yet (a new Druid was told to equip mail, shields and swords).
+- When you press a Flow Action such as "Equip X", what the game says back goes in the
+  diagnostics ("You can't use that item"...), so a failing equip shows why.
+
 ## 0.35.64
 - Druids are supported. Flow suggests Mark of the Wild and Thorns, then Moonfire and Wrath as
   a caster. In Bear Form it suggests Demoralizing Roar and Maul (Swipe on several enemies); in

@@ -4,9 +4,25 @@
 --     same (Gear/SpecBadge.lua, the same marks as in your bags)
 --   gold coin (top left) = nothing is an upgrade for any spec: take this one
 --     to sell (highest vendor price)
+--   big green arrow (top left) = the best pick for you: the biggest upgrade
+--     for the spec you're levelling (the same arrow as "equip this" in your
+--     bags). Shown when you're offered the quest and when you turn it in.
 
 local _, ns = ...
 local G = ns.gear
+local R = {}
+ns.questRewards = R
+
+-- The choice to take: the biggest upgrade for `role` among the ones you can
+-- use (choices[i] = G:Compare result). nil when none is an upgrade for it.
+function R.Best(choices, role)
+    local best, bestDiff
+    for i, c in pairs(choices) do
+        local d = c.canUse and c.diffs and c.diffs[role]
+        if d and ns.SpecTrend(d) == "up" and (not bestDiff or d > bestDiff) then best, bestDiff = i, d end
+    end
+    return best
+end
 
 local function rewardButton(i)
     local frame = QuestInfoRewardsFrame
@@ -33,6 +49,13 @@ local function marksFor(button)
     m.coin:SetSize(14, 14)
     m.coin:SetPoint("TOPLEFT", anchor, "TOPLEFT", -2, 2)
     m.coin:Hide()
+    m.best = button:CreateTexture(nil, "OVERLAY", nil, 7)
+    m.best:SetSize(22, 22)
+    m.best:SetPoint("TOPLEFT", anchor, "TOPLEFT", -4, 4)
+    if not (m.best.SetAtlas and pcall(m.best.SetAtlas, m.best, "bags-greenarrow")) then
+        m.best:SetColorTexture(0.2, 1, 0.2, 0.9); m.best:SetSize(10, 10)
+    end
+    m.best:Hide()
     button.flowMarks = m
     return m
 end
@@ -48,7 +71,7 @@ local function hideAll()
         if b then buttons[#buttons + 1] = b end
     end
     for _, b in ipairs(buttons) do
-        if b.flowMarks then b.flowMarks.specs:Hide(); b.flowMarks.coin:Hide() end
+        if b.flowMarks then b.flowMarks.specs:Hide(); b.flowMarks.coin:Hide(); b.flowMarks.best:Hide() end
     end
 end
 
@@ -74,7 +97,8 @@ local function pick(n)
 end
 
 local retried = false
-local function update()
+local lastLogged
+local function update(why)
     if not ns.db.gear.enabled then return end
     hideAll()
     -- Only the NPC quest dialog: the quest log reuses the same reward
@@ -83,25 +107,32 @@ local function update()
     local n = GetNumQuestChoices and GetNumQuestChoices() or 0
     if n < 1 then return end
     local choices, sellIndex, missing = pick(n)
+    local best = n > 1 and R.Best(choices, ns:LevelingRole()) or nil
+    local marked = 0
     for i, c in pairs(choices) do
         local b = rewardButton(i)
         if b then
             local m = marksFor(b)
+            marked = marked + 1
             if c.canUse then m.specs:Set(c.diffs) else m.specs:Hide() end
             m.coin:SetShown(i == sellIndex and n > 1)
+            m.best:SetShown(i == best)
         end
     end
+    -- (for the diagnostics: which reward was marked, and whether its button was found)
+    local line = string.format("%s: %d choice(s), best for you %s, marked %d", tostring(why), n, tostring(best), marked)
+    if line ~= lastLogged then lastLogged = line; ns:Log("rewards", line) end
     -- Item info may not be loaded the first time; try once more shortly.
     if missing and not retried then
         retried = true
-        C_Timer.After(0.5, function() pcall(update) end)
+        C_Timer.After(0.5, function() pcall(update, why) end)
     end
 end
-local function schedule()
+local function schedule(why)
     retried = false
-    C_Timer.After(0, function() pcall(update) end)
+    C_Timer.After(0, function() pcall(update, why) end)
 end
 
-ns:On("QUEST_COMPLETE", schedule)
-ns:On("QUEST_DETAIL", schedule)
-if QuestInfo_Display then hooksecurefunc("QuestInfo_Display", schedule) end
+ns:On("QUEST_COMPLETE", function() schedule("turn in") end)
+ns:On("QUEST_DETAIL", function() schedule("offered") end)
+if QuestInfo_Display then hooksecurefunc("QuestInfo_Display", function() schedule("shown") end) end

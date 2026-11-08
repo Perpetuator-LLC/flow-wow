@@ -212,12 +212,32 @@ end
 ns:On("SPELLS_CHANGED", function() reliable = nil end)
 ns:On("PLAYER_EQUIPMENT_CHANGED", function() reliable = nil end)
 
+-- What each class can wear and wield (classic rules), for a class Flow has no
+-- class data for yet. Without it every item counted as usable, so a new
+-- Druid was told to equip mail, shields and swords, and the game refused.
+-- Armor (4): 0 misc, 1 cloth, 2 leather, 3 mail, 4 plate, 6 shield,
+--   7 libram, 8 idol, 9 totem. Weapons (2): see G.SKILL_NAME; 20 fishing pole.
+local function set(...) local t = {} for _, k in ipairs({ ... }) do t[k] = true end return t end
+G.CLASS_PROFICIENCY = {
+    WARRIOR = { [4] = set(0, 1, 2, 3, 4, 6), [2] = set(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18, 20) },
+    PALADIN = { [4] = set(0, 1, 2, 3, 4, 6, 7), [2] = set(0, 1, 4, 5, 6, 7, 8, 20) },
+    HUNTER  = { [4] = set(0, 1, 2, 3), [2] = set(0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 16, 18, 20) },
+    ROGUE   = { [4] = set(0, 1, 2), [2] = set(2, 3, 4, 7, 13, 15, 16, 18, 20) },
+    PRIEST  = { [4] = set(0, 1), [2] = set(4, 10, 15, 19, 20) },
+    SHAMAN  = { [4] = set(0, 1, 2, 3, 6, 9), [2] = set(0, 1, 4, 5, 10, 13, 15, 20) },
+    MAGE    = { [4] = set(0, 1), [2] = set(7, 10, 15, 19, 20) },
+    WARLOCK = { [4] = set(0, 1), [2] = set(7, 10, 15, 19, 20) },
+    DRUID   = { [4] = set(0, 1, 2, 8), [2] = set(4, 5, 6, 10, 13, 15, 20) },
+}
+
 -- true, or false plus why: "class" (your class never can) or "train" (learn
 -- the weapon skill from a weapon master first).
 function G:CanUse(item)
     local d = ns:ClassData()
-    if not d then return true end
-    local allowed = d.proficiency[item.classID]
+    local _, class = UnitClass("player")
+    local prof = (d and d.proficiency) or G.CLASS_PROFICIENCY[class]
+    if not prof then return true end
+    local allowed = prof[item.classID]
     if allowed and not allowed[item.subclassID] then return false, "class" end
     if item.classID == 2 and SKILL_SPELL[item.subclassID] and self:WeaponSkillsKnown()
         and not knows(SKILL_SPELL[item.subclassID]) then

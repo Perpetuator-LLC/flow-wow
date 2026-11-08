@@ -1576,3 +1576,44 @@ ns:Register("test", "druid: Moonfire remembered on the same target when auras ar
         t:ok(not A.DebuffFromMemory("Wrath", "mob-1", 101), "not a debuff: nothing remembered")
     end)
 end)
+
+ns:Register("test", "gear: never suggests what your class can't wear, even without class data", function(t)
+    local G, P = ns.gear, ns.gear.CLASS_PROFICIENCY
+    t:ok(P.DRUID[4][2] and not P.DRUID[4][3] and not P.DRUID[4][6], "druid: leather, no mail, no shield")
+    t:ok(not P.DRUID[2][7] and P.DRUID[2][10], "druid: no swords, staves fine")
+    t:ok(not P.MAGE[4][6] and P.WARRIOR[4][4], "mage: no shield; warrior: plate")
+    local _, class = UnitClass("player")
+    local mine = P[class]
+    local banned
+    for sub = 0, 9 do if mine and not mine[4][sub] then banned = sub break end end
+    with(ns, "ClassData", function() return nil end, function()
+        if banned then
+            t:eq(G:CanUse({ classID = 4, subclassID = banned }), false, "armor your class can't wear: not usable")
+        end
+        t:eq(G:CanUse({ classID = 4, subclassID = 1 }), true, "cloth: usable")
+    end)
+end)
+
+ns:Register("test", "invites: friends' group invites are accepted, others aren't", function(t)
+    local I = ns.invites
+    local friends = { names = { bob = true }, guids = { ["Player-1-00AA"] = true } }
+    t:ok(I.IsFriend("Bob", nil, friends), "a friend by name")
+    t:ok(I.IsFriend("Bob-Doomhowl", nil, friends), "a friend from another realm (Name-Realm)")
+    t:ok(I.IsFriend("Someone", "Player-1-00AA", friends), "a Battle.net friend by character")
+    t:ok(not I.IsFriend("Stranger", "Player-1-00BB", friends), "a stranger: the usual popup")
+    t:ok(not I.IsFriend(nil, nil, friends), "no name: no")
+    t:ok(type(I.Friends().names) == "table", "reads your friends list")
+end)
+
+ns:Register("test", "quest rewards: the big arrow goes on your best upgrade", function(t)
+    local R = ns.questRewards
+    local choices = {
+        [1] = { canUse = true, diffs = { dps = 2, heal = 0, tank = 0 } },
+        [2] = { canUse = true, diffs = { dps = 5, heal = -1, tank = 0 } },
+        [3] = { canUse = false, diffs = { dps = 9, heal = 0, tank = 0 } },
+        [4] = { canUse = true, diffs = { dps = 0, heal = 7, tank = 0 } },
+    }
+    t:eq(R.Best(choices, "dps"), 2, "biggest upgrade you can use, for your spec")
+    t:eq(R.Best(choices, "heal"), 4, "another spec, another pick")
+    t:eq(R.Best({ [1] = { canUse = true, diffs = { dps = 0.1 } } }, "dps"), nil, "no upgrade: no arrow (the coin says what to sell)")
+end)
