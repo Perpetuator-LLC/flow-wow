@@ -86,10 +86,13 @@ local function assistantSpell()
     if ok and id then return (A.SpellInfo(id)) end
 end
 
+-- "`" or "` / F" (both keys).
 function C:KeyLabel()
-    local key = ns.db.cast.key
-    if not key then return "" end
-    return (GetBindingText and GetBindingText(key, "KEY_", true)) or key
+    local out = {}
+    for _, key in ipairs(C.KeysOf(ns.db.cast)) do
+        out[#out + 1] = (GetBindingText and GetBindingText(key, "KEY_", true)) or key
+    end
+    return table.concat(out, " / ")
 end
 
 -- The easy button's tooltip: what it does now (the spell's or item's own
@@ -211,12 +214,23 @@ end
 local owner = CreateFrame("Frame")
 local pendingKey = false
 
+-- Your easy-button keys: up to two (ns.db.cast.key and .key2), both cast the
+-- suggestion. Returns the ones set, without repeats.
+function C.KeysOf(cast)
+    local out = {}
+    if not cast then return out end
+    -- (not ipairs over {key, key2}: it stops at a missing first key)
+    if cast.key then out[#out + 1] = cast.key end
+    if cast.key2 and cast.key2 ~= cast.key then out[#out + 1] = cast.key2 end
+    return out
+end
+function C:Keys() return C.KeysOf(ns.db.cast) end
+
 function C:ApplyKey()
     if InCombatLockdown() then pendingKey = true return end
     pendingKey = false
     ClearOverrideBindings(owner)
-    local key = ns.db.cast.key
-    if key then
+    for _, key in ipairs(self:Keys()) do
         if interact then SetOverrideBinding(owner, true, key, "INTERACTTARGET")
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
     end
@@ -245,8 +259,9 @@ local MOVEMENT = {
 }
 function C:IsMovement(action) return MOVEMENT[action] == true end
 
-function C:SetKey(key)
-    ns.db.cast.key = key
+-- slot 1 (your key) or 2 (a second key for the same button).
+function C:SetKey(key, slot)
+    if slot == 2 then ns.db.cast.key2 = key else ns.db.cast.key = key end
     self:ApplyKey()
 end
 
@@ -311,18 +326,20 @@ end)
 -- Re-apply the key once the game has loaded its own bindings.
 ns:On("PLAYER_ENTERING_WORLD", function() C:ApplyKey() end)
 ns:On("UPDATE_BINDINGS", function()
-    if not InCombatLockdown() and ns.db.cast.key and GetBindingAction(ns.db.cast.key, true) == "" then
-        C:ApplyKey()
+    if InCombatLockdown() then return end
+    for _, key in ipairs(C:Keys()) do
+        if GetBindingAction(key, true) == "" then C:ApplyKey() return end
     end
 end)
 
--- /flow key test: what your key does right now.
+-- /flow key test: what your keys do right now.
 function C:Test()
-    local key = ns.db.cast.key
+    local keys = self:Keys()
     ns:Print("cast key check:")
-    print("  key: " .. (key and (self:KeyLabel() .. " (" .. key .. ")") or "not set (/flow settings)"))
-    if key then
-        print("  key is bound to: " .. tostring(GetBindingAction(key, true)))
+    if #keys == 0 then print("  key: not set (/flow settings)") end
+    for i, key in ipairs(keys) do
+        print(string.format("  key%s: %s (%s), bound to %s", i == 1 and "" or " " .. i,
+            (GetBindingText and GetBindingText(key, "KEY_", true)) or key, key, tostring(GetBindingAction(key, true))))
     end
     print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
         .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
@@ -540,8 +557,11 @@ if spy.SetPropagateKeyboardInput then
     spy:EnableKeyboard(true)
 end
 spy:SetScript("OnKeyDown", function(_, key)
-    local mine = ns.db and ns.db.cast and ns.db.cast.key
-    if not mine or key ~= mine:match("[^-]+$") then return end
+    local mine
+    for _, k in ipairs(ns.db and ns.db.cast and C.KeysOf(ns.db.cast) or {}) do
+        if key == k:match("[^-]+$") then mine = k end
+    end
+    if not mine then return end
     -- (key press noted below)
     clicksAtPress = fight and fight.clicks or 0
     if fight then fight.keys = (fight.keys or 0) + 1 end

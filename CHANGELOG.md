@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.81
+- **Two keys for the easy button.** /flow settings has a "Second key" row under "Your key",
+  with its own Set and Clear buttons. Both keys cast Flow's suggestion, and the icon shows
+  both ("` / F").
+- **The arrow points straight at your stop.** It used to follow trails you'd walked whenever
+  one was up to 4 times longer than the straight line, and pointed at the next trail point
+  even after you'd passed it, so it wandered. Now:
+  - outdoors it points straight at the stop;
+  - into caves and buildings it still follows the way you walked in, or heads for the
+    entrance;
+  - "Arrow follows paths you've walked" (/flow settings, off by default) uses outdoor trails
+    again, but only ones at most 1.5 times the straight line, and it leads to the furthest
+    trail point ahead of you instead of one behind.
+
 ## 0.35.80
 - **A gentle start for new players.** The first time anyone uses Flow, nothing is on screen at
   login (no intro, no arrow, no Tracker). Flow's pieces fade in one at a time as you play, each

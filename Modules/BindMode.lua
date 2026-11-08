@@ -53,7 +53,7 @@ end
 local function stagedKeysFor(cmd)
     local keys = {}
     if cmd == FLOW_CAST then
-        if ns.db.cast.key then keys[ns.db.cast.key] = true end
+        for _, k in ipairs(ns.cast:Keys()) do keys[k] = true end   -- (both of Flow's keys)
     else
         for _, k in ipairs({ GetBindingKey(cmd) }) do keys[k] = true end
     end

@@ -52,6 +52,8 @@ local function refresh()
     if not frame then return end
     frame.keyValue:SetText(label(ns.db.cast.key))
     frame.clear:SetEnabled(ns.db.cast.key ~= nil)
+    frame.key2Value:SetText(label(ns.db.cast.key2))
+    frame.clear2:SetEnabled(ns.db.cast.key2 ~= nil)
     for _, c in ipairs(frame.checks or {}) do
         local ok, on = pcall(c.get)
         c:SetChecked(ok and on and true or false)
@@ -77,7 +79,7 @@ local function choose(key)
     stopCapture()
     local what, action = ns.cast:Conflict(key)
     if not what then
-        ns.cast:SetKey(key)
+        ns.cast:SetKey(key, frame.slot)
         frame.status:SetText("|cff66ff66" .. label(key) .. " now casts Flow's suggestion.|r")
         refresh()
         return
@@ -198,11 +200,22 @@ local function build(parent)
     set:SetPoint("TOPLEFT", 250, y)
     f.clear = button(f, "Clear", 80)
     f.clear:SetPoint("LEFT", set, "RIGHT", 8, 0)
+    -- A second key for the same button (e.g. one under each hand).
+    local name2 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    name2:SetPoint("TOPLEFT", 16, y - 32)
+    name2:SetText("Second key:")
+    f.key2Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.key2Value:SetPoint("LEFT", name2, "RIGHT", 12, 0)
+    local set2 = button(f, "Set key", 90)
+    set2:SetPoint("TOPLEFT", 250, y - 28)
+    f.clear2 = button(f, "Clear", 80)
+    f.clear2:SetPoint("LEFT", set2, "RIGHT", 8, 0)
+    y = y - 28
     local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     help:SetPoint("TOPLEFT", 16, y - 32)
     help:SetWidth(WIDTH - 40)
     help:SetJustifyH("LEFT")
-    help:SetText("Press this key (or click the suggestion icon) to cast what Flow suggests. "
+    help:SetText("Press either key (or click the suggestion icon) to cast what Flow suggests. "
         .. "In combat WoW doesn't let add-ons change what a key casts, so it keeps the spell it "
         .. "had when the fight started; a small \"key:\" icon shows it.")
     f.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -260,6 +273,10 @@ local function build(parent)
     _, y = check(f, y, "Show the route on the world map", nil, nil,
         function() return ns.db.nav.mapLines ~= false end,
         function(on) ns.db.nav.mapLines = on end)
+    _, y = check(f, y, "Arrow follows paths you've walked", "(off = straight at the stop)",
+        "Off (default): the arrow points straight at your stop, except into caves and buildings, where it follows the way you walked in. On: outdoors too it follows a path you've walked when that's at most half again as long as the straight line (around a cliff, along a road).",
+        function() return ns.db.nav.arrowPaths == true end,
+        function(on) ns.db.nav.arrowPaths = on end)
     _, y = check(f, y, "Finish a zone before leaving it", "(quests too low or high don't count)",
         "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",
         function() return ns.db.nav.zoneFirst ~= false end,
@@ -375,19 +392,28 @@ local function build(parent)
     cap:Hide()
     f.capture = cap
 
-    set:SetScript("OnClick", function()
+    -- (f.slot: which key is being set, 1 or 2.)
+    local function startCapture(slot)
         if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
+        f.slot = slot
         f.confirm:Hide(); f.another:Hide()
         f.capturing = true
         cap:Show()
-    end)
+    end
+    set:SetScript("OnClick", function() startCapture(1) end)
+    set2:SetScript("OnClick", function() startCapture(2) end)
     f.clear:SetScript("OnClick", function()
-        ns.cast:SetKey(nil)
+        ns.cast:SetKey(nil, 1)
         f.status:SetText("Flow's key cleared; that key does what it did before.")
         refresh()
     end)
+    f.clear2:SetScript("OnClick", function()
+        ns.cast:SetKey(nil, 2)
+        f.status:SetText("Second key cleared; that key does what it did before.")
+        refresh()
+    end)
     f.confirm:SetScript("OnClick", function()
-        ns.cast:SetKey(f.pendingKey)
+        ns.cast:SetKey(f.pendingKey, f.slot)
         f.status:SetText("|cff66ff66" .. label(f.pendingKey) .. " now casts Flow's suggestion.|r")
         f.confirm:Hide(); f.another:Hide()
         refresh()

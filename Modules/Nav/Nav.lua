@@ -1388,12 +1388,37 @@ local function entranceNear(cont, wx, wy)
     return best
 end
 
+-- Trails you've walked are used only where they help:
+--   * always for a stop inside a cave or building while you're outside
+--     (straight at it leads on top of the cave): the trail in, or the entrance
+--   * outdoors only with "Arrow follows paths you've walked" on, and only a
+--     trail at most 1.5x the straight line (it used to take one up to 4x
+--     longer, so the arrow wandered off along an old detour)
+-- Otherwise the arrow points straight at the stop.
+local PATH_DETOUR = 1.5
+local LOOKAHEAD = 35   -- yards: point at the furthest trail point this close, not the next one
+function N.TrailWorthIt(trail, direct, inside)
+    return trail < direct * (inside and 20 or PATH_DETOUR)
+end
+-- Along a trail: the furthest point (from idx on) within `ahead` yards of
+-- you, so the arrow leads forward instead of back at a point you passed.
+-- pts: { {x, y} }, returns an index.
+function N.Carrot(pts, idx, px, py, ahead)
+    local best = idx
+    for i = idx, #pts do
+        if dist(px, py, pts[i][1], pts[i][2]) <= ahead then best = i
+        elseif i > idx + 1 then break end
+    end
+    return best
+end
+
 local function steer(p, choice)
     local pt = choice.point
     local direct = choice.d
     -- A stop inside a cave while you're outside: never straight at it (that
     -- leads on top of the cave). Follow a trail in, or head for the entrance.
     local inside = not (IsIndoors and IsIndoors()) and N:Inside(p.cont, pt.wx, pt.wy)
+    if not inside and ns.db.nav.arrowPaths ~= true then route = nil return pt.wx, pt.wy, "direct", direct end
     if direct < 80 and not inside then route = nil return pt.wx, pt.wy, "direct", direct end
 
     local now = GetTime()
@@ -1411,7 +1436,7 @@ local function steer(p, choice)
         local t, td = nearestNode(p.cont, pt.wx, pt.wy, 80)
         if s and t and s ~= t then
             local nodes, length = astar(p.cont, s, t)
-            if nodes and length + (td or 0) < direct * (inside and 20 or 4) then
+            if nodes and N.TrailWorthIt(length + (td or 0), direct, inside) then
                 route = { goalKey = choice.goal.key, cont = p.cont, nodes = nodes, idx = 1,
                           length = length + (td or 0) }
             end
@@ -1440,6 +1465,14 @@ local function steer(p, choice)
     if route.idx >= #route.nodes and dist(p.wx, p.wy, g.x[n], g.y[n]) < ARRIVED then
         return pt.wx, pt.wy, "direct", direct   -- end of known trail: head straight in
     end
+    -- Lead forward: the furthest trail point within LOOKAHEAD yards.
+    local pts = {}
+    for i = route.idx, math.min(#route.nodes, route.idx + 12) do
+        local m = route.nodes[i]
+        pts[#pts + 1] = { g.x[m], g.y[m] }
+    end
+    local ahead = route.idx + N.Carrot(pts, 1, p.wx, p.wy, LOOKAHEAD) - 1
+    n = route.nodes[ahead] or n
     return g.x[n], g.y[n], "path", route.length
 end
 

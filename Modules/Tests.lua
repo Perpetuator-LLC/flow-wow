@@ -2236,3 +2236,27 @@ ns:Register("test", "first time: Flow's pieces come in one at a time", function(
         t:ok(R:Shown("advice") and R:Shown("icon"), "someone already using Flow sees it all")
     end)
 end)
+
+ns:Register("test", "cast key: a second key for the easy button", function(t)
+    local C = ns.cast
+    t:eq(#C.KeysOf({ key = "`" }), 1, "one key")
+    local both = C.KeysOf({ key = "`", key2 = "F" })
+    t:eq(#both, 2, "two keys")
+    t:eq(both[2], "F", "the second one too")
+    t:eq(#C.KeysOf({ key = "F", key2 = "F" }), 1, "the same key twice counts once")
+    t:eq(#C.KeysOf({ key2 = "F" }), 1, "only a second key: still works")
+    t:eq(#C.KeysOf({}), 0, "none set")
+end)
+
+ns:Register("test", "arrow: straight at the stop unless a trail really helps", function(t)
+    local N = ns.nav
+    t:ok(not N.TrailWorthIt(400, 200, false), "a trail twice the straight line: no (it used to take up to 4x)")
+    t:ok(N.TrailWorthIt(260, 200, false), "a trail a little longer, around something: yes")
+    t:ok(N.TrailWorthIt(1500, 200, true), "into a cave: the trail even if it's much longer")
+    local pts = { { 0, 5 }, { 0, 20 }, { 0, 30 }, { 0, 60 }, { 0, 90 } }
+    t:eq(N.Carrot(pts, 1, 0, 0, 35), 3, "leads to the furthest trail point within 35 yd")
+    t:eq(N.Carrot(pts, 4, 0, 0, 35), 4, "nothing that close ahead: the next one")
+    with(ns.db.nav, "arrowPaths", nil, function()
+        t:ok(ns.db.nav.arrowPaths ~= true, "off by default: straight at the stop")
+    end)
+end)
