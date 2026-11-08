@@ -26,6 +26,12 @@ steps that need your accounts and decisions are listed below.
    The project **description** is where the feature list goes: adapt the README's Features.
 4. Copy the project ID into `Flow.toc` as `## X-Curse-Project-ID: <id>`.
 
+## Source code
+Public on GitHub: https://github.com/Perpetuator-LLC/flow-wow (`main`, remote `github`). Put
+this in the CurseForge project's Source link. Push with the GitHub CLI's credentials:
+`git -c credential.helper= -c 'credential.helper=!"C:/Program Files/GitHub CLI/gh.exe" auth git-credential' push github flow-0.10:main`.
+Commits use the GitHub no-reply address (repo-local `user.email`), never a personal email.
+
 ## Later: automatic releases
 Tag a version (`v0.15.0`) and let a Gitea Actions workflow run the BigWigs packager, with
 `CF_API_KEY` stored as a repository secret. It reads `.pkgmeta` (to add then) and the TOC's
