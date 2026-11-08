@@ -1,0 +1,45 @@
+# Every Flow release on GitHub goes to CurseForge too (project in Flow.toc's
+# ## X-Curse-Project-ID), so CurseForge players get each version.
+# Needs the repository secret CF_API_TOKEN (a CurseForge API token):
+# docs/PUBLISHING.md. Without it the job only warns.
+# Run it by hand for an existing release: Actions > CurseForge > Run workflow.
+name: CurseForge
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload (for example v0.35.96)"
+        required: true
+
+jobs:
+  upload:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # Today's tools from main (an older release's tag may not have the
+      # uploader); the zip itself comes from the release.
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Get the release zip (the same file as on GitHub)
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force upload | Out-Null
+          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "Flow-*.zip" --dir upload --clobber
+          $zip = Get-ChildItem upload -Filter "Flow-*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "Release $env:TAG has no Flow-*.zip to upload." }
+          [IO.File]::AppendAllText($env:GITHUB_ENV, "ZIP=$($zip.FullName)`n")   # (no byte-order mark)
+
+      - name: Upload to CurseForge
+        shell: powershell
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: powershell -ExecutionPolicy Bypass -File tools\curseforge-upload.ps1 -Zip $env:ZIP

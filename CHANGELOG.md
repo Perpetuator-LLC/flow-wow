@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.97
+- **Flow is on CurseForge:** [Flow (unfettered)](https://www.curseforge.com/wow/addons/flow-unfettered).
+  From now on every release goes there automatically, the same day it's on GitHub, so the
+  CurseForge app always offers the newest Flow. (The first upload there was 0.35.66; this
+  brings CurseForge up to date.)
+
 ## 0.35.96
 - **Flow Seller: Auto-cleanup.** After the Flow Seller sells something (auto-sell, or your
   click), your bags are tidied with the game's Clean Up Bags (the broom on your bags). It's an
