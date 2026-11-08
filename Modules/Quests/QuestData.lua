@@ -114,9 +114,12 @@ function Q:NPCsByName(wanted)
     end)
     local function step()
         if InCombatLockdown and InCombatLockdown() then C_Timer.After(1, step) return end
-        local ok = coroutine.resume(co)
+        local ok, err = coroutine.resume(co)
         if ok and coroutine.status(co) ~= "dead" then C_Timer.After(0, step)
-        else npcScanState = "done" end
+        else
+            npcScanState = "done"
+            if not ok then ns:Log("quests", "NPC name search failed: " .. tostring(err)) end
+        end
     end
     step()
     return nil
@@ -550,6 +553,21 @@ function Q.InPickupZone(q, zones)
     return (q.starter and q.starter.zoneId and zones[q.starter.zoneId]) and true or false
 end
 
+-- Which candidates wait for an earlier part: the part before is in your log
+-- or on offer too (in `list`). prevOf: { [next id] = { [id before] = true } }
+-- (several quests can lead to the same next part: one per faction, say).
+function Q.ChainBlocked(list, prevOf, inLogNow)
+    local offered = {}
+    for _, q in ipairs(list) do offered[q.id] = true end
+    local blocked = {}
+    for _, q in ipairs(list) do
+        for before in pairs(prevOf[q.id] or {}) do
+            if offered[before] or inLogNow[before] then blocked[q.id] = true end
+        end
+    end
+    return blocked
+end
+
 -- Drop quests that are the next part of a chain you haven't finished.
 -- list: { { id } }, blocked: { [id] = true }
 function Q.WithoutBlocked(list, blocked)
@@ -564,29 +582,42 @@ local function scan(src)
     local level = UnitLevel("player")
     local co = coroutine.create(function()
         local zones = Q.PickupZones(completed, inLog, src.get, Q:HereArea(), coroutine.yield)
-        -- The next part of a chain isn't on offer before the part before it is
-        -- done: Questie links them with nextQuestInChain (some follow-ups list
-        -- no prerequisite of their own, so "A Humble Task" part 2 showed up
-        -- before part 1). Any quest not done yet blocks its next part.
-        local blocked = {}
+        -- The next part of a chain waits for the part before it, but only when
+        -- that part is something you can do now (in your log, or on offer):
+        -- Questie links optional lead-in quests the same way (nextQuestInChain),
+        -- and blocking on any quest not done hid real quests behind ones you'd
+        -- never get. ("A Humble Task" part 2 showed before part 1.)
+        local prevOf = {}   -- next part -> the parts before it
+        local function link(nextId, id)
+            if not (nextId and nextId ~= 0) then return end
+            prevOf[nextId] = prevOf[nextId] or {}
+            prevOf[nextId][id] = true
+        end
         for id in pairs(inLog) do
             local raw = Q:QuestieGet("GetQuest", id)
-            if raw and raw.nextQuestInChain and raw.nextQuestInChain ~= 0 then blocked[raw.nextQuestInChain] = true end
+            link(raw and raw.nextQuestInChain, id)
         end
-        local out = {}
+        local out, stats = {}, { scanned = 0, here = 0, level = 0, notDoable = 0 }
         for i, id in ipairs(src.allIds()) do
             if not completed[id] and not inLog[id] then
                 local q = src.get(id)
-                local nextId = q and q.raw and q.raw.nextQuestInChain
-                if nextId and nextId ~= 0 then blocked[nextId] = true end
-                if q and Q.InPickupZone(q, zones) and (q.minLevel or 0) <= level then
-                    local doable = src.doable and src.doable(id, q.raw)
-                    if doable ~= false then out[#out + 1] = q end
+                link(q and q.raw and q.raw.nextQuestInChain, id)
+                stats.scanned = stats.scanned + 1
+                if q and Q.InPickupZone(q, zones) then
+                    stats.here = stats.here + 1
+                    if (q.minLevel or 0) > level then stats.level = stats.level + 1
+                    else
+                        local doable = src.doable and src.doable(id, q.raw)
+                        if doable ~= false then out[#out + 1] = q else stats.notDoable = stats.notDoable + 1 end
+                    end
                 end
             end
             if i % BATCH == 0 then coroutine.yield() end
         end
-        out = Q.WithoutBlocked(out, blocked)
+        local before = #out
+        out = Q.WithoutBlocked(out, Q.ChainBlocked(out, prevOf, inLog))
+        stats.chain, stats.kept = before - #out, #out
+        Q.scanStats = stats
         table.sort(out, function(a, b) return (a.level or 0) > (b.level or 0) end)
         return out
     end)
@@ -595,7 +626,12 @@ local function scan(src)
         local ok, result = coroutine.resume(co)
         if not ok then
             running = false
+            -- (Always logged: a failed scan means no quests to pick up at all.)
+            ns:Log("quests", "quest scan failed: " .. tostring(result))
+            Q.scanStats = { failed = tostring(result) }
             if ns.db.rotation.debug then ns:Print("missed quests: " .. tostring(result)) end
+            -- Try again in a while (it used to stay empty until a turn-in).
+            C_Timer.After(30, function() dirty = true end)
             return
         end
         if coroutine.status(co) == "dead" then

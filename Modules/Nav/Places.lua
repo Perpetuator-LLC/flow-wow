@@ -66,6 +66,15 @@ ns:Register("npcIds", "alliance-elwynn", {
     ["Arthur the Faithful"] = 5491,
 })
 
+-- Horde city trainers (Thunder Bluff, Orgrimmar, Undercity): found by name
+-- they never got a place (0.35.83 diagnostics), so ask Questie by ID too.
+ns:Register("npcIds", "horde-cities", {
+    ["Bena Winterhoof"] = 3009, ["Aska Mistrunner"] = 3026, ["Kah Mistrunner"] = 3028,
+    ["Pand Stonebinder"] = 3373, ["Yelmak"] = 3347, ["Zamja"] = 3399, ["Lumak"] = 3332,
+    ["Arnok"] = 5943, ["Doctor Herbert Halsey"] = 4611, ["Eunice Burch"] = 4552,
+    ["Armand Cromwell"] = 4573, ["Mary Edras"] = 4591,
+})
+
 local function npcId(name)
     for _, t in ns:Each("npcIds") do
         if t[name] then return t[name] end
@@ -150,6 +159,27 @@ function P:Points(name)
     end
     self.missing[name] = (#points == 0) or nil
     return points
+end
+
+-- Why an NPC has no place (for /flow nav why): which lookup gave up.
+function P:Explain(name)
+    local id = npcId(name)
+    local byId = id and ns.quests:QuestieGet("GetNPC", id)
+    local byName = ns.quests.NPCsByName and ns.quests:NPCsByName({ name })
+    local npc = (byId and byId.name == name and byId) or (byName and byName[name]) or nil
+    local parts = { name .. ":" }
+    if id then parts[#parts + 1] = string.format("id %d %s", id, byId and ("is " .. tostring(byId.name)) or "unknown to Questie") end
+    if byName == nil then parts[#parts + 1] = "name search running"
+    elseif not (byName and byName[name]) then parts[#parts + 1] = "not found by name" end
+    if npc then
+        local areas = {}
+        for areaId, list in pairs(npc.spawns or {}) do
+            areas[#areas + 1] = string.format("area %s (%d spots) -> map %s", tostring(areaId), #list, tostring(ns.quests:UiMapForArea(areaId)))
+        end
+        parts[#parts + 1] = #areas > 0 and table.concat(areas, ", ") or "no spawns"
+        parts[#parts + 1] = "faction " .. tostring(npc.friendlyToFaction)
+    end
+    return table.concat(parts, " ")
 end
 
 ns:OnLoad(function(saved) saved.places = saved.places or {} end)

@@ -2279,11 +2279,23 @@ ns.commands.nav = function(arg)
         for prov, b in pairs(byProvider) do
             print(string.format("  %s: %d goal(s), %d with a location", prov, b.n, b.placed))
         end
+        -- The quests-to-pick-up scan: what it looked at and why it left some out.
+        local st = ns.quests.scanStats
+        if not st then
+            print("  quests to pick up: scan not finished yet")
+        elseif st.failed then
+            print("  quests to pick up: scan failed: " .. st.failed)
+        else
+            print(string.format("  quests to pick up: %d kept (%d not done, %d here, %d too high level, %d not for you, %d wait for an earlier part)",
+                st.kept or 0, st.scanned or 0, st.here or 0, st.level or 0, st.notDoable or 0, st.chain or 0))
+        end
         local missing = {}
         for name in pairs(ns.places.missing or {}) do missing[#missing + 1] = name end
         if #missing > 0 then
             print("  couldn't find on the map: " .. table.concat(missing, ", "))
             print("  (talk to them once and Flow remembers where they stand)")
+            table.sort(missing)
+            for i = 1, math.min(3, #missing) do print("    " .. ns.places:Explain(missing[i])) end
         end
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))

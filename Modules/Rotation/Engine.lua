@@ -299,8 +299,158 @@ function E:Choose()
             i = i + 1
         end
     end
-    return nil
+    -- Nothing for you to press: buff your party or raid.
+    return self:GroupBuff(ctx, def)
 end
+
+-------------------------------------------------------------------------------
+-- Buffing your group: the right buff on the right person
+-------------------------------------------------------------------------------
+-- A rotation lists who gets what (def.groupBuffs):
+--   { spell, aura = { names that count } (default the spell), minutes (how
+--     long it lasts), rebuff (seconds left to re-cast at), who = fn(u) -> bool,
+--     group = "blessing" (one of the group per person: the first that fits) }
+--   groupBuffs.canCast = fn() -> bool (e.g. a druid in caster form)
+-- u = { unit, name, guid, class, kind = "tank" | "healer" | "melee" | "caster" | "ranged" }.
+-- Out of combat, with no enemy targeted, not resting, and nothing else to
+-- press: each buff in order, for everyone it fits who's missing it (or it's
+-- running out), alive and in range. Yourself: your own priority list.
+-- Setting: "Easy button buffs your group" (/flow settings).
+
+-- What someone in your group does, for picking their buff: the role they
+-- chose in the group finder first, then their class (a druid by its form).
+--   assigned: UnitGroupRolesAssigned ("TANK", "HEALER", "DAMAGER", "NONE")
+--   power: UnitPowerType (1 = rage, 3 = energy)
+local MELEE = { WARRIOR = true, ROGUE = true, PALADIN = true, DEATHKNIGHT = true }
+local CASTER = { MAGE = true, WARLOCK = true, PRIEST = true, SHAMAN = true }
+function E.UnitKind(class, assigned, power)
+    if assigned == "TANK" then return "tank" end
+    if assigned == "HEALER" then return "healer" end
+    if class == "HUNTER" then return "ranged" end
+    if class == "DRUID" then
+        if power == 1 then return "tank" end          -- Bear Form
+        if power == 3 then return "melee" end         -- Cat Form
+        return "caster"
+    end
+    if MELEE[class] then return "melee" end
+    if CASTER[class] then return "caster" end
+    return "melee"
+end
+
+-- Your party or raid, without you: only people you can buff now (online,
+-- alive, near enough to see, friendly).
+function E.GroupUnits()
+    local out = {}
+    local raid = IsInRaid and IsInRaid()
+    local n = raid and GetNumGroupMembers() or (GetNumSubgroupMembers and GetNumSubgroupMembers() or 0)
+    for i = 1, n do
+        local unit = (raid and "raid" or "party") .. i
+        if UnitExists(unit) and not UnitIsUnit(unit, "player") and UnitIsConnected(unit)
+            and not UnitIsDeadOrGhost(unit) and UnitIsVisible(unit) and UnitIsFriend("player", unit) then
+            local inRange, checked = UnitInRange(unit)
+            if not (checked and not inRange) then
+                local _, class = UnitClass(unit)
+                local assigned = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or "NONE"
+                out[#out + 1] = { unit = unit, name = A.Safe(UnitName(unit)) or unit, guid = UnitGUID(unit),
+                                  class = class, kind = E.UnitKind(class, assigned, UnitPowerType(unit)) }
+            end
+        end
+    end
+    return out
+end
+
+-- Is one of these buffs on the unit? true/false and seconds left, or nil
+-- when the game won't say (then Flow goes by what it cast: E.buffMemory).
+local function auraOn(unit, names)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then
+        for i = 1, 40 do
+            local n, _, _, _, _, e = UnitBuff(unit, i)
+            if not n then return false, 0 end
+            if names[n] then return true, (e and e > 0) and (e - GetTime()) or math.huge end
+        end
+        return false, 0
+    end
+    for i = 1, 40 do
+        local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")
+        if not ok then return nil end
+        if not a then return false, 0 end
+        local n = A.Safe(a.name)
+        if n == nil then return nil end
+        if names[n] then
+            local e = A.Safe(a.expirationTime)
+            return true, (e and e > 0) and (e - GetTime()) or math.huge
+        end
+    end
+    return false, 0
+end
+
+-- guid -> { [spell] = when you cast it on them } (from the easy button).
+E.buffMemory = {}
+
+-- Has this person got it, with more than `rebuff` seconds left?
+--   read(unit, names) -> up, left (or nil: unknown); defaults to the game.
+function E.GroupCovered(u, rule, now, read)
+    local names = {}
+    for _, n in ipairs(rule.aura or { rule.spell }) do names[n] = true end
+    local up, left = (read or auraOn)(u.unit, names)
+    local rebuff = rule.rebuff or 30
+    if up ~= nil then return up and left > rebuff end
+    local m = u.guid and E.buffMemory[u.guid] and E.buffMemory[u.guid][rule.spell]
+    return m ~= nil and (now - m) < ((rule.minutes or 5) * 60 - rebuff)
+end
+
+local groupCache   -- { at, s }: reading 40 people's buffs 10 times a second is too much
+function E:GroupBuff(ctx, def, now)
+    local list = def and def.groupBuffs
+    if not list or ns.db.rotation.groupBuffs == false then return nil end
+    if ctx.inCombat or ctx.hostile or (IsResting and IsResting()) then return nil end
+    if list.canCast and not list.canCast() then return nil end
+    now = now or GetTime()
+    if groupCache and now - groupCache.at < 1 then return groupCache.s end
+    local units = E.GroupUnits()
+    -- Who wants what (a "group" gives each person only its first fit).
+    local wants = {}
+    for i, u in ipairs(units) do
+        local done, w = {}, {}
+        for _, rule in ipairs(list) do
+            if not (rule.group and done[rule.group]) and self:Knows(rule.spell) and rule.who(u) then
+                if rule.group then done[rule.group] = true end
+                w[rule] = true
+            end
+        end
+        wants[i] = w
+    end
+    local s
+    for _, rule in ipairs(list) do
+        for i, u in ipairs(units) do
+            if wants[i][rule] and not E.GroupCovered(u, rule, now) and self:Ready(rule.spell, u.unit) then
+                s = { spell = rule.spell, kind = "buff", unit = u.unit, target = u.name, guid = u.guid,
+                      fightType = ctx.fightType,
+                      reason = string.format("%s for %s (%s): missing or running out", rule.spell, u.name, u.kind) }
+                break
+            end
+        end
+        if s then break end
+    end
+    groupCache = { at = now, s = s }
+    return s
+end
+function E.ClearGroupCache() groupCache = nil end
+
+-- Remember who got what (some clients hide other people's buffs), and look
+-- again at once after any cast of yours.
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellId)
+    if unit ~= "player" then return end
+    groupCache = nil
+    local s = E.current
+    if not (s and s.guid and s.unit) then return end
+    local name = A.SpellInfo(A.Safe(spellId) or 0)
+    if name == s.spell then
+        E.buffMemory[s.guid] = E.buffMemory[s.guid] or {}
+        E.buffMemory[s.guid][s.spell] = GetTime()
+    end
+end)
+ns:On("GROUP_ROSTER_UPDATE", function() groupCache = nil end)
 
 -- Diagnostics for /flow rot why: why each rule is or isn't suggested.
 function E:Explain()

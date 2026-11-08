@@ -61,7 +61,14 @@ function D:Snapshot(reason)
     local checks = {
         { "api", function() c.api("") end },
         { "nav why", function() c.nav("why") end },
-        { "rot why", function() c.rot("why") end },
+        -- At logout the game reports nothing as castable (health 0/0), so the
+        -- rotation check from while you were playing is the one kept.
+        { "rot why", function()
+            if reason == "reload or logout" and D.lastRot then
+                print("(read while playing, at " .. D.lastRot.at .. ")")
+                for _, l in ipairs(D.lastRot.lines) do print(l) end
+            else c.rot("why") end
+        end },
         { "key test", function() c.key("test") end },
         { "party", function() c.party("") end },
         { "gear why", function() c.gear("why") end },
@@ -104,6 +111,12 @@ end)
 ns:On("PLAYER_LOGOUT", function() D:Snapshot("reload or logout") end)
 ns:On("PLAYER_ENTERING_WORLD", function()
     C_Timer.After(10, function() pcall(D.Snapshot, D, "after login") end)
+end)
+-- The rotation check, read once a minute while you're playing (out of
+-- combat, alive) for the snapshot taken at logout.
+C_Timer.NewTicker(60, function()
+    if InCombatLockdown() or UnitIsDeadOrGhost("player") or not ns.commands.rot then return end
+    D.lastRot = { at = date("%H:%M:%S"), lines = capture(function() ns.commands.rot("why") end) }
 end)
 
 ns.commands.dump = function()

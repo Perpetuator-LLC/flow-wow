@@ -16,13 +16,17 @@ ns:Register("class", "DRUID", {
     -- Recommended spec while levelling, and why.
     leveling = {
         role = "dps",
-        -- Herbalism picks flowers on the way (and in Travel Form later);
-        -- Alchemy turns them into potions. Optional ones rank lower.
+        -- Two gathering professions while levelling: the most gold (spells,
+        -- your mount) and no time spent crafting. Herbalism picks flowers on
+        -- the way (tauren: +15 skill, Cultivation); Skinning uses the beasts
+        -- you kill anyway. At max level swap Skinning for Alchemy (potions
+        -- and flasks from your own herbs). Optional ones rank lower.
         professions = {
-            { name = "Herbalism" }, { name = "Alchemy" },
+            { name = "Herbalism" }, { name = "Skinning" },
             { name = "First Aid" }, { name = "Cooking" },
             { name = "Fishing", optional = true },
         },
+        professionsWhy = "Two gathering skills earn the most gold while levelling, with no time spent crafting. At max level, swap Skinning for Alchemy.",
         why = {
             "Levels 1-9: you're a caster. Moonfire, then Wrath, and heal yourself between pulls.",
             "From 10, Bear Form takes hits for tough pulls; from 20, Cat Form kills fastest and needs no mana.",

@@ -1079,7 +1079,7 @@ local function buildList()
         cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
         return cb
     end
-    f.modeQuests = choice(-30, "quests", "Follow current quests",
+    f.modeQuests = choice(-30, "quests", "Quests only",
         "Only the quests already in your log: their objectives, then turn-ins.")
     f.modeOptimal = choice(-48, "optimal", "Follow optimal path",
         "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")

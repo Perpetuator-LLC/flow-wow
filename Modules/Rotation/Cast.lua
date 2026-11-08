@@ -23,6 +23,7 @@ local function macroFor(s)
     if not s then return "" end
     if s.spell == "Attack" or s.spell == "Auto Attack" then return "/startattack" end
     if s.kind == "heal" or s.kind == "emergency" then return "/cast [@player] " .. s.spell end
+    if s.unit then return "/cast [@" .. s.unit .. "] " .. s.spell end   -- a buff for someone in your group
     return "/cast " .. s.spell
 end
 
@@ -103,7 +104,7 @@ end
 function C.TooltipLines(shown, locked, deck, inCombat)
     local lines = {}
     if shown then
-        local what = shown.label or shown.spell or "?"
+        local what = (shown.spell and shown.target and (shown.spell .. " on " .. shown.target)) or shown.label or shown.spell or "?"
         lines[#lines + 1] = { "Flow suggests: " .. what, 1, 0.82, 0 }
         if shown.reason and shown.reason ~= what then lines[#lines + 1] = { "Why: " .. shown.reason, 1, 1, 1 } end
     else

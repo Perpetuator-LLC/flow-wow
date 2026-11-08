@@ -319,10 +319,30 @@ local function build(parent)
         "When you learn a spell, a small card shows it for 10 s: put it on your bar, drag it where you want it, bind a key to it (you confirm first), or say you don't want it on your bars (Flow then stops asking).",
         function() return ns.db.spellbar.offer ~= false end,
         function(on) ns.db.spellbar.offer = on end)
+    _, y = check(f, y, "Easy button buffs your group", "(party and raid)",
+        "Out of combat, with nothing else to press, the easy button casts your buffs on the people in your group who are missing them, the right one for each: a druid's Mark of the Wild for everyone and Thorns for tanks; a paladin's Might for melee, Wisdom for casters, healers and hunters, Kings for tanks.",
+        function() return ns.db.rotation.groupBuffs ~= false end,
+        function(on) ns.db.rotation.groupBuffs = on end)
+    _, y = check(f, y, "Profession reminders", "(/flow prof remind)",
+        "Now and then (after you log in, when you level up, when a skill reaches its cap, in a town with a trainer you need) a small card says what to learn or train next for your professions, and can point the arrow at the trainer. It closes by itself after 8 s.",
+        function() return ns.db.prof.remind ~= false end,
+        function(on) ns.db.prof.remind = on end)
     _, y = check(f, y, "Accept group invites from friends", "(/flow invites)",
         "Invites from your friends list and Battle.net friends are accepted for you. Anyone else gets the usual popup.",
         function() return ns.db.invites.friends ~= false end,
         function(on) ns.db.invites.friends = on end)
+    -- Bonus mode (Bonus.lua: new in 0.35.84, so only after a WoW restart).
+    if ns.bonus then
+        _, y = check(f, y, "Bonus mode: extras just for fun", "(off by default; /flow bonus)",
+            "Turns on Flow's fun extras, listed below (each has its own switch).",
+            function() return ns.bonus:On() end,
+            function(on) ns.bonus:Set(on) end)
+        for _, x in ipairs(ns.bonus.EXTRAS) do
+            _, y = check(f, y, "   " .. x.label, "(needs Bonus mode)", x.why,
+                function() return ns.db.bonus[x.key] ~= false end,
+                function(on) ns.db.bonus[x.key] = on end)
+        end
+    end
     y = y - 10
 
     -- Suggested WoW settings (Setup.lua rows)

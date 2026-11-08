@@ -1,8 +1,10 @@
 -- Your profession plan. Flow suggests one (from class data: for a paladin
--- Mining + Blacksmithing, plus First Aid and Cooking, Fishing optional), but
--- you choose. No pop-up: from level 3 the advice list offers "Choose your
--- professions", and /flow setup has a row for it (/flow professions too).
--- The plan decides which trainers and skill-up stops appear on the route.
+-- Mining + Blacksmithing, for a druid Herbalism + Skinning, plus First Aid
+-- and Cooking, Fishing optional), but you choose: from level 3 the advice
+-- list offers "Choose your professions", and /flow setup has a row for it
+-- (/flow professions too). The plan decides which trainers and skill-up stops
+-- appear on the route, and a short reminder card (below) says what to learn
+-- or train next, now and then.
 
 local _, ns = ...
 local P = {}
@@ -132,8 +134,10 @@ function P:Open()
     frame = frame or build()
     local names = {}
     for _, s in ipairs(suggested()) do names[#names + 1] = s.name .. (s.optional and " (optional)" or "") end
-    frame.note:SetText("Flow suggests: " .. table.concat(names, ", ")
-        .. ". Untick what you don't want; the route only takes you to trainers for what's ticked.")
+    local d = ns:ClassData()
+    local why = d and d.leveling and d.leveling.professionsWhy
+    frame.note:SetText("Flow suggests: " .. table.concat(names, ", ") .. "." .. (why and (" " .. why) or "")
+        .. " Untick what you don't want; the route only takes you to trainers for what's ticked.")
     self:Fill(ns:ProfessionPlan())
     frame:Show()
 end
@@ -162,8 +166,231 @@ ns:Register("setupItem", "professions", {
     action = "Choose...", run = function() P:Open() end,
 })
 
+-------------------------------------------------------------------------------
+-- Reminder card: what to do next for your professions, for a few seconds
+--
+--   [book]  Professions: Flow suggests Herbalism + Skinning
+--           - Learn Herbalism: Komin Winterhoof, Thunder Bluff (1240 yd)
+--   [Show me the way]  [Choose others...]  [Not now]      stop reminding
+--
+-- Opens for 8 s (it waits while your mouse is on it) when there's something
+-- to do: a while after you log in, when you level up, when what's needed
+-- changes (you learned one, a skill reached its cap) and when you walk into
+-- a town where a trainer you need stands. From level 5, once the Flow pieces
+-- have all appeared (Reveal.lua). "Not now" waits for your next level;
+-- "stop reminding" turns it off (/flow settings: Profession reminders).
+-------------------------------------------------------------------------------
+
+local SHOW = 8
+-- The level each next tier needs (by the skill cap you're at now).
+local TIER_LEVEL = { [75] = 10, [150] = 20, [225] = 35 }
+
+-- What to do next for the professions in a plan, primaries first, optional
+-- ones last. skill(name) -> rank, max (nil: not learned).
+--   -> { { name, kind = "learn" | "train", optional, text } }
+function P.NextSteps(plan, skill, level)
+    local steps = {}
+    for i, p in ipairs(plan or {}) do
+        local rank, max = skill(p.name)
+        local step
+        if not rank then
+            step = { name = p.name, kind = "learn", text = "Learn " .. p.name }
+        elseif max and max > 0 and rank >= max and max < 300 and (level or 0) >= (TIER_LEVEL[max] or 0) then
+            step = { name = p.name, kind = "train", text = string.format("Train the next %s tier (%d/%d)", p.name, rank, max) }
+        end
+        if step then
+            step.optional, step.order = p.optional, (p.optional and 200 or IS_PRIMARY[p.name] and 0 or 100) + i
+            steps[#steps + 1] = step
+        end
+    end
+    table.sort(steps, function(a, b) return a.order < b.order end)
+    return steps
+end
+
+-- What the reminder is about, to notice when it changes ("" = nothing to do).
+function P.StepsKey(steps)
+    local parts = {}
+    for _, s in ipairs(steps) do
+        if not s.optional then parts[#parts + 1] = s.kind .. ":" .. s.name end
+    end
+    return table.concat(parts, ",")
+end
+
+-- The nearest trainer for a profession on your continent: { name, map, x, y, yards }.
+function P.NearestTrainer(profession)
+    local nav = ns.nav
+    local p = nav and nav:PlayerPos()
+    if not p then return nil end
+    local best
+    for _, name in ipairs(ns.places:TrainersFor(profession)) do
+        for _, pt in ipairs(ns.places:Points(name)) do
+            local cont, wx, wy = nav:ToWorld(pt.map, pt.x, pt.y)
+            if cont == p.cont and wx then
+                local d = math.sqrt((wx - p.wx) ^ 2 + (wy - p.wy) ^ 2)
+                if not best or d < best.yards then best = { name = name, map = pt.map, x = pt.x, y = pt.y, yards = d } end
+            end
+        end
+    end
+    return best
+end
+
+local function mapName(map)
+    local info = map and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(map)
+    return info and info.name or "?"
+end
+
+local remindCard
+
+local function closeCard()
+    if remindCard then remindCard:Hide() end
+end
+
+local function buildCard()
+    local f = CreateFrame("Frame", "FlowProfReminder", UIParent)
+    f:SetSize(420, 118)
+    f:SetPoint("TOP", 0, -260)
+    f:SetFrameStrata("DIALOG")
+    f:EnableMouse(true)
+    f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints(); f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.95)
+    f.head = ns.theme:TitleBar(f, "Professions", "Interface\\Icons\\INV_Misc_Book_11")
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOPLEFT", 12, -30)
+    f.title:SetWidth(396); f.title:SetJustifyH("LEFT")
+    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.body:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
+    f.body:SetWidth(396); f.body:SetJustifyH("LEFT"); f.body:SetJustifyV("TOP")
+    local function button(text, w)
+        local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        b:SetSize(w, 22); b:SetText(text)
+        return b
+    end
+    f.go = button("Show me the way", 130)
+    f.go:SetPoint("BOTTOMLEFT", 10, 10)
+    f.choose = button("Choose others...", 120)
+    f.choose:SetPoint("LEFT", f.go, "RIGHT", 6, 0)
+    f.later = button("Not now", 80)
+    f.later:SetPoint("LEFT", f.choose, "RIGHT", 6, 0)
+    f.stop = CreateFrame("Button", nil, f)
+    f.stop:SetSize(90, 14)
+    f.stop:SetPoint("BOTTOMRIGHT", -8, 14)
+    f.stop.text = f.stop:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.stop.text:SetAllPoints(); f.stop.text:SetJustifyH("RIGHT")
+    f.stop.text:SetText("stop reminding")
+    f.timer = CreateFrame("StatusBar", nil, f)
+    f.timer:SetPoint("BOTTOMLEFT"); f.timer:SetPoint("BOTTOMRIGHT"); f.timer:SetHeight(3)
+    f.timer:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    local o = ns.theme.arrow
+    f.timer:SetStatusBarColor(o[1], o[2], o[3])
+    f.timer:SetMinMaxValues(0, SHOW)
+
+    f.go:SetScript("OnClick", function()
+        local t = f.trainer
+        closeCard()
+        if t then ns.waypoint:Set(t.map, t.x, t.y, t.name .. " (" .. f.forProf .. " trainer)")
+        else ns:Print("Flow doesn't know where a " .. (f.forProf or "") .. " trainer stands on this continent yet.") end
+    end)
+    f.choose:SetScript("OnClick", function() closeCard(); P:Open() end)
+    f.later:SetScript("OnClick", function()
+        ns.db.prof.snoozeLevel = UnitLevel("player")
+        closeCard()
+        ns:Print("professions: Flow reminds you again at your next level.")
+    end)
+    f.stop:SetScript("OnClick", function()
+        ns.db.prof.remind = false
+        closeCard()
+        ns:Print("profession reminders off (/flow settings to turn them back on).")
+    end)
+    f:SetScript("OnUpdate", function(self, dt)
+        if self:IsMouseOver() then return end
+        self.left = self.left - dt
+        self.timer:SetValue(math.max(0, self.left))
+        if self.left <= 0 then self:Hide() end
+    end)
+    f:Hide()
+    return f
+end
+
+function P:ShowReminder(steps)
+    steps = steps or P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, UnitLevel("player"))
+    if #steps == 0 then return false end
+    remindCard = remindCard or buildCard()
+    local f = remindCard
+    local names = {}
+    for _, p in ipairs(ns:ProfessionPlan()) do
+        if IS_PRIMARY[p.name] then names[#names + 1] = p.name end
+    end
+    f.title:SetText((ns.db.prof.chosen and "Your plan: " or "Flow suggests: ")
+        .. (#names > 0 and table.concat(names, " + ") or "no main professions"))
+    local lines = {}
+    f.trainer, f.forProf = nil, steps[1].name
+    for i, s in ipairs(steps) do
+        if i > 3 then break end
+        local t = P.NearestTrainer(s.name)
+        if i == 1 then f.trainer = t end
+        lines[#lines + 1] = "- " .. s.text .. (t and string.format(": %s, %s (%d yd)", t.name, mapName(t.map), t.yards) or "")
+    end
+    f.body:SetText(table.concat(lines, "\n"))
+    f.go:SetEnabled(f.trainer ~= nil)
+    f.left = SHOW
+    f.timer:SetValue(SHOW)
+    f:Show()
+    return true
+end
+
+-- Should it open now? why: "login" | "level" | "change" | "town".
+function P.ShouldRemind(why, steps, s)
+    if s.remind == false or s.level < 5 or not s.revealed or s.inCombat or #steps == 0 then return false end
+    if P.StepsKey(steps) == "" then return false end           -- only optional ones left
+    if why == "town" then return true end                       -- a trainer you need is right here
+    return not (s.snoozeLevel and s.level <= s.snoozeLevel)
+end
+
+local remindedOnce, townsSeen, waiting = false, {}, nil
+
+local function remind(why)
+    local level = UnitLevel("player")
+    local steps = P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, level)
+    local key = P.StepsKey(steps)
+    local d = ns.db.prof
+    if why == "change" and key == (d.lastKey or "") then return end
+    if InCombatLockdown() then waiting = why return end
+    local ok = P.ShouldRemind(why, steps, { remind = d.remind, level = level, snoozeLevel = d.snoozeLevel,
+        revealed = not ns.reveal or ns.reveal:Shown("advice"), inCombat = false })
+    if why == "town" then
+        -- Only when a trainer for the first step is on the map you just walked into.
+        local t = ok and P.NearestTrainer(steps[1].name)
+        local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        ok = t ~= nil and t.map == here and not townsSeen[here]
+        if ok then townsSeen[here] = true end
+    end
+    d.lastKey = key
+    if ok then P:ShowReminder(steps) end
+end
+
+ns:On("PLAYER_ENTERING_WORLD", function()
+    if remindedOnce then return end
+    remindedOnce = true
+    C_Timer.After(25, function() pcall(remind, "login") end)
+end)
+ns:On("PLAYER_LEVEL_UP", function() C_Timer.After(3, function() pcall(remind, "level") end) end)
+ns:On("SKILL_LINES_CHANGED", function()
+    if P.skillTimer then return end
+    P.skillTimer = C_Timer.NewTimer(2, function() P.skillTimer = nil; pcall(remind, "change") end)
+end)
+ns:On("ZONE_CHANGED_NEW_AREA", function() C_Timer.After(3, function() pcall(remind, "town") end) end)
+ns:On("PLAYER_REGEN_ENABLED", function()
+    local why = waiting
+    waiting = nil
+    if why then C_Timer.After(2, function() pcall(remind, why) end) end
+end)
+
 ns.commands.professions = function(arg)
-    if (arg or ""):lower():find("^plan") then return ns.skillPlan:Explain() end
+    arg = (arg or ""):lower()
+    if arg:find("^plan") then return ns.skillPlan:Explain() end
+    if arg:find("^remind") then
+        if not P:ShowReminder() then ns:Print("professions: nothing to learn or train right now.") end
+        return
+    end
     P:Open()
 end
 ns.commands.prof = ns.commands.professions

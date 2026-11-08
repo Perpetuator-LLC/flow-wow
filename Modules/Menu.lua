@@ -139,7 +139,7 @@ function Menu:RouteItemsRaw()
     end
     local items = {
         { title = true, text = "Route" },
-        { text = "Follow current quests", radio = true, checked = mode == "quests", func = setRoute("quests", profs) },
+        { text = "Quests only", radio = true, checked = mode == "quests", func = setRoute("quests", profs) },
         { text = "Optimal with professions", radio = true, checked = mode == "optimal" and profs, func = setRoute("optimal", true) },
         { text = "Optimal without professions", radio = true, checked = mode == "optimal" and not profs, func = setRoute("optimal", false) },
         { text = "Completionist: every quest here, any level", radio = true, checked = mode == "complete", func = setRoute("complete", profs) },

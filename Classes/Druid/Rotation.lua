@@ -117,8 +117,19 @@ local function guide(e)
     return out
 end
 
+-- Your party or raid (Engine GroupBuff): Mark of the Wild for everyone,
+-- Thorns for whoever takes the hits (a tank, or a warrior). Caster form only.
+local groupBuffs = {
+    canCast = caster,
+    { spell = "Mark of the Wild", aura = { "Mark of the Wild", "Gift of the Wild" }, minutes = 30, rebuff = 60,
+      who = function() return true end },
+    { spell = "Thorns", minutes = 10, rebuff = 30,
+      who = function(u) return u.kind == "tank" or u.class == "WARRIOR" end },
+}
+
 ns:Register("rotation", "DRUID", {
     guide = guide,
+    groupBuffs = groupBuffs,
 
     -- Self-heals, considered before anything else (see Engine HealDecision).
     -- In Cat or Bear Form they're not usable, so they're skipped there.

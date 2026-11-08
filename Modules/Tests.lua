@@ -2157,6 +2157,13 @@ ns:Register("test", "trainers and pickups: your faction, your level, chains in o
     local kept = Q.WithoutBlocked({ { id = 752 }, { id = 753 }, { id = 747 } }, { [753] = true })
     t:eq(#kept, 2, "part 2 of a chain waits for part 1")
     t:eq(kept[2].id, 747, "the rest stay")
+    -- Only a part you can do now holds the next one back: an optional lead-in
+    -- you'll never get (not offered, not in your log) doesn't hide the quest.
+    local prevOf = { [753] = { [752] = true }, [747] = { [9999] = true } }
+    local blocked = Q.ChainBlocked({ { id = 752 }, { id = 753 }, { id = 747 } }, prevOf, {})
+    t:ok(blocked[753], "part 2 waits while part 1 is on offer")
+    t:ok(not blocked[747], "a lead-in that isn't on offer doesn't hide the quest")
+    t:ok(Q.ChainBlocked({ { id = 753 } }, prevOf, { [752] = true })[753], "waits while part 1 is in your log")
 end)
 
 ns:Register("test", "follow: by name, typed or picked, even if the game hides the unit", function(t)
@@ -2287,4 +2294,110 @@ ns:Register("test", "quest drops: one hint instead of a ! at every spawn", funct
     t:eq(ns.nearby.Line({}, nil, nil), nil, "nothing near: no line")
     t:ok(type(ns.questMarks._dropStarts) == "table", "nameplates know which mobs drop one")
     t:ok(ns:Get("setupItem", "questieDropIcons") ~= nil, "Flow offers to turn off Questie's ! for drops")
+end)
+
+ns:Register("test", "professions: what to do next, and when the reminder opens", function(t)
+    local P = ns.professions
+    local plan = { { name = "Herbalism" }, { name = "Skinning" }, { name = "First Aid" }, { name = "Fishing", optional = true } }
+    local ranks = { Skinning = { 75, 75 }, ["First Aid"] = { 20, 75 } }
+    local function skill(n) local r = ranks[n]; if r then return r[1], r[2] end end
+    local steps = P.NextSteps(plan, skill, 12)
+    t:eq(steps[1].text, "Learn Herbalism", "a main profession to learn comes first")
+    t:eq(steps[2].kind, "train", "Skinning at its cap: train the next tier")
+    t:eq(steps[#steps].name, "Fishing", "optional ones last")
+    t:eq(#P.NextSteps(plan, skill, 8), 2, "not at level 8: Journeyman needs level 10 (Herbalism + Fishing left)")
+    t:eq(P.StepsKey(steps), "learn:Herbalism,train:Skinning", "the reminder's key leaves optional ones out")
+    local s = { level = 12, revealed = true }
+    t:ok(P.ShouldRemind("login", steps, s), "something to do: it opens")
+    t:ok(not P.ShouldRemind("login", steps, { level = 4, revealed = true }), "not before level 5")
+    t:ok(not P.ShouldRemind("login", steps, { level = 12, revealed = false }), "not before Flow's pieces have all appeared")
+    t:ok(not P.ShouldRemind("level", steps, { level = 12, revealed = true, remind = false }), "turned off: never")
+    t:ok(not P.ShouldRemind("login", steps, { level = 12, revealed = true, snoozeLevel = 12 }), "'Not now' waits for the next level")
+    t:ok(P.ShouldRemind("town", steps, { level = 12, revealed = true, snoozeLevel = 12 }), "but a trainer you need right here still shows")
+    t:ok(not P.ShouldRemind("login", { { name = "Fishing", kind = "learn", optional = true } }, s), "only optional ones left: no card")
+    local d = ns:Get("class", "DRUID")
+    t:ok(d and d.leveling.professions[2].name == "Skinning", "a druid levels with Herbalism + Skinning")
+end)
+
+ns:Register("test", "easy button: buffs your group, the right buff for each person", function(t)
+    local E = ns.rotation
+    t:eq(E.UnitKind("WARRIOR", "NONE"), "melee", "a warrior: melee")
+    t:eq(E.UnitKind("WARRIOR", "TANK"), "tank", "the group's tank")
+    t:eq(E.UnitKind("PRIEST", "NONE"), "caster", "a priest: caster")
+    t:eq(E.UnitKind("HUNTER", "NONE"), "ranged", "a hunter: ranged")
+    t:eq(E.UnitKind("DRUID", "NONE", 3), "melee", "a druid in Cat Form")
+    t:eq(E.UnitKind("DRUID", "NONE", 1), "tank", "a druid in Bear Form")
+    t:eq(E.UnitKind("DRUID", "HEALER", 0), "healer", "the role they picked wins")
+
+    local rule = { spell = "Thorns", minutes = 10, rebuff = 30 }
+    local u = { unit = "party1", guid = "G1" }
+    t:ok(not E.GroupCovered(u, rule, 100, function() return false, 0 end), "missing")
+    t:ok(E.GroupCovered(u, rule, 100, function() return true, 300 end), "up, with time left")
+    t:ok(not E.GroupCovered(u, rule, 100, function() return true, 10 end), "running out")
+    with(E, "buffMemory", { G1 = { Thorns = 50 } }, function()
+        t:ok(E.GroupCovered(u, rule, 100, function() return nil end), "buffs hidden: you cast it 50 s ago")
+        t:ok(not E.GroupCovered(u, rule, 700, function() return nil end), "buffs hidden: cast too long ago")
+    end)
+
+    local units = { { unit = "party1", name = "Tank", guid = "a", class = "WARRIOR", kind = "tank" },
+                    { unit = "party2", name = "Mage", guid = "b", class = "MAGE", kind = "caster" },
+                    { unit = "party3", name = "Rogue", guid = "c", class = "ROGUE", kind = "melee" } }
+    local ctx = { inCombat = false, hostile = false, fightType = "normal" }
+    local function run(def, knows, covered)
+        local s
+        with(_G, "IsResting", function() return false end, function()
+        with(ns.db.rotation, "groupBuffs", true, function()
+        with(E, "GroupUnits", function() return units end, function()
+        with(E, "GroupCovered", function(x, r) return covered[x.name .. ":" .. r.spell] == true end, function()
+        with(E, "Knows", function(_, sp) return knows[sp] == true end, function()
+        with(E, "Ready", function() return true end, function()
+            E.ClearGroupCache()
+            s = E:GroupBuff(ctx, def, 1000)
+            E.ClearGroupCache()
+        end) end) end) end) end) end)
+        return s
+    end
+    local pal = ns:Get("rotation", "PALADIN")
+    local pk = { ["Blessing of Might"] = true, ["Blessing of Wisdom"] = true }
+    local s = run(pal, pk, {})
+    t:eq(s and s.spell, "Blessing of Might", "paladin: Might first")
+    t:eq(s and s.target, "Tank", "on the tank (no Kings yet)")
+    s = run(pal, pk, { ["Tank:Blessing of Might"] = true, ["Rogue:Blessing of Might"] = true })
+    t:eq(s and (s.spell .. " on " .. s.target), "Blessing of Wisdom on Mage", "Wisdom for the mage, never Might")
+    s = run(pal, { ["Blessing of Might"] = true, ["Blessing of Wisdom"] = true, ["Blessing of Kings"] = true }, {})
+    t:eq(s and (s.spell .. " on " .. s.target), "Blessing of Kings on Tank", "with Kings: Kings for the tank")
+    t:eq(run(pal, pk, { ["Tank:Blessing of Might"] = true, ["Rogue:Blessing of Might"] = true,
+                        ["Mage:Blessing of Wisdom"] = true }), nil, "everyone blessed: nothing")
+
+    local list = {}
+    for i, r in ipairs(ns:Get("rotation", "DRUID").groupBuffs) do list[i] = r end   -- (any form)
+    local dk = { ["Mark of the Wild"] = true, Thorns = true }
+    s = run({ groupBuffs = list }, dk, { ["Tank:Mark of the Wild"] = true })
+    t:eq(s and (s.spell .. " on " .. s.target), "Mark of the Wild on Mage", "druid: Mark for everyone first")
+    s = run({ groupBuffs = list }, dk, { ["Tank:Mark of the Wild"] = true, ["Mage:Mark of the Wild"] = true,
+                                         ["Rogue:Mark of the Wild"] = true })
+    t:eq(s and (s.spell .. " on " .. s.target), "Thorns on Tank", "then Thorns for the tank, not the mage")
+    local old = ctx.hostile
+    ctx.hostile = true
+    t:eq(run(pal, pk, {}), nil, "not while you have an enemy targeted")
+    ctx.hostile = old
+    t:eq(ns.cast._describe({ spell = "Thorns", kind = "buff", unit = "party1" }), "/cast [@party1] Thorns", "the press casts on them")
+end)
+
+ns:Register("test", "bonus mode: off by default; Spoken picks a voice and clean words", function(t)
+    local B = ns.bonus
+    if not B then t:ok(true, "Bonus.lua loads after a WoW restart") return end
+    with(ns.db.bonus, "enabled", nil, function()
+        t:ok(not B:On() and not B:Extra("spoken"), "off until you turn it on")
+    end)
+    with(ns.db.bonus, "enabled", true, function()
+        t:ok(B:Extra("spoken"), "on: Spoken is on too")
+    end)
+    local voices = { { voiceID = 0, name = "Microsoft David Desktop" }, { voiceID = 1, name = "Microsoft Zira Desktop" } }
+    t:eq(B.PickVoice(voices, 3).voiceID, 1, "a woman's voice for a female NPC")
+    t:eq(B.PickVoice(voices, 2).voiceID, 0, "a man's voice for a male NPC")
+    t:eq(B.PickVoice({ { voiceID = 5, name = "Female voice" }, { voiceID = 6, name = "Male voice" } }, 2).voiceID, 6, "'female' isn't a man's voice")
+    t:eq(B.PickVoice({}, 2), nil, "no voices: nothing")
+    t:eq(B.Clean("|cffffd200Hello|r, $Bfriend.\n Go  now."), "Hello, friend. Go now.", "colour codes and line breaks out")
+    t:eq(B.Clean("   "), nil, "nothing to say")
 end)

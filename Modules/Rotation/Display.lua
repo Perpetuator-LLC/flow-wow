@@ -297,7 +297,8 @@ local function render(s, cfg)
     icon.tex:SetTexture(tex or "Interface\\Icons\\INV_Misc_QuestionMark")
     icon.border:SetColor(color[1], color[2], color[3])
     -- Flow Actions always say what the press does ("Equip your Fishing Pole").
-    icon.text:SetText(s.label or (cfg.debug and s.reason) or "")
+    -- A buff for someone in your group says who it's for.
+    icon.text:SetText(s.label or (s.target and ("on " .. s.target)) or (cfg.debug and s.reason) or "")
     local start, dur = cooldownOf(s)
     icon.cd:SetCooldown(start or 0, dur or 0)
     icon.timer:SetText(ns.CooldownText(start, dur, GetTime()))

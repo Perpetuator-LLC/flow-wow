@@ -144,9 +144,24 @@ local function guide(e)
     return out
 end
 
+-- Your party or raid (Engine GroupBuff): one blessing each, the one that
+-- helps them most. Kings for a tank; Might for melee (warriors, rogues,
+-- paladins, a druid in Cat Form); Wisdom for casters, healers and hunters
+-- (Might doesn't help ranged attacks); Kings for anyone else once you have it.
+local function physical(u) return u.kind == "melee" or u.kind == "tank" end
+local function usesMana(u) return u.kind == "caster" or u.kind == "healer" or u.kind == "ranged" end
+local groupBuffs = {
+    { spell = "Blessing of Kings", group = "blessing", minutes = 5, rebuff = 30,
+      who = function(u) return u.kind == "tank" end },
+    { spell = "Blessing of Might", group = "blessing", minutes = 5, rebuff = 30, who = physical },
+    { spell = "Blessing of Wisdom", group = "blessing", minutes = 5, rebuff = 30, who = usesMana },
+    { spell = "Blessing of Kings", group = "blessing", minutes = 5, rebuff = 30, who = function() return true end },
+}
+
 ns:Register("rotation", "PALADIN", {
     guide = guide,
     wantSeal = wantSeal,   -- (tests)
+    groupBuffs = groupBuffs,
 
     -- Self-heals, considered before anything else (see Engine HealDecision).
     heals = { "Flash of Light", "Holy Light", "Word of Glory" },
