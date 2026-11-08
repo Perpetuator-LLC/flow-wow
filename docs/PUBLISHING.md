@@ -47,6 +47,10 @@ downloads that zip and runs `tools\curseforge-upload.ps1`, which uploads it to p
    [Settings > Secrets and variables > Actions > New repository secret](https://github.com/Perpetuator-LLC/flow-wow/settings/secrets/actions/new).
    Never put the token in a file or a commit.
 
+Done 2026-11-08: the CurseForge token is named **`GH_Publisher`** (CurseForge's API tokens
+page), saved on GitHub as `CF_API_TOKEN`. To replace it, make a new token there, update the
+secret, and delete `GH_Publisher`. The first upload with it: 0.35.97 (CurseForge file 9515510).
+
 Without the secret, the Action only warns ("not uploaded to CurseForge"), and releases still work.
 
 **An existing release** (one from before the secret, or one whose upload failed): on GitHub,
