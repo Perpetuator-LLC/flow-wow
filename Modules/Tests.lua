@@ -1617,3 +1617,21 @@ ns:Register("test", "quest rewards: the big arrow goes on your best upgrade", fu
     t:eq(R.Best(choices, "heal"), 4, "another spec, another pick")
     t:eq(R.Best({ [1] = { canUse = true, diffs = { dps = 0.1 } } }, "dps"), nil, "no upgrade: no arrow (the coin says what to sell)")
 end)
+
+ns:Register("test", "quests: finished ones are turned in for you, choices left to you", function(t)
+    local AT = ns.autoTurnIn
+    t:eq(AT.Reward(0), 0, "no reward choice: take it")
+    t:eq(AT.Reward(1), 1, "one reward: take it")
+    t:eq(AT.Reward(3), nil, "several rewards: you pick")
+    local list = { { id = 11, complete = false }, { id = 22, complete = true }, { id = 33, complete = true } }
+    local i, id = AT.PickFinished(list)
+    t:eq(i, 2, "the first finished quest in the NPC's list")
+    t:eq(id, 22, "by its quest id")
+    t:eq(AT.PickFinished({ { id = 1, complete = false } }), nil, "nothing finished: nothing opened")
+    with(ns.db.quests, "autoTurnIn", false, function()
+        t:ok(not AT.Enabled(), "the settings box turns it off")
+    end)
+    with(ns.db.quests, "autoTurnIn", nil, function()
+        t:ok(AT.Enabled() or IsShiftKeyDown(), "on by default")
+    end)
+end)

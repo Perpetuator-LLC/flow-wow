@@ -207,6 +207,10 @@ local function build(parent)
         "Sells every grey item as soon as you open a vendor.",
         function() return ns.db.sell.autoJunk == true end,
         function(on) ns.db.sell.autoJunk = on end)
+    _, y = check(f, y, "Turn in finished quests for you", "(hold Shift at the NPC to skip)",
+        "Talk to the NPC and Flow picks the finished quest, completes it and takes the reward. With several rewards to choose from, you pick (the green arrow is Flow's pick). Quests that take gold are left to you.",
+        function() return ns.db.quests.autoTurnIn ~= false end,
+        function(on) ns.db.quests.autoTurnIn = on end)
     _, y = check(f, y, "Accept group invites from friends", "(/flow invites)",
         "Invites from your friends list and Battle.net friends are accepted for you. Anyone else gets the usual popup.",
         function() return ns.db.invites.friends ~= false end,

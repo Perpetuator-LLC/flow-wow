@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.66
+- Finished quests are turned in for you: talk to the NPC and Flow opens the finished quest,
+  presses Complete and takes the reward. With several rewards to choose from, you pick (the
+  green arrow is Flow's pick for you). Quests that take gold are left to you, and holding
+  Shift at the NPC lets you do it yourself. On by default; there's a box for it in
+  /flow settings, or use /flow turnin on|off.
+
 ## 0.35.65
 - Group invites from your friends (WoW friends list and Battle.net friends) are accepted for
   you. Anyone else still gets the usual popup. Turn it off in /flow settings or with
