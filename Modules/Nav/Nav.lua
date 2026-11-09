@@ -1261,6 +1261,20 @@ function N:OpenInGame(goal)
     if ns.mapOverlay and ns.mapOverlay.Focus then ns.mapOverlay:Focus(goal.key, 20) end
 end
 
+-- Class training comes first when your trainer is this close (yards) and you
+-- can pay for some of it; farther away, it's fitted in where it costs least.
+N.TRAIN_FIRST_YARDS = 300
+function N.TrainFirst(yards, affordable)
+    return yards ~= nil and yards <= N.TRAIN_FIRST_YARDS and affordable and true or false
+end
+
+-- The first goal that asks to come first (goal.goFirst), or nil.
+function N.GoFirstKey(list)
+    for _, g in ipairs(list or {}) do
+        if g.goFirst and g.points and #g.points > 0 then return g.key end
+    end
+end
+
 -- The constraints for planning, dropping any that refer to finished goals.
 function N:Options(sel)
     sel = sel or self.selection or {}
@@ -1303,6 +1317,11 @@ function N:Options(sel)
         end
         if partyFirst then first = partyFirst end
     end
+    -- A stop that asks to come first (Goals.lua: class training with your
+    -- trainer close by: new spells make every fight after it easier), unless
+    -- you picked a stop yourself or follow a shared route. (Flow Improvements
+    -- said "train" while the arrow went to the zombies first.)
+    if not first then first = N.GoFirstKey(goals) end
     -- Finish this zone before leaving it (see N.AreaSplit).
     local here, away
     local p = self:PlayerPos()

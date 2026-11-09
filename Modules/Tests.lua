@@ -959,7 +959,20 @@ ns:Register("test", "cast: the key's button comes back out of combat", function(
     if btn then t:ok(btn:GetScript("OnUpdate") == nil, "no update loop on the (hideable) button") end
     t:eq(ns.cast._describe({ type = "item", item = "item:6256" }), "/use item:6256", "item press described")
     t:eq(ns.cast._describe({ type = "item", item = "item:6529", targetSlot = 16 }), "/use item:6529 on slot 16", "lure on main hand")
-    t:eq(ns.cast._describe({ spell = "Devotion Aura", kind = "buff" }), "/cast Devotion Aura", "spell press")
+    -- (Your own buffs go on you since 0.35.93, even with a friend targeted.)
+    t:eq(ns.cast._describe({ spell = "Devotion Aura", kind = "buff" }), "/cast [@player] Devotion Aura", "spell press")
+    t:eq(ns.cast._describe({ spell = "Wrath", kind = "damage" }), "/cast Wrath", "an attack: on your target")
+end)
+
+ns:Register("test", "class training goes first when your trainer is close", function(t)
+    local N = ns.nav
+    t:ok(N.TrainFirst(95, true), "95 yd away, spells you can pay for: first")
+    t:ok(not N.TrainFirst(900, true), "far away: fitted into the route instead")
+    t:ok(not N.TrainFirst(95, false), "can't pay for any yet: not first")
+    t:ok(not N.TrainFirst(nil, true), "no idea where the trainer is: not first")
+    local goals = { { key = "364:1", points = { {} } }, { key = "train:class", goFirst = true, points = { {} } } }
+    t:eq(N.GoFirstKey(goals), "train:class", "the route starts with class training")
+    t:eq(N.GoFirstKey({ { key = "364:1", points = { {} } } }), nil, "nothing asks to come first: the route as planned")
 end)
 
 ns:Register("test", "actions: fishing steps on the Flow key", function(t)

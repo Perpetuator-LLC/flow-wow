@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.98
+- **Class training comes first when your trainer is close.** If spells are waiting, your class
+  trainer is within about 300 yards, and you can pay for some of them, the arrow takes you there
+  before anything else: new spells make every fight after it easier. Before, Flow Improvements
+  said to train while the arrow went to the next fight (a new paladin in Deathknell). If the
+  trainer is far away, training is still fitted into the route where it costs the least. Once
+  you've been to the trainer at your level, it doesn't push to the front again.
+- Fixed a self-test that still expected your own buffs to cast without `[@player]`.
+
 ## 0.35.97
 - **Flow is on CurseForge:** [Flow (unfettered)](https://www.curseforge.com/wow/addons/flow-unfettered).
   From now on every release goes there automatically, the same day it's on GitHub, so the
