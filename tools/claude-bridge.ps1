@@ -96,6 +96,7 @@ function Load-State {
         $state.replies = @($s.replies | Where-Object { $_ } | ForEach-Object { @{ id = [int]$_.id; replyTo = $_.replyTo; at = [int]$_.at; text = [string]$_.text } })
         if ($s.nextId) { $state.nextId = [int]$s.nextId }
         $state.toldDirty = [bool]$s.toldDirty
+        if ($s.deathsSeen) { $state.deathsSeen = [int]$s.deathsSeen }
     } catch { Write-Host "(couldn't read ${stateFile}: starting fresh)" }
 }
 Load-State
@@ -211,7 +212,37 @@ Message: $($msg.text)
     ($text -replace '`', '' -replace '\*\*', '').Trim()
 }
 
+# --- deaths: Flow's death reports (FlowDB.deathReports), one DEATH line each ---
+# "id|char|class|level|zone|summary || findings" (Engine.lua, PLAYER_DEAD).
+function Get-Deaths {
+    if (-not (Test-Path $saved)) { return @() }
+    $text = Get-Content $saved -Raw
+    $block = Get-Block $text 'deathReports'
+    if (-not $block) { return @() }
+    $out = @()
+    foreach ($m in [regex]::Matches($block, '"((?:[^"\\]|\\.)*)"')) {
+        $f = (Unescape-Lua $m.Groups[1].Value) -split '\|', 6
+        if ($f.Count -eq 6 -and $f[0] -match '^\d+$') {
+            $out += @{ id = [int]$f[0]; char = $f[1]; class = $f[2]; level = $f[3]; zone = $f[4]; text = $f[5] }
+        }
+    }
+    return $out
+}
+function Handle-Deaths {
+    if ($NoAsk -or $Cli) { return }
+    Load-State
+    $seen = if ($state.deathsSeen) { [int]$state.deathsSeen } else { 0 }
+    $new = @(Get-Deaths | Where-Object { $_.id -gt $seen } | Sort-Object { $_.id })
+    foreach ($d in $new) {
+        # For the watching Claude session: a post-mortem to do (CLAUDE.md).
+        Emit ("DEATH {0} | {1} ({2} {3}, {4}) | {5}" -f $d.id, $d.char, $d.class, $d.level, $d.zone, $d.text)
+        $seen = [math]::Max($seen, $d.id)
+    }
+    if ($new.Count -gt 0) { $state.deathsSeen = $seen; Save-State }
+}
+
 function Handle-Messages {
+    Handle-Deaths
     if ($NoAsk) { return }
     foreach ($m in (Get-Outbox)) {
         Load-State
@@ -289,6 +320,9 @@ FlowDB = {
 ["seen"] = {
 },
 },
+["deathReports"] = {
+"1|Sooth|DRUID|6|Mulgore|died after 30 s fighting Bristleback (level 9, you 6); heals: suggested 0 times, cast 0 || Flow didn't suggest a heal",
+},
 }
 '@
     [IO.File]::WriteAllText($saved, $sample)
@@ -298,8 +332,12 @@ FlowDB = {
     elseif ($box[0].id -ne 2) { Write-Host "FAIL id: $($box[0].id)"; $ok = $false }
     elseif ($box[0].text -ne 'make the {arrow} "green"') { Write-Host "FAIL text: $($box[0].text)"; $ok = $false }
     elseif ($box[0].zone -ne 'Mulgore') { Write-Host "FAIL zone: $($box[0].zone)"; $ok = $false }
-    Handle-Messages   # prints: ASK 2 | Sooth ( 9, Mulgore) | make the {arrow} "green"
+    Handle-Messages   # prints: DEATH 1 | ..., then ASK 2 | Sooth ( 9, Mulgore) | make the {arrow} "green"
     if ($state.delivered -notcontains 2) { Write-Host "FAIL: message 2 not passed on"; $ok = $false }
+    if ([int]$state.deathsSeen -ne 1) { Write-Host "FAIL: death 1 not passed on ($($state.deathsSeen))"; $ok = $false }
+    $before = $state.deathsSeen
+    Handle-Deaths     # nothing new: no second DEATH line
+    if ($state.deathsSeen -ne $before) { Write-Host "FAIL: death passed on twice"; $ok = $false }
     Add-Reply 'Done: the arrow is green. Type /reload.' 2
     if ($state.answered -notcontains 2) { Write-Host "FAIL: message 2 not marked answered"; $ok = $false }
     $lua = Get-Content $inboxFile -Raw

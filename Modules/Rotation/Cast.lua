@@ -530,6 +530,7 @@ ns:OnLoad(function()
                     tostring(btn:GetAttribute("spell-heal")), E.hurt or 0, tostring(InCombatLockdown())))
             end
             if fight then fight.healPresses = (fight.healPresses or 0) + 1 end
+            if down ~= false and E.NoteShiftPress then E.NoteShiftPress() end   -- (death reports)
             return
         end
         local s = E.shown

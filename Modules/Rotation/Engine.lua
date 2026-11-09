@@ -823,3 +823,139 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 end)
 ns:On("PLAYER_LEVEL_UP", function() E.hurt = 0 end)                -- a new level fills your health
 ns:On("PLAYER_UNGHOST", function() E.hurt = E.HURT.outBig + 5 end)  -- back from the dead: about half
+
+-------------------------------------------------------------------------------
+-- Death reports: what happened in the fight you died in, so the easy button
+-- can learn from it. When you die, Flow says in chat what went wrong (1-3
+-- findings), saves the report (FlowDB.deathReports, the last 30, read by
+-- tools\claude-bridge.ps1 as a DEATH line for a Claude post-mortem) and logs
+-- it in full ("[death]" lines: what Flow suggested, what you cast).
+-------------------------------------------------------------------------------
+
+local track     -- the fight you're in (or were last in)
+local function newTrack()
+    return { start = GetTime(), casts = {}, seen = {}, heals = 0, healSeen = 0, shift = 0, hurtMax = E.hurt }
+end
+ns:On("PLAYER_REGEN_DISABLED", function() track = newTrack() end)
+C_Timer.NewTicker(0.5, function()
+    local t = track
+    if not t or UnitIsDeadOrGhost("player") or not UnitAffectingCombat("player") then return end
+    local now = GetTime() - t.start
+    local s = E.current
+    if s and s.spell then
+        t.seen[s.spell] = (t.seen[s.spell] or 0) + 1
+        if s.kind == "heal" or s.kind == "emergency" then
+            t.healSeen = t.healSeen + 1
+            t.healAt = t.healAt or now
+        end
+    end
+    if A.LowHealthWarning() == true then t.lowAt = t.lowAt or now end
+    t.hurtMax = math.max(t.hurtMax, E.hurt)
+    if UnitExists("target") and UnitCanAttack("player", "target") then
+        t.enemy = { name = A.Safe(UnitName("target")), level = A.Safe(UnitLevel("target")),
+                    class = A.Safe(UnitClassification("target")) }
+    end
+end)
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not track then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if not name then return end
+    if #track.casts < 40 then track.casts[#track.casts + 1] = string.format("%s@%ds", name, GetTime() - track.start) end
+    if E.HEAL_VALUE[name] then track.heals = track.heals + 1 end
+end)
+-- Cast.lua: Shift + key (your heal) was pressed.
+function E.NoteShiftPress() if track then track.shift = track.shift + 1 end end
+
+-- One line on what happened. r: { fight, level, lowAt, healAt, healSeen,
+-- heals, shift, oom, enemy = { name, level, class }, hurtMax, healKnown }.
+function E.DeathSummary(r)
+    local parts = { string.format("died after %d s", r.fight or 0) }
+    local e = r.enemy
+    if e and e.name then
+        local tags = {}
+        if e.level then tags[#tags + 1] = "level " .. tostring(e.level == -1 and "??" or e.level) end
+        if e.class and e.class ~= "normal" and e.class ~= "minus" then tags[#tags + 1] = e.class end
+        tags[#tags + 1] = "you " .. tostring(r.level)
+        parts[1] = parts[1] .. string.format(" fighting %s (%s)", e.name, table.concat(tags, ", "))
+    end
+    if r.lowAt then parts[#parts + 1] = string.format("low-health warning %d s before", (r.fight or 0) - r.lowAt) end
+    parts[#parts + 1] = string.format("heals: suggested %d times, cast %d", r.healSeen or 0, r.heals or 0)
+    parts[#parts + 1] = string.format("Shift + key %d", r.shift or 0)
+    if r.oom then parts[#parts + 1] = "out of mana" end
+    return table.concat(parts, "; ")
+end
+
+-- What could have saved you: 1-3 findings, most useful first.
+function E.DeathFindings(r)
+    local out = {}
+    local fight = r.fight or 0
+    if r.oom then
+        out[#out + 1] = "You were out of mana, so heals and spells couldn't be cast. Drink to full between fights."
+    end
+    if r.lowAt and r.healKnown and (r.heals or 0) == 0 then
+        out[#out + 1] = string.format("The low-health warning came on %d s before you died, but no heal was cast: Shift + your easy key casts %s on you, even in a fight.",
+            fight - r.lowAt, r.healKnown)
+    end
+    if r.healKnown and not r.healAt and fight >= 12 then
+        out[#out + 1] = string.format("Flow didn't suggest a heal this fight (its estimate of how hurt you were only reached %d): it should have warned you sooner.", r.hurtMax or 0)
+    elseif r.healAt and r.lowAt and r.healAt >= r.lowAt then
+        out[#out + 1] = "Flow's first heal suggestion came only with the low-health warning: too late."
+    end
+    local e = r.enemy
+    if e and e.name then
+        if e.class == "elite" or e.class == "rareelite" or e.class == "worldboss" then
+            out[#out + 1] = e.name .. " is elite: bring a friend, or leave it for later."
+        elseif type(e.level) == "number" and r.level and (e.level == -1 or e.level - r.level >= 3) then
+            out[#out + 1] = string.format("%s was level %s, %s above you: hard to win alone.", e.name,
+                e.level == -1 and "??" or tostring(e.level), e.level == -1 and "far" or tostring(e.level - r.level))
+        end
+    end
+    if #out == 0 then out[1] = "Nothing stands out in what Flow can see; the fight is saved for a closer look." end
+    while #out > 3 do table.remove(out) end
+    return out
+end
+
+ns:OnLoad(function(saved)
+    saved.deathReports = saved.deathReports or {}
+    saved.deathNext = saved.deathNext or 1
+end)
+
+ns:On("PLAYER_DEAD", function()
+    local t = track or newTrack()
+    track = nil
+    local def = E:Definition()
+    local healKnown, oom
+    for _, sp in ipairs(def and def.heals or {}) do
+        if E:Knows(sp) then
+            healKnown = healKnown or sp
+            local _, noMana = A.Usable(sp)
+            if noMana == true then oom = true end
+        end
+    end
+    local level = UnitLevel("player")
+    local r = { fight = GetTime() - t.start, level = level, lowAt = t.lowAt, healAt = t.healAt, healSeen = t.healSeen,
+                heals = t.heals, shift = t.shift, oom = oom, enemy = t.enemy, hurtMax = t.hurtMax, healKnown = healKnown }
+    local summary, findings = E.DeathSummary(r), E.DeathFindings(r)
+    -- Saved for the post-mortem (tools\claude-bridge.ps1 passes it on as a DEATH line).
+    local id = ns.db.deathNext or 1
+    ns.db.deathNext = id + 1
+    local _, class = UnitClass("player")
+    local who = (A.Safe(UnitName("player")) or "?"):gsub("|", "")
+    local zone = ((GetZoneText and GetZoneText()) or "?"):gsub("|", "")
+    local reports = ns.db.deathReports
+    reports[#reports + 1] = string.format("%d|%s|%s|%d|%s|%s || %s", id, who, tostring(class), level, zone,
+        summary, table.concat(findings, " / "))
+    while #reports > 30 do table.remove(reports, 1) end
+    ns:Log("death", string.format("#%d %s", id, summary))
+    for _, f in ipairs(findings) do ns:Log("death", "  - " .. f) end
+    local seen = {}
+    for sp, n in pairs(t.seen) do seen[#seen + 1] = sp .. " x" .. n end
+    ns:Log("death", "  Flow suggested: " .. (#seen > 0 and table.concat(seen, ", ") or "nothing"))
+    ns:Log("death", "  you cast: " .. (#t.casts > 0 and table.concat(t.casts, ", ") or "nothing"))
+    -- In chat: what went wrong.
+    ns:Print("|cffff6060You died.|r " .. summary)
+    for _, f in ipairs(findings) do print("  - " .. f) end
+    if ns.claudeInbox and #ns.claudeInbox > 0 then
+        print("  |cff888888(Claude looks at each death to improve the easy button: this one goes at your next /reload.)|r")
+    end
+end)

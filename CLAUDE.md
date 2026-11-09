@@ -59,6 +59,16 @@ When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
      and say whether they need to `/reload` (or restart WoW, for new files) to see a change.
    - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the
      player was told in game.
+   - `DEATH <id> | <who> | <summary> || <findings>`: the player died. Do a **post-mortem**: how
+     could the easy button have prevented it? Read `tools\read-diag.ps1` (the `[death]` lines
+     for that death, which list what Flow suggested and what was cast, plus the `[heal]` and
+     `[cast]` lines of that fight). Look for a heal that came late or not at all, a pull the key
+     was locked to badly, a missing warning (too many mobs, an elite, out of mana), or a spell
+     Flow didn't suggest. Make the improvement the way this file says (a test, lint, and on the
+     maintainer's branch a version bump, changelog and commit; never push). Then tell the
+     player in 1 or 2 sentences:
+     `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Note "Your death at 23:10: ... Flow now ..."`.
+     If nothing would have helped, say so in the note.
 2. On a clone that follows `main` (not the maintainer's branch), change files but don't commit or
    bump the version; offer to open a pull request (CONTRIBUTING.md).
 3. Every answer is shown only after the player's next reload ("Check now" in the `/claude` chat

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.99
+- **Death reports.** When you die, Flow says in chat what happened. For example: "died after 40 s
+  fighting Bristleback Interloper (level 9, you 6); low-health warning 8 s before; heals:
+  suggested 0 times, cast 0; Shift + key 0". It then lists up to 3 things that could have saved
+  you:
+  - the low-health warning came on but no heal was cast (Shift + your easy key heals you, even
+    in a fight);
+  - Flow suggested no heal, or only with the warning;
+  - you were out of mana;
+  - the enemy was elite or 3+ levels above you.
+
+  Each report is saved, with what Flow suggested and what you cast. If you use Ask Claude, the
+  bridge passes each death to the watching Claude session as a `DEATH` line. Claude does a
+  post-mortem on how the easy button could have prevented it, makes that improvement, and tells
+  you in a note (docs/ASK-CLAUDE.md).
+
 ## 0.35.98
 - **Class training comes first when your trainer is close.** If spells are waiting, your class
   trainer is within about 300 yards, and you can pay for some of them, the arrow takes you there

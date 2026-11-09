@@ -2888,3 +2888,25 @@ ns:Register("test", "Flow Seller: Auto-cleanup tidies your bags after auto-sell"
     t:ok(f.clean and f.clean.label and f.clean.label:GetText() == "Auto-cleanup", "an Auto-cleanup checkbox next to Auto-sell")
     t:eq(f.head.text:GetText():match("^Flow Seller") and "Flow Seller", "Flow Seller", "named Flow Seller")
 end)
+
+ns:Register("test", "death reports: what went wrong, in a line and 1-3 findings", function(t)
+    local E = ns.rotation
+    local r = { fight = 40, level = 6, lowAt = 32, healAt = nil, healSeen = 0, heals = 0, shift = 0, oom = false,
+                enemy = { name = "Bristleback Interloper", level = 9, class = "normal" }, hurtMax = 5, healKnown = "Rejuvenation" }
+    local line = E.DeathSummary(r)
+    t:ok(line:find("died after 40 s fighting Bristleback Interloper (level 9, you 6)", 1, true) ~= nil, "who killed you, and the levels")
+    t:ok(line:find("low-health warning 8 s before", 1, true) ~= nil, "when the warning came")
+    t:ok(not line:find("|", 1, true), "no | in it (the report's separator)")
+    local f = E.DeathFindings(r)
+    local all = table.concat(f, " / ")
+    t:ok(all:find("Shift + your easy key casts Rejuvenation", 1, true) ~= nil, "no heal cast after the warning: says Shift + key")
+    t:ok(all:find("didn't suggest a heal", 1, true) ~= nil, "Flow never suggested one: says so")
+    t:ok(#f <= 3, "at most 3 findings")
+    local elite = E.DeathFindings({ fight = 20, level = 6, enemy = { name = "Ogre", level = 7, class = "elite" } })
+    t:ok(elite[1]:find("elite", 1, true) ~= nil, "an elite: bring a friend")
+    local oom = E.DeathFindings({ fight = 20, level = 6, oom = true })
+    t:ok(oom[1]:find("out of mana", 1, true) ~= nil, "out of mana first")
+    local none = E.DeathFindings({ fight = 5, level = 6 })
+    t:eq(#none, 1, "nothing obvious: one line saying so")
+    t:ok(type(E.NoteShiftPress) == "function", "Shift + key presses are counted")
+end)

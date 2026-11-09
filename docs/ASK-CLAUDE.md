@@ -30,6 +30,10 @@ when the UI loads. So:
 4. **Check now** in the chat window (or `/claude check`) reloads the UI: WoW reads the answers file
    (and any code Claude changed), and Flow prints the answers. `/claude` on its own opens the chat
    window: what you asked, the answers, a box to type in, Send and Check now.
+5. **Deaths:** when you die, Flow saves a death report (what Flow suggested, what you cast, when
+   the low-health warning came on, the enemy). At your next reload the bridge passes it on as a
+   `DEATH` line. The watching Claude session does a post-mortem (CLAUDE.md): how the easy button
+   could have prevented it. It makes that improvement and tells you in a note.
 
 ## Setup
 
@@ -58,7 +62,7 @@ Remove it with `schtasks /Delete /TN "Flow updates"`.
 
 | | |
 |---|---|
-| (none) | listen: print `ASK` / `UPDATE` lines for a Claude session, keep Flow up to date |
+| (none) | listen: print `ASK` / `DEATH` / `UPDATE` lines for a Claude session, keep Flow up to date |
 | `-Reply ID -Text "..."` | answer message ID (shown in game after `/claude` or `/reload`) |
 | `-Note "..."` | tell the player something with no message to answer |
 | `-NoAsk` | only keep Flow up to date |
