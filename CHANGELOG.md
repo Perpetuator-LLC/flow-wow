@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.109
+- **The easy button greys out when you can't cast it,** like an action button: grey when you
+  don't have the mana (or the game says it isn't usable right now), red when your target is out
+  of its range.
+- **Cooldowns show in fights too.** WoW: Forever hides spell cooldowns from add-ons in a fight,
+  so the button showed none. Now the game draws the sweep (and its own countdown numbers) from
+  the hidden values. `/flow rot why` says how the cooldown was drawn and why the button is tinted.
+
 ## 0.35.108
 - **The Flow Tracker shows everything to do where you are.** It lists your waypoint (the next
   stop) and every stop within about 150 yards of you or of it, in route order, so in an area you

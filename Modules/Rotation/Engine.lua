@@ -639,6 +639,9 @@ function E:Explain()
     local n = 0
     for _ in pairs(known) do n = n + 1 end
     out[#out + 1] = string.format("Known spells: %d. Last error: %s", n, tostring(self.lastError or "none"))
+    -- The easy button: how its cooldown was drawn (readable, duration, hidden
+    -- or none) and its tint (grey: can't cast now, red: out of range).
+    out[#out + 1] = string.format("Button: cooldown %s, tint %s", tostring(self.cooldownShown or "?"), tostring(self.buttonTint or "none"))
     local ok, ctx = pcall(self.Context, self)
     if not ok then
         out[#out + 1] = "Context failed: " .. tostring(ctx)

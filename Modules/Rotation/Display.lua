@@ -244,6 +244,57 @@ local function cooldownOf(s)
     return 0, 0
 end
 
+-- The cooldown sweep on the icon. WoW: Forever hides spell cooldowns from
+-- add-ons in fights ("secret" values: A.CooldownRaw turns them into 0, so the
+-- button showed no cooldown at all). The cooldown frame itself can still
+-- draw them: from the game's duration object where the client has one, else
+-- from the hidden values as they are. Then the game's own countdown numbers
+-- go on (Flow can't count down a hidden time). Returns how it drew it, for
+-- the diagnostics: "readable", "duration", "hidden" or "none".
+local function setCooldown(cd, s)
+    local start, dur = cooldownOf(s)
+    local readable = (start or 0) > 0 and (dur or 0) > 0
+    if s.spell and not readable then
+        local CS = C_Spell
+        if CS and CS.GetSpellCooldownDuration and cd.SetCooldownFromDurationObject then
+            local ok, d = pcall(CS.GetSpellCooldownDuration, s.spell)
+            if ok and d and pcall(cd.SetCooldownFromDurationObject, cd, d, true) then
+                if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(false) end
+                return "duration", 0, 0
+            end
+        end
+        local c = CS and CS.GetSpellCooldown and CS.GetSpellCooldown(s.spell)
+        local rs, rd = c and c.startTime, c and c.duration
+        if rs ~= nil and A.Safe(rs) == nil and pcall(cd.SetCooldown, cd, rs, rd) then
+            if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(false) end
+            return "hidden", 0, 0
+        end
+    end
+    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end   -- Flow's own timer
+    cd:SetCooldown(start or 0, dur or 0)
+    return readable and "readable" or "none", start, dur
+end
+
+-- Like an action button: grey when you can't cast it now (not enough mana,
+-- or the game says it isn't usable), red when your target is out of its
+-- range, else as it is. Unknown (nil) never greys it out.
+function ns.ButtonTint(usable, noMana, inRange)
+    if noMana == true or usable == false then return "grey" end
+    if inRange == false then return "red" end
+    return nil
+end
+local TINT = { grey = { 0.55, 0.55, 0.55, true }, red = { 1, 0.35, 0.35, false } }
+local function tintOf(s)
+    if not (s and s.spell) or s.kind == "held" then return nil end
+    local usable, noMana = A.Usable(s.spell)
+    local inRange
+    local onYou = ns.cast and ns.cast.UnitFor and ns.cast.UnitFor(s)
+    if not onYou and UnitExists("target") and UnitCanAttack("player", "target") then
+        inRange = A.InRange(s.spell, "target")
+    end
+    return ns.ButtonTint(usable, noMana, inRange)
+end
+
 -- The timer's text for a cooldown: "" when ready or only the global
 -- cooldown; "1m" / "12" / "4.2" otherwise.
 local GCD = 1.6
@@ -300,9 +351,17 @@ local function render(s, cfg)
     -- Flow Actions always say what the press does ("Equip your Fishing Pole").
     -- A buff for someone in your group says who it's for.
     icon.text:SetText(s.label or (s.target and ("on " .. s.target)) or (cfg.debug and s.reason) or "")
-    local start, dur = cooldownOf(s)
-    icon.cd:SetCooldown(start or 0, dur or 0)
+    local how, start, dur = setCooldown(icon.cd, s)
+    E.cooldownShown = how
     icon.timer:SetText(ns.CooldownText(start, dur, GetTime()))
+    -- Grey: can't cast it now (mana, or not usable); red: out of range.
+    local okT, tint = pcall(tintOf, s)
+    local tv = okT and TINT[tint]
+    E.buttonTint = okT and tint or nil
+    icon.tex:SetDesaturated(tv and tv[4] or (s.kind == "held"))
+    if tv then icon.tex:SetVertexColor(tv[1], tv[2], tv[3])
+    elseif s.kind == "held" then icon.tex:SetVertexColor(0.7, 0.7, 0.7)
+    else icon.tex:SetVertexColor(1, 1, 1) end
     icon:Show()
 
     local key = tostring(s.spell or s.item or s.type) .. s.kind

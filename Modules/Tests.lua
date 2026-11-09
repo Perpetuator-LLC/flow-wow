@@ -1518,6 +1518,24 @@ ns:Register("test", "Flow button: cooldown timer text", function(t)
     t:eq(T(10, 30, 100), "", "finished: no timer")
 end)
 
+ns:Register("test", "Flow button: grey when you can't cast it, red out of range", function(t)
+    -- Yang: show cooldowns, and grey it out when out of mana.
+    local B = ns.ButtonTint
+    t:eq(B(true, false, true), nil, "castable, in range: as it is")
+    t:eq(B(false, true, true), "grey", "not enough mana: grey")
+    t:eq(B(false, false, nil), "grey", "the game says not usable: grey")
+    t:eq(B(true, false, false), "red", "target out of range: red")
+    t:eq(B(true, nil, nil), nil, "can't tell (hidden in a fight): never greyed for that")
+    t:eq(B(false, true, false), "grey", "out of mana and out of range: grey first")
+    -- The diagnostics say how the cooldown was drawn.
+    local okL, lines = pcall(ns.rotation.Explain, ns.rotation)
+    if okL and type(lines) == "table" and #lines > 1 then
+        local found = false
+        for _, l in ipairs(lines) do if tostring(l):find("^Button: cooldown") then found = true end end
+        t:ok(found, "/flow rot why says how the button's cooldown is drawn")
+    end
+end)
+
 ns:Register("test", "rotation: heal on the game's low-health warning; break free when held", function(t)
     local E, def = ns.rotation, ns.rotation:Definition()
     if not (def and def.heals) then t:ok(true, "(no heals for this class)") return end
