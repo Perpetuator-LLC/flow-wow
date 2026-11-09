@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.101
+- **The Flow Arrow's drawer opens beside the arrow again, on the side with room.** It opens below
+  by default, above when the arrow is near the bottom of the screen, and to the right or left
+  when the arrow is at a screen edge. (0.35.95 had moved it to the tooltip spot, away from the
+  arrow.)
+- **Shift-drag the drawer to give it a place of its own.** It opens there from then on, and the
+  arrow's right-click menu has "Drawer next to the arrow (again)" to put it back.
+- **A pinned drawer stays pinned:** click the arrow to pin it open. It follows your current stop
+  as you go, and opens again after a /reload until you fold it (the ^ tab, a click on it, or the
+  arrow). Shift-clicking the drawer no longer folds it.
+
 ## 0.35.100
 - **Every new character starts with "Next stop only"**, so the map and the Flow Tracker look
   simple. How many stops you show is now each character's own setting; before, one character's

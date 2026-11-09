@@ -1694,10 +1694,54 @@ local function fillHero(p, g, distText)
     return task
 end
 
--- The arrow's panel is a drawer: it slides down out of the arrow (a lip joins
--- it to the arrow's text), and a pull tab at the bottom with a ^ folds it back
--- up. It isn't moved anywhere else: it belongs to the arrow. (The stop card,
--- shared by the Flow Tracker and Router, is a separate window with an X.)
+-- The arrow's panel is a drawer: it slides out of the arrow (below it, a lip
+-- joins it to the arrow's text), and a pull tab at the bottom with a ^ folds
+-- it back. It opens on whichever side of the arrow has room (N.DrawerSide):
+-- below, above near the bottom of the screen, to the right or left at a
+-- screen edge. Shift-drag it to give it a place of its own (the arrow's
+-- right-click menu puts it back). Click the arrow to pin it open: it follows
+-- your current stop, and stays open after a /reload until you fold it.
+-- (The stop card, shared by the Flow Tracker and Router, is a separate window.)
+
+-- Which side of the arrow the drawer opens on. Arrow at ax, ay (left,
+-- bottom) of size aw x ah on a screen sw x sh; the drawer is dw x dh.
+-- (Below the arrow, its text takes 38 more.)
+function N.DrawerSide(ax, ay, aw, ah, sw, sh, dw, dh)
+    local cx = ax + aw / 2
+    if cx < dw / 2 + 8 then return "right" end          -- at the left edge
+    if cx > sw - dw / 2 - 8 then return "left" end      -- at the right edge
+    local roomBelow, roomAbove = ay - 38, sh - (ay + ah)
+    if roomBelow >= dh + 8 then return "below" end
+    if roomAbove >= dh + 8 then return "above" end
+    return roomBelow >= roomAbove and "below" or "above"   -- (kept on screen either way)
+end
+
+local DRAWER_POINTS = {
+    below = { "TOP", "BOTTOM", 0, -38 }, above = { "BOTTOM", "TOP", 0, 8 },
+    right = { "TOPLEFT", "TOPRIGHT", 8, 0 }, left = { "TOPRIGHT", "TOPLEFT", -8, 0 },
+}
+
+-- Put the drawer where it opens: your spot (Shift-dragged), else beside the arrow.
+local function placeDrawer(drawer, arrow)
+    drawer:ClearAllPoints()
+    local saved = ns.db.nav.drawerPoint
+    if saved then
+        drawer:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])
+        drawer.lip:Hide()
+        drawer:SetSlideOrigin("TOP")
+        return "yours"
+    end
+    local k = (arrow:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    local side = N.DrawerSide((arrow:GetLeft() or 0) * k, (arrow:GetBottom() or 0) * k, arrow:GetWidth() * k, arrow:GetHeight() * k,
+        UIParent:GetWidth(), UIParent:GetHeight(), drawer:GetWidth(), drawer:GetHeight())
+    local p = DRAWER_POINTS[side]
+    drawer:SetPoint(p[1], arrow, p[2], p[3], p[4])
+    drawer.lip:SetShown(side == "below")
+    drawer:SetSlideOrigin(side == "above" and "BOTTOM" or "TOP")
+    return side
+end
+N._placeDrawer = placeDrawer   -- (tests)
+
 local function makeDrawer(f)
     local BG = { 0.04, 0.04, 0.07, 0.92 }
     f.lip = f:CreateTexture(nil, "BACKGROUND")
@@ -1726,9 +1770,9 @@ local function makeDrawer(f)
         for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 0.75) end
         GameTooltip:Hide()
     end)
-    tab:SetScript("OnClick", function() f:Fold() end)
+    tab:SetScript("OnClick", function() f:Fold(true) end)
     f.tab = tab
-    -- Slide: grow down from the top edge when it opens, shrink back up when it folds.
+    -- Slide: grow out from the arrow's side when it opens, shrink back when it folds.
     local function slide(from, to, done)
         local g = f:CreateAnimationGroup()
         local a = g:CreateAnimation("Scale")
@@ -1738,16 +1782,42 @@ local function makeDrawer(f)
         a:SetDuration(0.14)
         a:SetSmoothing(from < to and "OUT" or "IN")
         if done then g:SetScript("OnFinished", done) end
+        g.scale = a
         return g
     end
     f.openAnim = slide(0.05, 1)
     f.foldAnim = slide(1, 0.05, function() f:Hide() end)
+    function f:SetSlideOrigin(point)
+        self.openAnim.scale:SetOrigin(point, 0, 0)
+        self.foldAnim.scale:SetOrigin(point, 0, 0)
+    end
     f:HookScript("OnShow", function(self) self.foldAnim:Stop(); self.openAnim:Play() end)
-    function f:Fold()
+    -- byYou: you folded it (the tab, a click on it or the arrow), so it's no
+    -- longer pinned open; a hover-opened drawer folding by itself leaves that alone.
+    function f:Fold(byYou)
+        if byYou then ns.db.nav.drawerOpen = nil end
         if not self:IsShown() or self.foldAnim:IsPlaying() then return end
         self.openAnim:Stop(); self.foldAnim:Play()
     end
-    f:SetScript("OnMouseUp", function(self) self:Fold() end)   -- a click on it folds it too
+    -- Shift-drag: your own place for it (saved). A plain click folds it.
+    f:SetMovable(true)
+    f:SetClampedToScreen(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self)
+        if IsShiftKeyDown() then self:StartMoving(); self.dragging = true end
+    end)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local a, _, r, x, y = self:GetPoint()
+        ns.db.nav.drawerPoint = { a, r, x, y }
+        self.lip:Hide()
+        ns:Print("the drawer stays here now (right-click the arrow: \"Drawer next to the arrow\" puts it back).")
+    end)
+    f:SetScript("OnMouseUp", function(self)
+        if self.dragging then self.dragging = nil return end
+        if IsShiftKeyDown() then return end
+        self:Fold(true)
+    end)
 end
 
 N._makeDrawer = makeDrawer  -- (tests)
@@ -1799,12 +1869,9 @@ local function showPanel()
     lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click the arrow or the ^ tab to fold this away.|r"
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
-    -- Placed when it opens (it's refreshed all the time while open): where
-    -- WoW shows its tooltips, else the drawer right under the arrow's text.
-    if not panel:IsShown() and not ns.PlaceAtTipSpot(panel, frame) then
-        panel:ClearAllPoints()
-        panel:SetPoint("TOP", frame, "BOTTOM", 0, -38)
-    end
+    -- Placed when it opens (it's refreshed all the time while open): on the
+    -- side of the arrow with room, or where you Shift-dragged it.
+    if not panel:IsShown() then panel.side = placeDrawer(panel, frame) end
     panel:Show()
 end
 
@@ -1975,13 +2042,22 @@ local function buildArrow()
             items[#items + 1] = { sep = true }
             items[#items + 1] = { text = "3D arrow", checked = ns.db.nav.arrowStyle ~= "flat",
                 func = function() N:SetArrowStyle(ns.db.nav.arrowStyle == "flat" and "3d" or "flat") end }
+            -- (Only once you've Shift-dragged the drawer somewhere of its own.)
+            if ns.db.nav.drawerPoint then
+                items[#items + 1] = { text = "Drawer next to the arrow (again)", func = function()
+                    ns.db.nav.drawerPoint = nil
+                    if panel and panel:IsShown() then panel.side = placeDrawer(panel, frame) end
+                end }
+            end
             ns.menu:Open(items)
         elseif panel and panel:IsShown() and not panel.byHover then
-            panel:Fold()
+            panel:Fold(true)
         else
-            -- A click keeps it open (a hover-opened panel becomes pinned).
+            -- A click pins it open (a hover-opened panel becomes pinned), and
+            -- it stays open across a /reload until you fold it.
             showPanel()
-            panel.byHover = false
+            if panel then panel.byHover = false end
+            ns.db.nav.drawerOpen = true
         end
     end)
     -- The text under the arrow (stop name, distance) clicks like the arrow:
@@ -2255,7 +2331,13 @@ local function update()
     local c = choice.waypoint and ns.theme.waypoint or ns.theme.route   -- your waypoint: green
     frame.arrow:SetVertexColor(c[1], c[2], c[3])
     frame:Show()
-    if panel and panel:IsShown() then showPanel() end
+    if panel and panel:IsShown() then showPanel()
+    elseif ns.db.nav.drawerOpen and not N.drawerRestored then
+        -- Pinned open before the /reload: open again, once, now there's a stop.
+        N.drawerRestored = true
+        showPanel()
+        if panel then panel.byHover = false end
+    end
 end
 
 -------------------------------------------------------------------------------
