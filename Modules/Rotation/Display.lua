@@ -292,7 +292,26 @@ local function tintOf(s)
     if not onYou and UnitExists("target") and UnitCanAttack("player", "target") then
         inRange = A.InRange(s.spell, "target")
     end
-    return ns.ButtonTint(usable, noMana, inRange)
+    return ns.ButtonTint(usable, noMana, inRange), noMana == true
+end
+
+-- Out of mana for it: about how long until you have enough (Yang: a timer
+-- for that too, like a cooldown's). Seconds, or nil when Flow can't tell
+-- (mana hidden in a fight, no regeneration) or you have enough.
+function ns.ManaWaitSeconds(cost, mana, regen)
+    if not (cost and mana and regen) or regen <= 0 or mana >= cost then return nil end
+    return math.ceil((cost - mana) / regen)
+end
+function ns.ManaWait(spell)
+    local cost
+    local get = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
+    local ok, costs = pcall(get, spell)
+    for _, c in ipairs(ok and type(costs) == "table" and costs or {}) do
+        if c.type == 0 or c.name == "MANA" then cost = A.Safe(c.cost) end
+    end
+    local mana = A.Safe(UnitPower("player", 0))
+    local okR, idle = pcall(GetPowerRegen)
+    return ns.ManaWaitSeconds(cost, mana, okR and A.Safe(idle) or nil)
 end
 
 -- The timer's text for a cooldown: "" when ready or only the global
@@ -355,9 +374,16 @@ local function render(s, cfg)
     E.cooldownShown = how
     icon.timer:SetText(ns.CooldownText(start, dur, GetTime()))
     -- Grey: can't cast it now (mana, or not usable); red: out of range.
-    local okT, tint = pcall(tintOf, s)
+    local okT, tint, oom = pcall(tintOf, s)
     local tv = okT and TINT[tint]
     E.buttonTint = okT and tint or nil
+    -- Waiting for mana (no cooldown to count down): about how long, in blue.
+    if okT and oom and (icon.timer:GetText() or "") == "" then
+        local okW, wait = pcall(ns.ManaWait, s.spell)
+        if okW and wait then
+            icon.timer:SetText("|cff7fb2ff" .. (wait >= 60 and string.format("%dm", math.ceil(wait / 60)) or tostring(wait)) .. "|r")
+        end
+    end
     icon.tex:SetDesaturated(tv and tv[4] or (s.kind == "held"))
     if tv then icon.tex:SetVertexColor(tv[1], tv[2], tv[3])
     elseif s.kind == "held" then icon.tex:SetVertexColor(0.7, 0.7, 0.7)

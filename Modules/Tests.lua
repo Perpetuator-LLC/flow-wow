@@ -3341,3 +3341,16 @@ ns:Register("test", "actions: quest NPCs to heal: the key targets one, then heal
     t:eq(X.HealStep(goal, "Holy Light", nil, { npc("nameplate2", "G3", { assist = false }) }, {}), nil, "not one you can heal: skipped")
     t:ok(type(X.FriendPlates) == "function", "friendly nameplates come on at such a stop")
 end)
+
+ns:Register("test", "Flow button: out of mana, a timer until you have enough", function(t)
+    -- Yang: when the next spell waits for a cooldown or mana, show a timer.
+    -- (Cooldowns already count down; mana gets one too.)
+    local W = ns.ManaWaitSeconds
+    t:eq(W(100, 40, 5), 12, "60 mana short at 5 a second: 12 s")
+    t:eq(W(100, 99.5, 5), 1, "a moment short: 1 s (rounded up)")
+    t:eq(W(100, 120, 5), nil, "enough mana: no timer")
+    t:eq(W(100, 40, 0), nil, "no regeneration: no timer (can't tell)")
+    t:eq(W(nil, 40, 5), nil, "cost hidden: no timer")
+    t:eq(W(100, nil, 5), nil, "mana hidden (in a fight): no timer")
+    t:ok(type(ns.ManaWait) == "function", "worked out from the spell's cost, your mana and regeneration")
+end)

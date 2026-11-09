@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.121
+- **Out of mana, the easy button counts down until you have enough** (in blue), like it does for a
+  cooldown. Flow works it out from the spell's cost, your mana and how fast it comes back. When
+  the game hides those in a fight, the button just stays grey.
+
 ## 0.35.120
 - **Fixed: Claude's answers were missing from Flow Chat.** The window put every message still
   waiting for an answer after all the answers, and showed only the last 6. Five old test messages
