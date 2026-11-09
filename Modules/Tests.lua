@@ -698,10 +698,14 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
         t:ok(M._changed(st, canvas, 1429, nil), "a stop's progress changed: redraw")
         t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a stop: redraw")
         t:ok(M._changed(st, canvas, 1430, "t:b"), "another map: redraw")
-        -- (a different number of stops from yours, whatever yours is)
+        -- (a different choice of stops from yours, whatever yours is: the
+        -- area when you show numbers, a number when you show the area)
+        local area = ns.nav:AreaMode()
+        with(ns.db.nav, "stopsArea", not area, function()
         with(ns.db.nav, "stopsShown", ns.nav:StopsShown() == 3 and 1 or 3, function()
-            t:ok(M._changed(st, canvas, 1430, "t:b"), "fewer stops on the map: redraw")
+            t:ok(M._changed(st, canvas, 1430, "t:b"), "other stops on the map: redraw")
             t:ok(not M._changed(st, canvas, 1430, "t:b"), "then no redraw again")
+        end)
         end)
         M._changed(st, canvas, 1430, "t:b")   -- (back to your setting)
 
@@ -2351,9 +2355,16 @@ ns:Register("test", "nav: stops on the map and the stop card are separate", func
     local N = ns.nav
     t:ok(type(N.StopVisible) == "function" and type(N.ShowStop) == "function", "both exist")
     t:ok(N.StopVisible ~= N.ShowStop, "under different names (one used to replace the other)")
+    with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.nav, "stopsShown", 0, function()
         local ok, v = pcall(N.StopVisible, N, 3, false)
         t:ok(ok and v == true, "all stops: stop 3 shows, no error")
+    end)
+    end)
+    -- The area choice: no error either.
+    with(ns.db.nav, "stopsArea", true, function()
+        local ok = pcall(N.StopVisible, N, 3, false)
+        t:ok(ok, "the area: no error")
     end)
 end)
 
