@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.114
+- **Sending by screenshot is off unless you turn it on** (`/flow chat live on`). By default
+  Send reloads again, while we look for a plain-text way out of the game.
+
 ## 0.35.113
 - **Confirmed: Flow Chat sends without a reload.** Yang's `/si test7` reached Claude straight
   away by screenshot, with no reload.

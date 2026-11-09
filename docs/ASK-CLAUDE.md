@@ -24,7 +24,7 @@ disk only at a reload (or logout), and the addon's own files are read only when 
 WoW writes a **screenshot** (`_forever_\Screenshots`) at once, and addons may take one. (WoW:
 Forever's chat log doesn't work for this: it never wrote Flow's whispers to the file.) So:
 
-1. **Sending, no reload:** `/si <message>` (or Send in Flow Chat). Flow shows the message for a
+1. **Sending, no reload (off unless you turn it on: `/flow chat live on`):** `/si <message>` (or Send in Flow Chat). Flow shows the message for a
    moment as a block of black and white squares in the top left of the screen (a simple code),
    takes a screenshot and hides them. You see a quick flash and "Screen captured". The message
    also goes into Flow's saved data, so if the screenshot doesn't carry it, the next reload

@@ -130,7 +130,9 @@ function AC.ShotRuns(bits, cols)
 end
 
 function AC.CanLive()
-    return ns.db.chat.live ~= false and type(Screenshot) == "function" and type(GetPhysicalScreenSize) == "function"
+    -- Off unless you turn it on (/flow chat live on): sending by screenshot is a
+    -- stopgap, not the text route you want (Sooth, 0.35.114). Off: Send reloads.
+    return ns.db.chat.live == true and type(Screenshot) == "function" and type(GetPhysicalScreenSize) == "function"
 end
 
 local status   -- forward: the chat window's status line
@@ -253,7 +255,7 @@ function AC.SetupPrompt(char, class, level, realm)
         "1. Find my Flow source: a git clone of that repo (often %USERPROFILE%\\projects\\flow-wow). If I have none, clone it there. If my WoW folder's _forever_\\Interface\\AddOns\\Flow isn't a link to that clone, tell me how to link it, or pass -AddonDir <that AddOns\\Flow folder> to the bridge below.",
         "2. Read CLAUDE.md (the \"Watch Flow's in-game chat\" section) and docs\\ASK-CLAUDE.md in it.",
         "3. Run: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1 -SelfTest  (it should say \"self-test OK\").",
-        "4. Start: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1  with your Monitor tool, and start it again each time it expires. It finds my WoW folder by itself and reads my messages as I send them (no reload: Flow takes a screenshot with the message coded in it, into _forever_\\Screenshots, which the bridge decodes and deletes), and from Flow's saved data (_forever_\\WTF\\Account\\<account>\\SavedVariables\\Flow.lua) at a reload.",
+        "4. Start: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1  with your Monitor tool, and start it again each time it expires. It finds my WoW folder by itself and reads my messages from Flow's saved data (_forever_\\WTF\\Account\\<account>\\SavedVariables\\Flow.lua) at a reload (and, if I turn it on with /flow chat live on, from Flow's coded screenshots in _forever_\\Screenshots as I send them, which it decodes and deletes).",
         "5. Each ASK line is a message from me: do what it asks in my Flow folder, then answer: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1 -Reply <id> -Text \"...\"  (at most 3 short sentences, plain text; say if I need to reload). DEATH and UPDATE lines: CLAUDE.md says what to do.",
         "6. When it prints READY, tell me to press Reload in Flow Chat (/si) and say hello.",
     }, "\n")

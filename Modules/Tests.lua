@@ -2867,7 +2867,7 @@ ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect
     for _, b in ipairs(AC.ShotBits(payload, 150)) do ones = ones + b end
     t:eq(n, ones, "the runs cover every black square")
     -- On screen: drawn, then hidden (no screenshot in a test).
-    if AC.CanLive() then
+    if type(GetPhysicalScreenSize) == "function" then   -- (drawing works whether sending by screenshot is on or not)
         t:ok(AC:ShowCode(payload), "the squares fit on your screen")
         t:ok(AC.CodeShown(), "shown for the screenshot")
         AC:HideCode()
