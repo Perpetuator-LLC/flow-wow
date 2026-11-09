@@ -1679,6 +1679,9 @@ end)
 ns:Register("test", "route: Stops on the map", function(t)
     local N = ns.nav
     t:ok(ns:Get("charData", "nav.stopsShown") ~= nil, "each character has its own (a new one starts at Next stop only)")
+    t:ok(ns:Get("charData", "nav.stopsArea") ~= nil, "the area choice too")
+    -- (The numbers, with the area choice off; restored after.)
+    with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.nav, "stopsShown", nil, function()
     with(ns, "Print", function() end, function()
         t:eq(N:StopsShown(), 1, "default: next stop only")
@@ -1702,6 +1705,9 @@ ns:Register("test", "route: Stops on the map", function(t)
         t:eq(N:StopsShown(), 3, "a typo changes nothing")
         ns.commands.nav("stops all")
         t:eq(N:StopsShown(), nil, "/flow nav stops all")
+        ns.commands.nav("stops area")
+        t:ok(N:AreaMode(), "/flow nav stops area")
+    end)
     end)
     end)
     if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
@@ -1718,7 +1724,7 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
     end
     -- (The tracker's "next stops, as on the map" mode; since 0.35.108 the
     -- default is "everything here", tested on its own.)
-    with(ns.db.tracker, "here", false, function()
+    with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.tracker, "enabled", true, function()
     with(ns.db.tracker, "open", "flow", function()
     with(ns.nav, "plan", { stop("t:1"), stop("t:2"), stop("t:3"), stop("t:4"), stop("t:5") }, function()
@@ -1749,29 +1755,42 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
 end)
 
 ns:Register("test", "click: Stops on the map in the menu and on the settings page", function(t)
+    -- (Both restored after: the menu entries change your real setting.)
+    with(ns.db.nav, "stopsArea", nil, function()
     with(ns.db.nav, "stopsShown", nil, function()
-        local next1, all
+        local area, next1, all
         for _, it in ipairs(ns.menu:RouteItems()) do
+            if it.text == ns.nav.AREA_LABEL then area = it end
             if it.text == "Next stop only" then next1 = it end
             if it.text and it.text:find("^All stops") then all = it end
         end
-        t:ok(next1 and all, "the menu has Next stop only and All stops")
+        t:ok(area and next1 and all, "the menu has the area, Next stop only and All stops")
         if next1 then pcall(next1.func) end
         t:eq(ns.nav:StopsShown(), 1, "Next stop only: one stop")
+        t:ok(not ns.nav:AreaMode(), "a number turns the area choice off")
         if all then pcall(all.func) end
         t:eq(ns.nav:StopsShown(), nil, "All stops: all of them")
+        if area then pcall(area.func) end
+        t:ok(ns.nav:AreaMode(), "the area choice back on")
         local row
         for _, r in ipairs(ns.settings:Choices()) do
             if r.label and r.label:GetText() == "Stops on the map" then row = r end
         end
         if not row then t:ok(true, "(settings page not built yet: open /flow settings once)") return end
-        for _, b in ipairs(row.buttons) do
-            if b.value == 5 then
-                local ok, err = pcall(b:GetScript("OnClick"), b, "LeftButton")
-                t:ok(ok, "the 5 button runs" .. (ok and "" or (": " .. tostring(err))))
+        local function click(value)
+            for _, b in ipairs(row.buttons) do
+                if b.value == value then
+                    local ok, err = pcall(b:GetScript("OnClick"), b, "LeftButton")
+                    t:ok(ok, "the " .. tostring(value) .. " button runs" .. (ok and "" or (": " .. tostring(err))))
+                end
             end
         end
+        click(5)
         t:eq(ns.nav:StopsShown(), 5, "settings button: next 5")
+        t:ok(not ns.nav:AreaMode(), "(and not the area)")
+        click("area")
+        t:ok(ns.nav:AreaMode(), "settings button: the area")
+    end)
     end)
     if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
 end)
@@ -3179,16 +3198,34 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
     t:eq(QM.RouteRank("Rattlecage Soldier"), "next", "a later stop's: the small mark")
     QM.SetRouteTarget(nil, nil, nil)
     N.lastTargetKey = nil   -- (the route sends its real marks again on its next update)
-    -- On by default, and the title's menu switches it.
+    -- On by default; it's the first choice of Stops on the map (Yang: one
+    -- menu, not a switch of the tracker's own), in the title's menu too.
     with(ns.db.tracker, "here", nil, function()
-        t:ok(RT.Here(), "everything here: on by default")
+    with(ns.db.nav, "stopsArea", nil, function()
+    with(ns.db.nav, "stopsShown", nil, function()
+        t:ok(RT.Here(), "all objectives in this area: on by default")
         local items = RT.MenuItems()
         t:eq(items[1].text, "Flow Tracker", "right-click the title: the tracker's menu")
-        t:ok(items[2].checked and not items[3].checked, "everything here ticked")
-        items[3].func()
-        t:ok(not RT.Here(), "the menu switches to the next stops")
-        items[2].func()
-        t:ok(RT.Here(), "and back")
+        local area, next1
+        for _, it in ipairs(items) do
+            if it.text == N.AREA_LABEL then area = it end
+            if it.text == "Next stop only" then next1 = it end
+        end
+        t:ok(area and next1, "Stops on the map is in it, with " .. N.AREA_LABEL)
+        t:ok(area and area.checked and not (next1 and next1.checked), "the area choice ticked")
+        if next1 then next1.func() end
+        t:ok(not RT.Here(), "Next stop only: the tracker and the map show the next stop")
+        t:eq(N:StopsShownLabel(), "Next stop only", "and say so")
+        if area then area.func() end
+        t:ok(RT.Here(), "and back to the area")
+        t:eq(N:StopsShownLabel(), N.AREA_LABEL, "named in the menu and /flow nav stops")
+    end)
+    end)
+    end)
+    with(ns.db.nav, "stopsArea", nil, function()
+        with(ns.db.tracker, "here", false, function()
+            t:ok(not N:AreaMode(), "turned off with the old tracker switch: stays off")
+        end)
     end)
     local f = _G.FlowTracker
     if f and f.header then

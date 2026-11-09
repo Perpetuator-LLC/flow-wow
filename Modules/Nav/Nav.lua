@@ -959,21 +959,55 @@ function N:StopsShown()
     if n and n >= 1 then return math.floor(n) end
     return nil
 end
--- Is stop i drawn? Past your limit only the stop you point at is.
+-- "All objectives in this area", the first choice of Stops on the map (per
+-- character, on unless you pick a number): the map and the Flow Tracker show
+-- the stops around you and your waypoint (N.HereStops) instead of your next
+-- N. (0.35.108-0.35.115 had it as the Flow Tracker's own switch,
+-- ns.db.tracker.here: turned off there, it stays off.)
+N.AREA_LABEL = "All objectives in this area"
+function N:AreaMode()
+    local a = ns.db.nav.stopsArea
+    if a ~= nil then return a == true end
+    return not (ns.db.tracker and ns.db.tracker.here == false)
+end
+local function stopsChanged()
+    if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
+    if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
+end
+function N:SetArea(on)
+    ns.db.nav.stopsArea = on and true or false
+    stopsChanged()
+end
+-- Is stop i one of the area's? (Worked out at most twice a second.)
+local areaCache = { at = -10 }
+function N:InArea(i)
+    local now = GetTime()
+    if now - areaCache.at > 0.5 or areaCache.plan ~= N.plan then
+        areaCache = { at = now, plan = N.plan, set = {} }
+        for _, k in ipairs(N.HereStops(N.plan, self:PlayerPos())) do areaCache.set[k] = true end
+    end
+    return areaCache.set[i] == true
+end
+-- Is stop i drawn? Past your limit (or outside the area) only the stop you
+-- point at is.
 -- (Named StopVisible: it was ShowStop too, the same name as the stop card
 -- below, and the card's later definition replaced it, so every map and
 -- Tracker call failed with "attempt to index local 'goal' (a number)".)
 function N:StopVisible(i, pointed)
+    if pointed then return true end
+    if self:AreaMode() then return self:InArea(i) end
     local limit = self:StopsShown()
-    return (pointed and true) or limit == nil or i <= limit
+    return limit == nil or i <= limit
 end
+-- Your next n stops (nil: all of them); this turns the area choice off.
 function N:SetStopsShown(n)
     n = tonumber(n)
     ns.db.nav.stopsShown = (n and n >= 1) and math.floor(n) or 0   -- (0 = all; nothing saved = 1)
-    if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
-    if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
+    ns.db.nav.stopsArea = false
+    stopsChanged()
 end
 function N:StopsShownLabel(n)
+    if n == nil and self:AreaMode() then return N.AREA_LABEL end
     if n == nil then n = self:StopsShown() end
     if not n or n < 1 then return "All stops" end
     if n == 1 then return "Next stop only" end
@@ -2512,6 +2546,7 @@ ns:PerCharacter("nav.selectedKey")
 -- a new character always starts with "Next stop only" (nothing saved = 1),
 -- simple, whatever your other characters chose.
 ns:PerCharacter("nav.stopsShown")
+ns:PerCharacter("nav.stopsArea")
 
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}
@@ -2578,11 +2613,14 @@ ns.commands.nav = function(arg)
         -- How many upcoming stops the map and the Flow Tracker show.
         local v = arg:match("^stops%s+(%S+)")
         local n = v and tonumber(v)
-        if v == "all" or (n and n >= 1) then
+        if v == "area" then
+            N:SetArea(true)
+            ns:Print("stops on the map and in the Flow Tracker: " .. N:StopsShownLabel())
+        elseif v == "all" or (n and n >= 1) then
             N:SetStopsShown(n)
             ns:Print("stops on the map and in the Flow Tracker: " .. N:StopsShownLabel())
         else
-            ns:Print("stops shown: " .. N:StopsShownLabel() .. ". /flow nav stops 1|3|5|10|all (any number works)")
+            ns:Print("stops shown: " .. N:StopsShownLabel() .. ". /flow nav stops area|1|3|5|10|all (any number works)")
         end
     elseif arg == "xp" or arg == "xp on" or arg == "xp off" or arg == "distance" then
         ns.xpValue:Set(arg ~= "xp off" and arg ~= "distance")

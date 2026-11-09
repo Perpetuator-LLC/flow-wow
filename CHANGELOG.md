@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.116
+- **"All objectives in this area" is now a choice of Stops on the map,** the first one and the
+  default, in place of the Flow Tracker's own "Everything here / Next stops" switch. One
+  setting for the map and the Flow Tracker: everything around you and your waypoint, or your
+  next 1, 3, 5, 10 or all stops. It's in the right-click menus (the arrow's, the Flow Tracker
+  title's), on the Flow Settings page ("Area"), and `/flow nav stops area`. Each character keeps
+  its own. If you'd switched the Flow Tracker to "Next stops", that stays.
+
 ## 0.35.115
 - **Standing at your trainer, training comes first.** If your class trainer (or a profession
   trainer) is within 60 yards and you can pay for something, training is part of the town's

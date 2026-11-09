@@ -1467,7 +1467,7 @@ local function changed(st, c, mapID, pointed)
     local sp = st.plan or {}
     st.plan = sp
     d = setv(st, "stops", #plan) or d
-    d = setv(st, "limit", ns.nav:StopsShown() or false) or d   -- Stops on the map changed
+    d = setv(st, "limit", (ns.nav:AreaMode() and "area") or ns.nav:StopsShown() or false) or d   -- Stops on the map changed
     for i, s in ipairs(plan) do
         local g, pt, b = s.goal, s.point or EMPTY, (i - 1) * 6
         local key, text, n = g.key, g.text or g.title or false, g.points and #g.points or 0

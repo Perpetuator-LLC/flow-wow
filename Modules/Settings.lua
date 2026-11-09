@@ -291,12 +291,12 @@ local function build(parent)
         "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",
         function() return ns.db.nav.zoneFirst ~= false end,
         function(on) ns.db.nav.zoneFirst = on; if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end end)
-    -- 0 = all (nil can't sit in the options list).
+    -- 0 = all (nil can't sit in the options list); "area" = all objectives in this area.
     f.stopsRow, y = choices(f, y, "Stops on the map",
-        "How many of your next stops the world map and the Flow Tracker show. The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
-        { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 } },
-        function() return ns.nav:StopsShown() or 0 end,
-        function(v) ns.nav:SetStopsShown(v) end)
+        "Which stops the world map and the Flow Tracker show. Area: every objective around you and your waypoint (they drop off as you finish them). Or your next 1, 3, 5, 10 or all of them. The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
+        { { "Area", "area", 48 }, { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 } },
+        function() return ns.nav:AreaMode() and "area" or ns.nav:StopsShown() or 0 end,
+        function(v) if v == "area" then ns.nav:SetArea(true) else ns.nav:SetStopsShown(v) end end)
     _, y = check(f, y, "Tooltips where WoW shows them", "(and the stop card)",
         "Flow's tooltips and its stop card open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A stop card you dragged somewhere stays there. (The arrow's drawer opens beside the arrow, or where you Shift-dragged it.)",
         function() return ns.TipsAtGameSpot() end,

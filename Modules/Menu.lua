@@ -185,15 +185,17 @@ function Menu:RouteItemsRaw()
         { sep = true },
         { title = true, text = "Stops on the map" },
     }
-    -- How many upcoming stops the map and the Flow Tracker show (the Flow
-    -- Router always lists them all).
-    local shown = nav:StopsShown()
+    -- Which stops the map and the Flow Tracker show (the Flow Router always
+    -- lists them all): everything in this area, or your next N.
+    local shown, area = nav:StopsShown(), nav:AreaMode()
+    items[#items + 1] = { text = nav.AREA_LABEL, radio = true, checked = area,
+        func = function() nav:SetArea(true) end }
     for _, n in ipairs(nav.STOP_CHOICES) do
-        items[#items + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = shown == n,
+        items[#items + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = not area and shown == n,
             func = function() nav:SetStopsShown(n) end }
     end
     items[#items + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
-        radio = true, checked = shown == nil, func = function() nav:SetStopsShown(nil) end }
+        radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
     local following = ns.follow and ns.follow:Target()
     for _, it in ipairs({
         { sep = true },

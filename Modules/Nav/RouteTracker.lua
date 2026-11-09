@@ -42,22 +42,17 @@ function RT:Open(which)
     self:Refresh()
 end
 
--- "Everything here" (on by default): the tracker lists every stop around
--- you and your waypoint, not just your next N (those stay on the map).
-function RT.Here() return db().here ~= false end
-function RT:SetHere(on)
-    db().here = on and true or false
-    self:Refresh()
-end
+-- "All objectives in this area" (Stops on the map, on by default): the
+-- tracker lists every stop around you and your waypoint, like the map; else
+-- your next N stops. One setting for both (Nav.lua N:AreaMode).
+function RT.Here() return ns.nav:AreaMode() end
+function RT:SetHere(on) ns.nav:SetArea(on) end
 
--- Right-click on the title: the tracker's own options, then the route's.
+-- Right-click on the title: the tracker's own options, then the route's
+-- (Stops on the map among them).
 function RT.MenuItems()
     local items = {
         { title = true, text = "Flow Tracker" },
-        { text = "Everything here (around you and your waypoint)", radio = true, checked = RT.Here(),
-          func = function() RT:SetHere(true) end },
-        { text = "Next stops, as on the map (" .. ns.nav:StopsShownLabel() .. ")", radio = true, checked = not RT.Here(),
-          func = function() RT:SetHere(false) end },
         { text = "Open (fold Questie's tracker)", checked = db().open == "flow",
           func = function() RT:Open(db().open == "flow" and "none" or "flow") end },
     }
@@ -414,7 +409,6 @@ ns:On("PLAYER_ENTERING_WORLD", function()
         -- once, open it with that on (the menu changes either back).
         if not db().hereInit then
             db().hereInit = true
-            db().here = true
             RT:Open("flow")
         end
         if questieTracker() then db().questieSeen = true end
@@ -448,8 +442,7 @@ ns.commands.tracker = function(arg)
         RT:Open(arg)
     elseif arg == "here" or arg == "next" then
         RT:SetHere(arg == "here")
-        ns:Print(arg == "here" and "Flow Tracker: everything around you and your waypoint."
-            or "Flow Tracker: your next stops, as on the map.")
+        ns:Print("stops on the map and in the Flow Tracker: " .. ns.nav:StopsShownLabel())
     else
         ns:Print("/flow tracker on|off|flow|questie|dock|undock|here|next")
     end
