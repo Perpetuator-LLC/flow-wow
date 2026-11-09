@@ -2939,3 +2939,36 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
     end)
     d:Hide(); arrow:Hide()
 end)
+
+ns:Register("test", "actions: after a kill the Flow key loots the corpse", function(t)
+    local X, get = ns.actions, ns:Get("action", "loot:corpse").get
+    local guid = "Creature-0-0-0-0-1506-test"
+    local yes = function() return true end
+    with(_G, "UnitExists", yes, function()
+    with(_G, "UnitIsPlayer", function() return false end, function()
+    with(_G, "UnitIsDead", yes, function()
+    with(_G, "UnitGUID", function() return guid end, function()
+    with(_G, "UnitName", function() return "Scarlet Convert" end, function()
+    with(_G, "CanLootUnit", function() return true, true end, function()
+    with(ns.db.actions, "loot", nil, function()
+        local s = get({})
+        t:eq(s and s.type, "interact", "a dead mob with loot: the key loots it")
+        t:ok(s and s.urgent, "before a buff or the weapon swap")
+        t:ok(s and s.label:find("Scarlet Convert", 1, true) ~= nil, "says which corpse")
+        t:eq(ns.cast._describe(s), "Interact", "the game's Interact with your target")
+        X._looted[guid] = true
+        t:eq(get({}), nil, "opened once: not offered again (junk left on it)")
+        X._looted[guid] = nil
+        with(_G, "CanLootUnit", function() return false, false end, function()
+            t:eq(get({}), nil, "nothing on it: no loot step")
+        end)
+        with(_G, "UnitIsDead", function() return false end, function()
+            t:eq(get({}), nil, "still alive: no loot step")
+        end)
+        with(_G, "UnitIsPlayer", yes, function()
+            t:eq(get({}), nil, "a dead player: no loot step")
+        end)
+        ns.db.actions.loot = false
+        t:eq(get({}), nil, "/flow action loot off")
+    end) end) end) end) end) end) end)
+end)

@@ -495,6 +495,36 @@ ns:Register("action", "arm:enemy", { order = 1, get = function(ctx)
     return restoreStep(true, "Weapon on before the fight")
 end })
 
+-- After a kill: the key loots the corpse you have targeted (the game's
+-- Interact with your target). WoW never lets an add-on open a corpse by
+-- itself, so it's one press; Auto Loot (Flow Setup) then takes everything
+-- without the loot window. A corpse Flow saw you open isn't offered again
+-- (junk left behind, or a client that can't say what's on it).
+local looted, lootedCount = {}, 0
+X._looted = looted  -- (tests)
+function X.LootableTarget()
+    if not UnitExists("target") or UnitIsPlayer("target") or not A.Safe(UnitIsDead("target")) then return false end
+    local guid = A.Safe(UnitGUID("target"))
+    if not guid or looted[guid] then return false end
+    if CanLootUnit then
+        local ok, hasLoot = pcall(CanLootUnit, guid)
+        if ok then return A.Safe(hasLoot) and true or false end
+    end
+    -- Can't ask: only a mob that's yours to loot (not someone else's tag).
+    return not (UnitIsTapDenied and A.Safe(UnitIsTapDenied("target")))
+end
+ns:On("LOOT_OPENED", function()
+    local guid = UnitExists("target") and A.Safe(UnitIsDead("target")) and A.Safe(UnitGUID("target"))
+    if not guid then return end
+    if lootedCount > 200 then wipe(looted); lootedCount = 0 end
+    looted[guid], lootedCount = true, lootedCount + 1
+end)
+ns:Register("action", "loot:corpse", { order = 0, get = function()
+    if ns.db.actions.loot == false or not X.LootableTarget() then return nil end
+    return { type = "interact", icon = "Interface\\Icons\\INV_Misc_Bag_10", urgent = true,
+             label = "Loot " .. (A.Safe(UnitName("target")) or "it") .. " (walk up and press)" }
+end })
+
 -- An upgrade (or something for an empty slot) in your bags: put it on. Before
 -- a fight (enemy targeted) it comes first; otherwise when there's nothing
 -- else to press. Not weapons while you're fishing (the pole stays on).
@@ -547,6 +577,12 @@ end)
 
 ns.commands.action = function(arg)
     arg = (arg or ""):lower()
+    local loot = arg:match("^loot%s+(o[nf]f?)$")
+    if loot == "on" or loot == "off" then
+        ns.db.actions.loot = (loot == "on")
+        ns:Print("Flow key loots your kills: " .. loot)
+        return
+    end
     if arg == "on" or arg == "off" then
         ns.db.actions.enabled = (arg == "on")
         ns:Print("Flow Actions " .. arg)
@@ -558,5 +594,5 @@ ns.commands.action = function(arg)
     print(string.format("  stop %s (%s), at it: %s, fishing here: %s, pole on: %s, interact key reaches objects: %s",
         tostring(ctx.goal and ctx.goal.key), tostring(ctx.prof), tostring(ctx.at), tostring(ctx.fishing), tostring(ctx.pole), tostring(X.CanInteract())))
 
-    print("  /flow action on|off")
+    print("  /flow action on|off   /flow action loot on|off (the key loots your kills)")
 end

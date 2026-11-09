@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.102
+- **After a kill, the Flow key loots the corpse.** With the dead mob still targeted, out of
+  combat, the key shows "Loot <name>": walk up and press it. With Auto Loot on (Flow Setup) you
+  get everything without the loot window. WoW doesn't let an add-on loot with no key press at
+  all, so this is the closest it can be. Shift + key still heals. Turn it off with
+  /flow action loot off.
+
 ## 0.35.101
 - **The Flow Arrow's drawer opens beside the arrow again, on the side with room.** It opens below
   by default, above when the arrow is near the bottom of the screen, and to the right or left
