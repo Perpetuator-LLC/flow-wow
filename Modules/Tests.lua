@@ -2973,11 +2973,39 @@ ns:Register("test", "actions: after a kill the Flow key loots the corpse", funct
         t:eq(get(corpse({ hasLoot = false })), nil, "nothing on it: no loot step")
         t:eq(get(corpse({ dead = false })), nil, "still alive: no loot step")
         t:eq(get(corpse({ player = true })), nil, "a dead player: no loot step")
-        t:ok(X.ShouldLoot(corpse({ hasLoot = nil }).lootTarget), "can't tell what's on it: your kill, loot it")
-        t:ok(not X.ShouldLoot(corpse({ hasLoot = nil, tapDenied = true }).lootTarget), "someone else's kill: no")
+        -- (A client that can't say what's on it: hasLoot left out. Not via
+        -- corpse({ hasLoot = nil }): pairs() skips nil, so it stayed true.)
+        local unknown = corpse().lootTarget
+        unknown.hasLoot = nil
+        t:ok(X.ShouldLoot(unknown), "can't tell what's on it: your kill, loot it")
+        unknown.tapDenied = true
+        t:ok(not X.ShouldLoot(unknown), "someone else's kill: no")
         ns.db.actions.loot = false
         t:eq(get(corpse()), nil, "/flow action loot off")
     end)
+end)
+
+ns:Register("test", "easy button: Attack only ever turns auto attack on", function(t)
+    -- Yang: with nothing to press, the key turned auto attack off. It was
+    -- left on the Attack spell, which toggles: pressed mid-swing, it stops.
+    local C = ns.cast
+    t:eq(C.KeyCommandFor({ spell = "Attack", kind = "damage" }, true), "STARTATTACK", "Attack: the game's Start Attack (on, never off)")
+    t:eq(C.KeyCommandFor({ spell = "Auto Attack", kind = "damage" }, true), "STARTATTACK", "Auto Attack too")
+    t:eq(C.KeyCommandFor({ spell = "Attack", kind = "damage" }, false), nil, "no Start Attack in this client: Flow's button")
+    t:eq(C.KeyCommandFor({ type = "interact" }, true), "INTERACTTARGET", "a Flow Action's Interact")
+    t:eq(C.KeyCommandFor({ spell = "Judgement", kind = "damage" }, true), nil, "a real spell: Flow's button")
+    t:eq(C.KeyCommandFor(nil, true), nil, "nothing to press: Flow's button (which does nothing)")
+    -- For a fight: never the toggling Attack spell.
+    t:eq(C.FightLock("Attack", false), nil, "no Start Attack: the key does nothing all fight, never stops your swing")
+    t:eq(C.FightLock("Attack", true), "Attack", "with Start Attack: safe to hold")
+    t:eq(C.FightLock("Judgement", false), "Judgement", "a real spell stays")
+    t:eq(C.FightLock(nil, true), nil, "nothing worth pressing: nothing")
+    -- Nothing new suggested mid-fight: the icon shows what the key still does.
+    local held = C.HeldView("Judgement", nil)
+    t:eq(held and held.kind, "held", "the held spell is shown, greyed")
+    t:eq(C.HeldView("Attack", "STARTATTACK"), nil, "Start Attack is harmless: nothing shown")
+    t:eq(C.HeldView(nil, nil), nil, "the key does nothing: nothing shown")
+    t:eq(type(C.HasStartAttack()), "boolean", "Flow can tell whether the game has Start Attack")
 end)
 
 ns:Register("test", "taint: tests and Flow leave the game's own functions alone", function(t)

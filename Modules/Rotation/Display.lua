@@ -10,6 +10,7 @@ local COLORS = {
     buff      = { 0.35, 0.75, 1.0 },  -- light blue
     heal      = { 1.0, 0.8, 0.2 },    -- gold, steady pulse
     emergency = { 1.0, 0.85, 0.1 },   -- bright gold, fast pulse
+    held      = { 0.55, 0.55, 0.55 }, -- grey: what the key still does mid-fight (nothing new to press)
 }
 
 local BAR_PREFIXES = {
@@ -307,7 +308,8 @@ local function render(s, cfg)
     local key = tostring(s.spell or s.item or s.type) .. s.kind
     if key ~= current then
         current = key
-        if s.spell then showGlows(s.spell, color, s.kind) else clearGlows() end
+        -- (A held spell isn't advice: no glow on your action bars.)
+        if s.spell and s.kind ~= "held" then showGlows(s.spell, color, s.kind) else clearGlows() end
     end
 end
 
@@ -342,7 +344,12 @@ local function onUpdate(_, dt)
         if okA and a and (a.urgent or not s) then s = a end
     end
     E.shown = s   -- what the icon shows = what the key does (Cast.lua)
-    local okR, err = pcall(render, s, cfg)
+    -- Mid-fight with nothing new to press, the key still does what it was
+    -- set to at the pull: show that, greyed, instead of an empty spot (the
+    -- key never does something while the button looks gone).
+    local view = s
+    if not s and InCombatLockdown() and ns.cast and ns.cast.Held then view = ns.cast:Held() end
+    local okR, err = pcall(render, view, cfg)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
     -- Swords badge while auto attack is on.
     local swinging = icon:IsShown() and A.Swinging()

@@ -43,7 +43,43 @@ end
 local function helpful(s) return s and s.spell and (s.kind == "buff" or s.kind == "heal" or s.kind == "emergency") end
 C._helpful = helpful
 
-local interact = false   -- the key presses the game's Interact (bobber, vein)
+-- What the key itself is bound to instead of Flow's button: nil (the
+-- button), "INTERACTTARGET" (reel in the bobber, mine the vein, loot your
+-- kill) or "STARTATTACK" (the game's Start Attack: auto attack on, never off).
+local keyCommand = nil
+
+function C.IsAttack(spell) return spell == "Attack" or spell == "Auto Attack" end
+
+-- Does this client have the game's own "Start Attack" key command? The
+-- Attack spell toggles: pressed while you swing, it stops you (Yang: the key
+-- turned auto attack off). Start Attack only ever turns it on.
+local startAttack
+function C.HasStartAttack()
+    if startAttack == nil and GetNumBindings and GetBinding then
+        startAttack = false
+        local ok, n = pcall(GetNumBindings)
+        for i = 1, ok and n or 0 do
+            if GetBinding(i) == "STARTATTACK" then startAttack = true break end
+        end
+    end
+    return startAttack == true
+end
+
+-- The key's own command for this suggestion (nil: Flow's button).
+function C.KeyCommandFor(s, canStartAttack)
+    if not s then return nil end
+    if s.type == "interact" then return "INTERACTTARGET" end
+    if C.IsAttack(s.spell) and canStartAttack then return "STARTATTACK" end
+    return nil
+end
+
+-- What the key holds for a fight (it can't change once it starts). Never
+-- the Attack spell where it would toggle: pressed while you swing it turns
+-- auto attack off. Then nothing, so a press does nothing.
+function C.FightLock(spell, canStartAttack)
+    if C.IsAttack(spell) and not canStartAttack then return nil end
+    return spell
+end
 
 -- What the press does, as text: for the diagnostics and to skip repeats.
 local function describe(s)
@@ -59,8 +95,9 @@ C._describe = describe  -- (tests)
 -- Points the secure button at the suggestion, as the "spell" or "item"
 -- button type: Forever ignores macro-type secure buttons (the fight records
 -- showed every press arriving with the right macro, and nothing cast).
--- Attack too: Flow only suggests it while you're not swinging, so the press
--- turns it on. Items: equips gear (the pole), or with targetSlot applies to
+-- Attack: the key is bound to the game's Start Attack where it has one (on,
+-- never off); else the Attack spell, suggested only while you're not
+-- swinging (C.FightLock keeps it off the key for a fight). Items: equips gear (the pole), or with targetSlot applies to
 -- that slot (a lure on your main hand). "interact": the key itself is bound
 -- to the game's Interact for as long as that's the action.
 local function setAction(s)
@@ -98,7 +135,7 @@ local function setAction(s)
         btn:SetAttribute("type", nil)
     end
     macro, lockedSpell = text, s and s.spell
-    C:SetInteract(kind == "interact")
+    C:SetKeyCommand(C.KeyCommandFor(s, C.HasStartAttack()))
 end
 
 -- Blizzard's single-button assistant, if this client has one.
@@ -219,7 +256,8 @@ local function refreshLabels()
     else
         keyText:SetText(C:KeyLabel(true))
     end
-    -- In combat, show what the key is locked to when it differs from the advice.
+    -- In combat, show what the key is locked to when it differs from the
+    -- advice. (With no advice at all, the icon itself shows it: C:Held.)
     local liveSpell = live and live.spell
     if InCombatLockdown() and lockedSpell and liveSpell and lockedSpell ~= liveSpell then
         local _, tex = A.SpellInfo(lockedSpell)
@@ -354,7 +392,7 @@ function C:ApplyKey()
     pendingKey = false
     ClearOverrideBindings(owner)
     for _, key in ipairs(self:Keys()) do
-        if interact then SetOverrideBinding(owner, true, key, "INTERACTTARGET")
+        if keyCommand then SetOverrideBinding(owner, true, key, keyCommand)
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
         local healKey = healSpell and C.HealKeyFor(key)
         if healKey then SetOverrideBindingClick(owner, true, healKey, "FlowCastButton", "heal") end
@@ -364,14 +402,23 @@ function C:ApplyKey()
     refreshLabels()
 end
 
--- Key = the game's Interact (reel in the bobber, mine the vein) or back to
--- Flow's button. Only out of combat; a fight always gets the button back.
-function C:SetInteract(on)
-    on = on and true or false
-    if on == interact or InCombatLockdown() then return end
-    interact = on
+-- Key = a game command (Interact, Start Attack) or back to Flow's button.
+-- Only out of combat (the fight lock sets it just before the lockdown).
+function C:SetKeyCommand(cmd)
+    if cmd == keyCommand or InCombatLockdown() then return end
+    keyCommand = cmd
     self:ApplyKey()
 end
+function C:KeyCommand() return keyCommand end
+
+-- What the key still does in this fight, for the icon when nothing new is
+-- suggested: { spell, kind = "held", label }, or nil (nothing, or the
+-- harmless Start Attack).
+function C.HeldView(spell, cmd)
+    if not spell or (C.IsAttack(spell) and cmd == "STARTATTACK") then return nil end
+    return { spell = spell, kind = "held", label = "key: " .. spell }
+end
+function C:Held() return C.HeldView(lockedSpell, keyCommand) end
 
 -- What else uses this key: friendly name, or nil if it's free (or Flow's).
 function C:Conflict(key)
@@ -433,18 +480,23 @@ ns:On("PLAYER_REGEN_DISABLED", function()
     setHeal()   -- Shift + key: your heal, all fight
     -- The key goes back to Flow's button for the fight (not Interact). This
     -- event comes just before the lockdown, so changes are still allowed.
-    if interact then interact = false; C:ApplyKey() end
+    if keyCommand == "INTERACTTARGET" then C:SetKeyCommand(nil) end
     local helper = assistantSpell()
     if helper then
         setAction({ spell = helper })
     else
         -- The key can't change during the fight, so lock it to something worth
-        -- pressing all fight: the class decides (pullLock), never nothing.
+        -- pressing all fight: the class decides (pullLock). Attack only where
+        -- it can't turn your swing off (C.FightLock); else nothing at all,
+        -- never whatever the icon showed last (it was Attack, pressed again
+        -- mid-fight it stopped your swing).
         local s = E.current
         local def = E:Definition()
         local spell = def and def.pullLock and def.pullLock(s, E) or (s and s.spell)
+        spell = C.FightLock(spell, C.HasStartAttack())
         if spell and s and spell == s.spell then setAction(s)
-        elseif spell then setAction({ spell = spell }) end
+        elseif spell then setAction({ spell = spell })
+        else setAction(nil) end
     end
 end)
 
@@ -481,6 +533,8 @@ function C:Test()
         or "off"))
     print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
         .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
+    print("  key's own command: " .. tostring(keyCommand or "none (Flow's button)")
+        .. ", game has Start Attack (auto attack on, never off): " .. tostring(C.HasStartAttack()))
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "
         .. tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")))
 end

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.104
+- **Fixed: the Flow key could turn your auto attack off.** When Flow had nothing new to suggest,
+  the key was often still set to the Attack spell, and Attack switches your swing off if you're
+  already swinging. Now the key uses the game's own "Start Attack" command, which only ever turns
+  auto attack on. On a game without that command, the key holds nothing for the fight instead of
+  Attack.
+- **The key no longer does anything you can't see.** Out of a fight, a hidden button means the
+  key does nothing. In a fight (where the key can't change), if Flow has nothing new to suggest,
+  the button shows what the key still does, greyed out, instead of disappearing. `/flow key test`
+  also says whether your game has Start Attack.
+- Fixed a self-test for looting that passed for the wrong reason.
+
 ## 0.35.103
 - **Fixed: the Flow key stopped working in 0.35.102, with "blocked" errors on every press.**
   The loot step's self-test stood in for some of the game's own functions (UnitExists and
