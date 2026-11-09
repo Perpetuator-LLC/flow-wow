@@ -73,9 +73,10 @@ end
 function AC:IsConnected() return AC.Connected(ns.claudeBridge, time()) end
 
 -------------------------------------------------------------------------------
--- Live sending: a screenshot. WoW never lets an add-on write a file while
--- the game runs, and WoW: Forever doesn't put whispers in its chat log (still
--- 0 bytes after Yang's tests with 0.35.107 to 0.35.110, flushed or not). But
+-- Live sending (off unless you turn it on): a screenshot. WoW never lets an
+-- add-on write a file while the game runs, and WoW: Forever writes its chat
+-- log only when the game closes (Yang's tests: empty through reloads and
+-- /chatlog off and on, then all 40 KB at once when WoW exited). But
 -- the game writes a screenshot to _forever_\Screenshots at once, and add-ons
 -- may take one. So Send shows the message for a moment as black and white
 -- squares in the top left of the screen (a simple barcode), takes a

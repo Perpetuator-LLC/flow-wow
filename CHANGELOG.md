@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.122
+- **Flow Chat sends by a quick reload, as plain text** (the default since 0.35.114; sending by
+  screenshot stays an option, `/flow chat live on`). The notes in Flow, the bridge and
+  `docs\ASK-CLAUDE.md` now say why: WoW: Forever writes its chat log only when the game closes, so
+  no text file can carry a message while you play. (Earlier notes said it never logged whispers.)
+
 ## 0.35.121
 - **Out of mana, the easy button counts down until you have enough** (in blue), like it does for a
   cooldown. Flow works it out from the spell's cost, your mana and how fast it comes back. When
@@ -56,9 +62,10 @@
 - Fixed a self-test of the Flow Tracker's menu that a test edit in 0.35.111 had broken ("and back").
 
 ## 0.35.112
-- **Sending without a reload now goes by screenshot.** WoW: Forever never wrote Flow's whispers to
-  its chat log, even when Flow forced the log to be written (it stayed empty through all of Yang's
-  tests). WoW does write a screenshot straight away, though. So Send (or `/si <message>`) shows
+- **Sending without a reload now goes by screenshot.** WoW: Forever writes its chat log only when
+  the game closes (it stayed empty through every reload and every attempt to force it, then
+  everything appeared at once when WoW exited), so it can't carry a message live. WoW does write a
+  screenshot straight away, though. So Send (or `/si <message>`) shows
   your message for a moment as a block of black and white squares in the top left of the screen,
   takes a screenshot and hides them. You see a quick flash and "Screen captured". The bridge
   decodes the squares, passes your message on at once, and deletes that screenshot; your own
@@ -75,10 +82,9 @@
   it shows everything here by default).
 
 ## 0.35.110
-- **Fixed: messages sent without a reload never reached Claude.** WoW keeps chat-log lines in
-  memory and writes them to the file in batches; with little chat it wrote nothing for half an
-  hour. Closing the log makes WoW write what it holds, so after each message Flow switches chat
-  logging off and straight back on. `/flow chat flush` does it by hand (a test).
+- **Tried: switching chat logging off and on after each message, to make WoW write its chat log
+  at once.** It didn't help: WoW: Forever writes the chat log only when the game closes (found
+  later; 0.35.112 sends by screenshot instead, 0.35.114 by reload again).
 - The bridge prints an `INFO` line the first time WoW writes its chat log, so you can see that
   messages are coming through live.
 

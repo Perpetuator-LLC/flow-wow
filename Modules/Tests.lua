@@ -2881,8 +2881,8 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
 end)
 
 ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect Claude", function(t)
-    -- WoW never lets an add-on write files while it runs (and Forever keeps
-    -- whispers out of its chat log), but it writes a screenshot at once: Flow
+    -- WoW never lets an add-on write files while it runs (and Forever writes
+    -- its chat log only when the game closes), but it writes a screenshot at once: Flow
     -- shows the message as black and white squares and takes one; the bridge
     -- decodes it (tools\claude-bridge.ps1 Read-FlowCode, same layout).
     local AC = ns.askClaude

@@ -1,9 +1,9 @@
 # Talk to Claude from inside WoW (and keep Flow up to date by itself)
 
-Type `/si make the arrow green` in game (or `/ai`, `/claude`). A Claude session on your PC
-(Claude desktop's Code tab, or any Claude Code) picks it up straight away, with no reload. It works
-in your Flow folder, so it can answer **and change Flow itself**. Its answer shows in Flow Chat
-(`/si`) after you press **Reload** there, together with the change.
+Type `/si make the arrow green` in game (or `/ai`, `/claude`). Flow saves it with a quick reload,
+and a Claude session on your PC (Claude desktop's Code tab, or any Claude Code) picks it up. It
+works in your Flow folder, so it can answer **and change Flow itself**. Its answer shows in Flow
+Chat (`/si`) after you press **Reload** there, together with the change.
 
 **Not connected yet?** `/si` on its own then shows a prompt to copy (it's already selected: press
 Ctrl+C) into a Claude Code session on your PC. It sets that session up: it finds your Flow source,
@@ -20,18 +20,21 @@ answers file back. Nothing is sent anywhere except what your Claude session itse
 ## How it works
 
 WoW addons can't open files or the network while the game runs. Flow's saved data is written to
-disk only at a reload (or logout), and the addon's own files are read only when the UI loads. But
-WoW writes a **screenshot** (`_forever_\Screenshots`) at once, and addons may take one. (WoW:
-Forever's chat log doesn't work for this: it never wrote Flow's whispers to the file.) So:
+disk only at a reload (or logout), and the addon's own files are read only when the UI loads.
+(WoW: Forever's chat log can't carry a message either: it writes chat to the file only when the
+game closes.) So:
 
-1. **Sending, no reload (off unless you turn it on: `/flow chat live on`):** `/si <message>` (or Send in Flow Chat). Flow shows the message for a
-   moment as a block of black and white squares in the top left of the screen (a simple code),
-   takes a screenshot and hides them. You see a quick flash and "Screen captured". The message
-   also goes into Flow's saved data, so if the screenshot doesn't carry it, the next reload
-   does. (`/flow chat live off` sends by reloading instead.)
-2. `tools\claude-bridge.ps1` is woken by Windows when a screenshot or `Flow.lua` appears or
-   changes (it doesn't poll). It decodes Flow's screenshot, deletes it (your own screenshots are
-   left alone), and prints one line per new message:
+1. **Sending:** `/si <message>` (or Send in Flow Chat). Flow saves the message and reloads the
+   UI for a few seconds, so WoW writes it, as plain text, to
+   `WTF\Account\<you>\SavedVariables\Flow.lua`.
+   - **Optional, no reload (`/flow chat live on`):** Flow shows the message for a moment as a
+     block of black and white squares in the top left of the screen (a simple code), takes a
+     screenshot (WoW writes those at once) and hides them. You see a quick flash and "Screen
+     captured". The message is in Flow's saved data too, so the next reload carries it if the
+     screenshot doesn't.
+2. `tools\claude-bridge.ps1` is woken by Windows when `Flow.lua` changes, or a screenshot appears
+   (it doesn't poll). It decodes a Flow screenshot and deletes it (your own screenshots are left
+   alone), and prints one line per new message:
    `ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green`
 3. Your Claude session watches those lines (its Monitor tool), does what's asked in the Flow
    folder, and answers with

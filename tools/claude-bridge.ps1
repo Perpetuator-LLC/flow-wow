@@ -281,8 +281,8 @@ function Handle-Messages {
 }
 
 # --- messages sent without a reload: Flow's coded screenshots ---
-# WoW never lets an add-on write a file while it runs (and WoW: Forever keeps
-# whispers out of its chat log), but it writes a screenshot at once. Flow
+# WoW never lets an add-on write a file while it runs (and WoW: Forever writes
+# its chat log only when the game closes), but it writes a screenshot at once. Flow
 # (AskClaude.lua, AC:ShowCode) draws the message as black and white squares
 # in a white box at the screen's top left, takes a screenshot and hides them.
 # Read in rows of `cols` squares from the box's first square: 16 magic
