@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.108
+- **The Flow Tracker shows everything to do where you are.** It lists your waypoint (the next
+  stop) and every stop within about 150 yards of you or of it, in route order, so in an area you
+  see all of its objectives at once. Each one drops off as you finish it. It's on and open for
+  everyone (once); the map still shows only your next stops.
+- **Right-click the Flow Tracker's title for its menu:** everything here, or your next stops as
+  on the map; open or folded; docked under Questie's tracker; hide it; and the route options.
+  `/flow tracker here|next` does the same.
+- **Every mob at your waypoint gets Flow's (o) marker,** not just the first objective's: the
+  other objectives right there are marked too, with their counts.
+
 ## 0.35.107
 - **Flow Chat sends without a reload.** WoW never lets an add-on read or write files while the
   game runs, but it writes its chat log (`Logs\WoWChatLog.txt`) as chat arrives. So Send (or

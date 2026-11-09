@@ -905,6 +905,36 @@ function N.NextStopNames(plan, currentKey, n)
     return out
 end
 
+-- Everything to do around you (the Flow Tracker): the next stop, and every
+-- stop on the route within N.HERE_YARDS of you or of that stop, in route
+-- order. `p` (where you are) may be nil. Returns plan indices.
+N.HERE_YARDS = 150
+local function within(a, b, yards)
+    return a and b and a.cont == b.cont and a.wx and b.wx and dist(a.wx, a.wy, b.wx, b.wy) <= yards or false
+end
+function N.HereStops(plan, p, yards)
+    yards = yards or N.HERE_YARDS
+    local out = {}
+    local first = plan and plan[1] and plan[1].point
+    for i, s in ipairs(plan or {}) do
+        if i == 1 or within(s.point, p, yards) or within(s.point, first, yards) then out[#out + 1] = i end
+    end
+    return out
+end
+
+-- The mobs and NPCs of the stops at your waypoint (the next stop and those
+-- right by it): Flow's (o) goes over every mob there, not just the first
+-- stop's (QuestMarks.lua). Names, each once.
+function N.HereNames(plan, yards)
+    local out, seen = {}, {}
+    for _, i in ipairs(N.HereStops(plan, nil, yards)) do
+        for _, name in ipairs(plan[i].goal.npcs or {}) do
+            if not seen[name] then seen[name] = true; out[#out + 1] = name end
+        end
+    end
+    return out
+end
+
 function N:PlanLabels(plan)
     local out, pickups = {}, 0
     for i, s in ipairs(plan or {}) do
@@ -2315,10 +2345,13 @@ local function update()
     local planKey = N.plan and #N.plan > 0 and (N.plan[1].goal.key .. ":" .. #N.plan) or ""
     if tk ~= N.lastTargetKey or planKey ~= N.lastPlanKey then
         N.lastTargetKey, N.lastPlanKey = tk, planKey
-        -- Mark the NPC of the new stop above its nameplate, and (smaller) the
-        -- NPCs of the next stops.
+        -- Mark the NPC of the new stop above its nameplate, every mob of the
+        -- stops right by it (your waypoint's area), and (smaller) the NPCs of
+        -- the next stops.
         if ns.questMarks and ns.questMarks.SetRouteTarget then
-            pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs, N.NextStopNames(N.plan, tk, 5))
+            local onRoute = N.plan and N.plan[1] and N.plan[1].goal.key == tk
+            pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs, N.NextStopNames(N.plan, tk, 5),
+                onRoute and N.HereNames(N.plan) or nil)
         end
     end
     if not choice then

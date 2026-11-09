@@ -3,10 +3,11 @@
 --   Diamond = it drops an item you need, with your count (e.g. 0/1)
 --   Star    = talk to / interact with it (an objective mentions its name)
 --   (o)     = Flow's target marker: the unit your current stop is about (the
---             mob to kill or loot, the turn-in, quest giver or trainer), in
---             the route colour (purple on Most XP), INSTEAD of the icons
---             above (its count stays beside it); green on the party member
---             you follow. Every other unit keeps its skull / diamond / star.
+--             mob to kill or loot, the turn-in, quest giver or trainer), and
+--             every mob of the other stops right by it (your waypoint's
+--             area), in the route colour (purple on Most XP), INSTEAD of the
+--             icons above (its count stays beside it); green on the party
+--             member you follow. Every other unit keeps its skull / diamond / star.
 -- One mob can show several, side by side: e.g. skull 3/10 and diamond 0/1
 -- when one quest wants it dead and another wants something it drops.
 --
@@ -165,6 +166,8 @@ local function targetOf(unit)
     end
     local rank = routeNames[lname]
     if not rank or UnitIsDead(unit) then return nil end
+    -- Mobs of the stops at your waypoint: the (o) too (friendly NPCs there keep their marks).
+    if rank == "here" then return UnitCanAttack("player", unit) and "route" or nil end
     if rank ~= "next" then return "route" end
     -- Later stops: friendly NPCs only (mobs to kill keep their skull/diamond).
     if UnitCanAttack("player", unit) then return nil end
@@ -360,14 +363,17 @@ ns.commands.quest = function(arg)
 end
 
 -- Called by the route (Nav.lua) when the current stop changes: the current
--- stop's NPCs, and the NPCs of the next few stops (names).
+-- stop's NPCs, the NPCs of the next few stops, and the mobs of the stops at
+-- your waypoint (names).
 ns.questMarks = ns.questMarks or {}
-function ns.questMarks.SetRouteTarget(names, nextNames)
+function ns.questMarks.SetRouteTarget(names, nextNames, hereNames)
     wipe(routeNames)
     for _, n in ipairs(nextNames or {}) do routeNames[n:lower()] = "next" end
+    for _, n in ipairs(hereNames or {}) do routeNames[n:lower()] = "here" end
     for _, n in ipairs(names or {}) do routeNames[n:lower()] = "current" end
     updateAll()
 end
+function ns.questMarks.RouteRank(name) return routeNames[(name or ""):lower()] end   -- (tests)
 -- Redraw every marker (following someone started or stopped, colours changed).
 function ns.questMarks.Refresh() updateAll() end
 ns.questMarks._targetOf = targetOf   -- (tests)

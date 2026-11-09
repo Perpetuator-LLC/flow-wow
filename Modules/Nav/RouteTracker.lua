@@ -1,6 +1,8 @@
--- Flow Tracker: your route's next stops on screen (objectives with counts,
--- turn-ins, quests to accept, trainers...). Click a stop to open it (the
--- quest, or the map at that stop); right-click for a menu (hide, route, order).
+-- Flow Tracker: everything to do around you and your waypoint (objectives
+-- with counts, turn-ins, quests to accept, trainers...; they drop off as you
+-- finish them), or your next stops as on the map (right-click its title).
+-- Click a stop to open it (the quest, or the map at that stop); right-click a
+-- stop for its menu (hide, route, order).
 -- Changing the route itself is done on the world map (click a stop there).
 --
 -- Accordion with Questie's tracker: only one is open at a time, and both can
@@ -38,6 +40,35 @@ function RT:Open(which)
     if which == "flow" then setQuestie(false)
     elseif which == "questie" then setQuestie(true) end
     self:Refresh()
+end
+
+-- "Everything here" (on by default): the tracker lists every stop around
+-- you and your waypoint, not just your next N (those stay on the map).
+function RT.Here() return db().here ~= false end
+function RT:SetHere(on)
+    db().here = on and true or false
+    self:Refresh()
+end
+
+-- Right-click on the title: the tracker's own options, then the route's.
+function RT.MenuItems()
+    local items = {
+        { title = true, text = "Flow Tracker" },
+        { text = "Everything here (around you and your waypoint)", radio = true, checked = RT.Here(),
+          func = function() RT:SetHere(true) end },
+        { text = "Next stops, as on the map (" .. ns.nav:StopsShownLabel() .. ")", radio = true, checked = not RT.Here(),
+          func = function() RT:SetHere(false) end },
+        { text = "Open (fold Questie's tracker)", checked = db().open == "flow",
+          func = function() RT:Open(db().open == "flow" and "none" or "flow") end },
+    }
+    if questieTracker() then
+        items[#items + 1] = { text = "Docked under Questie's tracker", checked = db().dock ~= false,
+            func = function() ns.commands.tracker(db().dock ~= false and "undock" or "dock") end }
+    end
+    items[#items + 1] = { text = "Hide the Flow Tracker (/flow tracker on)", func = function() ns.commands.tracker("off") end }
+    items[#items + 1] = { sep = true }
+    for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
+    return items
 end
 
 local function build()
@@ -84,9 +115,19 @@ local function build()
     end
     h.pm = h:CreateTexture(nil, "ARTWORK")
     h.pm:SetSize(16, 16); h.pm:SetPoint("RIGHT", -6, 0)
-    h:SetScript("OnClick", function()
+    -- Left-click: open or fold it. Right-click: its menu.
+    h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    h:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then ns.menu:Open(RT.MenuItems()) return end
         RT:Open(db().open == "flow" and "none" or "flow")
     end)
+    h:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("Flow Tracker", 1, 1, 1)
+        GameTooltip:AddLine("Click: open or fold it. Right-click: its menu. Shift-drag: move it.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     h:RegisterForDrag("LeftButton")  -- Shift-drag the header to move the tracker
     -- Shift-drag the header to move it. Docked under Questie's tracker, the
     -- drag undocks it; drop it just under Questie's tracker to dock again.
@@ -262,7 +303,9 @@ function RT:Refresh()
     local h = frame.header
     local nBlocked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
     local busy = ns.nav and ns.nav.Busy and ns.nav.Busy()
-    h.text:SetText(string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or (#plan .. " stops"),
+    local count = (RT.Here() and #plan > 0)
+        and string.format("%d here, %d stops", #ns.nav.HereStops(plan, ns.nav:PlayerPos()), #plan) or (#plan .. " stops")
+    h.text:SetText(string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or count,
         nBlocked > 0 and string.format("  |cffff7070%d blocked|r", nBlocked) or ""))
     if busy ~= h.spinning then
         h.spinning = busy
@@ -275,17 +318,25 @@ function RT:Refresh()
     if open then
         local labels = ns.nav:PlanLabels(plan)
         local blocked = ns.nav.blockedGoals or {}
-        -- Stops on the map (also here): only your next N rows, blocked ones after the route.
-        local nRows = math.min(ROWS, ns.nav:StopsShown() or ROWS)
-        local nPlan = math.min(#plan, nRows)
+        -- Which stops: everything to do here (the next stop and the stops
+        -- around you or it; they drop off as you finish them), or your next
+        -- N as on the map, blocked ones after the route.
+        local here = RT.Here()
+        local idx = here and ns.nav.HereStops(plan, ns.nav:PlayerPos()) or {}
+        if not here then
+            for i = 1, math.min(#plan, ns.nav:StopsShown() or ROWS) do idx[i] = i end
+        end
+        local nRows = here and ROWS or math.min(ROWS, ns.nav:StopsShown() or ROWS)
+        local nPlan = math.min(#idx, nRows)
         for i = 1, ROWS do
             local r = frame.rows[i]
-            local s = (i <= nPlan) and plan[i] or nil
-            local bl = (not s and i <= nRows) and blocked[i - nPlan] or nil
+            local pi = (i <= nPlan) and idx[i] or nil
+            local s = pi and plan[pi] or nil
+            local bl = (not s and not here and i <= nRows) and blocked[i - nPlan] or nil
             if s then
                 -- (row colour comes from FormatStop)
                 r.key, r.goal, r.blocked = s.goal.key, s.goal, nil
-                r.text:SetText(ns.nav:FormatStop(i, s.goal, labels[i]))
+                r.text:SetText(ns.nav:FormatStop(pi, s.goal, labels[pi]))
                 r:Show()
                 shown = i
             elseif bl then
@@ -359,6 +410,13 @@ ns:On("PLAYER_ENTERING_WORLD", function()
         elseif questieTracker() and not db().questieSeen then
             RT:Open("flow")
         end
+        -- 0.35.108: the tracker became "everything here", open by default:
+        -- once, open it with that on (the menu changes either back).
+        if not db().hereInit then
+            db().hereInit = true
+            db().here = true
+            RT:Open("flow")
+        end
         if questieTracker() then db().questieSeen = true end
         RT:Refresh()
         -- Keep the accordion in step if Questie's own header is clicked, and
@@ -388,15 +446,19 @@ ns.commands.tracker = function(arg)
         ns:Print(arg == "dock" and "Flow Tracker docked under Questie's tracker." or "Flow Tracker undocked (Shift-drag its header to move it).")
     elseif arg == "questie" or arg == "flow" then
         RT:Open(arg)
+    elseif arg == "here" or arg == "next" then
+        RT:SetHere(arg == "here")
+        ns:Print(arg == "here" and "Flow Tracker: everything around you and your waypoint."
+            or "Flow Tracker: your next stops, as on the map.")
     else
-        ns:Print("/flow tracker on|off|flow|questie|dock|undock")
+        ns:Print("/flow tracker on|off|flow|questie|dock|undock|here|next")
     end
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Your next stops on screen, docked under Questie's tracker: one column, one open at a time (or neither).",
-    "Click a stop to open it (quest log or map); right-click for a menu. Change the route on the world map.",
-    "Shift-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock",
+    "Everything to do around you and your waypoint (or your next stops: right-click its title), docked under Questie's tracker, one open at a time.",
+    "Click a stop to open it (quest log or map); right-click a stop or the title for a menu. Change the route on the world map.",
+    "Shift-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock|here|next",
 } })
 
 -- Timed for /flow perf.

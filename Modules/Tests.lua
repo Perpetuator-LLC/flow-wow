@@ -3116,3 +3116,47 @@ ns:Register("test", "taint: tests and Flow leave the game's own functions alone"
         end
     end
 end)
+
+ns:Register("test", "Flow Tracker: everything around you and your waypoint", function(t)
+    -- Yang: in an area, show all the objectives there (they drop off as
+    -- they're done), open by default; right-click the title for the menu;
+    -- the mobs of the waypoint marked.
+    local N, RT = ns.nav, ns.routeTracker
+    local function stop(key, x, y, npcs) return { goal = { key = key, npcs = npcs }, point = { cont = 1, wx = x, wy = y } } end
+    local plan = {
+        stop("364:1", 0, 0, { "Mindless Zombie" }),        -- your waypoint
+        stop("364:2", 60, 40, { "Wretched Zombie" }),      -- right by it
+        stop("376:1", 900, 900, { "Rattlecage Soldier" }), -- across the zone
+        stop("364:done", 20, -30, { "Shadow Priest" }),    -- the turn-in, by the waypoint
+    }
+    local here = N.HereStops(plan, { cont = 1, wx = 5, wy = 5 })
+    t:eq(table.concat(here, ","), "1,2,4", "the waypoint and what's by it, in route order; not the far stop")
+    t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 890, wy = 890 }), ","), "1,2,3,4", "standing at the far stop: that too")
+    t:eq(table.concat(N.HereStops({ plan[3] }, nil), ","), "1", "the next stop is always there")
+    t:eq(#N.HereStops({}, nil), 0, "no route: nothing")
+    local names = N.HereNames(plan)
+    t:eq(table.concat(names, ","), "Mindless Zombie,Wretched Zombie,Shadow Priest", "the waypoint's mobs and NPCs, for Flow's (o)")
+    -- The marks: every mob at the waypoint gets the (o), the current stop's first.
+    local QM = ns.questMarks
+    QM.SetRouteTarget({ "Mindless Zombie" }, { "Rattlecage Soldier" }, names)
+    t:eq(QM.RouteRank("Mindless Zombie"), "current", "the current stop's mob")
+    t:eq(QM.RouteRank("Wretched Zombie"), "here", "the other mob at the waypoint: marked too")
+    t:eq(QM.RouteRank("Rattlecage Soldier"), "next", "a later stop's: the small mark")
+    QM.SetRouteTarget(nil, nil, nil)
+    N.lastTargetKey = nil   -- (the route sends its real marks again on its next update)
+    -- On by default, and the title's menu switches it.
+    with(ns.db.tracker, "here", nil, function()
+        t:ok(RT.Here(), "everything here: on by default")
+        local items = RT.MenuItems()
+        t:eq(items[1].text, "Flow Tracker", "right-click the title: the tracker's menu")
+        t:ok(items[2].checked and not items[3].checked, "everything here ticked")
+        items[3].func()
+        t:ok(not RT.Here(), "the menu switches to the next stops")
+        items[2].func()
+        t:ok(RT.Here(), "and back")
+    end)
+    local f = _G.FlowTracker
+    if f and f.header then
+        t:ok(f.header:GetScript("OnClick") ~= nil, "the title takes clicks (left: fold, right: menu)")
+    end
+end)
