@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.107
+- **Flow Chat sends without a reload.** WoW never lets an add-on read or write files while the
+  game runs, but it writes its chat log (`Logs\WoWChatLog.txt`) as chat arrives. So Send (or
+  `/si <message>`) turns the chat log on and whispers your message to yourself, tagged and hidden
+  from your chat window. The bridge reads it from the log straight away. If it can't go that way,
+  Flow says so and Reload sends it. `/flow chat live off` goes back to sending by reloading.
+- **`/si` connects Claude for you.** If no Claude session was watching at your last reload, `/si`
+  shows a prompt, already selected (Ctrl+C), to paste into Claude Code on your PC. It finds your
+  Flow source, starts the bridge and watches. Anyone with Flow's source can connect this way.
+  `/si setup` shows it again.
+- **A Reload button in Flow Chat** (it was "Check now"). Answers still need a reload, the only time
+  WoW reads Flow's files, so you choose when. It also loads any change Claude made to Flow.
+- The bridge (`tools\claude-bridge.ps1`) watches WoW's chat log too, and writes "connected" into
+  `Learned\ClaudeInbox.lua` every 10 minutes while it runs.
+
 ## 0.35.106
 - **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished
   quests first, then opens their new quest and accepts it. A quest started by an item is

@@ -3,10 +3,16 @@
   Talk to Claude from inside WoW, and keep Flow up to date by itself.
   See docs/ASK-CLAUDE.md for setup.
 
-  In game:  /claude make the arrow green   (Flow saves it and reloads)
-  This script waits for WoW to save Flow's data (a file-change event, no
-  polling) and prints each new message as one line:
+  In game:  /si make the arrow green
+  Flow whispers the message to the player, tagged "[FlowAsk:id:part/n]", and
+  WoW writes that to its chat log (Logs\WoWChatLog.txt) at once: no reload.
+  (Flow keeps it in its saved data too, written at the next reload.) This
+  script waits for either file to change (a file-change event, no polling)
+  and prints each new message as one line:
       ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green
+  While it runs it also writes "connected" into Learned\ClaudeInbox.lua
+  (ns.claudeBridge.at, every 10 minutes): /si in game shows the chat when it
+  was there at the last reload, else a prompt to connect Claude.
   A Claude session in Claude desktop (or any Claude Code) watches those lines
   with its Monitor tool, does what's asked, and answers with
       tools\claude-bridge.ps1 -Reply 3 -Text "Done: green arrow. Type /reload."
@@ -53,10 +59,12 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 if (-not $AddonDir) { $AddonDir = $repo }
 
+$chatLog = $null
 if ($SelfTest) {
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("flow-bridge-test-" + [guid]::NewGuid())
     New-Item -ItemType Directory -Force (Join-Path $tmp 'Learned') | Out-Null
     $AddonDir = $tmp; $savedDir = $tmp; $saved = Join-Path $tmp 'Flow.lua'; $Cli = $false; $NoUpdate = $true
+    $chatLog = Join-Path $tmp 'WoWChatLog.txt'
 } elseif ($Reply -or $Note) {
     $savedDir = $null; $saved = $null   # (answering: only the answers file is needed)
 } else {
@@ -66,6 +74,7 @@ if ($SelfTest) {
     if (-not $Account) { Write-Host "No Flow saved data yet: log in once with Flow on, then start this again (or pass -Account)."; exit 1 }
     $savedDir = Join-Path $WowDir "WTF\Account\$Account\SavedVariables"
     $saved = Join-Path $savedDir 'Flow.lua'
+    $chatLog = Join-Path $WowDir 'Logs\WoWChatLog.txt'   # (Flow turns WoW's chat log on when you send)
 }
 
 if ($Cli) {
@@ -97,6 +106,8 @@ function Load-State {
         if ($s.nextId) { $state.nextId = [int]$s.nextId }
         $state.toldDirty = [bool]$s.toldDirty
         if ($s.deathsSeen) { $state.deathsSeen = [int]$s.deathsSeen }
+        if ($null -ne $s.chatLogPos) { $state.chatLogPos = [long]$s.chatLogPos }
+        if ($s.bridgeAt) { $state.bridgeAt = [long]$s.bridgeAt }
     } catch { Write-Host "(couldn't read ${stateFile}: starting fresh)" }
 }
 Load-State
@@ -112,6 +123,8 @@ function Write-Inbox {
         $lines += "    { id = $($r.id), replyTo = $reply, at = $($r.at), text = [==[$text]==] },"
     }
     $lines += '}'
+    # When this script last ran: /si in game shows the chat (not the connect prompt).
+    if ($state.bridgeAt) { $lines += "ns.claudeBridge = { at = $([long]$state.bridgeAt) }" }
     $dir = Split-Path $inboxFile
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
     [IO.File]::WriteAllText($inboxFile, (($lines -join "`n") + "`n"), (New-Object Text.UTF8Encoding $false))
@@ -241,25 +254,88 @@ function Handle-Deaths {
     if ($new.Count -gt 0) { $state.deathsSeen = $seen; Save-State }
 }
 
+# One message, from either path (saved data or chat log): passed on once.
+function Deliver($m) {
+    Load-State
+    if ($state.answered -contains $m.id -or $state.delivered -contains $m.id) { return }
+    $state.delivered = @($state.delivered) + @($m.id)
+    Save-State
+    if ($Cli) {
+        Write-Host ("[{0}] WoW > {1}" -f (Get-Date -Format HH:mm:ss), $m.text)
+        $reply = Ask-Claude $m
+        Write-Host ("[{0}] Claude > {1}" -f (Get-Date -Format HH:mm:ss), $reply)
+        Add-Reply $reply $m.id
+    } else {
+        # For the watching Claude session: one line per message.
+        $who = "{0} ({1} {2}, {3})" -f $m.char, $m.class, $m.level, $m.zone
+        Emit ("ASK {0} | {1} | {2}" -f $m.id, $who, (($m.text -replace "`r?`n", ' ')))
+    }
+}
+
 function Handle-Messages {
     Handle-Deaths
     if ($NoAsk) { return }
-    foreach ($m in (Get-Outbox)) {
-        Load-State
-        if ($state.answered -contains $m.id -or $state.delivered -contains $m.id) { continue }
-        $state.delivered = @($state.delivered) + @($m.id)
-        Save-State
-        if ($Cli) {
-            Write-Host ("[{0}] WoW > {1}" -f (Get-Date -Format HH:mm:ss), $m.text)
-            $reply = Ask-Claude $m
-            Write-Host ("[{0}] Claude > {1}" -f (Get-Date -Format HH:mm:ss), $reply)
-            Add-Reply $reply $m.id
-        } else {
-            # For the watching Claude session: one line per message.
-            $who = "{0} ({1} {2}, {3})" -f $m.char, $m.class, $m.level, $m.zone
-            Emit ("ASK {0} | {1} | {2}" -f $m.id, $who, (($m.text -replace "`r?`n", ' ')))
+    foreach ($m in (Get-Outbox)) { Deliver $m }
+}
+
+# --- messages sent without a reload: Flow's tagged whispers in WoW's chat log ---
+# "[FlowAsk:<id>:0/<n>] char;class;level;zone", then parts 1..n of the text.
+# Each whisper shows twice in the log ("To you:" and "you whispers:").
+$chatParts = @{}
+function Add-ChatLines([string[]]$lines) {
+    $done = @()
+    foreach ($l in $lines) {
+        $x = [regex]::Match([string]$l, '\[FlowAsk:(\d+):(\d+)/(\d+)\] ?(.*?)\s*$')
+        if (-not $x.Success) { continue }
+        $id = [int]$x.Groups[1].Value; $k = [int]$x.Groups[2].Value; $n = [int]$x.Groups[3].Value
+        if (-not $chatParts.ContainsKey($id)) { $chatParts[$id] = @{ n = $n; who = $null; parts = @{} } }
+        $e = $chatParts[$id]
+        # (Trailing spaces trimmed above; Flow never ends a part with one.)
+        if ($k -eq 0) { $e.who = $x.Groups[4].Value } else { $e.parts[$k] = $x.Groups[4].Value }
+        if ($null -ne $e.who -and $e.parts.Count -ge $e.n) {
+            $text = (@(1..$e.n | ForEach-Object { $e.parts[$_] })) -join ''
+            $f = @($e.who -split ';', 4) + @('', '', '', '')
+            $done += @{ id = $id; text = $text; char = $f[0]; class = $f[1]; level = $f[2]; zone = $f[3] }
+            $chatParts.Remove($id)
         }
     }
+    return $done
+}
+# New whole lines since last time (the last line may still be being written).
+function Read-ChatLogLines {
+    if (-not $chatLog -or -not (Test-Path $chatLog)) { return @() }
+    Load-State
+    $fs = [IO.File]::Open($chatLog, 'Open', 'Read', 'ReadWrite')
+    try {
+        $len = $fs.Length
+        # First run: start at the end (not your whole chat history).
+        $pos = if ($null -ne $state.chatLogPos) { [long]$state.chatLogPos } else { $len }
+        if ($pos -gt $len) { $pos = 0 }   # a new log file
+        $count = [int]($len - $pos)
+        if ($count -le 0) { $state.chatLogPos = $pos; Save-State; return @() }
+        $buf = New-Object byte[] $count
+        $fs.Seek($pos, 'Begin') | Out-Null
+        $read = $fs.Read($buf, 0, $count)
+    } finally { $fs.Dispose() }
+    $last = -1
+    for ($i = $read - 1; $i -ge 0; $i--) { if ($buf[$i] -eq 10) { $last = $i; break } }
+    if ($last -lt 0) { return @() }
+    $state.chatLogPos = $pos + $last + 1
+    Save-State
+    return ([Text.Encoding]::UTF8.GetString($buf, 0, $last + 1) -split "`r?`n")
+}
+function Handle-ChatLog {
+    if ($NoAsk) { return }
+    foreach ($m in @(Add-ChatLines @(Read-ChatLogLines))) { Deliver $m }
+}
+
+# --- "connected": when this script last ran, for /si in game ---
+function Beat {
+    if ($NoAsk) { return }
+    Load-State
+    $state.bridgeAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    Save-State
+    Write-Inbox
 }
 
 # --- keeping Flow up to date ---
@@ -344,6 +420,31 @@ FlowDB = {
     if ($lua -notmatch 'ns\.claudeInbox = \{' -or $lua -notmatch 'replyTo = 2' -or $lua -notmatch '\[==\[Done: the arrow is green\. Type /reload\.\]==\]') {
         Write-Host "FAIL inbox file:`n$lua"; $ok = $false
     }
+    # Sent without a reload: Flow's whispers in WoW's chat log (each twice,
+    # "To" and "whispers"), a part starting with a space, a line still being
+    # written at the end, and someone else's chat in between.
+    $log = @(
+        '11/9 08:40:01.123  To Yang-Forever: [FlowAsk:7:0/2] Yang;PALADIN;2;Tirisfal Glades',
+        '11/9 08:40:01.124  Yang-Forever whispers: [FlowAsk:7:0/2] Yang;PALADIN;2;Tirisfal Glades',
+        '11/9 08:40:01.200  [1. General] Bob: anyone for Hogger?',
+        '11/9 08:40:01.373  To Yang-Forever: [FlowAsk:7:1/2] make the arrow',
+        '11/9 08:40:01.374  Yang-Forever whispers: [FlowAsk:7:1/2] make the arrow',
+        '11/9 08:40:01.623  To Yang-Forever: [FlowAsk:7:2/2]  purple please',
+        ''
+    ) -join "`r`n"
+    $state.chatLogPos = 0; Save-State
+    [IO.File]::WriteAllText($chatLog, $log + '11/9 08:40:02.000  To Yang-Forever: [FlowAsk:8:0/1] Ya')
+    Handle-ChatLog    # prints: ASK 7 | Yang (PALADIN 2, Tirisfal Glades) | make the arrow purple please
+    if ($state.delivered -notcontains 7) { Write-Host "FAIL: chat-log message 7 not passed on"; $ok = $false }
+    if ($state.delivered -contains 8) { Write-Host "FAIL: a half-written line was read"; $ok = $false }
+    $got = @(Add-ChatLines @('x  To Y: [FlowAsk:9:0/2] A;B;1;Z', 'x [FlowAsk:9:1/2] make the arrow', 'x [FlowAsk:9:2/2]  purple'))
+    if (@($got).Count -ne 1 -or $got[0].text -ne 'make the arrow purple' -or $got[0].zone -ne 'Z') {
+        Write-Host "FAIL chat-log parts: '$($got[0].text)'"; $ok = $false
+    }
+    Handle-ChatLog    # nothing new
+    if (@($state.delivered | Where-Object { $_ -eq 7 }).Count -ne 1) { Write-Host "FAIL: message 7 passed on twice"; $ok = $false }
+    Beat
+    if ((Get-Content $inboxFile -Raw) -notmatch 'ns\.claudeBridge = \{ at = \d+ \}') { Write-Host "FAIL: no 'connected' note in the inbox"; $ok = $false }
     Remove-Item $tmp -Recurse -Force
     if ($ok) { Write-Host "self-test OK" ; exit 0 } else { exit 1 }
 }
@@ -356,25 +457,50 @@ $ids = @('FlowSavedChanged', 'FlowSavedCreated', 'FlowSavedRenamed')
 Register-ObjectEvent $watcher Changed -SourceIdentifier $ids[0] | Out-Null
 Register-ObjectEvent $watcher Created -SourceIdentifier $ids[1] | Out-Null
 Register-ObjectEvent $watcher Renamed -SourceIdentifier $ids[2] | Out-Null
+# WoW's chat log: messages sent without a reload (Flow turns the log on).
+$logWatcher = $null
+$logDir = Split-Path $chatLog
+if (-not $NoAsk -and (Test-Path $logDir)) {
+    $logWatcher = New-Object System.IO.FileSystemWatcher $logDir, 'WoWChatLog.txt'
+    $logWatcher.NotifyFilter = [IO.NotifyFilters]'LastWrite, FileName, Size'
+    $logWatcher.EnableRaisingEvents = $true
+    Register-ObjectEvent $logWatcher Changed -SourceIdentifier 'FlowChatLogChanged' | Out-Null
+    Register-ObjectEvent $logWatcher Created -SourceIdentifier 'FlowChatLogCreated' | Out-Null
+    $ids += @('FlowChatLogChanged', 'FlowChatLogCreated')
+}
 
 if (-not (Test-Path $inboxFile)) { Write-Inbox }   # (Flow.toc lists it: make sure it's there)
 $mode = if ($NoAsk) { 'off' } elseif ($Cli) { 'by itself (claude -p)' } else { 'passed on as ASK lines (a Claude session answers with -Reply)' }
-Emit "READY watching $saved | /claude messages: $mode | updates: $(if ($NoUpdate) { 'off' } else { 'on' })"
+$live = if ($logWatcher) { " | live (no reload): $chatLog" } else { '' }
+Emit "READY watching $saved$live | /claude messages: $mode | updates: $(if ($NoUpdate) { 'off' } else { 'on' })"
 try {
+    Beat
     Sync-Flow
     Handle-Messages
+    Handle-ChatLog
+    $lastSync = Get-Date; $lastBeat = Get-Date
     while ($true) {
-        # Sleeps until WoW writes the file (a /reload, logout or exit).
-        # Every 30 min without one it checks for updates anyway.
-        $e = Wait-Event -Timeout 1800
+        # Sleeps until WoW writes a file: Flow's saved data (a /reload, logout
+        # or exit) or its chat log (any chat, a Flow message among it). Every
+        # 10 min it says "connected" again; every 30 min it checks for updates.
+        $e = Wait-Event -Timeout 600
+        $saveSeen = $false
         if ($e) {
-            Start-Sleep -Milliseconds 800          # let WoW finish writing
-            Get-Event | Remove-Event               # one save fires several events
-            Handle-Messages
+            Start-Sleep -Milliseconds 300
+            $kinds = @(Get-Event | ForEach-Object { $_.SourceIdentifier })
+            Get-Event | Remove-Event               # one write fires several events
+            if ($kinds -like 'FlowChatLog*') { Handle-ChatLog }
+            if ($kinds -like 'FlowSaved*') {
+                $saveSeen = $true
+                Start-Sleep -Milliseconds 500      # let WoW finish writing
+                Handle-Messages
+            }
         }
-        Sync-Flow
+        if (((Get-Date) - $lastBeat).TotalMinutes -ge 10) { Beat; $lastBeat = Get-Date }
+        if ($saveSeen -or ((Get-Date) - $lastSync).TotalMinutes -ge 30) { Sync-Flow; $lastSync = Get-Date }
     }
 } finally {
     foreach ($id in $ids) { Unregister-Event -SourceIdentifier $id -ErrorAction SilentlyContinue }
     $watcher.Dispose()
+    if ($logWatcher) { $logWatcher.Dispose() }
 }

@@ -44,13 +44,17 @@ registry first, or add one.
   `/flow rot why`, `/flow nav why`.
 - With the repo junctioned into `Interface\AddOns\Flow`, `/reload` picks up edits.
 
-## "Watch Flow's in-game chat" (/claude in game)
+## "Watch Flow's in-game chat" (/si in game)
 
-When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
+When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md), or pastes the connect
+prompt that `/si` shows in game:
 
 1. Start `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1` with your **Monitor**
-   tool (timeout at the maximum; start it again each time it expires). Each stdout line is an event:
-   - `READY ...`: it's watching. Tell the player to type `/claude hello` in game.
+   tool (timeout at the maximum; start it again each time it expires). It reads messages from
+   WoW's chat log as they're sent (no reload) and from Flow's saved data at a reload, and marks
+   Claude as connected for `/si`. Each stdout line is an event:
+   - `READY ...`: it's watching. Tell the player to press Reload in Flow Chat (`/si`), then type
+     `/si hello`.
    - `ASK <id> | <who> | <message>`: a message typed in game. Do what it asks in this repo, the
      way this file says (a change gets a test, lint, and on the maintainer's branch a version bump,
      changelog and commit; never push). Then answer it:
@@ -71,8 +75,9 @@ When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md):
      If nothing would have helped, say so in the note.
 2. On a clone that follows `main` (not the maintainer's branch), change files but don't commit or
    bump the version; offer to open a pull request (CONTRIBUTING.md).
-3. Every answer is shown only after the player's next reload ("Check now" in the `/claude` chat
-   window, or `/claude check`, does one).
+3. Every answer is shown only after the player's next reload: **Reload** in Flow Chat (`/si`)
+   does one, when they choose. WoW can't read files any other way. So say "press Reload" when
+   there's something to see.
 
 ## "Share my Flow places" (send learned NPC spots to every Flow player)
 

@@ -2803,7 +2803,7 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
     AC:Open()
     local box = _G.FlowAskClaude
     t:ok(box and box:IsShown(), "the chat window opens")
-    t:ok(box and box.edit and box.send and box.check, "with a box to type in, Send and Check now")
+    t:ok(box and box.edit and box.send and box.reload, "with a box to type in, Send and Reload")
     if box then box.edit:ClearFocus(); box:Hide() end
     -- The game's chat box stops at 255 letters: a message that long goes to
     -- the window to finish (Yang's was cut off mid-word), not straight out.
@@ -2815,6 +2815,47 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
     t:ok(box and box.edit:GetMaxLetters() >= 1000, "the window takes 1000 letters")
     if box then box.edit:SetText(""); box.edit:ClearFocus(); box:Hide() end
     t:ok(AC.SLASHES[2] == "/ai" and AC.SLASHES[3] == "/si", "short /ai and /si")
+end)
+
+ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect Claude", function(t)
+    -- WoW never lets an add-on read or write files while it runs, but it
+    -- writes its chat log as chat arrives: Flow whispers your message to you,
+    -- tagged, and the bridge reads it from Logs\WoWChatLog.txt.
+    local AC = ns.askClaude
+    local lines = AC.Parts(12, "make the arrow | purple\nplease", "Yang;PALADIN;2;Tirisfal Glades")
+    t:eq(#lines, 2, "who you are, then the message")
+    t:eq(lines[1], "[FlowAsk:12:0/1] Yang;PALADIN;2;Tirisfal Glades", "first: who and where")
+    t:eq(lines[2], "[FlowAsk:12:1/1] make the arrow / purple please", "no | (WoW's escape) or line breaks")
+    local long = AC.Parts(3, string.rep("é", 300), "x")   -- 600 bytes of two-byte letters
+    t:eq(#long, 4, "a long message in parts")
+    local joined, fits = "", true
+    for k = 2, #long do
+        if #long[k] > 255 then fits = false end
+        joined = joined .. long[k]:gsub("^%[FlowAsk:%d+:%d+/%d+%] ", "")
+    end
+    t:ok(fits, "every part fits WoW's 255-letter limit")
+    t:eq(joined, string.rep("é", 300), "no letter cut in two")
+    local spaced = AC.Parts(4, string.rep("a", AC.PART - 1) .. " b", "x")
+    t:eq(spaced[3], "[FlowAsk:4:2/2]  b", "no part ends in a space (chat may drop it): the next starts with it")
+    t:ok(AC.IsTagged("[FlowAsk:3:1/2] hi"), "Flow's whispers are hidden from your chat")
+    t:ok(not AC.IsTagged("hi from a friend"), "other whispers aren't")
+    -- Connected: the bridge's note in Learned\ClaudeInbox.lua, read at the reload.
+    t:ok(AC.Connected({ at = 1000 }, 1000 + 60), "the bridge wrote a minute ago: connected")
+    t:ok(not AC.Connected({ at = 1000 }, 1000 + 2 * AC.FRESH), "long ago: not connected")
+    t:ok(not AC.Connected(nil, 1000), "never: not connected")
+    -- Not connected: a prompt to paste into Claude.
+    local p = AC.SetupPrompt("Yang", "PALADIN", 2, "Forever")
+    for _, want in ipairs({ AC.REPO, "claude-bridge.ps1 -SelfTest", "Monitor", "WoWChatLog.txt", "-Reply <id>", "Yang (PALADIN 2)" }) do
+        t:ok(p:find(want, 1, true) ~= nil, "the prompt says: " .. want)
+    end
+    AC:OpenSetup()
+    local box = _G.FlowAskClaude
+    t:ok(box and box.setup:IsShown() and not box.chat:IsShown(), "/si setup shows the prompt")
+    t:eq(box and box.prompt:GetText(), AC:MyPrompt(), "your own prompt, ready to copy")
+    AC:Open()
+    t:ok(box and box.chat:IsShown() and not box.setup:IsShown(), "back to the chat")
+    if box then box.edit:ClearFocus(); box.prompt:ClearFocus(); box:Hide() end
+    t:ok(type(ns.commands.chat) == "function", "/flow chat live on|off")
 end)
 
 ns:Register("test", "new spells: spotted from your spellbook, the card even if the game put it on a bar", function(t)

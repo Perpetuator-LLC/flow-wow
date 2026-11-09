@@ -1,9 +1,14 @@
 # Talk to Claude from inside WoW (and keep Flow up to date by itself)
 
-Type `/claude make the arrow green` in game. A Claude session on your PC (Claude desktop's Code
-tab, or any Claude Code) picks it up, works in your Flow folder, so it can answer **and change
-Flow itself**, and its answer shows in your chat window as "Claude: ..." after `/claude` (a
-reload), together with the change.
+Type `/si make the arrow green` in game (or `/ai`, `/claude`). A Claude session on your PC
+(Claude desktop's Code tab, or any Claude Code) picks it up straight away, with no reload. It works
+in your Flow folder, so it can answer **and change Flow itself**. Its answer shows in Flow Chat
+(`/si`) after you press **Reload** there, together with the change.
+
+**Not connected yet?** `/si` on its own then shows a prompt to copy (it's already selected: press
+Ctrl+C) into a Claude Code session on your PC. It sets that session up: it finds your Flow source,
+runs the bridge, and starts watching. Press Reload once it says it's ready. `/si setup` shows the
+prompt again.
 
 A small script on your PC, `tools\claude-bridge.ps1`, passes the messages along, and also keeps
 Flow up to date: each time WoW saves (a `/reload`, logout or exit), it checks GitHub and brings a
@@ -14,23 +19,28 @@ answers file back. Nothing is sent anywhere except what your Claude session itse
 
 ## How it works
 
-WoW addons can't open files or the network. The only way out is Flow's saved data, which WoW
-writes to disk when the UI reloads; the only way in is a file in the addon folder, which WoW reads
-when the UI loads. So:
+WoW addons can't open files or the network while the game runs. Flow's saved data is written to
+disk only at a reload (or logout), and the addon's own files are read only when the UI loads. But
+WoW writes its **chat log** (`_forever_\Logs\WoWChatLog.txt`) as chat arrives. So:
 
-1. `/claude <message>` (or the short `/ai` or `/si`): Flow saves the message and reloads the UI (a few seconds), so WoW writes it
-   to `WTF\Account\<you>\SavedVariables\Flow.lua`.
-2. `tools\claude-bridge.ps1` is woken by Windows when that file changes (it doesn't poll) and
-   prints one line per new message:
+1. **Sending, no reload:** `/si <message>` (or Send in Flow Chat). Flow turns WoW's chat log on
+   and whispers the message to you, tagged `[FlowAsk:<id>:<part>/<parts>]` and hidden from your
+   chat window. A long message goes in parts of 220 letters. The message also goes into Flow's
+   saved data, so if the chat log doesn't carry it, the next reload does. (`/flow chat live off`
+   sends by reloading instead.) The chat log records all your chat, on your PC only.
+2. `tools\claude-bridge.ps1` is woken by Windows when the chat log or `Flow.lua` changes (it
+   doesn't poll), reads only Flow's tagged lines, and prints one line per new message:
    `ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green`
 3. Your Claude session watches those lines (its Monitor tool), does what's asked in the Flow
    folder, and answers with
-   `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply 3 -Text "Done. Type /reload."`
+   `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply 3 -Text "Done. Press Reload."`
    which writes `Learned\ClaudeInbox.lua`.
-4. **Check now** in the chat window (or `/claude check`) reloads the UI: WoW reads the answers file
-   (and any code Claude changed), and Flow prints the answers. `/claude` on its own opens the chat
-   window: what you asked, the answers, a box to type in, Send and Check now.
-5. **Deaths:** when you die, Flow saves a death report (what Flow suggested, what you cast, when
+4. **Answers need a reload**, the only time WoW reads Flow's files. Press **Reload** in Flow Chat
+   when you want them. That also loads any change Claude made to Flow, so you decide when.
+5. **Connected:** while the bridge runs, it writes the time into `Learned\ClaudeInbox.lua` every
+   10 minutes. If that was recent at your last reload, `/si` opens the chat; otherwise it opens
+   the connect prompt.
+6. **Deaths:** when you die, Flow saves a death report (what Flow suggested, what you cast, when
    the low-health warning came on, the enemy). At your next reload the bridge passes it on as a
    `DEATH` line. The watching Claude session does a post-mortem (CLAUDE.md): how the easy button
    could have prevented it. It makes that improvement and tells you in a note.
@@ -44,7 +54,10 @@ when the UI loads. So:
    the Flow folder and say: **"Watch Flow's in-game chat."** It starts the bridge with its Monitor
    tool and answers every `/claude` you type (CLAUDE.md tells it how). Keep that session open
    while you play.
-3. In game: `/claude hello`, then `/claude` a moment later to see the answer.
+   Or, from the game: `/si` (not connected yet) shows a prompt that does all of this; paste it
+   into a Claude Code session.
+3. In game: Reload in Flow Chat once Claude says it's ready, then `/si hello`. Press Reload a
+   moment later to see the answer.
 
 ### Only updates, no Claude
 
@@ -63,7 +76,7 @@ Remove it with `schtasks /Delete /TN "Flow updates"`.
 | | |
 |---|---|
 | (none) | listen: print `ASK` / `DEATH` / `UPDATE` lines for a Claude session, keep Flow up to date |
-| `-Reply ID -Text "..."` | answer message ID (shown in game after `/claude` or `/reload`) |
+| `-Reply ID -Text "..."` | answer message ID (shown in game after Reload in Flow Chat, or `/reload`) |
 | `-Note "..."` | tell the player something with no message to answer |
 | `-NoAsk` | only keep Flow up to date |
 | `-NoUpdate` | only pass messages on |
