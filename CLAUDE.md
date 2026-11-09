@@ -51,8 +51,8 @@ prompt that `/si` shows in game:
 
 1. Start `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1` with your **Monitor**
    tool (timeout at the maximum; start it again each time it expires). It reads messages from
-   WoW's chat log as they're sent (no reload) and from Flow's saved data at a reload, and marks
-   Claude as connected for `/si`. Each stdout line is an event:
+   Flow's coded screenshots as they're sent (no reload; it deletes them after) and from Flow's
+   saved data at a reload, and marks Claude as connected for `/si`. Each stdout line is an event:
    - `READY ...`: it's watching. Tell the player to press Reload in Flow Chat (`/si`), then type
      `/si hello`.
    - `ASK <id> | <who> | <message>`: a message typed in game. Do what it asks in this repo, the
@@ -61,8 +61,8 @@ prompt that `/si` shows in game:
      `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply <id> -Text "<answer>"`
      The answer shows in WoW's chat window: at most 3 short sentences, plain text, no markdown,
      and say whether they need to `/reload` (or restart WoW, for new files) to see a change.
-   - `INFO ...`: news about the bridge itself (WoW wrote its chat log, so messages come live).
-     Nothing to do.
+   - `INFO ...`: news about the bridge itself (a Flow screenshot it couldn't read, kept for a
+     look). Usually nothing to do.
    - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the
      player was told in game.
    - `DEATH <id> | <who> | <summary> || <findings>`: the player died. Do a **post-mortem**: how

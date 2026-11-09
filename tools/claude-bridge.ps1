@@ -4,11 +4,12 @@
   See docs/ASK-CLAUDE.md for setup.
 
   In game:  /si make the arrow green
-  Flow whispers the message to the player, tagged "[FlowAsk:id:part/n]", and
-  WoW writes that to its chat log (Logs\WoWChatLog.txt) at once: no reload.
-  (Flow keeps it in its saved data too, written at the next reload.) This
-  script waits for either file to change (a file-change event, no polling)
-  and prints each new message as one line:
+  Flow shows the message for a moment as black and white squares (a code)
+  and takes a screenshot, which WoW writes to _forever_\Screenshots at once:
+  no reload. (Flow keeps it in its saved data too, written at the next
+  reload.) This script decodes the screenshot (then deletes it), waits for
+  Flow's saved data to change too (file-change events, no polling), and
+  prints each new message as one line:
       ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green
   While it runs it also writes "connected" into Learned\ClaudeInbox.lua
   (ns.claudeBridge.at, every 10 minutes): /si in game shows the chat when it
@@ -54,17 +55,19 @@ param(
 if ($NoClaude) { $NoAsk = $true }
 # One event per line, out at once (a watching Claude session reads stdout).
 function Emit([string]$line) { [Console]::Out.WriteLine($line); [Console]::Out.Flush() }
+# UTF-8 out, so "é" in a message reaches the watching session as "é".
+try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding $false } catch { }
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $repo = Split-Path $PSScriptRoot -Parent
 if (-not $AddonDir) { $AddonDir = $repo }
 
-$chatLog = $null
+$shotDir = $null
 if ($SelfTest) {
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("flow-bridge-test-" + [guid]::NewGuid())
     New-Item -ItemType Directory -Force (Join-Path $tmp 'Learned') | Out-Null
     $AddonDir = $tmp; $savedDir = $tmp; $saved = Join-Path $tmp 'Flow.lua'; $Cli = $false; $NoUpdate = $true
-    $chatLog = Join-Path $tmp 'WoWChatLog.txt'
+    $shotDir = $tmp
 } elseif ($Reply -or $Note) {
     $savedDir = $null; $saved = $null   # (answering: only the answers file is needed)
 } else {
@@ -74,7 +77,7 @@ if ($SelfTest) {
     if (-not $Account) { Write-Host "No Flow saved data yet: log in once with Flow on, then start this again (or pass -Account)."; exit 1 }
     $savedDir = Join-Path $WowDir "WTF\Account\$Account\SavedVariables"
     $saved = Join-Path $savedDir 'Flow.lua'
-    $chatLog = Join-Path $WowDir 'Logs\WoWChatLog.txt'   # (Flow turns WoW's chat log on when you send)
+    $shotDir = Join-Path $WowDir 'Screenshots'   # (Flow's coded screenshots: messages without a reload)
 }
 
 if ($Cli) {
@@ -106,7 +109,6 @@ function Load-State {
         if ($s.nextId) { $state.nextId = [int]$s.nextId }
         $state.toldDirty = [bool]$s.toldDirty
         if ($s.deathsSeen) { $state.deathsSeen = [int]$s.deathsSeen }
-        if ($null -ne $s.chatLogPos) { $state.chatLogPos = [long]$s.chatLogPos }
         if ($s.bridgeAt) { $state.bridgeAt = [long]$s.bridgeAt }
     } catch { Write-Host "(couldn't read ${stateFile}: starting fresh)" }
 }
@@ -278,60 +280,176 @@ function Handle-Messages {
     foreach ($m in (Get-Outbox)) { Deliver $m }
 }
 
-# --- messages sent without a reload: Flow's tagged whispers in WoW's chat log ---
-# "[FlowAsk:<id>:0/<n>] char;class;level;zone", then parts 1..n of the text.
-# Each whisper shows twice in the log ("To you:" and "you whispers:").
-$chatParts = @{}
-function Add-ChatLines([string[]]$lines) {
-    $done = @()
-    foreach ($l in $lines) {
-        $x = [regex]::Match([string]$l, '\[FlowAsk:(\d+):(\d+)/(\d+)\] ?(.*?)\s*$')
-        if (-not $x.Success) { continue }
-        $id = [int]$x.Groups[1].Value; $k = [int]$x.Groups[2].Value; $n = [int]$x.Groups[3].Value
-        if (-not $chatParts.ContainsKey($id)) { $chatParts[$id] = @{ n = $n; who = $null; parts = @{} } }
-        $e = $chatParts[$id]
-        # (Trailing spaces trimmed above; Flow never ends a part with one.)
-        if ($k -eq 0) { $e.who = $x.Groups[4].Value } else { $e.parts[$k] = $x.Groups[4].Value }
-        if ($null -ne $e.who -and $e.parts.Count -ge $e.n) {
-            $text = (@(1..$e.n | ForEach-Object { $e.parts[$_] })) -join ''
-            $f = @($e.who -split ';', 4) + @('', '', '', '')
-            $done += @{ id = $id; text = $text; char = $f[0]; class = $f[1]; level = $f[2]; zone = $f[3] }
-            $chatParts.Remove($id)
-        }
+# --- messages sent without a reload: Flow's coded screenshots ---
+# WoW never lets an add-on write a file while it runs (and WoW: Forever keeps
+# whispers out of its chat log), but it writes a screenshot at once. Flow
+# (AskClaude.lua, AC:ShowCode) draws the message as black and white squares
+# in a white box at the screen's top left, takes a screenshot and hides them.
+# Read in rows of `cols` squares from the box's first square: 16 magic
+# squares, three 16-bit numbers (columns, length in bytes, checksum = the
+# bytes summed mod 65536), then the bytes; most significant bit first,
+# 1 = black. One more black square sits in row 0 at column cols+1 (white
+# either side), to measure the square size on a scaled screenshot. The bytes:
+# "FLOW1|<id>|<char;class;level;zone>|<text>" (UTF-8).
+$FlowMagic = @(1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1)
+$FlowCell = 12
+
+# A screenshot as { w, h, stride, bpp, px } (rows top-down, blue-green-red).
+function Get-Image([string]$path) {
+    $bytes = $null
+    for ($try = 0; $try -lt 15; $try++) {   # WoW may still be writing it
+        try { $bytes = [IO.File]::ReadAllBytes($path); if ($bytes.Length -gt 0) { break } } catch { }
+        Start-Sleep -Milliseconds 200
     }
-    return $done
-}
-# New whole lines since last time (the last line may still be being written).
-function Read-ChatLogLines {
-    if (-not $chatLog -or -not (Test-Path $chatLog)) { return @() }
-    Load-State
-    $fs = [IO.File]::Open($chatLog, 'Open', 'Read', 'ReadWrite')
+    if (-not $bytes -or $bytes.Length -lt 18) { return $null }
+    if ($path -match '\.tga$') { return (Get-Tga $bytes) }
+    Add-Type -AssemblyName System.Drawing
+    $ms = New-Object IO.MemoryStream (, $bytes)
     try {
-        $len = $fs.Length
-        # First run: start at the end (not your whole chat history).
-        $pos = if ($null -ne $state.chatLogPos) { [long]$state.chatLogPos } else { $len }
-        if ($pos -gt $len) { $pos = 0 }   # a new log file
-        $count = [int]($len - $pos)
-        if ($count -le 0) { $state.chatLogPos = $pos; Save-State; return @() }
-        $buf = New-Object byte[] $count
-        $fs.Seek($pos, 'Begin') | Out-Null
-        $read = $fs.Read($buf, 0, $count)
-    } finally { $fs.Dispose() }
-    $last = -1
-    for ($i = $read - 1; $i -ge 0; $i--) { if ($buf[$i] -eq 10) { $last = $i; break } }
-    if ($last -lt 0) { return @() }
-    $state.chatLogPos = $pos + $last + 1
-    Save-State
-    # Once per run: proof WoW writes its chat log (messages come without a reload).
-    if (-not $script:chatLogSeen) {
-        $script:chatLogSeen = $true
-        if (-not $SelfTest) { Emit "INFO WoW wrote its chat log (+$($last + 1) bytes): messages come without a reload" }
-    }
-    return ([Text.Encoding]::UTF8.GetString($buf, 0, $last + 1) -split "`r?`n")
+        $src = [System.Drawing.Image]::FromStream($ms)
+        $bmp = New-Object System.Drawing.Bitmap $src
+        $src.Dispose()
+        $rect = New-Object System.Drawing.Rectangle 0, 0, $bmp.Width, $bmp.Height
+        $data = $bmp.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::ReadOnly, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+        $px = New-Object byte[] ($data.Stride * $bmp.Height)
+        [Runtime.InteropServices.Marshal]::Copy($data.Scan0, $px, 0, $px.Length)
+        $im = @{ w = $bmp.Width; h = $bmp.Height; stride = $data.Stride; bpp = 3; px = $px }
+        $bmp.UnlockBits($data); $bmp.Dispose()
+        return $im
+    } catch { return $null } finally { $ms.Dispose() }
 }
-function Handle-ChatLog {
-    if ($NoAsk) { return }
-    foreach ($m in @(Add-ChatLines @(Read-ChatLogLines))) { Deliver $m }
+# Uncompressed true-colour TGA (WoW's other screenshot format).
+function Get-Tga([byte[]]$b) {
+    if ($b[2] -ne 2 -or ($b[16] -ne 24 -and $b[16] -ne 32)) { return $null }
+    $w = $b[12] + 256 * $b[13]; $h = $b[14] + 256 * $b[15]; $bpp = $b[16] / 8
+    $top = ($b[17] -band 32) -ne 0
+    $off = 18 + $b[0]; $stride = $w * $bpp
+    if ($b.Length -lt $off + $stride * $h) { return $null }
+    $px = New-Object byte[] ($stride * $h)
+    for ($y = 0; $y -lt $h; $y++) {
+        $sy = if ($top) { $y } else { $h - 1 - $y }
+        [Array]::Copy($b, $off + $sy * $stride, $px, $y * $stride, $stride)
+    }
+    return @{ w = $w; h = $h; stride = $stride; bpp = $bpp; px = $px }
+}
+function Lum($im, [int]$x, [int]$y) {
+    if ($x -lt 0 -or $y -lt 0 -or $x -ge $im.w -or $y -ge $im.h) { return 255 }
+    $i = $y * $im.stride + $x * $im.bpp
+    return ([int]$im.px[$i] + [int]$im.px[$i + 1] + [int]$im.px[$i + 2]) / 3
+}
+# Black square at this point? (Its centre and a little either side.)
+function Dark($im, [double]$x, [double]$y) {
+    $xi = [int][math]::Round($x); $yi = [int][math]::Round($y)
+    return ((Lum $im $xi $yi) + (Lum $im ($xi - 2) $yi) + (Lum $im ($xi + 2) $yi)) / 3 -lt 128
+}
+
+# The message in a screenshot: $null (not Flow's), @{ error = "..." }, or
+# @{ msg = @{ id, text, char, class, level, zone } }.
+function Read-FlowCode($im) {
+    # The first square (black) is the first dark point on the diagonal from
+    # the top left; its edges are where the dark ends going left and up.
+    $lim = [math]::Min(400, [math]::Min($im.w, $im.h) - 1)
+    $d = -1
+    for ($i = 0; $i -lt $lim; $i++) { if ((Lum $im $i $i) -lt 128) { $d = $i; break } }
+    if ($d -lt 0) { return $null }
+    $x0 = $d; while ($x0 -gt 0 -and (Lum $im ($x0 - 1) $d) -lt 128) { $x0-- }
+    $y0 = $d; while ($y0 -gt 0 -and (Lum $im $d ($y0 - 1)) -lt 128) { $y0-- }
+    # The magic row: its colour changes at these squares (the 16th: the
+    # header's first square is always white).
+    $edges = @(1, 2, 4, 6, 7, 8, 11, 13, 14, 15, 16)
+    $run = 0; while ($run -lt 80 -and (Lum $im ($x0 + $run) ($y0 + 2)) -lt 128) { $run++ }
+    if ($run -lt 4 -or $run -ge 80) { return $null }
+    $y = $y0 + [int]($run / 2)
+    $found = @(); $was = $true
+    for ($x = $x0; $x -lt [math]::Min($im.w, $x0 + 20 * $run + 10) -and $found.Count -lt $edges.Count; $x++) {
+        $now = (Lum $im $x $y) -lt 128
+        if ($now -ne $was) { $found += $x; $was = $now }
+    }
+    if ($found.Count -lt $edges.Count) { return $null }
+    $cell = ($found[-1] - $x0) / 16.0
+    for ($k = 0; $k -lt $edges.Count; $k++) {
+        if ([math]::Abs($found[$k] - ($x0 + $edges[$k] * $cell)) -gt $cell / 3) { return $null }   # not Flow's magic
+    }
+    if ([math]::Abs($cell - $FlowCell) -lt 0.3) { $cell = [double]$FlowCell }   # (a screenshot at screen size)
+    $bit = { param($k, $cols, $c) $r = [math]::Floor($k / $cols); $col = $k % $cols
+             if (Dark $im ($x0 + ($col + 0.5) * $c) ($y0 + ($r + 0.5) * $c)) { 1 } else { 0 } }
+    $num = { param($from, $c) $n = 0; for ($k = $from; $k -lt $from + 16; $k++) { $n = $n * 2 + (& $bit $k 100000 $c) }; $n }
+    $cols = & $num 16 $cell
+    if ($cols -lt 64 -or $cols -gt 400) { return @{ error = "columns $cols" } }
+    # Scaled: measure the square size from the end square (row 0, column cols+1).
+    if ($cell -ne $FlowCell) {
+        $ex = $x0 + ($cols + 1.5) * $cell
+        $best = $null
+        for ($x = [int]($ex - 2 * $cell); $x -le [int]($ex + 2 * $cell); $x++) {
+            if ((Lum $im $x $y) -lt 128 -and (Lum $im ($x - 1) $y) -ge 128) {
+                if ($null -eq $best -or [math]::Abs($x - ($ex - $cell / 2)) -lt [math]::Abs($best - ($ex - $cell / 2))) { $best = $x }
+            }
+        }
+        if ($null -ne $best) { $cell = ($best - $x0) / ($cols + 1.0) }
+    }
+    $len = & $num 32 $cell
+    $sum = & $num 48 $cell
+    if ($len -lt 1 -or $len -gt 8000) { return @{ error = "length $len" } }
+    $bytes = New-Object byte[] $len
+    $total = 0
+    for ($i = 0; $i -lt $len; $i++) {
+        $v = 0
+        for ($b = 0; $b -lt 8; $b++) { $v = $v * 2 + (& $bit (64 + $i * 8 + $b) $cols $cell) }
+        $bytes[$i] = $v; $total = ($total + $v) % 65536
+    }
+    if ($total -ne $sum) { return @{ error = "checksum $total, not $sum" } }
+    $text = [Text.Encoding]::UTF8.GetString($bytes)
+    $x = [regex]::Match($text, '(?s)^FLOW1\|(\d+)\|([^|]*)\|(.*)$')
+    if (-not $x.Success) { return @{ error = "not a Flow message" } }
+    $f = @($x.Groups[2].Value -split ';', 4) + @('', '', '', '')
+    return @{ msg = @{ id = [int]$x.Groups[1].Value; text = $x.Groups[3].Value; char = $f[0]; class = $f[1]; level = $f[2]; zone = $f[3] } }
+}
+
+# A new screenshot: Flow's? Pass the message on and delete the screenshot
+# (Flow's own, taken to carry it). Anyone else's screenshot is left alone.
+$shotsSeen = @{}
+function Handle-Screenshot([string]$path) {
+    if ($NoAsk -or $shotsSeen.ContainsKey($path) -or $path -notmatch '\.(jpe?g|tga|png)$') { return }
+    $shotsSeen[$path] = $true
+    $im = Get-Image $path
+    if (-not $im) { return }
+    $r = Read-FlowCode $im
+    if (-not $r) { return }
+    if ($r.error) { Emit "INFO a Flow screenshot couldn't be read ($($r.error)), kept: $path"; return }
+    Deliver $r.msg
+    Remove-Item -LiteralPath $path -ErrorAction SilentlyContinue
+}
+
+# (Self-test) Flow's code drawn into a JPEG the way AC:ShowCode draws it:
+# white box, squares from (2, 2) squares in, the end square at column cols+1.
+function Get-FlowBits([byte[]]$payload, [int]$cols) {
+    $bits = New-Object System.Collections.Generic.List[int]
+    foreach ($b in $FlowMagic) { $bits.Add($b) }
+    $sum = 0; foreach ($v in $payload) { $sum = ($sum + $v) % 65536 }
+    foreach ($n in @($cols, $payload.Length, $sum)) { for ($b = 15; $b -ge 0; $b--) { $bits.Add(($n -shr $b) -band 1) } }
+    foreach ($v in $payload) { for ($b = 7; $b -ge 0; $b--) { $bits.Add(($v -shr $b) -band 1) } }
+    return , $bits
+}
+function New-FlowCodeImage([string]$path, [string]$payload, [int]$cell, [int]$w, [int]$h, [int]$quality) {
+    Add-Type -AssemblyName System.Drawing
+    $bytes = [Text.Encoding]::UTF8.GetBytes($payload)
+    $cols = [math]::Min(240, [math]::Floor($w / $cell) - 6)
+    $bits = Get-FlowBits $bytes $cols
+    $rows = [math]::Ceiling($bits.Count / $cols)
+    $bmp = New-Object System.Drawing.Bitmap $w, $h
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.Clear([System.Drawing.Color]::FromArgb(70, 90, 60))      # the game behind it
+    $g.FillRectangle([System.Drawing.Brushes]::White, 0, 0, ($cols + 6) * $cell, ($rows + 4) * $cell)
+    for ($k = 0; $k -lt $bits.Count; $k++) {
+        if ($bits[$k]) { $g.FillRectangle([System.Drawing.Brushes]::Black, (2 + $k % $cols) * $cell, (2 + [math]::Floor($k / $cols)) * $cell, $cell, $cell) }
+    }
+    $g.FillRectangle([System.Drawing.Brushes]::Black, (2 + $cols + 1) * $cell, 2 * $cell, $cell, $cell)   # the end square
+    $g.Dispose()
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+    $ep = New-Object System.Drawing.Imaging.EncoderParameters 1
+    $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), ([long]$quality)
+    $bmp.Save($path, $codec, $ep)
+    $bmp.Dispose()
 }
 
 # --- "connected": when this script last ran, for /si in game ---
@@ -425,29 +543,26 @@ FlowDB = {
     if ($lua -notmatch 'ns\.claudeInbox = \{' -or $lua -notmatch 'replyTo = 2' -or $lua -notmatch '\[==\[Done: the arrow is green\. Type /reload\.\]==\]') {
         Write-Host "FAIL inbox file:`n$lua"; $ok = $false
     }
-    # Sent without a reload: Flow's whispers in WoW's chat log (each twice,
-    # "To" and "whispers"), a part starting with a space, a line still being
-    # written at the end, and someone else's chat in between.
-    $log = @(
-        '11/9 08:40:01.123  To Yang-Forever: [FlowAsk:7:0/2] Yang;PALADIN;2;Tirisfal Glades',
-        '11/9 08:40:01.124  Yang-Forever whispers: [FlowAsk:7:0/2] Yang;PALADIN;2;Tirisfal Glades',
-        '11/9 08:40:01.200  [1. General] Bob: anyone for Hogger?',
-        '11/9 08:40:01.373  To Yang-Forever: [FlowAsk:7:1/2] make the arrow',
-        '11/9 08:40:01.374  Yang-Forever whispers: [FlowAsk:7:1/2] make the arrow',
-        '11/9 08:40:01.623  To Yang-Forever: [FlowAsk:7:2/2]  purple please',
-        ''
-    ) -join "`r`n"
-    $state.chatLogPos = 0; Save-State
-    [IO.File]::WriteAllText($chatLog, $log + '11/9 08:40:02.000  To Yang-Forever: [FlowAsk:8:0/1] Ya')
-    Handle-ChatLog    # prints: ASK 7 | Yang (PALADIN 2, Tirisfal Glades) | make the arrow purple please
-    if ($state.delivered -notcontains 7) { Write-Host "FAIL: chat-log message 7 not passed on"; $ok = $false }
-    if ($state.delivered -contains 8) { Write-Host "FAIL: a half-written line was read"; $ok = $false }
-    $got = @(Add-ChatLines @('x  To Y: [FlowAsk:9:0/2] A;B;1;Z', 'x [FlowAsk:9:1/2] make the arrow', 'x [FlowAsk:9:2/2]  purple'))
-    if (@($got).Count -ne 1 -or $got[0].text -ne 'make the arrow purple' -or $got[0].zone -ne 'Z') {
-        Write-Host "FAIL chat-log parts: '$($got[0].text)'"; $ok = $false
-    }
-    Handle-ChatLog    # nothing new
-    if (@($state.delivered | Where-Object { $_ -eq 7 }).Count -ne 1) { Write-Host "FAIL: message 7 passed on twice"; $ok = $false }
+    # Sent without a reload: Flow's coded screenshot, drawn here the way
+    # AC:ShowCode draws it (same layout), saved as a rough JPEG; at screen
+    # size, and scaled down (a screenshot smaller than the screen).
+    $text7 = 'make the arrow purple, with a | and é ünïcode'
+    New-FlowCodeImage (Join-Path $shotDir 'WoWScrnShot_1.jpg') "FLOW1|7|Yang;PALADIN;2;Tirisfal Glades|$text7" 12 1920 1080 35
+    $r = Read-FlowCode (Get-Image (Join-Path $shotDir 'WoWScrnShot_1.jpg'))
+    if (-not ($r -and $r.msg -and $r.msg.text -eq $text7 -and $r.msg.zone -eq 'Tirisfal Glades')) { Write-Host "FAIL: screenshot text '$(if ($r -and $r.msg) { $r.msg.text } else { $r.error })'"; $ok = $false }
+    Handle-Screenshot (Join-Path $shotDir 'WoWScrnShot_1.jpg')   # prints: ASK 7 | Yang (PALADIN 2, Tirisfal Glades) | ...
+    if ($state.delivered -notcontains 7) { Write-Host "FAIL: screenshot message 7 not passed on"; $ok = $false }
+    if (Test-Path (Join-Path $shotDir 'WoWScrnShot_1.jpg')) { Write-Host "FAIL: Flow's screenshot not deleted after reading"; $ok = $false }
+    New-FlowCodeImage (Join-Path $shotDir 'WoWScrnShot_2.jpg') ("FLOW1|8|A;B;1;Z|" + ('x' * 600)) 9 1440 810 50
+    $r = Read-FlowCode (Get-Image (Join-Path $shotDir 'WoWScrnShot_2.jpg'))
+    if (-not ($r -and $r.msg -and $r.msg.id -eq 8 -and $r.msg.text -eq ('x' * 600))) { Write-Host "FAIL: a scaled screenshot ($(if ($r) { $r.error }))"; $ok = $false }
+    # Someone's own screenshot: not Flow's, left alone.
+    Add-Type -AssemblyName System.Drawing
+    $plain = New-Object System.Drawing.Bitmap 800, 600
+    $g = [System.Drawing.Graphics]::FromImage($plain); $g.Clear([System.Drawing.Color]::FromArgb(40, 60, 30)); $g.Dispose()
+    $plain.Save((Join-Path $shotDir 'WoWScrnShot_3.jpg'), [System.Drawing.Imaging.ImageFormat]::Jpeg); $plain.Dispose()
+    Handle-Screenshot (Join-Path $shotDir 'WoWScrnShot_3.jpg')
+    if (-not (Test-Path (Join-Path $shotDir 'WoWScrnShot_3.jpg'))) { Write-Host "FAIL: someone else's screenshot was deleted"; $ok = $false }
     Beat
     if ((Get-Content $inboxFile -Raw) -notmatch 'ns\.claudeBridge = \{ at = \d+ \}') { Write-Host "FAIL: no 'connected' note in the inbox"; $ok = $false }
     Remove-Item $tmp -Recurse -Force
@@ -462,40 +577,43 @@ $ids = @('FlowSavedChanged', 'FlowSavedCreated', 'FlowSavedRenamed')
 Register-ObjectEvent $watcher Changed -SourceIdentifier $ids[0] | Out-Null
 Register-ObjectEvent $watcher Created -SourceIdentifier $ids[1] | Out-Null
 Register-ObjectEvent $watcher Renamed -SourceIdentifier $ids[2] | Out-Null
-# WoW's chat log: messages sent without a reload (Flow turns the log on).
-$logWatcher = $null
-$logDir = Split-Path $chatLog
-if (-not $NoAsk -and (Test-Path $logDir)) {
-    $logWatcher = New-Object System.IO.FileSystemWatcher $logDir, 'WoWChatLog.txt'
-    $logWatcher.NotifyFilter = [IO.NotifyFilters]'LastWrite, FileName, Size'
-    $logWatcher.EnableRaisingEvents = $true
-    Register-ObjectEvent $logWatcher Changed -SourceIdentifier 'FlowChatLogChanged' | Out-Null
-    Register-ObjectEvent $logWatcher Created -SourceIdentifier 'FlowChatLogCreated' | Out-Null
-    $ids += @('FlowChatLogChanged', 'FlowChatLogCreated')
+# WoW's Screenshots folder: messages sent without a reload (Flow's coded
+# screenshots). (WoW makes the folder at its first screenshot; made here so
+# it can be watched before that.)
+$shotWatcher = $null
+if (-not $NoAsk -and $shotDir) {
+    if (-not (Test-Path $shotDir)) { New-Item -ItemType Directory -Force $shotDir | Out-Null }
+    $shotWatcher = New-Object System.IO.FileSystemWatcher $shotDir
+    $shotWatcher.NotifyFilter = [IO.NotifyFilters]'LastWrite, FileName, Size'
+    $shotWatcher.EnableRaisingEvents = $true
+    Register-ObjectEvent $shotWatcher Created -SourceIdentifier 'FlowShotCreated' | Out-Null
+    Register-ObjectEvent $shotWatcher Renamed -SourceIdentifier 'FlowShotRenamed' | Out-Null
+    $ids += @('FlowShotCreated', 'FlowShotRenamed')
 }
 
 if (-not (Test-Path $inboxFile)) { Write-Inbox }   # (Flow.toc lists it: make sure it's there)
 $mode = if ($NoAsk) { 'off' } elseif ($Cli) { 'by itself (claude -p)' } else { 'passed on as ASK lines (a Claude session answers with -Reply)' }
-$live = if ($logWatcher) { " | live (no reload): $chatLog" } else { '' }
+$live = if ($shotWatcher) { " | live (no reload): Flow's screenshots in $shotDir" } else { '' }
 Emit "READY watching $saved$live | /claude messages: $mode | updates: $(if ($NoUpdate) { 'off' } else { 'on' })"
 try {
     Beat
     Sync-Flow
     Handle-Messages
-    Handle-ChatLog
     $lastSync = Get-Date; $lastBeat = Get-Date
     while ($true) {
         # Sleeps until WoW writes a file: Flow's saved data (a /reload, logout
-        # or exit) or its chat log (any chat, a Flow message among it). Every
+        # or exit) or a screenshot (Flow's coded message, or anyone's). Every
         # 10 min it says "connected" again; every 30 min it checks for updates.
         $e = Wait-Event -Timeout 600
         $saveSeen = $false
         if ($e) {
             Start-Sleep -Milliseconds 300
-            $kinds = @(Get-Event | ForEach-Object { $_.SourceIdentifier })
-            Get-Event | Remove-Event               # one write fires several events
-            if ($kinds -like 'FlowChatLog*') { Handle-ChatLog }
-            if ($kinds -like 'FlowSaved*') {
+            $events = @(Get-Event)
+            $events | Remove-Event                 # one write fires several events
+            $shots = @($events | Where-Object { $_.SourceIdentifier -like 'FlowShot*' } |
+                ForEach-Object { $_.SourceEventArgs.FullPath } | Select-Object -Unique)
+            foreach ($p in $shots) { Handle-Screenshot $p }
+            if (@($events | Where-Object { $_.SourceIdentifier -like 'FlowSaved*' }).Count -gt 0) {
                 $saveSeen = $true
                 Start-Sleep -Milliseconds 500      # let WoW finish writing
                 Handle-Messages
@@ -507,5 +625,5 @@ try {
 } finally {
     foreach ($id in $ids) { Unregister-Event -SourceIdentifier $id -ErrorAction SilentlyContinue }
     $watcher.Dispose()
-    if ($logWatcher) { $logWatcher.Dispose() }
+    if ($shotWatcher) { $shotWatcher.Dispose() }
 }

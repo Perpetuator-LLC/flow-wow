@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.112
+- **Sending without a reload now goes by screenshot.** WoW: Forever never wrote Flow's whispers to
+  its chat log, even when Flow forced the log to be written (it stayed empty through all of Yang's
+  tests). WoW does write a screenshot straight away, though. So Send (or `/si <message>`) shows
+  your message for a moment as a block of black and white squares in the top left of the screen,
+  takes a screenshot and hides them. You see a quick flash and "Screen captured". The bridge
+  decodes the squares, passes your message on at once, and deletes that screenshot; your own
+  screenshots are left alone. If the screenshot doesn't work, Flow says so and Reload sends it
+  (it's in Flow's saved data too).
+- Flow no longer whispers to you or uses WoW's chat log, and switches the chat log back off if
+  0.35.107-0.35.110 turned it on.
+
 ## 0.35.111
 - **Hide a Flow window and the other menus bring it back.** While the Flow Arrow, the Flow Tracker
   or the Flow easy button is hidden, every Flow right-click menu ends with "Show <that window>".

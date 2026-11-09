@@ -2840,34 +2840,47 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
 end)
 
 ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect Claude", function(t)
-    -- WoW never lets an add-on read or write files while it runs, but it
-    -- writes its chat log as chat arrives: Flow whispers your message to you,
-    -- tagged, and the bridge reads it from Logs\WoWChatLog.txt.
+    -- WoW never lets an add-on write files while it runs (and Forever keeps
+    -- whispers out of its chat log), but it writes a screenshot at once: Flow
+    -- shows the message as black and white squares and takes one; the bridge
+    -- decodes it (tools\claude-bridge.ps1 Read-FlowCode, same layout).
     local AC = ns.askClaude
-    local lines = AC.Parts(12, "make the arrow | purple\nplease", "Yang;PALADIN;2;Tirisfal Glades")
-    t:eq(#lines, 2, "who you are, then the message")
-    t:eq(lines[1], "[FlowAsk:12:0/1] Yang;PALADIN;2;Tirisfal Glades", "first: who and where")
-    t:eq(lines[2], "[FlowAsk:12:1/1] make the arrow / purple please", "no | (WoW's escape) or line breaks")
-    local long = AC.Parts(3, string.rep("é", 300), "x")   -- 600 bytes of two-byte letters
-    t:eq(#long, 4, "a long message in parts")
-    local joined, fits = "", true
-    for k = 2, #long do
-        if #long[k] > 255 then fits = false end
-        joined = joined .. long[k]:gsub("^%[FlowAsk:%d+:%d+/%d+%] ", "")
+    local e = { id = 12, text = "make the arrow purple", char = "Yang", class = "PALADIN", level = 2, zone = "Tirisfal Glades" }
+    local payload = AC.ShotPayload(e)
+    t:eq(payload, "FLOW1|12|Yang;PALADIN;2;Tirisfal Glades|make the arrow purple", "what's coded: id, who, text")
+    local bits = AC.ShotBits("AB", 64)
+    t:eq(table.concat(bits, "", 1, 16), "1011001011100101", "starts with Flow's magic")
+    t:eq(table.concat(bits, "", 17, 32), "0000000001000000", "then the columns (64)")
+    t:eq(table.concat(bits, "", 33, 48), "0000000000000010", "then the length (2 bytes)")
+    t:eq(table.concat(bits, "", 49, 64), "0000000010000011", "then the checksum (65 + 66 = 131)")
+    t:eq(table.concat(bits, "", 65, 80), "0100000101000010", "then the bytes: A, B")
+    t:eq(#bits, 80, "nothing more")
+    -- Runs: black squares joined along a row, never across rows.
+    local runs = AC.ShotRuns({ 1, 1, 0, 1, 1, 1, 1, 0 }, 4)
+    t:eq(#runs, 3, "three runs")
+    t:eq(table.concat(runs[1], ","), "0,0,2", "row 0, columns 0-1")
+    t:eq(table.concat(runs[2], ","), "0,3,1", "row 0, column 3 (stops at the row's end)")
+    t:eq(table.concat(runs[3], ","), "1,0,3", "row 1, columns 0-2")
+    local n = 0
+    for _, r in ipairs(AC.ShotRuns(AC.ShotBits(payload, 150), 150)) do n = n + r[3] end
+    local ones = 0
+    for _, b in ipairs(AC.ShotBits(payload, 150)) do ones = ones + b end
+    t:eq(n, ones, "the runs cover every black square")
+    -- On screen: drawn, then hidden (no screenshot in a test).
+    if AC.CanLive() then
+        t:ok(AC:ShowCode(payload), "the squares fit on your screen")
+        t:ok(AC.CodeShown(), "shown for the screenshot")
+        AC:HideCode()
+        t:ok(not AC.CodeShown(), "and hidden again")
+        t:ok(not AC:ShowCode(string.rep("x", 60000)), "too long for the screen: not shown (Send reloads instead)")
     end
-    t:ok(fits, "every part fits WoW's 255-letter limit")
-    t:eq(joined, string.rep("é", 300), "no letter cut in two")
-    local spaced = AC.Parts(4, string.rep("a", AC.PART - 1) .. " b", "x")
-    t:eq(spaced[3], "[FlowAsk:4:2/2]  b", "no part ends in a space (chat may drop it): the next starts with it")
-    t:ok(AC.IsTagged("[FlowAsk:3:1/2] hi"), "Flow's whispers are hidden from your chat")
-    t:ok(not AC.IsTagged("hi from a friend"), "other whispers aren't")
     -- Connected: the bridge's note in Learned\ClaudeInbox.lua, read at the reload.
     t:ok(AC.Connected({ at = 1000 }, 1000 + 60), "the bridge wrote a minute ago: connected")
     t:ok(not AC.Connected({ at = 1000 }, 1000 + 2 * AC.FRESH), "long ago: not connected")
     t:ok(not AC.Connected(nil, 1000), "never: not connected")
     -- Not connected: a prompt to paste into Claude.
     local p = AC.SetupPrompt("Yang", "PALADIN", 2, "Forever")
-    for _, want in ipairs({ AC.REPO, "claude-bridge.ps1 -SelfTest", "Monitor", "WoWChatLog.txt", "-Reply <id>", "Yang (PALADIN 2)" }) do
+    for _, want in ipairs({ AC.REPO, "claude-bridge.ps1 -SelfTest", "Monitor", "Screenshots", "-Reply <id>", "Yang (PALADIN 2)" }) do
         t:ok(p:find(want, 1, true) ~= nil, "the prompt says: " .. want)
     end
     AC:OpenSetup()
@@ -2878,8 +2891,6 @@ ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect
     t:ok(box and box.chat:IsShown() and not box.setup:IsShown(), "back to the chat")
     if box then box.edit:ClearFocus(); box.prompt:ClearFocus(); box:Hide() end
     t:ok(type(ns.commands.chat) == "function", "/flow chat live on|off")
-    -- WoW writes its chat log in batches; closing it writes it out (after each message).
-    t:ok(type(AC.FlushLog) == "function", "Flow flushes the chat log after a message (/flow chat flush)")
 end)
 
 ns:Register("test", "new spells: spotted from your spellbook, the card even if the game put it on a bar", function(t)

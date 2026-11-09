@@ -21,15 +21,17 @@ answers file back. Nothing is sent anywhere except what your Claude session itse
 
 WoW addons can't open files or the network while the game runs. Flow's saved data is written to
 disk only at a reload (or logout), and the addon's own files are read only when the UI loads. But
-WoW writes its **chat log** (`_forever_\Logs\WoWChatLog.txt`) as chat arrives. So:
+WoW writes a **screenshot** (`_forever_\Screenshots`) at once, and addons may take one. (WoW:
+Forever's chat log doesn't work for this: it never wrote Flow's whispers to the file.) So:
 
-1. **Sending, no reload:** `/si <message>` (or Send in Flow Chat). Flow turns WoW's chat log on
-   and whispers the message to you, tagged `[FlowAsk:<id>:<part>/<parts>]` and hidden from your
-   chat window. A long message goes in parts of 220 letters. The message also goes into Flow's
-   saved data, so if the chat log doesn't carry it, the next reload does. (`/flow chat live off`
-   sends by reloading instead.) The chat log records all your chat, on your PC only.
-2. `tools\claude-bridge.ps1` is woken by Windows when the chat log or `Flow.lua` changes (it
-   doesn't poll), reads only Flow's tagged lines, and prints one line per new message:
+1. **Sending, no reload:** `/si <message>` (or Send in Flow Chat). Flow shows the message for a
+   moment as a block of black and white squares in the top left of the screen (a simple code),
+   takes a screenshot and hides them. You see a quick flash and "Screen captured". The message
+   also goes into Flow's saved data, so if the screenshot doesn't carry it, the next reload
+   does. (`/flow chat live off` sends by reloading instead.)
+2. `tools\claude-bridge.ps1` is woken by Windows when a screenshot or `Flow.lua` appears or
+   changes (it doesn't poll). It decodes Flow's screenshot, deletes it (your own screenshots are
+   left alone), and prints one line per new message:
    `ASK 3 | Sooth (DRUID 5, Mulgore) | make the arrow green`
 3. Your Claude session watches those lines (its Monitor tool), does what's asked in the Flow
    folder, and answers with

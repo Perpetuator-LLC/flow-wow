@@ -9,17 +9,16 @@
 --
 -- Sending, without a reload: WoW never lets an add-on read or write a file
 -- while the game runs (its saved data is written at a reload or logout), but
--- the game writes its chat log (Logs\WoWChatLog.txt) as chat arrives. So
--- Flow turns the chat log on and whispers your message to you, tagged
--- "[FlowAsk:...]" and hidden from your chat window; the bridge reads it from
--- the log straight away. Where that doesn't work, Send reloads instead (the
--- message is in Flow's saved data too, so it's never lost).
+-- it writes a screenshot at once. So Send shows your message for a moment as
+-- a block of black and white squares, takes a screenshot, and the bridge
+-- decodes it (see "Live sending" below). Where that doesn't work, Send
+-- reloads instead (the message is in Flow's saved data too, never lost).
 --
 -- Answers still need a reload: that's the only time WoW reads Flow's files
 -- (Learned\ClaudeInbox.lua, written by the bridge). Reload in the chat
 -- window when you want them, and any change Claude made to Flow with them.
--- Nothing goes anywhere but files on your own PC (and the whisper to
--- yourself); the bridge only runs while you start it.
+-- Nothing goes anywhere but files on your own PC; the bridge only runs
+-- while you start it, and deletes Flow's screenshots once it has read them.
 
 local _, ns = ...
 local AC = {}
@@ -74,127 +73,149 @@ end
 function AC:IsConnected() return AC.Connected(ns.claudeBridge, time()) end
 
 -------------------------------------------------------------------------------
--- Live sending: tagged whispers to yourself, which WoW's chat log records.
+-- Live sending: a screenshot. WoW never lets an add-on write a file while
+-- the game runs, and WoW: Forever doesn't put whispers in its chat log (still
+-- 0 bytes after Yang's tests with 0.35.107 to 0.35.110, flushed or not). But
+-- the game writes a screenshot to _forever_\Screenshots at once, and add-ons
+-- may take one. So Send shows the message for a moment as black and white
+-- squares in the top left of the screen (a simple barcode), takes a
+-- screenshot, and hides them. The bridge decodes the squares, passes the
+-- message on and deletes that screenshot. The message is in Flow's saved
+-- data too, so a reload passes it on if this didn't.
 -------------------------------------------------------------------------------
 
-AC.TAG = "[FlowAsk:"
-AC.PART = 220   -- letters per whisper (WoW's limit is 255, the tag included)
-
--- Chat can't carry "|" (WoW's escape character) or line breaks.
-function AC.Clean(text) return ((tostring(text or "")):gsub("|", "/"):gsub("[\r\n]+", " ")) end
-
-function AC.IsTagged(msg)
-    if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then return false end
-    return msg:sub(1, #AC.TAG) == AC.TAG
-end
-
--- The whispers for one message: who you are first ("[FlowAsk:12:0/2]
--- Yang;PALADIN;2;Tirisfal Glades"), then the text in parts of at most
--- AC.PART letters, never cutting a letter in two (UTF-8).
-function AC.Parts(id, text, who)
-    text = AC.Clean(text)
-    local chunks, i = {}, 1
-    while i <= #text do
-        local j = math.min(#text, i + AC.PART - 1)
-        while j < #text and j > i do
-            local b = text:byte(j + 1)
-            if b < 128 or b >= 192 then break end   -- the next byte starts a letter
-            j = j - 1
-        end
-        -- Chat may drop a space at the end of a message: it starts the next part instead.
-        while j < #text and j > i and text:byte(j) == 32 do j = j - 1 end
-        chunks[#chunks + 1] = text:sub(i, j)
-        i = j + 1
-    end
-    local n = #chunks
-    local out = { string.format("%s%d:0/%d] %s", AC.TAG, id, n, AC.Clean(who)) }
-    for k, c in ipairs(chunks) do out[#out + 1] = string.format("%s%d:%d/%d] %s", AC.TAG, id, k, n, c) end
-    return out
-end
+AC.CELL = 12     -- screen pixels per square
+AC.MARGIN = 2    -- squares of white round the code
+AC.MAGIC = { 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1 }   -- "Flow's code starts here"
 
 function AC.Who(e)
     return string.format("%s;%s;%s;%s", tostring(e.char), tostring(e.class), tostring(e.level), tostring(e.zone))
 end
+-- "FLOW1|<id>|<char;class;level;zone>|<text>"
+function AC.ShotPayload(e)
+    return string.format("FLOW1|%d|%s|%s", e.id, AC.Who(e), tostring(e.text or ""))
+end
 
--- You, as a whisper target ("Name-Realm").
-function AC.Me()
-    local name, realm
-    if UnitFullName then name, realm = UnitFullName("player") end   -- (not `x and f()`: that keeps one value)
-    name = name or UnitName("player")
-    realm = realm or (GetNormalizedRealmName and GetNormalizedRealmName())
-    return (realm and realm ~= "") and (name .. "-" .. realm) or name
+-- The squares (1 = black), read in rows of `cols`: the magic, then three
+-- 16-bit numbers (most significant bit first): columns, length in bytes,
+-- checksum (the bytes summed, mod 65536); then the bytes, 8 bits each.
+-- (tools\claude-bridge.ps1 Read-FlowCode reads exactly this.)
+local function bits16(out, n) for b = 15, 0, -1 do out[#out + 1] = math.floor(n / 2 ^ b) % 2 end end
+function AC.ShotBits(payload, cols)
+    local out = {}
+    for _, b in ipairs(AC.MAGIC) do out[#out + 1] = b end
+    local sum = 0
+    for i = 1, #payload do sum = (sum + payload:byte(i)) % 65536 end
+    bits16(out, cols); bits16(out, #payload); bits16(out, sum)
+    for i = 1, #payload do
+        local byte = payload:byte(i)
+        for b = 7, 0, -1 do out[#out + 1] = math.floor(byte / 2 ^ b) % 2 end
+    end
+    return out
+end
+
+-- Black squares joined into runs along each row ({ row, col, length }, from
+-- 0): far fewer textures than one per square.
+function AC.ShotRuns(bits, cols)
+    local runs, start = {}, nil
+    for i = 1, #bits + 1 do
+        local b, col = bits[i], (i - 1) % cols
+        if start and (b ~= 1 or col == 0) then
+            runs[#runs + 1] = { math.floor((start - 1) / cols), (start - 1) % cols, i - start }
+            start = nil
+        end
+        if b == 1 and not start then start = i end
+    end
+    return runs
 end
 
 function AC.CanLive()
-    return ns.db.chat.live ~= false and type(LoggingChat) == "function" and type(SendChatMessage) == "function"
+    return ns.db.chat.live ~= false and type(Screenshot) == "function" and type(GetPhysicalScreenSize) == "function"
 end
 
--- Whispers sent and seen back from the server ("To you: ..."): { [id] = { n, seen, at } }.
-local pending = {}
 local status   -- forward: the chat window's status line
+local code     -- the frame the squares are drawn on
 
--- The whispers never show in your chat window (both "To ..." and "... whispers").
-local function hideTagged(_, _, msg) return AC.IsTagged(msg) end
-local addFilter = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
-if addFilter then
-    addFilter("CHAT_MSG_WHISPER", hideTagged)
-    addFilter("CHAT_MSG_WHISPER_INFORM", hideTagged)
+-- Draws `payload` as squares, 1 unit = 1 screen pixel; false if it won't fit.
+function AC:ShowCode(payload)
+    local pw, ph = GetPhysicalScreenSize()
+    if not (pw and ph and pw > 0 and ph > 0) then return false end
+    local C, M = AC.CELL, AC.MARGIN
+    local cols = math.min(240, math.floor(pw / C) - 2 * M - 2)
+    local bits = AC.ShotBits(payload, cols)
+    local rows = math.ceil(#bits / cols)
+    if (rows + 2 * M) * C > ph then return false end
+    if not code then
+        code = CreateFrame("Frame", nil, UIParent)
+        code:SetFrameStrata("TOOLTIP")
+        code:SetFrameLevel(9000)
+        code.bg = code:CreateTexture(nil, "BACKGROUND")
+        code.bg:SetAllPoints()
+        code.bg:SetColorTexture(1, 1, 1, 1)
+        code.pool = {}
+    end
+    code:SetScale((768 / ph) / UIParent:GetEffectiveScale())
+    code:ClearAllPoints()
+    code:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    code:SetSize((cols + 2 * M + 2) * C, (rows + 2 * M) * C)   -- (2 more columns: the end square and white past it)
+    for _, t in ipairs(code.pool) do t:Hide() end
+    -- The runs, and one black square in row 0 one column past the last (white
+    -- either side): the bridge measures the square size from it (a screenshot may be scaled).
+    local runs = AC.ShotRuns(bits, cols)
+    runs[#runs + 1] = { 0, cols + 1, 1 }
+    for k, run in ipairs(runs) do
+        local t = code.pool[k] or code:CreateTexture(nil, "ARTWORK")
+        code.pool[k] = t
+        t:SetColorTexture(0, 0, 0, 1)
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", code, "TOPLEFT", (M + run[2]) * C, -(M + run[1]) * C)
+        t:SetSize(run[3] * C, C)
+        t:Show()
+    end
+    code:Show()
+    return true
 end
+function AC.CodeShown() return code ~= nil and code:IsShown() end   -- (tests)
+function AC:HideCode() if code then code:Hide() end end
 
--- WoW keeps chat-log lines in memory and writes them to the file in batches
--- (with little chat, nothing for half an hour: Yang's tests). Closing the
--- log writes out what it holds: so, after a message, chat logging goes off
--- and straight back on, and the bridge sees the file change at once.
-function AC.FlushLog()
-    if type(LoggingChat) ~= "function" or not LoggingChat() then return false end
-    LoggingChat(false)
-    C_Timer.After(0, function() if not LoggingChat() then LoggingChat(true) end end)
-    ns.db.chat.flushes = (ns.db.chat.flushes or 0) + 1
+local shooting   -- the message being sent: { id }
+local function failed(why)
+    shooting = nil
+    AC:HideCode()
+    status("|cffff7070Couldn't send it without a reload|r (" .. why .. "). Press Reload to send it (it's saved).")
+    ns:Log("chat", "live send failed: " .. why)
+end
+ns:On("SCREENSHOT_SUCCEEDED", function()
+    if not shooting then return end
+    shooting = nil
+    AC:HideCode()
+    ns.db.chat.liveWorks = true
+    status(AC:IsConnected() and "Sent, no reload needed: Claude reads it now. Its answer shows when you press Reload."
+        or "Sent, no reload needed. Claude reads it once it's connected (/si setup); answers show when you press Reload.")
+end)
+ns:On("SCREENSHOT_FAILED", function() if shooting then failed("the screenshot failed") end end)
+
+-- Sends message `e` live; false if this client can't (then Send reloads).
+function AC:SendLive(e)
+    if not AC.CanLive() or shooting then return false end
+    if not AC:ShowCode(AC.ShotPayload(e)) then return false end
+    shooting = { id = e.id }
+    -- The squares are on screen from the next frame: then the screenshot.
+    C_Timer.After(0.15, function()
+        local ok, err = pcall(Screenshot)
+        if not ok then failed(tostring(err)) end
+    end)
+    C_Timer.After(6, function() if shooting and shooting.id == e.id then failed("no screenshot came back") end end)
     return true
 end
 
-ns:On("CHAT_MSG_WHISPER_INFORM", function(msg)
-    if not AC.IsTagged(msg) then return end
-    local id = tonumber(msg:match("^%[FlowAsk:(%d+):"))
-    local p = id and pending[id]
-    if not p then return end
-    p.seen = p.seen + 1
-    if p.seen >= p.n then
-        pending[id] = nil
-        ns.db.chat.liveWorks = true
-        -- (a moment for the incoming copy of the last whisper to be logged too)
-        C_Timer.After(0.5, function() AC.FlushLog() end)
-        status(AC:IsConnected() and "Sent, no reload needed: Claude reads it now. Its answer shows when you press Reload."
-            or "Sent, no reload needed. Claude reads it once it's connected (/si setup); answers show when you press Reload.")
+-- 0.35.107-0.35.110 turned WoW's chat log on for this: off again (once).
+ns:On("PLAYER_LOGIN", function()
+    if ns.db.chat.toldLog then
+        ns.db.chat.toldLog, ns.db.chat.flushes = nil, nil
+        if type(LoggingChat) == "function" and LoggingChat() then LoggingChat(false) end
     end
 end)
-
--- Sends message `e` live; false if this client can't.
-function AC:SendLive(e)
-    if not AC.CanLive() then return false end
-    if not LoggingChat() then
-        LoggingChat(true)
-        if not ns.db.chat.toldLog then
-            ns.db.chat.toldLog = true
-            ns:Print("turned on WoW's chat log (Logs\\WoWChatLog.txt) so Claude reads your messages without a reload. It records your chat on your PC only; /flow chat live off stops this.")
-        end
-    end
-    local lines = AC.Parts(e.id, e.text, AC.Who(e))
-    pending[e.id] = { n = #lines, seen = 0 }
-    local me = AC.Me()
-    for k, line in ipairs(lines) do
-        C_Timer.After((k - 1) * 0.25, function() pcall(SendChatMessage, line, "WHISPER", nil, me) end)
-    end
-    -- Not back from the server in a few seconds: say so (Reload sends it the old way).
-    C_Timer.After(#lines * 0.25 + 4, function()
-        if pending[e.id] then
-            pending[e.id] = nil
-            status("|cffff7070Couldn't send it without a reload.|r Press Reload to send it (it's saved).")
-            ns:Log("chat", "live send got no whisper back for message " .. e.id)
-        end
-    end)
-    return true
-end
 
 function AC:Send(text)
     local chat = ns.db.chat
@@ -232,7 +253,7 @@ function AC.SetupPrompt(char, class, level, realm)
         "1. Find my Flow source: a git clone of that repo (often %USERPROFILE%\\projects\\flow-wow). If I have none, clone it there. If my WoW folder's _forever_\\Interface\\AddOns\\Flow isn't a link to that clone, tell me how to link it, or pass -AddonDir <that AddOns\\Flow folder> to the bridge below.",
         "2. Read CLAUDE.md (the \"Watch Flow's in-game chat\" section) and docs\\ASK-CLAUDE.md in it.",
         "3. Run: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1 -SelfTest  (it should say \"self-test OK\").",
-        "4. Start: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1  with your Monitor tool, and start it again each time it expires. It finds my WoW folder by itself and reads my messages from _forever_\\Logs\\WoWChatLog.txt as I send them (no reload), and from Flow's saved data (_forever_\\WTF\\Account\\<account>\\SavedVariables\\Flow.lua) at a reload.",
+        "4. Start: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1  with your Monitor tool, and start it again each time it expires. It finds my WoW folder by itself and reads my messages as I send them (no reload: Flow takes a screenshot with the message coded in it, into _forever_\\Screenshots, which the bridge decodes and deletes), and from Flow's saved data (_forever_\\WTF\\Account\\<account>\\SavedVariables\\Flow.lua) at a reload.",
         "5. Each ASK line is a message from me: do what it asks in my Flow folder, then answer: powershell -ExecutionPolicy Bypass -File tools\\claude-bridge.ps1 -Reply <id> -Text \"...\"  (at most 3 short sentences, plain text; say if I need to reload). DEATH and UPDATE lines: CLAUDE.md says what to do.",
         "6. When it prints READY, tell me to press Reload in Flow Chat (/si) and say hello.",
     }, "\n")
@@ -367,7 +388,7 @@ end
 
 local function liveHint()
     if not AC.CanLive() then return "Send reloads your UI for a moment so Claude can read it." end
-    return "Send needs no reload (WoW's chat log carries it)."
+    return "Send needs no reload (a quick screenshot carries it)."
 end
 
 -- `draft`: text to put in the box to finish (a message too long for the chat box).
@@ -444,16 +465,12 @@ local function command(arg)
 end
 ns.commands.ask = command
 
--- /flow chat live on|off: send through the chat log (no reload) or by reloading.
+-- /flow chat live on|off: send by a screenshot (no reload) or by reloading.
 ns.commands.chat = function(arg)
-    if (arg or ""):lower() == "flush" then   -- (a test: makes WoW write its chat log to the file now)
-        ns:Print(AC.FlushLog() and "chat log written to Logs\\WoWChatLog.txt." or "the chat log isn't on (it comes on when you send with /si).")
-        return
-    end
     local on = (arg or ""):lower():match("^live%s+(o[nf]f?)$")
     if on == "on" or on == "off" then ns.db.chat.live = (on == "on") end
     ns:Print(string.format("Flow Chat sends %s. Claude connected (as of your last reload): %s. /flow chat live on|off",
-        AC.CanLive() and "without a reload (WoW's chat log)" or "by reloading", AC:IsConnected() and "yes" or "no"))
+        AC.CanLive() and "without a reload (a screenshot the bridge reads)" or "by reloading", AC:IsConnected() and "yes" or "no"))
 end
 
 -- /claude, and the short /ai and /si, unless another add-on already owns them.
@@ -472,6 +489,6 @@ end)
 
 ns:Register("help", "claude", { order = 90, title = "Ask Claude", lines = {
     "/si (or /ai, /claude): Flow Chat with Claude; not connected yet, it shows a prompt to connect Claude.",
-    "/si <message>: ask straight away (no reload where WoW's chat log works). Reload in the window shows answers.",
+    "/si <message>: ask straight away (no reload: a quick screenshot carries it). Reload in the window shows answers.",
     "/si setup: the connect prompt again. /flow chat live on|off: send without or with a reload.",
 } })
