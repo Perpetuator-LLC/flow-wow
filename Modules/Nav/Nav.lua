@@ -1120,7 +1120,8 @@ end
 N.planVersion = 0
 
 -- This hub's business before heading out, like a walkthrough: turn in every
--- finished quest near you, then pick up the quests here (nearest first,
+-- finished quest near you, train if you're standing at your trainer (below),
+-- then pick up the quests here (nearest first,
 -- capped at the free quest log slots; each turn-in frees one). Turn-ins used
 -- to be left out, so a hand-in right next to you waited behind every pickup.
 local HUB_RADIUS = 250  -- yards
@@ -1128,25 +1129,48 @@ local function ready(g, present)
     for _, dep in ipairs(g.deps or {}) do if present[dep] then return false end end
     return true
 end
+
+-- Training is hub business too, but only when you're right at the trainer
+-- (in town, N.TRAIN_NEAR yards): Yang stood next to the trainer with
+-- training as stop 7. Wider (0.35.98's 300 yards) pulled you off the mobs
+-- you were killing for a quest. Not when you can't pay for any of it (cost),
+-- nor once you've trained at this level (a spell Flow lists that the
+-- trainer doesn't have would keep you there).
+N.TRAIN_NEAR = 60
+-- What a goal is for the hub's business at distance d: "turnin", "pickup",
+-- "train" or nil (not this hub's business).
+function N.HubBusiness(g, d, present, trainedThisLevel, radius)
+    if not d then return nil end
+    if g.key:find("^train:") then
+        if g.cost or (g.key == "train:class" and trainedThisLevel) then return nil end
+        return d <= N.TRAIN_NEAR and "train" or nil
+    end
+    if d > (radius or HUB_RADIUS) then return nil end
+    if g.key:find(":done$") and ready(g, present) then return "turnin" end
+    if g.provider == "pickups" then return "pickup" end
+    return nil
+end
+
 function N:PickupKeys(radius)
     local p = self:PlayerPos()
     if not p then return nil end
     local present = {}
     for _, g in ipairs(goals) do present[g.key] = true end
-    local near, turnins = {}, {}
+    local trained = ns.db.trainer and ns.db.trainer.seenAt == UnitLevel("player")
+    local near, turnins, nTurnins = {}, {}, 0
     for _, g in ipairs(goals) do
-        local isPickup = g.provider == "pickups"
-        local isTurnin = g.key:find(":done$") and ready(g, present)
-        if isPickup or isTurnin then
+        -- (Distances only for what can be hub business: some goals have many spawn points.)
+        if g.provider == "pickups" or g.key:find(":done$") or g.key:find("^train:") then
             local _, d = nearestPoint(g, p)
-            if d and d <= (radius or HUB_RADIUS) then
-                local list = isTurnin and turnins or near
-                list[#list + 1] = { key = g.key, d = d }
-            end
+            local kind = N.HubBusiness(g, d, present, trained, radius)
+            -- Turn-ins and training take no quest log slot; each turn-in frees one.
+            if kind == "turnin" or kind == "train" then turnins[#turnins + 1] = { key = g.key, d = d } end
+            if kind == "turnin" then nTurnins = nTurnins + 1 end
+            if kind == "pickup" then near[#near + 1] = { key = g.key, d = d } end
         end
     end
     table.sort(near, function(a, b) return a.d < b.d end)
-    local free = (ns.quests.FreeSlots and ns.quests:FreeSlots() or 20) + #turnins
+    local free = (ns.quests.FreeSlots and ns.quests:FreeSlots() or 20) + nTurnins
     local t, any = {}, false
     for _, e in ipairs(turnins) do t[e.key] = true; any = true end
     for i = 1, math.min(#near, free) do t[near[i].key] = true; any = true end

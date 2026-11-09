@@ -3222,3 +3222,23 @@ ns:Register("test", "a hidden Flow window shows up in every Flow menu", function
     end)
     end)
 end)
+
+ns:Register("test", "route: right at your trainer, training is the hub's business", function(t)
+    -- Yang stood next to the trainer in town with training as stop 7. But
+    -- 0.35.98's 300 yards pulled you off the mobs you were killing: only
+    -- when you're right at it (N.TRAIN_NEAR).
+    local N = ns.nav
+    local B = N.HubBusiness
+    local train = { key = "train:class" }
+    t:eq(B(train, 30, {}, false), "train", "30 yards from your trainer: train now")
+    t:eq(B(train, N.TRAIN_NEAR + 40, {}, false), nil, "a hundred yards off (killing mobs): fitted into the route")
+    t:eq(B({ key = "train:class", cost = 500 }, 30, {}, false), nil, "can't pay for any of it: not now")
+    t:eq(B(train, 30, {}, true), nil, "already trained at this level: not again")
+    t:eq(B({ key = "train:Cooking" }, 20, {}, true), "train", "a profession trainer right here too")
+    -- The quest part of the hub's business is as before.
+    t:eq(B({ key = "364:done" }, 200, {}, false), "turnin", "a turn-in in the hub")
+    t:eq(B({ key = "364:done", deps = { "364:1" } }, 200, { ["364:1"] = true }, false), nil, "not before its objectives")
+    t:eq(B({ key = "pickup:376", provider = "pickups" }, 200, {}, false), "pickup", "a quest to pick up in the hub")
+    t:eq(B({ key = "pickup:376", provider = "pickups" }, 400, {}, false), nil, "out of the hub: not now")
+    t:eq(B({ key = "364:1" }, 10, {}, false), nil, "an objective isn't hub business")
+end)

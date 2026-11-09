@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.115
+- **Standing at your trainer, training comes first.** If your class trainer (or a profession
+  trainer) is within 60 yards and you can pay for something, training is part of the town's
+  business, with the turn-ins and the quests to pick up there, before you head out. It used to
+  wait as stop 7. Farther away it's still fitted into the route, so it never pulls you off the
+  mobs you're killing (0.35.98's 300 yards did). Not again once you've trained at this level.
+
 ## 0.35.114
 - **Sending by screenshot is off unless you turn it on** (`/flow chat live on`). By default
   Send reloads again, while we look for a plain-text way out of the game.
