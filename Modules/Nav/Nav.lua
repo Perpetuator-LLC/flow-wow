@@ -2298,6 +2298,10 @@ end)
 ns:PerCharacter("nav.hidden", { adopt = function(old) return old end })
 ns:PerCharacter("nav.deferred")
 ns:PerCharacter("nav.selectedKey")
+-- How many stops the map and the Flow Tracker show: each character's own, so
+-- a new character always starts with "Next stop only" (nothing saved = 1),
+-- simple, whatever your other characters chose.
+ns:PerCharacter("nav.stopsShown")
 
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.100
+- **Every new character starts with "Next stop only"**, so the map and the Flow Tracker look
+  simple. How many stops you show is now each character's own setting; before, one character's
+  choice carried over to all of them, new ones too. Your characters start back at "Next stop
+  only" once; change it any time from the arrow's right-click menu or Flow Settings.
+
 ## 0.35.99
 - **Death reports.** When you die, Flow says in chat what happened. For example: "died after 40 s
   fighting Bristleback Interloper (level 9, you 6); low-health warning 8 s before; heals:

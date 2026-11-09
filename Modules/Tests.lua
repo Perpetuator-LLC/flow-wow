@@ -1659,6 +1659,7 @@ end)
 
 ns:Register("test", "route: Stops on the map", function(t)
     local N = ns.nav
+    t:ok(ns:Get("charData", "nav.stopsShown") ~= nil, "each character has its own (a new one starts at Next stop only)")
     with(ns.db.nav, "stopsShown", nil, function()
     with(ns, "Print", function() end, function()
         t:eq(N:StopsShown(), 1, "default: next stop only")
