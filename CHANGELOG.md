@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.105
+- **The Flow Arrow's drawer has a pin button**, top right, where Flow's other views have their
+  close button (a red square like it). A gold pin standing straight means pinned: the drawer stays
+  open as the arrow moves on to the next stop, and after a /reload. A grey, tilted pin means it
+  folds when the mouse leaves. Click the pin to switch.
+- A drawer opened by hovering the arrow now waits a moment before folding, so you can move the
+  mouse onto it (to pin it) without it folding away. The distance moved to the drawer's lower
+  right to make room for the pin.
+
 ## 0.35.104
 - **Fixed: the Flow key could turn your auto attack off.** When Flow had nothing new to suggest,
   the key was often still set to the Attack spell, and Attack switches your swing off if you're
