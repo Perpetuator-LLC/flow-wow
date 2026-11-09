@@ -964,15 +964,15 @@ ns:Register("test", "cast: the key's button comes back out of combat", function(
     t:eq(ns.cast._describe({ spell = "Wrath", kind = "damage" }), "/cast Wrath", "an attack: on your target")
 end)
 
-ns:Register("test", "class training goes first when your trainer is close", function(t)
-    local N = ns.nav
-    t:ok(N.TrainFirst(95, true), "95 yd away, spells you can pay for: first")
-    t:ok(not N.TrainFirst(900, true), "far away: fitted into the route instead")
-    t:ok(not N.TrainFirst(95, false), "can't pay for any yet: not first")
-    t:ok(not N.TrainFirst(nil, true), "no idea where the trainer is: not first")
-    local goals = { { key = "364:1", points = { {} } }, { key = "train:class", goFirst = true, points = { {} } } }
-    t:eq(N.GoFirstKey(goals), "train:class", "the route starts with class training")
-    t:eq(N.GoFirstKey({ { key = "364:1", points = { {} } } }), nil, "nothing asks to come first: the route as planned")
+ns:Register("test", "class training fits into the route, after the quests where you are", function(t)
+    -- 0.35.98 put training first when the trainer was close: it pulled Yang
+    -- away mid-quest. The planner fits it in where it costs least again.
+    t:eq(ns.nav.GoFirstKey, nil, "no stop jumps the queue")
+    local ok, goals = pcall(ns:Get("navGoal", "errands").collect)
+    t:ok(ok, "errands collect")
+    for _, g in ipairs(ok and goals or {}) do
+        if g.key == "train:class" then t:eq(g.goFirst, nil, "class training doesn't ask to come first") end
+    end
 end)
 
 ns:Register("test", "actions: fishing steps on the Flow key", function(t)
@@ -1200,7 +1200,7 @@ ns:Register("test", "stop card: drag by the title, opens where you left it", fun
     local card = _G.FlowStopCard
     t:ok(card and card:IsMovable(), "card can be moved")
     local a, _, _, x = card:GetPoint()
-    t:eq(a, "TOPLEFT", "opens at the saved point"); t:eq(x, 100, "saved x")
+    t:eq(a, "TOPLEFT", "opens at the saved point"); t:near(x, 100, 0.01, "saved x")
     card:Hide()
     ns.db.nav.cardPoint = saved
 end)
@@ -1390,7 +1390,8 @@ ns:Register("test", "arrow panel: a drawer under the arrow, folds with its tab",
     f:SetSize(100, 60)
     ns.nav._makeDrawer(f)
     t:ok(f.tab ~= nil and f.lip ~= nil, "pull tab and lip")
-    t:ok(not f:IsMovable(), "not draggable: it belongs to the arrow")
+    -- (Since 0.35.101 Shift-drag gives it a place of its own.)
+    t:ok(f:IsMovable(), "Shift-drag moves it")
     t:ok(type(f.Fold) == "function", "folds back up")
     f:Hide()
 end)
@@ -2489,7 +2490,7 @@ ns:Register("test", "easy button: buffs your group, the right buff for each pers
     local ctx = { inCombat = false, hostile = false, fightType = "normal" }
     local function run(def, knows, covered)
         local s
-        with(_G, "IsResting", function() return false end, function()
+        with(E, "Resting", function() return false end, function()
         with(ns.db.rotation, "groupBuffs", true, function()
         with(E, "GroupUnits", function() return units end, function()
         with(E, "GroupCovered", function(x, r) return covered[x.name .. ":" .. r.spell] == true end, function()
@@ -2780,6 +2781,16 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
     t:ok(box and box:IsShown(), "the chat window opens")
     t:ok(box and box.edit and box.send and box.check, "with a box to type in, Send and Check now")
     if box then box.edit:ClearFocus(); box:Hide() end
+    -- The game's chat box stops at 255 letters: a message that long goes to
+    -- the window to finish (Yang's was cut off mid-word), not straight out.
+    t:ok(not AC.MaybeCut("make the arrow purple"), "a short message is sent straight away")
+    local long = string.rep("finish your quests first ", 10)
+    t:ok(AC.MaybeCut(long), "a chat-box-full message may be cut off")
+    AC:Open(long)
+    t:eq(box and box.edit:GetText(), long, "it waits in the window's box to finish")
+    t:ok(box and box.edit:GetMaxLetters() >= 1000, "the window takes 1000 letters")
+    if box then box.edit:SetText(""); box.edit:ClearFocus(); box:Hide() end
+    t:ok(AC.SLASHES[2] == "/ai" and AC.SLASHES[3] == "/si", "short /ai and /si")
 end)
 
 ns:Register("test", "new spells: spotted from your spellbook, the card even if the game put it on a bar", function(t)
@@ -2941,34 +2952,43 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
 end)
 
 ns:Register("test", "actions: after a kill the Flow key loots the corpse", function(t)
+    -- (Described targets only: a test that swaps the game's own functions,
+    -- even for a moment, taints them and every press of the key after it.)
     local X, get = ns.actions, ns:Get("action", "loot:corpse").get
     local guid = "Creature-0-0-0-0-1506-test"
-    local yes = function() return true end
-    with(_G, "UnitExists", yes, function()
-    with(_G, "UnitIsPlayer", function() return false end, function()
-    with(_G, "UnitIsDead", yes, function()
-    with(_G, "UnitGUID", function() return guid end, function()
-    with(_G, "UnitName", function() return "Scarlet Convert" end, function()
-    with(_G, "CanLootUnit", function() return true, true end, function()
+    local function corpse(over)
+        local c = { dead = true, player = false, guid = guid, name = "Scarlet Convert", hasLoot = true, tapDenied = false }
+        for k, v in pairs(over or {}) do c[k] = v end
+        return { lootTarget = c }
+    end
     with(ns.db.actions, "loot", nil, function()
-        local s = get({})
+        local s = get(corpse())
         t:eq(s and s.type, "interact", "a dead mob with loot: the key loots it")
         t:ok(s and s.urgent, "before a buff or the weapon swap")
         t:ok(s and s.label:find("Scarlet Convert", 1, true) ~= nil, "says which corpse")
         t:eq(ns.cast._describe(s), "Interact", "the game's Interact with your target")
         X._looted[guid] = true
-        t:eq(get({}), nil, "opened once: not offered again (junk left on it)")
+        t:eq(get(corpse()), nil, "opened once: not offered again (junk left on it)")
         X._looted[guid] = nil
-        with(_G, "CanLootUnit", function() return false, false end, function()
-            t:eq(get({}), nil, "nothing on it: no loot step")
-        end)
-        with(_G, "UnitIsDead", function() return false end, function()
-            t:eq(get({}), nil, "still alive: no loot step")
-        end)
-        with(_G, "UnitIsPlayer", yes, function()
-            t:eq(get({}), nil, "a dead player: no loot step")
-        end)
+        t:eq(get(corpse({ hasLoot = false })), nil, "nothing on it: no loot step")
+        t:eq(get(corpse({ dead = false })), nil, "still alive: no loot step")
+        t:eq(get(corpse({ player = true })), nil, "a dead player: no loot step")
+        t:ok(X.ShouldLoot(corpse({ hasLoot = nil }).lootTarget), "can't tell what's on it: your kill, loot it")
+        t:ok(not X.ShouldLoot(corpse({ hasLoot = nil, tapDenied = true }).lootTarget), "someone else's kill: no")
         ns.db.actions.loot = false
-        t:eq(get({}), nil, "/flow action loot off")
-    end) end) end) end) end) end) end)
+        t:eq(get(corpse()), nil, "/flow action loot off")
+    end)
+end)
+
+ns:Register("test", "taint: tests and Flow leave the game's own functions alone", function(t)
+    -- 0.35.102's loot test swapped UnitExists & co. for a moment at login:
+    -- that tainted them, and every press of the Flow key was blocked
+    -- (CastSpellByName, SetPreferredGamepadInteractTarget).
+    for _, name in ipairs({ "UnitExists", "UnitIsDead", "UnitIsPlayer", "UnitGUID", "UnitName",
+                            "CanLootUnit", "UnitIsTapDenied", "IsResting" }) do
+        if _G[name] ~= nil then
+            local secure, by = issecurevariable(name)
+            t:ok(secure, name .. " is untainted" .. (by and (" (tainted by " .. by .. ")") or ""))
+        end
+    end
 end)

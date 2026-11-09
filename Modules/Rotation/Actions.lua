@@ -502,27 +502,46 @@ end })
 -- (junk left behind, or a client that can't say what's on it).
 local looted, lootedCount = {}, 0
 X._looted = looted  -- (tests)
-function X.LootableTarget()
-    if not UnitExists("target") or UnitIsPlayer("target") or not A.Safe(UnitIsDead("target")) then return false end
-    local guid = A.Safe(UnitGUID("target"))
-    if not guid or looted[guid] then return false end
-    if CanLootUnit then
-        local ok, hasLoot = pcall(CanLootUnit, guid)
-        if ok then return A.Safe(hasLoot) and true or false end
+
+-- What the game says about your target, for the loot step: nil (none),
+-- or { dead, player, guid, name, hasLoot (nil: can't tell), tapDenied }.
+function X.TargetLootInfo()
+    if not UnitExists("target") then return nil end
+    local info = { dead = A.Safe(UnitIsDead("target")) and true or false,
+                   player = UnitIsPlayer("target") and true or false }
+    if not info.dead or info.player then return info end
+    info.guid, info.name = A.Safe(UnitGUID("target")), A.Safe(UnitName("target"))
+    info.tapDenied = UnitIsTapDenied and A.Safe(UnitIsTapDenied("target")) and true or false
+    if info.guid and CanLootUnit then
+        local ok, has = pcall(CanLootUnit, info.guid)
+        if ok then info.hasLoot = A.Safe(has) and true or false end
     end
-    -- Can't ask: only a mob that's yours to loot (not someone else's tag).
-    return not (UnitIsTapDenied and A.Safe(UnitIsTapDenied("target")))
+    return info
 end
+
+-- Loot it? A dead mob (not a player) you haven't opened yet, with loot on
+-- it (on a client that can't say: your own kill, not someone else's tag).
+-- Takes values, not the game: tests must never swap the game's functions
+-- (0.35.102's test did, and tainted every press of the key).
+function X.ShouldLoot(info)
+    if not (info and info.dead) or info.player or not info.guid or looted[info.guid] then return false end
+    if info.hasLoot ~= nil then return info.hasLoot end
+    return not info.tapDenied
+end
+
 ns:On("LOOT_OPENED", function()
     local guid = UnitExists("target") and A.Safe(UnitIsDead("target")) and A.Safe(UnitGUID("target"))
     if not guid then return end
     if lootedCount > 200 then wipe(looted); lootedCount = 0 end
     looted[guid], lootedCount = true, lootedCount + 1
 end)
-ns:Register("action", "loot:corpse", { order = 0, get = function()
-    if ns.db.actions.loot == false or not X.LootableTarget() then return nil end
+-- ctx.lootTarget: the target as the tests describe it (else the game's).
+ns:Register("action", "loot:corpse", { order = 0, get = function(ctx)
+    if ns.db.actions.loot == false then return nil end
+    local info = (ctx and ctx.lootTarget) or X.TargetLootInfo()
+    if not X.ShouldLoot(info) then return nil end
     return { type = "interact", icon = "Interface\\Icons\\INV_Misc_Bag_10", urgent = true,
-             label = "Loot " .. (A.Safe(UnitName("target")) or "it") .. " (walk up and press)" }
+             label = "Loot " .. (info.name or "it") .. " (walk up and press)" }
 end })
 
 -- An upgrade (or something for an empty slot) in your bags: put it on. Before

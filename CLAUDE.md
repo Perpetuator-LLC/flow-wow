@@ -101,7 +101,9 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 3. Fix the cause, not the symptom. Usual causes: assigning a Blizzard global or table
    (`StaticPopupDialogs = ...`), calling Blizzard panel functions from add-on code
    (`ShowUIPanel`/`HideUIPanel` on their frames, `HandleUserActionToggleSidePanel`), or changing
-   protected frames or settings in combat.
+   protected frames or settings in combat. Also tests that stand in for a game function
+   (`with(_G, "UnitExists", ...)`): even a moment taints it for the whole session and blocks
+   the Flow key (0.35.102). Stand in for Flow's own functions or pass values in; lint refuses it.
 4. Add a test (see "taint:" tests in `Modules/Tests.lua`, which use `issecurevariable`).
 5. If you can't tell the root cause from the log and taint.log, ask the player what they clicked.
    Don't guess-fix.

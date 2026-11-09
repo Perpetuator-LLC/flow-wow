@@ -18,7 +18,7 @@ WoW addons can't open files or the network. The only way out is Flow's saved dat
 writes to disk when the UI reloads; the only way in is a file in the addon folder, which WoW reads
 when the UI loads. So:
 
-1. `/claude <message>`: Flow saves the message and reloads the UI (a few seconds), so WoW writes it
+1. `/claude <message>` (or the short `/ai` or `/si`): Flow saves the message and reloads the UI (a few seconds), so WoW writes it
    to `WTF\Account\<you>\SavedVariables\Flow.lua`.
 2. `tools\claude-bridge.ps1` is woken by Windows when that file changes (it doesn't poll) and
    prints one line per new message:

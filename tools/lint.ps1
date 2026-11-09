@@ -38,5 +38,17 @@ try {
 & (Join-Path $PSScriptRoot 'check-paths.ps1')
 $tex = $LASTEXITCODE
 
-if ($lua -ne 0 -or $tex -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
+# Tests must never stand in for the game's own functions (with(_G, "UnitExists", ...)):
+# writing a game global, even for a moment, taints it, and the Flow key is then
+# blocked for the rest of the session (0.35.102). Stand in for Flow's own
+# functions instead, or pass the values in.
+$taint = 0
+$luaFiles = Get-ChildItem -Path (Join-Path $root 'Modules'), (Join-Path $root 'Classes') -Recurse -Filter *.lua
+foreach ($s in ($luaFiles | Select-String -Pattern 'with\(\s*_G\s*,')) {
+    "{0}:{1}: a test swaps a game global (taints it): {2}" -f $s.Path.Substring($root.Length + 1), $s.LineNumber, $s.Line.Trim()
+    $taint = 1
+}
+if ($taint -eq 0) { "game globals untouched by tests" }
+
+if ($lua -ne 0 -or $tex -ne 0 -or $taint -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
 "lint OK"

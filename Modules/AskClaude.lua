@@ -117,7 +117,7 @@ local function buildBox()
     f.edit:SetSize(300, 22)
     f.edit:SetPoint("BOTTOMLEFT", 18, 10)
     f.edit:SetAutoFocus(false)
-    f.edit:SetMaxLetters(400)
+    f.edit:SetMaxLetters(1000)   -- (the game's chat box stops at 255)
     local function send()
         local text = (f.edit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
         if text == "" then f.status:SetText("Type a message first.") return end
@@ -141,17 +141,21 @@ local function buildBox()
     return f
 end
 
-function AC:Open()
+-- `draft`: text to put in the box to finish (a message too long for the chat box).
+function AC:Open(draft)
     box = box or buildBox()
     local chat = ns.db.chat
     local lines = AC.History(ns.claudeInbox, chat, 6)
     box.log:SetText(#lines > 0 and table.concat(lines, "\n")
         or "|cff888888Ask anything about Flow or your character. A Claude session on your PC answers (docs/ASK-CLAUDE.md).|r")
-    box.status:SetText(#chat.outbox > 0
+    box.status:SetText(draft and "The chat box stops at 255 letters, so the end may be cut off: finish your message here (it takes 1000) and press Enter."
+        or #chat.outbox > 0
         and string.format("Waiting on %d message(s). Answers arrive when you click Check now (it reloads), or at your next reload.", #chat.outbox)
         or "Send reloads your UI for a moment so Claude can read it. Claude answers while its session is watching.")
     box:Show()
+    if draft then box.edit:SetText(draft) end
     box.edit:SetFocus()
+    if draft then box.edit:SetCursorPosition(#draft) end
 end
 
 local function check()
@@ -173,23 +177,38 @@ ns:OnLoad(function(saved)
     saved.chat.sent = saved.chat.sent or {}
 end)
 
+-- The game's chat box stops at 255 letters ("/claude " included), so a
+-- message this long was probably cut off as you typed (Yang's was).
+AC.CHAT_BOX_FULL = 240
+function AC.MaybeCut(text) return #(text or "") >= AC.CHAT_BOX_FULL end
+
 local function command(arg)
     arg = (arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if arg == "" then AC:Open() return end   -- the chat window
     if arg == "check" then ns:Print("checking for Claude's answers (reloading)..."); ReloadUI() return end
+    -- Too long for the chat box: finish it in the Flow Chat window instead
+    -- of sending the cut-off part.
+    if AC.MaybeCut(arg) then AC:Open(arg) return end
     AC:Send(arg)
 end
 ns.commands.ask = command
 
--- /claude, unless another add-on already owns it.
+-- /claude, and the short /ai and /si, unless another add-on already owns them.
+AC.SLASHES = { "/claude", "/ai", "/si" }
 ns:On("PLAYER_LOGIN", function()
-    if SlashCmdList and not (hash_SlashCmdList and hash_SlashCmdList["/CLAUDE"]) then
-        _G.SLASH_FLOWCLAUDE1 = "/claude"
-        SlashCmdList.FLOWCLAUDE = command
+    if not SlashCmdList then return end
+    local n = 0
+    for _, cmd in ipairs(AC.SLASHES) do
+        if not (hash_SlashCmdList and hash_SlashCmdList[cmd:upper()]) then
+            n = n + 1
+            _G["SLASH_FLOWCLAUDE" .. n] = cmd
+        end
     end
+    if n > 0 then SlashCmdList.FLOWCLAUDE = command end
 end)
 
 ns:Register("help", "claude", { order = 90, title = "Ask Claude", lines = {
-    "/claude: the chat window (your questions, Claude's answers, a box to type in).",
-    "/claude <message>: ask straight away (it reloads to send). /claude check: look for answers (reloads).",
+    "/claude (or /ai, /si): the chat window (your questions, Claude's answers, a box to type in).",
+    "/ai <message>: ask straight away (it reloads to send). /ai check: look for answers (reloads).",
+    "Long messages: type them in the window (the chat box stops at 255 letters).",
 } })

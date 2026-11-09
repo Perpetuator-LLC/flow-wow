@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.103
+- **Fixed: the Flow key stopped working in 0.35.102, with "blocked" errors on every press.**
+  The loot step's self-test stood in for some of the game's own functions (UnitExists and
+  others) for a moment at login. That marks them as touched by an add-on, and the game then
+  blocked every cast and Interact Flow's key made. The test no longer touches them; Flow's own
+  checks (lint and an in-game test) now catch this.
+- **Class training is back in its normal place on the route.** 0.35.98 sent you to the trainer
+  first whenever it was close, even in the middle of killing mobs for a quest. Now you finish
+  the quests where you are and the trainer fits in where it costs least, as before.
+- **/ai and /si open Flow Chat** (short for /claude).
+- **Long messages aren't cut off any more.** The game's chat box stops at 255 letters, so a
+  long /ai message now opens in the Flow Chat window to finish (it takes 1000) instead of
+  sending the cut-off part.
+- Two self-tests fixed (the drawer can be Shift-dragged since 0.35.101; a saved position can
+  come back as 99.99999).
+
 ## 0.35.102
 - **After a kill, the Flow key loots the corpse.** With the dead mob still targeted, out of
   combat, the key shows "Loot <name>": walk up and press it. With Auto Loot on (Flow Setup) you

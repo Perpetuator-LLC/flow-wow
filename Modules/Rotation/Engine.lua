@@ -14,6 +14,10 @@ local A, T = ns.api, ns.tracker
 local E = {}
 ns.rotation = E
 
+-- In an inn or city (resting)? One place to ask, so tests can stand in for
+-- it on E: never on the game's own IsResting (that taints it).
+function E.Resting() return IsResting and IsResting() and true or false end
+
 local known = {}
 local GCD = 1.5
 local REACTION = 1.0  -- seconds we allow you to notice and press the key
@@ -159,7 +163,7 @@ end
 
 local function ruleReady(self, rule, ctx)
     -- No buff nagging in inns and cities (resting): you rebuff on the way out.
-    if rule.kind == "buff" and not ctx.inCombat and IsResting and IsResting() then return false end
+    if rule.kind == "buff" and not ctx.inCombat and E.Resting() then return false end
     if not self:Knows(rule.spell) then return false end
     if rule.when then
         -- One failing check (e.g. a buff the game hides in combat) skips that
@@ -510,7 +514,7 @@ local groupCache   -- { at, s }: reading 40 people's buffs 10 times a second is 
 function E:GroupBuff(ctx, def, now)
     local list = def and def.groupBuffs
     if not list or ns.db.rotation.groupBuffs == false then return nil end
-    if ctx.inCombat or ctx.hostile or (IsResting and IsResting()) then return nil end
+    if ctx.inCombat or ctx.hostile or E.Resting() then return nil end
     if list.canCast and not list.canCast() then return nil end
     now = now or GetTime()
     if groupCache and now - groupCache.at < 1 then return groupCache.s end

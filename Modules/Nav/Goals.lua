@@ -396,16 +396,6 @@ ns:Register("navGoal", "errands", {
             for _, n in ipairs(names) do
                 for _, pt in ipairs(ns.places:Points(n)) do points[#points + 1] = pt end
             end
-            -- Your trainer close by (and money for some of it): go there first.
-            local p, nearest = ns.nav and ns.nav:PlayerPos(), nil
-            for _, pt in ipairs(p and points or {}) do
-                local cont, wx, wy = ns.nav:ToWorld(pt.map, pt.x, pt.y)
-                if cont == p.cont and wx then
-                    local d = math.sqrt((wx - p.wx) ^ 2 + (wy - p.wy) ^ 2)
-                    if not nearest or d < nearest then nearest = d end
-                end
-            end
-            local affordable = unknownCost or canPay > 0 or #costs == 0
             if #points > 0 then
                 local text = string.format("Train %d spell(s) at your class trainer", waiting)
                 if not unknownCost and canPay < waiting and canPay > 0 then
@@ -416,11 +406,6 @@ ns:Register("navGoal", "errands", {
                     -- always makes the route and costs half as much "distance" as a
                     -- quest stop. It still fits around the quests on the way there.
                     key = "train:class", weight = 0.5, milestone = true, points = points,
-                    -- (Not again once you've been to the trainer at this level:
-                    -- a spell Flow's list has but the trainer doesn't would
-                    -- otherwise keep sending you back.)
-                    goFirst = (not (ns.db.trainer and ns.db.trainer.seenAt == UnitLevel("player"))
-                        and ns.nav.TrainFirst(nearest, affordable)) or nil,
                     npcs = names,
                     title = "Class training",
                     text = text,
