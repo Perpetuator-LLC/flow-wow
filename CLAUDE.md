@@ -61,6 +61,8 @@ prompt that `/si` shows in game:
      `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply <id> -Text "<answer>"`
      The answer shows in WoW's chat window: at most 3 short sentences, plain text, no markdown,
      and say whether they need to `/reload` (or restart WoW, for new files) to see a change.
+   - `INFO ...`: news about the bridge itself (WoW wrote its chat log, so messages come live).
+     Nothing to do.
    - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the
      player was told in game.
    - `DEATH <id> | <who> | <summary> || <findings>`: the player died. Do a **post-mortem**: how

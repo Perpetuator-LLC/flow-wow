@@ -2874,6 +2874,8 @@ ns:Register("test", "Flow Chat: sends without a reload, and shows how to connect
     t:ok(box and box.chat:IsShown() and not box.setup:IsShown(), "back to the chat")
     if box then box.edit:ClearFocus(); box.prompt:ClearFocus(); box:Hide() end
     t:ok(type(ns.commands.chat) == "function", "/flow chat live on|off")
+    -- WoW writes its chat log in batches; closing it writes it out (after each message).
+    t:ok(type(AC.FlushLog) == "function", "Flow flushes the chat log after a message (/flow chat flush)")
 end)
 
 ns:Register("test", "new spells: spotted from your spellbook, the card even if the game put it on a bar", function(t)

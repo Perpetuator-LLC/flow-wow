@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.110
+- **Fixed: messages sent without a reload never reached Claude.** WoW keeps chat-log lines in
+  memory and writes them to the file in batches; with little chat it wrote nothing for half an
+  hour. Closing the log makes WoW write what it holds, so after each message Flow switches chat
+  logging off and straight back on. `/flow chat flush` does it by hand (a test).
+- The bridge prints an `INFO` line the first time WoW writes its chat log, so you can see that
+  messages are coming through live.
+
 ## 0.35.109
 - **The easy button greys out when you can't cast it,** like an action button: grey when you
   don't have the mana (or the game says it isn't usable right now), red when your target is out

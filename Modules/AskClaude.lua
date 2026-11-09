@@ -141,6 +141,18 @@ if addFilter then
     addFilter("CHAT_MSG_WHISPER_INFORM", hideTagged)
 end
 
+-- WoW keeps chat-log lines in memory and writes them to the file in batches
+-- (with little chat, nothing for half an hour: Yang's tests). Closing the
+-- log writes out what it holds: so, after a message, chat logging goes off
+-- and straight back on, and the bridge sees the file change at once.
+function AC.FlushLog()
+    if type(LoggingChat) ~= "function" or not LoggingChat() then return false end
+    LoggingChat(false)
+    C_Timer.After(0, function() if not LoggingChat() then LoggingChat(true) end end)
+    ns.db.chat.flushes = (ns.db.chat.flushes or 0) + 1
+    return true
+end
+
 ns:On("CHAT_MSG_WHISPER_INFORM", function(msg)
     if not AC.IsTagged(msg) then return end
     local id = tonumber(msg:match("^%[FlowAsk:(%d+):"))
@@ -150,6 +162,8 @@ ns:On("CHAT_MSG_WHISPER_INFORM", function(msg)
     if p.seen >= p.n then
         pending[id] = nil
         ns.db.chat.liveWorks = true
+        -- (a moment for the incoming copy of the last whisper to be logged too)
+        C_Timer.After(0.5, function() AC.FlushLog() end)
         status(AC:IsConnected() and "Sent, no reload needed: Claude reads it now. Its answer shows when you press Reload."
             or "Sent, no reload needed. Claude reads it once it's connected (/si setup); answers show when you press Reload.")
     end
@@ -432,6 +446,10 @@ ns.commands.ask = command
 
 -- /flow chat live on|off: send through the chat log (no reload) or by reloading.
 ns.commands.chat = function(arg)
+    if (arg or ""):lower() == "flush" then   -- (a test: makes WoW write its chat log to the file now)
+        ns:Print(AC.FlushLog() and "chat log written to Logs\\WoWChatLog.txt." or "the chat log isn't on (it comes on when you send with /si).")
+        return
+    end
     local on = (arg or ""):lower():match("^live%s+(o[nf]f?)$")
     if on == "on" or on == "off" then ns.db.chat.live = (on == "on") end
     ns:Print(string.format("Flow Chat sends %s. Claude connected (as of your last reload): %s. /flow chat live on|off",

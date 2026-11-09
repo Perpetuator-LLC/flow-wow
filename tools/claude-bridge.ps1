@@ -322,6 +322,11 @@ function Read-ChatLogLines {
     if ($last -lt 0) { return @() }
     $state.chatLogPos = $pos + $last + 1
     Save-State
+    # Once per run: proof WoW writes its chat log (messages come without a reload).
+    if (-not $script:chatLogSeen) {
+        $script:chatLogSeen = $true
+        if (-not $SelfTest) { Emit "INFO WoW wrote its chat log (+$($last + 1) bytes): messages come without a reload" }
+    }
     return ([Text.Encoding]::UTF8.GetString($buf, 0, $last + 1) -split "`r?`n")
 }
 function Handle-ChatLog {
