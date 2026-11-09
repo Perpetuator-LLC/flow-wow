@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.113
+- **Confirmed: Flow Chat sends without a reload.** Yang's `/si test7` reached Claude straight
+  away by screenshot, with no reload.
+- Fixed a self-test of the Flow Tracker's menu that a test edit in 0.35.111 had broken ("and back").
+
 ## 0.35.112
 - **Sending without a reload now goes by screenshot.** WoW: Forever never wrote Flow's whispers to
   its chat log, even when Flow forced the log to be written (it stayed empty through all of Yang's

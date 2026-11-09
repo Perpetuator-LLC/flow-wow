@@ -3187,7 +3187,7 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
         t:ok(items[2].checked and not items[3].checked, "everything here ticked")
         items[3].func()
         t:ok(not RT.Here(), "the menu switches to the next stops")
-        t:ok(type(items[2].func) == "function", "clicking it shows the Flow Tracker again")
+        items[2].func()
         t:ok(RT.Here(), "and back")
     end)
     local f = _G.FlowTracker
