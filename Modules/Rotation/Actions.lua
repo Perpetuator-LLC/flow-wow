@@ -544,6 +544,116 @@ ns:Register("action", "loot:corpse", { order = 0, get = function(ctx)
              label = "Loot " .. (info.name or "it") .. " (walk up and press)" }
 end })
 
+-------------------------------------------------------------------------------
+-- Quest NPCs to heal ("Injured Deathguard healed: 0/5", Yang couldn't find
+-- them): around such a stop the key targets the next one you can see (its
+-- nameplate), then casts your heal on it, and again until the objective is
+-- done; ones you've healed are skipped. Friendly nameplates come on while
+-- you're at such a stop (Flow's marker sits on nameplates) and go back as
+-- they were when you leave.
+-------------------------------------------------------------------------------
+
+-- A stop whose objective is healing NPCs (names in goal.npcs).
+function X.HealGoal(goal)
+    if not (goal and type(goal.npcs) == "table" and #goal.npcs > 0 and type(goal.text) == "string") then return false end
+    local t = goal.text
+    return (t:find("[Hh]ealed") or t:find("^[Hh]eal ")) ~= nil
+end
+
+-- The heal-NPC stop around you (the current stop or one right by it), or nil.
+function X.HealGoalHere()
+    local N = ns.nav
+    if not N then return nil end
+    if N.current and X.HealGoal(N.current.goal) then return N.current.goal end
+    local plan = N.plan
+    if not plan then return nil end
+    for _, i in ipairs(N.HereStops(plan, N:PlayerPos())) do
+        if X.HealGoal(plan[i].goal) then return plan[i].goal end
+    end
+end
+
+-- Your first known heal (the class's list, best first for this: the one
+-- that lands most).
+function X.HealSpell()
+    local E = ns.rotation
+    local def = E and E:Definition()
+    for _, sp in ipairs(def and def.heals or {}) do
+        if E:Knows(sp) then return sp end
+    end
+end
+
+-- NPCs you've healed (their GUIDs): not targeted again.
+local healedNpcs = {}
+X._healedNpcs = healedNpcs  -- (tests)
+local function isHeal(name)
+    local def = ns.rotation and ns.rotation:Definition()
+    for _, sp in ipairs(def and def.heals or {}) do if sp == name then return true end end
+    return false
+end
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or InCombatLockdown() then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if not (name and isHeal(name)) or not UnitExists("target") or UnitIsPlayer("target") then return end
+    local guid = A.Safe(UnitGUID("target"))
+    if guid then healedNpcs[guid] = true end
+end)
+
+-- What a unit is, for the heal step: { token, name, guid, dead, assist }.
+local function unitInfo(token)
+    if not UnitExists(token) then return nil end
+    return { token = token, name = A.Safe(UnitName(token)), guid = A.Safe(UnitGUID(token)),
+             dead = UnitIsDead(token) and true or false,
+             assist = (UnitCanAssist("player", token) and not UnitIsPlayer(token)) and true or false }
+end
+-- The next step (pure: the tests pass the units in): heal your target if
+-- it's one of them, else target one you can see, else nothing.
+function X.HealStep(goal, spell, target, plates, healed)
+    if not (goal and spell) then return nil end
+    local names = {}
+    for _, n in ipairs(goal.npcs) do names[n:lower()] = true end
+    local function wanted(u)
+        return u and u.name and names[u.name:lower()] and u.assist and not u.dead and not (u.guid and healed[u.guid])
+    end
+    if wanted(target) then
+        return { type = "spell", spell = spell, unit = "target", icon = spellIcon(spell), urgent = true,
+                 label = "Heal " .. target.name .. " (quest)" }
+    end
+    for _, u in ipairs(plates or {}) do
+        if wanted(u) then
+            return { type = "target", unit = u.token, icon = "Interface\\Icons\\Ability_Hunter_SniperShot", urgent = true,
+                     label = "Target " .. u.name .. " (quest), then heal it" }
+        end
+    end
+end
+
+-- Friendly nameplates on while a heal-NPC stop is around you; back off when
+-- it isn't (only if Flow turned them on). Out of combat only.
+function X.FriendPlates(needed)
+    if InCombatLockdown() or type(GetCVar) ~= "function" then return end
+    local d = ns.db.actions
+    local on = GetCVar("nameplateShowFriends") == "1"
+    if needed and not on then
+        d.friendPlatesByFlow = true
+        pcall(SetCVar, "nameplateShowFriends", "1")
+        ns:Print("friendly nameplates on while you're at this quest, so Flow can mark the NPCs (off again after).")
+    elseif not needed and d.friendPlatesByFlow then
+        d.friendPlatesByFlow = nil
+        if on then pcall(SetCVar, "nameplateShowFriends", "0") end
+    end
+end
+
+ns:Register("action", "quest:heal", { order = 0.5, get = function()
+    local goal = X.HealGoalHere()
+    pcall(X.FriendPlates, goal ~= nil)
+    if not goal then return nil end
+    local plates = {}
+    for i = 1, 40 do
+        local u = unitInfo("nameplate" .. i)
+        if u then plates[#plates + 1] = u end
+    end
+    return X.HealStep(goal, X.HealSpell(), unitInfo("target"), plates, healedNpcs)
+end })
+
 -- An upgrade (or something for an empty slot) in your bags: put it on. Before
 -- a fight (enemy targeted) it comes first; otherwise when there's nothing
 -- else to press. Not weapons while you're fishing (the pole stays on).

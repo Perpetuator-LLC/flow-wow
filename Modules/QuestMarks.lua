@@ -4,7 +4,7 @@
 --   Star    = talk to / interact with it (an objective mentions its name)
 --   (o)     = Flow's target marker: the unit your current stop is about (the
 --             mob to kill or loot, the turn-in, quest giver or trainer), and
---             every mob of the other stops right by it (your waypoint's
+--             every mob or NPC of the other stops right by it (your waypoint's
 --             area), in the route colour (purple on Most XP), INSTEAD of the
 --             icons above (its count stays beside it); green on the party
 --             member you follow. Every other unit keeps its skull / diamond / star.
@@ -166,8 +166,9 @@ local function targetOf(unit)
     end
     local rank = routeNames[lname]
     if not rank or UnitIsDead(unit) then return nil end
-    -- Mobs of the stops at your waypoint: the (o) too (friendly NPCs there keep their marks).
-    if rank == "here" then return UnitCanAttack("player", unit) and "route" or nil end
+    -- Units of the stops at your waypoint (mobs, and NPCs to heal or talk to:
+    -- Yang's Injured Deathguards were stop 2): the (o) too.
+    if rank == "here" then return "route" end
     if rank ~= "next" then return "route" end
     -- Later stops: friendly NPCs only (mobs to kill keep their skull/diamond).
     if UnitCanAttack("player", unit) then return nil end

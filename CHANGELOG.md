@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.117
+- **Quests that have you heal NPCs: the easy key does it.** Near a stop like "Injured Deathguard
+  healed: 0/5", one press targets the next one you can see, and the next press casts your heal on
+  it (Holy Light for a young paladin). Then it moves on to the next, until the objective is done;
+  ones you've healed are skipped.
+- **They're marked.** While you're at such a stop, Flow turns friendly nameplates on (and back off
+  when you leave), and Flow's marker shows over each NPC. Before, friendly nameplates were off, so
+  nothing marked them and they were hard to find. The marker now also goes on friendly NPCs of
+  the other stops right by your waypoint, not only enemies.
+
 ## 0.35.116
 - **"All objectives in this area" is now a choice of Stops on the map,** the first one and the
   default, in place of the Flow Tracker's own "Everything here / Next stops" switch. One

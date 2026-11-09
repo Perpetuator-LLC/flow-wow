@@ -87,6 +87,7 @@ local function describe(s)
     if s.type == "item" then return "/use " .. tostring(s.item) .. (s.targetSlot and (" on slot " .. s.targetSlot) or "") end
     if s.type == "interact" then return "Interact" end
     if s.type == "clear" then return "/cleartarget" end
+    if s.type == "target" then return "/target " .. tostring(s.unit) end
     if s.type == "click" then return "/click " .. tostring(s.label) end
     return macroFor(s)
 end
@@ -123,6 +124,11 @@ local function setAction(s)
         -- Presses one of Flow's own buttons (the profession panel's "Make N").
         btn:SetAttribute("type", "click")
         btn:SetAttribute("clickbutton", s.button)
+    elseif kind == "target" and s.unit then
+        -- Targets a unit Flow can see (a quest NPC's nameplate, "nameplate4"):
+        -- the secure "target" type with that unit.
+        btn:SetAttribute("type", "target")
+        btn:SetAttribute("unit", s.unit)
     elseif kind == "clear" then
         -- The secure "target" type with unit "none" clears your target.
         btn:SetAttribute("type", "target")

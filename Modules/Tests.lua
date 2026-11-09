@@ -3279,3 +3279,37 @@ ns:Register("test", "route: right at your trainer, training is the hub's busines
     t:eq(B({ key = "pickup:376", provider = "pickups" }, 400, {}, false), nil, "out of the hub: not now")
     t:eq(B({ key = "364:1" }, 10, {}, false), nil, "an objective isn't hub business")
 end)
+
+ns:Register("test", "actions: quest NPCs to heal: the key targets one, then heals it", function(t)
+    -- Yang: "Injured Deathguard healed: 0/5" and couldn't find them. The key
+    -- targets the next one it can see, then casts the heal on it, again
+    -- until done; Flow's marker shows on them (friendly nameplates on).
+    local X = ns.actions
+    local goal = { key = "90902:1", text = "Injured Deathguard healed", npcs = { "Injured Deathguard" } }
+    t:ok(X.HealGoal(goal), "a heal-these-NPCs objective")
+    t:ok(not X.HealGoal({ key = "380:1", text = "Young Night Web Spider slain", npcs = { "Young Night Web Spider" } }), "a kill objective isn't")
+    t:ok(not X.HealGoal({ key = "1:1", text = "Injured Deathguard healed" }), "no NPC names: nothing to target")
+    local function npc(token, guid, over)
+        local u = { token = token, name = "Injured Deathguard", guid = guid, dead = false, assist = true }
+        for k, v in pairs(over or {}) do u[k] = v end
+        return u
+    end
+    local healed = {}
+    local plates = { npc("nameplate3", "G1"), npc("nameplate7", "G2") }
+    local s = X.HealStep(goal, "Holy Light", nil, plates, healed)
+    t:eq(s and s.type, "target", "none targeted: target one")
+    t:eq(s and s.unit, "nameplate3", "the first one you can see")
+    t:eq(ns.cast._describe(s), "/target nameplate3", "a secure target press")
+    s = X.HealStep(goal, "Holy Light", npc("target", "G1"), plates, healed)
+    t:eq(s and s.spell, "Holy Light", "targeted: heal it")
+    t:eq(s and s.unit, "target", "on your target, not on you")
+    t:ok(s and s.urgent, "before a buff or the gear swap")
+    healed.G1 = true
+    s = X.HealStep(goal, "Holy Light", npc("target", "G1"), plates, healed)
+    t:eq(s and s.unit, "nameplate7", "healed it: on to the next one")
+    t:eq(X.HealStep(goal, "Holy Light", nil, { npc("nameplate3", "G1"), npc("nameplate7", "G2", { dead = true }) }, healed), nil,
+        "none left to heal: nothing")
+    t:eq(X.HealStep(goal, nil, nil, plates, {}), nil, "no heal spell: nothing")
+    t:eq(X.HealStep(goal, "Holy Light", nil, { npc("nameplate2", "G3", { assist = false }) }, {}), nil, "not one you can heal: skipped")
+    t:ok(type(X.FriendPlates) == "function", "friendly nameplates come on at such a stop")
+end)
