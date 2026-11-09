@@ -1716,6 +1716,9 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
         for _, r in ipairs(frame.rows) do if r:IsShown() then n = n + 1 end end
         return n
     end
+    -- (The tracker's "next stops, as on the map" mode; since 0.35.108 the
+    -- default is "everything here", tested on its own.)
+    with(ns.db.tracker, "here", false, function()
     with(ns.db.tracker, "enabled", true, function()
     with(ns.db.tracker, "open", "flow", function()
     with(ns.nav, "plan", { stop("t:1"), stop("t:2"), stop("t:3"), stop("t:4"), stop("t:5") }, function()
@@ -1737,6 +1740,7 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
             ns.routeTracker:Refresh()
             t:eq(rowsShown(), 1, "default: next stop only")
         end)
+    end)
     end)
     end)
     end)
@@ -3172,11 +3176,38 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
         t:ok(items[2].checked and not items[3].checked, "everything here ticked")
         items[3].func()
         t:ok(not RT.Here(), "the menu switches to the next stops")
-        items[2].func()
+        t:ok(type(items[2].func) == "function", "clicking it shows the Flow Tracker again")
         t:ok(RT.Here(), "and back")
     end)
     local f = _G.FlowTracker
     if f and f.header then
         t:ok(f.header:GetScript("OnClick") ~= nil, "the title takes clicks (left: fold, right: menu)")
     end
+end)
+
+ns:Register("test", "a hidden Flow window shows up in every Flow menu", function(t)
+    -- Yang: hide a Flow window, and the other menus should bring it back.
+    local M = ns.menu
+    local names = {}
+    for _, w in ns:Each("window") do names[w.name] = w end
+    for _, n in ipairs({ "Flow Arrow", "Flow Tracker", "Flow easy button" }) do
+        t:ok(names[n] ~= nil, n .. " can be hidden and brought back")
+    end
+    with(ns.db.tracker, "enabled", true, function()
+    with(ns.db.nav, "enabled", true, function()
+    with(ns.db.rotation, "enabled", true, function()
+        t:eq(#M.HiddenWindowItems(), 0, "all shown: nothing extra in the menus")
+        ns.db.tracker.enabled = false
+        local items = M.HiddenWindowItems()
+        t:eq(items[1] and items[1].text, "Hidden Flow windows", "a hidden window: a section for it")
+        t:eq(items[2] and items[2].text, "Show Flow Tracker", "Show Flow Tracker")
+        -- Any Flow menu gets it at the bottom.
+        M:Open({ { title = true, text = "Your waypoint" }, { text = "Clear it", func = function() end } })
+        local shown = M.items or {}
+        t:eq(shown[#shown] and shown[#shown].text, "Show Flow Tracker", "at the bottom of another menu")
+        M:Close()
+        t:ok(type(items[2].func) == "function", "clicking it shows the Flow Tracker again")
+    end)
+    end)
+    end)
 end)

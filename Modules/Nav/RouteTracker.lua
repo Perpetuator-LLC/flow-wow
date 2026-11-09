@@ -463,3 +463,9 @@ ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
 
 -- Timed for /flow perf.
 RT.Refresh = ns.perf.Wrap("Flow Tracker", RT.Refresh)
+
+-- A Flow window you can switch off (its menu, /flow tracker off): the menus offer it back (Menu.lua).
+ns:Register("window", "tracker", { name = "Flow Tracker", order = 20,
+    hidden = function() return ns.db.tracker.enabled == false end,
+    show = function() ns.commands.tracker("on") end,
+    hide = function() ns.commands.tracker("off") end })

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.111
+- **Hide a Flow window and the other menus bring it back.** While the Flow Arrow, the Flow Tracker
+  or the Flow easy button is hidden, every Flow right-click menu ends with "Show <that window>".
+  Flow Settings also has a "Show the ..." box for each.
+- Fixed a self-test that still expected the Flow Tracker's old "next stops" list (since 0.35.108
+  it shows everything here by default).
+
 ## 0.35.110
 - **Fixed: messages sent without a reload never reached Claude.** WoW keeps chat-log lines in
   memory and writes them to the file in batches; with little chat it wrote nothing for half an

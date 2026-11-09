@@ -2673,3 +2673,9 @@ end
 
 -- Timed for /flow perf.
 N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)
+
+-- A Flow window you can switch off (/flow nav off): the menus offer it back (Menu.lua).
+ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
+    hidden = function() return ns.db.nav.enabled == false end,
+    show = function() ns.commands.nav("on") end,
+    hide = function() ns.commands.nav("off") end })

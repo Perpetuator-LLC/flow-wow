@@ -70,7 +70,36 @@ end
 
 function Menu:Close() if frame then frame:Hide() end end
 
+-- Flow's windows you can switch off (registry "window": { name, order,
+-- hidden(), show() }). While one is off, every Flow menu offers to show it
+-- again at the bottom (Yang: hide a Flow window, and the other menus bring
+-- it back). Flow Settings has a box for each too.
+function Menu.HiddenWindowItems()
+    local list = {}
+    for _, w in ns:Each("window") do
+        local ok, hidden = pcall(w.hidden)
+        if ok and hidden then list[#list + 1] = w end
+    end
+    table.sort(list, function(a, b) return (a.order or 50) < (b.order or 50) end)
+    local out = {}
+    if #list == 0 then return out end
+    out[1] = { title = true, text = "Hidden Flow windows" }
+    for _, w in ipairs(list) do
+        out[#out + 1] = { text = "Show " .. w.name, func = function() pcall(w.show) end }
+    end
+    return out
+end
+
 function Menu:Open(items)
+    -- Hidden Flow windows: "Show ..." at the end of every menu.
+    local hidden = Menu.HiddenWindowItems()
+    if #hidden > 0 then
+        local all = {}
+        for _, it in ipairs(items) do all[#all + 1] = it end
+        all[#all + 1] = { sep = true }
+        for _, it in ipairs(hidden) do all[#all + 1] = it end
+        items = all
+    end
     self.items = items   -- the menu on screen (tests read its entries)
     GameTooltip:Hide()
     if not frame then build() end

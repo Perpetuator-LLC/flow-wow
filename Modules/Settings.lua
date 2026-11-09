@@ -255,6 +255,16 @@ local function build(parent)
     -- Flow's own options
     y = heading(f, y, "Flow")
     local _
+    -- Flow's windows (registry "window"): show or hide each.
+    local wins = {}
+    for _, w in ns:Each("window") do wins[#wins + 1] = w end
+    table.sort(wins, function(a, b) return (a.order or 50) < (b.order or 50) end)
+    for _, w in ipairs(wins) do
+        _, y = check(f, y, "Show the " .. w.name, "(hidden ones: Show in any Flow menu)",
+            "Off hides it. While it's hidden, every Flow right-click menu offers \"Show " .. w.name .. "\" at the bottom.",
+            function() local ok, h = pcall(w.hidden); return not (ok and h) end,
+            function(on) pcall(on and w.show or w.hide) end)
+    end
     _, y = check(f, y, "Colour-blind route colours", "(safer colours)",
         "The route and arrow colour shows the route's state: purple = Most XP first, blue = Shortest path, orange = Custom route (you picked the next stop), green = your own waypoint. On: the same roles in colours that stay apart for the common kinds of colour blindness.",
         function() return ns.theme:ColorBlind() end, function(on) ns.theme:SetColorBlind(on) end)

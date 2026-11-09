@@ -966,3 +966,9 @@ ns:On("PLAYER_DEAD", function()
         print("  |cff888888(Claude looks at each death to improve the easy button: this one goes at your next /reload.)|r")
     end
 end)
+
+-- A Flow window you can switch off (/flow rot off): the menus offer it back (Menu.lua).
+ns:Register("window", "easybutton", { name = "Flow easy button", order = 30,
+    hidden = function() return ns.db.rotation.enabled == false end,
+    show = function() ns.commands.rot("on") end,
+    hide = function() ns.commands.rot("off") end })
