@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.119
+- Fixed two self-tests of the map that assumed the number of stops decides what it shows (since
+  0.35.116 the "All objectives in this area" choice does, by default).
+
 ## 0.35.118
 - **Fixed: at your trainer, training still waited as stop 8.** 0.35.115 skipped it once you'd
   opened the trainer at your level, even if you hadn't bought anything (Yang still had Blessing of
