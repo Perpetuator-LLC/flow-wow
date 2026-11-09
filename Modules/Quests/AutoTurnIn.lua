@@ -5,10 +5,41 @@
 --   * A quest that takes gold from you: left to you.
 --   * Hold Shift while you talk to the NPC to do it yourself this time.
 -- On by default; the box in /flow settings, or /flow turnin on|off.
+--
+-- New quests are accepted for you too (since 0.35.106; before, only quests
+-- your party shared were): after any turn-ins, Flow opens the NPC's first
+-- new quest (not grey, not repeatable) and accepts it. A quest offered any
+-- other way (an item that starts one) is accepted too. Not with your quest
+-- log full, and not quests another player offers (QuestShare.lua does your
+-- party's). Hold Shift to do it yourself. /flow accept on|off.
 
 local _, ns = ...
 local AT = {}
 ns.autoTurnIn = AT
+
+function AT.AcceptEnabled()
+    if ns.db.quests.autoAccept == false then return false end
+    if IsShiftKeyDown and IsShiftKeyDown() then return false end
+    return true
+end
+
+-- The first new quest worth opening in an NPC's list
+-- ({ { id, trivial, repeatable }, ... }): its position and id, or nil.
+-- Grey (trivial) and repeatable quests are left to you.
+function AT.PickAvailable(list)
+    for i, q in ipairs(list or {}) do
+        if not q.trivial and not q.repeatable then return i, q.id end
+    end
+end
+
+-- Accept the quest on screen? Only when it's on, not one another player
+-- offers, and with room in your quest log (nil: can't tell, go ahead).
+function AT.ShouldAccept(enabled, fromPlayer, freeSlots)
+    return (enabled and not fromPlayer and (freeSlots == nil or freeSlots > 0)) and true or false
+end
+
+local function freeSlots() return ns.quests and ns.quests.FreeSlots and ns.quests:FreeSlots() end
+local function canTakeMore() return AT.ShouldAccept(AT.AcceptEnabled(), false, freeSlots()) end
 
 function AT.Enabled()
     if ns.db.quests.autoTurnIn == false then return false end
@@ -35,36 +66,81 @@ end
 
 local function log(what) ns:Log("quests", "auto turn-in: " .. what) end
 
--- Gossip NPC (the chat window with several options): open a finished quest.
-ns:On("GOSSIP_SHOW", function()
-    if not AT.Enabled() then return end
-    local G = C_GossipInfo
+local function logAccept(what) ns:Log("quests", "auto accept: " .. what) end
+
+-- Gossip NPC (the chat window with several options): open a finished quest;
+-- with none, open a new one (accepted on the next page, QUEST_DETAIL).
+local function gossipTurnIn(G)
     if G and G.GetActiveQuests and G.SelectActiveQuest then
         local list = {}
         for _, q in ipairs(G.GetActiveQuests() or {}) do
             list[#list + 1] = { id = q.questID, complete = q.isComplete, title = q.title }
         end
         local i, id = AT.PickFinished(list)
-        if id then log("opening " .. tostring(list[i].title)); G.SelectActiveQuest(id) end
+        if id then log("opening " .. tostring(list[i].title)); G.SelectActiveQuest(id); return true end
     elseif GetGossipActiveQuests and SelectGossipActiveQuest then
         -- Older clients: name, level, trivial, complete, ... (6 values per quest).
         local raw, list = { GetGossipActiveQuests() }, {}
         for k = 1, #raw, 6 do list[#list + 1] = { id = (k + 5) / 6, complete = raw[k + 3], title = raw[k] } end
         local i = AT.PickFinished(list)
-        if i then log("opening " .. tostring(list[i].title)); SelectGossipActiveQuest(i) end
+        if i then log("opening " .. tostring(list[i].title)); SelectGossipActiveQuest(i); return true end
     end
+end
+local function gossipNew(G)
+    if G and G.GetAvailableQuests and G.SelectAvailableQuest then
+        local list = {}
+        for _, q in ipairs(G.GetAvailableQuests() or {}) do
+            list[#list + 1] = { id = q.questID, title = q.title, trivial = q.isTrivial,
+                                repeatable = q.repeatable or (q.frequency and q.frequency > 0) }
+        end
+        local i, id = AT.PickAvailable(list)
+        if id then logAccept("opening " .. tostring(list[i].title)); G.SelectAvailableQuest(id) end
+    elseif GetGossipAvailableQuests and SelectGossipAvailableQuest then
+        -- Older clients: name, level, trivial, frequency, repeatable, legendary, ignored (7 per quest).
+        local raw, list = { GetGossipAvailableQuests() }, {}
+        for k = 1, #raw, 7 do
+            list[#list + 1] = { id = (k + 6) / 7, title = raw[k], trivial = raw[k + 2], repeatable = raw[k + 4] }
+        end
+        local i = AT.PickAvailable(list)
+        if i then logAccept("opening " .. tostring(list[i].title)); SelectGossipAvailableQuest(i) end
+    end
+end
+ns:On("GOSSIP_SHOW", function()
+    local G = C_GossipInfo
+    if AT.Enabled() and gossipTurnIn(G) then return end
+    if canTakeMore() then gossipNew(G) end
 end)
 
--- Quest NPC with a plain list of quests (no gossip).
+-- Quest NPC with a plain list of quests (no gossip): a finished one, else a new one.
 ns:On("QUEST_GREETING", function()
-    if not (AT.Enabled() and GetNumActiveQuests and GetActiveTitle and SelectActiveQuest) then return end
-    local list = {}
-    for i = 1, GetNumActiveQuests() or 0 do
-        local title, complete = GetActiveTitle(i)
-        list[#list + 1] = { id = i, complete = complete, title = title }
+    if AT.Enabled() and GetNumActiveQuests and GetActiveTitle and SelectActiveQuest then
+        local list = {}
+        for i = 1, GetNumActiveQuests() or 0 do
+            local title, complete = GetActiveTitle(i)
+            list[#list + 1] = { id = i, complete = complete, title = title }
+        end
+        local i = AT.PickFinished(list)
+        if i then log("opening " .. tostring(list[i].title)); SelectActiveQuest(i); return end
     end
-    local i = AT.PickFinished(list)
-    if i then log("opening " .. tostring(list[i].title)); SelectActiveQuest(i) end
+    if not (canTakeMore() and GetNumAvailableQuests and GetAvailableTitle and SelectAvailableQuest) then return end
+    local list = {}
+    for i = 1, GetNumAvailableQuests() or 0 do
+        local trivial, frequency, repeatable
+        if GetAvailableQuestInfo then trivial, frequency, repeatable = GetAvailableQuestInfo(i) end
+        list[#list + 1] = { id = i, title = GetAvailableTitle(i), trivial = trivial,
+                            repeatable = repeatable or (type(frequency) == "number" and frequency > 0) }
+    end
+    local i = AT.PickAvailable(list)
+    if i then logAccept("opening " .. tostring(list[i].title)); SelectAvailableQuest(i) end
+end)
+
+-- A quest offered to you (from an NPC, or an item that starts one): accept it.
+ns:On("QUEST_DETAIL", function()
+    local fromPlayer = UnitExists("npc") and UnitIsPlayer("npc") and true or false
+    if not AT.ShouldAccept(AT.AcceptEnabled(), fromPlayer, freeSlots()) then return end
+    if QuestGetAutoAccept and QuestGetAutoAccept() then return end   -- the game took it already
+    logAccept("accepted " .. tostring(GetTitleText and GetTitleText()))
+    AcceptQuest()
 end)
 
 -- "Have you finished?": press Complete (not for quests that take your gold).
@@ -91,6 +167,13 @@ ns:On("QUEST_COMPLETE", function()
     log("turned in " .. tostring(title))
     GetQuestReward(pick)
 end)
+
+ns.commands.accept = function(arg)
+    arg = (arg or ""):lower()
+    if arg == "on" or arg == "off" then ns.db.quests.autoAccept = (arg == "on") end
+    ns:Print("accept new quests for you: " .. (ns.db.quests.autoAccept == false and "off" or "on")
+        .. "  (not grey or repeatable ones; hold Shift at the NPC to do it yourself; /flow accept on|off)")
+end
 
 ns.commands.turnin = function(arg)
     arg = (arg or ""):lower()

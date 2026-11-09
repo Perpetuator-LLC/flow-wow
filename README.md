@@ -158,6 +158,10 @@ Flow for WoW is a separate project from Flow Engine.
   settings (auto loot, nameplates, target of target, camera zoom, the camera staying where you
   put it, the low-health warning, the Interact key reaching objects, timestamps...) with a "Use
   Flow's suggestions" button. When an update adds a suggestion, the page shows once more.
+- **Quests accepted and turned in for you**: talk to a quest giver and Flow turns in your
+  finished quests (you pick when there's a choice of rewards), then accepts their new ones (not
+  grey or repeatable ones). Hold Shift to do it yourself; `/flow turnin` and `/flow accept` turn
+  them off.
 - **Nearest repair, vendor, flight master, innkeeper, banker, auctioneer or mailbox**: right-click
   the arrow, or `/flow way repair` / `vendor` / `flight` / `inn` / `bank` / `auction` / `mail`.
 - **Learns where things are as you play** (every NPC you talk to and what they do, for all your

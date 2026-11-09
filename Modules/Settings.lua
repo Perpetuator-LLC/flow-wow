@@ -319,6 +319,10 @@ local function build(parent)
         "Talk to the NPC and Flow picks the finished quest, completes it and takes the reward. With several rewards to choose from, you pick (the green arrow is Flow's pick). Quests that take gold are left to you.",
         function() return ns.db.quests.autoTurnIn ~= false end,
         function(on) ns.db.quests.autoTurnIn = on end)
+    _, y = check(f, y, "Accept new quests for you", "(hold Shift at the NPC to skip)",
+        "Talk to a quest giver and Flow opens their new quest and accepts it (after turning in any finished ones). Grey and repeatable quests are left to you, and nothing is accepted with your quest log full.",
+        function() return ns.db.quests.autoAccept ~= false end,
+        function(on) ns.db.quests.autoAccept = on end)
     _, y = check(f, y, "Share quests with your party", "(share yours, accept theirs; /flow share)",
         "In a group: a quest you pick up is shared when a party member doesn't have it, and Flow players get your quests they're missing, one every few seconds. Quests your party shares with you are accepted (unless your log is full). Each quest is offered to each person once.",
         function() return ns.db.quests.share ~= false end,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.106
+- **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished
+  quests first, then opens their new quest and accepts it. A quest started by an item is
+  accepted too. Before, Flow only accepted quests your party shared with you. Grey (low level)
+  and repeatable quests are left to you, and nothing is accepted when your quest log is full.
+  Hold Shift at the NPC to do it yourself; there's a box in Flow Settings, or `/flow accept off`.
+
 ## 0.35.105
 - **The Flow Arrow's drawer has a pin button**, top right, where Flow's other views have their
   close button (a red square like it). A gold pin standing straight means pinned: the drawer stays

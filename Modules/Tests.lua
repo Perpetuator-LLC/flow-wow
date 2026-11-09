@@ -1942,6 +1942,30 @@ ns:Register("test", "quests: finished ones are turned in for you, choices left t
     end)
 end)
 
+ns:Register("test", "quests: new ones are accepted for you", function(t)
+    -- Yang: "it just failed to auto-accept quests". Flow only ever accepted
+    -- quests your party shared; now quest givers' new quests too.
+    local AT = ns.autoTurnIn
+    local list = { { id = 5, trivial = true }, { id = 6, repeatable = true }, { id = 7 }, { id = 8 } }
+    local i, id = AT.PickAvailable(list)
+    t:eq(i, 3, "the first new quest worth taking")
+    t:eq(id, 7, "by its quest id")
+    t:eq(AT.PickAvailable({ { id = 1, trivial = true } }), nil, "only a grey quest: left to you")
+    t:eq(AT.PickAvailable({}), nil, "nothing new: nothing opened")
+    t:ok(AT.ShouldAccept(true, false, 12), "on, from an NPC, room in the log: accept")
+    t:ok(AT.ShouldAccept(true, false, nil), "can't tell how full the log is: accept")
+    t:ok(not AT.ShouldAccept(true, false, 0), "quest log full: no")
+    t:ok(not AT.ShouldAccept(true, true, 12), "another player offers it: no (party shares: QuestShare)")
+    t:ok(not AT.ShouldAccept(false, false, 12), "turned off (or Shift held): no")
+    with(ns.db.quests, "autoAccept", false, function()
+        t:ok(not AT.AcceptEnabled(), "the settings box turns it off")
+    end)
+    with(ns.db.quests, "autoAccept", nil, function()
+        t:ok(AT.AcceptEnabled() or IsShiftKeyDown(), "on by default")
+    end)
+    t:ok(type(ns.commands.accept) == "function", "/flow accept on|off")
+end)
+
 ns:Register("test", "party help: quest progress is shared and read back", function(t)
     local H = ns.partyHelp
     local prog = {
