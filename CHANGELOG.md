@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.120
+- **Fixed: Claude's answers were missing from Flow Chat.** The window put every message still
+  waiting for an answer after all the answers, and showed only the last 6. Five old test messages
+  that never got an answer filled it, so no answer showed. Now the conversation is in time order,
+  newest at the bottom, in a box that scrolls with the mouse wheel. Long answers aren't cut off
+  any more, and a message still waiting after a day leaves the list.
+
 ## 0.35.119
 - Fixed two self-tests of the map that assumed the number of stops decides what it shows (since
   0.35.116 the "All objectives in this area" choice does, by default).

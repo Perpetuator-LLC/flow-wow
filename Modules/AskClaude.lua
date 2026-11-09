@@ -270,16 +270,23 @@ end
 -- in, Send and Reload; or, not connected, the prompt to connect Claude.
 -------------------------------------------------------------------------------
 
--- The conversation as lines, oldest first, at most `max` exchanges:
--- answers (with what you asked), then messages still waiting.
+-- The conversation as lines, oldest first, at most `max` exchanges: answers
+-- (with what you asked) and messages still waiting, in time order. (They
+-- used to be ordered by two different counters, waiting ones always last:
+-- five unanswered tests pushed every answer out of the window, Yang.)
 function AC.History(inbox, chat, max)
     local out = {}
     for _, r in ipairs(inbox or {}) do
         local q = r.replyTo and chat.sent and chat.sent[r.replyTo]
-        out[#out + 1] = { q = q, a = r.text, id = r.id or 0 }
+        out[#out + 1] = { q = q, a = r.text, at = r.at or 0, n = r.id or 0 }
     end
-    table.sort(out, function(x, y) return x.id < y.id end)
-    for _, m in ipairs(chat.outbox or {}) do out[#out + 1] = { q = m.text, waiting = true, id = 1e9 + (m.id or 0) } end
+    for _, m in ipairs(chat.outbox or {}) do
+        out[#out + 1] = { q = m.text, waiting = true, at = m.at or 0, n = 1e9 + (m.id or 0) }
+    end
+    table.sort(out, function(x, y)
+        if x.at ~= y.at then return x.at < y.at end
+        return x.n < y.n   -- (same time: answers first)
+    end)
     local lines = {}
     for i = math.max(1, #out - (max or 6) + 1), #out do
         local e = out[i]
@@ -330,10 +337,20 @@ local function buildBox()
     -- Chat view.
     f.chat = CreateFrame("Frame", nil, f)
     f.chat:SetAllPoints()
-    f.log = f.chat:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- The conversation: newest at the bottom, the mouse wheel scrolls back.
+    -- (A fixed-height text cut long answers off.)
+    f.log = CreateFrame("ScrollingMessageFrame", nil, f.chat)
     f.log:SetPoint("TOPLEFT", 12, -32); f.log:SetPoint("TOPRIGHT", -12, -32)
     f.log:SetHeight(200)
-    f.log:SetJustifyH("LEFT"); f.log:SetJustifyV("BOTTOM")
+    f.log:SetFontObject(GameFontHighlightSmall)
+    f.log:SetJustifyH("LEFT")
+    f.log:SetFading(false)
+    f.log:SetMaxLines(400)
+    f.log:SetSpacing(2)
+    f.log:EnableMouseWheel(true)
+    f.log:SetScript("OnMouseWheel", function(self, delta)
+        if delta > 0 then self:ScrollUp() else self:ScrollDown() end
+    end)
     f.edit = CreateFrame("EditBox", nil, f.chat, "InputBoxTemplate")
     f.edit:SetSize(215, 22)
     f.edit:SetPoint("BOTTOMLEFT", 18, 10)
@@ -399,9 +416,13 @@ function AC:Open(draft)
     AC.box = box
     box.setup:Hide(); box.chat:Show()
     local chat = ns.db.chat
-    local lines = AC.History(ns.claudeInbox, chat, 6)
-    box.log:SetText(#lines > 0 and table.concat(lines, "\n")
-        or "|cff888888Ask anything about Flow or your character. A Claude session on your PC answers (docs/ASK-CLAUDE.md).|r")
+    local lines = AC.History(ns.claudeInbox, chat, 20)
+    box.log:Clear()
+    if #lines == 0 then
+        box.log:AddMessage("|cff888888Ask anything about Flow or your character. A Claude session on your PC answers (docs/ASK-CLAUDE.md).|r")
+    end
+    for _, l in ipairs(lines) do box.log:AddMessage(l) end
+    box.log:ScrollToBottom()
     box.connect:SetShown(not AC:IsConnected())
     box.status:SetText(draft and "The chat box stops at 255 letters, so the end may be cut off: finish your message here (it takes 1000) and press Enter."
         or not AC:IsConnected() and ("Claude wasn't watching at your last reload: Connect shows how. " .. liveHint())
@@ -427,8 +448,21 @@ function AC:OpenSetup()
     box.prompt:SetFocus(); box.prompt:HighlightText()
 end
 
+-- Messages waiting more than a day: a reload passed them on long ago and no
+-- answer is coming (Yang's tests): out of the outbox (what you asked stays
+-- in the chat history). Returns how many went.
+AC.STALE = 24 * 3600
+function AC.DropStale(outbox, now)
+    local n = 0
+    for i = #outbox, 1, -1 do
+        if (outbox[i].at or now) < now - AC.STALE then table.remove(outbox, i); n = n + 1 end
+    end
+    return n
+end
+
 local function check()
     local chat = ns.db.chat
+    AC.DropStale(chat.outbox, time())
     local new = AC.TakeNew(ns.claudeInbox, chat)
     for _, r in ipairs(new) do show(r) end
     if #new > 0 then ns:Print("(/si opens the chat window)") end

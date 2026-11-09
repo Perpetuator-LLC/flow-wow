@@ -2851,6 +2851,17 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
     t:ok(lines[1]:find("make the arrow purple", 1, true) ~= nil, "your question")
     t:ok(lines[2]:find("Done: /reload.", 1, true) ~= nil, "Claude's answer under it")
     t:ok(lines[3]:find("and green?", 1, true) ~= nil and lines[4]:find("waiting", 1, true) ~= nil, "a message still waiting")
+    -- Yang: five old unanswered tests pushed every answer out of the window.
+    -- In time order, the newest answer is at the bottom whatever waits.
+    local old = { sent = { [26] = "why stop 8?" }, outbox = {} }
+    for i = 1, 5 do old.outbox[i] = { id = 14 + i, text = "test" .. i, at = 1000 + i } end
+    local h = AC.History({ { id = 40, replyTo = 26, text = "Found it.", at = 5000 } }, old, 6)
+    t:ok(h[#h]:find("Found it.", 1, true) ~= nil, "the newest answer is the last line, after older waiting ones")
+    t:ok(h[#h - 1]:find("why stop 8?", 1, true) ~= nil, "with what you asked above it")
+    -- And they leave the outbox after a day.
+    local box2 = { { id = 1, at = 100 }, { id = 2, at = 100000 } }
+    t:eq(AC.DropStale(box2, 100000 + 60), 1, "waiting over a day: dropped")
+    t:eq(box2[1].id, 2, "a fresh one stays")
     -- Click test: /claude on its own opens the window (it used to only reload).
     AC:Open()
     local box = _G.FlowAskClaude
