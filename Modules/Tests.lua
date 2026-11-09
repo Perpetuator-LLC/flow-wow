@@ -3270,7 +3270,13 @@ ns:Register("test", "route: right at your trainer, training is the hub's busines
     t:eq(B(train, 30, {}, false), "train", "30 yards from your trainer: train now")
     t:eq(B(train, N.TRAIN_NEAR + 40, {}, false), nil, "a hundred yards off (killing mobs): fitted into the route")
     t:eq(B({ key = "train:class", cost = 500 }, 30, {}, false), nil, "can't pay for any of it: not now")
-    t:eq(B(train, 30, {}, true), nil, "already trained at this level: not again")
+    t:eq(B(train, 30, {}, true), nil, "nothing left to learn at your trainer: not again")
+    -- Yang opened the trainer at level 4 without buying: Blessing of Might was still there.
+    local T = N.TrainerHasSomething
+    t:ok(T({ seenAt = 4, services = { { name = "Blessing of Might", category = "available" } } }, 4), "seen at this level, a spell still available: yes")
+    t:ok(not T({ seenAt = 4, services = { { name = "Blessing of Might", category = "used" } } }, 4), "seen, all learned: no")
+    t:ok(T({ seenAt = 3, services = {} }, 4), "not seen at this level: yes (the route says spells wait)")
+    t:ok(T(nil, 4), "no trainer seen yet: yes")
     t:eq(B({ key = "train:Cooking" }, 20, {}, true), "train", "a profession trainer right here too")
     -- The quest part of the hub's business is as before.
     t:eq(B({ key = "364:done" }, 200, {}, false), "turnin", "a turn-in in the hub")

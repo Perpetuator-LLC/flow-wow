@@ -1168,15 +1168,27 @@ end
 -- (in town, N.TRAIN_NEAR yards): Yang stood next to the trainer with
 -- training as stop 7. Wider (0.35.98's 300 yards) pulled you off the mobs
 -- you were killing for a quest. Not when you can't pay for any of it (cost),
--- nor once you've trained at this level (a spell Flow lists that the
--- trainer doesn't have would keep you there).
+-- nor when your trainer, seen at this level, has nothing left to learn (a
+-- spell Flow lists that the trainer doesn't have would keep you there).
 N.TRAIN_NEAR = 60
+-- Anything to learn at your class trainer now? Not seen at this level: yes,
+-- as far as Flow knows. Seen: its own list must still show something
+-- "available". (0.35.115 skipped training as soon as you'd opened the
+-- trainer at your level, bought or not: Yang still had Blessing of Might.)
+function N.TrainerHasSomething(tr, level)
+    if not (tr and tr.seenAt == level) then return true end
+    for _, s in ipairs(tr.services or {}) do
+        if s.category == "available" then return true end
+    end
+    return false
+end
 -- What a goal is for the hub's business at distance d: "turnin", "pickup",
--- "train" or nil (not this hub's business).
-function N.HubBusiness(g, d, present, trainedThisLevel, radius)
+-- "train" or nil (not this hub's business). nothingToLearn: your class
+-- trainer has nothing left for you (N.TrainerHasSomething).
+function N.HubBusiness(g, d, present, nothingToLearn, radius)
     if not d then return nil end
     if g.key:find("^train:") then
-        if g.cost or (g.key == "train:class" and trainedThisLevel) then return nil end
+        if g.cost or (g.key == "train:class" and nothingToLearn) then return nil end
         return d <= N.TRAIN_NEAR and "train" or nil
     end
     if d > (radius or HUB_RADIUS) then return nil end
@@ -1190,7 +1202,7 @@ function N:PickupKeys(radius)
     if not p then return nil end
     local present = {}
     for _, g in ipairs(goals) do present[g.key] = true end
-    local trained = ns.db.trainer and ns.db.trainer.seenAt == UnitLevel("player")
+    local trained = not N.TrainerHasSomething(ns.db.trainer, UnitLevel("player"))
     local near, turnins, nTurnins = {}, {}, 0
     for _, g in ipairs(goals) do
         -- (Distances only for what can be hub business: some goals have many spawn points.)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.118
+- **Fixed: at your trainer, training still waited as stop 8.** 0.35.115 skipped it once you'd
+  opened the trainer at your level, even if you hadn't bought anything (Yang still had Blessing of
+  Might to learn). Now it's skipped only when the trainer's own list shows nothing left for you.
+
 ## 0.35.117
 - **Quests that have you heal NPCs: the easy key does it.** Near a stop like "Injured Deathguard
   healed: 0/5", one press targets the next one you can see, and the next press casts your heal on
