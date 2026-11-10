@@ -59,6 +59,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a stop on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.
+- **Near first**: the route finishes the stops around you before it sends you far; far stops
+  and item drops whose mobs are spread out wait (`/flow nearfirst on|off`).
 - **Hub business first**: in a quest hub the route turns in every finished quest there and
   picks up the quests on offer before heading out, like a walkthrough.
 - **Quest areas**: in an objective area the arrow becomes a ring of little pillars that pop up

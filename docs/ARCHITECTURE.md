@@ -68,6 +68,15 @@ Tracker (damage taken, target TTD, heal sizes)        FightTypes (boss/aoe/elite
 Advisor <--- trainer data, class spells, bags, skills, talents, profiler insights
 ```
 
+### Route weights
+
+The planner (`Modules/Nav/Planner.lua`) minimises sum(distance x weight). A stop's weight is
+set when the route is collected: by the stop itself (`navGoal`) and by the route objective
+(`routeObjective`, `Modules/Nav/XpValue.lua`). `Modules/Nav/NearFirst.lua` adds a weight that
+depends on where you stand, so it is applied on every plan, not at collect: stops beyond 300 yd
+get up to 3x heavier, item drops not within 150 yd 1.5x more, milestones are left alone. The
+goals get their own weights back after each plan. `/flow nearfirst on|off`.
+
 ### Rotation adaptation (and its limits)
 
 - Rules marked `adaptive = true` that sit next to each other form a group of roughly equal

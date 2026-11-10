@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- **The route finishes what's around you first.** Stops more than 300 yd away count heavier
+  the further off they are (up to 3x), and an item drop whose mobs aren't near you waits until
+  the kills next to you are done, so one far stop no longer splits up a cluster of nearby ones.
+  Class training and your mount are left alone. `/flow nearfirst off` turns it off.
+
 ## 0.35.106
 - **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished
   quests first, then opens their new quest and accepts it. A quest started by an item is

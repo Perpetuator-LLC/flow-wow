@@ -261,6 +261,39 @@ ns:Register("test", "planner: nearest first, turn-in after its objective", funct
     t:eq(plan and plan[1].goal.key, "1:1", "objective before its turn-in")
 end)
 
+ns:Register("test", "planner: near first, far stops and item drops wait", function(t)
+    local F = ns.nearFirst
+    t:eq(F.Multiplier({}, 100), 1, "close: unchanged")
+    t:near(F.Multiplier({}, 1000), 2, 0.001, "1,000 yd: 2x")
+    t:eq(F.Multiplier({}, 9000), 3, "capped at 3x")
+    t:eq(F.Multiplier({ milestone = true }, 9000), 1, "class training left alone")
+    t:eq(F.Multiplier({ kind = "collect" }, 100), 1, "an item drop right here is fine")
+    t:near(F.Multiplier({ kind = "collect" }, 200), 1.5, 0.001, "a drop further off waits")
+    t:eq(F.Multiplier({ kind = "collect" }, nil), 1.5, "a drop with no spot near you waits")
+
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local function goal(key, x, extra)
+        local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = 0 } } }
+        for k, v in pairs(extra or {}) do g[k] = v end
+        return g
+    end
+    -- Both straight ahead, the drop a little nearer. Unweighted the drop comes
+    -- first (300 + 10 yd vs 310 + 10); near first makes it 1.5x heavier, so the
+    -- kill right behind it comes first (310 + 10 x 1.5 vs 300 x 1.5 + 10).
+    local drop = goal("1:1", 300, { kind = "collect" })
+    local kill = goal("2:1", 310, { kind = "kill", weight = 1 })
+    local saved = ns.db.nearFirst
+    ns.db.nearFirst = true
+    local plan = ns.planner:Plan(p, { drop, kill }, {})
+    t:eq(plan and plan[1].goal.key, "2:1", "a kill right behind an item drop comes first")
+    t:eq(drop.weight, nil, "the drop gets its own weight back")
+    t:eq(kill.weight, 1, "the kill gets its own weight back")
+    ns.db.nearFirst = false
+    plan = ns.planner:Plan(p, { drop, kill }, {})
+    t:eq(plan and plan[1].goal.key, "1:1", "off: the nearer drop comes first")
+    ns.db.nearFirst = saved
+end)
+
 ns:Register("test", "planner: plans 30 stops, the far end nearest-next", function(t)
     local function goal(key, x, y, extra)
         local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = y or 0 } } }

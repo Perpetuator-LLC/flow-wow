@@ -70,6 +70,7 @@ Modules\CombatLogFile.lua
 Modules\Nav\Nav.lua
 Modules\Nav\Places.lua
 Modules\Nav\Planner.lua
+Modules\Nav\NearFirst.lua
 Modules\Nav\XpValue.lua
 Modules\Nav\MinimapPin.lua
 Modules\Nav\Goals.lua
