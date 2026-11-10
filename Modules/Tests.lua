@@ -1288,6 +1288,60 @@ ns:Register("test", "taint: moving the cast icon never happens in combat", funct
     ns.cast.moving = was
 end)
 
+ns:Register("test", "resize: buttons stay between half and double size", function(t)
+    t:eq(ns.ClampScale(1), 1, "normal size")
+    t:eq(ns.ClampScale(5), 2, "at most double")
+    t:eq(ns.ClampScale(0.1), 0.5, "at least half")
+    t:eq(ns.ClampScale(1.1 + 1e-9), 1.1, "rounded, so steps don't drift")
+    t:eq(ns.ClampScale(nil), 1, "nothing saved: normal size")
+end)
+
+ns:Register("test", "click: Shift moves and Ctrl + wheel resizes the Flow button", function(t)
+    t:ok(ns.cast.handle ~= nil, "the Flow button has a handle")
+    -- On a stand-in frame (made once), so your own buttons never move.
+    local f = ns._testMoveFrame
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
+        f:SetSize(40, 40)
+        f:SetAlpha(0)
+        ns._testMoveFrame = f
+        f.save = {}
+        f.handle = ns:MoveHandle(f, { name = "test", save = function() return f.save end })
+    end
+    local h = f.handle
+    ns.RestorePlace(f, { point = { "CENTER", "CENTER", 100, 50 } })
+    t:eq(f:GetScale(), 1, "restored at normal size")
+    f:Show()
+    -- The handle's own scripts run (no Shift or Ctrl held: they do nothing).
+    for _, s in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave" }) do
+        local ok, err = pcall(h:GetScript(s), h)
+        t:ok(ok, s .. " runs" .. (ok and "" or (": " .. tostring(err))))
+    end
+    local ok, err = pcall(h:GetScript("OnMouseWheel"), h, 1)
+    t:ok(ok, "the wheel runs" .. (ok and "" or (": " .. tostring(err))))
+    if not IsControlKeyDown() then t:eq(f:GetScale(), 1, "no Ctrl: the wheel leaves the size alone") end
+    t:ok(not h.moving, "no Shift: a press doesn't start a move")
+    if InCombatLockdown() then
+        t:ok(true, "(in a fight: resizing is off)")
+    else
+        local x0, y0 = f:GetCenter()
+        h:ScaleBy(1)
+        t:eq(f:GetScale(), 1.1, "one notch: a tenth bigger")
+        t:eq(f.save.scale, 1.1, "the size is saved")
+        t:ok(f.save.point and f.save.point[1] == "CENTER", "the spot is saved")
+        local x1, y1 = f:GetCenter()
+        if x0 and x1 then
+            t:ok(math.abs(x1 * 1.1 - x0) < 1 and math.abs(y1 * 1.1 - y0) < 1, "it grows around its centre")
+        end
+        for _ = 1, 30 do h:ScaleBy(-1) end
+        t:eq(f:GetScale(), 0.5, "shrinks to half and stops")
+        -- Back where it was, at the saved size.
+        ns.RestorePlace(f, f.save)
+        t:eq(f:GetScale(), 0.5, "restored at the saved size")
+    end
+    f:Hide()
+end)
+
 ns:Register("test", "route: what it optimises is pluggable", function(t)
     local X = ns.xpValue
     t:ok(ns:Get("routeObjective", "xp") and ns:Get("routeObjective", "distance"), "built-in objectives registered")
