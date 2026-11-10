@@ -1693,6 +1693,34 @@ ns:Register("test", "minimap cloud: one smooth shape per area", function(t)
     t:near(s[2][1], 5, 0.01, "shrunk towards the middle")
 end)
 
+ns:Register("test", "minimap dot: on the stop, in the arrow's colour", function(t)
+    local N, P = ns.nav, ns.minimapPin
+    local A, B = { wx = 0, wy = 0 }, { wx = 30, wy = 0 }
+    local spot = { key = "test:spot" }
+    t:eq(N.DotPoint({ goal = spot, point = A }, false), A, "on the way: the stop's spot")
+    t:eq(N.DotPoint({ goal = spot, point = A }, true), A, "arrived: the spot you reached")
+    t:eq(N.DotPoint({ goal = spot, point = B }, true), A, "walking around there: the dot stays put")
+    t:eq(N.DotPoint({ goal = spot, point = B }, false), B, "left the stop: back on its spot")
+    t:eq(N.DotPoint({ goal = { key = "test:area", area = true }, point = A }, true), nil, "in a quest's area: no dot, the area shows")
+    t:eq(N.DotPoint({ goal = { key = "test:any", anywhere = true }, point = A }, false), nil, "a do-it-anywhere stop: no dot")
+    t:eq(N.DotPoint(nil), nil, "no stop: no dot")
+    local p = N:PlayerPos()
+    if not (Minimap and p and p.wx) then t:ok(true, "(no minimap or position)") return end
+    local col = { 0.1, 0.6, 0.3 }
+    P:Update(p, { cont = p.cont, wx = p.wx + 10, wy = p.wy }, spot, col, false)
+    local dot = P.Pin() and P.Pin().dot
+    if dot and P.Pin():IsShown() then
+        local r, g, b = dot:GetVertexColor()
+        t:ok(math.abs(r - 0.1) < 0.01 and math.abs(g - 0.6) < 0.01 and math.abs(b - 0.3) < 0.01, "dot: the arrow's colour")
+    end
+    t:eq(P.hereColor, nil, "on the way: the area keeps the route colour")
+    P:Update(p, nil, spot, col, true)
+    t:eq(P.hereColor, col, "in the area: the area takes the arrow's colour")
+    t:ok(not (P.Pin() and P.Pin():IsShown()), "no point: no dot")
+    P:Hide()
+    t:eq(P.hereColor, nil, "hidden: colour cleared")
+end)
+
 ns:Register("test", "bags: things to learn and full bags", function(t)
     local X = ns.actions
     t:eq(type(X.Learnables()), "table", "learnables list")
