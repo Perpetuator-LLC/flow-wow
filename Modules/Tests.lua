@@ -1572,6 +1572,19 @@ ns:Register("test", "minimap cloud: one smooth shape per area", function(t)
     t:near(s[2][1], 5, 0.01, "shrunk towards the middle")
 end)
 
+ns:Register("test", "height probe: gap and floors", function(t)
+    local H = ns.heightProbe
+    t:eq(H.Gap(5, 3), 4, "5 yd away, 3 yd flat: 4 yd up or down")
+    t:eq(H.Gap(3, 3), nil, "no gap when the distances match")
+    t:eq(H.Gap(nil, 3), nil, "no game distance: no gap")
+    local floors = { { mapID = 10, relativeHeightIndex = 0 }, { mapID = 11, relativeHeightIndex = 1 } }
+    t:eq(H.FloorStep(floors, 10, 11), 1, "one floor up")
+    t:eq(H.FloorStep(floors, 11, 10), -1, "one floor down")
+    t:eq(H.FloorStep(floors, 10, 99), nil, "not a floor of this place")
+    local ok, lines = pcall(H.Lines)
+    t:ok(ok and type(lines) == "table" and #lines >= 4, "the report builds: " .. tostring(ok or lines))
+end)
+
 ns:Register("test", "bags: things to learn and full bags", function(t)
     local X = ns.actions
     t:eq(type(X.Learnables()), "table", "learnables list")
