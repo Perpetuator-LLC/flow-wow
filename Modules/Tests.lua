@@ -2195,18 +2195,25 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
         { id = 1, sub = 2, name = "Elixir of Lion's Strength", spell = "Lesser Strength" },
         { id = 2, sub = 6, name = "Rough Sharpening Stone" },
         { id = 3, sub = 6, name = "Rough Weightstone" },
+        { id = 4, sub = 5, name = "Roasted Boar Meat" },
     }
     local none = function() return false end
     local all = function() return true end
-    t:eq(BI.Pick(items, none, 7, false).id, 1, "elixir first, when its buff is missing")
-    t:eq(BI.Pick(items, all, 7, false).id, 2, "buff on: a sharpening stone for a sword")
-    t:eq(BI.Pick(items, all, 4, false).id, 3, "a weightstone for a mace")
-    t:eq(BI.Pick(items, all, 7, true), nil, "the weapon has one already: nothing")
+    local fedOnly = function(spell) return spell ~= BI.WELL_FED end
+    t:eq(BI.Pick(items, none, 7, false, true).id, 1, "elixir first, when its buff is missing")
+    t:eq(BI.Pick(items, all, 7, false, true).id, 2, "buff on: a sharpening stone for a sword")
+    t:eq(BI.Pick(items, all, 4, false, true).id, 3, "a weightstone for a mace")
+    t:eq(BI.Pick(items, all, 7, true, true), nil, "the weapon has one already, Well Fed: nothing")
+    t:eq(BI.Pick(items, fedOnly, 7, true, true).id, 4, "not Well Fed: eat, after the quick ones")
     t:ok(BI.FitsWeapon("Minor Wizard Oil", 10), "oil goes on anything")
     t:ok(not BI.FitsWeapon("Rough Sharpening Stone", 4), "no sharpening stone on a mace")
     t:ok(not BI.FitsWeapon("Minor Wizard Oil", 20), "no oil on a fishing pole")
-    t:eq(BI.Pick(items, none, 7, false, true).id, 2, "not about to fight: the stone, the elixir waits")
-    t:eq(BI.Pick(items, none, 7, true, true), nil, "not about to fight, weapon done: nothing")
+    t:eq(BI.Pick(items, none, 7, false, false), nil, "not about to fight: the stone waits too")
+    t:eq(BI.Pick(items, fedOnly, 7, true, false), nil, "not about to fight: no food")
+    t:ok(BI.IsBuffFood({ "Roasted Boar Meat", "Use: Restores 294 health over 27 sec. If you spend at least 10 seconds eating you will become well fed." }),
+        "food that says Well Fed")
+    t:ok(not BI.IsBuffFood({ "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "plain food: no")
+    t:ok(not BI.IsBuffFood(nil), "no tooltip yet: no")
     t:ok(BI.IsWeaponBuff("Rough Sharpening Stone"), "a stone by its name")
     t:ok(BI.IsWeaponBuff("Coarse Weightstone"), "a weightstone by its name")
     t:ok(BI.IsWeaponBuff("Minor Wizard Oil") and BI.IsWeaponBuff("Frost Oil"), "weapon oils by name")

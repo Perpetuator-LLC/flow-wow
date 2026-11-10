@@ -1,9 +1,9 @@
--- Buff items on the Flow key: elixirs, scrolls and flasks you carry, and a
--- sharpening stone / weightstone / oil for your weapon. Elixirs and the like
--- only when you're about to kill a lot: at a kill or loot stop (quest mobs,
--- farming meat or cloth), or right after a fight, and only when that buff
--- isn't on you already. A stone or oil whenever your weapon has none on it.
--- Always out of combat and not in inns or cities.
+-- Buff items on the Flow key: elixirs, scrolls and flasks you carry, a
+-- sharpening stone / weightstone / oil for your weapon, and food that makes
+-- you Well Fed. All of them only when you're about to kill a lot: at a kill
+-- or loot stop (quest mobs, farming meat or cloth), or right after a fight,
+-- and only when that buff isn't on you already (a stone or oil: when your
+-- weapon has none). Always out of combat and not in inns or cities.
 -- One press uses it (a Flow Action: Rotation/Actions.lua).
 
 local _, ns = ...
@@ -16,9 +16,22 @@ local lastFight = -999
 ns:On("PLAYER_REGEN_ENABLED", function() lastFight = GetTime() end)
 
 -- Consumable (class 0) kinds that are buffs: 2 elixir, 3 flask, 4 scroll,
--- 6 item enhancement (stones and oils, on your weapon).
+-- 5 food and drink (only the kinds that make you Well Fed), 6 item
+-- enhancement (stones and oils, on your weapon).
 local BUFF_SUB = { [2] = true, [3] = true, [4] = true }
+local FOOD_SUB = 5
 local ENHANCE_SUB = 6
+local WELL_FED = "Well Fed"
+BI.WELL_FED = WELL_FED
+
+-- Food that makes you Well Fed says so on its tooltip ("...you will become
+-- well fed..."); plain food and drink only heal. lines = the tooltip's text.
+function BI.IsBuffFood(lines)
+    for _, l in ipairs(lines or {}) do
+        if type(l) == "string" and l:lower():find("well fed", 1, true) then return true end
+    end
+    return false
+end
 
 -- Stones and oils by name too, in case the client files one as something
 -- other than an item enhancement (item data on Forever can differ from
@@ -49,16 +62,21 @@ end
 
 -- The item to use now, or nil. items = { { id, sub, name, spell } },
 -- active(spell) -> bool, weaponSub (main-hand subclass), enchanted (it has one),
--- weaponOnly (not about to fight: skip elixirs, scrolls and flasks).
-function BI.Pick(items, active, weaponSub, enchanted, weaponOnly)
-    if not weaponOnly then
-        for _, it in ipairs(items) do
-            if BUFF_SUB[it.sub] and it.spell and not active(it.spell) then return it end
-        end
+-- killing (about to kill a lot: nothing otherwise). Quick ones first: the
+-- elixir, then the stone, then food last (you sit for ten seconds).
+function BI.Pick(items, active, weaponSub, enchanted, killing)
+    if not killing then return nil end
+    for _, it in ipairs(items) do
+        if BUFF_SUB[it.sub] and it.spell and not active(it.spell) then return it end
     end
     if not enchanted then
         for _, it in ipairs(items) do
             if it.sub == ENHANCE_SUB and BI.FitsWeapon(it.name, weaponSub) then return it end
+        end
+    end
+    if not active(WELL_FED) then
+        for _, it in ipairs(items) do
+            if it.sub == FOOD_SUB then return it end
         end
     end
 end
@@ -75,6 +93,21 @@ local function itemSpell(id)
     return ok and name or nil
 end
 
+-- Is this food the Well Fed kind? Read from its tooltip once per item (nil
+-- until the game has the tooltip).
+local buffFood = {}
+local function isBuffFood(id)
+    if buffFood[id] ~= nil then return buffFood[id] end
+    local T = C_TooltipInfo
+    if not (T and T.GetItemByID) then return false end
+    local ok, data = pcall(T.GetItemByID, id)
+    if not (ok and data and data.lines and #data.lines > 0) then return nil end
+    local lines = {}
+    for _, l in ipairs(data.lines) do lines[#lines + 1] = l.leftText end
+    buffFood[id] = BI.IsBuffFood(lines)
+    return buffFood[id]
+end
+
 -- Item names never change: look each one up once (nil until the game has it).
 local names = {}
 local function nameOf(id)
@@ -87,7 +120,8 @@ local function nameOf(id)
 end
 
 -- Buff items in your bags (usable now). A stone or oil found by its name counts
--- as an item enhancement, whatever the game files it as.
+-- as an item enhancement, whatever the game files it as. Food only when it
+-- makes you Well Fed.
 local function carried()
     local out, seen = {}, {}
     local C = C_Container
@@ -102,7 +136,8 @@ local function carried()
                 local _, _, _, _, _, classID, subID = instant(id)
                 local name = nameOf(id)
                 local sub = (classID == 0 and (BUFF_SUB[subID] or subID == ENHANCE_SUB)) and subID
-                    or (BI.IsWeaponBuff(name) and ENHANCE_SUB) or nil
+                    or (BI.IsWeaponBuff(name) and ENHANCE_SUB)
+                    or (classID == 0 and subID == FOOD_SUB and isBuffFood(id) and FOOD_SUB) or nil
                 if sub and (not A.IsUsableItem or A.IsUsableItem(id)) then
                     out[#out + 1] = { id = id, sub = sub, name = name, spell = itemSpell(id) }
                 end
@@ -148,13 +183,15 @@ ns:Register("action", "buff:item", { order = 2.5, get = function(ctx)
     if #items == 0 then return nil end
     local enchanted = GetWeaponEnchantInfo and GetWeaponEnchantInfo() and true or false
     local killing = BI.Killing(ctx)
-    local it = BI.Pick(items, function(spell) return (A.Buff("player", spell)) end, mainHand(), enchanted, not killing)
+    local it = BI.Pick(items, function(spell) return (A.Buff("player", spell)) end, mainHand(), enchanted, killing)
     if not it then return nil end
     local icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(it.id)) or (GetItemIcon and GetItemIcon(it.id))
-    local weapon = it.sub == ENHANCE_SUB
+    local weapon, food = it.sub == ENHANCE_SUB, it.sub == FOOD_SUB
     return { type = "item", item = "item:" .. it.id, icon = icon,
              targetSlot = weapon and 16 or nil,
              urgent = weapon and BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player")) or nil,
-             label = (weapon and "Put on your weapon: " or "Use: ") .. (it.name or "buff item"),
-             reason = weapon and "Your weapon has no stone or oil on it" or "You're killing here and that buff isn't on" }
+             label = (weapon and "Put on your weapon: " or food and "Eat: " or "Use: ") .. (it.name or "buff item"),
+             reason = weapon and "You're killing here and your weapon has no stone or oil on it"
+                 or food and "You're killing here and you aren't Well Fed"
+                 or "You're killing here and that buff isn't on" }
 end })
