@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **The route on the world map is a faint dotted trail**, like a treasure map, instead of a solid
+  line with crawling chevrons: it shows the way without covering the map. The stretch from you
+  to your next stop (and that stop's dot) wears the arrow's colour, so with the distance colours
+  it turns from red to green as you close in; the rest of the route is fainter. Your waypoint's
+  trail is dotted too. Nothing moves every frame any more (the dots are redrawn only when you
+  move or the colour changes); /flow perf shows them as "route dots".
+
 ## 0.35.106
 - **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished
   quests first, then opens their new quest and accepts it. A quest started by an item is
