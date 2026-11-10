@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **Your weapon stone goes on with one press.** When your main hand has no sharpening stone,
+  weightstone or oil on it, the Flow key (out of combat, not in inns or cities) puts the one in
+  your bags on it, no more opening bags and clicking the weapon. Before, it was only offered at a
+  kill stop or just after a fight, and only if the game filed it as an item enhancement; stones
+  and weapon oils are now found by name too. Elixirs and scrolls still wait until you're about to
+  fight. Never oil on a fishing pole.
+
 ## 0.35.106
 - **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished
   quests first, then opens their new quest and accepts it. A quest started by an item is

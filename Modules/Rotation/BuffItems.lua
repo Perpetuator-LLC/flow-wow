@@ -1,8 +1,9 @@
 -- Buff items on the Flow key: elixirs, scrolls and flasks you carry, and a
--- sharpening stone / weightstone / oil for your weapon, when you're about to
--- kill a lot: at a kill or loot stop (quest mobs, farming meat or cloth), or
--- right after a fight. Only when that buff isn't on you already (or your
--- weapon has no stone on it), out of combat, and not in inns or cities.
+-- sharpening stone / weightstone / oil for your weapon. Elixirs and the like
+-- only when you're about to kill a lot: at a kill or loot stop (quest mobs,
+-- farming meat or cloth), or right after a fight, and only when that buff
+-- isn't on you already. A stone or oil whenever your weapon has none on it.
+-- Always out of combat and not in inns or cities.
 -- One press uses it (a Flow Action: Rotation/Actions.lua).
 
 local _, ns = ...
@@ -19,12 +20,27 @@ ns:On("PLAYER_REGEN_ENABLED", function() lastFight = GetTime() end)
 local BUFF_SUB = { [2] = true, [3] = true, [4] = true }
 local ENHANCE_SUB = 6
 
+-- Stones and oils by name too, in case the client files one as something
+-- other than an item enhancement (item data on Forever can differ from
+-- classic). Only real weapon oils: "Oily Blackmouth", "Fire Oil" and "Oil of
+-- Immolation" are not.
+local OILS = { "Wizard Oil", "Mana Oil", "^Frost Oil$", "^Shadow Oil$" }
+function BI.IsWeaponBuff(name)
+    if type(name) ~= "string" then return false end
+    if name:find("Sharpening Stone") or name:find("Weightstone") then return true end
+    for _, o in ipairs(OILS) do
+        if name:find(o) then return true end
+    end
+    return false
+end
+
 -- What a weapon enhancement goes on: sharpening stones on edged weapons,
--- weightstones on blunt ones, oils on anything.
+-- weightstones on blunt ones, oils on anything but a fishing pole.
 local EDGED = { [0] = true, [1] = true, [6] = true, [7] = true, [8] = true, [13] = true, [15] = true }
 local BLUNT = { [4] = true, [5] = true, [10] = true }
+local FISHING_POLE = 20
 function BI.FitsWeapon(itemName, weaponSub)
-    if not weaponSub then return false end
+    if not weaponSub or weaponSub == FISHING_POLE then return false end
     itemName = itemName or ""
     if itemName:find("Sharpening Stone") then return EDGED[weaponSub] == true end
     if itemName:find("Weightstone") then return BLUNT[weaponSub] == true end
@@ -32,10 +48,13 @@ function BI.FitsWeapon(itemName, weaponSub)
 end
 
 -- The item to use now, or nil. items = { { id, sub, name, spell } },
--- active(spell) -> bool, weaponSub (main-hand subclass), enchanted (it has one).
-function BI.Pick(items, active, weaponSub, enchanted)
-    for _, it in ipairs(items) do
-        if BUFF_SUB[it.sub] and it.spell and not active(it.spell) then return it end
+-- active(spell) -> bool, weaponSub (main-hand subclass), enchanted (it has one),
+-- weaponOnly (not about to fight: skip elixirs, scrolls and flasks).
+function BI.Pick(items, active, weaponSub, enchanted, weaponOnly)
+    if not weaponOnly then
+        for _, it in ipairs(items) do
+            if BUFF_SUB[it.sub] and it.spell and not active(it.spell) then return it end
+        end
     end
     if not enchanted then
         for _, it in ipairs(items) do
@@ -56,7 +75,19 @@ local function itemSpell(id)
     return ok and name or nil
 end
 
--- Buff items in your bags (usable now).
+-- Item names never change: look each one up once (nil until the game has it).
+local names = {}
+local function nameOf(id)
+    local n = names[id]
+    if n == nil and A.ItemInfo then
+        n = A.ItemInfo(id)
+        if n then names[id] = n end
+    end
+    return n
+end
+
+-- Buff items in your bags (usable now). A stone or oil found by its name counts
+-- as an item enhancement, whatever the game files it as.
 local function carried()
     local out, seen = {}, {}
     local C = C_Container
@@ -69,9 +100,11 @@ local function carried()
             if id and not seen[id] then
                 seen[id] = true
                 local _, _, _, _, _, classID, subID = instant(id)
-                if classID == 0 and (BUFF_SUB[subID] or subID == ENHANCE_SUB)
-                    and (not A.IsUsableItem or A.IsUsableItem(id)) then
-                    out[#out + 1] = { id = id, sub = subID, name = A.ItemInfo and A.ItemInfo(id), spell = itemSpell(id) }
+                local name = nameOf(id)
+                local sub = (classID == 0 and (BUFF_SUB[subID] or subID == ENHANCE_SUB)) and subID
+                    or (BI.IsWeaponBuff(name) and ENHANCE_SUB) or nil
+                if sub and (not A.IsUsableItem or A.IsUsableItem(id)) then
+                    out[#out + 1] = { id = id, sub = sub, name = name, spell = itemSpell(id) }
                 end
             end
         end
@@ -96,15 +129,17 @@ local function mainHand()
 end
 
 ns:Register("action", "buff:item", { order = 3, get = function(ctx)
-    if UnitIsDeadOrGhost("player") or not BI.Killing(ctx) then return nil end
+    if UnitIsDeadOrGhost("player") or (IsResting and IsResting()) then return nil end
     local items = carried()
     if #items == 0 then return nil end
     local enchanted = GetWeaponEnchantInfo and GetWeaponEnchantInfo() and true or false
-    local it = BI.Pick(items, function(spell) return (A.Buff("player", spell)) end, mainHand(), enchanted)
+    local killing = BI.Killing(ctx)
+    local it = BI.Pick(items, function(spell) return (A.Buff("player", spell)) end, mainHand(), enchanted, not killing)
     if not it then return nil end
     local icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(it.id)) or (GetItemIcon and GetItemIcon(it.id))
+    local weapon = it.sub == ENHANCE_SUB
     return { type = "item", item = "item:" .. it.id, icon = icon,
-             targetSlot = it.sub == ENHANCE_SUB and 16 or nil,
-             label = (it.sub == ENHANCE_SUB and "Put on your weapon: " or "Use: ") .. (it.name or "buff item"),
-             reason = "You're killing here and that buff isn't on" }
+             targetSlot = weapon and 16 or nil,
+             label = (weapon and "Put on your weapon: " or "Use: ") .. (it.name or "buff item"),
+             reason = weapon and "Your weapon has no stone or oil on it" or "You're killing here and that buff isn't on" }
 end })

@@ -28,7 +28,8 @@ Flow for WoW is a separate project from Flow Engine.
   mining or herb stop it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
   your weapons back. Upgrades in your bags: it equips them (first, when you target an enemy).
   Crafting: campfire, open the profession, make exactly enough. Things to learn in your bags
-  (recipes, scrolls): it learns them. One press per step.
+  (recipes, scrolls): it learns them. No stone or oil on your weapon: it puts the one in your
+  bags on; elixirs and scrolls when you're about to fight. One press per step.
   `/flow action` shows what it would do.
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
   Remembers what you cast when the game hides your auras.
