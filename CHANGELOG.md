@@ -6,7 +6,9 @@
   your bags on it, no more opening bags and clicking the weapon. Before, it was only offered at a
   kill stop or just after a fight, and only if the game filed it as an item enhancement; stones
   and weapon oils are now found by name too. Elixirs and scrolls still wait until you're about to
-  fight. Never oil on a fishing pole.
+  fight. Never oil on a fishing pole. It shows on Flow's icon ahead of the out-of-combat buff the
+  rotation suggests (a paladin's seal, say), except when an enemy is targeted or you're under half
+  health.
 
 ## 0.35.106
 - **New quests are accepted for you.** Talk to a quest giver and Flow turns in your finished

@@ -128,8 +128,22 @@ local function mainHand()
     return classID == 2 and subID or nil
 end
 
-ns:Register("action", "buff:item", { order = 3, get = function(ctx)
+-- A weapon enhancement goes before the rotation's out-of-combat suggestion
+-- (a paladin's seal, an aura), or it would only show when the rotation has
+-- nothing at all. Not when an enemy is targeted (the opener first) or you're
+-- under half health (the heal first). Order 2.5: before bag:learn (3), which
+-- isn't urgent and, coming first, would keep this step off the icon.
+function BI.WeaponFirst(enemy, health, maxHealth)
+    return not enemy and (health or 0) > 0.5 * (maxHealth or 1)
+end
+
+local function enemyTargeted()
+    return UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target") or false
+end
+
+ns:Register("action", "buff:item", { order = 2.5, get = function(ctx)
     if UnitIsDeadOrGhost("player") or (IsResting and IsResting()) then return nil end
+    if ctx and ctx.fishing then return nil end
     local items = carried()
     if #items == 0 then return nil end
     local enchanted = GetWeaponEnchantInfo and GetWeaponEnchantInfo() and true or false
@@ -140,6 +154,7 @@ ns:Register("action", "buff:item", { order = 3, get = function(ctx)
     local weapon = it.sub == ENHANCE_SUB
     return { type = "item", item = "item:" .. it.id, icon = icon,
              targetSlot = weapon and 16 or nil,
+             urgent = weapon and BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player")) or nil,
              label = (weapon and "Put on your weapon: " or "Use: ") .. (it.name or "buff item"),
              reason = weapon and "Your weapon has no stone or oil on it" or "You're killing here and that buff isn't on" }
 end })
