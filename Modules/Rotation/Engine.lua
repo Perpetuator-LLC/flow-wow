@@ -227,6 +227,34 @@ local EATING = { Food = true, Drink = true, ["Food & Drink"] = true, Refreshment
 local function isEating(n) return EATING[n] end   -- (one function, not a new one ten times a second)
 local function eating() return (A.Buff("player", isEating)) end
 
+-- Well Fed food: the buff comes after 10 seconds of eating. When the key's
+-- last suggestion was such a food and you start eating, the button counts
+-- down to Well Fed. Display only: the key never eats a second one.
+E.WELL_FED_SECS = 10
+local wellFed = { at = nil, lastShown = nil, item = nil, icon = nil }
+-- Each tick: what the key would do now (s: its suggestion, or nil).
+function E.NoteKeyShown(s, now)
+    if s and s.wellFed then wellFed.lastShown, wellFed.item, wellFed.icon = now, s.item, s.icon end
+end
+-- Seconds until Well Fed, or nil. isEating / isFed: what the game says now.
+-- Starts when eating begins within 3 s of the key showing Well Fed food.
+function E.WellFedIn(now, isEating, isFed)
+    if isFed or not isEating then wellFed.at = nil return nil end
+    if not wellFed.at and wellFed.lastShown and now - wellFed.lastShown < 3 then
+        wellFed.at = now + E.WELL_FED_SECS
+    end
+    if not wellFed.at then return nil end
+    return math.max(0, wellFed.at - now)
+end
+E._wellFed = wellFed   -- (tests)
+-- The button's view while it counts down, or nil.
+function E.WellFedView(now)
+    local left = E.WellFedIn(now, eating() and true or false, (A.Buff("player", "Well Fed")) and true or false)
+    if not left then return nil end
+    return { item = wellFed.item, icon = wellFed.icon, kind = "buff", label = "Well Fed in", countdown = left,
+             reason = "Eating Well Fed food: keep eating until the buff lands" }
+end
+
 -- One step of the estimate. inCombat, hit (0..1), eat, low: what the game says now.
 function E.StepHurt(hurt, dt, inCombat, hit, eat, low)
     local H = E.HURT
@@ -572,8 +600,31 @@ function E:Choose()
             i = i + 1
         end
     end
+    -- An enemy targeted but too far for anything: show what you'd open with,
+    -- red (out of range), so the button is up as soon as you pick a target.
+    if ctx.hostile then
+        local far = self:FarOpener(list, ctx)
+        if far then return far end
+    end
     -- Nothing for you to press: buff your party or raid.
     return self:GroupBuff(ctx, def)
+end
+
+-- The first spell on your target that's ready but for range: your opener
+-- once you're close enough. nil when one is in range, or none would do.
+-- (The button tints it red while you're too far: Display.lua tintOf.)
+function E:FarOpener(list, ctx)
+    for _, rule in ipairs(list or {}) do
+        if rule.target and rule.kind ~= "buff" and self:Knows(rule.spell) then
+            local okW, w = true, true
+            if rule.when then okW, w = pcall(rule.when, ctx) end
+            if okW and w and self:Ready(rule.spell) and A.InRange(rule.spell, "target") == false then
+                local s = suggest(rule, ctx, " (out of range)")
+                s.outOfRange, s.label = true, "Out of range"
+                return s
+            end
+        end
+    end
 end
 
 -------------------------------------------------------------------------------

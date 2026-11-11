@@ -1324,6 +1324,47 @@ ns:Register("test", "perf: a timed entry names its costliest parts", function(t)
     P.stats["test: parts"] = nil
 end)
 
+ns:Register("test", "easy button: up as soon as you target an enemy, red while it's out of range", function(t)
+    local E = ns.rotation
+    local list = {
+        { spell = "Mark of the Wild", kind = "buff", target = true },
+        { spell = "Moonfire", target = true, when = function() return true end },
+        { spell = "Wrath", target = true },
+    }
+    with(E, "Knows", function() return true end, function()
+        with(E, "Ready", function() return true end, function()
+            with(ns.api, "InRange", function() return false end, function()
+                local s = E:FarOpener(list, {})
+                t:eq(s and s.spell, "Moonfire", "your opener (not a buff), though too far")
+                t:ok(s and s.outOfRange, "marked out of range (the button tints it red)")
+                t:eq(s and s.label, "Out of range", "and says so")
+            end)
+            with(ns.api, "InRange", function() return true end, function()
+                t:eq(E:FarOpener(list, {}), nil, "in range: the normal rotation decides, not this")
+            end)
+        end)
+    end)
+end)
+
+ns:Register("test", "easy button: counts down to Well Fed while you eat the food it gave you", function(t)
+    local E = ns.rotation
+    local w = E._wellFed
+    local saved = { w.at, w.lastShown, w.item, w.icon }
+    w.at, w.lastShown = nil, nil
+    E.NoteKeyShown({ item = "item:2888", wellFed = true }, 100)
+    t:eq(E.WellFedIn(101, true, false), 10, "started eating: 10 s to Well Fed")
+    t:eq(E.WellFedIn(105, true, false), 6, "counting down")
+    t:eq(E.WellFedIn(111, true, false), 0, "never below 0")
+    t:eq(E.WellFedIn(112, true, true), nil, "Well Fed: done")
+    t:eq(E.WellFedIn(200, true, false), nil, "eating later, food the key didn't give: no timer")
+    w.lastShown = 300
+    t:ok(E.WellFedIn(301, true, false) ~= nil, "started again")
+    t:eq(E.WellFedIn(302, false, false), nil, "stood up: the timer goes")
+    E.NoteKeyShown({ item = "item:117" }, 400)
+    t:eq(w.lastShown, 300, "plain food: nothing noted")
+    w.at, w.lastShown, w.item, w.icon = saved[1], saved[2], saved[3], saved[4]
+end)
+
 ns:Register("test", "drink: drinking is told by the buff's name", function(t)
     local E = ns.rotation
     for _, name in ipairs({ "Drink", "Food & Drink", "Refreshment" }) do

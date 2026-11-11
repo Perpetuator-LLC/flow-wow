@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.156
+- **The easy button comes up as soon as you target an enemy.** Too far for anything, it shows
+  the spell you'd open with, tinted red and saying "Out of range", instead of staying hidden
+  until you're close.
+- **Well Fed countdown.** When the easy button gives you Well Fed food and you start eating, it
+  counts down the 10 seconds to the buff in aqua ("Well Fed in 7"), so you know when you can
+  stand up. It only shows; the key never eats a second one.
+
 ## 0.35.155
 - **The quest log and the Flow Router are separate.** Each opens and closes with its own
   button, and both can be open at once: the Flow Router sits just right of the map, so right of

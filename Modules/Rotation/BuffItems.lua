@@ -213,7 +213,7 @@ ns:Register("action", "buff:item", { order = 2.5, get = function(ctx)
     local icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(it.id)) or (GetItemIcon and GetItemIcon(it.id))
     local weapon, food = it.sub == ENHANCE_SUB, it.sub == FOOD_SUB
     return { type = "item", item = "item:" .. it.id, icon = icon,
-             targetSlot = weapon and 16 or nil,
+             targetSlot = weapon and 16 or nil, wellFed = food or nil,
              urgent = BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player"),
                  ns.rotation and (ns.rotation.hurt or 0) >= ns.rotation.HURT.outStart),
              label = (weapon and "Put on your weapon: " or food and "Eat: " or "Use: ") .. (it.name or "buff item"),
@@ -783,8 +783,10 @@ end
 function BI.FoodStep(buffFood, preferBuff)
     local it = BI.PickFood(healItems(), buffFood, itemReady, preferBuff)
     if not it then return nil end
-    return useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up"
+    local s = useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up"
         .. (it.buff and preferBuff and " (and Well Fed for the fights ahead)" or ""))
+    s.wellFed = it.buff and true or nil   -- (the button counts down to Well Fed: Engine.lua)
+    return s
 end
 
 -- Out of mana after a fight: your best drink (water and the like).

@@ -457,7 +457,11 @@ local function render(s, cfg, glow)
     -- A buff Flow suggests re-casting while it's still on: its last 30
     -- seconds, in aqua (not the mana blue). Only when nothing else counts
     -- down there, the game's own cooldown numbers included.
-    if how == "none" and (icon.timer:GetText() or "") == "" then
+    -- Counting down to Well Fed while you eat (E.WellFedView): aqua seconds.
+    if s.countdown then
+        icon.timer:SetTextColor(BUFF_TIMER[1], BUFF_TIMER[2], BUFF_TIMER[3])
+        icon.timer:SetText(tostring(math.ceil(s.countdown)))
+    elseif how == "none" and (icon.timer:GetText() or "") == "" then
         local bt = ns.BuffTimerText(buffLeft(s))
         if bt ~= "" then
             icon.timer:SetTextColor(BUFF_TIMER[1], BUFF_TIMER[2], BUFF_TIMER[3])
@@ -528,6 +532,13 @@ local function tick()
     local held = inCombat and ns.cast and ns.cast.Held and ns.cast:Held() or nil
     local view, advice = ns.KeyView(s, held, inCombat)
     E.advice = advice
+    -- Eating Well Fed food the key gave you: count down to the buff (shown
+    -- only; the key keeps doing what it does).
+    E.NoteKeyShown(s, GetTime())
+    if not inCombat and (not s or s.wellFed) then
+        local okF, fed = pcall(E.WellFedView, GetTime())
+        if okF and fed then view = fed end
+    end
     -- Shift held: Shift + key's spell swaps in, "SHIFT+" beside it.
     local shifted
     view, shifted = ns.ShiftView(view, ns.cast and ns.cast.HealSpell and ns.cast:HealSpell(), IsShiftKeyDown(), inCombat)
