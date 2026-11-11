@@ -1174,8 +1174,7 @@ local function buildList()
     pc.label:SetPoint("LEFT", pc, "RIGHT", 2, 0)
     pc.label:SetText("Include professions")
     pc:SetScript("OnClick", function(self)
-        ns.db.nav.professions = self:GetChecked() and true or false
-        ns.nav:Collect()
+        ns.nav:SetKind("professions", self:GetChecked() and true or false)
         M:Redraw()
     end)
     pc:SetScript("OnEnter", function(self)
@@ -1242,16 +1241,14 @@ local function buildList()
     dd:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Choose the route", 1, 1, 1)
-        GameTooltip:AddLine("Current quests, optimal or completionist; professions on or off; and the order.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Tick what the route includes (current quests, new quests, training, professions...), send the arrow to the nearest repairer or vendor, and pick the order.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     dd:SetScript("OnLeave", function() GameTooltip:Hide() end)
     function dd:Update()
-        local mode, profs = ns.nav:Mode(), ns.db.nav.professions ~= false
-        local what = (mode == "quests" and "Current quests") or (mode == "complete" and "Completionist")
-            or "Optimal"
-        if mode ~= "quests" then what = what .. (profs and ", professions on" or ", professions off") end
-        self.text:SetText("|cffffd200Route:|r " .. what)
+        -- What the route includes (the menu's ticks), in a few words.
+        local N = ns.nav
+        self.text:SetText("|cffffd200Route:|r " .. N.KindsSummary(function(k) return N:Includes(k) end))
     end
     f.routeDrop = dd
 

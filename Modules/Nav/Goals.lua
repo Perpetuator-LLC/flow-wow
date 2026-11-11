@@ -243,9 +243,12 @@ ns:Register("navGoal", "pickups", {
         -- Quest log full: picking up more is pointless.
         if ns.quests.FreeSlots and ns.quests:FreeSlots() == 0 then return nil end
         local level = UnitLevel("player")
-        -- Levelling: only quests still worth the XP (down to 4 levels below you).
-        -- Completionist mode: all of them, grey ones too.
-        local floor = ns.nav:Mode() == "complete" and -math.huge or level - 4
+        -- "New quests" (the route menu): the ones still worth the XP, down to
+        -- 4 levels below you. "Low-level quests": the ones under that too
+        -- (grey ones included). Neither ticked: nothing to pick up.
+        local new, low = ns.nav:Includes("newQuests"), ns.nav:Includes("lowQuests")
+        if not (new or low) then return nil end
+        local floor = low and -math.huge or level - ns.nav.LOW_QUEST_BELOW
         -- And not ones above you that are hard (orange or red, 3+ levels up):
         -- they come back as you level. (A level-5 tauren was offered level-8
         -- quests and found them very hard; a level-1 one was sent 700 yd for one.)
@@ -284,8 +287,8 @@ ns:Register("navGoal", "errands", {
         local _ = ns:ClassData()
         local wanted = {}
         local A = ns.api
-        -- "Include professions" (map panel, /flow nav professions on|off).
-        local includeProfs = ns.db.nav.professions ~= false
+        -- "Professions" (the route menu, /flow nav professions on|off).
+        local includeProfs = ns.nav:Includes("professions")
 
         for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
             local rank, max = A.Skill(p.name)
@@ -472,3 +475,48 @@ ns:Register("navGoal", "native", {
         return goals
     end,
 })
+
+-------------------------------------------------------------------------------
+-- The kinds of stop you can tick in the route menu ("Route includes";
+-- Nav.lua: N.Kinds, N:Includes). A stop takes the first kind that matches,
+-- lowest order first. Add a kind for a new stop source the same way.
+-------------------------------------------------------------------------------
+
+local function pickup(g) return type(g.key) == "string" and g.key:find("^pickup:") ~= nil end
+local function low(g, level) return (g.level or 0) < (level or 0) - ns.nav.LOW_QUEST_BELOW end
+
+-- A quest to pick up far enough under your level is the low kind, else new.
+ns:Register("routeKind", "lowQuests", { order = 30, default = false,
+    label = "Low-level quests (grey ones too; shortest order)", short = "low-level quests",
+    tip = "Quests to pick up that are 4 or more levels under you, grey ones too: for doing every quest in a zone. "
+        .. "While this is ticked the route goes by the shortest path, since XP would always leave them for last.",
+    match = function(g, level) return pickup(g) and low(g, level) end })
+
+ns:Register("routeKind", "quests", { order = 10, default = true,
+    label = "Current quests", short = "current quests",
+    tip = "The quests in your log: their objectives, then their turn-ins.",
+    match = function(g)
+        return g.provider == "questie" or g.provider == "native"   -- (no source: a quest stop made by hand, as tests do)
+            or (g.provider == nil and type(g.key) == "string" and g.key:find("^%d+:") ~= nil)
+    end })
+
+ns:Register("routeKind", "newQuests", { order = 20, default = true,
+    label = "New quests", short = "new quests",
+    tip = "Quests to pick up that are still worth the XP at your level (not 3 or more levels above you).",
+    match = function(g, level) return pickup(g) and not low(g, level) end })
+
+ns:Register("routeKind", "training", { order = 40, default = true,
+    label = "Class trainer, weapon skills, riding", short = "training",
+    tip = "Your class trainer when spells are waiting, a weapon master when a weapon in your bags would be an upgrade, and riding.",
+    match = function(g) return g.key == "train:class" or g.provider == "weaponskill" or g.provider == "mount" end })
+
+ns:Register("routeKind", "professions", { order = 50, default = true,
+    label = "Professions", short = "professions",
+    tip = "Profession trainers, and gathering, fishing and crafting stops when a skill is behind your level. "
+        .. "On the route with everything else, or on their own faint arrow (the line below).",
+    match = function(g) return g.provider == "skillplan" or (g.provider == "errands" and g.key ~= "train:class") end })
+
+ns:Register("routeKind", "town", { order = 60, default = true,
+    label = "Repair, selling, hearthstone (when needed)", short = "town errands",
+    tip = "A repairer when your gear is worn, a vendor when your bags fill, an innkeeper when your hearthstone should move.",
+    match = function(g) return g.provider == "repair" or g.provider == "merchant" or g.provider == "hearth" end })

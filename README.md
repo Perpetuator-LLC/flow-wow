@@ -119,14 +119,19 @@ Flow for WoW is a separate project from Flow Engine.
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
 - **Milestones**: class training and your mount always make the route and fit around the
   quests on the way. Flow tells you to start saving for your mount 5 levels early.
-- **Completionist route**: every quest in the zones you are questing in, any level.
+- **Route includes**: one tick per kind of stop, in the route menu (the Flow Router's "Route:"
+  dropdown, or right-click the arrow): current quests, new quests, low-level quests (every
+  quest in the zones you're questing in, any level), class trainer / weapon skills / riding,
+  professions (on the route, or on their own faint arrow), and repair / selling / hearthstone
+  stops. "Select all" and "Clear all" set them in one click; the ticks stay open while you
+  choose. Right under them: send the arrow to the nearest repairer, vendor, flight master,
+  innkeeper, mailbox or banker.
 - **Along the way**: optional farming (meat for Cooking) is never a detour; loot it as you go.
 - **Blocked stops**: stops you can't do yet stay listed, greyed, with the reason ("needs
   1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
 - **Flow Router** (the square button above the world map's quest log button): the route list,
   just right of the map (and so of the quest log; either or both can be open),
-  with a "Route:" dropdown (current quests, optimal,
-  completionist; professions on or off) and the order. Hover a stop for details, click it for its stop card, use the
+  with a "Route:" dropdown (what the route includes, and the order). Hover a stop for details, click it for its stop card, use the
   `^` handle to route from that stop (it stays marked red), right-click to hide it or "Point
   the arrow here". A button above it shows or hides the route on the map.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch

@@ -335,7 +335,7 @@ end
 function SP:Targets()
     -- Professions switched off (map list, arrow menu): no profession stops at all,
     -- not even for quests that ask for a skill, nor tools to buy.
-    if ns.db.nav.professions == false then return {} end
+    if not ns.nav:Includes("professions") then return {} end
     local out = {}
     for _, q in ipairs(ns.quests.LogEntries and ns.quests.LogEntries() or {}) do
         for _, o in ipairs(q.objectives or {}) do
@@ -345,7 +345,7 @@ function SP:Targets()
             end
         end
     end
-    if ns.db.nav.professions ~= false then
+    if ns.nav:Includes("professions") then
         local level = UnitLevel("player")
         for _, p in ipairs(ns:ProfessionPlan() or {}) do
             local g = ns:Get("profGuide", p.name)

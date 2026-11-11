@@ -204,8 +204,8 @@ ns:Register("test", "xp: weights favour your level, add tooltip lines", function
         { key = "pickup:999001", level = me, weight = 1, details = {} },
         { key = "pickup:999002", level = me + 3, weight = 1, details = {} },
     }
-    -- (Completionist routes always sort by distance: test in the default mode.)
-    with(ns.db.nav, "mode", "optimal", function()
+    -- (With low-level quests ticked the route always sorts by distance: test with the default ticks.)
+    with(ns.db.nav, "kinds", {}, function()   -- (the default ticks: no low-level quests)
         with(ns.db.nav, "sorter", "xp", function() ns.xpValue:Apply(goals) end)
     end)
     t:ok(goals[2].weight > goals[1].weight, "3 levels above weighs more than your level")
@@ -382,7 +382,8 @@ ns:Register("test", "menu: one choice ticked per group", function(t)
         if it.title then group = it.text; ticked[group] = 0 end
         if it.radio and it.checked then ticked[group] = ticked[group] + 1 end
     end
-    t:eq(ticked.Route, 1, "route")
+    -- (What the route includes is ticks, any number of them: "route kinds" test.)
+    t:eq(ticked["Route includes"], 0, "route includes: ticks, not one choice")
     t:eq(ticked.Order, 1, "order")
     if ticked.Party then t:eq(ticked.Party, 1, "party: your route or the party route") end
 end)
@@ -1093,14 +1094,24 @@ ns:Register("test", "recipes: learning one at a trainer clears its stop", functi
     ns.db.crafting["First Aid"] = saved
 end)
 
-ns:Register("test", "route: completionist mode keeps grey quests and ignores XP", function(t)
-    local db = ns.db.nav
-    local mode = db.mode
-    db.mode = "complete"
-    t:ok(not ns.xpValue:On(), "XP doesn't reorder a completionist route")
-    ns.nav:SetMode("complete"); t:eq(db.mode, "complete", "mode kept")
-    ns.nav:SetMode("nonsense"); t:eq(db.mode, "optimal", "unknown mode -> optimal")
-    db.mode = mode
+ns:Register("test", "route: low-level quests ticked keeps grey quests and ignores XP", function(t)
+    -- (The old Completionist route; /flow nav quests|optimal|complete still set the ticks.)
+    local db, N = ns.db.nav, ns.nav
+    local kinds, mode = db.kinds, db.mode
+    with(N, "Collect", function() end, function()
+        db.kinds = { lowQuests = true }
+        t:ok(not ns.xpValue:On(), "XP doesn't reorder a route with low-level quests on it")
+        N:SetMode("complete")
+        t:ok(N:Includes("lowQuests") and N:Includes("newQuests"), "complete: low-level quests too")
+        t:eq(N:Mode(), "complete", "told from the ticks")
+        N:SetMode("nonsense")
+        t:ok(not N:Includes("lowQuests") and N:Includes("training"), "unknown route -> optimal: everything at your level")
+        t:eq(N:Mode(), "optimal", "optimal")
+        N:SetMode("quests")
+        t:ok(N:Includes("quests") and not N:Includes("newQuests") and not N:Includes("professions"), "quests: your log only")
+        t:eq(N:Mode(), "quests", "quests")
+    end)
+    db.kinds, db.mode = kinds, mode
     ns.nav:Collect()
 end)
 
@@ -1789,8 +1800,8 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
             keep = function(g) return g.key:find("^keep:") ~= nil end,
             weigh = function() return 0.5 end })
     end
-    -- Completionist routes always sort by distance: test in the default mode.
-    with(ns.db.nav, "mode", "optimal", function()
+    -- With low-level quests ticked the route always sorts by distance: test with the default ticks.
+    with(ns.db.nav, "kinds", {}, function()   -- (the default ticks: no low-level quests)
         ns.db.nav.sorter, ns.db.nav.baseSorter = "test-only", "test-only"
         local out = X:Apply({ { key = "keep:1", weight = 1 }, { key = "drop:1", weight = 1 } })
         t:eq(#out, 1, "keep picks the stops")
@@ -1799,8 +1810,8 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
         t:eq((X:Objective()), "xp", "unknown objective falls back to Most XP")
     end)
     ns.db.nav.sorter, ns.db.nav.baseSorter = saved.s, saved.b
-    with(ns.db.nav, "mode", "complete", function()
-        t:eq((X:Objective()), "distance", "completionist: shortest order")
+    with(ns.db.nav, "kinds", { lowQuests = true }, function()
+        t:eq((X:Objective()), "distance", "low-level quests ticked (the old Completionist): shortest order")
     end)
 end)
 
@@ -3870,19 +3881,18 @@ end)
 
 ns:Register("test", "profession trainers: stops on your route, never a waypoint", function(t)
     local P = ns.professions
-    local nav = { mode = "optimal",
+    local nav = { professions = true,
         plan = { { goal = { key = "748:2" } }, { goal = { key = "train:Herbalism" } } },
         goals = { { key = "train:Herbalism" }, { key = "train:Skinning" } } }
-    function nav:Mode() return self.mode end
+    function nav:Includes(kind) return kind ~= "professions" or self.professions end
     function nav:Goals() return self.goals end
-    local status, n = P.RouteStatus("Herbalism", nav, {})
+    local status, n = P.RouteStatus("Herbalism", nav)
     t:eq(status, "planned", "Herbalism's trainer is on the route")
     t:eq(n, 2, "as stop 2")
-    t:eq(P.RouteStatus("Skinning", nav, {}), "later", "Skinning: on the list, not planned in yet")
-    t:eq(P.RouteStatus("Alchemy", nav, {}), "unplaced", "no trainer Flow can place: says so")
-    t:eq(P.RouteStatus("Herbalism", nav, { professions = false }), "off", "route without professions: off (Add to my route)")
-    nav.mode = "quests"
-    t:eq(P.RouteStatus("Herbalism", nav, {}), "off", "Quests only: off")
+    t:eq(P.RouteStatus("Skinning", nav), "later", "Skinning: on the list, not planned in yet")
+    t:eq(P.RouteStatus("Alchemy", nav), "unplaced", "no trainer Flow can place: says so")
+    nav.professions = false
+    t:eq(P.RouteStatus("Herbalism", nav), "off", "Professions not ticked: off (Add to my route)")
 end)
 
 ns:Register("test", "druid out of mana: hit it with your weapon", function(t)
@@ -5371,6 +5381,104 @@ ns:Register("test", "needs: the town's errands don't pull a stop ahead of what i
     t:eq(N.HubBusiness(train, 10, { ["6002:done"] = true }, false), nil,
         "training waits while the Bear Form quest's turn-in is still on the route")
     t:eq(N.HubBusiness(train, 10, {}, false), "train", "turned in: training is town business again")
+end)
+
+ns:Register("test", "route: the quest log event refreshes the route only when the log changed", function(t)
+    -- 0.35.157: QUEST_LOG_UPDATE fires for nothing, and each refresh re-plans.
+    local N = ns.nav
+    local function log(count, complete, finished)
+        return { { id = 748, complete = complete, objectives = { { text = "Wolves slain: " .. count .. "/8", finished = finished } } } }
+    end
+    local a = N.LogSignature(log(1))
+    t:eq(a, N.LogSignature(log(1)), "nothing changed: the same")
+    t:ok(a ~= N.LogSignature(log(2)), "a kill: different")
+    t:ok(a ~= N.LogSignature(log(1, true)), "the quest completed: different")
+    t:ok(a ~= N.LogSignature(log(1, false, true)), "an objective finished: different")
+    local two = log(1); two[2] = { id = 749, objectives = {} }
+    t:ok(a ~= N.LogSignature(two), "a quest added: different")
+    t:ok(N.LogChanged("test: one"), "a new log: refresh")
+    t:ok(not N.LogChanged("test: one"), "the same again: no refresh")
+    t:ok(N.LogChanged("test: two"), "changed: refresh")
+    t:ok(N.LogChanged(nil), "couldn't read the log: refresh, to be safe")
+end)
+
+ns:Register("test", "route kinds: one tick per kind of stop", function(t)
+    -- 0.35.157: in place of Quests only / Optimal / Completionist + Professions.
+    local N = ns.nav
+    local keys = {}
+    for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
+    t:eq(table.concat(keys, ","), "quests,newQuests,lowQuests,training,professions,town", "the kinds, in menu order")
+    -- Which kind a stop is (you're level 20 here).
+    t:eq(N.KindOf({ key = "748:2", provider = "questie" }, 20), "quests", "a quest objective: current quests")
+    t:eq(N.KindOf({ key = "748:done" }, 20), "quests", "its turn-in too")
+    t:eq(N.KindOf({ key = "pickup:5", level = 18, provider = "pickups" }, 20), "newQuests", "a quest to pick up at your level")
+    t:eq(N.KindOf({ key = "pickup:6", level = 12, provider = "pickups" }, 20), "lowQuests", "one 8 levels under you: low-level")
+    t:eq(N.KindOf({ key = "train:class", provider = "errands" }, 20), "training", "class trainer")
+    t:eq(N.KindOf({ key = "weapon:Staves", provider = "weaponskill" }, 20), "training", "weapon master")
+    t:eq(N.KindOf({ key = "train:Mining", provider = "errands" }, 20), "professions", "profession trainer")
+    t:eq(N.KindOf({ key = "skill:Fishing", provider = "skillplan" }, 20), "professions", "skill-up stop")
+    t:eq(N.KindOf({ key = "repair", provider = "repair" }, 20), "town", "repair")
+    t:eq(N.KindOf({ key = "run:WC", provider = "dungeon" }, 20), nil, "a dungeon run you prepared: always on")
+    t:eq(N.KindOf({ key = "party:1", provider = "party" }, 20), nil, "party stops: always on")
+    -- Only ticked kinds stay; stops no kind claims always do.
+    local list = {
+        { key = "748:2", provider = "questie" }, { key = "pickup:5", level = 18 }, { key = "pickup:6", level = 12 },
+        { key = "train:Mining", provider = "errands" }, { key = "run:WC", provider = "dungeon" },
+    }
+    local on = { quests = true, lowQuests = true }
+    local out = N.FilterKinds(list, function(k) return on[k] == true end, 20)
+    local got = {}
+    for _, g in ipairs(out) do got[#got + 1] = g.key end
+    t:eq(table.concat(got, ","), "748:2,pickup:6,run:WC", "current + low-level quests ticked; the dungeon run stays")
+    t:eq(list[4].routeKind, "professions", "each stop is tagged with its kind")
+    -- The Router's "Route: ..." line.
+    local function sum(set) return N.KindsSummary(function(k) return set[k] == true end) end
+    t:eq(sum({ quests = true, lowQuests = true, newQuests = true, training = true, professions = true, town = true }), "everything", "all ticked")
+    t:eq(sum({ quests = true }), "current quests", "one ticked: named")
+    t:eq(sum({ quests = true, newQuests = true, training = true, professions = true, town = true }), "all but low-level quests", "one off: named")
+    t:eq(sum({}), "nothing", "none")
+    -- The older routes as ticks (your saved route moves over once).
+    local q = N.ModeKinds("quests", true)
+    t:ok(q.quests and not q.newQuests and not q.professions and not q.town, "Quests only: just your log")
+    local o = N.ModeKinds("optimal", false)
+    t:ok(o.newQuests and o.training and not o.lowQuests and not o.professions, "Optimal without professions")
+    t:ok(N.ModeKinds("complete", true).lowQuests, "Completionist: low-level quests too")
+    t:ok(type(ns.db.nav.kinds) == "table", "your saved route became ticks")
+end)
+
+ns:Register("test", "click: route menu ticks stay open; select all, clear all", function(t)
+    local N, M = ns.nav, ns.menu
+    local kinds, profs, arrow = ns.db.nav.kinds, ns.db.nav.professions, ns.db.nav.profArrow
+    with(N, "Collect", function() end, function()
+        ns.db.nav.kinds = {}
+        local items = M.KindItems()
+        local by = {}
+        for _, it in ipairs(items) do by[it.kind or it.text] = it end
+        t:eq(items[1].text, "Route includes", "its title")
+        t:ok(by.quests and by.newQuests and by.lowQuests and by.training and by.professions and by.town, "a tick for every kind")
+        t:ok(by.quests.checked and not by.lowQuests.checked, "ticked as the route is (low-level quests off by default)")
+        t:ok(by.quests.tip ~= nil, "each says what it is on hover")
+        -- Click the way a click does: the menu stays up and the tick flips.
+        M:Open(items)
+        local okC = pcall(M.Click, by.lowQuests)
+        t:ok(okC, "click: no error")
+        t:ok(N:Includes("lowQuests"), "low-level quests now on the route")
+        t:ok(by.lowQuests.checked, "its tick shows at once")
+        t:ok(_G.FlowMenu and _G.FlowMenu:IsShown(), "the menu stays open for the next tick")
+        pcall(M.Click, by["Clear all"])
+        local any = false
+        for _, k in ipairs(N.Kinds()) do any = any or N:Includes(k.key) end
+        t:ok(not any, "Clear all: nothing ticked")
+        local own = by["      on their own faint arrow"]
+        t:ok(own and own.disabled, "professions off: their own arrow can't be ticked")
+        pcall(M.Click, by["Select all"])
+        local all = true
+        for _, k in ipairs(N.Kinds()) do all = all and N:Includes(k.key) end
+        t:ok(all, "Select all: everything ticked")
+        t:ok(own and not own.disabled, "professions on: their own arrow can be")
+        M:Close()
+    end)
+    ns.db.nav.kinds, ns.db.nav.professions, ns.db.nav.profArrow = kinds, profs, arrow
 end)
 
 ns:Register("test", "route menu: professions are one tick of their own", function(t)

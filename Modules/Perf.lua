@@ -60,9 +60,9 @@ end
 
 -- What a row's parts are, said in the report ("refreshed after" for the
 -- route: each refresh's cause, how often, and what those refreshes cost).
-function P.PartsLabel(name, label)
+function P.PartsLabel(name, label, n)
     local st = P.stats[name]
-    if st then st.partsLabel = label end
+    if st then st.partsLabel, st.partsShown = label, n end
 end
 
 -- "      most in: gear:upgrade 2.10 ms/s (3613x, worst 15.9 ms), ..." for one
@@ -76,7 +76,7 @@ function P.PartsLine(st, secs, n)
     if #list == 0 then return nil end
     table.sort(list, function(a, b) return a.pt.total > b.pt.total end)
     local bits = {}
-    for i = 1, math.min(n or 4, #list) do
+    for i = 1, math.min(n or st.partsShown or 4, #list) do
         local e = list[i]
         bits[#bits + 1] = string.format("%s %.2f ms/s (%dx, worst %.1f ms)", e.part, e.pt.total / secs, e.pt.n or 0, e.pt.max)
     end

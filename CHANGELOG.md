@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.157
+- **Tick what your route includes.** The three routes (Quests only, Optimal, Completionist) and
+  their Professions switch are now one tick each, in the route menu (the Flow Router's "Route:"
+  dropdown, or right-click the arrow): **Current quests**, **New quests**, **Low-level quests**
+  (grey ones too: the old Completionist), **Class trainer, weapon skills, riding**,
+  **Professions** and **Repair, selling, hearthstone**. Tick any mix; **Select all** and **Clear
+  all** do it in one click, and the menu stays open while you choose. Hover a tick to see what
+  it covers. Your saved route moves over to the same ticks by itself.
+- **Professions: on the route or on their own arrow**, right under the Professions tick ("on
+  their own faint arrow"). It no longer needs the Optimal route.
+- **Go to the nearest** repairer, vendor, flight master, innkeeper, mailbox or banker sits
+  right under those ticks, one click each.
+- **Fewer route refreshes.** The game's "quest log updated" event fires even when nothing in
+  your log changed, and each one refreshed and re-planned the whole route (25 times in six
+  minutes of play). Flow now refreshes only when a quest, a count or a completion really
+  changed.
+- `/flow nav include all|none|<kind> on|off` sets the ticks; `/flow nav quests|optimal|complete`
+  still work.
+
 ## 0.35.156
 - **The easy button comes up as soon as you target an enemy.** Too far for anything, it shows
   the spell you'd open with, tinted red and saying "Out of range", instead of staying hidden

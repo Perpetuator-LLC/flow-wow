@@ -90,19 +90,8 @@ function Menu.HiddenWindowItems()
     return out
 end
 
-function Menu:Open(items)
-    -- Hidden Flow windows: "Show ..." at the end of every menu.
-    local hidden = Menu.HiddenWindowItems()
-    if #hidden > 0 then
-        local all = {}
-        for _, it in ipairs(items) do all[#all + 1] = it end
-        all[#all + 1] = { sep = true }
-        for _, it in ipairs(hidden) do all[#all + 1] = it end
-        items = all
-    end
-    self.items = items   -- the menu on screen (tests read its entries)
-    GameTooltip:Hide()
-    if not frame then build() end
+-- Draws `items` into the menu's rows (no positioning: Open does that once).
+local function layout(items)
     local y = -PAD
     local n = 0
     for i, it in ipairs(items) do
@@ -130,19 +119,56 @@ function Menu:Open(items)
             if it.checked then mark = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14|t" end
             r.mark:SetText(mark)
         end
-        r:SetScript("OnClick", function()
-            if it.sep or it.title or it.disabled then return end
-            Menu:Close()
-            if it.func then
-                local ok, err = pcall(it.func)
-                if not ok then ns:Print("menu: " .. tostring(err)) end
-            end
+        r:SetScript("OnClick", function() Menu.Click(it) end)
+        -- `tip`: a line or two about the entry, beside the menu.
+        r:SetScript("OnEnter", function(self)
+            if not it.tip then return end
+            ns.Tip(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(it.tip, 1, 1, 1, true)
+            GameTooltip:Show()
         end)
+        r:SetScript("OnLeave", function() GameTooltip:Hide() end)
         r:Show()
         y = y - h
     end
     for i = n + 1, #rows do rows[i]:Hide() end
     frame:SetHeight(-y + PAD)
+end
+
+-- A click on an entry. `stay` entries (ticks you set several of, like what
+-- the route includes) keep the menu open: every entry with a `refresh`
+-- function brings its own tick, text and disabled up to date, and the menu
+-- is drawn again where it is.
+function Menu.Click(it)
+    if it.sep or it.title or it.disabled then return end
+    if not it.stay then Menu:Close() end
+    if it.func then
+        local ok, err = pcall(it.func)
+        if not ok then ns:Print("menu: " .. tostring(err)) end
+    end
+    if it.stay and frame and frame:IsShown() then Menu:Redraw() end
+end
+function Menu:Redraw()
+    for _, it in ipairs(self.items or {}) do
+        if it.refresh then pcall(it.refresh, it) end
+    end
+    if frame and self.items then layout(self.items) end
+end
+
+function Menu:Open(items)
+    -- Hidden Flow windows: "Show ..." at the end of every menu.
+    local hidden = Menu.HiddenWindowItems()
+    if #hidden > 0 then
+        local all = {}
+        for _, it in ipairs(items) do all[#all + 1] = it end
+        all[#all + 1] = { sep = true }
+        for _, it in ipairs(hidden) do all[#all + 1] = it end
+        items = all
+    end
+    self.items = items   -- the menu on screen (tests read its entries)
+    GameTooltip:Hide()
+    if not frame then build() end
+    layout(items)
     local scale = UIParent:GetEffectiveScale()
     local x, cy = GetCursorPosition()
     frame:ClearAllPoints()
@@ -152,29 +178,57 @@ function Menu:Open(items)
     frame:Show()
 end
 
+-- "Route includes": one tick per kind of stop (Nav.lua N.Kinds; Goals.lua
+-- registers Flow's), all or none in one click, and under Professions whether
+-- they ride on the route or on their own faint arrow. The ticks stay open so
+-- you can set several.
+function Menu.KindItems()
+    local nav = ns.nav
+    local items = { { title = true, text = "Route includes" } }
+    for _, k in ipairs(nav.Kinds()) do
+        local key, def = k.key, k.def
+        items[#items + 1] = { text = def.label, tip = def.tip, kind = key, stay = true,
+            checked = nav:Includes(key),
+            refresh = function(it) it.checked = nav:Includes(key) end,
+            func = function() nav:SetKind(key, not nav:Includes(key)) end }
+        if key == "professions" then
+            local function sub(it)
+                it.checked = ns.db.nav.profArrow == true
+                it.disabled = not nav:Includes("professions")
+            end
+            local own = { text = "      on their own faint arrow", stay = true, func = function() nav:SetProfArrow(ns.db.nav.profArrow ~= true) end,
+                tip = "Ticked: profession stops get a route of their own and a faint arrow behind the main one, which then only takes you to the rest. "
+                    .. "Not ticked: they're stops on the one route, where the Flow key does their steps.",
+                refresh = sub }
+            sub(own)
+            items[#items + 1] = own
+        end
+    end
+    items[#items + 1] = { text = "Select all", stay = true, func = function() nav:SetAllKinds(true) end }
+    items[#items + 1] = { text = "Clear all", stay = true, func = function() nav:SetAllKinds(false) end }
+    return items
+end
+
 -- Route entries shared by every Flow menu (arrow, tracker rows).
 function Menu:RouteItemsRaw()
     local nav = ns.nav
-    local mode, profs = nav:Mode(), ns.db.nav.professions ~= false
     local sort = ns.xpValue:Mode()
     local nHidden = 0
     for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
-    local function setRoute(m, p)
-        return function()
-            ns.db.nav.professions = p
-            nav:SetMode(m)
-            nav:Collect()
-        end
-    end
-    local items = {
-        { title = true, text = "Route" },
-        { text = "Quests only", radio = true, checked = mode == "quests", func = setRoute("quests", profs) },
-        { text = "Optimal", radio = true, checked = mode == "optimal", func = setRoute("optimal", profs) },
-        { text = "Completionist: every quest here, any level", radio = true, checked = mode == "complete", func = setRoute("complete", profs) },
-        -- Professions: their own switch, whichever route you picked (Quests
-        -- only never has them).
-        { text = mode == "quests" and ("|cff" .. ns.theme.muted.hex .. "Professions (not with Quests only)|r") or "Professions",
-          checked = profs and mode ~= "quests", disabled = mode == "quests", func = setRoute(mode, not profs) },
+    local items = Menu.KindItems()
+    -- Next to what the route includes: one click sends the arrow to the
+    -- nearest of these first (your waypoint; the route carries on after).
+    for _, it in ipairs({
+        { sep = true },
+        { title = true, text = "Go to the nearest (your waypoint)" },
+        { text = "Repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
+        { text = "Vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
+        { text = "Flight master", func = function() if ns.services then ns.services:GoTo("flight") end end },
+        { text = "Innkeeper", func = function() if ns.services then ns.services:GoTo("inn") end end },
+        { text = "Mailbox", func = function() if ns.services then ns.services:GoTo("mail") end end },
+        { text = "Banker", func = function() if ns.services then ns.services:GoTo("bank") end end },
+    }) do items[#items + 1] = it end
+    for _, it in ipairs({
         { sep = true },
         { title = true, text = "Order" },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
@@ -189,7 +243,7 @@ function Menu:RouteItemsRaw()
           func = function() ns.db.nav.areaFirst = (ns.db.nav.areaFirst ~= true); nav.planDirty = true end },
         { sep = true },
         { title = true, text = "Stops on the map" },
-    }
+    }) do items[#items + 1] = it end
     -- Which stops the map and the Flow Tracker show (the Flow Router always
     -- lists them all): everything in this area, or your next N.
     local shown, area = nav:StopsShown(), nav:AreaMode()
@@ -206,11 +260,6 @@ function Menu:RouteItemsRaw()
         { sep = true },
         { title = true, text = "Your waypoint" },
         { text = "Set a waypoint (coordinates, or a party member's name)...", func = function() ns.waypoint:Prompt() end },
-        { text = "Nearest repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
-        { text = "Nearest vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
-        { text = "Nearest flight master", func = function() if ns.services then ns.services:GoTo("flight") end end },
-        { text = "Nearest innkeeper", func = function() if ns.services then ns.services:GoTo("inn") end end },
-        { text = "Nearest mailbox", func = function() if ns.services then ns.services:GoTo("mail") end end },
     }) do items[#items + 1] = it end
     -- In a group: follow a party member (the arrow keeps pointing at them),
     -- or drop your waypoint where they are.

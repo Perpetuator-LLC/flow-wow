@@ -392,6 +392,11 @@ function N:Collect(gathered)
         list = {}
         for key, provider in ns:Each("navGoal") do gatherFrom(key, provider, list) end
     end
+    -- Only the kinds of stop you ticked (the route menu's "Route includes":
+    -- current quests, new quests, training, professions...). Stops no kind
+    -- claims stay: a dungeon run you prepared, party stops. First of all, so
+    -- a stop never waits on (or is listed as blocked by) a kind you left out.
+    list = N.FilterKinds(list, function(kind) return N:Includes(kind) end, UnitLevel("player"))
     -- What stops need first (Needs.lua): after the stop that provides it, or
     -- blocked with the reason when nothing on the route does.
     if N.ResolveNeeds then
@@ -433,19 +438,6 @@ function N:Collect(gathered)
     N.blockedGoals = blockedGoals
     N.deferredGoals = blockedGoals  -- older name
     list = kept
-    -- Route mode: "quests" = only quests already in your log (their objectives
-    -- and turn-ins), plus the party route; "optimal" (default)
-    -- = everything worth doing: pickups, trainers, fishing/gathering too.
-    -- A dungeon run you prepared stays too (you asked for it: Dungeons.lua).
-    if N:Mode() == "quests" then
-        local questsOnly = {}
-        for _, g in ipairs(list) do
-            if g.key:find("^%d+:") or g.key:find("^party:") or g.key:find("^help:") or g.provider == "dungeon" then
-                questsOnly[#questsOnly + 1] = g
-            end
-        end
-        list = questsOnly
-    end
     -- "Just <name>'s" quests (PartyHelp.lua): only theirs, and yours where
     -- they need the same thing.
     if ns.partyHelp then list = ns.partyHelp:FilterGoals(list) end
@@ -500,12 +492,12 @@ function N.IsProfessionStop(g)
 end
 
 -- The faint profession arrow: off unless you tick it (arrow menu, Options,
--- /flow nav profarrow on), and only on the Optimal route with Professions on. (On by
+-- /flow nav profarrow on, or under Professions in the route menu), and only with Professions on the route. (On by
 -- default it moved profession stops off the main route, where the Flow key
 -- does their steps: at a forge stop the key no longer made the bars.)
 function N:ProfPointerOn()
     local cfg = ns.db.nav
-    return cfg.profArrow == true and self:Mode() == "optimal" and cfg.professions ~= false
+    return cfg.profArrow == true and self:Includes("professions")
 end
 
 -- Craft stops whose deps (bank, smelting, an earlier craft) are stops that
@@ -572,13 +564,104 @@ function N:Unhide(key)
     self:Collect()
 end
 
-function N:Mode() return (ns.db.nav and ns.db.nav.mode) or "optimal" end
+-------------------------------------------------------------------------------
+-- What the route is made of: one tick per kind of stop (0.35.157), in place
+-- of the three routes (Quests only / Optimal / Completionist) and their
+-- Professions switch. Each kind is a registration (Goals.lua has Flow's):
+--   ns:Register("routeKind", key, { order, label, short, tip, default,
+--       match = function(goal, yourLevel) return true or false end })
+-- A stop takes the first kind that matches it (lowest order first). A stop
+-- no kind claims is always on the route: a dungeon run you prepared and
+-- party stops are there because you asked for them.
+-- Your choice: ns.db.nav.kinds[key] (nothing saved: the kind's default).
+-------------------------------------------------------------------------------
+N.LOW_QUEST_BELOW = 4   -- a quest this many levels under you is "low-level" (grey soon)
 
--- Route modes: "quests" (only your log), "optimal" (everything worth the XP),
--- "complete" (completionist: every quest you can still do in the zones
--- you're questing in, whatever its level, in the shortest order).
+local kindList
+function N.Kinds()
+    if not kindList then
+        kindList = {}
+        for key, def in ns:Each("routeKind") do kindList[#kindList + 1] = { key = key, def = def } end
+        table.sort(kindList, function(a, b) return (a.def.order or 50) < (b.def.order or 50) end)
+    end
+    return kindList
+end
+function N.KindOf(goal, level)
+    for _, k in ipairs(N.Kinds()) do
+        local ok, yes = pcall(k.def.match, goal, level)
+        if ok and yes then return k.key end
+    end
+end
+function N:Includes(kind)
+    local saved = ns.db.nav.kinds and ns.db.nav.kinds[kind]
+    if saved ~= nil then return saved end
+    local def = ns:Get("routeKind", kind)
+    return not def or def.default ~= false
+end
+function N:SetKind(kind, on)
+    ns.db.nav.kinds = ns.db.nav.kinds or {}
+    ns.db.nav.kinds[kind] = on and true or false
+    if kind == "professions" then ns.db.nav.professions = on and true or false end   -- (its older saved name)
+    self:Collect()
+end
+function N:SetAllKinds(on)
+    local kinds = {}
+    for _, k in ipairs(N.Kinds()) do kinds[k.key] = on and true or false end
+    ns.db.nav.kinds = kinds
+    ns.db.nav.professions = on and true or false   -- (its older saved name)
+    self:Collect()
+end
+-- The stops whose kind is ticked (includes(kind) -> bool); each stop is
+-- tagged with its kind (goal.routeKind) for the map and menus.
+function N.FilterKinds(list, includes, level)
+    local out = {}
+    for _, g in ipairs(list) do
+        local kind = N.KindOf(g, level)
+        g.routeKind = kind
+        if not kind or includes(kind) then out[#out + 1] = g end
+    end
+    return out
+end
+-- "everything", "current quests, new quests", "all but professions", "3 of 6 kinds".
+function N.KindsSummary(includes)
+    local on, off = {}, {}
+    for _, k in ipairs(N.Kinds()) do
+        local t = includes(k.key) and on or off
+        t[#t + 1] = k.def.short or k.def.label
+    end
+    if #on == 0 then return "nothing" end
+    if #off == 0 then return "everything" end
+    if #on <= 2 then return table.concat(on, ", ") end
+    if #off <= 2 then return "all but " .. table.concat(off, ", ") end
+    return string.format("%d of %d kinds", #on, #on + #off)
+end
+
+-- The three older routes, still understood (/flow nav quests|optimal|complete
+-- and code that asks which one you're on): told from the ticks.
+function N:Mode()
+    if self:Includes("lowQuests") then return "complete" end
+    for _, k in ipairs(N.Kinds()) do
+        if k.key ~= "quests" and k.key ~= "lowQuests" and self:Includes(k.key) then return "optimal" end
+    end
+    return "quests"
+end
+-- The ticks an older route stood for: "quests" (your log only), "complete"
+-- (everything, low-level quests too), else "optimal" (everything at your
+-- level). Professions stay as you had them.
+function N.ModeKinds(mode, professions)
+    return {
+        quests = true,
+        newQuests = mode ~= "quests",
+        lowQuests = mode == "complete",
+        training = mode ~= "quests",
+        professions = mode ~= "quests" and professions ~= false,
+        town = mode ~= "quests",
+    }
+end
 function N:SetMode(mode)
-    ns.db.nav.mode = (mode == "quests" or mode == "complete") and mode or "optimal"
+    mode = (mode == "quests" or mode == "complete") and mode or "optimal"
+    ns.db.nav.kinds = N.ModeKinds(mode, ns.db.nav.professions)
+    ns.db.nav.mode = mode   -- (its older saved name, kept in step)
     self:Collect()
 end
 
@@ -2972,7 +3055,7 @@ local function buildArrow()
             local cfg = ns.db.nav
             -- (Off unless ticked: on, profession stops leave the main route,
             -- and the Flow key works from that route.)
-            items[#items + 1] = { text = "Faint profession arrow (Optimal, with Professions on)", checked = cfg.profArrow == true,
+            items[#items + 1] = { text = "Professions on their own faint arrow", checked = cfg.profArrow == true,
                 func = function() N:SetProfArrow(cfg.profArrow ~= true) end }
             if cfg.profArrow == true then
                 items[#items + 1] = { text = "Profession arrow text", checked = cfg.profArrowText ~= false,
@@ -3456,6 +3539,10 @@ ns:OnLoad(function(saved)
     -- the older name of "custom").
     N.loadedAt = GetTime()
     if saved.nav.sorter == "selected" then saved.nav.sorter = "custom" end
+    -- 0.35.157: the three routes became one tick per kind of stop. Once: your
+    -- saved route (Quests only / Optimal / Completionist, professions on or
+    -- off) becomes the same ticks.
+    if saved.nav.kinds == nil then saved.nav.kinds = N.ModeKinds(saved.nav.mode or "optimal", saved.nav.professions) end
     -- The modern arrow came after "3D" was the default (and the old switch
     -- could only say 3D or flat): a saved "3D" moves to the modern one, once.
     if not saved.nav.arrowModern then
@@ -3486,11 +3573,38 @@ ns:OnLoad(function(saved)
     end)
 end)
 
-for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED",
+for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_ACCEPTED",
                       "QUEST_TURNED_IN", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP",
                       "SKILL_LINES_CHANGED", "TRAINER_CLOSED", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE" }) do
     ns:On(ev, function() scheduleCollect(ev) end)
 end
+
+-- The game fires QUEST_LOG_UPDATE for many things that change nothing: 25 of
+-- 71 route refreshes in six minutes were this event, each about 22 ms with
+-- the re-plan it sets off (/flow perf, 0.35.152). So the route refreshes
+-- only when your log really differs: a quest added or gone, an objective's
+-- count, a quest completed.
+function N.LogSignature(entries)
+    local parts = {}
+    for _, q in ipairs(entries or {}) do
+        parts[#parts + 1] = tostring(q.id) .. (q.complete and "!" or "")
+        for _, o in ipairs(q.objectives or {}) do
+            parts[#parts + 1] = tostring(o.text) .. (o.finished and "+" or "")
+        end
+    end
+    return table.concat(parts, "|")
+end
+-- true when `sig` differs from the last one seen (nil: couldn't read the log: refresh).
+local lastLog
+function N.LogChanged(sig)
+    if sig ~= nil and sig == lastLog then return false end
+    lastLog = sig
+    return true
+end
+ns:On("QUEST_LOG_UPDATE", function()
+    local ok, sig = pcall(function() return N.LogSignature(ns.quests.LogEntries()) end)
+    if N.LogChanged(ok and sig or nil) then scheduleCollect("QUEST_LOG_UPDATE") end
+end)
 
 ns.commands.nav = function(arg)
     arg = (arg or ""):lower()
@@ -3502,12 +3616,24 @@ ns.commands.nav = function(arg)
         local v = arg:match("^profarrow%s+(%a+)")
         if v == "on" or v == "off" then N:SetProfArrow(v == "on") end
         ns:Print("faint profession arrow: " .. (cfg.profArrow == true and "on" or "off")
-            .. (N:ProfPointerOn() and "" or " (shows on the Optimal route with Professions on)"))
+            .. (N:ProfPointerOn() and "" or " (shows with Professions ticked in the route menu)"))
     elseif arg:find("^professions") then
         local v = arg:match("^professions%s+(%a+)")
-        cfg.professions = (v ~= "off")
-        N:Collect()
-        ns:Print("professions on the route: " .. (cfg.professions and "on" or "off"))
+        N:SetKind("professions", v ~= "off")
+        ns:Print("professions on the route: " .. (N:Includes("professions") and "on" or "off"))
+    elseif arg:find("^include") then
+        -- /flow nav include all|none, or <kind> on|off (the route menu's ticks).
+        local what, v = arg:match("^include%s+(%S+)%s*(%a*)")
+        if what == "all" or what == "none" then
+            N:SetAllKinds(what == "all")
+        elseif what then
+            for _, k in ipairs(N.Kinds()) do
+                if k.key:lower() == what then N:SetKind(k.key, v ~= "off") end
+            end
+        end
+        local names = {}
+        for _, k in ipairs(N.Kinds()) do names[#names + 1] = k.key .. (N:Includes(k.key) and " on" or " off") end
+        ns:Print("route includes: " .. table.concat(names, ", ") .. ". /flow nav include all|none|<kind> on|off")
     elseif arg:find("^sort") then
         -- Any registered route objective (XpValue.lua): /flow nav sort <key>.
         local key = arg:match("^sort%s+(%S+)")
@@ -3558,8 +3684,8 @@ ns.commands.nav = function(arg)
             or "the route's colour (your waypoint green)") .. ". /flow nav arrowcolor distance|route")
     elseif arg == "why" then
         -- What the route is made of, and what Flow wanted but couldn't place.
-        ns:Print(string.format("route: mode %s, professions %s, Questie %s",
-            N:Mode(), cfg.professions ~= false and "on" or "off",
+        ns:Print(string.format("route: includes %s; Questie %s",
+            N.KindsSummary(function(k) return N:Includes(k) end),
             ns.quests:Source() and ns.quests:Source().label or "not found"))
         local byProvider = {}
         for _, g in ipairs(goals) do
@@ -3650,7 +3776,7 @@ end
 
 -- Timed for /flow perf.
 N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)
-ns.perf.PartsLabel("route: gather stops", "refreshed after")   -- (each cause: collectSpread)
+ns.perf.PartsLabel("route: gather stops", "refreshed after", 8)   -- (each cause: collectSpread)
 
 -- A Flow window you can switch off (/flow nav off): the menus offer it back (Menu.lua).
 ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
@@ -3662,7 +3788,7 @@ ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         label = "Faint profession arrow",
-        note = "(Optimal, with Professions on)",
+        note = "(with Professions on the route)",
         tip = "Profession stops (training, skill-ups) get their own route and a faint dark grey arrow behind "
             .. "the main one, with their name above it. The main arrow then only takes you to quests. "
             .. "Off (default): profession stops stay on the main arrow's route, where the Flow key does their steps.",

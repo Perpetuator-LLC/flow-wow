@@ -37,6 +37,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact" or "sit" or "wait", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`, `BuffItems.lua`). `urgent` shows ahead of the rotation's own suggestion |
 | `status` | any | `{ order, get = fn() -> { icon, text, color, tip } or nil }` | Status icons in a row above the Flow key, between fights (`Modules/Rotation/Display.lua`): things to sort out, instead of chat lines. Turned off from the key's right-click menu |
 | `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs, deps, needs, provides}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason. `deps` (keys) must come first. `needs` / `provides` (tokens like `"spell:Bear Form"`, see `need`) are turned into `deps`, `after` or `blockedBy` before each plan (`Modules/Nav/Needs.lua`) |
+| `routeKind` | any | `{ order, label, short, tip, default, match = fn(goal, yourLevel) -> bool }` | A kind of stop you can tick in the route menu's "Route includes" (`Modules/Nav/Goals.lua` registers `quests`, `newQuests`, `lowQuests`, `training`, `professions`, `town`). A stop takes the first kind that matches (lowest `order`); one no kind claims is always on the route. `N:Includes(key)`, `N:SetKind(key, on)`, `N.KindOf(goal)` in `Modules/Nav/Nav.lua`; a new `navGoal` source registers its own kind to get a tick |
 | `need` | a token kind: `spell`, `level`, `quest`, `item` | `{ met = fn(arg) -> bool, label = fn(arg) -> text }` | Whether you meet a need like `"spell:Bear Form"` or `"level:20"`, and how to name it (`Modules/Nav/Needs.lua`). A stop's unmet need goes after a stop that `provides` it, or blocks it (hard) / only orders it (`{ token, soft = true }`) when nothing does |
 | `needProvider` | any | `{ provides = fn(goal) -> { tokens } }` | What a stop provides without saying so itself: `classQuest` says a class quest's turn-in teaches its spell (classSpells `quest = { ids }`, `questName`: Bear Form from "Body and Heart") |
 | `questNeed` | quest ID | `{ where = "deep in Palemane Rock", note, tool = "Fishing", item = id }` | What's worth knowing before walking to a quest's giver, which Questie doesn't say (`Modules/Quests/QuestNeeds.lua`): `where` and `note` go on its pickup stop; `tool`/`item` (what the giver wants you to carry first) keep the pickup waiting, with that reason, until you have it. Escort quests get their own note from Questie's data, no entry needed |
@@ -80,7 +81,7 @@ set when the route is collected: by the stop itself (`navGoal`) and by the route
 depends on where you stand, so it is applied on every plan, not at collect: stops beyond 300 yd
 get up to 3x heavier, item drops not within 150 yd 1.5x more, milestones are left alone. The
 goals get their own weights back after each plan. `/flow nearfirst on|off`. Not on the
-"Shortest" objective (or the completionist route, which plans by distance): that stays the
+"Shortest" objective (or with low-level quests ticked, which plans by distance): that stays the
 shortest path.
 
 ### Route refresh

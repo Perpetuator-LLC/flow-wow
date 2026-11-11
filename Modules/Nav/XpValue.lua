@@ -104,8 +104,8 @@ function X:Base()
 end
 -- The objective in effect now (key, definition).
 function X:Objective()
-    -- Completionist route: every quest counts the same, so XP doesn't reorder it.
-    if ns.nav and ns.nav.Mode and ns.nav:Mode() == "complete" then return "distance", ns:Get("routeObjective", "distance") end
+    -- With low-level quests on the route (the old Completionist): every quest counts the same, so XP doesn't reorder it.
+    if ns.nav and ns.nav.Includes and ns.nav:Includes("lowQuests") then return "distance", ns:Get("routeObjective", "distance") end
     local m = self:Mode()
     if not known(m) then m = self:Base() end   -- custom: planned with your last objective
     return m, ns:Get("routeObjective", m)

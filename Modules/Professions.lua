@@ -177,8 +177,8 @@ ns:Register("setupItem", "professions", {
 --
 -- The trainers are never a waypoint: they're stops the route plans in with
 -- everything else (Goals.lua "errands"), however many there are. "Add to my
--- route" shows only when your route leaves trainers out ("Quests only", or
--- the Professions tick off), and turns professions on.
+-- route" shows only when your route leaves professions out (the Professions
+-- tick in the route menu is off), and turns it on.
 --
 -- Opens for 8 s (it waits while your mouse is on it) when there's something
 -- to do: a while after you log in, when you level up, when what's needed
@@ -248,12 +248,12 @@ end
 
 -- Where a profession's trainer stands on your route:
 --   "planned", n   stop n of the route
---   "off"          your route leaves trainers out (Quests only, or without professions)
+--   "off"          your route leaves professions out (not ticked in the route menu)
 --   "later"        on the route's list, not planned in yet (blocked or optional)
 --   "unplaced"     Flow doesn't know where a trainer stands yet
--- nav: ns.nav (Mode, plan, Goals); cfg: ns.db.nav.
-function P.RouteStatus(name, nav, cfg)
-    if cfg.professions == false or nav:Mode() == "quests" then return "off" end
+-- nav: ns.nav (Includes, plan, Goals).
+function P.RouteStatus(name, nav)
+    if not nav:Includes("professions") then return "off" end
     local key = "train:" .. name
     for i, s in ipairs(nav.plan or {}) do
         if s.goal and s.goal.key == key then return "planned", i end
@@ -319,8 +319,7 @@ local function buildCard()
 
     -- Your route with trainers in it: professions on.
     f.add:SetScript("OnClick", function()
-        ns.db.nav.professions = true
-        if ns.nav:Mode() == "quests" then ns.nav:SetMode("optimal") else ns.nav:Collect() end
+        ns.nav:SetKind("professions", true)
         ns:Print("route: professions on. Your trainers are stops on it now.")
         -- (Show where they landed once the route is planned again.)
         C_Timer.After(1.5, function() if f:IsShown() then P:ShowReminder() end end)
@@ -360,7 +359,7 @@ function P:ShowReminder(steps)
     local lines, anyOff = {}, false
     for i, s in ipairs(steps) do
         if i > 4 then break end
-        local status, n = P.RouteStatus(s.name, ns.nav, ns.db.nav)
+        local status, n = P.RouteStatus(s.name, ns.nav)
         if status == "off" then anyOff = true end
         local t = status ~= "unplaced" and P.NearestTrainer(s.name) or nil
         local where = t and string.format("%s, %s, %d yd", t.name, mapName(t.map), t.yards) or nil
