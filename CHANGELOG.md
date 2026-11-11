@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.149
+- **Profession window: upgrades show their materials.** Flow now reads each recipe's materials on
+  this client (it saved none before, so every upgrade said "open this window again"). Hover an
+  upgrade for what it takes and what you have; click it to show that recipe in the profession
+  window. Make works in the new-style window too, and hover text sits beside the panel instead
+  of over its Make button. (Thanks, BIMpossible: pull request 17.)
+
 ## 0.35.148
 - **Quests an NPC doesn't give.** Questie lists some of Forever's own quests with nothing to
   do first (a second "Arugal's Folly", "Return to Quinn (Again)", "Wild Eyes"), so Flow sent you
