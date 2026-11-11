@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.148
+- **Quests an NPC doesn't give.** Questie lists some of Forever's own quests with nothing to
+  do first (a second "Arugal's Folly", "Return to Quinn (Again)", "Wild Eyes"), so Flow sent you
+  to accept them early. Now one talk with the giver is enough: if a quest you could take isn't
+  among what they show, its stop goes for ten minutes, and for a day when it's missing again.
+  It also counts when the NPC only takes a hand-in or opens one quest without a list. Quests you
+  can't take yet (the next part of a chain, a higher level) are never judged. (Thanks,
+  BIMpossible: pull request 16.)
+
 ## 0.35.147
 - **Bandages, food and the campfire on the buff button** (when it's on: `/flow buffbutton on`).
   Hurt after a fight, the blue buff button offers your bandage or food; by a campfire, once the
