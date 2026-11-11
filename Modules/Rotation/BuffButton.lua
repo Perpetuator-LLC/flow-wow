@@ -281,15 +281,20 @@ local function pickItem(ctx)
     return itemCache
 end
 
--- Fishing (Flow Actions): at a fishing stop without your pole on, equip it;
--- your pole on with no lure, the best lure you carry.
+-- Fishing (Flow Actions), one press per step: at a fishing stop without your
+-- pole on, equip it; pole on with no lure, the best lure you carry; line
+-- out, reel in (only with a buff key: the key is turned into Interact, a
+-- mouse click can't reach the bobber); else cast.
 local function pickFish(ctx)
     local X = ns.actions
-    if not (ctx and X and X.EquipStep and X.LureStep) then return nil end
-    local ok, s = pcall(X.EquipStep, ctx)
-    if ok and s then return s end
-    ok, s = pcall(X.LureStep, ctx)
-    return ok and s or nil
+    if not (ctx and X and X.EquipStep and X.LureStep and X.ReelStep and X.CastStep) then return nil end
+    local steps = { X.EquipStep, X.LureStep, cfg().key and X.ReelStep or nil, X.CastStep }
+    for i = 1, 4 do
+        if steps[i] then
+            local ok, s = pcall(steps[i], ctx)
+            if ok and s then return s end
+        end
+    end
 end
 
 -- Nothing due: your buff spells and buff items still on, the one running
@@ -335,7 +340,8 @@ end
 local function describe(s)
     if not s then return "" end
     if s.idle then return "nothing due (dim)" end
-    if s.type == "sit" or s.type == "wait" then return s.type end
+    if s.type == "sit" or s.type == "wait" or s.type == "interact" then return s.type end
+    if s.type == "clear" then return "clear target" end
     if s.spell then return "spell " .. s.spell .. " @" .. tostring(s.unit or "player") end
     return "item " .. tostring(s.item) .. " slot " .. tostring(s.targetSlot) .. (s.unit and (" @" .. s.unit) or "")
 end
@@ -346,9 +352,14 @@ local function setAction(s)
     if text == shownText then return end
     shownText = text
     for _, a in ipairs({ "type", "spell", "item", "unit", "target-slot" }) do btn:SetAttribute(a, nil) end
-    if s and (s.type == "sit" or s.type == "wait") then
-        -- Sit: the key does it (applyKey binds it to the game's Sit/Stand);
-        -- a click does nothing. Stay sitting: nothing either.
+    if s and (s.type == "sit" or s.type == "wait" or s.type == "interact") then
+        -- Sit: the key does it (applyKey binds it to the game's Sit/Stand).
+        -- Reel in: the key is the game's Interact (applyKey). Stay sitting:
+        -- nothing. In each, a click does nothing.
+    elseif s and s.type == "clear" then
+        -- The secure "target" type with unit "none" clears your target.
+        btn:SetAttribute("type", "target")
+        btn:SetAttribute("unit", "none")
     elseif s and s.spell then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", s.spell)
@@ -459,8 +470,11 @@ local function build()
 end
 
 -- Key: an override binding, like Flow's own key (your bindings never change).
+-- While your fishing line is out (keyInteract), the key is the game's
+-- Interact instead, which reels in the bobber.
 local owner = CreateFrame("Frame")
 local pendingKey = false
+local keyInteract = false
 local function applyKey()
     if InCombatLockdown() then pendingKey = true return end
     pendingKey = false
@@ -468,15 +482,23 @@ local function applyKey()
     local key = cfg().key
     if key and BB.On() then
         -- By a campfire with sitting the step: the key is the game's own
-        -- Sit/Stand (as Flow's key does it); else it clicks this button.
+        -- Sit/Stand (as Flow's key does it); reeling in: the game's Interact;
+        -- else it clicks this button.
         if BB.sitting then SetOverrideBinding(owner, true, key, "SITORSTAND")
+        elseif keyInteract then SetOverrideBinding(owner, true, key, "INTERACTTARGET")
         else SetOverrideBindingClick(owner, true, key, "FlowBuffButton", "LeftButton") end
     end
     if keyText then keyText:SetText(keyLabel()) end
 end
+local function setKeyInteract(on)
+    on = on and true or false
+    if on == keyInteract then return end
+    keyInteract = on
+    applyKey()
+end
 -- Back to a click before a fight (bindings can't change during one).
 ns:On("PLAYER_REGEN_DISABLED", function()
-    if BB.sitting then BB.sitting = false; applyKey() end
+    if BB.sitting or keyInteract then BB.sitting, keyInteract = false, false; applyKey() end
 end)
 
 local function fresh() return liveBuff and GetTime() - liveAt < 1 and liveBuff or nil end
@@ -510,6 +532,7 @@ local function tick(_, dt)
     setAction(s)
     local sit = s and s.type == "sit" or false
     if sit ~= (BB.sitting or false) then BB.sitting = sit; applyKey() end
+    setKeyInteract(s and s.type == "interact")
     paint(current, s ~= nil and not current.faded)
     if not btn:IsShown() then btn:Show() end
 end
@@ -527,6 +550,7 @@ ns:On("PLAYER_REGEN_ENABLED", function() if pendingKey then applyKey() end end)
 -- Just before the fight locks buttons: hold the buff spell for the fight.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if not (btn and BB.On()) then return end
+    setKeyInteract(false)   -- the key clicks the button again for the fight
     local spell = BB.FightSpell(fresh(), lastCast)
     if spell and E:Knows(spell) then
         setAction({ spell = spell, unit = "player" })
