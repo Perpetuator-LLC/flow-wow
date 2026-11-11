@@ -75,6 +75,25 @@ local bearAoe = {
       when = function(c) return c.hostile and inBear() end },
 }
 
+-- Entangling Roots holds a melee mob back while you cast (outdoors only: the
+-- game says when it can't). Before the pull it's the opener the key casts
+-- (the fight starts when it lands, then the key stays on Wrath); in a fight
+-- it shows on the icon when the mob is on you again: press it on your bar.
+-- Not on a caster mob (it has a mana pool: it casts from where it stands
+-- anyway). Beasts and fighters report mana as their power with none of it.
+function ns.MeleeMob(manaMax) return not (manaMax and manaMax > 0) end
+local function meleeMob() return ns.MeleeMob(A.Safe(UnitPowerMax and UnitPowerMax("target", 0))) end
+local function targetOnYou()
+    return A.Safe(UnitIsUnit("targettarget", "player")) == true
+end
+local roots = {
+    { spell = "Entangling Roots", target = true, reason = "Root it before it reaches you, then cast",
+      when = function(c)
+          return c.hostile and caster() and meleeMob() and missingOnTarget("Entangling Roots")
+              and (not c.inCombat or targetOnYou())
+      end },
+}
+
 local casterDamage = {
     { spell = "Moonfire", target = true, reason = "Moonfire missing on the target",
       when = function(c) return c.hostile and caster() and missingOnTarget("Moonfire") end },
@@ -105,9 +124,11 @@ local function guide(e)
     if k("Mark of the Wild") then add("  - Mark of the Wild on yourself (30 minutes).") end
     if k("Thorns") then add("  - Thorns on yourself (10 minutes): melee mobs hurt themselves.") end
     add("As a caster:")
-    if k("Moonfire") then add("  1. Moonfire to open (instant, damage over time).") end
-    if k("Wrath") then add("  2. Wrath until it dies; the cast key stays on Wrath for the fight.") end
-    if k("Entangling Roots") then add("  - Entangling Roots a melee mob, step back, keep casting.") end
+    if k("Entangling Roots") then add("  1. Entangling Roots on a melee mob to open (the key casts it): it can't reach you.") end
+    if k("Moonfire") then add("  2. Moonfire (instant, damage over time).") end
+    if k("Wrath") then add("  3. Wrath until it dies; the cast key stays on Wrath for the fight.") end
+    if k("Entangling Roots") then add("  - It comes for you again: Entangling Roots on your bar, step back, keep casting.") end
+    if k("War Stomp") then add("  - It starts casting close to you: War Stomp on your bar stops it.") end
     if k("Bear Form") then
         add("Bear Form (tough pulls, several mobs):")
         if k("Demoralizing Roar") then add("  1. Demoralizing Roar.") end
@@ -175,10 +196,10 @@ ns:Register("rotation", "DRUID", {
     end,
 
     -- Default priority (first match wins).
-    priority = join(buffs, melee, cat, bear, casterDamage),
+    priority = join(buffs, melee, cat, bear, roots, casterDamage),
 
     -- Per fight type (see Modules/Fight/FightTypes.lua). Missing types use `priority`.
     priorities = {
-        aoe = join(buffs, melee, cat, bearAoe, bear, casterDamage),
+        aoe = join(buffs, melee, cat, bearAoe, bear, casterDamage),   -- (several mobs: no roots, they keep coming)
     },
 })

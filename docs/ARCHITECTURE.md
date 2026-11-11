@@ -17,7 +17,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | Kind | Key | Value | Used by |
 |---|---|---|---|
 | `class` | class token, e.g. `PALADIN` | `{ specs, leveling, weights, weaponSpeed, proficiency }` | Spec advice, gear scoring |
-| `classSpells` | class token | list of `{ level, spell, improves, note }` | Advisor: "go train X" |
+| `classSpells` | class token | list of `{ level, spell, improves, note, needs, quest, questName }` | Advisor: "go train X"; `needs` = a spell it waits for (not counted as "to train" until you know it); `quest` = the class quest that teaches it |
 | `rotation` | class token | `{ heals, priority, priorities = { [fightType] = list } }` | Rotation engine |
 | `fightType` | e.g. `boss`, `aoe`, `elite`, `normal` | `{ order, label, match = fn(info) }` | Rotation (per-type lists), profiler |
 | `metric` | e.g. `dps`, `hps`, `tps`, `dtps` | `{ label, role, higherBetter, value = fn(fight) }` | Profiler: what a "good fight" means per role |
@@ -36,7 +36,9 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `mountRule` | `default` | `{ level, ridingCost, mountCost, saveFrom, classMount = { CLASS = spell } }` | Mount milestone: when to save, learn and buy |
 | `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact" or "sit" or "wait", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`, `BuffItems.lua`). `urgent` shows ahead of the rotation's own suggestion |
 | `status` | any | `{ order, get = fn() -> { icon, text, color, tip } or nil }` | Status icons in a row above the Flow key, between fights (`Modules/Rotation/Display.lua`): things to sort out, instead of chat lines. Turned off from the key's right-click menu |
-| `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason |
+| `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs, deps, needs, provides}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason. `deps` (keys) must come first. `needs` / `provides` (tokens like `"spell:Bear Form"`, see `need`) are turned into `deps`, `after` or `blockedBy` before each plan (`Modules/Nav/Needs.lua`) |
+| `need` | a token kind: `spell`, `level`, `quest`, `item` | `{ met = fn(arg) -> bool, label = fn(arg) -> text }` | Whether you meet a need like `"spell:Bear Form"` or `"level:20"`, and how to name it (`Modules/Nav/Needs.lua`). A stop's unmet need goes after a stop that `provides` it, or blocks it (hard) / only orders it (`{ token, soft = true }`) when nothing does |
+| `needProvider` | any | `{ provides = fn(goal) -> { tokens } }` | What a stop provides without saying so itself: `classQuest` says a class quest's turn-in teaches its spell (classSpells `quest = { ids }`, `questName`: Bear Form from "Body and Heart") |
 | `questNeed` | quest ID | `{ where = "deep in Palemane Rock", note, tool = "Fishing", item = id }` | What's worth knowing before walking to a quest's giver, which Questie doesn't say (`Modules/Quests/QuestNeeds.lua`): `where` and `note` go on its pickup stop; `tool`/`item` (what the giver wants you to carry first) keep the pickup waiting, with that reason, until you have it. Escort quests get their own note from Questie's data, no entry needed |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
@@ -99,9 +101,9 @@ party route. The Flow key's `status` icon suggests the best run.
 
 ### UI helpers
 
-- `ns:MakeMovable(frame, save)` (`Core.lua`): Shift-drag for ordinary panels.
+- `ns:MakeMovable(frame, save)` (`Core.lua`): Ctrl-drag for ordinary panels (`ns.MoveKeyDown`: the one place that says which key moves things).
 - `ns:MoveHandle(button, opts)` (`Modules/MoveHandle.lua`): for secure buttons (the Flow key),
-  which can't be dragged themselves or moved in a fight: a handle over the button while Shift is
+  which can't be dragged themselves or moved in a fight: a handle over the button while Ctrl is
   held, out of combat; drag to move, mouse wheel to resize. `ns.RestorePlace` puts it back.
 - `ns.copyBox:Show(title, lines)` (`Modules/CopyBox.lua`): the Flow Copy window, text selected
   for Ctrl+C. Everything `ns:Print` says is kept for `/flow copy`.

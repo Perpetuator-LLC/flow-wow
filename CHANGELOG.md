@@ -4,6 +4,113 @@
 - **Professions: a switch of their own.** The route list is Quests only, Optimal, Completionist, with one
   "Professions" tick under them instead of two "Optimal with / without professions" routes.
 
+## 0.35.143
+- **A faint profession arrow (off unless you tick it).** Arrow menu or Flow Settings: "Faint
+  profession arrow". With "Optimal with professions", profession stops (training, skill-ups,
+  materials) get their own route and a long, narrow, smoked-glass arrow behind the main one,
+  with the stop's name and travel time; the main arrow then only takes you to quests. Its stop has
+  its own pin on the world map and dot on the minimap, with a dotted path. At that stop the
+  Flow key still does the steps (open the profession, make the bars, fish, gather).
+- **Profession materials from your bags, bank and smelting.** The plan counts what you carry and
+  what the bank held when you last opened it (a bank stop says how sure Flow is), smelts ore into
+  bars, and holds a craft back while its materials stop is off the route. A far bank is only
+  worth it when it holds plenty (10 or more): otherwise Flow farms the material where you are.
+- **Gear you can make that's an upgrade** for you shows on the profession window and its craft
+  stop (while that profession is being raised).
+- **Travel time**: the arrow, its drawer and the stop card say about how long it takes, by air when
+  a flight is quicker (Flow learns flight masters and flight times as you fly), and when the next
+  zone starts.
+- **"Finish the area you're in first"** (Flow Settings, off by default): clear the stops around
+  you before going the other way. Off, the arrow follows the shortest whole trip.
+- (Thanks, BIMpossible: pull request 12's newer commits.)
+
+## 0.35.142
+- **Training waits for what it needs.** Demoralizing Roar, Maul, Growl and the other bear
+  spells need Bear Form first, which a druid gets from a class quest, not the trainer (cat
+  spells need Cat Form). Flow counted them as "to train" and sent you to the trainer for them.
+  Now the training stop counts only what you can train now, lists the rest ("After Bear Form:
+  Demoralizing Roar, Maul..."), and with the Bear Form quest on your route goes after it, so one
+  trip trains everything. A spell that was red at the trainer for something other than your
+  level waits too, instead of sending you back.
+- **Stops in the right order, in general.** Any stop can now say what it needs first (a spell,
+  a level, a quest, an item): it goes after the stop that provides it, marked "(after ...)", or
+  waits with the reason when nothing on the route does. The town's errands no longer pull a
+  stop ahead of what it waits for, and the planner brings in what a must-do stop waits for
+  instead of dropping it.
+- Restart WoW once: a new file.
+
+## 0.35.141
+- **New spells: one Flow Spells list.** Training several spells used to show a card for each,
+  one at a time, every new one closing the last. Now they all go into one list: a row per spell
+  with its icon (drag it to any bar slot) and Bar, Key and Skip buttons, plus **Place all on
+  bar** for every one that isn't on a bar or a key yet. It stays while you use it, then closes
+  by itself after half a minute.
+- **`/flow keys`**: the keys that cast a spell directly rather than from a bar, and the Flow
+  key's own. The game's Key Bindings window doesn't list spells bound to a key.
+- `/flow help`: Ctrl moves things; what the corner of the easy button means.
+
+## 0.35.140
+- **The map and the arrow agree.**
+  - "All objectives in this area" (the map and the Flow Tracker) now counts a stop when any
+    place its mobs live is near you or your next stop, the way the arrow's "in the area" does.
+    It went by the stop's one route spot, so wolves roaming right where you stand could be
+    missing from the map while the arrow listed them under "Also here".
+  - Your next stop shows every place its mobs live on the map, as the minimap does; later stops
+    show the patch the route goes to.
+  - The dotted trail breaks where a stop isn't shown, instead of a line from stop 2 to stop 5
+    the route never walks.
+  - "Point the arrow here", the stop card's distance and the cave note use the same spot as the
+    arrow: the stop's route spot, or (off the route) its spawn nearest you, not the first one
+    Flow happened to keep.
+
+## 0.35.139
+- **The arrow's drawer: click to open, X to close.** Click the arrow to open it; click the arrow
+  again, or the X at its top right, to close it. The pin is gone (it stays open, following your
+  stops and across a /reload, until you close it), and so are the pull tab, closing by clicking
+  inside it, opening on hover, and the slide: it opens and closes at once.
+
+## 0.35.138
+- **Ctrl-drag moves things now, as in Questie** (it was Shift, which now shows what Shift +
+  your key casts). The Flow key, the arrow and its drawer, the Flow Tracker, the buff button and
+  every Flow window: hold Ctrl and drag. Ctrl + mouse wheel over the Flow key resizes it.
+- **Hide Questie's tracker**: a Flow Settings tick box (and the Flow Tracker's right-click
+  menu) turns Questie's own quest tracker off, using Questie's own setting, so your tracked
+  quests are kept. The Flow Tracker then sits on its own.
+
+## 0.35.137
+- **The easy button shows what your key will cast.** In a fight WoW won't let the key change,
+  so Flow sets it at the pull (Wrath, Maul, Claw...). The icon now shows that spell, what a
+  press really does. A better spell the key can't switch to (Moonfire, War Stomp, Entangling
+  Roots) shows in the bottom-right corner, marked "bar:": press it on your action bar, where it
+  glows. When it's your heal, the corner says "Shift+" (Shift + key casts it). It used to be the
+  other way round, which made the key look like it ignored the icon.
+- **Hold Shift to see what Shift + key casts**: your heal swaps onto the icon, with a pulsing
+  green "SHIFT+" beside it; let go and it swaps back.
+
+## 0.35.136
+- **The Flow key drinks too.** Out of a fight with no enemy targeted, at half your mana or
+  less, it drinks your best water (also while you're eating: press again after the food).
+  Right-click the Flow key: "Drink when low on mana" turns it off.
+- **Well Fed food when it pays.** When you eat with fights ahead (a kill stop, or just after a
+  fight) and you aren't Well Fed, food that also makes you Well Fed comes first: one meal heals
+  and buffs. Otherwise plain food first, as before.
+
+## 0.35.135
+- **Druid: Entangling Roots.** On a melee mob (one without a mana pool), Flow opens with
+  Entangling Roots: the key casts it before the pull, then stays on Wrath for the fight while
+  Moonfire shows on the icon. When the mob comes for you again mid-fight, Roots shows on the
+  icon: press it on your bar and step back. Not when several mobs come at once.
+- **War Stomp stops a cast.** When your target starts casting within about 8 yards, the icon
+  shows War Stomp (tauren), ahead of your damage. In a fight the key can't change, so press it
+  on your bar: it glows there.
+
+## 0.35.134
+- **The smallest bandage that fills you.** After a fight the Flow key picks the smallest bandage
+  you carry that heals what you're missing (a Heavy Wool Bandage on a scratch wasted most of
+  it), else your biggest. The game hides your health, so "missing" is Flow's own estimate of
+  how hurt you are; when it can't tell, it uses your biggest as before. "Lowest bandage first"
+  (right-click the Flow key) still always takes the lowest.
+
 ## 0.35.133
 - **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
   it's on none of your bars. It's set before the fight (WoW won't let it change during one).

@@ -9,7 +9,7 @@
 --     change itself), otherwise whatever Flow suggested at the pull;
 --   * while locked, a small "key:" icon shows what your key will cast, so the
 --     big icon (Flow's live advice) and the key never get confused.
--- Move it: hold Shift and drag (out of combat).
+-- Move it: hold Ctrl and drag (out of combat).
 
 local _, ns = ...
 local A, E = ns.api, ns.rotation
@@ -241,17 +241,25 @@ function C:FillTooltip(tt)
     local key = C:KeyLabel()
     tt:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 0.8, 0.8, 0.8)
     if key ~= "" and C:HealSpell() then
-        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too).", 0.4, 1, 0.4)
+        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too). Hold Shift: the icon shows it.", 0.4, 1, 0.4)
     end
+    tt:AddLine("In a fight the icon shows what your key casts (it's set at the pull); a better spell to press "
+        .. "on your bar shows in the corner (bar:), where it also glows.", 0.8, 0.8, 0.8, true)
     if key ~= "" and helpful(s) and ns.db.cast.ctrlTarget ~= false then
         tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
     end
-    tt:AddLine("Hold Shift: a handle appears; drag it to move the icon, or turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
+    tt:AddLine("Hold Ctrl: a handle appears; drag it to move the icon, or turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
     for _, st in ipairs(E.status or {}) do
         local c = st.color or { 1, 0.82, 0 }
         tt:AddLine(st.tip, c[1], c[2], c[3], true)
     end
     tt:AddLine("Right-click: options (after-fight order, bandages, camp).", 0.6, 0.6, 0.6)
+end
+
+-- The corner label for advice the key can't do mid-fight.
+function C.AdviceLabel(adv, healSpell)
+    if adv and healSpell and adv.spell == healSpell then return "Shift+" end
+    return "bar:"
 end
 
 local function refreshLabels()
@@ -272,12 +280,15 @@ local function refreshLabels()
     else
         keyText:SetText(C:KeyLabel(true))
     end
-    -- In combat, show what the key is locked to when it differs from the
-    -- advice. (With no advice at all, the icon itself shows it: C:Held.)
-    local liveSpell = live and live.spell
-    if InCombatLockdown() and lockedSpell and liveSpell and lockedSpell ~= liveSpell then
-        local _, tex = A.SpellInfo(lockedSpell)
+    -- In a fight the icon shows what the key casts (it was set at the pull);
+    -- the corner shows the better spell it can't switch to (Display.lua,
+    -- E.advice): "Shift+" when that's your heal (Shift + key casts it),
+    -- else "bar:" (press it on your action bar, where it glows).
+    local adv = InCombatLockdown() and E.advice or nil
+    if adv and adv.spell then
+        local _, tex = A.SpellInfo(adv.spell)
         lockIcon.tex:SetTexture(tex)
+        lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell()))
         lockIcon:Show()
     else
         lockIcon:Hide()
@@ -295,9 +306,13 @@ local function build(cfg)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     btn:SetAttribute("type", "macro")
     btn:SetAttribute("macrotext", "")
-    -- Shift + drag moves it; make shift-clicks do nothing so moving never casts.
+    -- Ctrl + drag moves it; make ctrl-clicks (and shift-clicks, as before) do
+    -- nothing with the mouse, so moving never casts. (Ctrl + key and Shift +
+    -- key are bindings to the "ontarget" and "heal" buttons: unaffected.)
     btn:SetAttribute("shift-type1", "macro")
     btn:SetAttribute("shift-macrotext1", "")
+    btn:SetAttribute("ctrl-type1", "macro")
+    btn:SetAttribute("ctrl-macrotext1", "")
     -- Right-click never casts: it opens the key's options (below). "*" covers
     -- Shift/Ctrl/Alt + right-click too ("type2" alone left Shift + right-click
     -- falling back to "type", the spell).
@@ -307,7 +322,7 @@ local function build(cfg)
     btn:SetClampedToScreen(true)
     btn:RegisterForDrag("LeftButton")
     btn:SetScript("OnDragStart", function(self)
-        if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
+        if ns.MoveKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
     end)
     btn:SetScript("OnDragStop", function() C:EndMove() end)
     -- Right-click: the Flow key's options (recovery order, bandages, camp).
@@ -338,10 +353,10 @@ local function build(cfg)
         lockIcon.tex:SetAllPoints()
         lockIcon.label = lockIcon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         lockIcon.label:SetPoint("RIGHT", lockIcon, "LEFT", -2, 0)
-        lockIcon.label:SetText("key:")
+        lockIcon.label:SetText("bar:")
         lockIcon:Hide()
     end
-    -- Shift: drag to move, mouse wheel to resize (the icon too).
+    -- Ctrl: drag to move, mouse wheel to resize (the icon too).
     C.handle = ns:MoveHandle(btn, { name = "the Flow button", save = function() return ns.db.rotation end,
         also = function() return { E.icon } end })
 end
@@ -358,7 +373,7 @@ local pendingKey = false
 -- itself can't change in a fight (WoW's rule), so a heal Flow showed mid-fight
 -- couldn't be cast with it until the fight was over. The heal is set before
 -- the fight on a second "button" of the same secure button ("heal") that
--- only the Shift binding presses: clicking or shift-dragging the icon is
+-- only the Shift binding presses: clicking or Ctrl-dragging the icon is
 -- unchanged. Setting: "Shift + easy key heals you" (/flow settings).
 local healSpell
 
@@ -710,7 +725,7 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 end)
 
 -------------------------------------------------------------------------------
--- Moving and resizing the icon: hold Shift (out of combat) and a "drag to
+-- Moving and resizing the icon: hold Ctrl (out of combat) and a "drag to
 -- move" handle appears over it, and the mouse wheel over it resizes it.
 -- The shared handle (ns:MoveHandle, Modules/MoveHandle.lua) does both; the visible icon
 -- resizes along with the secure button under it.

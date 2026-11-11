@@ -22,8 +22,8 @@ Flow for WoW is a separate project from Flow Engine.
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Shift + key heals you, Alt +
-  key uses your healthstone (or best healing potion), in fights too. Shift-drag to move the
-  button; Shift + mouse wheel over it resizes it.
+  key uses your healthstone (or best healing potion), in fights too. Ctrl-drag to move the
+  button; Ctrl + mouse wheel over it resizes it.
 - **Buff button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
   items move to their own blue button left of the icon, so the Flow key is only your fight
   (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
@@ -43,8 +43,10 @@ Flow for WoW is a separate project from Flow Engine.
   `/flow action` shows what it would do.
 - **Healing items**: low in a fight, Flow's icon shows your healthstone, then your best healing
   potion, when it's on one of your action bars (press it there: it glows). After a fight the key
-  recovers you: bandage, then food, then a heal spell by default. Right-click the Flow key to
-  change that order, turn steps off, or use your lowest bandages first.
+  recovers you: bandage (the smallest that fills you), then food, then a heal spell by default,
+  and drinks when you're at half mana or less (also while you eat). With fights ahead and no
+  Well Fed, Well Fed food comes first. Right-click the Flow key to change that order, turn steps
+  off, or use your lowest bandages first.
 - **Status icons** above the Flow key, between fights only, instead of chat lines: by a campfire,
   what your group can add to the camp. Hover for details.
 - **Auto-repair** at vendors who repair (Options, on by default), after Flow sells your junk.
@@ -60,6 +62,10 @@ Flow for WoW is a separate project from Flow Engine.
   emergency heal when you'd die before you could react.
 - **Break free**: stunned, feared or rooted, Flow suggests the spell that gets you out (Will to
   Survive / Every Man for Himself, Will of the Forsaken, Escape Artist, Blessing of Freedom).
+- **Stop a cast**: your target starts casting within 8 yards, Flow suggests War Stomp (tauren).
+  Classes add their own interrupts to `ns.rotation.INTERRUPTS`.
+- **Druid: Entangling Roots** opens on a melee mob (the key casts it before the pull), and shows
+  again when the mob comes for you mid-fight.
 - **Fight types**: boss, several enemies, elite or normal mob, each with its own priorities.
 - **Fight profiler**: records every fight and compares your best with your worst per fight
   type. It leans the rotation towards what worked (`/flow fights`).
@@ -73,7 +79,13 @@ Flow for WoW is a separate project from Flow Engine.
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
   entrances so it sends you in through the door, not over the top. A quest stop says when it's
   an escort (its giver may be away walking another player out, for a few minutes) or when the
-  giver is deep in a cave (The Longwalkers).
+  giver is deep in a cave (The Longwalkers). Distances come with a travel time (by air when a
+  flight is quicker; Flow learns flight masters as you fly). Optional, off by default: a faint
+  profession arrow (profession stops on a route of their own, behind the main arrow), and
+  "Finish the area you're in first". Profession plans use what's in your bags and bank and smelt
+  ore into bars. A stop that needs something first goes after the
+  stop that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
+  Roar and Maul comes after the class quest that teaches Bear Form.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Most XP first**
   (epic purple, the default) and **Shortest path** (rare blue) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
@@ -120,10 +132,10 @@ Flow for WoW is a separate project from Flow Engine.
   to your next stop, and that stop's dot, in the arrow's colour); numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
-- **Stop card**: Flow's view of a stop (drag it by its title); the arrow's own panel slides
-  out under the arrow like a drawer.
+- **Stop card**: Flow's view of a stop (drag it by its title). The arrow's own panel is a drawer
+  beside the arrow: click the arrow to open it, click again or its X to close it.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
-  order). Click a row for its stop card; hover it to see its area on the minimap; Shift-drag
+  order). Click a row for its stop card; hover it to see its area on the minimap; Ctrl-drag
   the header to move it.
 - **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
   the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
@@ -204,10 +216,12 @@ Flow for WoW is a separate project from Flow Engine.
   only, nothing about you ([docs/SHARE-PLACES.md](docs/SHARE-PLACES.md)).
 - **Performance**: `/flow perf` shows Flow's CPU and memory per part; it's saved with the
   diagnostics so slow spots get noticed.
-- **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
-  auto-places new spells on your bars.
+- **Key binding mode** with save/undo/cancel (`/flow bind`). Spells you learn go into one
+  **Flow Spells** list: drag each to a bar, or Bar / Key / Skip per row, or **Place all on
+  bar**. `/flow keys` lists the keys that cast a spell directly, not from a bar (the game's Key
+  Bindings window doesn't show those).
 - **Colour-blind palette** for the route (in `/flow settings`).
-- A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
+- A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Ctrl-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
 - **Ask Claude from the game** (optional): `/claude make the arrow green`. A Claude session on
