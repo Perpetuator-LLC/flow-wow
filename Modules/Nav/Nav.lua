@@ -411,7 +411,7 @@ function N:Collect(gathered)
     ns.db.nav.deferred = deferred
     local present, kept, blockedGoals = {}, {}, {}
     for _, g in ipairs(list) do
-        present[g.key] = true
+        present[g.key] = g
         if g.cost and g.cost > money then
             if not deferred[g.key] then
                 ns:Print(string.format("skipping %s for now: it costs %s and you have %s. It comes back on the route once you can pay.",
@@ -476,8 +476,88 @@ function N:Collect(gathered)
         local okA, picked = pcall(ns.xpValue.Apply, ns.xpValue, shown)
         if okA and picked then shown = picked end
     end
-    goals = shown
+    -- A craft whose materials come from a stop that's off the route (blocked,
+    -- hidden, filtered out) can't be made yet: it waits, never "Here: Make".
+    local held
+    shown, held = N.HoldCrafts(shown, present)
+    for _, g in ipairs(held) do blockedGoals[#blockedGoals + 1] = g end
+    -- Profession stops (training, skill-ups) get their own faint arrow when
+    -- it's on, so the quest arrow never sends you off to them.
+    local quest, prof = N.SplitProfessions(shown, N:ProfPointerOn())
+    N.profGoals = prof
+    N.profDirty = true
+    goals = quest
     N.planDirty = true
+end
+
+-- A profession stop: a skill-up step (SkillPlan.lua) or a profession errand
+-- (train or skill up a profession). Class training is not one: it stays on
+-- the quest arrow.
+function N.IsProfessionStop(g)
+    if not g or g.milestone then return false end
+    if g.provider == "skillplan" then return true end
+    return g.provider == "errands" and g.key ~= "train:class"
+end
+
+-- The faint profession arrow: off unless you tick it (arrow menu, Options,
+-- /flow nav profarrow on), and only with "Optimal with professions". (On by
+-- default it moved profession stops off the main route, where the Flow key
+-- does their steps: at a forge stop the key no longer made the bars.)
+function N:ProfPointerOn()
+    local cfg = ns.db.nav
+    return cfg.profArrow == true and self:Mode() == "optimal" and cfg.professions ~= false
+end
+
+-- Craft stops whose deps (bank, smelting, an earlier craft) are stops that
+-- exist (all: key -> goal) but aren't in `shown` can't be made yet. They come
+-- out of the route, blocked with the reason; repeats so a craft that needs a
+-- held craft waits too. A dep that isn't in `all` is done and doesn't hold.
+-- Returns kept, held.
+function N.HoldCrafts(shown, all)
+    local kept, held = shown, {}
+    while true do
+        local inRoute, next, changed = {}, {}, false
+        for _, g in ipairs(kept) do inRoute[g.key] = true end
+        for _, g in ipairs(kept) do
+            local wait
+            if g.kind == "craft" then
+                for _, dep in ipairs(g.deps or {}) do
+                    if not inRoute[dep] and all[dep] then wait = all[dep] break end
+                end
+            end
+            if wait then
+                -- A copy: providers may hand back the same goal next time.
+                local c = {}
+                for k, v in pairs(g) do c[k] = v end
+                local name = wait.text or wait.title or wait.key
+                c.blockedBy = "first: " .. name .. (wait.blockedBy and (" (" .. wait.blockedBy .. ")") or "")
+                held[#held + 1] = c
+                changed = true
+            else
+                next[#next + 1] = g
+            end
+        end
+        kept = next
+        if not changed then return kept, held end
+    end
+end
+
+-- Splits the stops into quest stops and profession stops. Off, or with
+-- nothing but profession stops left, everything stays on the main arrow.
+function N.SplitProfessions(list, on)
+    if not on then return list, {} end
+    local quest, prof = {}, {}
+    for _, g in ipairs(list) do
+        if N.IsProfessionStop(g) then prof[#prof + 1] = g else quest[#quest + 1] = g end
+    end
+    if #quest == 0 then return list, {} end
+    return quest, prof
+end
+
+-- Turn the faint profession arrow on or off, and redo the route.
+function N:SetProfArrow(on)
+    ns.db.nav.profArrow = on and true or false
+    self:Collect()
 end
 
 function N:Hide(key)
@@ -1158,6 +1238,141 @@ function N:SetArrowStyle(style)
         frame.arrow:SetRotation(old.angle or 0)
         if old.arrived then frame.arrow:SetArrived(true) end
     end
+    if frame and frame.prof and frame.prof.arrow then
+        local old = frame.prof.arrow
+        old:Hide(); old:SetScript("OnUpdate", nil)
+        frame.prof.arrow = self:MakeProfArrow(frame.prof)
+        frame.prof.arrow:SetRotation(old.angle or 0)
+        frame.prof.arrow.at = old.at or old.angle or 0
+        frame.prof.arrow:Paint()
+    end
+end
+
+-- The faint profession arrow: the main arrow's own art, stretched narrow and
+-- long (66% of its width, 133% of its length), in dark smoked glass under
+-- the main arrow. It turns as one piece and eases round like the main arrow.
+-- Same turning: 0 = straight up, counter-clockwise.
+-- Measured on the art you see, not its 64 px picture cell: the main arrow's
+-- drawn arrow is MAIN_WID across and MAIN_LEN long (its side-on length; the
+-- pointing-up picture is tilted away, so it looks shorter), shown at
+-- ON_NEEDLE_SCALE while this arrow is out. The pointing-up cell this one is
+-- cut from holds an arrow ART0_W x ART0_H inside its 64 px.
+N.MAIN_WID, N.MAIN_LEN = 40, 54
+N.ART0_W, N.ART0_H = 40, 38
+N.ON_NEEDLE_SCALE, N.ON_NEEDLE_ALPHA = 0.8, 0.7
+N.PROF_WID_K, N.PROF_LEN_K = 0.5, 1.5   -- vs the main arrow you see: thinner, longer
+N.PROF_WID = N.MAIN_WID * N.ON_NEEDLE_SCALE * N.PROF_WID_K
+N.PROF_LEN = N.MAIN_LEN * N.ON_NEEDLE_SCALE * N.PROF_LEN_K
+N.PROF_ARROW_W = 64 * N.PROF_WID / N.ART0_W
+N.PROF_ARROW_H = 64 * N.PROF_LEN / N.ART0_H
+N.PROF_RING_ALPHA = 0.35   -- the faint ring at the profession stop
+function N:MakeProfArrow(holder)
+    local a = CreateFrame("Frame", nil, holder)
+    a:SetAllPoints(holder)
+    local W, H = N.PROF_ARROW_W, N.PROF_ARROW_H
+    local function tex(file, layer, sub, blend, alpha)
+        local t = a:CreateTexture(nil, layer, nil, sub)
+        t:SetTexture(ART .. file)
+        if blend then t:SetBlendMode(blend) end
+        t:SetAlpha(alpha)
+        t:SetPoint("CENTER")
+        return t
+    end
+    -- Dark body, a soft shadow under it and the main arrow's highlights on
+    -- top: dark glass, not a flat grey cut-out.
+    a.shadow = tex("ArrowShadow", "BACKGROUND", 1, nil, 0.45)
+    a.body = tex("ArrowBody", "ARTWORK", 1, nil, 0.9)
+    a.shine = tex("ArrowShine", "ARTWORK", 2, "ADD", 0.55)
+    a.parts = { a.shadow, a.body, a.shine }
+    -- Turning the picture itself keeps it narrow at every angle. A client
+    -- that can't turn pictures gets the main arrow's pre-turned frames at
+    -- full size instead.
+    a.turns = a.body.SetRotation ~= nil
+    local _, l, r, t, b = N.ArrowCell(0)
+    for _, part in ipairs(a.parts) do
+        if a.turns then part:SetSize(W, H); part:SetTexCoord(l, r, t, b) else part:SetSize(H, H) end
+    end
+    -- a.angle is where it's heading, a.at what's on screen.
+    a.angle, a.at, a.cell = 0, 0, -1
+    function a:Paint()
+        if self.turns then
+            for _, part in ipairs(self.parts) do part:SetRotation(self.at) end
+            return
+        end
+        local i, l2, r2, t2, b2 = N.ArrowCell(self.at)
+        if i == self.cell then return end
+        self.cell = i
+        for _, part in ipairs(self.parts) do part:SetTexCoord(l2, r2, t2, b2) end
+    end
+    function a:SetRotation(rad) self.angle = rad or 0 end
+    function a:SetVertexColor(r2, g2, b2) self.body:SetVertexColor(r2, g2, b2) end
+    local c = ns.theme.profPointer
+    a:SetVertexColor(c[1], c[2], c[3])
+    a:SetScript("OnUpdate", function(me, elapsed)
+        local dt = math.min(elapsed or 0, 0.1)
+        -- Turn the shortest way round, quickly but without snapping.
+        local diff = (me.angle - me.at + math.pi) % (2 * math.pi) - math.pi
+        if math.abs(diff) > 0.001 then
+            me.at = me.at + diff * (1 - math.exp(-dt * 14))
+            me:Paint()
+        end
+    end)
+    a:Paint()
+    return a
+end
+
+-- How far the profession arrow reaches past the arrow frame's edge (it is
+-- longer than the frame), plus a little air: the texts above and below move
+-- out by this much so the arrow never runs over or under them.
+function N.NeedleClearance(f)
+    local h = (f and f.GetHeight and f:GetHeight()) or 56
+    return math.max(0, math.ceil(N.PROF_LEN / 2 - h / 2)) + 2
+end
+
+-- While the needle shows, the main arrow sits on top of it smaller and
+-- see-through (the short hand), so the needle shows through and past it
+-- (ON_NEEDLE_SCALE / ALPHA, set with the profession arrow's size above).
+function N.SetOverNeedle(f, on)
+    local a = f and f.arrow
+    on = on and true or false
+    if not a or a.overNeedle == on then return end
+    a.overNeedle = on
+    a:SetScale(on and N.ON_NEEDLE_SCALE or 1)
+    a:SetAlpha(on and N.ON_NEEDLE_ALPHA or 1)
+    -- The main arrow's text moves down clear of the long profession arrow.
+    if f.text then
+        f.text:ClearAllPoints()
+        f.text:SetPoint("TOP", f, "BOTTOM", 0, on and -N.NeedleClearance(f) or -2)
+    end
+end
+
+-- Travel time: yards to "~1m 20s" at the speed you are moving, or the speed
+-- you last moved at (a run, 7 yd a second, before you have moved at all).
+N.RUN_SPEED = 7
+-- (A flight path's speed isn't yours: it is never remembered as your speed.)
+function N.TravelSpeed()
+    local onTaxi = UnitOnTaxi and UnitOnTaxi("player")
+    local s = A.Safe(GetUnitSpeed("player")) or 0
+    if not onTaxi and type(s) == "number" and s > 0.5 then N.lastSpeed = s end
+    return N.lastSpeed or N.RUN_SPEED
+end
+function N.FormatTravel(yd, speed)
+    speed = speed or N.TravelSpeed()
+    if type(yd) ~= "number" or yd <= 0 or type(speed) ~= "number" or speed <= 0 then return "" end
+    return N.FormatSeconds(yd / speed)
+end
+-- Seconds to "~45s" / "~1m 20s" / "~1h 02m" ("" for no time).
+function N.FormatSeconds(sec)
+    if type(sec) ~= "number" or sec <= 0 then return "" end
+    sec = math.max(1, math.floor(sec + 0.5))
+    if sec < 60 then return string.format("~%ds", sec) end
+    if sec < 3600 then return string.format("~%dm %02ds", math.floor(sec / 60), sec % 60) end
+    return string.format("~%dh %02dm", math.floor(sec / 3600), math.floor(sec % 3600 / 60))
+end
+-- The same with a space in front, or nothing when there is no time to show.
+function N.TravelSuffix(yd, speed)
+    local t = N.FormatTravel(yd, speed)
+    return t ~= "" and (" " .. t) or ""
 end
 
 -- Shared look for route stops (trip plan, world map pins, map list):
@@ -1400,6 +1615,258 @@ end
 local function zoneName(map)
     local info = map and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(map)
     return info and info.name or "another zone"
+end
+
+-------------------------------------------------------------------------------
+-- Travel by air: the flight masters this character can fly to (read when
+-- you open a flight map), how long each flight took (for the whole account),
+-- and the time to a stop by air when that beats going on foot.
+-- Assumes the flight masters you know on a continent connect, which is how
+-- the game's flight network works for the paths you have learned.
+-------------------------------------------------------------------------------
+
+ns:OnLoad(function(saved)
+    saved.flights = saved.flights or {}
+    saved.flightTimes = saved.flightTimes or {}
+end)
+ns:PerCharacter("flights")
+
+-- Flight paths fly around hills and through other flight masters: yards (in
+-- a straight line) per second of flight, learned from your own flights.
+N.FLIGHT_RATE = 24
+N.FLIGHT_OVERHEAD = 10   -- seconds: taking off and landing
+-- Only worth saying when it saves this much (fraction of the walk).
+N.AIR_SAVES = 0.8
+
+-- The flight masters on the open flight map: name, map position, and the
+-- one you are standing at. Either client API.
+function N.ReadTaxiNodes()
+    local map = GetTaxiMapID and GetTaxiMapID()
+    local nodes, here = {}, nil
+    if C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and map then
+        local st = Enum and Enum.FlightPathState
+        for _, n in ipairs(C_TaxiMap.GetAllTaxiNodes(map) or {}) do
+            local reach = not (st and n.state == st.Unreachable)
+            if reach and n.name and n.position then
+                -- (A vector on most clients; a plain { x, y } table on Forever.)
+                local pos, x, y = n.position
+                if type(pos.GetXY) == "function" then x, y = pos:GetXY() else x, y = pos.x, pos.y end
+                nodes[#nodes + 1] = { name = n.name, x = x, y = y }
+                if st and n.state == st.Current then here = n.name end
+            end
+        end
+    elseif NumTaxiNodes and TaxiNodeGetType then
+        for i = 1, NumTaxiNodes() do
+            local kind = TaxiNodeGetType(i)
+            if kind == "CURRENT" or kind == "REACHABLE" then
+                local x, y = TaxiNodePosition(i)
+                nodes[#nodes + 1] = { name = TaxiNodeName(i), x = x, y = y }
+                if kind == "CURRENT" then here = TaxiNodeName(i) end
+            end
+        end
+    end
+    return nodes, here, map
+end
+
+-- Remembers the flight masters this character can fly to, in world yards.
+function N.LearnTaxiNodes(nodes, map)
+    local known = ns.db.flights
+    for _, n in ipairs(nodes) do
+        local cont, wx, wy = N:ToWorld(map, n.x, n.y)
+        if cont and wx then known[n.name] = { cont = cont, wx = wx, wy = wy } end
+    end
+end
+
+-- Seconds a flight takes: what it took last time, else a guess from the
+-- straight distance at the rate your flights have gone.
+function N.FlightSeconds(from, to)
+    local t = ns.db.flightTimes and ns.db.flightTimes[from .. ">" .. to]
+    if t then return t end
+    local a, b = ns.db.flights[from], ns.db.flights[to]
+    if not (a and b and a.cont == b.cont) then return nil end
+    return dist(a.wx, a.wy, b.wx, b.wy) / (ns.db.flightRate or N.FLIGHT_RATE) + N.FLIGHT_OVERHEAD
+end
+
+-- The known flight master nearest a spot on a continent, and how far.
+local function nearestFlightMaster(cont, wx, wy)
+    local best, bd
+    for name, n in pairs(ns.db.flights or {}) do
+        if n.cont == cont then
+            local d = dist(wx, wy, n.wx, n.wy)
+            if not bd or d < bd then best, bd = name, d end
+        end
+    end
+    return best, bd
+end
+
+-- By air to a point from where you are: { sec, from, to } when walking to a
+-- flight master, flying and walking on beats walking `walkYd` at `speed`.
+function N.AirRoute(p, pt, walkYd, speed)
+    if not (p and pt and pt.wx and p.cont == pt.cont and walkYd) then return nil end
+    speed = speed or N.TravelSpeed()
+    local from, d1 = nearestFlightMaster(p.cont, p.wx, p.wy)
+    local to, d2 = nearestFlightMaster(pt.cont, pt.wx, pt.wy)
+    if not (from and to) or from == to then return nil end
+    local fly = N.FlightSeconds(from, to)
+    if not fly then return nil end
+    local sec = (d1 + d2) / speed + fly
+    if sec >= (walkYd / speed) * N.AIR_SAVES then return nil end
+    return { sec = sec, from = from, to = to }
+end
+
+-- The flight you are on: where from and to, and when it took off.
+N.taxiTrip = nil
+local taxiHere   -- the flight master whose map is open
+ns:On("TAXIMAP_OPENED", function()
+    local ok, nodes, here, map = pcall(N.ReadTaxiNodes)
+    if not ok then return end
+    taxiHere = here
+    if map then N.LearnTaxiNodes(nodes, map) end
+end)
+if hooksecurefunc and TakeTaxiNode then
+    hooksecurefunc("TakeTaxiNode", function(i)
+        local to = TaxiNodeName and TaxiNodeName(i)
+        if to and taxiHere and to ~= taxiHere then
+            N.taxiTrip = { from = taxiHere, to = to, start = GetTime() }
+        end
+    end)
+end
+
+-- Landed: remember how long it took, and learn how fast flights go.
+function N.Landed(trip, elapsed)
+    if not (trip and elapsed and elapsed > 5) then return end
+    ns.db.flightTimes[trip.from .. ">" .. trip.to] = math.floor(elapsed + 0.5)
+    local a, b = ns.db.flights[trip.from], ns.db.flights[trip.to]
+    if a and b and a.cont == b.cont and elapsed > N.FLIGHT_OVERHEAD then
+        local rate = dist(a.wx, a.wy, b.wx, b.wy) / (elapsed - N.FLIGHT_OVERHEAD)
+        if rate > 5 and rate < 100 then
+            ns.db.flightRate = ns.db.flightRate and (ns.db.flightRate * 0.7 + rate * 0.3) or rate
+        end
+    end
+end
+ns:On("PLAYER_CONTROL_GAINED", function()
+    local trip = N.taxiTrip
+    if trip and not (UnitOnTaxi and UnitOnTaxi("player")) then
+        N.taxiTrip = nil
+        N.Landed(trip, GetTime() - trip.start)
+    end
+end)
+
+-- On a flight: seconds until you land, and where.
+function N.TaxiLeft()
+    local trip = N.taxiTrip
+    if not (trip and UnitOnTaxi and UnitOnTaxi("player")) then return nil end
+    local total = N.FlightSeconds(trip.from, trip.to)
+    if not total then return nil, trip.to end
+    return math.max(1, total - (GetTime() - trip.start)), trip.to
+end
+
+-- The walk to a stop crosses into another zone: yards to that zone's edge
+-- along the arrow's line, and the zone's map (nil: it stays in this zone).
+-- at(yd) -> the zone at that distance along the line.
+function N.FirstChange(len, at, step)
+    step = step or 50
+    local z0 = at(0)
+    local lo, hi
+    local d = step
+    while d < len + step do
+        local dd = math.min(d, len)
+        local z = at(dd)
+        if z and z ~= z0 then lo, hi = dd - step, dd break end
+        lo = dd
+        d = d + step
+    end
+    if not hi then return nil end
+    lo = math.max(0, lo)
+    for _ = 1, 6 do
+        local mid = (lo + hi) / 2
+        local z = at(mid)
+        if z and z ~= z0 then hi = mid else lo = mid end
+    end
+    return hi, at(hi)
+end
+
+-- The continent's map above a zone's map.
+local function continentMap(map)
+    local want = (Enum and Enum.UIMapType and Enum.UIMapType.Continent) or 2
+    local m = map
+    for _ = 1, 6 do
+        local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(m)
+        if not info then return nil end
+        if info.mapType == want then return m end
+        if not info.parentMapID or info.parentMapID == 0 then return nil end
+        m = info.parentMapID
+    end
+end
+
+-- The zone under a world spot on a continent.
+local function zoneAtWorld(cont, contMap, wx, wy)
+    if not (C_Map.GetMapPosFromWorldPos and C_Map.GetMapInfoAtPosition) then return nil end
+    local ok, _, pos = pcall(C_Map.GetMapPosFromWorldPos, cont, CreateVector2D(wx, wy), contMap)
+    if not (ok and pos) then return nil end
+    local x, y = pos:GetXY()
+    if x < 0 or x > 1 or y < 0 or y > 1 then return nil end
+    local info = C_Map.GetMapInfoAtPosition(contMap, x, y)
+    return info and N.ZoneOf(info.mapID)
+end
+
+-- Yards to the next zone on the way to a stop in another zone, and its
+-- name. Worked out again only after you've moved a bit, one answer kept per
+-- stop (a single shared one missed every time with two stops in other
+-- zones: ~100 zone lookups a call, several calls a second).
+local borderCache = setmetatable({}, { __mode = "k" })
+function N.NextZone(p, pt)
+    if not (p and pt and pt.wx and p.cont == pt.cont) then return nil end
+    local zone, goal = N.ZoneOf(p.map), N.ZoneOf(pt.map)
+    if not (zone and goal) or zone == goal then return nil end
+    local c = borderCache[pt] or {}
+    if c.wx and dist(c.wx, c.wy, p.wx, p.wy) < 20 then return c.yd, c.name end
+    local contMap = continentMap(p.map)
+    local yd, z
+    if contMap then
+        local len = dist(p.wx, p.wy, pt.wx, pt.wy)
+        local ux, uy = (pt.wx - p.wx) / len, (pt.wy - p.wy) / len
+        yd, z = N.FirstChange(math.min(len, 5000), function(d)
+            return zoneAtWorld(p.cont, contMap, p.wx + ux * d, p.wy + uy * d)
+        end)
+    end
+    c = { wx = p.wx, wy = p.wy, yd = yd, name = z and zoneName(z) }
+    borderCache[pt] = c
+    return yd, c.name
+end
+
+-- The time part of a stop's distance line (with a space in front, or ""):
+--   on a flight: "~1m 10s (landing at Sentinel Hill in ~50s)"
+--   quicker by air: "~2m 10s by air"
+--   on foot: "~3m 40s", and, for a stop in another zone, "(Westfall in ~40s)".
+-- (Each stop's text is kept a second: the arrow, its drawer and the
+-- profession arrow ask ten times a second each.)
+local travelCache = setmetatable({}, { __mode = "k" })
+function N.TravelText(p, pt, yd)
+    local now = GetTime()
+    local c = pt and travelCache[pt]
+    if c and now - c.at < 1 then return c.text end
+    local text = N.TravelTextNow(p, pt, yd)
+    if pt then travelCache[pt] = { at = now, text = text } end
+    return text
+end
+function N.TravelTextNow(p, pt, yd)
+    local speed = N.TravelSpeed()
+    local left, landing = N.TaxiLeft()
+    if landing then
+        local node = ns.db.flights[landing]
+        local walk = (node and pt and pt.wx and node.cont == pt.cont) and dist(node.wx, node.wy, pt.wx, pt.wy) / speed or 0
+        if not left then return string.format(" (flying to %s)", landing) end
+        return string.format(" %s (landing at %s in %s)", N.FormatSeconds(left + walk), landing, N.FormatSeconds(left))
+    end
+    local air = N.AirRoute(p, pt, yd, speed)
+    if air then return " " .. N.FormatSeconds(air.sec) .. " by air" end
+    local out = N.TravelSuffix(yd, speed)
+    local okZ, zyd, zname = pcall(N.NextZone, p, pt)
+    if okZ and zyd and zname and zyd < (yd or 0) then
+        out = out .. string.format(" (%s in %s)", zname, N.FormatTravel(zyd, speed))
+    end
+    return out
 end
 
 local function isQuestStop(key)
@@ -1833,6 +2300,32 @@ local function choose(p)
     return ranked[1]
 end
 
+-- The profession stops' own route (N.profGoals), planned like the quest
+-- route: again when something changed, or every 8 s once you've moved.
+-- Returns { goal, point, d } for the faint arrow, or nil.
+local profPlan, profPlanAt = nil, 0
+local function chooseProf(p)
+    local list = N.profGoals
+    if not (ns.planner and list and #list > 0) then N.profPlan, profPlan = nil, nil return nil end
+    for _, goal in ipairs(list) do
+        if goal.anywhere then goal.points = { { cont = p.cont, wx = p.wx, wy = p.wy, map = p.map, x = p.x, y = p.y } } end
+    end
+    local now = GetTime()
+    local moved = not N.profPos or N.profPos.cont ~= p.cont
+        or dist(p.wx, p.wy, N.profPos.wx, N.profPos.wy) > 30
+    if N.profDirty or not profPlan or (now - profPlanAt > 8 and moved) or now - profPlanAt > 60 then
+        local ok, result = pcall(ns.planner.Plan, ns.planner, p, list, {})
+        profPlan = ok and result or nil
+        if not ok then N.lastError = "profession route: " .. tostring(result) end
+        profPlanAt, N.profDirty = now, false
+        N.profPos = { cont = p.cont, wx = p.wx, wy = p.wy }
+    end
+    N.profPlan = profPlan
+    local s = profPlan and profPlan[1]
+    if not s then return nil end
+    return { goal = s.goal, point = s.point, d = dist(p.wx, p.wy, s.point.wx, s.point.wy) }
+end
+
 -- Where the minimap dot goes. It marks the stop, never you:
 --  * in a quest's area the dot goes away and the area itself shows (Flow's
 --    cloud on the minimap, or the game's own quest zone when that's off);
@@ -2197,10 +2690,13 @@ local function showPanel()
     end
     local g = current.goal
     local h = panel.hero
-    local task = fillHero(panel, g, string.format("%d yd", current.d or 0))
+    local p = N:PlayerPos()
+    local task = fillHero(panel, g, string.format("%d yd%s", current.d or 0, N.TravelText(p, current.point, current.d)))
 
     local lines = {}
     if g.title and g.title ~= task then lines[#lines + 1] = "|cffffd200" .. g.title .. "|r" end
+    local air = N.AirRoute(p, current.point, current.d)
+    if air then lines[#lines + 1] = string.format("Quicker by air: fly from %s to %s.", air.from, air.to) end
     if g.blockedBy then lines[#lines + 1] = "|cffff7070Blocked: " .. g.blockedBy .. "|r" end
     for _, l in ipairs(g.details or {}) do
         if not l:find("^Quest: ") and not l:find("^Objective: ") then lines[#lines + 1] = "|cffcccccc" .. l .. "|r" end
@@ -2313,7 +2809,7 @@ function N:ShowStop(goal, anchor)
     local p = N:PlayerPos()
     local pt = N:Spot(goal, p)
     local d = (p and pt and pt.wx and pt.cont == p.cont) and dist(p.wx, p.wy, pt.wx, pt.wy)
-    local task = fillHero(card, goal, d and string.format("%d yd", d) or "")
+    local task = fillHero(card, goal, d and string.format("%d yd%s", d, N.TravelText(p, pt, d)) or "")
 
     -- Body: what the tooltip says, minus the title and task the band shows.
     local tt = textTooltip()
@@ -2363,6 +2859,30 @@ local function buildArrow()
     local p = ns.db.nav.point
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
+    -- The faint profession needle sits under the main arrow (a lower frame
+    -- level, a little see-through), its stop name and distance in small grey
+    -- text above, opposite the main arrow's text.
+    f.prof = CreateFrame("Frame", nil, f)
+    f.prof:SetAllPoints(f)
+    f.prof:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
+    f.prof:SetAlpha(0.85)
+    f.prof.arrow = N:MakeProfArrow(f.prof)
+    -- At the profession stop: a faint see-through ring where the arrow was,
+    -- with none of the main arrow's beam or bouncing icon (those mean "your
+    -- main stop").
+    f.prof.ring = f.prof:CreateTexture(nil, "BACKGROUND", nil, 2)
+    f.prof.ring:SetTexture(ART .. "ArrowRing")
+    f.prof.ring:SetBlendMode("ADD")
+    f.prof.ring:SetSize(HALO_W, HALO_H)
+    f.prof.ring:SetPoint("CENTER", f.prof, "CENTER", 0, HALO_Y)
+    f.prof.ring:SetAlpha(N.PROF_RING_ALPHA)
+    f.prof.ring:Hide()
+    f.prof.text = f.prof:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.prof.text:SetPoint("BOTTOM", f, "TOP", 0, N.NeedleClearance(f))
+    f.prof.text:SetWidth(260)
+    f.prof.text:SetWordWrap(false)
+    do local c = ns.theme.muted; f.prof.text:SetTextColor(c[1], c[2], c[3]) end
+    f.prof:Hide()
     f.arrow = N:MakeArrow(f)
     N.arrowFrame = f
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2410,6 +2930,15 @@ local function buildArrow()
             end
             items[#items + 1] = { text = "Arrow colour by distance", checked = N:ArrowColorMode() == "distance",
                 func = function() N:SetArrowColorMode(N:ArrowColorMode() == "distance" and "route" or "distance") end }
+            local cfg = ns.db.nav
+            -- (Off unless ticked: on, profession stops leave the main route,
+            -- and the Flow key works from that route.)
+            items[#items + 1] = { text = "Faint profession arrow (with Optimal with professions)", checked = cfg.profArrow == true,
+                func = function() N:SetProfArrow(cfg.profArrow ~= true) end }
+            if cfg.profArrow == true then
+                items[#items + 1] = { text = "Profession arrow text", checked = cfg.profArrowText ~= false,
+                    func = function() cfg.profArrowText = (cfg.profArrowText == false) end }
+            end
             -- (Only once you've Ctrl-dragged the drawer somewhere of its own.)
             if ns.db.nav.drawerPoint then
                 items[#items + 1] = { text = "Drawer next to the arrow (again)", func = function()
@@ -2464,6 +2993,23 @@ local function buildArrow()
     f:SetScript("OnLeave", leave)
     f.textHit:SetScript("OnEnter", function() tip(f) end)
     f.textHit:SetScript("OnLeave", leave)
+    -- The faint arrow's text: left-click opens that stop, right-click the
+    -- arrow's menu, hover its details.
+    f.prof.hit = CreateFrame("Button", nil, f.prof)
+    f.prof.hit:SetPoint("BOTTOM", f, "TOP", 0, N.NeedleClearance(f) - 2)
+    f.prof.hit:SetSize(240, 16)
+    f.prof.hit:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    f.prof.hit:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then f:GetScript("OnClick")(f, button)
+        elseif N.profChoice then N:OpenStop(N.profChoice.goal) end
+    end)
+    f.prof.hit:SetScript("OnEnter", function(self)
+        if not N.profChoice then return end
+        ns.Tip(self, "ANCHOR_TOP")
+        N:FillTooltip(GameTooltip, N.profChoice.goal, "Profession stop (the faint arrow). Click: open it. Right-click: options.")
+        GameTooltip:Show()
+    end)
+    f.prof.hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     return f
 end
@@ -2569,6 +3115,58 @@ function N:ShowCorpse(p)
     return true
 end
 
+-- The faint profession arrow: points straight at its stop (no trails),
+-- dark grey behind the main arrow, with its text above. Hidden at the
+-- stop (the text says "Here:"), and when it's off or nothing is due.
+-- What the profession arrow shows: "ring" at its stop, "off" while you are
+-- on the main stop's point (one thing to look at there) or it can't point,
+-- else "arrow". Anywhere else in a main quest's area it still points.
+function N.ProfArrowMode(mainHere, profHere, canPoint)
+    if profHere then return "ring" end
+    if mainHere or not canPoint then return "off" end
+    return "arrow"
+end
+
+-- Standing on a stop's point (not just inside its area).
+function N.AtStopPoint(d)
+    return d ~= nil and d < ARRIVED * 2
+end
+
+local function updateProf(p)
+    local holder = frame.prof
+    if not holder then return end
+    local choice = N:ProfPointerOn() and chooseProf(p) or nil
+    N.profChoice = choice
+    if ns.minimapPin and ns.minimapPin.UpdateProf then
+        local pt = choice and not choice.goal.anywhere and choice.point or nil
+        pcall(ns.minimapPin.UpdateProf, ns.minimapPin, p, pt, choice and choice.goal)
+    end
+    if not choice then holder:Hide(); N.SetOverNeedle(frame, false) return end
+    local g, pt = choice.goal, choice.point
+    local name = g.text or g.title or "Profession stop"
+    local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
+    local b = bearing(p, pt.wx, pt.wy)
+    local facing = N.ArrowFacing()
+    local mode = N.ProfArrowMode(N.arrivedSpot, here, b and facing)
+    holder.mode = mode
+    if holder.ring then holder.ring:SetShown(mode == "ring") end
+    if mode == "arrow" then
+        holder.arrow:SetRotation(-(b + facing))
+        holder.arrow:Show()
+        N.SetOverNeedle(frame, true)
+    else
+        holder.arrow:Hide()
+        N.SetOverNeedle(frame, false)
+    end
+    if ns.db.nav.profArrowText ~= false then
+        holder.text:SetText(here and ("Here: " .. name) or string.format("%s, %d yd%s", name, choice.d, N.TravelText(p, pt, choice.d)))
+        holder.text:Show(); holder.hit:Show()
+    else
+        holder.text:Hide(); holder.hit:Hide()
+    end
+    holder:Show()
+end
+
 local function update()
     local cfg = ns.db.nav
     -- Route colour follows the order mode (purple / blue / gold): recolour on change.
@@ -2586,7 +3184,10 @@ local function update()
     if cfg.learn then record(p) end
 
     -- Dead: the arrow turns red and points back to your corpse.
-    if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then return end
+    if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then
+        if frame.prof then frame.prof:Hide() end
+        return
+    end
 
     local choice = choose(p)          -- (keeps the route planned, waypoint or not)
     -- A party member you follow (Follow.lua), else your own waypoint, else the route.
@@ -2617,6 +3218,7 @@ local function update()
         else
             frame:Hide()
         end
+        if frame.prof then frame.prof:Hide() end
         return
     end
 
@@ -2653,6 +3255,10 @@ local function update()
     -- nameplate on screen: then the arrow points straight at it.
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
     N.arrived = here
+    -- On the stop's own point, not just somewhere in its area. A big area
+    -- quest can have a profession stop inside it (a node, a forge); that
+    -- arrow should still point while you roam the area.
+    N.arrivedSpot = N.AtStopPoint(choice.d)
     -- In the area it's the ring. (Pointing at the nearest Questie spawn spot
     -- was tried in 0.35.45: the spots are where things CAN spawn, not where
     -- they are, so the arrow jumped around and sent you back and forth.) The
@@ -2675,7 +3281,8 @@ local function update()
             frame.sub:SetText(choice.d < ARRIVED * 2 and "You're here" or "You're in the area")
         end
     else
-        frame.sub:SetText(string.format("%d yd%s%s", choice.d,
+        frame.sub:SetText(string.format("%d yd%s%s%s", choice.d,
+            N.TravelText(p, choice.point, how == "path" and length or choice.d),
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length)
                 or (how == "entrance" and " (it's inside: entrance first)" or "")))
@@ -2701,6 +3308,7 @@ local function update()
     N.arrowWaypoint = choice.waypoint and true or false
     -- The minimap dot: the arrow's colour, on the stop (not on you).
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, N.DotPoint(choice, here), g, col, here) end
+    updateProf(p)
     frame:Show()
     if panel and panel:IsShown() then showPanel()
     elseif ns.db.nav.drawerOpen and not N.drawerRestored then
@@ -2839,6 +3447,11 @@ ns.commands.nav = function(arg)
     if arg == "on" or arg == "off" then
         cfg.enabled = (arg == "on")
         ns:Print("navigation arrow " .. arg)
+    elseif arg:find("^profarrow") then
+        local v = arg:match("^profarrow%s+(%a+)")
+        if v == "on" or v == "off" then N:SetProfArrow(v == "on") end
+        ns:Print("faint profession arrow: " .. (cfg.profArrow == true and "on" or "off")
+            .. (N:ProfPointerOn() and "" or " (shows with Optimal with professions)"))
     elseif arg:find("^professions") then
         local v = arg:match("^professions%s+(%a+)")
         cfg.professions = (v ~= "off")
@@ -2992,3 +3605,25 @@ ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
     hidden = function() return ns.db.nav.enabled == false end,
     show = function() ns.commands.nav("on") end,
     hide = function() ns.commands.nav("off") end })
+
+-- Options > AddOns > Flow, under "Flow".
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        label = "Faint profession arrow",
+        note = "(with Optimal with professions)",
+        tip = "Profession stops (training, skill-ups) get their own route and a faint dark grey arrow behind "
+            .. "the main one, with their name above it. The main arrow then only takes you to quests. "
+            .. "Off (default): profession stops stay on the main arrow's route, where the Flow key does their steps.",
+        get = function() return ns.db.nav.profArrow == true end,
+        set = function(on) N:SetProfArrow(on) end,
+    })
+    ns.settings:AddCheck({
+        label = "Finish the area you're in first",
+        note = "(stops within 300 yd)",
+        tip = "Off (default): the arrow follows the shortest whole trip. On: the route clears the stops "
+            .. "around you before it sends you the other way, unless going the other way first saves a lot "
+            .. "of walking. Quests to pick up nearby count as part of the area.",
+        get = function() return ns.db.nav.areaFirst == true end,
+        set = function(on) ns.db.nav.areaFirst = on and true or false; N.planDirty = true end,
+    })
+end

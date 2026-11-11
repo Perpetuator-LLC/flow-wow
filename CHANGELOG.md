@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.35.143
+- **A faint profession arrow (off unless you tick it).** Arrow menu or Flow Settings: "Faint
+  profession arrow". With "Optimal with professions", profession stops (training, skill-ups,
+  materials) get their own route and a long, narrow, smoked-glass arrow behind the main one,
+  with the stop's name and travel time; the main arrow then only takes you to quests. Its stop has
+  its own pin on the world map and dot on the minimap, with a dotted path. At that stop the
+  Flow key still does the steps (open the profession, make the bars, fish, gather).
+- **Profession materials from your bags, bank and smelting.** The plan counts what you carry and
+  what the bank held when you last opened it (a bank stop says how sure Flow is), smelts ore into
+  bars, and holds a craft back while its materials stop is off the route. A far bank is only
+  worth it when it holds plenty (10 or more): otherwise Flow farms the material where you are.
+- **Gear you can make that's an upgrade** for you shows on the profession window and its craft
+  stop (while that profession is being raised).
+- **Travel time**: the arrow, its drawer and the stop card say about how long it takes, by air when
+  a flight is quicker (Flow learns flight masters and flight times as you fly), and when the next
+  zone starts.
+- **"Finish the area you're in first"** (Flow Settings, off by default): clear the stops around
+  you before going the other way. Off, the arrow follows the shortest whole trip.
+- (Thanks, BIMpossible: pull request 12's newer commits.)
+
 ## 0.35.142
 - **Training waits for what it needs.** Demoralizing Roar, Maul, Growl and the other bear
   spells need Bear Form first, which a druid gets from a class quest, not the trainer (cat

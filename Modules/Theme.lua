@@ -53,6 +53,7 @@ ns.theme = {
     user     = rgb("56B4E9"),  -- sky blue: your own waypoint
     muted    = rgb("BBBBBB"),
     good     = rgb("66FF66"),  -- green: worth doing (a dungeon run with your group)
+    profPointer = rgb("1E2026"),  -- near-black smoked glass: the profession arrow under the main arrow
 }
 
 -- Flow's panel title bar, the brand on every Flow panel (Flow Tracker, Flow
