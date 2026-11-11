@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **Dungeon key: a gold key atop your quest list.** A run worth doing shows as its own gold key above the
+  top-left corner of your quest list (Questie's, else the Flow Tracker), not as an icon above the Flow key.
+  Hover it for why, click it to prepare the run.
+
 ## 0.35.133
 - **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
   it's on none of your bars. It's set before the fight (WoW won't let it change during one).
