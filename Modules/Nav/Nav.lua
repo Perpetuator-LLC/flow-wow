@@ -500,7 +500,7 @@ function N.IsProfessionStop(g)
 end
 
 -- The faint profession arrow: off unless you tick it (arrow menu, Options,
--- /flow nav profarrow on), and only with "Optimal with professions". (On by
+-- /flow nav profarrow on), and only on the Optimal route with Professions on. (On by
 -- default it moved profession stops off the main route, where the Flow key
 -- does their steps: at a forge stop the key no longer made the bars.)
 function N:ProfPointerOn()
@@ -2933,7 +2933,7 @@ local function buildArrow()
             local cfg = ns.db.nav
             -- (Off unless ticked: on, profession stops leave the main route,
             -- and the Flow key works from that route.)
-            items[#items + 1] = { text = "Faint profession arrow (with Optimal with professions)", checked = cfg.profArrow == true,
+            items[#items + 1] = { text = "Faint profession arrow (Optimal, with Professions on)", checked = cfg.profArrow == true,
                 func = function() N:SetProfArrow(cfg.profArrow ~= true) end }
             if cfg.profArrow == true then
                 items[#items + 1] = { text = "Profession arrow text", checked = cfg.profArrowText ~= false,
@@ -3451,7 +3451,7 @@ ns.commands.nav = function(arg)
         local v = arg:match("^profarrow%s+(%a+)")
         if v == "on" or v == "off" then N:SetProfArrow(v == "on") end
         ns:Print("faint profession arrow: " .. (cfg.profArrow == true and "on" or "off")
-            .. (N:ProfPointerOn() and "" or " (shows with Optimal with professions)"))
+            .. (N:ProfPointerOn() and "" or " (shows on the Optimal route with Professions on)"))
     elseif arg:find("^professions") then
         local v = arg:match("^professions%s+(%a+)")
         cfg.professions = (v ~= "off")
@@ -3610,7 +3610,7 @@ ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         label = "Faint profession arrow",
-        note = "(with Optimal with professions)",
+        note = "(Optimal, with Professions on)",
         tip = "Profession stops (training, skill-ups) get their own route and a faint dark grey arrow behind "
             .. "the main one, with their name above it. The main arrow then only takes you to quests. "
             .. "Off (default): profession stops stay on the main arrow's route, where the Flow key does their steps.",

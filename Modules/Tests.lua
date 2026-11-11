@@ -2344,9 +2344,9 @@ ns:Register("test", "faint profession arrow: which stops, and when it shows", fu
     cfg.profArrow, cfg.mode, cfg.professions = nil, "optimal", true
     t:ok(not N:ProfPointerOn(), "never ticked: off (0.35.143: on, it took profession stops off the Flow key's route)")
     cfg.profArrow = true
-    t:ok(N:ProfPointerOn(), "on with Optimal with professions")
+    t:ok(N:ProfPointerOn(), "on: Optimal with Professions on")
     cfg.professions = false
-    t:ok(not N:ProfPointerOn(), "not with Optimal without professions")
+    t:ok(not N:ProfPointerOn(), "not on Optimal with Professions off")
     cfg.professions, cfg.mode = true, "quests"
     t:ok(not N:ProfPointerOn(), "not with Quests only")
     cfg.mode, cfg.profArrow = "optimal", false
@@ -5129,4 +5129,19 @@ ns:Register("test", "needs: the town's errands don't pull a stop ahead of what i
     t:eq(N.HubBusiness(train, 10, { ["6002:done"] = true }, false), nil,
         "training waits while the Bear Form quest's turn-in is still on the route")
     t:eq(N.HubBusiness(train, 10, {}, false), "train", "turned in: training is town business again")
+end)
+
+ns:Register("test", "route menu: professions are one tick of their own", function(t)
+    -- 0.35.145 (pull request 14): one "Professions" tick in place of two
+    -- "Optimal with / without professions" routes.
+    local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    t:ok(ok and type(items) == "table", "the route menu builds")
+    local profs, old
+    for _, it in ipairs(ok and items or {}) do
+        local text = it.text or ""
+        if text:find("Professions", 1, true) and not text:find("arrow", 1, true) then profs = it end
+        if text:find("Optimal with", 1, true) or text:find("Optimal without", 1, true) then old = it end
+    end
+    t:ok(profs ~= nil, "a Professions tick")
+    t:ok(old == nil, "no \"Optimal with / without professions\" any more")
 end)

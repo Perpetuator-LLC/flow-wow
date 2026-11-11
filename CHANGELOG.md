@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.145
+- **Professions: a switch of their own.** The route list is Quests only, Optimal and
+  Completionist, with one "Professions" tick under them, instead of two "Optimal with / without
+  professions" routes. (Thanks, BIMpossible: pull request 14.)
+
 ## 0.35.144
 - Fixed three self-tests that failed at every login after 0.35.143: they expected the faint
   profession arrow on by default (it's off unless ticked now) and water not to count (the key
