@@ -280,6 +280,12 @@ talk to Claude from inside the game and get updates by themselves:
 - **Debugging:** `/console scriptErrors 1`, `/flow rot why` and `/flow api`.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
+- **`/reload` is enough, always (people and AI assistants: don't ask for a game restart).**
+  WoW: Forever loads everything again on `/reload`: changed files, new files and the changed
+  `Flow.toc`. Older WoW clients needed a restart for a new file; this one doesn't. Checked on
+  2026-11-10 by adding `Modules/Nav/RouterDock.lua` while the game ran: it loaded at the next
+  `/reload`. A self-test ("core: a file added while the game runs loads on /reload") keeps
+  watch; restart only if it fails.
 - **Packaging:** `tools/package.ps1` builds a release zip; see [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Licence

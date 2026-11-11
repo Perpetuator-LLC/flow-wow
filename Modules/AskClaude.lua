@@ -406,7 +406,7 @@ local function buildBox()
     f.copyLog:SetHeight(18)
     f.copyLog:SetPoint("RIGHT", close, "LEFT", -2, 0)
     f.copyLog:SetScript("OnClick", function()
-        if not ns.copyBox then f.status:SetText("Restart WoW once to load the Flow Copy window.") return end
+        if not ns.copyBox then f.status:SetText("Type /reload to load the Flow Copy window.") return end
         local lines = AC.History(ns.claudeInbox, ns.db.chat, 20)
         if #lines == 0 then f.status:SetText("Nothing to copy yet.") return end
         ns.copyBox:Show("the Flow Chat conversation", lines)

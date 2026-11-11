@@ -3811,7 +3811,7 @@ end)
 
 ns:Register("test", "bonus mode: off by default; Spoken picks a voice and clean words", function(t)
     local B = ns.bonus
-    if not B then t:ok(true, "Bonus.lua loads after a WoW restart") return end
+    if not B then t:ok(true, "(Bonus.lua not loaded yet: /reload)") return end
     with(ns.db.bonus, "enabled", nil, function()
         t:ok(not B:On() and not B:Extra("spoken"), "off until you turn it on")
     end)

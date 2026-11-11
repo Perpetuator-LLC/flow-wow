@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.161
+- **A `/reload` is always enough.** WoW: Forever loads new files on `/reload` too (older WoW
+  clients needed a restart for them). Checked by adding a file while the game ran: it loaded at
+  the next `/reload`. Flow, its update message, its guides and its notes for AI assistants no
+  longer say "restart WoW"; a self-test keeps watch in case that ever changes.
+
 ## 0.35.160
 - **"Heal: SHIFT+" in gold beside the easy button** while Flow advises a heal in a fight and
   your key holds another spell. In your last death Flow advised a heal 65 times in 80 seconds

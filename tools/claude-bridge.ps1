@@ -208,7 +208,7 @@ function Ask-Claude($msg) {
     $prompt = @"
 A message typed in World of Warcraft through Flow's in-game chat (/claude). You're in the Flow addon's folder: read CLAUDE.md first.
 $role
-Your answer is shown in WoW's chat window: reply in at most 3 short sentences, plain text, no markdown. If they need to /reload (or restart WoW, for new files) to see a change, say so.
+Your answer is shown in WoW's chat window: reply in at most 3 short sentences, plain text, no markdown. If they need to /reload to see a change, say so (a /reload loads new files too: never say restart WoW).
 Player: $($msg.char) ($($msg.class), level $($msg.level), in $($msg.zone)).
 Message: $($msg.text)
 "@
@@ -489,8 +489,8 @@ function Sync-Flow {
         git merge --ff-only FETCH_HEAD --quiet 2>$null
         if ($LASTEXITCODE -ne 0) { return }
         $newToc = Get-Content (Join-Path $repo 'Flow.toc') -Raw
-        $restart = (Compare-Object (Toc-Files $oldToc) (Toc-Files $newToc)) -ne $null
-        $how = if ($restart) { 'Restart WoW to load it (it adds new files).' } else { 'Type /reload to load it.' }
+        # WoW: Forever loads new files on /reload too (checked 2026-11-10): never "restart WoW".
+        $how = 'Type /reload to load it.'
         $msg = "Flow updated: $(Toc-Version $oldToc) -> $(Toc-Version $newToc). $how See CHANGELOG.md for what's new."
         Emit "UPDATE $msg"
         Add-Reply $msg $null

@@ -43,6 +43,12 @@ registry first, or add one.
 - Useful in game: `/console scriptErrors 1`, `/flow api` (which APIs this client has),
   `/flow rot why`, `/flow nav why`.
 - With the repo junctioned into `Interface\AddOns\Flow`, `/reload` picks up edits.
+- **A `/reload` is always enough. Never ask the player to restart the game.** WoW: Forever
+  reads everything again on `/reload`: changed files, **new files** and the changed `Flow.toc`
+  (older WoW clients needed a restart for a new file; this one doesn't). Checked on 2026-11-10:
+  `Modules/Nav/RouterDock.lua` was added while the game ran and loaded at the next `/reload`
+  (the game client hadn't been restarted). The self-test "core: a file added while the game
+  runs loads on /reload" fails if that ever stops being true; only then say "restart".
 
 ## "Watch Flow's in-game chat" (/si in game)
 
@@ -60,7 +66,8 @@ prompt that `/si` shows in game:
      changelog and commit; never push). Then answer it:
      `powershell -ExecutionPolicy Bypass -File tools\claude-bridge.ps1 -Reply <id> -Text "<answer>"`
      The answer shows in WoW's chat window: at most 3 short sentences, plain text, no markdown,
-     and say whether they need to `/reload` (or restart WoW, for new files) to see a change.
+     and say whether they need to `/reload` to see a change (a `/reload` loads new files too:
+     never say "restart WoW").
    - `INFO ...`: news about the bridge itself (a Flow screenshot it couldn't read, kept for a
      look). Usually nothing to do.
    - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the

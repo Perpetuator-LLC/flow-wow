@@ -92,8 +92,8 @@ Remove it with `schtasks /Delete /TN "Flow updates"`.
 ## What gets updated, and what doesn't
 
 - A clone on the `main` branch with **no changes of its own** fast-forwards to the newest Flow.
-  In game you see "Flow updated: 0.35.80 -> 0.35.81. Type /reload to load it." (or "Restart WoW",
-  when the update adds files).
+  In game you see "Flow updated: 0.35.80 -> 0.35.81. Type /reload to load it." (A `/reload` loads
+  new files too on WoW: Forever, so it never asks for a restart.)
 - A clone with **your own changes** (for example ones Claude made for you from `/claude`) isn't
   touched: you're told an update is waiting. Ask Claude to open a pull request with your changes,
   or to set them aside, and updates resume.
