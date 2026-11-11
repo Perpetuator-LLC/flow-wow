@@ -1,6 +1,24 @@
 # Changelog
 
 ## Unreleased
+- **Profession stop: no white outline.** Its map pin and minimap dot lose the light ring; a small centre stays.
+- **Worn gear: an early warning.** When anything you wear drops under 20% durability an anvil shows above Flow's key
+  (hover: which item, the nearest repair vendor Flow knows) and the route gets a Repair stop. Options: "Warn early when
+  gear wears out".
+- **Repair after selling.** At a vendor Flow now sells first and repairs after, so the sale helps pay; it says once when
+  you still can't afford it, and with auto-repair off it says the cost and leaves the button to you.
+- **Hearthstone estimate.** Asking for a service that's far away (or the repair warning) says when hearthstone-then-run
+  looks clearly quicker than going straight: at least 2 minutes and a quarter of the trip, counting its cooldown, the
+  cast and the loading screen. It's an estimate, only for inns Flow knows, and Flow never uses the hearthstone for you.
+- **Camp objects: placed is per campfire.** No more hour-long silence after placing one; your group's objects are listed
+  as near you, elsewhere or unknown, and members who leave drop off the list.
+- **One recovery order, always.** Out of a fight every heal goes through your order (bandage, food, heal spell by default):
+  a heal spell no longer jumps ahead when your health is shown or the low-health warning is on, and "Cast heals" off
+  means no heal spell. Fight healing is unchanged: healthstone, potion, then heal spells.
+- **Well Fed food heals too.** Food that restores health and also makes you Well Fed is eaten to heal when you carry no
+  plain food (right-click the Flow key to keep it for the buff).
+- **Alt + easy key: healthstone or potion.** Set before the fight, so it works in one even when the item is on none of
+  your bars. It can't switch mid-fight (WoW's rule).
 - **Profession marker and path.** The faint profession arrow's stop now has its own pin on the world map and a dot on the
   minimap, in the arrow's smoked-glass colour with a light ring, plus a dotted path through your next profession stops.
 - **Farm it here, not at the bank.** A profession plan only sends you to the bank when the banker is close or the material
