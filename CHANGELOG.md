@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.147
+- **Bandages, food and the campfire on the buff button** (when it's on: `/flow buffbutton on`).
+  Hurt after a fight, the blue buff button offers your bandage or food; by a campfire, once the
+  button has its own key (`/flow buffkey Q`), it places your camp objects and its key sits you
+  down. The Flow key then keeps to the fight, loot and gathering. Your recovery order still
+  holds: a heal spell on the Flow key waits while a bandage or food you put first is there.
+  (Thanks, BIMpossible: pull request 13.)
+
 ## 0.35.146
 - **Dungeon key: a gold key atop your quest list.** A dungeon run worth doing (or the one you
   prepared) shows as a gold key above the top-left corner of your quest list (Questie's, else the
