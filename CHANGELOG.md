@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- **Quests an NPC doesn't give.** Questie lists Forever's own quests with no "do this first" (a second "Arugal's Folly",
+  "Return to Quinn (Again)", "Wild Eyes"), so Flow sent you to accept them early. Now one talk with the giver is enough:
+  if the quest isn't among what they show, its stop goes for ten minutes, and for a day when it's missing again. It
+  also counts when the NPC only takes a hand-in or opens one quest with no list, which never counted before.
+
 ## 0.35.144
 - Fixed three self-tests that failed at every login after 0.35.143: they expected the faint
   profession arrow on by default (it's off unless ticked now) and water not to count (the key
