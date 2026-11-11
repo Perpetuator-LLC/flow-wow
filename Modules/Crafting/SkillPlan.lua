@@ -1002,6 +1002,16 @@ local function planProfession(prof, t, out)
                 end
             end
         end
+        -- Nothing to make it from yet: no stop, but the profession window
+        -- still names it and what to gather (CraftHint.lua).
+        if n == 0 and planned > 0 then
+            SP.lastWaiting = SP.lastWaiting or {}
+            local list = SP.lastWaiting[prof] or {}
+            SP.lastWaiting[prof] = list
+            list[#list + 1] = { prof = prof, recipe = s.recipe, makeCount = planned, planned = planned,
+                                rank = rank, target = t.target, reagents = s.mats,
+                                unlearned = (known and not known[s.recipe]) or nil }
+        end
         if n > 0 then
             local deps, depBlocked = before(takes)
             local pts, anywhere = stationPoints(s.station), false
@@ -1287,6 +1297,7 @@ ns:Register("navGoal", "skillplan", {
         SP.lastTargets = SP:Targets()   -- (fishing feeds cooking: SP.PlannedCatch)
         SP.lastFromFish = 0
         SP.lastUpgrades = {}
+        SP.lastWaiting = {}
         for prof, t in pairs(SP.lastTargets) do
             local ok, err = pcall(planProfession, prof, t, out)
             if not ok then ns:Log("skillplan", prof .. ": " .. tostring(err)) end
@@ -1303,6 +1314,9 @@ ns:Register("navGoal", "skillplan", {
             end
         end
         SP.lastStops = kept
+        -- The profession window's panel shows this plan: bring it up to date
+        -- (the upgrade you just made is in your bags, so it's off the plan).
+        if ns.craftHint and ns.craftHint.PlanChanged then ns.craftHint.PlanChanged() end
         return kept
     end,
 })
