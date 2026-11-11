@@ -43,8 +43,40 @@ function P.Wrap(name, fn)
 end
 P._depth = function() return depth end   -- (tests)
 
+-- Time inside one timed function, split by part (Flow Actions by step):
+-- the report names the costliest parts under its row, so a slow entry says
+-- which part of it to look at. Cheap enough to run on every call (one clock
+-- read per part, no memory count).
+function P.AddPart(name, part, ms)
+    local st = P.stats[name]
+    if not (st and part and ms) then return end
+    local parts = st.parts or {}
+    st.parts = parts
+    local pt = parts[part] or { total = 0, max = 0 }
+    parts[part] = pt
+    pt.total = pt.total + ms
+    if ms > pt.max then pt.max = ms end
+end
+
+-- "   most in: gear:upgrade 2.10 ms/s (worst 15.9 ms), ..." for one row, or nil.
+function P.PartsLine(st, secs, n)
+    if not st.parts then return nil end
+    local list = {}
+    for part, pt in pairs(st.parts) do
+        if pt.total > 0 then list[#list + 1] = { part = part, pt = pt } end
+    end
+    if #list == 0 then return nil end
+    table.sort(list, function(a, b) return a.pt.total > b.pt.total end)
+    local bits = {}
+    for i = 1, math.min(n or 4, #list) do
+        local e = list[i]
+        bits[#bits + 1] = string.format("%s %.2f ms/s (worst %.1f ms)", e.part, e.pt.total / secs, e.pt.max)
+    end
+    return "      most in: " .. table.concat(bits, ", ")
+end
+
 function P:Reset()
-    for _, st in pairs(self.stats) do st.calls, st.total, st.max, st.kb = 0, 0, 0, 0 end
+    for _, st in pairs(self.stats) do st.calls, st.total, st.max, st.kb, st.parts = 0, 0, 0, 0, nil end
     self.since = GetTime()
 end
 
@@ -82,6 +114,8 @@ function P:Report(quick)
         local st = r.st
         out[#out + 1] = string.format("  %-32s %6.2f ms/s  avg %5.2f ms  worst %6.1f ms  makes %6.1f KB/s  (%d calls)",
             r.name, st.total / secs, st.total / st.calls, st.max, (st.kb or 0) / secs, st.calls)
+        local parts = P.PartsLine(st, secs)
+        if parts then out[#out + 1] = parts end
     end
     -- One frame at 60 fps is ~16 ms: anything near that is a hitch you'd feel.
     for _, r in ipairs(rows) do

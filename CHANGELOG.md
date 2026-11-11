@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.151
+- **`/flow perf` says which Flow Action costs.** Flow Actions (the key's loot, equip, learn,
+  fishing and crafting steps) turned out to be the easy button's biggest cost, about four times
+  choosing the spell. Its row now lists the steps that took the most time, with each one's
+  worst moment, so the next fix goes where the time is. The rotation's own row counts real
+  ticks (ten a second) instead of every frame.
+
 ## 0.35.150
 - **Flow uses less of your computer again.** Since 0.35.140 Flow had grown from about 9 to 12
   ms of work per second. The "in this area" check on the map and Flow Tracker now rules out an

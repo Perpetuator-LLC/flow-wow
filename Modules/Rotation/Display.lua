@@ -485,18 +485,16 @@ local function render(s, cfg, glow)
 end
 
 -- Timed apart for /flow perf, so a slow tick says which part costs: picking
--- the spell, Flow Actions, or drawing it (what's left in "rotation + actions").
+-- the spell, Flow Actions, or showing it on the key ("rotation: showing it").
 -- (They look E.Evaluate and ns.actions up at each call: Actions.lua loads
 -- after this file, and tests stand in for both.)
 local timedEvaluate = ns.perf.Wrap("rotation: choosing the spell", function() return E:Evaluate() end)
 local timedActions = ns.perf.Wrap("flow actions", function() return ns.actions:Current() end)
 
 local elapsed = 0
-local function onUpdate(_, dt)
-    elapsed = elapsed + dt
-    if elapsed < 0.1 then return end
-    elapsed = 0
-
+-- Ten times a second (the frame-by-frame wait is outside the timing, so
+-- /flow perf counts real ticks).
+local function tick()
     local cfg = ns.db.rotation
     if not cfg.enabled then
         E.shown = nil
@@ -657,7 +655,13 @@ ns:OnLoad(function(saved)
     icon = buildIcon(saved.rotation)
     E.icon = icon  -- for the cast button (Cast.lua)
     local driver = CreateFrame("Frame")
-    driver:SetScript("OnUpdate", ns.perf.Wrap("rotation + actions (10/s)", onUpdate))
+    local timedTick = ns.perf.Wrap("rotation: showing it (10/s)", tick)
+    driver:SetScript("OnUpdate", function(_, dt)
+        elapsed = elapsed + dt
+        if elapsed < 0.1 then return end
+        elapsed = 0
+        timedTick()
+    end)
     local status = CreateFrame("Frame")
     status:SetScript("OnUpdate", function(_, dt)
         statusElapsed = statusElapsed + dt

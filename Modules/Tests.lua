@@ -1266,7 +1266,7 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     P.stats["test: wrapped"] = nil
     t:ok(P.stats["arrow + minimap (10/s)"] ~= nil, "route arrow timed")
     t:ok(P.stats["route: order stops"] ~= nil, "planner timed")
-    for _, name in ipairs({ "rotation: choosing the spell", "flow actions", "status icons (1/s)" }) do
+    for _, name in ipairs({ "rotation: choosing the spell", "flow actions", "status icons (1/s)", "rotation: showing it (10/s)" }) do
         t:ok(P.stats[name] ~= nil, name .. ": timed apart from drawing the key")
     end
     -- quick: a full clean-up inside the login self-test run is a hitch.
@@ -1285,6 +1285,22 @@ ns:Register("test", "perf: route refresh gathers one stop source at a time", fun
     N._gatherFrom("test: bad", { collect = function() error("boom") end }, list)
     t:eq(#list, 2, "a failing source adds nothing and doesn't stop the refresh")
     P.stats["gather: test: src"], P.stats["gather: test: bad"] = nil, nil
+end)
+
+ns:Register("test", "perf: a timed entry names its costliest parts", function(t)
+    local P = ns.perf
+    local f = P.Wrap("test: parts", function() end)
+    f()
+    P.AddPart("test: parts", "slow step", 30)
+    P.AddPart("test: parts", "quick step", 1)
+    P.AddPart("test: parts", "slow step", 12)
+    P.AddPart("test: no such entry", "x", 5)
+    local line = P.PartsLine(P.stats["test: parts"], 10) or ""
+    t:ok(line:find("slow step 4.20 ms/s (worst 30.0 ms)", 1, true) ~= nil, "per second, with its worst: " .. line)
+    t:ok((line:find("slow step", 1, true) or 99) < (line:find("quick step", 1, true) or 0), "costliest first")
+    t:eq(P.stats["test: no such entry"], nil, "a part of an untimed entry is ignored")
+    t:eq(P.PartsLine({ calls = 1 }, 10), nil, "no parts: no line")
+    P.stats["test: parts"] = nil
 end)
 
 ns:Register("test", "drink: drinking is told by the buff's name", function(t)

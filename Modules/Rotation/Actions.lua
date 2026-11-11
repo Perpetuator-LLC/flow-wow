@@ -870,11 +870,19 @@ local errors = {}   -- last error per action step (X:Current)
 X._errors = errors   -- (tests)
 
 -- The action for right now (out of combat only), or nil.
+-- Each step's time goes to /flow perf under "flow actions" (Display.lua times
+-- the whole call under that name): "most in: gear:upgrade ...".
+local clock = debugprofilestop
+local addPart = ns.perf and ns.perf.AddPart
+local PERF = "flow actions"
 function X:Current()
     if InCombatLockdown() or UnitIsDeadOrGhost("player") or ns.db.actions.enabled == false then return nil end
+    local t0 = clock and addPart and clock()
     local ctx = self:Context()
+    if t0 then local t1 = clock(); addPart(PERF, "where you are", t1 - t0); t0 = t1 end
     for _, e in ipairs(list()) do
         local ok, s = pcall(e.a.get, ctx)
+        if t0 then local t1 = clock(); addPart(PERF, e.key, t1 - t0); t0 = t1 end
         -- A step that errors is skipped, but never silently: keep each new
         -- error in the log (one line per step and message, not every tick).
         if not ok then
