@@ -5,6 +5,11 @@
   top-left corner of your quest list (Questie's, else the Flow Tracker), not as an icon above the Flow key.
   Hover it for why, click it to prepare the run.
 
+## 0.35.144
+- Fixed three self-tests that failed at every login after 0.35.143: they expected the faint
+  profession arrow on by default (it's off unless ticked now) and water not to count (the key
+  drinks it since 0.35.136). The arrow-layout check now says its numbers when it fails.
+
 ## 0.35.143
 - **A faint profession arrow (off unless you tick it).** Arrow menu or Flow Settings: "Faint
   profession arrow". With "Optimal with professions", profession stops (training, skill-ups,
