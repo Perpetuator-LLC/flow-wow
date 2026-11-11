@@ -6,14 +6,15 @@ local _, ns = ...
 
 local topics = {
     { "basics", 10, "Basics", {
-        "Hold |cffffd200Shift|r and drag any Flow element to move it.",
+        "Hold |cffffd200Ctrl|r and drag any Flow element to move it (as in Questie).",
+        "/flow keys - the keys that cast a spell directly, not from a bar (the game's Key Bindings window doesn't list those)",
         "/flow splash - replay the intro on the arrow (on/off)",
         "/flow api - what this game client lets addons see",
     } },
     { "rotation", 20, "Rotation (icon + glowing action button)", {
         "Green = attack, light blue = buff, gold = heal, fast gold pulse = heal now.",
         "Click the icon or press your Flow key to cast it (set the key in /flow settings).",
-        "In combat the key keeps the spell it had at the pull; a small \"key:\" icon shows it.",
+        "In combat the key keeps the spell it had at the pull: the icon shows that spell; a better one to press on your bar shows in its corner (bar:). Hold Shift: the icon shows what Shift + key casts (your heal).",
         "/flow rot guide - your rotation in plain words; /flow rot why - why each spell is or isn't suggested",
         "/flow rot on|off|unlock|lock|stats|known|reset",
     } },

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.141
+- **New spells: one Flow Spells list.** Training several spells used to show a card for each,
+  one at a time, every new one closing the last. Now they all go into one list: a row per spell
+  with its icon (drag it to any bar slot) and Bar, Key and Skip buttons, plus **Place all on
+  bar** for every one that isn't on a bar or a key yet. It stays while you use it, then closes
+  by itself after half a minute.
+- **`/flow keys`**: the keys that cast a spell directly rather than from a bar, and the Flow
+  key's own. The game's Key Bindings window doesn't list spells bound to a key.
+- `/flow help`: Ctrl moves things; what the corner of the easy button means.
+
 ## 0.35.140
 - **The map and the arrow agree.**
   - "All objectives in this area" (the map and the Flow Tracker) now counts a stop when any

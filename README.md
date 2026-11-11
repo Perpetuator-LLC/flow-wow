@@ -210,8 +210,10 @@ Flow for WoW is a separate project from Flow Engine.
   only, nothing about you ([docs/SHARE-PLACES.md](docs/SHARE-PLACES.md)).
 - **Performance**: `/flow perf` shows Flow's CPU and memory per part; it's saved with the
   diagnostics so slow spots get noticed.
-- **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
-  auto-places new spells on your bars.
+- **Key binding mode** with save/undo/cancel (`/flow bind`). Spells you learn go into one
+  **Flow Spells** list: drag each to a bar, or Bar / Key / Skip per row, or **Place all on
+  bar**. `/flow keys` lists the keys that cast a spell directly, not from a bar (the game's Key
+  Bindings window doesn't show those).
 - **Colour-blind palette** for the route (in `/flow settings`).
 - A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Ctrl-drag to move
   any Flow element.

@@ -4635,3 +4635,30 @@ ns:Register("test", "map and arrow agree: area stops by every spawn; one spot pe
         t:ok(s and s.wx == 20, "off the route: the spawn nearest you, not the first one kept")
     end)
 end)
+
+ns:Register("test", "new spells: one Flow Spells list, Place all on bar", function(t)
+    local NS = ns.newSpell
+    -- 0.35.141: each new spell had a card of its own for 10 s, the next one
+    -- replacing it; training five spells left you chasing cards.
+    local entries = { { id = 1, name = "Moonfire" }, { id = 2, name = "Thorns", slot = 5 },
+                      { id = 3, name = "Wrath", key = "Q" }, { id = 4, name = "Roots", skipped = true },
+                      { id = 5, name = "Rejuvenation" } }
+    local need = NS.Placeable(entries)
+    t:eq(#need, 2, "Place all: only the ones not on a bar, not on a key, not skipped")
+    t:ok(need[1].name == "Moonfire" and need[2].name == "Rejuvenation", "Moonfire and Rejuvenation")
+    t:eq(NS.RowWhere(entries[2]), "Action Bar 1, slot 5", "a row says where it is")
+    t:eq(NS.RowWhere(entries[3]), "key: Q", "or its key")
+    t:eq(NS.RowWhere(entries[4]), "not on your bars", "or that you skipped it")
+    t:ok(type(NS.PlaceAll) == "function" and type(NS.Close) == "function", "Place all and Close")
+end)
+
+ns:Register("test", "/flow keys: spells bound straight to a key, sorted", function(t)
+    local NS = ns.newSpell
+    local keys = { Moonfire = { "Q" }, Wrath = { "E", "SHIFT-E" }, Thorns = {} }
+    local list = NS.DirectKeys({ Moonfire = true, Wrath = true, Thorns = true },
+        function(n) local k = keys[n] or {}; return k[1], k[2] end)
+    t:eq(#list, 3, "Moonfire's key and both of Wrath's; Thorns has none")
+    t:eq(list[1].key .. "=" .. list[1].name, "E=Wrath", "sorted by key")
+    t:eq(list[3].key .. "=" .. list[3].name, "SHIFT-E=Wrath", "a second key too")
+    t:ok(ns.commands.keys ~= nil, "/flow keys")
+end)
