@@ -202,6 +202,13 @@ end
 function X:Context()
     local p = ns.nav and ns.nav:PlayerPos()
     local choice = ns.nav and ns.nav.current
+    -- With the faint profession arrow on, profession stops have a route of
+    -- their own (N.profChoice): standing at that stop, the key does its steps
+    -- (make the bars at the forge, fish, gather), as it does on the main route.
+    local pc = ns.nav and ns.nav.profChoice
+    if pc and pc.goal and near(pc.goal, p, NEAR) and not (choice and choice.goal and near(choice.goal, p, NEAR)) then
+        choice = pc
+    end
     local goal = choice and choice.goal
     local prof = X.GoalProf(goal)
     local pole = X.IsPole(equipped(MAIN))

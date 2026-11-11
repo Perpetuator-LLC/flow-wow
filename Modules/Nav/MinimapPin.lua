@@ -10,9 +10,9 @@ ns.minimapPin = P
 local OUTDOOR = { [0] = 466 + 2 / 3, 400, 333 + 1 / 3, 266 + 2 / 3, 200, 133 + 1 / 3 }
 local INDOOR  = { [0] = 300, 240, 180, 120, 80, 50 }
 
-local pin
-local function build()
-    pin = CreateFrame("Button", "FlowMinimapPin", Minimap)
+local pin, profPin
+local function makePin(name)
+    local pin = CreateFrame("Button", name, Minimap)
     pin:SetSize(14, 14)
     pin:SetFrameLevel(Minimap:GetFrameLevel() + 8)
     local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
@@ -40,7 +40,9 @@ local function build()
     end)
     pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
     pin:Hide()
+    return pin
 end
+local function build() pin = makePin("FlowMinimapPin") end
 
 local function indoors()
     return IsIndoors and IsIndoors() or false
@@ -355,8 +357,38 @@ end
 
 function P.Pin() return pin end   -- (tests)
 
+-- The profession stop the faint arrow points at: its own dot in the
+-- profession arrow's colour (plain smoked glass: no outline, no
+-- centre). pt nil: no dot.
+function P:UpdateProf(p, pt, goal)
+    if not Minimap then return end
+    if not profPin then
+        profPin = makePin("FlowMinimapProfPin")
+        profPin:SetFrameLevel(Minimap:GetFrameLevel() + 7)   -- under the route dot
+    end
+    if ns.db.nav.minimapPin == false or not (p and pt and pt.wx and pt.cont == p.cont) then profPin:Hide() return end
+    local x, y, _, east, south = toMini(p, pt.wx, pt.wy)
+    if not x then profPin:Hide() return end
+    local radius = Minimap:GetWidth() / 2
+    local d = math.sqrt(x * x + y * y)
+    local edge = d > radius - 6
+    if edge then x, y = x / d * (radius - 6), y / d * (radius - 6) end
+    local c = ns.theme.profPointer
+    profPin.ring:Hide()   -- no light outline: this dot is meant to be discreet
+    profPin.hole:SetVertexColor(c[1], c[2], c[3], 1)
+    profPin.dot:Hide()
+    profPin:SetSize(edge and 10 or 13, edge and 10 or 13)
+    profPin:SetAlpha(edge and 0.75 or 0.95)
+    profPin:ClearAllPoints()
+    profPin:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    profPin.goal, profPin.yards = goal, math.floor(math.sqrt(east * east + south * south))
+    profPin:Show()
+end
+function P.ProfPin() return profPin end   -- (tests)
+
 function P:Hide()
     if pin then pin:Hide() end
+    if profPin then profPin:Hide() end
     P.hereColor = nil
     lastSig = nil   -- draw again next time
     for i = 1, nDiscs do discs[i]:Hide() end

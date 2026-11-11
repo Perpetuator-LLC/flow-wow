@@ -1,17 +1,13 @@
--- A spell you just learned gets a small card for 10 seconds (it waits while
--- your mouse is on it, or while you drag or bind):
---
---   [icon]  New spell: Moonfire        drag the icon onto any bar slot
---   [Put it on my bar]  [Bind a key...]  [Not on my bars]
---
---   * Put it on my bar: the first empty slot (main bar first), and says where.
---   * Drag the icon: put it exactly where you want it.
---   * Bind a key...: press the key you want for it. Flow shows what that key
---     does now (and warns if it moves you) and changes nothing until you
---     click "Yes, bind it". The key casts the spell directly; it doesn't
---     need to be on a bar.
---   * Not on my bars: Flow stops asking you to put it on your bars (the
---     "Put X on your action bars" advice).
+-- Spells you just learned go into one Flow Spells list (see "The Flow Spells
+-- list" below): a row each, with
+--   * the icon: drag it exactly where you want it;
+--   * Bar: the first empty slot (main bar first), and says where;
+--   * Key: press the key you want for it. Flow shows what that key does now
+--     (and warns if it moves you) and changes nothing until you click "Yes,
+--     bind it". The key casts the spell directly; it needn't be on a bar;
+--   * Skip: Flow stops asking you to put it on your bars (the "Put X on your
+--     action bars" advice);
+-- and "Place all on bar" for every one that isn't on a bar or a key yet.
 -- Rank upgrades of a spell you already have on a bar or a key, passive
 -- spells and spells learned in combat (they wait until it ends) don't ask.
 -- Setting: "New spells: offer to place or bind them" (/flow settings).
@@ -20,7 +16,7 @@ local _, ns = ...
 local NS = {}
 ns.newSpell = NS
 
-local SHOW = 10
+local SHOW = 30   -- seconds the Flow Spells list stays (it waits while you use it)
 local queue = {}
 local card
 local MODIFIERS = { LSHIFT = 1, RSHIFT = 1, LCTRL = 1, RCTRL = 1, LALT = 1, RALT = 1, LMETA = 1, RMETA = 1 }
@@ -85,8 +81,23 @@ function NS.KeyNow(key)
 end
 
 -------------------------------------------------------------------------------
--- The card
+-- The Flow Spells list: every spell you just learned, in one window (0.35.141;
+-- each used to get a card of its own for 10 s, the next replacing it):
+--
+--   Flow Spells: 3 new spells                                       [X]
+--   [icon] Moonfire        not on a bar              [Bar] [Key] [Skip]
+--   [icon] Thorns          Action Bar 1, slot 5            [Key] [Skip]
+--   (what happened)
+--   [Place all on bar]          all keys: hover to bind       [Close]
+--
+-- Drag an icon onto any bar slot, or: Bar = the first empty slot, Key =
+-- press the key you want (Flow shows what it does now and changes nothing
+-- until "Yes, bind it"), Skip = not on your bars (Flow stops asking). It
+-- stays while you use it, then closes by itself after half a minute.
 -------------------------------------------------------------------------------
+
+local ROWS, ROW_H = 12, 30
+local list = {}   -- { id, name, slot, key, skipped }
 
 local function button(parent, text, w)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
@@ -95,66 +106,128 @@ local function button(parent, text, w)
     return b
 end
 
-local show   -- (defined below)
-
-local function finish(msg)
-    if msg then ns:Print(msg) end
-    if card then
-        card:EnableKeyboard(false)
-        card.capturing, card.pending = false, nil
-        card:Hide()
+-- The spells still wanting a bar slot: not on a bar, no key, not skipped.
+function NS.Placeable(entries)
+    local out = {}
+    for _, e in ipairs(entries or {}) do
+        if not (e.slot or e.key or e.skipped) then out[#out + 1] = e end
     end
-    C_Timer.After(0.3, show)   -- the next new spell, if any
+    return out
+end
+-- What a row says about where the spell is.
+function NS.RowWhere(e)
+    if e.key then return "key: " .. e.key end
+    if e.slot then return NS.SlotName(e.slot) end
+    if e.skipped then return "not on your bars" end
+    return "|cff999999not on a bar yet|r"
 end
 
+local refresh, show   -- (defined below)
+
+local function setStatus(text) if card then card.status:SetText(text or "") end end
+
 local function setMode(mode)
-    -- "choose": the three buttons; "capture": press a key; "confirm": yes / cancel.
+    -- "choose": the rows' buttons and Place all; "capture": press a key;
+    -- "confirm": yes / cancel.
     card.mode = mode
-    card.place:SetShown(mode == "choose"); card.bind:SetShown(mode == "choose"); card.no:SetShown(mode == "choose")
+    card.placeAll:SetShown(mode == "choose"); card.close2:SetShown(mode == "choose")
     card.yes:SetShown(mode == "confirm"); card.cancel:SetShown(mode ~= "choose")
+    refresh()
+end
+
+-- Puts e in the first empty slot. Returns true, or false and why.
+local function place(e)
+    if InCombatLockdown() then return false, "Not in combat: try again after the fight." end
+    local slot, bar, pos = NS.EmptySlot()
+    if not slot then return false, "Your bars are full: drag an icon onto a slot to replace one." end
+    ClearCursor(); pickup(e.id); PlaceAction(slot); ClearCursor()
+    e.slot = slot
+    return true, string.format("%s is on %s, slot %d.", e.name, bar, pos)
 end
 
 local function build()
     local f = CreateFrame("Frame", "FlowNewSpell", UIParent)
-    f:SetSize(380, 112)
+    f:SetSize(440, 120)
     f:SetPoint("TOP", 0, -140)
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(true)
     f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints(); f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.95)
     f.head = ns.theme:TitleBar(f, "Flow Spells", "Interface\\Icons\\INV_Misc_Book_09")
-    -- The spell's icon: drag it onto any bar slot.
-    f.icon = CreateFrame("Button", nil, f)
-    f.icon:SetSize(40, 40)
-    f.icon:SetPoint("TOPLEFT", 12, -32)
-    f.icon.tex = f.icon:CreateTexture(nil, "ARTWORK"); f.icon.tex:SetAllPoints()
-    f.icon:RegisterForDrag("LeftButton")
-    f.icon:SetScript("OnDragStart", function()
-        if InCombatLockdown() then return end
-        ClearCursor(); pickup(f.spellId)
-    end)
-    f.icon:SetScript("OnEnter", function(self)
-        ns.Tip(self, "ANCHOR_LEFT")
-        if GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(f.spellId) end
-        GameTooltip:AddLine("Drag it onto any action bar slot.", 0.6, 1, 0.6)
-        GameTooltip:Show()
-    end)
-    f.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.name = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    f.name:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 10, -2)
+    ns:MakeMovable(f, {}, true)   -- (Ctrl-drag; it opens in the same place each time)
+    local x = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    x:SetPoint("TOPRIGHT", 2, 2)
+    x:SetScript("OnClick", function() NS:Close() end)
+    f.rows = {}
+    for i = 1, ROWS do
+        local r = CreateFrame("Frame", nil, f)
+        r:SetSize(420, ROW_H - 2)
+        r:SetPoint("TOPLEFT", 10, -30 - (i - 1) * ROW_H)
+        -- The spell's icon: drag it onto any bar slot.
+        r.icon = CreateFrame("Button", nil, r)
+        r.icon:SetSize(26, 26); r.icon:SetPoint("LEFT")
+        r.icon.tex = r.icon:CreateTexture(nil, "ARTWORK"); r.icon.tex:SetAllPoints()
+        r.icon:RegisterForDrag("LeftButton")
+        r.icon:SetScript("OnDragStart", function()
+            if InCombatLockdown() or not r.e then return end
+            ClearCursor(); pickup(r.e.id)
+        end)
+        r.icon:SetScript("OnEnter", function(self)
+            if not r.e then return end
+            ns.Tip(self, "ANCHOR_LEFT")
+            if GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(r.e.id) end
+            GameTooltip:AddLine("Drag it onto any action bar slot.", 0.6, 1, 0.6)
+            GameTooltip:Show()
+        end)
+        r.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        r.name = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        r.name:SetPoint("LEFT", r.icon, "RIGHT", 8, 0); r.name:SetWidth(130); r.name:SetJustifyH("LEFT")
+        r.where = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        r.where:SetPoint("LEFT", r.name, "RIGHT", 4, 0); r.where:SetWidth(130); r.where:SetJustifyH("LEFT")
+        r.skip = button(r, "Skip", 46); r.skip:SetPoint("RIGHT")
+        r.key = button(r, "Key", 46); r.key:SetPoint("RIGHT", r.skip, "LEFT", -3, 0)
+        r.bar = button(r, "Bar", 46); r.bar:SetPoint("RIGHT", r.key, "LEFT", -3, 0)
+        r.bar:SetScript("OnClick", function()
+            local _, msg = place(r.e)
+            setStatus(msg); refresh()
+        end)
+        r.skip:SetScript("OnClick", function()
+            ns.db.spellbar.muted[r.e.name] = true
+            r.e.skipped = true
+            if ns.advisor and ns.advisor.Refresh then pcall(ns.advisor.Refresh, ns.advisor) end
+            setStatus(r.e.name .. ": not on your bars. Flow won't ask again (it's in your spellbook, P).")
+            refresh()
+        end)
+        r.key:SetScript("OnClick", function()
+            if InCombatLockdown() then setStatus("Key bindings can't change in combat.") return end
+            f.target = r.e
+            setMode("capture")
+            setStatus("Press the key you want for " .. r.e.name .. " (with Shift, Ctrl or Alt if you like). Esc cancels.")
+            f:EnableKeyboard(true)
+            if f.SetPropagateKeyboardInput then f:SetPropagateKeyboardInput(false) end
+        end)
+        f.rows[i] = r
+    end
     f.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.status:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
-    f.status:SetWidth(300); f.status:SetJustifyH("LEFT")
-    f.place = button(f, "Put it on my bar", 128)
-    f.place:SetPoint("BOTTOMLEFT", 10, 10)
-    f.bind = button(f, "Bind a key...", 110)
-    f.bind:SetPoint("LEFT", f.place, "RIGHT", 6, 0)
-    f.no = button(f, "Not on my bars", 112)
-    f.no:SetPoint("LEFT", f.bind, "RIGHT", 6, 0)
+    f.status:SetWidth(420); f.status:SetJustifyH("LEFT")
+    f.placeAll = button(f, "Place all on bar", 140)
+    f.placeAll:SetPoint("BOTTOMLEFT", 10, 10)
+    f.placeAll:SetScript("OnClick", function() NS:PlaceAll() end)
+    f.close2 = button(f, "Close", 80)
+    f.close2:SetPoint("BOTTOMRIGHT", -10, 10)
+    f.close2:SetScript("OnClick", function() NS:Close() end)
     f.yes = button(f, "Yes, bind it", 120)
     f.yes:SetPoint("BOTTOMLEFT", 10, 10)
     f.cancel = button(f, "Cancel", 90)
     f.cancel:SetPoint("BOTTOMRIGHT", -10, 10)
-    -- The time left, a thin bar along the bottom (it waits while you're on the card).
+    -- Hover-to-bind for everything else, one click away.
+    f.more = CreateFrame("Button", nil, f)
+    f.more:SetSize(150, 14)
+    f.more:SetPoint("BOTTOM", 0, 14)
+    f.more.text = f.more:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.more.text:SetAllPoints()
+    f.more.text:SetText("all keys: hover to bind")
+    f.more:SetScript("OnClick", function() NS:Close(); if ns.bind then ns.bind:Start() end end)
+    -- The time left, a thin bar along the bottom (it waits while you use it).
     f.timer = CreateFrame("StatusBar", nil, f)
     f.timer:SetPoint("BOTTOMLEFT"); f.timer:SetPoint("BOTTOMRIGHT"); f.timer:SetHeight(3)
     f.timer:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
@@ -162,29 +235,10 @@ local function build()
     f.timer:SetStatusBarColor(o[1], o[2], o[3])
     f.timer:SetMinMaxValues(0, SHOW)
 
-    f.place:SetScript("OnClick", function()
-        if InCombatLockdown() then f.status:SetText("Not in combat: try again after the fight.") return end
-        local slot, bar, pos = NS.EmptySlot()
-        if not slot then f.status:SetText("Your bars are full: drag the icon onto a slot to replace one.") return end
-        ClearCursor(); pickup(f.spellId); PlaceAction(slot); ClearCursor()
-        finish(string.format("%s is on %s, slot %d.", f.spellName, bar, pos))
-    end)
-    f.no:SetScript("OnClick", function()
-        ns.db.spellbar.muted[f.spellName] = true
-        if ns.advisor and ns.advisor.Refresh then pcall(ns.advisor.Refresh, ns.advisor) end
-        finish(f.spellName .. ": not on your bars. Flow won't ask again (it's in your spellbook, P).")
-    end)
-    f.bind:SetScript("OnClick", function()
-        if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
-        setMode("capture")
-        f.status:SetText("Press the key you want for " .. f.spellName .. " (with Shift, Ctrl or Alt if you like). Esc cancels.")
-        f:EnableKeyboard(true)
-        if f.SetPropagateKeyboardInput then f:SetPropagateKeyboardInput(false) end
-    end)
     f:SetScript("OnKeyDown", function(self, key)
         if self.mode ~= "capture" then return end
         if key == "ESCAPE" then
-            self:EnableKeyboard(false); setMode("choose"); self.status:SetText("Cancelled: no key changed.")
+            self:EnableKeyboard(false); setMode("choose"); setStatus("Cancelled: no key changed.")
             return
         end
         if MODIFIERS[key] then return end
@@ -193,31 +247,27 @@ local function build()
         self.pending = full
         local now, moves = NS.KeyNow(full)
         setMode("confirm")
-        self.status:SetText(string.format("Bind %s to %s?%s", full, self.spellName,
+        setStatus(string.format("Bind %s to %s?%s", full, self.target.name,
             now ~= "" and string.format("\n%s does now: %s%s", full, now, moves and "  |cffff6060(it moves you!)|r" or "")
             or "\n(that key isn't used yet)"))
     end)
     f.yes:SetScript("OnClick", function()
-        if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
-        local key = f.pending
-        if not (key and SetBindingSpell) then finish() return end
-        SetBindingSpell(key, f.spellName)
-        if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
-        finish(string.format("%s now casts %s.", key, f.spellName))
+        if InCombatLockdown() then setStatus("Key bindings can't change in combat.") return end
+        local key, e = f.pending, f.target
+        f.pending = nil
+        if key and e and SetBindingSpell then
+            SetBindingSpell(key, e.name)
+            if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+            e.key = key
+            setStatus(string.format("%s now casts %s.", key, e.name))
+        end
+        setMode("choose")
     end)
     f.cancel:SetScript("OnClick", function()
         f:EnableKeyboard(false); f.pending = nil
         setMode("choose")
-        f.status:SetText("No key changed.")
+        setStatus("No key changed.")
     end)
-    -- Hover-to-bind for everything else, one click away.
-    f.more = CreateFrame("Button", nil, f)
-    f.more:SetSize(120, 14)
-    f.more:SetPoint("TOPRIGHT", -8, -30)
-    f.more.text = f.more:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.more.text:SetAllPoints(); f.more.text:SetJustifyH("RIGHT")
-    f.more.text:SetText("all keys: hover to bind")
-    f.more:SetScript("OnClick", function() finish(); if ns.bind then ns.bind:Start() end end)
 
     f:SetScript("OnUpdate", function(self, dt)
         -- Waiting for a key never holds your keyboard for long: 15 s, then cancelled.
@@ -225,42 +275,91 @@ local function build()
             self.captureLeft = (self.captureLeft or 15) - dt
             if self.captureLeft <= 0 then
                 self.captureLeft = nil
-                self:EnableKeyboard(false); setMode("choose"); self.status:SetText("No key pressed: nothing changed.")
+                self:EnableKeyboard(false); setMode("choose"); setStatus("No key pressed: nothing changed.")
             end
             return
         end
         self.captureLeft = nil
-        -- Waits while you're on it, dragging its spell, or choosing a key.
+        -- Waits while you're on it, dragging a spell, or choosing a key.
         local cursor = GetCursorInfo and GetCursorInfo()
         if self.mode ~= "choose" or self:IsMouseOver() or cursor == "spell" then return end
         self.left = self.left - dt
         self.timer:SetValue(math.max(0, self.left))
-        if self.left <= 0 then finish() end
+        if self.left <= 0 then NS:Close() end
     end)
     f:Hide()
     return f
 end
 
+refresh = function()
+    if not card then return end
+    local n = math.min(#list, ROWS)
+    local choosing = card.mode == "choose"
+    for i, r in ipairs(card.rows) do
+        local e = list[i]
+        r.e = e
+        if e then
+            local _, icon = ns.api.SpellInfo(e.id)
+            r.icon.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            r.name:SetText(e.name)
+            r.where:SetText(NS.RowWhere(e))
+            r.bar:SetShown(choosing and not (e.slot or e.key or e.skipped))
+            r.key:SetShown(choosing and not (e.key or e.skipped))
+            r.skip:SetShown(choosing and not (e.slot or e.key or e.skipped))
+            r:Show()
+        else
+            r:Hide()
+        end
+    end
+    card.status:ClearAllPoints()
+    card.status:SetPoint("TOPLEFT", 10, -34 - n * ROW_H)
+    card.placeAll:SetEnabled(#NS.Placeable(list) > 0)
+    card.head.text:SetText(#list == 1 and "Flow Spells: a new spell" or string.format("Flow Spells: %d new spells", #list))
+    card:SetHeight(30 + n * ROW_H + 70)
+end
+
+-- Every spell in the list that isn't on a bar or a key yet: the first empty
+-- slots, main bar first.
+function NS:PlaceAll()
+    local placed, why = 0, nil
+    for _, e in ipairs(NS.Placeable(list)) do
+        local ok, msg = place(e)
+        if not ok then why = msg break end
+        placed = placed + 1
+    end
+    setStatus((placed > 0 and string.format("%d spell%s placed on your bars.", placed, placed == 1 and "" or "s") or "")
+        .. (why and ((placed > 0 and " " or "") .. why) or ""))
+    refresh()
+end
+
+function NS:Close()
+    if card then
+        card:EnableKeyboard(false)
+        card.target, card.pending = nil, nil
+        card:Hide()
+    end
+    wipe(list)
+end
+
 show = function()
-    if (card and card:IsShown()) or #queue == 0 then return end
+    if #queue == 0 then return end
     if InCombatLockdown() then return end   -- (PLAYER_REGEN_ENABLED shows it)
-    local e = table.remove(queue, 1)
+    -- Everything learned meanwhile joins the one list.
+    while #queue > 0 do
+        local e = table.remove(queue, 1)
+        local dup = false
+        for _, l in ipairs(list) do if l.name == e.name then dup = true end end
+        if not dup and #list < ROWS then list[#list + 1] = e end
+    end
     card = card or build()
-    card.spellId, card.spellName = e.id, e.name
-    local _, icon = ns.api.SpellInfo(e.id)
-    card.icon.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-    card.name:SetText(e.name)
-    -- The game may have put it on a bar already: say where (it can still be
-    -- dragged elsewhere or given a key).
-    local where = e.slot and NS.SlotName(e.slot)
-    card.status:SetText(where and ("The game put it on " .. where .. ". Drag the icon to move it, or:")
-        or "Drag the icon onto any bar slot, or:")
     card.left = SHOW
     card.timer:SetValue(SHOW)
-    setMode("choose")
-    if e.slot then card.place:Hide() end
+    local wasShown = card:IsShown()
+    if not wasShown then card.mode = "choose"; setStatus("Drag an icon onto any bar slot, or:") end
+    setMode(card.mode or "choose")
     card:Show()
 end
+NS._list = function() return list end   -- (tests)
 
 -- "Action Bar 1, slot 5" for an action slot.
 function NS.SlotName(slot)
@@ -427,4 +526,35 @@ ns.commands.newspell = function(arg)
     if arg == "reset" then wipe(ns.db.spellbar.muted) end
     ns:Print("new spells: offer to place or bind them " .. (NS.Enabled() and "on" or "off")
         .. "  (/flow newspell on|off|reset)")
+end
+
+-- /flow keys: the keys that cast a spell straight away, not from a bar (the
+-- game's Key Bindings window doesn't list those: it shows only its own
+-- commands), and Flow's own key. names: { [spell name] = true }; keyFor(name)
+-- -> up to two keys. Sorted by key.
+function NS.DirectKeys(names, keyFor)
+    local out = {}
+    for name in pairs(names or {}) do
+        local k1, k2 = keyFor(name)
+        if k1 then out[#out + 1] = { key = k1, name = name } end
+        if k2 then out[#out + 1] = { key = k2, name = name } end
+    end
+    table.sort(out, function(a, b) return a.key < b.key end)
+    return out
+end
+ns.commands.keys = function()
+    local spells = NS.DirectKeys(ns.api.KnownSpells and ns.api.KnownSpells() or {},
+        function(n) if GetBindingKey then return GetBindingKey("SPELL " .. n) end end)
+    if #spells == 0 then
+        ns:Print("no key casts a spell directly: they all go through your bars.")
+    else
+        ns:Print("keys that cast a spell directly (not from a bar):")
+        for _, e in ipairs(spells) do print("  " .. e.key .. ": " .. e.name) end
+    end
+    local C = ns.cast
+    local keys = C and C.KeysOf and C.KeysOf(ns.db.cast) or {}
+    if #keys > 0 then
+        print("  Flow key: " .. table.concat(keys, ", ") .. "  (Shift + it: your heal; Ctrl + it: on your target; Alt + it: healthstone or potion)")
+    end
+    print("  Change them: Key on the Flow Spells list, or /flow bind (hover a bar button, press a key).")
 end
