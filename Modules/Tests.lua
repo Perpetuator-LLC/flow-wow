@@ -3360,3 +3360,44 @@ ns:Register("test", "hearthstone: an estimate only when it clearly saves time", 
     t:eq(H.Compare(nil, 700, 0, 7), nil, "distance unknown: no estimate")
     t:eq(H.AdviceText(nil, "x"), nil, "no estimate: nothing said")
 end)
+
+ns:Register("test", "buff button: buffs off the main icon, onto their own button", function(t)
+    local BB = ns.buffButton
+    local list = { { spell = "Aspect", kind = "buff" }, { spell = "Strike" }, { spell = "Aura", kind = "buff" }, { spell = "Heal", kind = "heal" } }
+    local out = BB.Strip(list)
+    t:eq(#out, 2, "two rules left")
+    t:eq(out[1].spell, "Strike", "damage kept")
+    t:eq(out[2].spell, "Heal", "heal kept")
+    t:ok(BB.Strip(list) == out, "cached per list")
+    t:eq(#list, 4, "the rotation's own list is untouched")
+    local pally = BB.Strip({ { spell = "Seal of Righteousness", kind = "buff" }, { spell = "Devotion Aura", kind = "buff" },
+                             { spell = "Judgement" } })
+    t:eq(#pally, 2, "a paladin: the aura moves to the buff button")
+    t:eq(pally[1].spell, "Seal of Righteousness", "the seal stays on Flow's icon, with the fight")
+    for _, name in ipairs({ "Seal of Fury", "Battle Shout", "Commanding Shout", "Lightning Shield",
+                            "Power Word: Shield", "Hunter's Mark", "Bear Form", "Moonkin Form" }) do
+        t:ok(BB.OnAction({ spell = name }), name .. ": on the action button, with the fight")
+    end
+    for _, name in ipairs({ "Blessing of Might", "Devotion Aura", "Aspect of the Hawk", "Mark of the Wild",
+                            "Travel Form", "Trueshot Aura" }) do
+        t:ok(not BB.OnAction({ spell = name }), name .. ": on the buff button")
+    end
+    t:ok(not BB.OnAction({}) and not BB.OnAction(nil), "no spell: not on the action button")
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }).item, "item:2862", "out of combat: the weapon stone before a buff spell")
+    t:eq(BB.Pick({ spell = "Aura" }, nil).spell, "Aura", "the buff spell when the weapon needs nothing")
+    t:eq(BB.Pick(nil, { item = "item:2862" }).item, "item:2862", "the stone when no buff spell is due")
+    t:ok(BB.Pick(nil, nil) == nil, "nothing due: nothing")
+    t:eq(BB.FightSpell({ spell = "Aura" }, "Blessing"), "Aura", "fight: the buff due now")
+    t:eq(BB.FightSpell(nil, "Aura"), "Aura", "fight: else the one you last cast")
+    t:ok(BB.FightSpell(nil, nil) == nil, "fight: else nothing")
+    local idle = BB.Idle()
+    t:ok(idle.idle and idle.item == nil and idle.spell == nil, "idle: shows, does nothing")
+    local was = ns.db.buffButton and ns.db.buffButton.enabled
+    local item = ns:Get("action", "buff:item")
+    ns.db.buffButton = ns.db.buffButton or {}
+    ns.db.buffButton.enabled = true
+    t:ok(BB.On() and item.get({}) == nil, "on: stones and buff items aren't on the main icon")
+    ns.db.buffButton.enabled = false
+    t:ok(not BB.On(), "off: buffs and stones go back to Flow's icon")
+    ns.db.buffButton.enabled = was
+end)

@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Buff button.** Your buffs (auras, aspects, blessings, party buffs) and weapon stones, oils and buff items get
+  their own blue button left of Flow's icon, so Flow's key only does your fight: damage, heals, cleanses, plus seals,
+  shouts, shields, Hunter's Mark and fight forms. Out of combat it shows what's missing and sits dim when nothing is
+  (hover it: why). In a fight it holds the buff due at the pull, else the one you last cast from it, and lights up
+  when that runs out. Its own key: `/flow buffkey Q`. Options: "Buff button beside Flow's icon", or
+  `/flow buffbutton off` to put buffs and stones back on Flow's key.
 - **Worn gear: an early warning.** When anything you wear drops under 20% durability an anvil shows above Flow's key
   (hover: which item, the nearest repair vendor Flow knows) and the route gets a Repair stop. Options: "Warn early when
   gear wears out".

@@ -20,6 +20,9 @@ Flow for WoW is a separate project from Flow Engine.
   a crossed-swords badge on its left shows auto attack is on.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
+- **Buff button**: buffs and weapon stones, oils and buff items sit on their own blue button left
+  of the icon, so the Flow key is only your fight (seals, shouts, shields and Hunter's Mark stay
+  with it). Give it a key with `/flow buffkey Q`; `/flow buffbutton off` puts them back on the Flow key.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your

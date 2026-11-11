@@ -65,6 +65,7 @@ Modules\Rotation\Display.lua
 Modules\Rotation\Cast.lua
 Modules\Rotation\Actions.lua
 Modules\Rotation\BuffItems.lua
+Modules\Rotation\BuffButton.lua
 Modules\Fight\Profiler.lua
 Modules\CombatLogFile.lua
 Modules\Nav\Nav.lua
