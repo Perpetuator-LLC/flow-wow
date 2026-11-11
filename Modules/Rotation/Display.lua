@@ -411,6 +411,17 @@ function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
 end
 
+-- The tag beside the icon: "held" while Shift is down (the icon shows what
+-- Shift + key casts); "press" while Flow advises a heal in a fight that your
+-- key can't cast (it's locked to another spell) and Shift + key heals.
+-- (Death 6: a heal advised 65 times in 80 s, Shift + key pressed 0 times;
+-- the small corner icon wasn't enough to say "Shift heals".)
+function ns.ShiftCue(advice, healSpell, shifted, inCombat)
+    if shifted then return "held" end
+    if inCombat and healSpell and advice and (advice.kind == "heal" or advice.kind == "emergency") then return "press" end
+    return nil
+end
+
 local function render(s, cfg, glow)
     -- New to Flow: the icon comes in at your first enemy (Reveal.lua). The
     -- key still casts the suggestion meanwhile.
@@ -535,16 +546,29 @@ local function tick()
     -- Eating Well Fed food the key gave you: count down to the buff (shown
     -- only; the key keeps doing what it does).
     E.NoteKeyShown(s, GetTime())
-    if not inCombat and (not s or s.wellFed) then
+    if not inCombat and (not s or s.wellFed) and E.WellFedWatch(GetTime()) then
         local okF, fed = pcall(E.WellFedView, GetTime())
         if okF and fed then view = fed end
     end
     -- Shift held: Shift + key's spell swaps in, "SHIFT+" beside it.
     local shifted
-    view, shifted = ns.ShiftView(view, ns.cast and ns.cast.HealSpell and ns.cast:HealSpell(), IsShiftKeyDown(), inCombat)
-    if shifted ~= icon.shiftTag:IsShown() then
-        icon.shiftTag:SetShown(shifted)
-        if shifted then icon.shiftTag.pulse:Play() else icon.shiftTag.pulse:Stop() end
+    local healSpell = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
+    view, shifted = ns.ShiftView(view, healSpell, IsShiftKeyDown(), inCombat)
+    -- The tag beside the icon: "SHIFT+" while you hold Shift; "Heal: SHIFT+"
+    -- in gold while Flow advises a heal in a fight and your key holds
+    -- another spell (ns.ShiftCue).
+    local cue = ns.ShiftCue(advice, healSpell, shifted, inCombat)
+    if cue ~= icon.shiftTag.cue then
+        icon.shiftTag.cue = cue
+        icon.shiftTag:SetShown(cue ~= nil)
+        if cue == "press" then
+            icon.shiftTag:SetText("Heal: SHIFT+")
+            icon.shiftTag:SetTextColor(1, 0.82, 0.1)
+        elseif cue == "held" then
+            icon.shiftTag:SetText("SHIFT+")
+            icon.shiftTag:SetTextColor(0.4, 1, 0.4)
+        end
+        if cue then icon.shiftTag.pulse:Play() else icon.shiftTag.pulse:Stop() end
     end
     local okR, err = pcall(render, view, cfg, advice or (not shifted and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end

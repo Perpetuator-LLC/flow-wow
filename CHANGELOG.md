@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.160
+- **"Heal: SHIFT+" in gold beside the easy button** while Flow advises a heal in a fight and
+  your key holds another spell. In your last death Flow advised a heal 65 times in 80 seconds
+  and Shift + key, which casts it, was pressed 0 times: the small corner icon was too quiet.
+- **The Well Fed countdown costs nothing while idle.** It read your buffs ten times a second
+  whenever the easy button had nothing to show (0.9 ms a second since 0.35.156); now only
+  from the moment the button shows Well Fed food until the buff lands.
+- Self-tests: three heal tests failed when you reloaded as a ghost (a ghost is never advised a
+  heal); they now wait until you're alive. The profession arrow's tests follow the new route
+  ticks.
+
 ## 0.35.159
 - **Flow learns from what you cast.** In every fight, each spell you cast is set beside what the
   easy button advised at that moment: cast as advised, your key while the advice was a spell

@@ -99,6 +99,18 @@ local function with(tbl, key, value, fn)
     if not ok then error(err, 0) end
 end
 
+-- Heal and recovery tests go through checks that stop when you're dead (a
+-- ghost needs no heal), and a test may not stand in for the game's own
+-- functions. Reloading as a ghost failed three of them (0.35.156); they now
+-- wait until you're alive: `if deadSkip(t) then return end` first.
+local function deadSkip(t)
+    if UnitIsDeadOrGhost("player") then
+        t:ok(true, "(you're dead: this test runs again once you're alive)")
+        return true
+    end
+    return false
+end
+
 ns:Register("test", "core: each character has its own data", function(t)
     -- Old shared data, as saved before the split: a druid's trainer, fights
     -- from both characters, recipes, a hidden stop and shared settings.
@@ -517,6 +529,7 @@ ns:Register("test", "spec badge: better / worse / same per spec", function(t)
 end)
 
 ns:Register("test", "rotation: heals early on Flow's hurt estimate (health is hidden)", function(t)
+    if deadSkip(t) then return end
     local E = ns.rotation
     local H = E.HURT
     -- The estimate: hit time adds up, regen and eating take it down, the warning floors it.
@@ -1373,7 +1386,28 @@ ns:Register("test", "easy button: counts down to Well Fed while you eat the food
     t:eq(E.WellFedIn(302, false, false), nil, "stood up: the timer goes")
     E.NoteKeyShown({ item = "item:117" }, 400)
     t:eq(w.lastShown, 300, "plain food: nothing noted")
+    -- Your buffs are only read while a countdown runs or could start.
+    w.at, w.lastShown = nil, nil
+    t:ok(not E.WellFedWatch(500), "nothing shown: your buffs aren't read (it cost 0.9 ms a second)")
+    w.lastShown = 499
+    t:ok(E.WellFedWatch(500), "Well Fed food just shown: watching for you to eat")
+    t:ok(not E.WellFedWatch(510), "ten seconds later, not eating: not watching")
+    w.at = 520
+    t:ok(E.WellFedWatch(510), "counting down: watching")
     w.at, w.lastShown, w.item, w.icon = saved[1], saved[2], saved[3], saved[4]
+end)
+
+ns:Register("test", "easy button: a gold \"Heal: SHIFT+\" when a heal is advised in a fight", function(t)
+    -- Death 6: Flow advised a heal 65 times in an 80 s fight; Shift + key
+    -- (which casts it) was pressed 0 times. The corner icon was too quiet.
+    local heal = { spell = "Rejuvenation", kind = "heal" }
+    t:eq(ns.ShiftCue(heal, "Healing Touch", false, true), "press", "heal advised, the key holds another spell: press Shift")
+    t:eq(ns.ShiftCue({ spell = "Healing Touch", kind = "emergency" }, "Healing Touch", false, true), "press", "an emergency heal too")
+    t:eq(ns.ShiftCue({ spell = "Moonfire", kind = "damage" }, "Healing Touch", false, true), nil, "other advice: no cue")
+    t:eq(ns.ShiftCue(nil, "Healing Touch", false, true), nil, "no advice: none")
+    t:eq(ns.ShiftCue(heal, nil, false, true), nil, "Shift + key has no heal: none")
+    t:eq(ns.ShiftCue(heal, "Healing Touch", false, false), nil, "out of a fight the key itself heals: none")
+    t:eq(ns.ShiftCue(heal, "Healing Touch", true, true), "held", "Shift already down: the usual SHIFT+")
 end)
 
 ns:Register("test", "drink: drinking is told by the buff's name", function(t)
@@ -2491,18 +2525,18 @@ ns:Register("test", "faint profession arrow: which stops, and when it shows", fu
     quest, prof = N.SplitProfessions({ m }, true)
     t:ok(#quest == 1 and #prof == 0, "only profession stops left: they stay on the main arrow")
     local cfg = ns.db.nav
-    local arrow, mode, profs = cfg.profArrow, cfg.mode, cfg.professions
-    cfg.profArrow, cfg.mode, cfg.professions = nil, "optimal", true
+    local arrow, kinds = cfg.profArrow, cfg.kinds
+    cfg.profArrow, cfg.kinds = nil, {}
     t:ok(not N:ProfPointerOn(), "never ticked: off (0.35.143: on, it took profession stops off the Flow key's route)")
     cfg.profArrow = true
-    t:ok(N:ProfPointerOn(), "on: Optimal with Professions on")
-    cfg.professions = false
-    t:ok(not N:ProfPointerOn(), "not on Optimal with Professions off")
-    cfg.professions, cfg.mode = true, "quests"
-    t:ok(not N:ProfPointerOn(), "not with Quests only")
-    cfg.mode, cfg.profArrow = "optimal", false
+    t:ok(N:ProfPointerOn(), "on: with Professions on the route")
+    cfg.kinds = { professions = false }
+    t:ok(not N:ProfPointerOn(), "not with Professions unticked")
+    cfg.kinds = { quests = true, newQuests = false, training = false, professions = true, town = false }
+    t:ok(N:ProfPointerOn(), "it follows the Professions tick alone (0.35.157: it used to need the Optimal route)")
+    cfg.kinds, cfg.profArrow = {}, false
     t:ok(not N:ProfPointerOn(), "not when you switched it off")
-    cfg.profArrow, cfg.mode, cfg.professions = arrow, mode, profs
+    cfg.profArrow, cfg.kinds = arrow, kinds
     local c = ns.theme.profPointer
     t:ok(c and c[1] < 0.5 and c[2] < 0.5 and c[3] < 0.5, "dark grey")
 end)
@@ -2655,7 +2689,7 @@ ns:Register("test", "click: the faint profession arrow (menu switches, its text)
     t:ok(okM, "the arrow's menu builds" .. (okM and "" or (": " .. tostring(errM))))
     local item
     for _, it in ipairs(captured or {}) do
-        if it.text and it.text:find("^Faint profession arrow") then item = it end
+        if it.text and it.text:find("^Professions on their own faint arrow") then item = it end
     end
     t:ok(item, "menu: the faint profession arrow switch")
     local saved = ns.db.nav.profArrow
@@ -4831,6 +4865,7 @@ ns:Register("test", "map: the trail to your next stop takes the arrow's colour",
 end)
 
 ns:Register("test", "recovery: one order for every way of being hurt; fight healing apart", function(t)
+    if deadSkip(t) then return end
     local E, BI = ns.rotation, ns.buffItems
     if not (E and BI and ns.db and ns.db.rotation) then t:ok(true, "(no rotation)") return end
     local r = ns.db.rotation
@@ -5110,6 +5145,7 @@ ns:Register("test", "easy button: War Stomp stops a cast close by; Roots opens o
 end)
 
 ns:Register("test", "easy button: drink when low on mana; Well Fed food first when fights are ahead", function(t)
+    if deadSkip(t) then return end
     local E, BI = ns.rotation, ns.buffItems
     -- 0.35.136: Flow ate but never drank.
     t:eq(BI.HealKind("Refreshing Spring Water", 0, 5, { "Use: Restores 151 mana over 18 sec." }), "drink", "water: a drink")

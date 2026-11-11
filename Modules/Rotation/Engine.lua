@@ -247,6 +247,12 @@ function E.WellFedIn(now, isEating, isFed)
     return math.max(0, wellFed.at - now)
 end
 E._wellFed = wellFed   -- (tests)
+-- Is a countdown running, or could one start (the key showed Well Fed food
+-- within the last 3 s)? Asked every tick before reading your buffs: reading
+-- them for nothing ten times a second cost 0.9 ms a second (0.35.156).
+function E.WellFedWatch(now)
+    return wellFed.at ~= nil or (wellFed.lastShown ~= nil and now - wellFed.lastShown < 3)
+end
 -- The button's view while it counts down, or nil.
 function E.WellFedView(now)
     local left = E.WellFedIn(now, eating() and true or false, (A.Buff("player", "Well Fed")) and true or false)
