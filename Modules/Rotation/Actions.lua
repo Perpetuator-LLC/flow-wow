@@ -177,7 +177,12 @@ local FISH_NEAR, FISH_LEFT = 120, 60
 local function dist(p, at)
     if not (p and at and p.cont == at.cont and ns.nav) then return math.huge end
     local e, s = ns.nav:Offset(p, at.wx, at.wy)
-    return e and math.sqrt(e * e + s * s) or math.huge
+    if e then return math.sqrt(e * e + s * s) end
+    -- No map to turn it into east/south (a spot saved without one): world
+    -- positions are in yards, so the plain distance is the same length.
+    if not (p.wx and p.wy and at.wx and at.wy) then return math.huge end
+    local dx, dy = at.wx - p.wx, at.wy - p.wy
+    return math.sqrt(dx * dx + dy * dy)
 end
 local function markFishingSpot()
     local p = ns.nav and ns.nav:PlayerPos()

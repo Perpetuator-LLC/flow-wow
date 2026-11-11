@@ -103,6 +103,7 @@ end
 -- turned into a compass bearing without caring how world axes are oriented.
 local axes = {}
 local function mapAxes(map)
+    if not map then return nil end   -- (a spot with no map: no axes, and no nil table key)
     local a = axes[map]
     if a ~= nil then return a or nil end
     local _, ox, oy = N:ToWorld(map, 0, 0)

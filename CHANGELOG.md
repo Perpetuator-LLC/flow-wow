@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.35.131
+- Fixed the last self-test that failed at every login (the anvil, forge or fire step's own
+  test). Correction to 0.35.130: the step itself worked in the game; its test used spots
+  without a map, which Flow's distance check couldn't handle. Now it can (plain yards).
+
 ## 0.35.130
-- **Fixed: the Flow key never opened your profession by an anvil, forge or fire** (0.35.124).
-  An NPC spot saved without a map stopped it looking for trainers; such a spot is now skipped.
+- An NPC spot saved without a map no longer stops the anvil/forge/fire step looking for
+  trainers (it's skipped).
 - Fixed two self-tests that failed at every login (the arrow colours, camp objects from your
   group): the tests were wrong, not Flow.
 
