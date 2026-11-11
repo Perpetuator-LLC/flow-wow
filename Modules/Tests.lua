@@ -1495,7 +1495,7 @@ ns:Register("test", "click: Shift moves and Ctrl + wheel resizes the Flow button
     else
         local x0, y0 = f:GetCenter()
         h:ScaleBy(1)
-        t:eq(f:GetScale(), 1.1, "one notch: a tenth bigger")
+        t:ok(math.abs(f:GetScale() - 1.1) < 1e-4, "one notch: a tenth bigger")
         t:eq(f.save.scale, 1.1, "the size is saved")
         t:ok(f.save.point and f.save.point[1] == "CENTER", "the spot is saved")
         local x1, y1 = f:GetCenter()
@@ -1503,10 +1503,10 @@ ns:Register("test", "click: Shift moves and Ctrl + wheel resizes the Flow button
             t:ok(math.abs(x1 * 1.1 - x0) < 1 and math.abs(y1 * 1.1 - y0) < 1, "it grows around its centre")
         end
         for _ = 1, 30 do h:ScaleBy(-1) end
-        t:eq(f:GetScale(), 0.5, "shrinks to half and stops")
+        t:ok(math.abs(f:GetScale() - 0.5) < 1e-4, "shrinks to half and stops")
         -- Back where it was, at the saved size.
         ns.RestorePlace(f, f.save)
-        t:eq(f:GetScale(), 0.5, "restored at the saved size")
+        t:ok(math.abs(f:GetScale() - 0.5) < 1e-4, "restored at the saved size")
     end
     f:Hide()
 end)
@@ -1565,11 +1565,12 @@ end)
 
 ns:Register("test", "modern arrow: grey away, red to green closing in, blue here", function(t)
     local N, th = ns.nav, ns.theme
-    local function same(r, g, b, c) return math.abs(r - c[1]) < 1e-6 and math.abs(g - c[2]) < 1e-6 and math.abs(b - c[3]) < 1e-6 end
-    t:ok(same(N.ArrowColor("away", 50), th.arrowAway), "another zone: grey, however close")
-    t:ok(same(N.ArrowColor("here", 900), th.arrowHere), "in the area: blue")
-    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar), "far away: red")
-    t:ok(same(N.ArrowColor("zone", 10), th.arrowNear), "close by: green")
+    -- The colour first: a call that isn't the last argument keeps only its first value.
+    local function same(c, r, g, b) return math.abs(r - c[1]) < 1e-6 and math.abs(g - c[2]) < 1e-6 and math.abs(b - c[3]) < 1e-6 end
+    t:ok(same(th.arrowAway, N.ArrowColor("away", 50)), "another zone: grey, however close")
+    t:ok(same(th.arrowHere, N.ArrowColor("here", 900)), "in the area: blue")
+    t:ok(same(th.arrowFar, N.ArrowColor("zone", 2000)), "far away: red")
+    t:ok(same(th.arrowNear, N.ArrowColor("zone", 10)), "close by: green")
     local r1, g1 = N.ArrowColor("zone", 500)
     local r2, g2 = N.ArrowColor("zone", 150)
     t:ok(g2 > g1 and r2 <= r1, "greener as you close in")
@@ -1588,7 +1589,7 @@ ns:Register("test", "modern arrow: grey away, red to green closing in, blue here
     -- The colour-blind palette has its own ramp.
     local was = th:ColorBlind()
     th:UsePalette("colorblind")
-    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar) and th.arrowFar.hex == "D55E00", "colour-blind: vermillion far away")
+    t:ok(same(th.arrowFar, N.ArrowColor("zone", 2000)) and th.arrowFar.hex == "D55E00", "colour-blind: vermillion far away")
     th:UsePalette(was and "colorblind" or "standard")
 end)
 
@@ -2105,8 +2106,9 @@ ns:Register("test", "profession arrow: the main arrow's art, narrow and long, cl
     local a = f.prof.arrow
     t:ok(a.body and a.shine and a.shadow, "body, shine and shadow, like the main arrow")
     t:ok(a.shaft == nil, "not drawn from lines")
-    t:ok(math.abs(N.PROF_ARROW_W - 64 * 0.66) < 0.01 and math.abs(N.PROF_ARROW_H - 64 * 1.33) < 0.01,
-        "two thirds the width, a third longer")
+    local mainW, mainL = N.MAIN_WID * N.ON_NEEDLE_SCALE, N.MAIN_LEN * N.ON_NEEDLE_SCALE
+    t:ok(math.abs(N.PROF_ARROW_W * N.ART0_W / 64 - mainW * N.PROF_WID_K) < 0.01 and N.PROF_WID_K < 0.66, "thinner than the main arrow you see")
+    t:ok(math.abs(N.PROF_ARROW_H * N.ART0_H / 64 - mainL * N.PROF_LEN_K) < 0.01 and N.PROF_LEN_K > 1.33, "longer than the main arrow you see")
     if a.turns then
         t:ok(math.abs(a.body:GetWidth() - N.PROF_ARROW_W) < 0.5 and math.abs(a.body:GetHeight() - N.PROF_ARROW_H) < 0.5,
             "drawn narrow and long")
@@ -2123,7 +2125,7 @@ ns:Register("test", "profession arrow: the main arrow's art, narrow and long, cl
     t:ok(c[1] < 0.2 and c[2] < 0.2 and c[3] < 0.2, "near black")
     t:ok(f.prof:GetFrameLevel() < f.arrow:GetFrameLevel(), "under the main arrow")
     local clear = N.NeedleClearance(f)
-    t:ok(f:GetHeight() / 2 + clear > N.PROF_ARROW_H / 2, "the texts sit past the arrow's tip")
+    t:ok(f:GetHeight() / 2 + clear > N.PROF_LEN / 2, "the texts sit past the arrow's tip")
     local was = f.arrow.overNeedle
     N.SetOverNeedle(f, true)
     t:ok(math.abs(f.arrow:GetScale() - N.ON_NEEDLE_SCALE) < 0.01 and f.arrow:GetAlpha() < 1,
