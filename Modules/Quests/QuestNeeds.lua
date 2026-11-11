@@ -110,7 +110,7 @@ local function recheck()
         local ok, missing = pcall(Q.NeedMissing, need, gameHas)
         if ok and not missing then
             waiting[id] = nil
-            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a quest need met") end
             return
         end
     end

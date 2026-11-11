@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.152
+- **Fewer route refreshes.** When the profession plan checks whether a craft would be a gear
+  upgrade and the item doesn't exist on this client (item numbers differ on Forever), the
+  game's "no such item" answer refreshed the whole route, and the refresh asked again. Such an
+  item now simply counts as no upgrade. Since 0.35.130 the route has been refreshed about twice
+  as often as before.
+- **`/flow perf` says why the route refreshes.** Under "route: gather stops" it lists what asked
+  for each refresh (a quest update, a skill change, money, the 30-second check...), how often,
+  and what those refreshes cost; under "gather: skillplan", the time each profession's plan
+  takes.
+
 ## 0.35.151
 - **`/flow perf` says which Flow Action costs.** Flow Actions (the key's loot, equip, learn,
   fishing and crafting steps) turned out to be the easy button's biggest cost, about four times

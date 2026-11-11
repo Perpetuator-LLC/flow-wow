@@ -52,13 +52,21 @@ function P.AddPart(name, part, ms)
     if not (st and part and ms) then return end
     local parts = st.parts or {}
     st.parts = parts
-    local pt = parts[part] or { total = 0, max = 0 }
+    local pt = parts[part] or { total = 0, max = 0, n = 0 }
     parts[part] = pt
-    pt.total = pt.total + ms
+    pt.total, pt.n = pt.total + ms, pt.n + 1
     if ms > pt.max then pt.max = ms end
 end
 
--- "   most in: gear:upgrade 2.10 ms/s (worst 15.9 ms), ..." for one row, or nil.
+-- What a row's parts are, said in the report ("refreshed after" for the
+-- route: each refresh's cause, how often, and what those refreshes cost).
+function P.PartsLabel(name, label)
+    local st = P.stats[name]
+    if st then st.partsLabel = label end
+end
+
+-- "      most in: gear:upgrade 2.10 ms/s (3613x, worst 15.9 ms), ..." for one
+-- row, or nil. (P.PartsLabel gives a row its own word for "most in".)
 function P.PartsLine(st, secs, n)
     if not st.parts then return nil end
     local list = {}
@@ -70,9 +78,9 @@ function P.PartsLine(st, secs, n)
     local bits = {}
     for i = 1, math.min(n or 4, #list) do
         local e = list[i]
-        bits[#bits + 1] = string.format("%s %.2f ms/s (worst %.1f ms)", e.part, e.pt.total / secs, e.pt.max)
+        bits[#bits + 1] = string.format("%s %.2f ms/s (%dx, worst %.1f ms)", e.part, e.pt.total / secs, e.pt.n or 0, e.pt.max)
     end
-    return "      most in: " .. table.concat(bits, ", ")
+    return "      " .. (st.partsLabel or "most in") .. ": " .. table.concat(bits, ", ")
 end
 
 function P:Reset()

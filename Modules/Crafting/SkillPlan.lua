@@ -566,12 +566,19 @@ end
 for _, ev in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_SPECIALIZATION_CHANGED" }) do
     ns:On(ev, function() wipe(gainCache) end)
 end
-ns:On("GET_ITEM_INFO_RECEIVED", function(id)
-    if id and pendingItems[id] then
-        pendingItems[id] = nil
-        if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
-    end
-end)
+-- The game answered about an item an upgrade check asked for. Loaded: re-plan
+-- with it. "No such item" (item IDs differ on Forever): it's not an upgrade.
+-- Asking again would only fail again, and each answer refreshed the whole
+-- route, which asked again (0.35.152).
+function SP.ItemInfoArrived(id, success)
+    if not (id and pendingItems[id]) then return false end
+    pendingItems[id] = nil
+    if success == false then gainCache[id] = false return false end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("an item's info loaded (skill plan)") end
+    return true
+end
+SP._pendingItems, SP._gainCache = pendingItems, gainCache   -- (tests)
+ns:On("GET_ITEM_INFO_RECEIVED", function(id, success) SP.ItemInfoArrived(id, success) end)
 
 -------------------------------------------------------------------------------
 -- Your bank, remembered per character (read while it's open), so the plan
@@ -636,7 +643,7 @@ end
 
 local function rereadBank()
     local ok, changed = pcall(SP.ReadBank)
-    if ok and changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if ok and changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("bank changed") end
 end
 ns:On("BANKFRAME_OPENED", function() bankOpen = true; C_Timer.After(0.3, rereadBank) end)
 ns:On("BANKFRAME_CLOSED", function() bankOpen = false end)
@@ -1311,9 +1318,14 @@ ns:Register("navGoal", "skillplan", {
         SP.lastUpgrades = {}
         SP.lastWaiting = {}
         SP.ForgetFarmable()   -- (you may have moved zone since the last gather)
+        -- (Each profession's time is listed under "gather: skillplan" in
+        -- /flow perf, so a slow gather says which profession costs.)
+        local clock, addPart = debugprofilestop, ns.perf and ns.perf.AddPart
         for prof, t in pairs(SP.lastTargets) do
+            local t0 = clock and addPart and clock()
             local ok, err = pcall(planProfession, prof, t, out)
             if not ok then ns:Log("skillplan", prof .. ": " .. tostring(err)) end
+            if t0 then addPart("gather: skillplan", prof, clock() - t0) end
         end
         -- Drop stops with no place at all, unless blocked (those are listed, not routed).
         local kept, seen = {}, {}
@@ -1342,11 +1354,11 @@ ns:On("BAG_UPDATE_DELAYED", function()
         local c = count(id)
         if lastCounts[id] ~= c then lastCounts[id] = c; changed = true end
     end
-    if changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("bag count of a planned item") end
     -- Moving things in or out of the bank: read it again.
     if bankOpen then rereadBank() end
 end)
-ns:On("SKILL_LINES_CHANGED", function() if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end end)
+ns:On("SKILL_LINES_CHANGED", function() if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("SKILL_LINES_CHANGED") end end)
 
 -- /flow prof plan: what the planner thinks, profession by profession.
 function SP:Explain()

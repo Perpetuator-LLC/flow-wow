@@ -586,7 +586,7 @@ local function buildIndex()
             indexState = "ready"
             D.dirty = true
             -- A run you prepared before the index was ready: its stops now.
-            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("dungeon list ready") end
         else
             C_Timer.After(0, step)
         end
@@ -1187,7 +1187,7 @@ local function runMenu(run)
         func = function()
             long[run.dungeon] = not long[run.dungeon] or nil
             D.dirty = true
-            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("dungeon lead-in choice") end
         end }
     local missing = D:PartyMissing(run)
     if #missing > 0 then

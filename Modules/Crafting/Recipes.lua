@@ -93,7 +93,7 @@ function R:Record()
     if not (ok and prof) then ok, prof, rank, recipes = pcall(readModern) end
     if not (ok and prof and recipes and next(recipes)) then return end
     ns.db.crafting[prof] = { rank = rank, seenAt = time(), recipes = recipes }
-    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("profession window read") end
 end
 
 -- What Flow knows of a profession's recipes (nil if you haven't opened it yet).
@@ -147,7 +147,7 @@ function R:MarkKnown(name)
     end
     d.recipes = d.recipes or {}
     d.recipes[name] = d.recipes[name] or { reagents = {} }
-    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a recipe noted") end
     return true
 end
 

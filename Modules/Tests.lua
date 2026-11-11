@@ -761,6 +761,21 @@ ns:Register("test", "bank: far bank stock is skipped for mats you can farm here"
     t:ok(SP.UseBank(1200, true, 40), "40 in the bank across the zone: worth the trip, not 40 to farm")
     t:ok(not SP.UseBank(1200, true, 3), "3 in a far bank, farmable here: farm")
     t:ok(not SP.FarmableHere(99999), "unknown item: not farmable")
+    -- 0.35.152: an item this client doesn't have (IDs differ on Forever) is
+    -- not an upgrade; its "no such item" answer mustn't refresh the route.
+    local asked2 = {}
+    with(ns.nav, "RequestCollect", function(why) asked2[#asked2 + 1] = why end, function()
+        SP._pendingItems[987654] = true
+        t:ok(not SP.ItemInfoArrived(987654, false), "no such item: no refresh")
+        t:eq(SP._gainCache[987654], false, "remembered as no upgrade")
+        t:eq(SP._pendingItems[987654], nil, "no longer waited for")
+        SP._pendingItems[987655] = true
+        t:ok(SP.ItemInfoArrived(987655, true), "loaded: refresh with it")
+        t:ok(not SP.ItemInfoArrived(987656, true), "an item nobody asked for: nothing")
+    end)
+    t:eq(#asked2, 1, "one refresh, for the loaded item")
+    t:ok(type(asked2[1]) == "string", "and it says why")
+    SP._gainCache[987654], SP._gainCache[987655] = nil, nil
     -- 0.35.150: asked once per material per route gather, not every time.
     local asked = 0
     with(SP, "Farmable", function() asked = asked + 1; return true end, function()
@@ -1296,10 +1311,16 @@ ns:Register("test", "perf: a timed entry names its costliest parts", function(t)
     P.AddPart("test: parts", "slow step", 12)
     P.AddPart("test: no such entry", "x", 5)
     local line = P.PartsLine(P.stats["test: parts"], 10) or ""
-    t:ok(line:find("slow step 4.20 ms/s (worst 30.0 ms)", 1, true) ~= nil, "per second, with its worst: " .. line)
+    t:ok(line:find("slow step 4.20 ms/s (2x, worst 30.0 ms)", 1, true) ~= nil, "per second, with its worst: " .. line)
     t:ok((line:find("slow step", 1, true) or 99) < (line:find("quick step", 1, true) or 0), "costliest first")
     t:eq(P.stats["test: no such entry"], nil, "a part of an untimed entry is ignored")
     t:eq(P.PartsLine({ calls = 1 }, 10), nil, "no parts: no line")
+    t:ok(line:find("^      most in: ") ~= nil, "said as \"most in\" by default")
+    P.PartsLabel("test: parts", "refreshed after")
+    t:ok((P.PartsLine(P.stats["test: parts"], 10) or ""):find("^      refreshed after: ") ~= nil, "or in the row's own words")
+    -- The route says what asks it to refresh (0.35.152).
+    local st = P.stats["route: gather stops"]
+    t:eq(st and st.partsLabel, "refreshed after", "route refreshes listed by cause")
     P.stats["test: parts"] = nil
 end)
 

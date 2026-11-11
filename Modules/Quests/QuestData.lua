@@ -479,7 +479,7 @@ local function checkOffers(event)
             end
         end
     end
-    if changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+    if changed and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a quest not offered") end
 end
 for _, ev in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE" }) do
     ns:On(ev, function() C_Timer.After(0.2, function() pcall(checkOffers, ev) end) end)
@@ -704,7 +704,7 @@ local function scan(src)
             if ns.advisor then pcall(ns.advisor.Refresh, ns.advisor) end
             -- The route's "Accept:" stops come from this list: re-plan now
             -- (it used to wait for the 30 s refresh).
-            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect() end
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("quests to pick up worked out") end
         else
             C_Timer.After(0, step)
         end

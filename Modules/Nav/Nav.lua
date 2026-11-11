@@ -3362,19 +3362,26 @@ end
 -- could take 30+ ms, a hitch you can see. A change that comes in while it
 -- gathers gets one more refresh straight after.
 local pendingCollect, gathering, again, busy = false, false, false, false
+-- Why the refresh being gathered was asked for (an event, "every 30 s"...):
+-- /flow perf lists each cause, how often and what its refreshes cost, so a
+-- route that refreshes too often says what keeps asking.
+local gatherWhy
+local clock = debugprofilestop
 function N.Busy() return busy end
 function N.MarkAgain() if gathering then again = true end end
 local collectSoon
 local function finishRefresh()
     pendingCollect, gathering, busy = false, false, false
-    if again then again = false; collectSoon(false) end
+    if again then again = false; collectSoon(false, "a change while gathering") end
 end
 local function collectSpread()
     gathering = true
+    local why, spent = gatherWhy or "?", 0
     local sources = {}
     for key, provider in ns:Each("navGoal") do sources[#sources + 1] = { key = key, provider = provider } end
     local list, i = {}, 0
     local function step()
+        local t0 = clock and clock()
         i = i + 1
         local s = sources[i]
         if s then
@@ -3382,15 +3389,18 @@ local function collectSpread()
             -- stop can't leave the refresh stuck (no route updates ever again).
             local ok, err = pcall(gatherFrom, s.key, s.provider, list)
             if not ok and ns.db.rotation.debug then ns:Print("nav goal " .. s.key .. ": " .. tostring(err)) end
+            if t0 then spent = spent + clock() - t0 end
             C_Timer.After(0, step)
             return
         end
         pcall(N.Collect, N, list)
+        if t0 then spent = spent + clock() - t0 end
+        if ns.perf and ns.perf.AddPart then ns.perf.AddPart("route: gather stops", why, spent) end
         finishRefresh()
     end
     step()
 end
-collectSoon = function(quiet)
+collectSoon = function(quiet, why)
     if not quiet then busy = true end
     if pendingCollect then
         -- Waiting the 1 s: this change is picked up anyway. Gathering: the
@@ -3399,20 +3409,22 @@ collectSoon = function(quiet)
         return
     end
     pendingCollect = true
+    gatherWhy = why or (quiet and "every 30 s") or "?"
     C_Timer.After(1, collectSpread)
 end
-local function scheduleCollect() collectSoon(false) end
-N.RequestCollect = scheduleCollect  -- other modules: re-plan soon (throttled)
+local function scheduleCollect(why) collectSoon(false, why) end
+-- Other modules: re-plan soon (throttled). `why` names the cause in /flow perf.
+function N.RequestCollect(why) collectSoon(false, type(why) == "string" and why or "another part of Flow") end
 
 -- Money changed: re-plan only when it crosses a skipped stop's cost (so it
 -- comes back) or drops below a planned stop's cost (so it's skipped).
 ns:On("PLAYER_MONEY", function()
     local money = GetMoney()
     for _, d in pairs(ns.db.nav.deferred or {}) do
-        if d.cost and d.cost <= money then scheduleCollect() return end
+        if d.cost and d.cost <= money then scheduleCollect("money") return end
     end
     for _, g in ipairs(goals or {}) do
-        if g.cost and g.cost > money then scheduleCollect() return end
+        if g.cost and g.cost > money then scheduleCollect("money") return end
     end
 end)
 
@@ -3470,7 +3482,7 @@ end)
 for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED",
                       "QUEST_TURNED_IN", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP",
                       "SKILL_LINES_CHANGED", "TRAINER_CLOSED", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE" }) do
-    ns:On(ev, scheduleCollect)
+    ns:On(ev, function() scheduleCollect(ev) end)
 end
 
 ns.commands.nav = function(arg)
@@ -3631,6 +3643,7 @@ end
 
 -- Timed for /flow perf.
 N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)
+ns.perf.PartsLabel("route: gather stops", "refreshed after")   -- (each cause: collectSpread)
 
 -- A Flow window you can switch off (/flow nav off): the menus offer it back (Menu.lua).
 ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
