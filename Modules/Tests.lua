@@ -2229,7 +2229,7 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.CampStep(true, false, true, { name = "Camp Tent" }), "wait", "the minute is running: never stand up to place one")
     t:eq(BI.CampStep(true, true, false, nil, 100), "sit", "just placed one: sit again so the buffs include it")
     t:eq(BI.PartyKitText({ ["Mia-Realm"] = { kits = { "Camp Tent", "Enchanted Lute" }, at = 95 },
-                           Bob = { kits = { "Mana Well" }, at = 10 } }, 100),
+                           Bob = { kits = { "Mana Well" }, at = -100 } }, 100),   -- 200 s old: stale
         "Mia: Camp Tent, Enchanted Lute", "party camp objects: fresh lists only, realm dropped")
     t:eq(BI.PartyKitText({}, 100), nil, "no party lists: nothing")
     t:eq(BI.HealKind("Minor Healthstone", 0, 0), "healthstone", "a healthstone")
@@ -2261,6 +2261,7 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(BI.WeaponFirst(false, 100, 100), "out of combat, no enemy, healthy: the stone goes before the rotation's buff")
     t:ok(not BI.WeaponFirst(true, 100, 100), "enemy targeted: the opener first")
     t:ok(not BI.WeaponFirst(false, 40, 100), "under half health: the heal first")
+    t:ok(BI.WeaponFirst(false, nil, nil), "health the client hides: counts as fine (no error)")
     t:ok(ns:Get("action", "buff:item").order < ns:Get("action", "bag:learn").order, "before learning a recipe in your bags")
     t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill stop: yes")
     t:ok(not BI.Killing({ at = false, goal = { key = "500:done", kind = "turnin" } }, GetTime() + 1000), "walking to a turn-in, no fight lately: no")
