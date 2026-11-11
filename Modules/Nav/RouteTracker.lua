@@ -5,10 +5,9 @@
 -- stop for its menu (hide, route, order).
 -- Changing the route itself is done on the world map (click a stop there).
 --
--- Accordion with Questie's tracker: only one is open at a time, and both can
--- be collapsed. On first run Flow opens its tracker and collapses Questie's.
--- Opening Questie's tracker (its own header) collapses Flow's; opening Flow's
--- collapses Questie's. Uses Questie's own Collapse/Expand, nothing is hidden by force.
+-- Open or fold it with its header. It and Questie's tracker are separate:
+-- either, both or neither can be open (0.35.154; it used to fold one when the
+-- other opened).
 
 local _, ns = ...
 local RT = {}
@@ -23,17 +22,7 @@ local function questieTracker()
     if ok and t and type(t.Collapse) == "function" then return t end
 end
 
-local function questieOpen()
-    return Questie and Questie.db and Questie.db.char and Questie.db.char.isTrackerExpanded == true
-end
-
 local function db() return ns.db.tracker end
-
-local function setQuestie(open)
-    local t = questieTracker()
-    if not t then return end
-    if open then pcall(t.Expand, t) else pcall(t.Collapse, t) end
-end
 
 -- Questie's own tracker on or off (Flow Settings: "Hide Questie's tracker").
 -- Flips Questie's own setting the way its tracker toggle does: no reload,
@@ -58,10 +47,10 @@ function RT.SetQuestieTracker(show)
     return true
 end
 
+-- Open ("flow") or fold ("none") the Flow Tracker. Questie's tracker is left
+-- as it is: each is opened and folded by its own header.
 function RT:Open(which)
-    db().open = which  -- "flow" | "questie" | "none"
-    if which == "flow" then setQuestie(false)
-    elseif which == "questie" then setQuestie(true) end
+    db().open = (which == "flow") and "flow" or "none"
     self:Refresh()
 end
 
@@ -69,6 +58,7 @@ end
 -- tracker lists every stop around you and your waypoint, like the map; else
 -- your next N stops. One setting for both (Nav.lua N:AreaMode).
 function RT.Here() return ns.nav:AreaMode() end
+RT._Frame = function() return frame end   -- (tests)
 function RT:SetHere(on) ns.nav:SetArea(on) end
 
 -- Right-click on the title: the tracker's own options, then the route's
@@ -76,7 +66,7 @@ function RT:SetHere(on) ns.nav:SetArea(on) end
 function RT.MenuItems()
     local items = {
         { title = true, text = "Flow Tracker" },
-        { text = "Open (fold Questie's tracker)", checked = db().open == "flow",
+        { text = "Open", checked = db().open == "flow",
           func = function() RT:Open(db().open == "flow" and "none" or "flow") end },
     }
     if questieTracker() then
@@ -135,6 +125,11 @@ local function build()
     end
     h.pm = h:CreateTexture(nil, "ARTWORK")
     h.pm:SetSize(16, 16); h.pm:SetPoint("RIGHT", -6, 0)
+    -- The title ("Flow Tracker  3 here, 30 stops  2 blocked") stops short of
+    -- the +/- button: it's cut off with "..." rather than drawn over it.
+    h.text:SetPoint("RIGHT", h.pm, "LEFT", -4, 0)
+    h.text:SetJustifyH("LEFT")
+    h.text:SetWordWrap(false)
     -- Left-click: open or fold it. Right-click: its menu.
     h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     h:SetScript("OnClick", function(_, button)
@@ -423,7 +418,7 @@ end)
 ns:On("PLAYER_ENTERING_WORLD", function()
     C_Timer.After(4, function()
         frame = frame or build()
-        -- First run (or Questie added later): Flow open, Questie collapsed.
+        -- First run (or Questie added later): Flow open (Questie's left as it is).
         if not db().init then
             db().init = true
             RT:Open("flow")
@@ -438,15 +433,12 @@ ns:On("PLAYER_ENTERING_WORLD", function()
         end
         if questieTracker() then db().questieSeen = true end
         RT:Refresh()
-        -- Keep the accordion in step if Questie's own header is clicked, and
-        -- follow the route as it changes.
+        -- Follow the route as it changes.
         local acc, lastVersion = 0, -1
         frame:SetScript("OnUpdate", function(_, dt)
             acc = acc + dt
             if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end   -- lite: every 2 s
             acc = 0
-            if questieOpen() and db().open == "flow" then db().open = "questie" end
-            if not questieOpen() and db().open == "questie" and questieTracker() then db().open = "none" end
             if ns.nav and ns.nav.planVersion ~= lastVersion then lastVersion = ns.nav.planVersion end
             RT:Refresh()
         end)
@@ -463,20 +455,20 @@ ns.commands.tracker = function(arg)
         db().dock = (arg == "dock")
         RT:Refresh()
         ns:Print(arg == "dock" and "Flow Tracker docked under Questie's tracker." or "Flow Tracker undocked (Ctrl-drag its header to move it).")
-    elseif arg == "questie" or arg == "flow" then
-        RT:Open(arg)
+    elseif arg == "flow" or arg == "fold" then
+        RT:Open(arg == "flow" and "flow" or "none")
     elseif arg == "here" or arg == "next" then
         RT:SetHere(arg == "here")
         ns:Print("stops on the map and in the Flow Tracker: " .. ns.nav:StopsShownLabel())
     else
-        ns:Print("/flow tracker on|off|flow|questie|dock|undock|here|next")
+        ns:Print("/flow tracker on|off|flow|fold|dock|undock|here|next")
     end
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Everything to do around you and your waypoint (or your next stops: right-click its title), docked under Questie's tracker, one open at a time.",
+    "Everything to do around you and your waypoint (or your next stops: right-click its title), docked under Questie's tracker. Either or both can be open.",
     "Click a stop to open it (quest log or map); right-click a stop or the title for a menu. Change the route on the world map.",
-    "Ctrl-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock|here|next",
+    "Ctrl-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|fold|dock|undock|here|next",
 } })
 
 -- Timed for /flow perf.

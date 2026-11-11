@@ -135,8 +135,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Stop card**: Flow's view of a stop (drag it by its title). The arrow's own panel is a drawer
   beside the arrow: click the arrow to open it, click again or its X to close it.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
-  order). Click a row for its stop card; hover it to see its area on the minimap; Ctrl-drag
-  the header to move it.
+  order). It and Questie's tracker open and fold on their own: either or both. Click a row for
+  its stop card; hover it to see its area on the minimap; Ctrl-drag the header to move it.
 - **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
   the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
   the arrow's right-click menu, or `/flow nav stops 1|3|5|10|all`). The Flow Router always lists

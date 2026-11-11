@@ -53,10 +53,13 @@ end
 -- each only faintly dark, stacked so the middle is about half dark and the
 -- rim melts into the pillars (no hard black edge).
 I.BACKING = { layers = 6, alpha = 0.11, from = { 38, 14 }, to = { 96, 40 } }
+-- FLOW (and its backing) at half strength: the arrow shows through it.
+I.TEXT_ALPHA = 0.5
 local function deepText(f, arrow)
     local host = CreateFrame("Frame", nil, f)
     host:SetAllPoints(f)
     host:SetFrameLevel(arrow:GetFrameLevel() + 10)
+    host:SetAlpha(I.TEXT_ALPHA)   -- (each layer's own fade multiplies this)
     local layers = {}
     local B = I.BACKING
     for i = 1, B.layers do
@@ -82,7 +85,7 @@ local function deepText(f, arrow)
     for i = 6, 1, -1 do face(i * 0.55, -i * 0.55, 0.32 - i * 0.04, 0.18 - i * 0.025, 0.02, 1, nil, "ARTWORK") end
     face(0, 0.8, 1, 1, 0.85, 0.6)                          -- light top edge
     face(0, 0, 1, 0.84, 0.28, 1, "THICKOUTLINE")           -- bold gold face
-    local t = {}
+    local t = { host = host }   -- (host: tests)
     function t:SetAlpha(v) for _, l in ipairs(layers) do l:SetAlpha(v) end end
     function t:SetShown(v) host:SetShown(v) end
     function t:Show() self:SetShown(true) end

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.154
+- **No more waypoint on your character.** A "make it where you stand" stop (like "Make 1 x
+  Charred Wolf Meat") follows you, but the world map pinned it where you stood when the route
+  was last planned: right on you after each re-plan, or somewhere you'd left. It now gets no
+  pin, area or line on the map; it's still listed in the Flow Router and Flow Tracker.
+- **The Flow Tracker and Questie's tracker are separate.** Opening one no longer folds the
+  other: either, both or neither can be open. (`/flow tracker flow|fold` opens or folds Flow's.)
+- **The Flow Tracker's title no longer runs under its +/- button**: a long "N blocked" is cut
+  short instead.
+- **FLOW in the login spin is half see-through**, so the arrow shows through it.
+
 ## 0.35.153
 - **The Flow key's biggest cost, gone.** Looking for quest NPCs to heal (like "Injured
   Deathguard healed") checked every stop of your route around you, ten times a second, even

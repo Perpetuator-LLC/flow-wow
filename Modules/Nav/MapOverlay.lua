@@ -578,6 +578,9 @@ end
 -- Draws one route as a dotted trail through round points, starting at you.
 -- Stops on another map are skipped, and the trail joins the ones on this
 -- map. Each point's label carries the stop's type icon and number.
+-- A "make it where you stand" stop (crafting with no station): it follows
+-- you, so the world map gives it no pin, area or line.
+function M.FollowsYou(s) return (s and s.goal and s.goal.anywhere) and true or false end
 local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     if not plan then return end
     local px, py = toMap(ns.nav:PlayerPos(), mapID)
@@ -586,7 +589,11 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     local fromYou = px ~= nil   -- the next line drawn starts at you
     local broken = false        -- a hidden stop since the last one drawn
     for i, s in ipairs(plan) do
-        local x, y = toMap(s.point, mapID)
+        -- A "make it where you stand" stop follows you: its spot is wherever you
+        -- stood when the route was planned, so it gets no pin (it sat on your
+        -- character, or where you used to be). It's listed, not placed.
+        local x, y
+        if not M.FollowsYou(s) then x, y = toMap(s.point, mapID) end
         local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
         -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
         local beyond = not ns.nav:StopVisible(i, false)
@@ -1665,7 +1672,8 @@ local function fullDraw()
             -- Only the patch the route goes to; the stop you point at shows
             -- every place its mobs live. Past your Stops on the map limit,
             -- only the stop you point at.
-            if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
+            if M.FollowsYou(plan[i]) then   -- (follows you: nowhere to draw)
+            elseif g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
             elseif ns.nav:StopVisible(i, false) then
                 -- Your next stop (the arrow's): every place its mobs live, as on
                 -- the minimap; later stops: the patch the route goes to.

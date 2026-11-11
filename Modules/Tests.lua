@@ -2804,6 +2804,10 @@ ns:Register("test", "intro: FLOW's dark backing fades out to its edges", functio
     t:near(middle, 0.5, 0.05, "about half dark in the middle")
     t:ok(B.alpha <= 0.15, "the outer rim is only faintly dark")
     t:ok(B.to[1] > B.from[1] and B.to[2] > B.from[2], "each oval bigger than the last")
+    -- The player asked: FLOW at half strength, so the arrow shows through.
+    t:eq(ns.intro.TEXT_ALPHA, 0.5, "FLOW at 50%")
+    local it = ns.nav.arrowFrame and ns.nav.arrowFrame.introText
+    if it and it.host then t:near(it.host:GetAlpha(), 0.5, 0.01, "drawn at 50%") end
 end)
 
 ns:Register("test", "pickups: a brand-new character gets quests to accept where they stand", function(t)
@@ -5125,6 +5129,34 @@ ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps
     t:eq(ns.cast.AdviceLabel(moonfire, "Rejuvenation"), "bar:", "corner: anything else, press it on your bar")
 end)
 
+ns:Register("test", "tracker: Flow's and Questie's trackers open on their own; title clear of +/-", function(t)
+    -- The player: both trackers can be open at once (0.35.154). Opening the
+    -- Flow Tracker no longer folds Questie's, and the other way round.
+    local RT = ns.routeTracker
+    local was = ns.db.tracker.open
+    RT:Open("flow")
+    t:eq(ns.db.tracker.open, "flow", "opened")
+    RT:Open("questie")
+    t:eq(ns.db.tracker.open, "none", "an old \"questie\" choice just folds Flow's")
+    local f = RT._Frame()
+    if f and f.header then
+        local h = f.header
+        local onClick = h:GetScript("OnClick")
+        t:ok(pcall(onClick, h, "LeftButton"), "click: the header opens it")
+        t:eq(ns.db.tracker.open, "flow", "open after a click")
+        local held
+        for i = 1, h.text:GetNumPoints() do
+            local _, rel = h.text:GetPoint(i)
+            if rel == h.pm then held = true end
+        end
+        t:ok(held, "the title stops at the +/- button (the blocked count never covers it)")
+    else
+        t:ok(true, "(tracker not built yet)")
+    end
+    ns.db.tracker.open = was
+    pcall(RT.Refresh, RT)
+end)
+
 ns:Register("test", "move with Ctrl (as in Questie); hide Questie's tracker", function(t)
     -- 0.35.138: Shift moved things; it now shows what Shift + key casts.
     t:eq(ns.MOVE_KEY, "Ctrl", "Ctrl moves Flow's frames")
@@ -5160,6 +5192,17 @@ ns:Register("test", "click: the arrow drawer's X closes it", function(t)
     local a, _, r = d.close:GetPoint()
     t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, like Flow's other views")
     d:Hide()
+end)
+
+ns:Register("test", "map: a make-it-where-you-stand stop gets no pin", function(t)
+    -- The player saw a waypoint on their character: a "Make 1 x Charred Wolf
+    -- Meat" stop follows you, and the map pinned it where you stood when the
+    -- route was planned (on you, or somewhere you used to be).
+    local M = ns.mapOverlay
+    t:ok(M.FollowsYou({ goal = { key = "craft:Cooking:Charred Wolf Meat", anywhere = true }, point = { cont = 1, wx = 0, wy = 0 } }),
+        "a stop that follows you: not drawn")
+    t:ok(not M.FollowsYou({ goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } }), "a quest objective: drawn")
+    t:ok(not M.FollowsYou(nil), "nothing: no")
 end)
 
 ns:Register("test", "map and arrow agree: area stops by every spawn; one spot per stop", function(t)
