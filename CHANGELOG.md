@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **One recovery order, always.** Out of a fight every heal goes through your order (bandage, food, heal spell by default):
+  a heal spell no longer jumps ahead when your health is shown or the low-health warning is on, and "Cast heals" off
+  means no heal spell. Fight healing is unchanged: healthstone, potion, then heal spells.
+- **Well Fed food heals too.** Food that restores health and also makes you Well Fed is eaten to heal when you carry no
+  plain food (right-click the Flow key to keep it for the buff).
+- **Alt + easy key: healthstone or potion.** Set before the fight, so it works in one even when the item is on none of
+  your bars. It can't switch mid-fight (WoW's rule).
 - **Your weapon stone goes on with one press, and food that makes you Well Fed too.** When
   you're about to kill a lot (at a kill or loot stop, or right after a fight) and your main hand
   has no sharpening stone, weightstone or oil on it, the Flow key (out of combat, not in inns or
