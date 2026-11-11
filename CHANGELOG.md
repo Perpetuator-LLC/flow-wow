@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.129
+- **Fixed: The Longwalkers doesn't need a fishing pole.** 0.35.128 got it wrong: when you
+  reached the back of Palemane Rock, Perith Stormhoof was away, walking another player out. The
+  quest is on your route again with or without a pole.
+- **Escort quests say so on their stop**: "Accept: The Longwalkers (escort, deep in Palemane
+  Rock)". Its details explain that if another player is escorting the giver, they're away for
+  a few minutes: wait by their spot, or come back later. Flow spots every escort quest from
+  Questie's data by itself. The Longwalkers also notes that you'll fight your way into the cave.
+- **Restart WoW once** if you haven't since 0.35.126: those versions added files.
+
 ## 0.35.128
 - **The Longwalkers waits until you have a fishing pole.** Perith Stormhoof, at the back of
   Palemane Rock, offers nothing without one, and nothing told Flow that, so it sent you through

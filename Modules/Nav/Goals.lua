@@ -264,9 +264,10 @@ ns:Register("navGoal", "pickups", {
                     details = { string.format("Level %d quest from %s.", q.level or 0, q.starter.name or "?"),
                                 "You haven't done it yet and it's still worth the XP." },
                 }
-                -- What the giver wants you to have first, and where they are
-                -- (Modules/Quests/QuestNeeds.lua): waits until you have it.
-                if ns.quests.PickupNeed then ns.quests:PickupNeed(g, q.id) end
+                -- Where the giver is, whether it's an escort (they may be away
+                -- with someone else), and what they want you to have first
+                -- (Modules/Quests/QuestNeeds.lua).
+                if ns.quests.PickupNeed then ns.quests:PickupNeed(g, q.id, q.raw, q.starter.name) end
                 goals[#goals + 1] = g
             end
         end

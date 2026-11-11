@@ -62,9 +62,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **Route planner and arrow**: plans the whole trip (quest objectives, turn-ins after their
   objectives, quests to pick up, trainers you can afford, and profession stops) and points you
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
-  entrances so it sends you in through the door, not over the top. A quest whose giver wants
-  something first (a fishing pole for The Longwalkers) waits until you have it, and its stop
-  says when the giver is deep in a cave.
+  entrances so it sends you in through the door, not over the top. A quest stop says when it's
+  an escort (its giver may be away walking another player out, for a few minutes) or when the
+  giver is deep in a cave (The Longwalkers).
 - **The route's colour tells you its state** (arrow, route and waypoints): **Most XP first**
   (epic purple, the default) and **Shortest path** (rare blue) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or

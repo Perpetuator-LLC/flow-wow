@@ -1717,37 +1717,50 @@ ns:Register("test", "cooking: a campfire needs Simple Wood and Flint and Tinder"
     end
 end)
 
-ns:Register("test", "quests: a pickup that needs a fishing pole waits until you have one", function(t)
-    -- The Longwalkers: Perith Stormhoof, at the back of a gnoll cave, offers
-    -- nothing without a fishing pole (0.35.128).
+ns:Register("test", "quests: pickup stops say escort, cave, and what the giver wants first", function(t)
+    -- The Longwalkers: an escort from the back of a gnoll cave; Perith was
+    -- away walking another player out (0.35.129; 0.35.128 wrongly blamed a
+    -- fishing pole).
     local Q = ns.quests
     local need = ns:Get("questNeed", 98430)
-    t:ok(need and need.tool == "Fishing", "The Longwalkers needs a fishing pole")
+    t:ok(need and need.where == "deep in Palemane Rock", "The Longwalkers: the cave")
+    t:ok(need and not need.tool and not need.item, "and no fishing pole (or anything) needed")
+    -- Escort quests, from Questie's event objective.
+    local escortRaw = { triggerEnd = { "Escort Perith Stormhoof out of Palemane Rock", {} } }
+    local escort = Q.EscortNote(escortRaw, "Perith Stormhoof")
+    t:ok(escort and escort:find("another player is escorting Perith Stormhoof", 1, true) ~= nil, "an escort says so")
+    t:eq(Q.EscortNote({ triggerEnd = { "Cleanse the Thunderhorn Water Well", {} } }, "X"), nil, "another event isn't an escort")
+    t:eq(Q.EscortNote({}, "X"), nil, "a quest with no event")
+    t:eq(Q.EscortNote(nil, "X"), nil, "no Questie data")
+    -- The stop.
+    local g = Q.ApplyNeed({ key = "pickup:98430", text = "Accept: The Longwalkers", details = { "Level 8 quest." } },
+        need, nil, nil, escort)
+    t:eq(g.text, "Accept: The Longwalkers (escort, deep in Palemane Rock)", "the stop's name says both")
+    t:eq(g.details[1], need.note, "the cave note first")
+    t:eq(g.details[2], escort, "then the escort note")
+    t:eq(g.details[3], "Level 8 quest.", "then the usual ones")
+    t:eq(g.blockedBy, nil, "on the route: he needs nothing")
+    g = Q.ApplyNeed({ key = "pickup:1", text = "Accept: X" }, nil, nil, nil, nil)
+    t:eq(g.text, "Accept: X", "other quests: untouched")
+    t:eq(g.details, nil, "no notes added")
+    -- A giver who wants something first (none registered yet; the support stays).
     local none = { tool = function() return "Fishing Pole", { "Seller A", "Seller B", "Seller C" } end,
                    item = function() return false end, itemName = function() return "Torch" end }
     local all = { tool = function() return nil end, item = function() return true end }
-    local missing, sellers = Q.NeedMissing(need, none)
-    t:eq(missing, "a Fishing Pole", "without one: a pole is missing")
+    local pole = { tool = "Fishing" }
+    local missing, sellers = Q.NeedMissing(pole, none)
+    t:eq(missing, "a Fishing Pole", "a tool you don't carry")
     t:eq(sellers and sellers[1], "Seller A", "and who sells one")
-    t:eq(Q.NeedMissing(need, all), nil, "with one: nothing missing")
+    t:eq(Q.NeedMissing(pole, all), nil, "a tool you carry")
     t:eq(Q.NeedMissing({ item = 5 }, none), "Torch", "an item you don't carry, by name")
     t:eq(Q.NeedMissing({ item = 5 }, all), nil, "an item you carry")
     t:eq(Q.NeedMissing(nil, none), nil, "a quest with no needs")
-    -- The stop.
-    local g = Q.ApplyNeed({ key = "pickup:98430", text = "Accept: The Longwalkers", details = { "Level 8 quest." } },
-        need, "a Fishing Pole", { "Seller A", "Seller B", "Seller C" })
+    g = Q.ApplyNeed({ key = "pickup:2", text = "Accept: Y" }, pole, missing, sellers)
     t:eq(g.blockedBy, "needs a Fishing Pole first (sold by Seller A or Seller B)", "held back, saying what and who sells it")
-    t:eq(g.text, "Accept: The Longwalkers (deep in Palemane Rock)", "the stop says where he is")
-    t:eq(g.details[1], need.note, "the cave note comes first in its details")
-    t:eq(g.details[2], "Level 8 quest.", "before the usual ones")
-    g = Q.ApplyNeed({ key = "pickup:98430", text = "Accept: The Longwalkers" }, need, nil)
-    t:eq(g.blockedBy, nil, "with a pole: on the route")
-    t:ok(g.details and g.details[1] == need.note, "still warned about the cave")
-    g = Q.ApplyNeed({ key = "pickup:1", text = "Accept: X" }, nil, nil)
-    t:eq(g.text, "Accept: X", "other quests: untouched")
     -- The game's own check runs.
-    local ok, res = pcall(Q.PickupNeed, Q, { key = "pickup:98430", text = "Accept: The Longwalkers", details = {} }, 98430)
-    t:ok(ok and res and res.text:find("Palemane Rock", 1, true) ~= nil,
+    local ok, res = pcall(Q.PickupNeed, Q, { key = "pickup:98430", text = "Accept: The Longwalkers", details = {} },
+        98430, escortRaw, "Perith Stormhoof")
+    t:ok(ok and res and res.text == "Accept: The Longwalkers (escort, deep in Palemane Rock)" and not res.blockedBy,
         "the real check runs" .. (ok and "" or (": " .. tostring(res))))
 end)
 
