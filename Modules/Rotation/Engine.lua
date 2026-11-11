@@ -348,6 +348,39 @@ function E.RecoverBusy(ctx)
 end
 function E.Mounted() return (IsMounted and IsMounted()) and true or false end
 
+-- Fights ahead (a kill stop, or just after a fight) and not Well Fed: food
+-- that makes you Well Fed comes first when you eat (one meal does both).
+function E.WantWellFed()
+    local BI, X = ns.buffItems, ns.actions
+    if not (BI and BI.Killing) or A.Buff("player", "Well Fed") then return false end
+    local ok, ctx = pcall(function() return X and X:Context() end)
+    return BI.Killing(ok and ctx or nil) == true
+end
+
+-- Drinking: out of a fight at or below this share of your mana, with no
+-- enemy targeted (you'd sit down at the pull). You can drink while you eat.
+E.DRINK_PCT = 0.5
+function E.ManaShare()
+    local max = A.Safe(UnitPowerMax and UnitPowerMax("player", 0))
+    if not (max and max > 0) then return nil end
+    local mana = A.Safe(UnitPower and UnitPower("player", 0))
+    return mana and mana / max or nil
+end
+function E.Drinking()
+    return (A.Buff("player", function(n) return n == "Drink" or n == "Food & Drink" or n == "Refreshment" end)) and true or false
+end
+function E:DrinkStep(ctx)
+    local r = ns.db.rotation
+    if ctx.inCombat or ctx.hostile or ctx.casting or r.recoverDrink == false then return nil end
+    if UnitIsDeadOrGhost("player") or E.Mounted() or E.Drinking() then return nil end
+    local share = E.ManaShare()
+    if not share or share > E.DRINK_PCT then return nil end
+    local BI = ns.buffItems
+    local s = BI and BI.DrinkStep and BI.DrinkStep()
+    if s then s.fightType = ctx.fightType end
+    return s
+end
+
 function E:Recover(ctx, def)
     if ctx.inCombat or E.RecoverBusy(ctx) then return nil end
     -- Hurt: Flow's estimate, your real health where the game shows it, or
@@ -364,7 +397,7 @@ function E:Recover(ctx, def)
         if step == "bandage" and BI and r.recoverBandage ~= false and not mounted then
             s = BI.BandageStep(r.bandageRank == "low")
         elseif step == "food" and BI and r.recoverFood ~= false and not mounted and not ctx.hostile and quite then
-            s = BI.FoodStep(r.recoverBuffFood ~= false)
+            s = BI.FoodStep(r.recoverBuffFood ~= false, E.WantWellFed())
         elseif step == "heal" and r.recoverHeal ~= false then
             s = direct or self:EarlyHeal(ctx, def)
         end
@@ -452,7 +485,9 @@ end
 -- low health, then heal spells (real health, the game's low-health warning,
 -- then Flow's estimate). Out of one: only your recovery order.
 function E:HealStep(ctx, def)
-    if not ctx.inCombat then return self:Recover(ctx, def) end
+    -- Out of a fight: your recovery order, then a drink if you're low on mana
+    -- (also while you eat: Recover waits while you eat, drinking doesn't).
+    if not ctx.inCombat then return self:Recover(ctx, def) or self:DrinkStep(ctx) end
     local h = self:Emergency(ctx)
     if not h and def.heals then
         -- Your health is hidden (Forever): the game's own low-health warning

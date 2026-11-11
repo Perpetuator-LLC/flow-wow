@@ -581,9 +581,14 @@ function BI.HealKind(name, classID, subID, lines)
     if name:find("Healing Potion") or (classID == 0 and subID == POTION_SUB and name:find("Healing")) then return "potion" end
     if name:find("Bandage") or (classID == 0 and subID == BANDAGE_SUB) then return "bandage" end
     if classID == 0 and subID == FOOD_SUB and lines then
+        local mana = false
         for _, l in ipairs(lines) do
-            if type(l) == "string" and l:lower():find("health", 1, true) then return "food", BI.IsBuffFood(lines) and true or false end
+            local low = type(l) == "string" and l:lower() or ""
+            if low:find("health", 1, true) then return "food", BI.IsBuffFood(lines) and true or false end
+            if low:find("restores %d+ mana") then mana = true end
         end
+        -- Water and the like ("Restores 151 mana over 21 sec."): drink.
+        if mana then return "drink", false end
     end
     return nil
 end
@@ -761,18 +766,32 @@ end
 
 -- The food to heal with: plain food first (best rank); food that also makes
 -- you Well Fed only when there's no plain food and buffFood allows it.
-function BI.PickFood(items, buffFood, ready)
+-- preferBuff: you're about to fight a lot and aren't Well Fed, so food that
+-- heals AND makes you Well Fed comes first: one meal does both.
+function BI.PickFood(items, buffFood, ready, preferBuff)
     local plain, buff = {}, {}
     for _, it in ipairs(items or {}) do
         if it.kind == "food" then local t = it.buff and buff or plain; t[#t + 1] = it end
     end
+    if buffFood and preferBuff then
+        local b = BI.PickKind(buff, "food", false, ready)
+        if b then return b end
+    end
     return BI.PickKind(plain, "food", false, ready) or (buffFood and BI.PickKind(buff, "food", false, ready)) or nil
 end
 
-function BI.FoodStep(buffFood)
-    local it = BI.PickFood(healItems(), buffFood, itemReady)
+function BI.FoodStep(buffFood, preferBuff)
+    local it = BI.PickFood(healItems(), buffFood, itemReady, preferBuff)
     if not it then return nil end
-    return useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up")
+    return useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up"
+        .. (it.buff and preferBuff and " (and Well Fed for the fights ahead)" or ""))
+end
+
+-- Out of mana after a fight: your best drink (water and the like).
+function BI.DrinkStep()
+    local it = BI.PickKind(healItems(), "drink", false, itemReady)
+    if not it then return nil end
+    return useStep(it, "heal", "Drink: " .. it.name, "Low on mana: drink before the next pull (you can eat at the same time)")
 end
 
 -- Right-click on the Flow key: what it does after a fight, and when to use
@@ -798,7 +817,8 @@ function BI:OpenMenu()
     end
     items[#items + 1] = toggle("Use bandages", "recoverBandage")
     items[#items + 1] = toggle("Eat food", "recoverFood")
-    items[#items + 1] = toggle("Eat Well Fed food too, when there's no plain food", "recoverBuffFood")
+    items[#items + 1] = toggle("Eat Well Fed food too (first when fights are ahead)", "recoverBuffFood")
+    items[#items + 1] = toggle("Drink when low on mana", "recoverDrink")
     items[#items + 1] = toggle("Cast heals", "recoverHeal")
     items[#items + 1] = { sep = true }
     items[#items + 1] = { title = true, text = "Bandages" }

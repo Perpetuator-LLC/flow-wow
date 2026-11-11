@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.136
+- **The Flow key drinks too.** Out of a fight with no enemy targeted, at half your mana or
+  less, it drinks your best water (also while you're eating: press again after the food).
+  Right-click the Flow key: "Drink when low on mana" turns it off.
+- **Well Fed food when it pays.** When you eat with fights ahead (a kill stop, or just after a
+  fight) and you aren't Well Fed, food that also makes you Well Fed comes first: one meal heals
+  and buffs. Otherwise plain food first, as before.
+
 ## 0.35.135
 - **Druid: Entangling Roots.** On a melee mob (one without a mana pool), Flow opens with
   Entangling Roots: the key casts it before the pull, then stays on Wrath for the fight while

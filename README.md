@@ -43,8 +43,10 @@ Flow for WoW is a separate project from Flow Engine.
   `/flow action` shows what it would do.
 - **Healing items**: low in a fight, Flow's icon shows your healthstone, then your best healing
   potion, when it's on one of your action bars (press it there: it glows). After a fight the key
-  recovers you: bandage, then food, then a heal spell by default. Right-click the Flow key to
-  change that order, turn steps off, or use your lowest bandages first.
+  recovers you: bandage (the smallest that fills you), then food, then a heal spell by default,
+  and drinks when you're at half mana or less (also while you eat). With fights ahead and no
+  Well Fed, Well Fed food comes first. Right-click the Flow key to change that order, turn steps
+  off, or use your lowest bandages first.
 - **Status icons** above the Flow key, between fights only, instead of chat lines: by a campfire,
   what your group can add to the camp. Hover for details.
 - **Auto-repair** at vendors who repair (Options, on by default), after Flow sells your junk.
