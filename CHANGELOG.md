@@ -5,7 +5,9 @@
   this client (it saved none before, so every upgrade said "open this window again"). Hover an
   upgrade for what it takes and what you have; click it to show that recipe in the profession
   window. Make works in the new-style window too, and hover text sits beside the panel instead
-  of over its Make button. (Thanks, BIMpossible: pull request 17.)
+  of over its Make button. When your next skill-up recipe has nothing to make it from yet, the
+  window names it and what to gather, and it updates as soon as the plan does (an upgrade you
+  just made stops being asked for). (Thanks, BIMpossible: pull request 17.)
 
 ## 0.35.148
 - **Quests an NPC doesn't give.** Questie lists some of Forever's own quests with nothing to
