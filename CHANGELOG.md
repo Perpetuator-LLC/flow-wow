@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- **Bandages, food and the campfire are on the buff button.** Hurt after a fight, the blue buff button offers your
+  bandage or food; by a campfire it places your camp objects and sits you down. Flow's key no longer shows them, so
+  it keeps to the fight, loot and gathering. Your recovery order still holds: a heal spell on Flow's key waits while
+  a bandage or food you put first is there. Buff button off: all of it is back on Flow's key.
+
 ## 0.35.133
 - **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
   it's on none of your bars. It's set before the fight (WoW won't let it change during one).
