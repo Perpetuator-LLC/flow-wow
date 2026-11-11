@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.134
+- **The smallest bandage that fills you.** After a fight the Flow key picks the smallest bandage
+  you carry that heals what you're missing (a Heavy Wool Bandage on a scratch wasted most of
+  it), else your biggest. The game hides your health, so "missing" is Flow's own estimate of
+  how hurt you are; when it can't tell, it uses your biggest as before. "Lowest bandage first"
+  (right-click the Flow key) still always takes the lowest.
+
 ## 0.35.133
 - **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
   it's on none of your bars. It's set before the fight (WoW won't let it change during one).

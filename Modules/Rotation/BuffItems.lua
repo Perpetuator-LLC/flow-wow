@@ -703,12 +703,60 @@ function BI.EmergencyStep()
         "Low health: use your " .. it.name .. " now (" .. how .. ")")
 end
 
+-- How much a bandage heals: its tooltip ("Heals 66 damage over 6 sec."),
+-- else the usual amount for its name. nil when Flow can't tell.
+BI.BANDAGE_HEALS = {
+    ["Linen Bandage"] = 66, ["Heavy Linen Bandage"] = 114, ["Wool Bandage"] = 161,
+    ["Heavy Wool Bandage"] = 301, ["Silk Bandage"] = 400, ["Heavy Silk Bandage"] = 640,
+    ["Mageweave Bandage"] = 800, ["Heavy Mageweave Bandage"] = 1104,
+    ["Runecloth Bandage"] = 1360, ["Heavy Runecloth Bandage"] = 2000,
+}
+function BI.BandageHeal(name, lines)
+    for _, l in ipairs(lines or {}) do
+        local n = tostring(l):match("[Hh]eals (%d+) damage")
+        if n then return tonumber(n) end
+    end
+    return name and BI.BANDAGE_HEALS[name] or nil
+end
+
+-- The bandage to use. You missing `missing` health (nil: Flow can't tell):
+-- the smallest that fills you (a big one on a scratch wastes most of it),
+-- else the biggest. lowFirst (your choice, right-click the key): lowest.
+function BI.PickBandage(items, missing, lowFirst, ready, healOf)
+    if lowFirst or not missing then return BI.PickKind(items, "bandage", lowFirst, ready) end
+    local fills, biggest, fillsHeal, bigHeal
+    for _, it in ipairs(items or {}) do
+        if it.kind == "bandage" and (not ready or ready(it.id)) then
+            local h = healOf(it) or 0
+            if h >= missing and (not fills or h < fillsHeal) then fills, fillsHeal = it, h end
+            if not biggest or h > bigHeal then biggest, bigHeal = it, h end
+        end
+    end
+    return fills or biggest
+end
+
+-- Health you're missing: exact when the game shows it; else Flow's estimate
+-- of how hurt you are (E.hurt, out of E.HURT.max) of your maximum health;
+-- nil when the maximum is hidden too.
+function BI.MissingHealth(hp, maxHp, hurt, hurtMax)
+    hp, maxHp = A.Safe(hp), A.Safe(maxHp)
+    if not (maxHp and maxHp > 0) then return nil end
+    if hp then return math.max(0, maxHp - hp) end
+    if not (hurt and hurtMax and hurtMax > 0) then return nil end
+    return maxHp * math.min(1, math.max(0, hurt) / hurtMax)
+end
+
 function BI.BandageStep(lowFirst)
     if bandaged() then return nil end
-    local it = BI.PickKind(healItems(), "bandage", lowFirst, itemReady)
+    local E = ns.rotation
+    local missing = BI.MissingHealth(UnitHealth("player"), UnitHealthMax("player"), E and E.hurt, E and E.HURT.max)
+    local it = BI.PickBandage(healItems(), missing, lowFirst, itemReady,
+        function(x) return BI.BandageHeal(x.name, tipLines(x.id)) end)
     if not it then return nil end
     return useStep(it, "heal", "Bandage: " .. it.name,
-        "Hurt after your fight: bandage up (stand still while it heals)", "player")
+        "Hurt after your fight: bandage up (stand still while it heals)"
+            .. (missing and not lowFirst and string.format("; the smallest that fills about %d missing health", math.floor(missing + 0.5)) or ""),
+        "player")
 end
 
 -- The food to heal with: plain food first (best rank); food that also makes

@@ -2763,6 +2763,24 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.PickEmergency(heal, function(id) return id ~= 2 end).id, 1, "healthstone on cooldown: the potion")
     t:eq(BI.PickKind(heal, "bandage").id, 4, "best bandage first by default")
     t:eq(BI.PickKind(heal, "bandage", true).id, 3, "lowest bandage first when you choose it")
+    -- The smallest bandage that fills you (0.35.134): a big one on a
+    -- scratch wastes most of it.
+    t:eq(BI.BandageHeal("Linen Bandage", { "Use: Heals 70 damage over 6 sec." }), 70, "from the tooltip")
+    t:eq(BI.BandageHeal("Heavy Wool Bandage", {}), 301, "else by its name")
+    t:eq(BI.BandageHeal("Mystery Rag", nil), nil, "unknown: can't tell")
+    local rolls = { { id = 1, kind = "bandage", rank = 5, name = "Linen Bandage" },
+                    { id = 2, kind = "bandage", rank = 15, name = "Wool Bandage" },
+                    { id = 3, kind = "bandage", rank = 25, name = "Heavy Wool Bandage" } }
+    local function healOf(it) return BI.BandageHeal(it.name) end
+    t:eq(BI.PickBandage(rolls, 50, false, nil, healOf).id, 1, "50 missing: Linen fills it")
+    t:eq(BI.PickBandage(rolls, 150, false, nil, healOf).id, 2, "150 missing: Wool, not Heavy Wool")
+    t:eq(BI.PickBandage(rolls, 900, false, nil, healOf).id, 3, "more than any fills: the biggest")
+    t:eq(BI.PickBandage(rolls, nil, false, nil, healOf).id, 3, "can't tell how hurt: the biggest, as before")
+    t:eq(BI.PickBandage(rolls, 900, true, nil, healOf).id, 1, "lowest first, your choice: the lowest")
+    t:eq(BI.PickBandage(rolls, 50, false, function(id) return id ~= 1 end, healOf).id, 2, "Linen not usable: the next that fills")
+    t:near(BI.MissingHealth(nil, 1000, 15, 60), 250, 0.01, "health hidden: Flow's estimate of max health")
+    t:eq(BI.MissingHealth(700, 1000, 15, 60), 300, "health shown: exact")
+    t:eq(BI.MissingHealth(nil, nil, 15, 60), nil, "max hidden too: can't tell")
     t:eq(table.concat(BI.Order(nil), ","), "bandage,food,heal", "default order: bandage, food, heal spell")
     t:eq(table.concat(BI.Order("heal,bandage"), ","), "heal,bandage,food", "your order, missing steps added")
     t:eq(table.concat(BI.Order("food,food,junk"), ","), "food,bandage,heal", "repeats and unknown words dropped")
