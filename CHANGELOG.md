@@ -4,6 +4,11 @@
 - **Professions: a switch of their own.** The route list is Quests only, Optimal, Completionist, with one
   "Professions" tick under them instead of two "Optimal with / without professions" routes.
 
+## 0.35.144
+- Fixed three self-tests that failed at every login after 0.35.143: they expected the faint
+  profession arrow on by default (it's off unless ticked now) and water not to count (the key
+  drinks it since 0.35.136). The arrow-layout check now says its numbers when it fails.
+
 ## 0.35.143
 - **A faint profession arrow (off unless you tick it).** Arrow menu or Flow Settings: "Faint
   profession arrow". With "Optimal with professions", profession stops (training, skill-ups,
