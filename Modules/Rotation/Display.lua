@@ -101,16 +101,28 @@ local function buildIcon(cfg)
     fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
     f.swing.pulse = pulse
     f.swing:Hide()
-    -- On deck (right of the button): the next three spells in your priority
-    -- order, shrinking, each with its cooldown timer. Greyed while cooling down.
+    -- The queue (right of the button): what your key casts with Ctrl, Shift
+    -- and Alt held (Queue.lua; Cast.lua has them set), each a little smaller
+    -- than the last, its modifier written above it. Greyed while cooling
+    -- down, red out of range; the one Flow advises pulses gold, the one
+    -- whose modifier you hold is ringed green.
     f.deck = {}
-    local SIZES = { 30, 25, 21 }
+    local SIZES = { 36, 30, 25 }
+    local MODS = { "CTRL", "SHIFT", "ALT" }
     local prev
     for i, sz in ipairs(SIZES) do
         local d = CreateFrame("Frame", nil, f)
         d:SetSize(sz, sz)
-        if prev then d:SetPoint("LEFT", prev, "RIGHT", 4, 0) else d:SetPoint("LEFT", f, "RIGHT", 8, 0) end
-        d.back = d:CreateTexture(nil, "BACKGROUND")
+        if prev then d:SetPoint("BOTTOMLEFT", prev, "BOTTOMRIGHT", 6, 0) else d:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 10, 0) end
+        d.ring = d:CreateTexture(nil, "BACKGROUND", nil, -2)
+        d.ring:SetPoint("TOPLEFT", -3, 3); d.ring:SetPoint("BOTTOMRIGHT", 3, -3)
+        d.ring:SetColorTexture(1, 0.82, 0.1, 1)
+        d.ring:Hide()
+        d.ring.pulse = d.ring:CreateAnimationGroup()
+        d.ring.pulse:SetLooping("BOUNCE")
+        local ringFade = d.ring.pulse:CreateAnimation("Alpha")
+        ringFade:SetFromAlpha(1); ringFade:SetToAlpha(0.25); ringFade:SetDuration(0.4)
+        d.back = d:CreateTexture(nil, "BACKGROUND", nil, -1)
         d.back:SetPoint("TOPLEFT", -1, 1); d.back:SetPoint("BOTTOMRIGHT", 1, -1)
         d.back:SetColorTexture(0, 0, 0, 0.85)
         d.tex = d:CreateTexture(nil, "ARTWORK")
@@ -118,17 +130,24 @@ local function buildIcon(cfg)
         d.timer = d:CreateFontString(nil, "OVERLAY")
         d.timer:SetFont(STANDARD_TEXT_FONT, math.max(9, math.floor(sz * 0.42)), "OUTLINE")
         d.timer:SetPoint("CENTER")
-        d:SetAlpha(1 - (i - 1) * 0.15)
-        -- Hover: that spell's own tooltip and why it's coming up.
+        d.mod = d:CreateFontString(nil, "OVERLAY")
+        d.mod:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
+        d.mod:SetPoint("BOTTOM", d, "TOP", 0, 2)
+        d.mod:SetText(MODS[i])
+        d.mod:SetTextColor(0.85, 0.85, 0.85)
+        -- Hover: that spell's (or item's) own tooltip, the press that casts it, and why.
         d:EnableMouse(true)
         d:SetScript("OnEnter", function(self)
             local e = self.entry
             if not e then return end
             ns.Tip(self, "ANCHOR_BOTTOM")
-            local id = select(4, A.SpellInfo(e.spell))
-            if id and GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(id); GameTooltip:AddLine(" ") end
-            GameTooltip:AddLine(string.format("Coming up %d: %s", i, e.spell), 1, 0.82, 0)
-            if e.reason then GameTooltip:AddLine("Why: " .. e.reason, 1, 1, 1, true) end
+            local id = e.spell and select(4, A.SpellInfo(e.spell))
+            local item = e.item and tonumber(tostring(e.item):match("(%d+)"))
+            if id and GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(id); GameTooltip:AddLine(" ")
+            elseif item and GameTooltip.SetItemByID then GameTooltip:SetItemByID(item); GameTooltip:AddLine(" ") end
+            GameTooltip:AddLine(string.format("%s + your key: %s", MODS[i], tostring(e.spell or e.label or "your item")), 1, 0.82, 0)
+            if e.reason then GameTooltip:AddLine(e.reason, 1, 1, 1, true) end
+            GameTooltip:AddLine("Hold " .. MODS[i] .. ": the big icon shows it. In a fight it's set at the pull.", 0.7, 0.7, 0.7, true)
             GameTooltip:Show()
         end)
         d:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -136,6 +155,14 @@ local function buildIcon(cfg)
         f.deck[i] = d
         prev = d
     end
+    -- A flash over the big icon when a modifier swaps its spell in.
+    f.flash = f.timerLayer:CreateTexture(nil, "OVERLAY")
+    f.flash:SetAllPoints(f)
+    f.flash:SetColorTexture(1, 1, 1, 1)
+    f.flash:SetAlpha(0)
+    f.flash.anim = f.flash:CreateAnimationGroup()
+    local flashFade = f.flash.anim:CreateAnimation("Alpha")
+    flashFade:SetFromAlpha(0.55); flashFade:SetToAlpha(0); flashFade:SetDuration(0.25)
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
@@ -499,6 +526,62 @@ local function render(s, cfg, glow)
     end
 end
 
+-------------------------------------------------------------------------------
+-- The queue's icons (beside the button): see Queue.lua.
+-------------------------------------------------------------------------------
+local EMPTY = {}
+
+-- A step's icon: its own, its spell's, or its item's.
+local function stepIcon(s)
+    if s.icon then return s.icon end
+    if s.spell then
+        local _, tex = A.SpellInfo(s.spell)
+        return tex
+    end
+    local id = s.item and tonumber(tostring(s.item):match("(%d+)"))
+    return id and A.ItemIcon and A.ItemIcon(id) or nil
+end
+
+-- Would this slot only repeat the big icon? The same item, or the same
+-- spell (the same heal on Shift as on the key). Not "the same on your
+-- target": that's a different press.
+function ns.QueueDup(e, view)
+    if not (e and view) then return false end
+    if e.item then return e.item == view.item end
+    if not e.spell or e.spell ~= view.spell then return false end
+    return not (e.unit == "target" and e.kind ~= "damage")
+end
+
+-- One slot's icon, cooldown, tint and ring. state: "advised" (Flow says
+-- press it now: gold, pulsing), "held" (its modifier is down: green), nil.
+local function drawSlot(slot, e, now, state)
+    slot.tex:SetTexture(stepIcon(e) or "Interface\\Icons\\INV_Misc_QuestionMark")
+    local txt = ""
+    if e.spell then
+        local start, dur = A.CooldownRaw(e.spell)
+        txt = ns.CooldownText(start, dur, now)
+    end
+    slot.timer:SetText(txt)
+    -- Grey: cooling down, or can't be cast now; red: out of range.
+    local okT, tint = pcall(tintOf, e)
+    local tv = okT and TINT[tint] or nil
+    slot.tex:SetDesaturated((txt ~= "" or (tv and tv[4])) and true or false)
+    if tv then slot.tex:SetVertexColor(tv[1], tv[2], tv[3]) else slot.tex:SetVertexColor(1, 1, 1) end
+    if state ~= slot.state then
+        slot.state = state
+        if state == "advised" then
+            slot.ring:SetColorTexture(1, 0.82, 0.1, 1); slot.ring:Show(); slot.ring.pulse:Play()
+            slot.mod:SetTextColor(1, 0.82, 0.1)
+        elseif state == "held" then
+            slot.ring.pulse:Stop(); slot.ring:SetColorTexture(0.4, 1, 0.4, 1); slot.ring:Show()
+            slot.mod:SetTextColor(0.4, 1, 0.4)
+        else
+            slot.ring.pulse:Stop(); slot.ring:Hide()
+            slot.mod:SetTextColor(0.85, 0.85, 0.85)
+        end
+    end
+end
+
 -- Timed apart for /flow perf, so a slow tick says which part costs: picking
 -- the spell, Flow Actions, or showing it on the key ("rotation: showing it").
 -- (They look E.Evaluate and ns.actions up at each call: Actions.lua loads
@@ -550,27 +633,41 @@ local function tick()
         local okF, fed = pcall(E.WellFedView, GetTime())
         if okF and fed then view = fed end
     end
-    -- Shift held: Shift + key's spell swaps in, "SHIFT+" beside it.
-    local shifted
+    -- The queue: what Ctrl, Shift and Alt + your key cast (Cast.lua has them
+    -- set; Queue.lua decides). Holding one swaps its spell into the big
+    -- icon, with the modifier's name beside it ("CTRL+").
+    local Q = ns.queue
+    local slots = ns.cast and ns.cast.Slots and ns.cast:Slots() or EMPTY
+    local mod = Q and Q.HeldMod(IsControlKeyDown(), IsShiftKeyDown(), IsAltKeyDown()) or nil
+    local swapped
+    if Q then view, swapped = Q.ModView(view, slots, mod, inCombat) end
+    if swapped and not view.icon then view.icon = stepIcon(view) end
+    -- Which press does what Flow advises now (in a fight): its slot pulses,
+    -- and the corner icon stays away (Cast.lua).
+    E.adviceSlot = (inCombat and advice and Q) and Q.AdviceSlot(advice, slots) or nil
+    -- The tag beside the icon: the modifier you hold, in green; or "Heal:
+    -- SHIFT+" in gold while Flow advises a heal in a fight and your key
+    -- holds another spell (ns.ShiftCue).
     local healSpell = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
-    view, shifted = ns.ShiftView(view, healSpell, IsShiftKeyDown(), inCombat)
-    -- The tag beside the icon: "SHIFT+" while you hold Shift; "Heal: SHIFT+"
-    -- in gold while Flow advises a heal in a fight and your key holds
-    -- another spell (ns.ShiftCue).
-    local cue = ns.ShiftCue(advice, healSpell, shifted, inCombat)
-    if cue ~= icon.shiftTag.cue then
-        icon.shiftTag.cue = cue
-        icon.shiftTag:SetShown(cue ~= nil)
-        if cue == "press" then
-            icon.shiftTag:SetText("Heal: SHIFT+")
-            icon.shiftTag:SetTextColor(1, 0.82, 0.1)
-        elseif cue == "held" then
-            icon.shiftTag:SetText("SHIFT+")
-            icon.shiftTag:SetTextColor(0.4, 1, 0.4)
+    local cue = ns.ShiftCue(advice, healSpell, swapped ~= nil, inCombat)
+    local tag = (swapped and (Q.LABEL[swapped] .. "+")) or (cue == "press" and "Heal: SHIFT+") or nil
+    if tag ~= icon.shiftTag.cue then
+        icon.shiftTag.cue = tag
+        icon.shiftTag:SetShown(tag ~= nil)
+        if tag then
+            icon.shiftTag:SetText(tag)
+            if swapped then icon.shiftTag:SetTextColor(0.4, 1, 0.4) else icon.shiftTag:SetTextColor(1, 0.82, 0.1) end
+            icon.shiftTag.pulse:Play()
+        else
+            icon.shiftTag.pulse:Stop()
         end
-        if cue then icon.shiftTag.pulse:Play() else icon.shiftTag.pulse:Stop() end
     end
-    local okR, err = pcall(render, view, cfg, advice or (not shifted and view) or nil)
+    -- A flash when a modifier swaps a spell in: the big icon became it.
+    if swapped ~= icon.swapped then
+        icon.swapped = swapped
+        if swapped then icon.flash.anim:Stop(); icon.flash.anim:Play() end
+    end
+    local okR, err = pcall(render, view, cfg, advice or (not swapped and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
     -- Swords badge while auto attack is on.
     local swinging = icon:IsShown() and A.Swinging()
@@ -578,26 +675,24 @@ local function tick()
         icon.swing:SetShown(swinging)
         if swinging then icon.swing.pulse:Play() else icon.swing.pulse:Stop() end
     end
-    -- On deck: only while there's a fight on or about to be (hostile target).
+    -- The queue's three icons: in a fight, with an enemy targeted, while you
+    -- heal up, or while you hold a modifier (Q.Shows).
     local ctx = E.lastCtx
-    local deck = {}
-    if icon:IsShown() and ctx and (ctx.inCombat or ctx.hostile) and cfg.deck ~= false then
-        local okD, d = pcall(E.OnDeck, E, #icon.deck, s and s.spell)
-        if okD then deck = d end
-    end
+    local show = icon:IsShown() and cfg.deck ~= false and Q ~= nil
+        and Q.Shows(s, inCombat, ctx and ctx.hostile, mod)
     local now = GetTime()
     for i, slot in ipairs(icon.deck) do
-        local e = deck[i]
+        local name = Q and Q.ORDER[i]
+        local e = show and slots[name] or nil
+        -- (Not twice: a slot that casts what the big icon already shows.)
+        if e and swapped ~= name and ns.QueueDup(e, view) then e = nil end
         slot.entry = e
         if e then
-            local _, tex = A.SpellInfo(e.spell)
-            slot.tex:SetTexture(tex)
-            local start, dur = A.CooldownRaw(e.spell)
-            local txt = ns.CooldownText(start, dur, now)
-            slot.timer:SetText(txt)
-            slot.tex:SetDesaturated(txt ~= "")
+            local okS, errS = pcall(drawSlot, slot, e, now, (swapped == name and "held") or (E.adviceSlot == name and "advised") or nil)
+            if not okS then E.lastError, E.lastErrorAt = "queue icon: " .. tostring(errS), GetTime() end
             slot:Show()
         else
+            if slot.state then slot.ring.pulse:Stop(); slot.ring:Hide(); slot.state = nil end
             slot:Hide()
         end
     end

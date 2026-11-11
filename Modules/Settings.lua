@@ -361,8 +361,8 @@ local function build(parent)
         "Alt + your easy key uses your healthstone, or your best healing potion when you carry no healthstone, even when it's on none of your bars. It's set before the fight and can't switch during one.",
         function() return ns.db.cast.altItem ~= false end,
         function(on) ns.db.cast.altItem = on; if ns.cast and ns.cast._setEmergency then ns.cast._setEmergency() end end)
-    _, y = check(f, y, "Ctrl + easy key: on your target", "(heals and buffs)",
-        "Your buffs and heals always go on you, even with a friend targeted. Hold Ctrl with your easy key to cast the shown heal or buff on your target instead.",
+    _, y = check(f, y, "Ctrl + easy key: on a friend you target", "(heals and buffs)",
+        "Your buffs and heals always go on you, even with a friend targeted. Ticked: with a friendly player targeted, Ctrl + your easy key casts the shown heal or buff on them. Otherwise (and with this off) Ctrl + key casts your second attack, or the next way to heal up between fights.",
         function() return ns.db.cast.ctrlTarget ~= false end,
         function(on) ns.db.cast.ctrlTarget = on; if ns.cast then ns.cast:ApplyKey() end end)
     _, y = check(f, y, "Easy button buffs your group", "(party and raid)",

@@ -22,7 +22,7 @@ local macro, lockedSpell = nil, nil
 -- Who the press casts on: heals and your own buffs on you (with a friend
 -- targeted, a buff meant for you went on them), a group buff on its person
 -- (s.unit), anything else on your target as usual. Ctrl + key casts a heal
--- or buff on your target instead (see "ontarget" below).
+-- or buff on your target instead (the queue, Queue.lua).
 function C.UnitFor(s)
     if not s then return nil end
     if s.kind == "heal" or s.kind == "emergency" then return "player" end
@@ -111,12 +111,7 @@ local function setAction(s)
     if text == macro then return end
     for _, a in ipairs({ "spell", "item", "unit", "target-slot", "clickbutton" }) do btn:SetAttribute(a, nil) end
     local kind = s and (s.type or "spell")
-    -- Ctrl + key: the same heal or buff on your target (a second "button"
-    -- of the secure button, pressed only by the Ctrl binding).
-    local onTarget = helpful(s) and ns.db.cast.ctrlTarget ~= false
-    btn:SetAttribute("type-ontarget", onTarget and "spell" or nil)
-    btn:SetAttribute("spell-ontarget", onTarget and s.spell or nil)
-    btn:SetAttribute("unit-ontarget", onTarget and "target" or nil)
+    -- (Ctrl, Shift and Alt + key are the queue's: C:SetQueue, below.)
     if kind == "spell" and s.spell then
         btn:SetAttribute("type", "spell")
         btn:SetAttribute("spell", s.spell)
@@ -221,6 +216,21 @@ function C.TooltipLines(shown, locked, deck, inCombat)
     return lines
 end
 
+-- "Ctrl + key: Moonfire", "Shift + key: Rejuvenation on you", ... for the
+-- slots that have something on them (slots: C:Slots()).
+function C.QueueLines(slots)
+    local out = {}
+    for _, e in ipairs({ { "ctrl", "Ctrl" }, { "shift", "Shift" }, { "alt", "Alt" } }) do
+        local s = slots and slots[e[1]]
+        if s then
+            local what = s.spell or s.label or "your healthstone or healing potion"
+            local on = (s.spell and s.unit == "player" and " on you") or (s.spell and s.kind ~= "damage" and s.unit == "target" and " on your target") or ""
+            out[#out + 1] = e[2] .. " + key: " .. what .. on
+        end
+    end
+    return out
+end
+
 function C:FillTooltip(tt)
     local s = E.shown
     -- The underlying cast: the spell's (or item's) own tooltip first.
@@ -240,14 +250,12 @@ function C:FillTooltip(tt)
     end
     local key = C:KeyLabel()
     tt:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 0.8, 0.8, 0.8)
-    if key ~= "" and C:HealSpell() then
-        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too). Hold Shift: the icon shows it.", 0.4, 1, 0.4)
+    -- The queue: what the key casts with each modifier held.
+    if key ~= "" then
+        for _, line in ipairs(C.QueueLines(C:Slots())) do tt:AddLine(line, 0.4, 1, 0.4, true) end
     end
-    tt:AddLine("In a fight the icon shows what your key casts (it's set at the pull); a better spell to press "
-        .. "on your bar shows in the corner (bar:), where it also glows.", 0.8, 0.8, 0.8, true)
-    if key ~= "" and helpful(s) and ns.db.cast.ctrlTarget ~= false then
-        tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
-    end
+    tt:AddLine("Hold a modifier and the icon shows what it casts. In a fight all four are set at the pull; "
+        .. "the one Flow advises pulses. Advice that's on none of them shows in the corner (bar:), where it also glows.", 0.8, 0.8, 0.8, true)
     tt:AddLine("Hold Ctrl: a handle appears; drag it to move the icon, or turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
     for _, st in ipairs(E.status or {}) do
         local c = st.color or { 1, 0.82, 0 }
@@ -283,9 +291,11 @@ local function refreshLabels()
     -- In a fight the icon shows what the key casts (it was set at the pull);
     -- the corner shows the better spell it can't switch to (Display.lua,
     -- E.advice): "Shift+" when that's your heal (Shift + key casts it),
-    -- else "bar:" (press it on your action bar, where it glows).
+    -- else "bar:" (press it on your action bar, where it glows). Advice
+    -- that Ctrl, Shift or Alt + key casts needs no corner icon: its slot
+    -- in the queue pulses instead (E.adviceSlot, Display.lua).
     local adv = InCombatLockdown() and E.advice or nil
-    if adv and adv.spell then
+    if adv and adv.spell and not E.adviceSlot then
         local _, tex = A.SpellInfo(adv.spell)
         lockIcon.tex:SetTexture(tex)
         lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell()))
@@ -308,7 +318,7 @@ local function build(cfg)
     btn:SetAttribute("macrotext", "")
     -- Ctrl + drag moves it; make ctrl-clicks (and shift-clicks, as before) do
     -- nothing with the mouse, so moving never casts. (Ctrl + key and Shift +
-    -- key are bindings to the "ontarget" and "heal" buttons: unaffected.)
+    -- key are bindings to the "ctrl" and "heal" buttons: unaffected.)
     btn:SetAttribute("shift-type1", "macro")
     btn:SetAttribute("shift-macrotext1", "")
     btn:SetAttribute("ctrl-type1", "macro")
@@ -406,6 +416,63 @@ function C.TargetKeyFor(key) return C.ModKey(key, "CTRL") end
 
 function C:HealSpell() return healSpell end
 
+-------------------------------------------------------------------------------
+-- The queue's three modifier presses (Queue.lua decides what goes on them):
+-- Ctrl + key, Shift + key and Alt + key each press a second "button" of the
+-- same secure button: "ctrl", "heal" and "emerg". Only their bindings press
+-- them, so clicking or Ctrl-dragging the icon is unchanged.
+--
+-- Their attributes carry the "*" prefix. With a modifier held the game looks
+-- a press up as "shift-type-heal", then "*type-heal", then the button's
+-- plain "type": never as plain "type-heal". Set without the "*" (as it was
+-- until 0.35.162), Shift + key fell through to the key's own spell: it cast
+-- Wrath, not your heal.
+-------------------------------------------------------------------------------
+local SLOT_BUTTON = { ctrl = "ctrl", shift = "heal", alt = "emerg" }
+local SLOT_ATTRS = { "type", "spell", "item", "unit" }
+local slotText = {}   -- [slot] = what it's set to, as text (to skip repeats)
+local slotView = {}   -- [slot] = the step it casts (C:Slots, for the icons)
+
+-- What a slot's step sets on the button: type ("spell" / "item"), the spell
+-- or item, and the unit (always one: without it the press would take the
+-- key's own unit, and a Moonfire would try to land on you). nil: nothing.
+function C.SlotAttributes(s)
+    if not s then return nil end
+    if s.item then return "item", s.item, s.unit end
+    if s.spell then return "spell", s.spell, s.unit or C.UnitFor(s) or "target" end
+    return nil
+end
+
+-- Points one slot ("ctrl", "shift", "alt") at a step. Out of a fight only.
+-- Returns true when the slot went from empty to set or back (its binding
+-- comes and goes with it).
+local function setSlot(slot, s)
+    if InCombatLockdown() or not btn then return false end
+    local kind, what, unit = C.SlotAttributes(s)
+    local text = kind and (kind .. ":" .. tostring(what) .. "@" .. tostring(unit)) or nil
+    if text == slotText[slot] then
+        if kind then slotView[slot] = s end   -- (the same press: keep the newest reason)
+        return false
+    end
+    local had = slotText[slot] ~= nil
+    local name = SLOT_BUTTON[slot]
+    for _, a in ipairs(SLOT_ATTRS) do
+        btn:SetAttribute("*" .. a .. "-" .. name, nil)
+        btn:SetAttribute(a .. "-" .. name, nil)   -- (the plain ones older versions set)
+    end
+    if kind then
+        btn:SetAttribute("*type-" .. name, kind)
+        btn:SetAttribute("*" .. kind .. "-" .. name, what)
+        btn:SetAttribute("*unit-" .. name, unit)
+    end
+    slotText[slot], slotView[slot] = text, kind and s or nil
+    return had ~= (text ~= nil)
+end
+C._setSlot = setSlot   -- (tests)
+
+-- The steps Ctrl, Shift and Alt + key cast right now: { ctrl, shift, alt }.
+function C:Slots() return slotView end
+
 local emergItem
 local function setHeal()
     if InCombatLockdown() or not btn then return end
@@ -413,12 +480,36 @@ local function setHeal()
         function(s) return E:Knows(s) end, function(s) return select(3, A.SpellInfo(s)) end) or nil
     if spell == healSpell then return end
     healSpell = spell
-    btn:SetAttribute("type-heal", spell and "spell" or nil)
-    btn:SetAttribute("spell-heal", spell)
-    btn:SetAttribute("unit-heal", spell and "player" or nil)
-    C:ApplyKey()   -- the Shift binding comes and goes with the heal
+    -- (C:SetQueue puts it on Shift + key, with the other two.)
 end
 C._setHeal = setHeal
+
+-- Sets all three from the queue (Queue.lua Q.Now / Q.Slots): out of a fight
+-- ten times a second, and once more at the pull, where they lock.
+function C:SetQueue(q)
+    if InCombatLockdown() or not btn then return end
+    local changed = false
+    for _, slot in ipairs({ "ctrl", "shift", "alt" }) do
+        if setSlot(slot, q and q[slot] or nil) then changed = true end
+    end
+    if changed then self:ApplyKey() end
+end
+-- Out of a fight: for what the key shows now. (Timed for /flow perf; one
+-- failing read must not stop the key's own update.)
+local timedQueue = ns.perf.Wrap("easy button: queue", function(s) return ns.queue.Now(s) end)
+function C.SetLiveQueue(s)
+    if not ns.queue then return end
+    local ok, q = pcall(timedQueue, s)
+    if ok then C:SetQueue(q)
+    elseif "queue: " .. tostring(q) ~= E.lastError then E.lastError, E.lastErrorAt = "queue: " .. tostring(q), GetTime(); ns:Log("rotation", E.lastError) end
+end
+-- At the pull: for the spell the key was just locked to.
+function C.SetFightQueue()
+    if not ns.queue then return end
+    local ok, q = pcall(ns.queue.Now, lockedSpell and { spell = lockedSpell } or nil, lockedSpell or "")
+    if ok then C:SetQueue(q)
+    else ns:Log("rotation", "queue at the pull: " .. tostring(q)) end
+end
 
 -- Alt + key: your healthstone (else your best healing potion), set before
 -- the fight like the Shift heal, so the item works in a fight even when
@@ -435,11 +526,8 @@ local function setEmergency()
     if InCombatLockdown() or not btn then return end
     local BI = ns.buffItems
     local item = C.EmergencyItemFor(ns.db.cast, ns.db.rotation, BI and BI.EmergencyCarry and BI.EmergencyCarry() or nil)
-    if item == emergItem then return end
     emergItem = item
-    btn:SetAttribute("type-emerg", item and "item" or nil)
-    btn:SetAttribute("item-emerg", item)
-    C:ApplyKey()   -- the Alt binding comes and goes with the item
+    -- (C:SetQueue puts it on Alt + key; without one, Alt takes the queue's spell.)
 end
 C._setEmergency = setEmergency
 ns:On("BAG_UPDATE_DELAYED", function() if C_Timer then C_Timer.After(0.2, setEmergency) else setEmergency() end end)
@@ -464,12 +552,11 @@ function C:ApplyKey()
     for _, key in ipairs(self:Keys()) do
         if keyCommand then SetOverrideBinding(owner, true, key, keyCommand)
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
-        local healKey = healSpell and C.HealKeyFor(key)
-        if healKey then SetOverrideBindingClick(owner, true, healKey, "FlowCastButton", "heal") end
-        local itemKey = emergItem and C.ItemKeyFor(key)
-        if itemKey then SetOverrideBindingClick(owner, true, itemKey, "FlowCastButton", "emerg") end
-        local targetKey = ns.db.cast.ctrlTarget ~= false and C.TargetKeyFor(key)
-        if targetKey then SetOverrideBindingClick(owner, true, targetKey, "FlowCastButton", "ontarget") end
+        -- The queue: a modifier is bound while its slot has something on it.
+        for slot, mod in pairs({ ctrl = "CTRL", shift = "SHIFT", alt = "ALT" }) do
+            local modKey = slotText[slot] and C.ModKey(key, mod)
+            if modKey then SetOverrideBindingClick(owner, true, modKey, "FlowCastButton", SLOT_BUTTON[slot]) end
+        end
     end
     refreshLabels()
 end
@@ -537,6 +624,7 @@ ns:OnLoad(function(saved)
             local s = E.shown
             setAction(s)
             setHeal()
+            C.SetLiveQueue(s)
             -- Hidden when there's nothing to press, so it never blocks clicks
             -- on the world. (Can only change out of combat.)
             local want = s ~= nil or not ns.db.rotation.locked
@@ -571,6 +659,10 @@ ns:On("PLAYER_REGEN_DISABLED", function()
         elseif spell then setAction({ spell = spell })
         else setAction(nil) end
     end
+    -- The queue locks with the key: Ctrl, Shift and Alt + key keep what
+    -- they're given now for the whole fight (Queue.lua: your second attack,
+    -- your heal, your healthstone or the spell that holds your target).
+    C.SetFightQueue()
 end)
 
 ns:On("PLAYER_REGEN_ENABLED", function()
@@ -596,17 +688,15 @@ function C:Test()
             (GetBindingText and GetBindingText(key, "KEY_", true)) or key, key, tostring(GetBindingAction(key, true))))
     end
     local first = keys[1]
-    print("  shift + key: " .. (healSpell and first and C.HealKeyFor(first)
-        and string.format("%s casts %s on you (bound to %s)", C.HealKeyFor(first), healSpell, tostring(GetBindingAction(C.HealKeyFor(first), true)))
-        or "no heal on it"))
-    print("  alt + key: " .. (emergItem and first and C.ItemKeyFor(first)
-        and string.format("%s uses %s (bound to %s)", C.ItemKeyFor(first), emergItem, tostring(GetBindingAction(C.ItemKeyFor(first), true)))
-        or "no healthstone or healing potion on it"))
-    local tk = first and C.TargetKeyFor(first)
-    print("  ctrl + key: " .. (tk and ns.db.cast.ctrlTarget ~= false
-        and string.format("%s casts %s on your target (bound to %s)", tk, tostring(btn and btn:GetAttribute("spell-ontarget") or "nothing now"),
-            tostring(GetBindingAction(tk, true)))
-        or "off"))
+    -- The queue: what each modifier + key casts, and what the game has it bound to.
+    for _, e in ipairs({ { "ctrl", "CTRL" }, { "shift", "SHIFT" }, { "alt", "ALT" } }) do
+        local s = slotView[e[1]]
+        local modKey = first and C.ModKey(first, e[2])
+        print(string.format("  %s + key: %s", e[1], (s and modKey)
+            and string.format("%s casts %s on %s (set as %s; bound to %s)", modKey, tostring(s.spell or s.item),
+                tostring(select(3, C.SlotAttributes(s)) or "its own target"), tostring(slotText[e[1]]), tostring(GetBindingAction(modKey, true)))
+            or "nothing on it"))
+    end
     print("  button shown: " .. tostring(btn and btn:IsShown()) .. ", casts: "
         .. (macro and macro ~= "" and macro or "nothing right now (no suggestion)"))
     print("  key's own command: " .. tostring(keyCommand or "none (Flow's button)")
@@ -637,8 +727,9 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     if not fight then return end
     local seen = {}
     for spell, n in pairs(fight.seen) do seen[#seen + 1] = spell .. " x" .. n end
-    ns:Log("cast", string.format("fight end (%.0f s): key pressed %d time(s), button got %d click(s) (%d key-down), shift + key %d, %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
-        GetTime() - fight.at, fight.keys or 0, fight.clicks, fight.downs, fight.healPresses or 0, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
+    local mods = fight.mods or {}
+    ns:Log("cast", string.format("fight end (%.0f s): key pressed %d time(s), button got %d click(s) (%d key-down), ctrl + key %d, shift + key %d, alt + key %d, %d spell(s) cast, suggested %s; nothing %d of %d ticks; last error %s",
+        GetTime() - fight.at, fight.keys or 0, fight.clicks, fight.downs, mods.ctrl or 0, mods.shift or 0, mods.alt or 0, fight.casts or 0, #seen > 0 and table.concat(seen, ", ") or "nothing",
         fight.empty, fight.ticks, tostring(E.lastError)))
     fight = nil
 end)
@@ -652,15 +743,21 @@ ns:OnLoad(function()
         if s and s.before and not InCombatLockdown() then pcall(s.before) end
     end)
     btn:HookScript("PostClick", function(_, button, down)
-        -- Shift + key (the "heal" button): every press logged, with Flow's
-        -- hurt estimate, so the diagnostics show whether the heal went off.
-        if button == "heal" then
+        -- A modifier press (the queue: "ctrl", "heal" = Shift, "emerg" = Alt):
+        -- each one logged with what it casts and counted for the fight, so
+        -- the diagnostics show whether Ctrl, Shift and Alt + key get used.
+        local mod = (button == "ctrl" and "ctrl") or (button == "heal" and "shift") or (button == "emerg" and "alt") or nil
+        if mod then
             if down ~= false then
-                ns:Log("heal", string.format("shift + key pressed: %s on you, hurt %.0f, in a fight %s",
-                    tostring(btn:GetAttribute("spell-heal")), E.hurt or 0, tostring(InCombatLockdown())))
+                local step = slotView[mod]
+                ns:Log(mod == "shift" and "heal" or "cast", string.format("%s + key pressed: %s, hurt %.0f, in a fight %s",
+                    mod, tostring(step and (step.spell or step.item)), E.hurt or 0, tostring(InCombatLockdown())))
+                if fight then
+                    fight.mods = fight.mods or {}
+                    fight.mods[mod] = (fight.mods[mod] or 0) + 1
+                end
+                if mod == "shift" and E.NoteShiftPress then E.NoteShiftPress() end   -- (death reports)
             end
-            if fight then fight.healPresses = (fight.healPresses or 0) + 1 end
-            if down ~= false and E.NoteShiftPress then E.NoteShiftPress() end   -- (death reports)
             return
         end
         local s = E.shown

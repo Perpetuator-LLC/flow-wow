@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.162
+- **The queue: four things on one key.** Right of the easy button, each a little smaller, are
+  the three things your key casts with a modifier held, the modifier written above each:
+  - **CTRL**: your second attack (Moonfire while the key casts Wrath; a cat's finisher; a
+    bear's Swipe). Between fights it's the next way to heal up (food while the key bandages),
+    or the shown heal or buff on a friend you target.
+  - **SHIFT**: your quickest heal, on you.
+  - **ALT**: your healthstone or healing potion. Without one, the spell that holds or stops
+    your target (Entangling Roots, Bash, Hammer of Justice).
+  Hold a modifier and the big icon becomes that spell, with a flash and "CTRL+" beside it. In a
+  fight the game lets no add-on change a key, so all four are set at the pull and stay; the one
+  Flow advises pulses gold, so "press Moonfire on your bar" is now "press Ctrl". Advice that's
+  on none of the four still shows in the corner. They replace the "on deck" icons.
+- **Why:** you play on the key. In one evening's combat log none of 221 casts was Moonfire,
+  though Flow advised it all night, and in one death a heal was advised 65 times without
+  Shift + key being pressed once.
+- **Shift + key and Alt + key now really cast what they show.** They were set in a way the game
+  only finds when no modifier is held, so with Shift down the press fell through to the key's
+  own spell: Shift + key cast Wrath, not your heal. (Not seen in play before now, because the
+  modifiers went unused.) All three are set the way the game looks them up.
+- The diagnostics count Ctrl, Shift and Alt + key presses per fight, and `/flow key test` lists
+  what each casts and is bound to.
+
 ## 0.35.161
 - **A `/reload` is always enough.** WoW: Forever loads new files on `/reload` too (older WoW
   clients needed a restart for them). Checked by adding a file while the game ran: it loaded at

@@ -15,15 +15,20 @@ Flow for WoW is a separate project from Flow Engine.
 - **Rotation helper**: an icon shows the spell to press next, and the matching action bar or
   stance bar button glows. The border colour says why: green attack, light blue buff, gold heal,
   fast gold pulse heal now. A big cooldown timer sits on the icon (and, when it suggests
-  re-casting a buff, the buff's last 30 seconds in light blue); the next three spells are
-  **on deck** to its right (shrinking, with their timers, reordering as the fight changes), and
-  a crossed-swords badge on its left shows auto attack is on.
+  re-casting a buff, the buff's last 30 seconds in light blue), and a crossed-swords badge on
+  its left shows auto attack is on.
+- **The queue: four things on one key.** Right of the icon, each a little smaller, sit the
+  three things your key casts with a modifier held, the modifier written above each: **CTRL**
+  your second attack (Moonfire beside Wrath; between fights the next way to heal up, or the
+  shown heal or buff on your friendly target), **SHIFT** your quickest heal on you, **ALT** your
+  healthstone or healing potion (without one, the spell that holds or stops your target). Hold
+  a modifier and the big icon becomes that spell. In a fight all four are set at the pull;
+  the one Flow advises pulses gold. A class says what its fights use (`fightKeys`).
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
-  if none is up, then Judgement or Crusader Strike), never a heal. Shift + key heals you, Alt +
-  key uses your healthstone (or best healing potion), in fights too. Ctrl-drag to move the
-  button; Ctrl + mouse wheel over it resizes it.
+  if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
+  Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it.
 - **Buff button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
   items move to their own blue button left of the icon, so the Flow key is only your fight
   (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.

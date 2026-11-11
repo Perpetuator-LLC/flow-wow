@@ -186,6 +186,15 @@ ns:Register("rotation", "PALADIN", {
         return s and s.spell
     end,
 
+    -- The easy button's queue (Queue.lua): Ctrl + key is your next strike
+    -- beside the key's own (the first you know that the key doesn't hold),
+    -- Alt + key the stun that stops a cast. Shift + key is your heal; Alt is
+    -- your healthstone or potion if you carry one.
+    fightKeys = function()
+        return { ctrl = { "Crusader Strike", "Holy Strike", "Judgement", "Judgment", "Shield of the Righteous", "Consecration", "Exorcism" },
+                 alt = { "Hammer of Justice" } }
+    end,
+
     -- Default priority (first match wins).
     priority = join(buffs, melee, execute, singleTarget),
 

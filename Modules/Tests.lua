@@ -4197,6 +4197,117 @@ ns:Register("test", "easy button: your buffs on you, Ctrl + key on your target",
         "Ctrl + key only for heals and buffs")
 end)
 
+ns:Register("test", "queue: four things on one key (Ctrl, Shift, Alt)", function(t)
+    -- The player's design: the key's spell big, three smaller beside it with
+    -- CTRL / SHIFT / ALT above them; a modifier swaps its spell in.
+    local Q = ns.queue
+    if not Q then t:ok(false, "Queue.lua not loaded") return end
+    local wrath = { spell = "Wrath", kind = "damage" }
+    -- A fight, or an enemy targeted.
+    local q = Q.Slots(wrath, { heal = "Rejuvenation", ctrlSpell = "Moonfire", altSpell = "Entangling Roots" })
+    t:eq(q.key, wrath, "the key: its own spell")
+    t:eq(q.ctrl and q.ctrl.spell, "Moonfire", "Ctrl: your second attack")
+    t:eq(q.shift and q.shift.spell, "Rejuvenation", "Shift: your heal")
+    t:eq(q.shift and q.shift.unit, "player", "on you")
+    t:eq(q.alt and q.alt.spell, "Entangling Roots", "Alt: the spell that holds your target")
+    q = Q.Slots(wrath, { heal = "Rejuvenation", ctrlSpell = "Moonfire", altSpell = "Entangling Roots", emergency = "item:5512" })
+    t:eq(q.alt and q.alt.item, "item:5512", "a healthstone you carry takes Alt")
+    t:eq(Q.Slots(wrath, {}).ctrl, nil, "nothing known for it: the slot stays empty")
+    -- A friendly target and a heal or buff on the key: Ctrl casts it on them.
+    local buff = { spell = "Mark of the Wild", kind = "buff" }
+    q = Q.Slots(buff, { friend = true, ctrlSpell = "Moonfire" })
+    t:eq(q.ctrl.spell .. "@" .. tostring(q.ctrl.unit), "Mark of the Wild@target", "friend targeted: the same buff on them")
+    t:eq(Q.Slots(buff, { ctrlSpell = "Moonfire" }).ctrl.spell, "Moonfire", "no friend targeted: the second attack")
+    -- Hurt between fights: the other ways to heal up, in your order.
+    local bandage = { type = "item", item = "item:3531", kind = "heal" }
+    local food = { type = "item", item = "item:117", kind = "heal" }
+    local big = { spell = "Healing Touch", kind = "heal" }
+    q = Q.Slots(bandage, { heal = "Rejuvenation", ctrlSpell = "Moonfire", options = { bandage, food, big } })
+    t:eq(q.ctrl, food, "bandage on the key: food on Ctrl")
+    t:eq(q.alt, big, "and the big heal on Alt (Shift has the quick one)")
+    q = Q.Slots(bandage, { heal = "Healing Touch", ctrlSpell = "Moonfire", options = { bandage, big } })
+    t:eq(q.ctrl.spell, "Moonfire", "an option Shift already casts isn't given a second slot")
+    q = Q.Slots(bandage, { heal = "Rejuvenation", emergency = "item:5512", options = { bandage, food, big } })
+    t:eq(q.alt.item, "item:5512", "the healthstone keeps Alt")
+    -- What a class's fights use.
+    local def = { fightKeys = function() return { ctrl = { "Moonfire" }, alt = { "Entangling Roots", "War Stomp" } } end }
+    local c, a = Q.FightSpells(def, function(sp) return sp ~= "Entangling Roots" end, "Wrath")
+    t:eq(c, "Moonfire", "Ctrl: the first you know")
+    t:eq(a, "War Stomp", "Alt: Roots not learned yet, so the next one")
+    t:eq((Q.FightSpells(def, function() return true end, "Moonfire")), nil, "never the key's own spell")
+    local plain = { priority = { { spell = "Seal", kind = "buff", target = true }, { spell = "Attack", target = true },
+        { spell = "Smite", target = true }, { spell = "Strike", target = true } } }
+    t:eq((Q.FightSpells(plain, function() return true end, "Smite")), "Strike", "a class without fightKeys: its next attack")
+    for _, class in ipairs({ "DRUID", "PALADIN" }) do
+        local rot = ns:Get("rotation", class)
+        local keys = rot and rot.fightKeys and rot.fightKeys(ns.rotation)
+        t:ok(keys and type(keys.ctrl) == "table" and #keys.ctrl > 0, class .. ": says what Ctrl + key casts in a fight")
+    end
+    -- Which press does what Flow advises.
+    local slots = { key = wrath, ctrl = { spell = "Moonfire" }, shift = { spell = "Rejuvenation", kind = "heal" }, alt = { item = "item:5512" } }
+    t:eq(Q.AdviceSlot({ spell = "Moonfire" }, slots), "ctrl", "Moonfire advised: Ctrl")
+    t:eq(Q.AdviceSlot({ spell = "Healing Touch", kind = "heal" }, slots), "shift", "any heal advised: Shift heals")
+    t:eq(Q.AdviceSlot({ item = "item:5512", kind = "emergency" }, slots), "alt", "the healthstone: Alt")
+    t:eq(Q.AdviceSlot({ spell = "War Stomp" }, slots), nil, "on none of them: your bar (the corner icon)")
+    -- One modifier at a time.
+    t:eq(Q.HeldMod(true, false, false), "ctrl", "Ctrl")
+    t:eq(Q.HeldMod(false, true, false), "shift", "Shift")
+    t:eq(Q.HeldMod(false, false, true), "alt", "Alt")
+    t:eq(Q.HeldMod(true, true, false), nil, "two at once: none")
+    t:eq(Q.HeldMod(false, false, false), nil, "none")
+    -- Holding one: the big icon becomes its spell.
+    local v, m = Q.ModView(wrath, slots, "ctrl", true)
+    t:eq(v.spell, "Moonfire", "Ctrl held: Moonfire is the big icon")
+    t:eq(m, "ctrl", "and it says which modifier")
+    t:eq(v.label, "CTRL + key: Moonfire", "labelled")
+    v, m = Q.ModView(nil, slots, "shift", false)
+    t:ok(v == nil and m == nil, "nothing to press, not in a fight: nothing swaps in")
+    v, m = Q.ModView(wrath, slots, nil, true)
+    t:ok(v == wrath and m == nil, "no modifier: the key's spell")
+    -- When the three icons show.
+    t:ok(Q.Shows(nil, true, false, nil), "in a fight")
+    t:ok(Q.Shows(wrath, false, true, nil), "an enemy targeted")
+    t:ok(Q.Shows(bandage, false, false, nil), "healing up")
+    t:ok(not Q.Shows(buff, false, false, nil), "idle: not shown (no clutter)")
+    t:ok(Q.Shows(buff, false, false, "shift"), "a modifier held: shown, to see what it casts")
+    -- A slot that would only repeat the big icon isn't drawn.
+    t:ok(ns.QueueDup({ spell = "Rejuvenation", unit = "player", kind = "heal" }, { spell = "Rejuvenation", kind = "heal" }), "the same heal as the key: once")
+    t:ok(not ns.QueueDup({ spell = "Mark of the Wild", unit = "target", kind = "buff" }, buff), "the same buff on your target: a different press")
+    t:ok(not ns.QueueDup({ spell = "Moonfire" }, wrath), "another spell: drawn")
+end)
+
+ns:Register("test", "queue: modifier presses are set so the game finds them", function(t)
+    -- With Shift held the game looks for "shift-type-heal", then "*type-heal",
+    -- then the key's own "type": never plain "type-heal". Until 0.35.162 the
+    -- plain one was set, so Shift + key cast the key's spell, not your heal.
+    local C = ns.cast
+    local kind, what, unit = C.SlotAttributes({ spell = "Moonfire", kind = "damage" })
+    t:eq(kind .. "/" .. what .. "/" .. tostring(unit), "spell/Moonfire/target", "an attack: on your target, said outright")
+    kind, what, unit = C.SlotAttributes({ spell = "Rejuvenation", kind = "heal", unit = "player" })
+    t:eq(kind .. "/" .. what .. "/" .. tostring(unit), "spell/Rejuvenation/player", "your heal: on you")
+    kind, what, unit = C.SlotAttributes({ spell = "Mark of the Wild", kind = "buff", unit = "target" })
+    t:eq(kind .. "/" .. what .. "/" .. tostring(unit), "spell/Mark of the Wild/target", "a buff for your friendly target: on them")
+    kind, what = C.SlotAttributes({ type = "item", item = "item:5512", kind = "emergency" })
+    t:eq(kind .. "/" .. what, "item/item:5512", "a healthstone: as an item")
+    t:eq((C.SlotAttributes(nil)), nil, "nothing: nothing set")
+    t:eq(table.concat(C.QueueLines({ ctrl = { spell = "Moonfire", kind = "damage" },
+            shift = { spell = "Rejuvenation", unit = "player", kind = "heal" }, alt = { item = "item:5512" } }), " | "),
+        "Ctrl + key: Moonfire | Shift + key: Rejuvenation on you | Alt + key: your healthstone or healing potion", "the tooltip's lines")
+    local b = _G.FlowCastButton
+    if not b or InCombatLockdown() then t:ok(true, "(no Flow key yet, or in a fight)") return end
+    local slots = C:Slots()
+    for slot, name in pairs({ ctrl = "ctrl", shift = "heal", alt = "emerg" }) do
+        if slots[slot] then
+            local set = b:GetAttribute("*type-" .. name)
+            t:ok(set == "spell" or set == "item", slot .. ": set with the * prefix, found whatever modifier is held")
+            t:eq(b:GetAttribute("type-" .. name), nil, slot .. ": no plain attribute left behind")
+            t:ok(set == "item" or b:GetAttribute("*unit-" .. name) ~= nil, slot .. ": with its own unit")
+        end
+    end
+    t:eq(b:GetAttribute("ctrl-type1"), "macro", "Ctrl + click with the mouse still only moves the button")
+    t:ok(type(ns.perf.stats["easy button: queue"]) == "table", "the queue's upkeep is timed (/flow perf)")
+end)
+
 ns:Register("test", "spell ranks: a new rank replaces the old one on your bars", function(t)
     local NS = ns.newSpell
     local ups = NS.RankUps({ Wrath = 5176, Moonfire = 8921 }, { Wrath = 5177, Moonfire = 8921, Thorns = 467 })

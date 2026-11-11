@@ -423,7 +423,9 @@ end
 -- key ("heal" when the buff button is on, else "all"); "items" = the buff
 -- button asking. Your order still holds across the two: the heal spell waits
 -- while a bandage or food you put first is there to use, and the other way.
-function E:Recover(ctx, def, part)
+-- all: a list to fill with EVERY step you could take now, in your order,
+-- instead of returning the first (E:RecoverOptions).
+function E:Recover(ctx, def, part, all)
     if ctx.inCombat or E.RecoverBusy(ctx) then return nil end
     if part == nil then part = (ns.buffButton and ns.buffButton.On()) and "heal" or "all" end
     -- Hurt: Flow's estimate, your real health where the game shows it, or
@@ -445,12 +447,26 @@ function E:Recover(ctx, def, part)
             s = direct or self:EarlyHeal(ctx, def)
         end
         if s then
-            if part ~= "all" and part ~= (step == "heal" and "heal" or "items") then return nil end
             s.fightType = ctx.fightType
-            return s
+            if all then
+                all[#all + 1] = s
+            else
+                if part ~= "all" and part ~= (step == "heal" and "heal" or "items") then return nil end
+                return s
+            end
         end
     end
     return nil
+end
+
+-- Every way to heal up right now, in your recovery order (bandage, food,
+-- heal spell: the ones you carry or know). The first is what the key does;
+-- the easy button's queue puts the others on Ctrl and Alt (Queue.lua), so
+-- you choose with a modifier. Empty when you aren't hurt, or in a fight.
+function E:RecoverOptions(ctx, def)
+    local out = {}
+    if ctx and def then self:Recover(ctx, def, "all", out) end
+    return out
 end
 
 -------------------------------------------------------------------------------

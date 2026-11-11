@@ -195,6 +195,18 @@ ns:Register("rotation", "DRUID", {
         return s and s.spell
     end,
 
+    -- The easy button's queue (Queue.lua): what Ctrl + key and Alt + key cast
+    -- in a fight, for the form you're in at the pull (the first you know).
+    -- Caster: Moonfire beside Wrath, Entangling Roots to hold a mob off you
+    -- (War Stomp if you can't root yet). Cat: your finisher beside Claw (Rake
+    -- until you have one). Bear: Swipe beside Maul, Bash to stop a cast.
+    -- Shift + key is your heal; Alt is your healthstone or potion if you carry one.
+    fightKeys = function()
+        if inCat() then return { ctrl = { "Ferocious Bite", "Rip", "Rake" }, alt = {} } end
+        if inBear() then return { ctrl = { "Swipe", "Demoralizing Roar" }, alt = { "Bash" } } end
+        return { ctrl = { "Moonfire" }, alt = { "Entangling Roots", "War Stomp" } }
+    end,
+
     -- Default priority (first match wins).
     priority = join(buffs, melee, cat, bear, roots, casterDamage),
 

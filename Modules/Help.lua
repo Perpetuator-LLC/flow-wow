@@ -14,7 +14,8 @@ local topics = {
     { "rotation", 20, "Rotation (icon + glowing action button)", {
         "Green = attack, light blue = buff, gold = heal, fast gold pulse = heal now.",
         "Click the icon or press your Flow key to cast it (set the key in /flow settings).",
-        "In combat the key keeps the spell it had at the pull: the icon shows that spell; a better one to press on your bar shows in its corner (bar:). Hold Shift: the icon shows what Shift + key casts (your heal).",
+        "Beside the icon: what Ctrl, Shift and Alt + your key cast (your second attack, your heal, your healthstone or the spell that holds your target). Hold one: the icon becomes it.",
+        "In combat all four keep what they had at the pull; the one Flow advises pulses gold. Advice on none of them shows in the icon's corner (bar:).",
         "/flow rot guide - your rotation in plain words; /flow rot why - why each spell is or isn't suggested",
         "/flow rot on|off|unlock|lock|stats|known|reset",
     } },
