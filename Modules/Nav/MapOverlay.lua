@@ -32,9 +32,7 @@ local function theme() return ns.theme end
 -- first; the planned route stays as it is and carries on after).
 function M.PointHere(goal)
     if not (goal and ns.waypoint) then return end
-    local pt
-    for _, s in ipairs(ns.nav.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
-    pt = pt or (goal.points and goal.points[1])
+    local pt = ns.nav:Spot(goal)   -- (the same spot the arrow and the stop card use)
     if pt and pt.map and pt.x then ns.waypoint:Set(pt.map, pt.x, pt.y, goal.text or goal.title) end
 end
 
@@ -586,12 +584,17 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     local labels = ns.nav:PlanLabels(plan)
     local hovered
     local fromYou = px ~= nil   -- the next line drawn starts at you
+    local broken = false        -- a hidden stop since the last one drawn
     for i, s in ipairs(plan) do
         local x, y = toMap(s.point, mapID)
         local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
         -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
         local beyond = not ns.nav:StopVisible(i, false)
+        -- A stop that isn't shown breaks the trail: no line from stop 2 to
+        -- stop 5 when 3 and 4 come between (the route doesn't go that way).
+        if x and beyond then broken = true end
         if x and (not beyond or (pointed and withPins)) then
+            if broken and not beyond then px = nil end   -- (a new stretch starts here)
             if px and not pinsOnly and not beyond then
                 -- From you to the first stop: the arrow's colour and stronger,
                 -- so it's clear where to go now; the rest fainter. (A preview,
@@ -604,6 +607,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
             end
             fromYou = false
             px, py = x, y
+            if not beyond then broken = false end
             if withPins then
                 local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
                 local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
@@ -1586,7 +1590,11 @@ local function fullDraw()
             -- every place its mobs live. Past your Stops on the map limit,
             -- only the stop you point at.
             if g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
-            elseif ns.nav:StopVisible(i, false) then drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point) end
+            elseif ns.nav:StopVisible(i, false) then
+                -- Your next stop (the arrow's): every place its mobs live, as on
+                -- the minimap; later stops: the patch the route goes to.
+                drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point, i == 1)
+            end
         end
         if previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the

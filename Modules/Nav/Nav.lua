@@ -336,6 +336,24 @@ local function nearestPoint(goal, p)
     return best, bestD
 end
 
+-- The one spot for a stop, the same everywhere (the arrow, "Point the arrow
+-- here", the stop card, tooltips): its route spot when it's on the route
+-- (the arrow's own for your next stop), else its spawn nearest you, else its
+-- first. (Off the route it used to be the first spawn Flow happened to keep,
+-- anywhere in the zone.)
+function N:Spot(goal, p)
+    if not goal then return nil end
+    for _, s in ipairs(N.plan or {}) do
+        if s.goal == goal or s.goal.key == goal.key then return s.point end
+    end
+    p = p or self:PlayerPos()
+    if p then
+        local best = nearestPoint(goal, p)
+        if best then return best end
+    end
+    return goal.points and goal.points[1]
+end
+
 function N:Coin(c)
     return GetCoinTextureString and GetCoinTextureString(c or 0) or ((c or 0) .. "c")
 end
@@ -1171,12 +1189,26 @@ N.HERE_YARDS = 150
 local function within(a, b, yards)
     return a and b and a.cont == b.cont and a.wx and b.wx and dist(a.wx, a.wy, b.wx, b.wy) <= yards or false
 end
+-- Is any of stop s's spots near `at`? Its route spot first, then every spawn
+-- of its objective (goal.points), as the arrow's "in the area" does: a kill
+-- objective whose wolves roam right here counts even when its one route spot
+-- is across the zone (0.35.140: the map and Flow Tracker went by that one
+-- spot only, the arrow by every spawn, so they disagreed).
+local function stopNear(s, at, yards)
+    if not at then return false end
+    if within(s.point, at, yards) then return true end
+    for _, pt in ipairs(s.goal and s.goal.points or {}) do
+        if within(pt, at, yards) then return true end
+    end
+    return false
+end
+N._stopNear = stopNear   -- (tests)
 function N.HereStops(plan, p, yards)
     yards = yards or N.HERE_YARDS
     local out = {}
     local first = plan and plan[1] and plan[1].point
     for i, s in ipairs(plan or {}) do
-        if i == 1 or within(s.point, p, yards) or within(s.point, first, yards) then out[#out + 1] = i end
+        if i == 1 or stopNear(s, p, yards) or stopNear(s, first, yards) then out[#out + 1] = i end
     end
     return out
 end
@@ -1565,7 +1597,7 @@ function N:FillTooltip(tt, goal, footer)
     if goal.blockedBy then tt:AddLine("Blocked: " .. goal.blockedBy, 1, 0.45, 0.45, true) end
     -- Inside a cave or building (learned from your trails): say so, the arrow
     -- goes through the entrance.
-    local pt = goal.points and goal.points[1]
+    local pt = N:Spot(goal)
     if pt and pt.wx and pt.cont and N:Inside(pt.cont, pt.wx, pt.wy) then
         tt:AddLine("Inside (cave or building): the arrow takes you through the entrance.", 0.6, 0.8, 1, true)
     end
@@ -2265,9 +2297,8 @@ function N:ShowStop(goal, anchor)
     card = card or buildCard()
     if card:IsShown() and card.goal and card.goal.key == goal.key then card:Hide() return end  -- click again: close
     card.goal = goal
-    local p, pt = N:PlayerPos(), nil
-    for _, s in ipairs(N.plan or {}) do if s.goal.key == goal.key then pt = s.point break end end
-    pt = pt or (goal.points and goal.points[1])
+    local p = N:PlayerPos()
+    local pt = N:Spot(goal, p)
     local d = (p and pt and pt.wx and pt.cont == p.cont) and dist(p.wx, p.wy, pt.wx, pt.wy)
     local task = fillHero(card, goal, d and string.format("%d yd", d) or "")
 

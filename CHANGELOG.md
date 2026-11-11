@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.140
+- **The map and the arrow agree.**
+  - "All objectives in this area" (the map and the Flow Tracker) now counts a stop when any
+    place its mobs live is near you or your next stop, the way the arrow's "in the area" does.
+    It went by the stop's one route spot, so wolves roaming right where you stand could be
+    missing from the map while the arrow listed them under "Also here".
+  - Your next stop shows every place its mobs live on the map, as the minimap does; later stops
+    show the patch the route goes to.
+  - The dotted trail breaks where a stop isn't shown, instead of a line from stop 2 to stop 5
+    the route never walks.
+  - "Point the arrow here", the stop card's distance and the cave note use the same spot as the
+    arrow: the stop's route spot, or (off the route) its spawn nearest you, not the first one
+    Flow happened to keep.
+
 ## 0.35.139
 - **The arrow's drawer: click to open, X to close.** Click the arrow to open it; click the arrow
   again, or the X at its top right, to close it. The pin is gone (it stays open, following your

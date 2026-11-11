@@ -4611,3 +4611,27 @@ ns:Register("test", "click: the arrow drawer's X closes it", function(t)
     t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, like Flow's other views")
     d:Hide()
 end)
+
+ns:Register("test", "map and arrow agree: area stops by every spawn; one spot per stop", function(t)
+    local N = ns.nav
+    -- 0.35.140: "in this area" on the map and Flow Tracker went by a stop's
+    -- one route spot; the arrow by every spawn of its objective.
+    local wolves = { key = "500:1", points = { { cont = 1, wx = 900, wy = 900 }, { cont = 1, wx = 20, wy = 10 } } }
+    local plan = {
+        { goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } },   -- your next stop
+        { goal = wolves, point = { cont = 1, wx = 900, wy = 900 } },         -- route spot far off
+        { goal = { key = "600:1", points = { { cont = 1, wx = 3000, wy = 3000 } } }, point = { cont = 1, wx = 3000, wy = 3000 } },
+    }
+    t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 5, wy = 5 }), ","), "1,2",
+        "wolves whose spawns are here count, though their route spot is across the zone")
+    t:ok(N._stopNear(plan[2], { cont = 1, wx = 25, wy = 10 }, 150), "near one of its spawns")
+    t:ok(not N._stopNear(plan[3], { cont = 1, wx = 25, wy = 10 }, 150), "a stop far away isn't")
+    -- One spot per stop: the route's when it's planned, else the spawn nearest you.
+    with(N, "plan", plan, function()
+        t:eq(N:Spot(wolves, { cont = 1, wx = 5, wy = 5 }), plan[2].point, "on the route: its route spot (the arrow's)")
+    end)
+    with(N, "plan", {}, function()
+        local s = N:Spot(wolves, { cont = 1, wx = 5, wy = 5 })
+        t:ok(s and s.wx == 20, "off the route: the spawn nearest you, not the first one kept")
+    end)
+end)
