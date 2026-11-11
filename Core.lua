@@ -260,9 +260,15 @@ function ns.PlaceAtTipSpot(frame, owner)
     return true
 end
 
+-- The key you hold to move any Flow element: Ctrl, as in Questie (0.35.138;
+-- it was Shift, which now shows what Shift + your key casts). Every move
+-- asks this one function, so it's one place to change.
+ns.MOVE_KEY = "Ctrl"
+function ns.MoveKeyDown() return IsControlKeyDown() and true or false end
+
 -- ns:MakeMovable(frame, save, clickable): every Flow element moves the same
--- way: hold Shift and drag. Position is stored in save.point. Frames that
--- aren't clickable only take the mouse while Shift is held, so they never
+-- way: hold Ctrl and drag. Position is stored in save.point. Frames that
+-- aren't clickable only take the mouse while Ctrl is held, so they never
 -- block clicks in a fight.
 local passive = {}
 function ns:MakeMovable(frame, save, clickable)
@@ -270,7 +276,7 @@ function ns:MakeMovable(frame, save, clickable)
     frame:SetClampedToScreen(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", function(self)
-        if IsShiftKeyDown() then self:StartMoving() end
+        if ns.MoveKeyDown() then self:StartMoving() end
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
@@ -284,12 +290,12 @@ function ns:MakeMovable(frame, save, clickable)
 end
 
 do
-    local watcher, shiftWas = CreateFrame("Frame"), false
+    local watcher, heldWas = CreateFrame("Frame"), false
     watcher:SetScript("OnUpdate", function()
-        local shift = IsShiftKeyDown() and true or false
-        if shift == shiftWas then return end
-        shiftWas = shift
-        for _, f in ipairs(passive) do f:EnableMouse(shift) end
+        local held = ns.MoveKeyDown()
+        if held == heldWas then return end
+        heldWas = held
+        for _, f in ipairs(passive) do f:EnableMouse(held) end
     end)
 end
 

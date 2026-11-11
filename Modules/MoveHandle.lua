@@ -1,12 +1,12 @@
 -- Moving and resizing Flow's secure buttons (the Flow key): a handle that
--- appears over the button while you hold Shift, out of combat. Drag it to
--- move the button, turn the mouse wheel over it to resize it.
+-- appears over the button while you hold Ctrl (ns.MoveKeyDown, Core.lua), out
+-- of combat. Drag it to move the button, turn the mouse wheel to resize it.
 -- (Kept out of Core.lua: the core holds registries and the event bus; this
 -- is UI, and the Flow key is its only user so far. Loaded after Theme.lua.)
 
 local _, ns = ...
 
--- Sizes a button can take with Shift + mouse wheel: half to double size, in
+-- Sizes a button can take with Ctrl + mouse wheel: half to double size, in
 -- steps of a tenth. ClampScale rounds to the nearest 5 % and keeps it in range.
 ns.SCALE_MIN, ns.SCALE_MAX, ns.SCALE_STEP = 0.5, 2, 0.1
 function ns.ClampScale(s)
@@ -16,10 +16,11 @@ function ns.ClampScale(s)
 end
 
 -- ns:MoveHandle(target, opts): moving and resizing a secure button (the
--- Flow button). Out of combat, hold Shift and a handle appears over it: drag
--- it to move the button, turn the mouse wheel over it to resize it. (Only
--- Shift: a Ctrl handle flickered over the key with every Ctrl key binding
--- and blocked Ctrl + click.) Dragging the secure button itself didn't work
+-- Flow button). Out of combat, hold Ctrl and a handle appears over it: drag
+-- it to move the button, turn the mouse wheel over it to resize it. (Ctrl,
+-- as in Questie, since 0.35.138: Shift now shows what Shift + your key casts.
+-- The handle shows while Ctrl is down, so a Ctrl key binding flashes it.)
+-- Dragging the secure button itself didn't work
 -- (it takes the press as a click), and a secure button can't move or change
 -- size in a fight, so the handle does both, and only out of combat.
 -- opts.name: what it's called in the tooltip ("the Flow button").
@@ -62,9 +63,9 @@ function ns:MoveHandle(target, opts)
     function h:Label()
         self.text:SetText(string.format("drag to move · wheel to resize (%d%%)", math.floor(target:GetScale() * 100 + 0.5)))
     end
-    -- Show while Shift is held (out of combat, button on screen).
+    -- Show while Ctrl is held (out of combat, button on screen).
     function h:Refresh()
-        local want = IsShiftKeyDown() and not InCombatLockdown() and target:IsShown()
+        local want = ns.MoveKeyDown() and not InCombatLockdown() and target:IsShown()
         if want then
             self:ClearAllPoints()
             self:SetAllPoints(target)
@@ -94,9 +95,9 @@ function ns:MoveHandle(target, opts)
         target:StopMovingOrSizing()
         self:Save()
     end
-    -- One wheel notch with Shift held: a tenth bigger or smaller.
+    -- One wheel notch with Ctrl held: a tenth bigger or smaller.
     function h:Resize(delta)
-        if IsShiftKeyDown() then self:ScaleBy(delta) end
+        if ns.MoveKeyDown() then self:ScaleBy(delta) end
     end
     -- Resize keeping the centre still on the screen.
     function h:ScaleBy(delta)
@@ -121,7 +122,7 @@ function ns:MoveHandle(target, opts)
         pcall(SetCursor, "UI_MOVE_CURSOR")
         ns.Tip(self, "ANCHOR_TOP")
         GameTooltip:AddLine("Move or resize " .. (opts.name or "this button"), 1, 1, 1)
-        GameTooltip:AddLine("Shift: drag to move, mouse wheel to resize.", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Ctrl: drag to move, mouse wheel to resize.", 0.7, 0.7, 0.7)
         GameTooltip:AddLine("Let go of the key to use it again.", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
@@ -131,7 +132,7 @@ function ns:MoveHandle(target, opts)
         GameTooltip:Hide()
     end)
     h:SetScript("OnMouseDown", function(self)
-        if InCombatLockdown() or not IsShiftKeyDown() then return end
+        if InCombatLockdown() or not ns.MoveKeyDown() then return end
         target:StartMoving()
         self.moving = true
     end)

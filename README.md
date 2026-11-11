@@ -22,8 +22,8 @@ Flow for WoW is a separate project from Flow Engine.
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Shift + key heals you, Alt +
-  key uses your healthstone (or best healing potion), in fights too. Shift-drag to move the
-  button; Shift + mouse wheel over it resizes it.
+  key uses your healthstone (or best healing potion), in fights too. Ctrl-drag to move the
+  button; Ctrl + mouse wheel over it resizes it.
 - **Buff button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
   items move to their own blue button left of the icon, so the Flow key is only your fight
   (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
@@ -129,7 +129,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **Stop card**: Flow's view of a stop (drag it by its title); the arrow's own panel slides
   out under the arrow like a drawer.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
-  order). Click a row for its stop card; hover it to see its area on the minimap; Shift-drag
+  order). Click a row for its stop card; hover it to see its area on the minimap; Ctrl-drag
   the header to move it.
 - **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
   the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
@@ -213,7 +213,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **Key binding mode** with save/undo/cancel (`/flow bind`), and a heads-up when the game
   auto-places new spells on your bars.
 - **Colour-blind palette** for the route (in `/flow settings`).
-- A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Shift-drag to move
+- A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Ctrl-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
 - **Ask Claude from the game** (optional): `/claude make the arrow green`. A Claude session on

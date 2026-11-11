@@ -14,7 +14,7 @@
 --   /flow buffbutton on|off     (off by default: buffs stay on Flow's key until you turn it on)
 --   /flow buffkey <KEY>         its own key, e.g. /flow buffkey Q  (off: clear)
 -- It sits left of Flow's icon. With the move handle (Modules/MoveHandle.lua,
--- ns:MoveHandle) Shift + drag moves it and Shift + mouse wheel resizes it.
+-- ns:MoveHandle) Ctrl + drag moves it and Ctrl + mouse wheel resizes it.
 local _, ns = ...
 local A, E = ns.api, ns.rotation
 if not (A and E and E.Choose) then return end
@@ -245,7 +245,7 @@ local function fillTooltip(tt)
     tt:AddLine(key and ("Key: " .. ((GetBindingText and GetBindingText(key, "KEY_", true)) or key))
         or "No key yet: /flow buffkey <key>", 0.8, 0.8, 0.8)
     if BB.handle then
-        tt:AddLine("Hold Shift: drag to move it, turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
+        tt:AddLine("Hold Ctrl: drag to move it, turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
     end
 end
 
@@ -287,7 +287,7 @@ local function build()
             ns:Log("action", "buff button pressed: " .. describe(current))
         end
     end)
-    -- Shift: drag to move, mouse wheel to resize. Same as the Flow button.
+    -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
     if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg }) end
     btn:Hide()
 end

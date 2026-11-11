@@ -425,7 +425,7 @@ local function render(s, cfg, glow)
         clearGlows()
         if cfg.locked then icon:Hide() else
             icon.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-            icon.text:SetText("Shift-drag me")
+            icon.text:SetText("Ctrl-drag me")
             icon:Show()
         end
         return

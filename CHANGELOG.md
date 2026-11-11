@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.138
+- **Ctrl-drag moves things now, as in Questie** (it was Shift, which now shows what Shift +
+  your key casts). The Flow key, the arrow and its drawer, the Flow Tracker, the buff button and
+  every Flow window: hold Ctrl and drag. Ctrl + mouse wheel over the Flow key resizes it.
+- **Hide Questie's tracker**: a Flow Settings tick box (and the Flow Tracker's right-click
+  menu) turns Questie's own quest tracker off, using Questie's own setting, so your tracked
+  quests are kept. The Flow Tracker then sits on its own.
+
 ## 0.35.137
 - **The easy button shows what your key will cast.** In a fight WoW won't let the key change,
   so Flow sets it at the pull (Wrath, Maul, Claw...). The icon now shows that spell, what a

@@ -99,9 +99,9 @@ party route. The Flow key's `status` icon suggests the best run.
 
 ### UI helpers
 
-- `ns:MakeMovable(frame, save)` (`Core.lua`): Shift-drag for ordinary panels.
+- `ns:MakeMovable(frame, save)` (`Core.lua`): Ctrl-drag for ordinary panels (`ns.MoveKeyDown`: the one place that says which key moves things).
 - `ns:MoveHandle(button, opts)` (`Modules/MoveHandle.lua`): for secure buttons (the Flow key),
-  which can't be dragged themselves or moved in a fight: a handle over the button while Shift is
+  which can't be dragged themselves or moved in a fight: a handle over the button while Ctrl is
   held, out of combat; drag to move, mouse wheel to resize. `ns.RestorePlace` puts it back.
 - `ns.copyBox:Show(title, lines)` (`Modules/CopyBox.lua`): the Flow Copy window, text selected
   for Ctrl+C. Everything `ns:Print` says is kept for `/flow copy`.

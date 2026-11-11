@@ -1,6 +1,6 @@
 -- Navigation arrow: points at your next goal (a quest mob, an item source, a
 -- turn-in NPC...), with a short sentence and the distance. Left-click for
--- details, right-click to switch to the next goal, shift-drag to move.
+-- details, right-click to switch to the next goal, Ctrl-drag to move.
 --
 -- Paths: WoW gives addons no map of walkable ground, so Flow learns it.
 -- As you travel, your route is recorded as a network of trail points per
@@ -2060,7 +2060,7 @@ end
 -- joins it to the arrow's text), and a pull tab at the bottom with a ^ folds
 -- it back. It opens on whichever side of the arrow has room (N.DrawerSide):
 -- below, above near the bottom of the screen, to the right or left at a
--- screen edge. Shift-drag it to give it a place of its own (the arrow's
+-- screen edge. Ctrl-drag it to give it a place of its own (the arrow's
 -- right-click menu puts it back). Click the arrow to pin it open: it follows
 -- your current stop, and stays open after a /reload until you fold it.
 -- (The stop card, shared by the Flow Tracker and Router, is a separate window.)
@@ -2083,7 +2083,7 @@ local DRAWER_POINTS = {
     right = { "TOPLEFT", "TOPRIGHT", 8, 0 }, left = { "TOPRIGHT", "TOPLEFT", -8, 0 },
 }
 
--- Put the drawer where it opens: your spot (Shift-dragged), else beside the arrow.
+-- Put the drawer where it opens: your spot (Ctrl-dragged), else beside the arrow.
 local function placeDrawer(drawer, arrow)
     drawer:ClearAllPoints()
     local saved = ns.db.nav.drawerPoint
@@ -2241,12 +2241,12 @@ local function makeDrawer(f)
     end
     -- A hover-opened drawer folds once the mouse is off it and the arrow.
     f:HookScript("OnLeave", function() if N.FoldIfAway then N.FoldIfAway() end end)
-    -- Shift-drag: your own place for it (saved). A plain click folds it.
+    -- Ctrl-drag: your own place for it (saved). A plain click folds it.
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self)
-        if IsShiftKeyDown() then self:StartMoving(); self.dragging = true end
+        if ns.MoveKeyDown() then self:StartMoving(); self.dragging = true end
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
@@ -2257,7 +2257,7 @@ local function makeDrawer(f)
     end)
     f:SetScript("OnMouseUp", function(self)
         if self.dragging then self.dragging = nil return end
-        if IsShiftKeyDown() then return end
+        if ns.MoveKeyDown() then return end
         self:Fold(true)
     end)
 end
@@ -2313,7 +2313,7 @@ local function showPanel()
     panel.text:SetText(table.concat(lines, "\n"))
     panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
     -- Placed when it opens (it's refreshed all the time while open): on the
-    -- side of the arrow with room, or where you Shift-dragged it.
+    -- side of the arrow with room, or where you Ctrl-dragged it.
     if not panel:IsShown() then panel.side = placeDrawer(panel, frame) end
     panel:Show()
 end
@@ -2451,7 +2451,7 @@ local function buildArrow()
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self) if IsShiftKeyDown() then self:StartMoving() end end)
+    f:SetScript("OnDragStart", function(self) if ns.MoveKeyDown() then self:StartMoving() end end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local a, _, r, x, y = self:GetPoint()
@@ -2489,7 +2489,7 @@ local function buildArrow()
             end
             items[#items + 1] = { text = "Arrow colour by distance", checked = N:ArrowColorMode() == "distance",
                 func = function() N:SetArrowColorMode(N:ArrowColorMode() == "distance" and "route" or "distance") end }
-            -- (Only once you've Shift-dragged the drawer somewhere of its own.)
+            -- (Only once you've Ctrl-dragged the drawer somewhere of its own.)
             if ns.db.nav.drawerPoint then
                 items[#items + 1] = { text = "Drawer next to the arrow (again)", func = function()
                     ns.db.nav.drawerPoint = nil
@@ -3083,7 +3083,7 @@ ns.commands.nav = function(arg)
         for _, g in pairs(cfg.graphs) do nodes = nodes + #g.x end
         ns:Print(string.format("%d goals, %d learned trail points. Last error: %s",
             #goals, nodes, tostring(N.lastError or "none")))
-        print("  /flow nav on|off|learn|forget. Shift-drag the arrow to move it.")
+        print("  /flow nav on|off|learn|forget. Ctrl-drag the arrow to move it.")
     end
 end
 

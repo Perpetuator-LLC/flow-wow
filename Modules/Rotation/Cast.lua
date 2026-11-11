@@ -9,7 +9,7 @@
 --     change itself), otherwise whatever Flow suggested at the pull;
 --   * while locked, a small "key:" icon shows what your key will cast, so the
 --     big icon (Flow's live advice) and the key never get confused.
--- Move it: hold Shift and drag (out of combat).
+-- Move it: hold Ctrl and drag (out of combat).
 
 local _, ns = ...
 local A, E = ns.api, ns.rotation
@@ -248,7 +248,7 @@ function C:FillTooltip(tt)
     if key ~= "" and helpful(s) and ns.db.cast.ctrlTarget ~= false then
         tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
     end
-    tt:AddLine("Hold Shift: a handle appears; drag it to move the icon, or turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
+    tt:AddLine("Hold Ctrl: a handle appears; drag it to move the icon, or turn the mouse wheel to resize it.", 0.6, 0.6, 0.6)
     for _, st in ipairs(E.status or {}) do
         local c = st.color or { 1, 0.82, 0 }
         tt:AddLine(st.tip, c[1], c[2], c[3], true)
@@ -306,9 +306,13 @@ local function build(cfg)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     btn:SetAttribute("type", "macro")
     btn:SetAttribute("macrotext", "")
-    -- Shift + drag moves it; make shift-clicks do nothing so moving never casts.
+    -- Ctrl + drag moves it; make ctrl-clicks (and shift-clicks, as before) do
+    -- nothing with the mouse, so moving never casts. (Ctrl + key and Shift +
+    -- key are bindings to the "ontarget" and "heal" buttons: unaffected.)
     btn:SetAttribute("shift-type1", "macro")
     btn:SetAttribute("shift-macrotext1", "")
+    btn:SetAttribute("ctrl-type1", "macro")
+    btn:SetAttribute("ctrl-macrotext1", "")
     -- Right-click never casts: it opens the key's options (below). "*" covers
     -- Shift/Ctrl/Alt + right-click too ("type2" alone left Shift + right-click
     -- falling back to "type", the spell).
@@ -318,7 +322,7 @@ local function build(cfg)
     btn:SetClampedToScreen(true)
     btn:RegisterForDrag("LeftButton")
     btn:SetScript("OnDragStart", function(self)
-        if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
+        if ns.MoveKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
     end)
     btn:SetScript("OnDragStop", function() C:EndMove() end)
     -- Right-click: the Flow key's options (recovery order, bandages, camp).
@@ -352,7 +356,7 @@ local function build(cfg)
         lockIcon.label:SetText("bar:")
         lockIcon:Hide()
     end
-    -- Shift: drag to move, mouse wheel to resize (the icon too).
+    -- Ctrl: drag to move, mouse wheel to resize (the icon too).
     C.handle = ns:MoveHandle(btn, { name = "the Flow button", save = function() return ns.db.rotation end,
         also = function() return { E.icon } end })
 end
@@ -369,7 +373,7 @@ local pendingKey = false
 -- itself can't change in a fight (WoW's rule), so a heal Flow showed mid-fight
 -- couldn't be cast with it until the fight was over. The heal is set before
 -- the fight on a second "button" of the same secure button ("heal") that
--- only the Shift binding presses: clicking or shift-dragging the icon is
+-- only the Shift binding presses: clicking or Ctrl-dragging the icon is
 -- unchanged. Setting: "Shift + easy key heals you" (/flow settings).
 local healSpell
 
@@ -721,7 +725,7 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 end)
 
 -------------------------------------------------------------------------------
--- Moving and resizing the icon: hold Shift (out of combat) and a "drag to
+-- Moving and resizing the icon: hold Ctrl (out of combat) and a "drag to
 -- move" handle appears over it, and the mouse wheel over it resizes it.
 -- The shared handle (ns:MoveHandle, Modules/MoveHandle.lua) does both; the visible icon
 -- resizes along with the secure button under it.

@@ -1378,7 +1378,7 @@ ns:Register("test", "resize: buttons stay between half and double size", functio
     t:eq(ns.ClampScale(nil), 1, "nothing saved: normal size")
 end)
 
-ns:Register("test", "click: Shift + drag moves and Shift + wheel resizes the Flow button", function(t)
+ns:Register("test", "click: Ctrl + drag moves and Ctrl + wheel resizes the Flow button", function(t)
     t:ok(ns.cast.handle ~= nil, "the Flow button has a handle")
     -- On a stand-in frame (made once), so your own buttons never move.
     local f = ns._testMoveFrame
@@ -1394,14 +1394,14 @@ ns:Register("test", "click: Shift + drag moves and Shift + wheel resizes the Flo
     ns.RestorePlace(f, { point = { "CENTER", "CENTER", 100, 50 } })
     t:eq(f:GetScale(), 1, "restored at normal size")
     f:Show()
-    -- The handle's own scripts run (no Shift held: they do nothing).
+    -- The handle's own scripts run (no Ctrl held: they do nothing).
     for _, s in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave" }) do
         local ok, err = pcall(h:GetScript(s), h)
         t:ok(ok, s .. " runs" .. (ok and "" or (": " .. tostring(err))))
     end
     local ok, err = pcall(h:GetScript("OnMouseWheel"), h, 1)
     t:ok(ok, "the wheel runs" .. (ok and "" or (": " .. tostring(err))))
-    if not IsShiftKeyDown() then t:eq(f:GetScale(), 1, "no Shift: the wheel leaves the size alone") end
+    if not ns.MoveKeyDown() then t:eq(f:GetScale(), 1, "no Ctrl: the wheel leaves the size alone") end
     t:ok(not h.moving, "no Shift: a press doesn't start a move")
     if InCombatLockdown() then
         t:ok(true, "(in a fight: resizing is off)")
@@ -1717,8 +1717,8 @@ ns:Register("test", "arrow panel: a drawer under the arrow, folds with its tab",
     f:SetSize(100, 60)
     ns.nav._makeDrawer(f)
     t:ok(f.tab ~= nil and f.lip ~= nil, "pull tab and lip")
-    -- (Since 0.35.101 Shift-drag gives it a place of its own.)
-    t:ok(f:IsMovable(), "Shift-drag moves it")
+    -- (Since 0.35.101 Ctrl-drag (Shift-drag before 0.35.138) gives it a place of its own.)
+    t:ok(f:IsMovable(), "Ctrl-drag moves it")
     t:ok(type(f.Fold) == "function", "folds back up")
     f:Hide()
 end)
@@ -3711,7 +3711,7 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
     t:eq(N.DrawerSide(10, 700, 56, 56, 1920, 1080, 340, 300), "right", "at the left edge: to the right")
     t:eq(N.DrawerSide(1880, 700, 56, 56, 1920, 1080, 340, 300), "left", "at the right edge: to the left")
     t:eq(N.DrawerSide(900, 200, 56, 56, 1920, 300, 340, 300), "below", "no room either way: the side with more")
-    -- Shift-dragged somewhere: it opens there; the menu puts it back.
+    -- Ctrl-dragged somewhere: it opens there; the menu puts it back.
     local arrow = CreateFrame("Frame", nil, UIParent)
     arrow:SetSize(56, 56); arrow:SetPoint("CENTER")
     local d = CreateFrame("Frame", nil, UIParent)
@@ -4601,4 +4601,25 @@ ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps
     t:ok(not shifted and sv == moonfire, "no heal known: nothing to swap in")
     t:eq(ns.cast.AdviceLabel({ spell = "Rejuvenation" }, "Rejuvenation"), "Shift+", "corner: your heal is Shift + key")
     t:eq(ns.cast.AdviceLabel(moonfire, "Rejuvenation"), "bar:", "corner: anything else, press it on your bar")
+end)
+
+ns:Register("test", "move with Ctrl (as in Questie); hide Questie's tracker", function(t)
+    -- 0.35.138: Shift moved things; it now shows what Shift + key casts.
+    t:eq(ns.MOVE_KEY, "Ctrl", "Ctrl moves Flow's frames")
+    t:eq(ns.MoveKeyDown(), IsControlKeyDown() and true or false, "the move key is Ctrl")
+    local b = _G.FlowCastButton
+    if b then t:eq(b:GetAttribute("ctrl-type1"), "macro", "Ctrl + click on the Flow button never casts (it moves it)")
+    else t:ok(true, "(no Flow key yet)") end
+    local RT = ns.routeTracker
+    local shown = RT.QuestieTrackerShown()
+    t:ok(shown == nil or type(shown) == "boolean", "Questie's tracker: on, off, or no Questie")
+    local found
+    for _, def in ipairs(ns.settings.extraChecks or {}) do
+        if def.label == "Hide Questie's tracker" then found = def end
+    end
+    t:ok(found ~= nil, "Flow Settings has \"Hide Questie's tracker\"")
+    if found then
+        local ok, v = pcall(found.get)
+        t:ok(ok and (v == true or v == false), "its tick box reads Questie's own setting")
+    end
 end)

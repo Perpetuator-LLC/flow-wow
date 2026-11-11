@@ -895,7 +895,7 @@ ns.commands.rot = function(arg)
         ns:Print("rotation helper " .. (r.enabled and "on" or "off"))
     elseif arg == "unlock" or arg == "lock" then
         r.locked = (arg == "lock")
-        ns:Print(r.locked and "icon hidden when there is nothing to press" or "icon always shown: hold Shift and drag it where you want")
+        ns:Print(r.locked and "icon hidden when there is nothing to press" or "icon always shown: hold Ctrl and drag it where you want")
     elseif arg == "debug" then
         r.debug = not r.debug
         ns:Print("debug " .. (r.debug and "on" or "off"))
