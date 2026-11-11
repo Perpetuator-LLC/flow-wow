@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.35.133
+- **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
+  it's on none of your bars. It's set before the fight (WoW won't let it change during one).
+  Flow Settings: "Alt + easy key: healthstone or potion".
+- **One recovery order out of a fight.** Every heal goes through your order (bandage, food,
+  heal spell by default): a heal spell no longer jumps ahead, and "Cast heals" off means none.
+  Food that also makes you Well Fed is eaten to heal when you carry no plain food (right-click
+  the Flow key to keep it for the buff). Fight healing is unchanged.
+- **Worn gear**: under 20% durability an anvil shows above the Flow key (hover: the item and the
+  nearest repair vendor Flow knows) and the route gets a Repair stop. No chat line. Flow Setup:
+  "Warn early when gear wears out".
+- **Repairing waits for your sale**: Flow sells first, repairs after, and tries again as the
+  sale's gold comes in; it says once if you still can't afford it. With auto-repair off it says
+  nothing.
+- **Hearthstone estimate**: when a service (or the repair vendor) is far away, Flow says if your
+  hearthstone then a run looks clearly quicker. An estimate, only for inns Flow knows; it never
+  uses the hearthstone for you.
+- **Campfires**: a camp object you placed counts for that visit to the fire, not an hour; your
+  group's objects are listed as near you, elsewhere or unknown, and people who leave the group
+  (or raid) drop off the list.
+- **Buff button** (new, off by default: `/flow buffbutton on`): buffs and weapon stones, oils and
+  buff items on their own blue button left of the Flow icon, so the Flow key is only your fight.
+  Its own key: `/flow buffkey Q`. Group buffs cast from it are remembered like the key's.
+- Flow Actions that error are logged for the diagnostics instead of vanishing quietly.
+- (Thanks, BIMpossible: pull request 11's newer commits. Restart WoW once: new files.)
+
 ## 0.35.132
 - Fixed a self-test that failed whenever your route was set to Shortest (near first rightly
   stays off there; the test now checks both ways).

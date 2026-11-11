@@ -21,6 +21,13 @@ ns.settings = S
 
 local frame
 
+-- S:AddCheck{ label, note, tip, get, set }: one more tick box under "Flow".
+-- Add it before the page first opens (at file load).
+S.extraChecks = {}
+function S:AddCheck(def)
+    self.extraChecks[#self.extraChecks + 1] = def
+end
+
 local MODIFIER_KEYS = {
     LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true,
     LALT = true, RALT = true, LMETA = true, RMETA = true,
@@ -350,6 +357,10 @@ local function build(parent)
         "Your easy key can't change what it casts during a fight (WoW's rule), so a heal Flow shows mid-fight can't be cast with it. Shift + your key always casts your fastest heal on you, fights included.",
         function() return ns.db.cast.shiftHeal ~= false end,
         function(on) ns.db.cast.shiftHeal = on end)
+    _, y = check(f, y, "Alt + easy key: healthstone or potion", "(works in fights too)",
+        "Alt + your easy key uses your healthstone, or your best healing potion when you carry no healthstone, even when it's on none of your bars. It's set before the fight and can't switch during one.",
+        function() return ns.db.cast.altItem ~= false end,
+        function(on) ns.db.cast.altItem = on; if ns.cast and ns.cast._setEmergency then ns.cast._setEmergency() end end)
     _, y = check(f, y, "Ctrl + easy key: on your target", "(heals and buffs)",
         "Your buffs and heals always go on you, even with a friend targeted. Hold Ctrl with your easy key to cast the shown heal or buff on your target instead.",
         function() return ns.db.cast.ctrlTarget ~= false end,
@@ -381,6 +392,10 @@ local function build(parent)
                 function() return ns.db.bonus[x.key] ~= false end,
                 function(on) ns.db.bonus[x.key] = on end)
         end
+    end
+    -- Tick boxes other files add with S:AddCheck (after the built-in ones).
+    for _, x in ipairs(S.extraChecks) do
+        _, y = check(f, y, x.label, x.note, x.tip, x.get, x.set)
     end
     y = y - 10
 

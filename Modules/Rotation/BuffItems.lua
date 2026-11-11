@@ -132,13 +132,17 @@ end
 
 -- Buff items in your bags (usable now). A stone or oil found by its name counts
 -- as an item enhancement, whatever the game files it as. Food only when it
--- makes you Well Fed.
+-- makes you Well Fed. Kept until your bags change (or an item's details
+-- arrive, or you level): the buff steps ask several times a second.
+local carriedCache
 local function carried()
+    if carriedCache then return carriedCache end
     local out, seen = {}, {}
     local C = C_Container
     local slots = (C and C.GetContainerNumSlots) or GetContainerNumSlots
     local itemAt = (C and C.GetContainerItemID) or GetContainerItemID
     if not (slots and itemAt) then return out end
+    carriedCache = out
     for bag = 0, 4 do
         for slot = 1, (slots(bag) or 0) do
             local id = itemAt(bag, slot)
@@ -174,16 +178,18 @@ local function mainHand()
     return classID == 2 and subID or nil
 end
 
--- A weapon enhancement goes before the rotation's out-of-combat suggestion
--- (a paladin's seal, an aura), or it would only show when the rotation has
--- nothing at all. Not when an enemy is targeted (the opener first) or you're
--- under half health (the heal first). Order 2.5: before bag:learn (3), which
--- isn't urgent and, coming first, would keep this step off the icon.
--- health and maxHealth come through ns.api.Safe: WoW: Forever hides your
--- health, and testing the hidden value errors (the step then never showed).
--- Unknown health goes by Flow's own estimate of how hurt you are (hurtHigh).
+-- A buff item (stone, oil, elixir, Well Fed food) goes before the rotation's
+-- out-of-combat suggestion (a paladin's seal, an aura), or it would only show
+-- when the rotation has nothing at all, which for most classes is almost
+-- never. Not when an enemy is targeted (the opener first) or you're hurt (the
+-- heal first). WoW: Forever hides your health, and testing the hidden value
+-- errors (the step then never showed): it goes through ns.api.Safe, and
+-- unknown health goes by Flow's own estimate of how hurt you are (hurtHigh).
+-- Order 2.5: before bag:learn (3), which isn't urgent and, coming first,
+-- would keep this step off the icon.
 function BI.WeaponFirst(enemy, health, maxHealth, hurtHigh)
     if enemy then return false end
+    health, maxHealth = A.Safe(health), A.Safe(maxHealth)
     if health and maxHealth and maxHealth > 0 then return health > 0.5 * maxHealth end
     return not hurtHigh
 end
@@ -208,8 +214,8 @@ ns:Register("action", "buff:item", { order = 2.5, get = function(ctx)
     local weapon, food = it.sub == ENHANCE_SUB, it.sub == FOOD_SUB
     return { type = "item", item = "item:" .. it.id, icon = icon,
              targetSlot = weapon and 16 or nil,
-             urgent = weapon and BI.WeaponFirst(enemyTargeted(), A.Safe(UnitHealth("player")), A.Safe(UnitHealthMax("player")),
-                 ns.rotation and (ns.rotation.hurt or 0) >= ns.rotation.HURT.outStart) or nil,
+             urgent = BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player"),
+                 ns.rotation and (ns.rotation.hurt or 0) >= ns.rotation.HURT.outStart),
              label = (weapon and "Put on your weapon: " or food and "Eat: " or "Use: ") .. (it.name or "buff item"),
              reason = weapon and "You're killing here and your weapon has no stone or oil on it"
                  or food and "You're killing here and you aren't Well Fed"
@@ -289,49 +295,138 @@ end
 -- WoW: Forever's camp objects, by name: a spell you know or an item you carry.
 BI.CAMP_KITS = { "Camp Tent", "Mana Well", "Sharpening Wheel", "Enchanted Lute", "First Aid Kit",
                  "Fish Bowl", "Incense Candle", "Lodestone", "Camp Chair", "Faction Banner", "Cookie's Feast" }
-local KIT_AGAIN = 3600     -- one placed counts as out for an hour (it stays up a while)
+-- (These names are the ones the camp objects had when this was written; the
+-- game gives addons no list of them. /flow log shows what Flow saw by a fire.)
+local CAMP_SAME = 60       -- away from the fire this long: the next fire is another camp
 local PARTY_FRESH = 120    -- a party member's list counts for 2 minutes
-local placed = {}          -- kit name -> GetTime() you placed it
+local placed = {}          -- kit name -> the camp visit you placed it in
+local visit, lastNear = 0, nil   -- which camp visit this is; GetTime() last by a fire
+
+-- The game doesn't say which camp a fire is, or how long an object stays
+-- up. So "placed" means only: you placed it during this visit to a fire.
+-- Leave for a minute and it's a new visit; from then on the object's own
+-- cooldown (as the game reports it) decides whether it's offered again.
+function BI.CampVisit(n, lastNearAt, now)
+    if not lastNearAt or now - lastNearAt > CAMP_SAME then return n + 1 end
+    return n
+end
+
+-- One camp object, for you: "placed" (by you, this visit), "ready" (you
+-- have it and can place it now), "notready" (you have it: cooldown or not
+-- usable), nil (you don't have it).
+function BI.KitState(placedHere, have, ready)
+    if not have then return nil end
+    if placedHere then return "placed" end
+    return ready and "ready" or "notready"
+end
+local KIT_WORD = { placed = "placed", ready = "ready", notready = "not ready" }
+function BI.KitStateText(states)
+    local parts = {}
+    for _, s in ipairs(states or {}) do parts[#parts + 1] = s.name .. " (" .. (KIT_WORD[s.state] or "?") .. ")" end
+    return #parts > 0 and table.concat(parts, ", ") or nil
+end
 local castNames = {}       -- the spell an item casts -> its kit name
 local fresh, freshTimer    -- GetTime() you last placed one; its minute seen
 local isKit = {}
 for _, k in ipairs(BI.CAMP_KITS) do isKit[k] = true end
 
 -- The camp objects you could place now: { name, spell } or { name, item, id }.
-function BI.CampKits(now)
-    now = now or GetTime()
-    local out, bag = {}, nil
+-- Second return: every camp object you have, with its state (KitState).
+function BI.CampKits()
+    local out, states, bag = {}, {}, nil
+    local E = ns.rotation
     for _, kit in ipairs(BI.CAMP_KITS) do
-        if not (placed[kit] and now - placed[kit] < KIT_AGAIN) then
-            if ns.rotation and ns.rotation:Ready(kit) then
-                out[#out + 1] = { name = kit, spell = kit }
-            else
-                bag = bag or bagByName()
-                local id = bag[kit]
-                if id and itemReady(id) then
-                    castNames[itemSpell(id) or kit] = kit
-                    out[#out + 1] = { name = kit, item = "item:" .. id, id = id }
-                end
+        local here = placed[kit] == visit
+        local known = E and E.Knows and E:Knows(kit)
+        local ready, entry
+        if E and E:Ready(kit) then
+            ready, entry = true, { name = kit, spell = kit }
+        elseif not known then
+            bag = bag or bagByName()
+            local id = bag[kit]
+            if id then
+                known = true
+                castNames[itemSpell(id) or kit] = kit
+                if itemReady(id) then ready, entry = true, { name = kit, item = "item:" .. id, id = id } end
             end
+        end
+        local state = BI.KitState(here, known or ready, ready)
+        if state then states[#states + 1] = { name = kit, state = state } end
+        if state == "ready" then out[#out + 1] = entry end
+    end
+    return out, states
+end
+
+-- What your party can add, from the lists their Flow sends:
+-- entries = { [sender] = { kits = {names}, at = time } }. "Mia: Camp Tent; ..."
+-- roster (optional) = your party now: { { name, near } }, near = true (in
+-- range of you), false (not), nil (the game won't say). With it: people who
+-- left are dropped, someone out of range isn't counted for this camp, and
+-- the second return lists the rest: "Bob: elsewhere; Cid: unknown" (no fresh
+-- list means unknown, not "has nothing").
+local function short(name) return (tostring(name):gsub("%-.*$", "")) end
+function BI.PartyKitText(entries, now, roster)
+    local near, inParty
+    if roster then
+        near, inParty = {}, {}
+        for _, m in ipairs(roster) do inParty[short(m.name)] = true; near[short(m.name)] = m.near end
+    end
+    local who, far, seen = {}, {}, {}
+    for name, e in pairs(entries or {}) do
+        local s = short(name)
+        if e.at and now - e.at < PARTY_FRESH and e.kits and (not roster or inParty[s]) then
+            seen[s] = true
+            if roster and near[s] == false then far[#far + 1] = s .. ": elsewhere"
+            elseif #e.kits > 0 then who[#who + 1] = name end
+        end
+    end
+    for _, m in ipairs(roster or {}) do
+        local s = short(m.name)
+        if not seen[s] then far[#far + 1] = s .. ": unknown" end
+    end
+    table.sort(who); table.sort(far)
+    local parts = {}
+    for _, name in ipairs(who) do
+        local s = short(name)
+        parts[#parts + 1] = s .. (roster and near[s] == nil and " (place unknown)" or "") .. ": " .. table.concat(entries[name].kits, ", ")
+    end
+    return #parts > 0 and table.concat(parts, "; ") or nil, #far > 0 and table.concat(far, "; ") or nil
+end
+
+-- Your group now (not you): { { name, near } }. near: the game's own range
+-- check on a group member (about 40 yards), nil when it gives no answer. In
+-- a raid, every raid member (party1-4 is only your own subgroup), so the
+-- camp lists of the others aren't dropped. Values the game hides count as
+-- unknown (ns.api.Safe).
+function BI.PartyRoster()
+    local out = {}
+    local raid = IsInRaid and IsInRaid()
+    local n = raid and (GetNumGroupMembers and GetNumGroupMembers() or 0) or 4
+    for i = 1, n do
+        local unit = (raid and "raid" or "party") .. i
+        local me = A.Safe(UnitIsUnit and UnitIsUnit(unit, "player"))
+        local name = not me and A.Safe(UnitExists and UnitExists(unit)) and A.Safe(UnitName(unit))
+        if name then
+            local near
+            if UnitInRange then
+                local ok, inRange, checked = pcall(UnitInRange, unit)
+                inRange, checked = ok and A.Safe(inRange), ok and A.Safe(checked)
+                if checked then near = inRange and true or false end
+            end
+            out[#out + 1] = { name = name, near = near }
         end
     end
     return out
 end
 
--- What your party can add, from the lists their Flow sends:
--- entries = { [sender] = { kits = {names}, at = time } }. "Mia: Camp Tent; ..."
-function BI.PartyKitText(entries, now)
-    local who = {}
-    for name, e in pairs(entries or {}) do
-        if e.at and now - e.at < PARTY_FRESH and e.kits and #e.kits > 0 then who[#who + 1] = name end
+-- Lists from people no longer in your party are dropped.
+function BI.PruneParty(entries, roster)
+    local keep = {}
+    for _, m in ipairs(roster or {}) do keep[short(m.name)] = true end
+    for name in pairs(entries) do
+        if not keep[short(name)] then entries[name] = nil end
     end
-    if #who == 0 then return nil end
-    table.sort(who)
-    local parts = {}
-    for _, name in ipairs(who) do
-        parts[#parts + 1] = (name:gsub("%-.*$", "")) .. ": " .. table.concat(entries[name].kits, ", ")
-    end
-    return table.concat(parts, "; ")
+    return entries
 end
 
 -- Party members running Flow: each tells the group which camp objects it
@@ -349,7 +444,8 @@ local function shareKits(kits, now)
     P.Send("K|" .. text)
 end
 
-ns:On("BAG_UPDATE_DELAYED", function() bagNames = nil end)
+ns:On("BAG_UPDATE_DELAYED", function() bagNames, carriedCache = nil, nil end)
+ns:On("PLAYER_LEVEL_UP", function() carriedCache = nil end)
 
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if unit ~= "player" then return end
@@ -357,10 +453,12 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if not name then return end
     local kit = castNames[name] or (isKit[name] and name)
     if kit then
-        placed[kit], fresh, freshTimer = GetTime(), GetTime(), nil
+        placed[kit], fresh, freshTimer = visit, GetTime(), nil
         lastShareText = nil   -- tell the group at once
+        ns:Log("camp", string.format("placed %s (spell %s, id %s), camp visit %d", kit, name, tostring(A.Safe(spellID)), visit))
     end
 end)
+ns:On("GROUP_ROSTER_UPDATE", function() BI.PruneParty(partyKits, BI.PartyRoster()) end)
 
 -- A bandage is a channel named "First Aid". The First Aid profession window
 -- is opened by a spell of the same name, but that's no channel, so it no
@@ -390,26 +488,25 @@ ns:OnLoad(function()
         partyKits[short] = { kits = kits, at = GetTime(), text = table.concat(kits, ", ") }
     end
 end)
--- Out of the group: forget what its members carried.
-ns:On("GROUP_ROSTER_UPDATE", function()
-    if not (IsInGroup and IsInGroup()) then wipe(partyKits) end
-end)
 
 -- By a fire: a status icon above Flow's key when your group could add camp
 -- objects (hover: who has what).
-function BI.PartyKitStatus(entries, now)
-    local text = BI.PartyKitText(entries, now)
+-- mine (optional) = your own objects' states (CampKits' second return).
+function BI.PartyKitStatus(entries, now, roster, mine)
+    local text, rest = BI.PartyKitText(entries, now, roster)
     if not text then return nil end
     local n = 0
-    for _, e in pairs(entries) do
-        if e.at and now - e.at < PARTY_FRESH and e.kits then n = n + #e.kits end
-    end
-    return { icon = CAMP_ICON, text = tostring(n), color = { 0.35, 0.75, 1.0 },
-             tip = "Your group can add to this camp: " .. text }
+    for _ in text:gmatch("[^;,]+") do n = n + 1 end
+    local tip = "Near you, your group says it can place: " .. text
+    if rest then tip = tip .. "\nNot counted: " .. rest end
+    local own = BI.KitStateText(mine)
+    if own then tip = tip .. "\nYours: " .. own end
+    return { icon = CAMP_ICON, text = tostring(n), color = { 0.35, 0.75, 1.0 }, tip = tip }
 end
 ns:Register("status", "camp", { order = 30, get = function()
     if not A.Buff("player", CAMP_NEARBY) then return nil end
-    return BI.PartyKitStatus(partyKits, GetTime())
+    local _, mine = BI.CampKits()
+    return BI.PartyKitStatus(partyKits, GetTime(), BI.PartyRoster(), mine)
 end })
 
 -- At a campfire: place your camp objects, then sit for the buffs (after the
@@ -420,18 +517,27 @@ ns:Register("action", "buff:camp", { order = 2.6, get = function(ctx)
     if (ctx and ctx.fishing) or (IsMounted and IsMounted()) then return nil end
     if not A.Buff("player", CAMP_NEARBY) then return nil end
     local now = GetTime()
+    local v = BI.CampVisit(visit, lastNear, now)
+    lastNear = now
     local timer = A.Buff("player", CAMP_TIMER)
+    if v ~= visit then
+        visit = v
+        local _, st = BI.CampKits()
+        ns:Log("camp", string.format("by a fire (visit %d): benefits %s, minute running %s; yours: %s", visit,
+            tostring(A.Buff("player", CAMP_BENEFITS) and true or false), tostring(timer and true or false),
+            BI.KitStateText(st) or "no camp objects found by name"))
+    end
     -- Just placed one: sit again for its buffs, until that minute is over.
     if fresh then
         if timer then freshTimer = true
         elseif freshTimer or now - fresh > PARTY_FRESH then fresh, freshTimer = nil, nil end
     end
-    local kits = ns.db.rotation.campKits ~= false and BI.CampKits(now) or {}
+    local kits = ns.db.rotation.campKits ~= false and BI.CampKits() or {}
     shareKits(kits, now)
     local step = BI.CampStep(true, A.Buff("player", CAMP_BENEFITS), timer, kits[1], fresh)
     if not step then return nil end
-    local others = BI.PartyKitText(partyKits, now)
-    local group = others and (". Your group can add: " .. others) or ""
+    local others = BI.PartyKitText(partyKits, now, BI.PartyRoster())
+    local group = others and (". Near you, your group says it can place: " .. others) or ""
     -- Sitting and waiting are urgent: otherwise the rotation's own
     -- suggestion (a seal, a bandage) takes the key, and pressing it stands
     -- you up and loses the minute.
@@ -465,16 +571,18 @@ BI.RECENTLY_BANDAGED = "Recently Bandaged"
 local BANDAGE_DEBUFF = 60
 
 -- What a bag item is for healing: "healthstone", "potion", "bandage",
--- "food" or nil. lines = its tooltip text (food: only the kind that heals;
--- Well Fed food is left for the buff step above).
+-- "food" or nil. lines = its tooltip text (food: only the kind that heals).
+-- Healing and Well Fed are separate things a food can do: the second return
+-- is true for food that also makes you Well Fed (eaten to heal only when
+-- there's no plain food, and only if you allow it).
 function BI.HealKind(name, classID, subID, lines)
     name = name or ""
     if name:find("Healthstone") then return "healthstone" end
     if name:find("Healing Potion") or (classID == 0 and subID == POTION_SUB and name:find("Healing")) then return "potion" end
     if name:find("Bandage") or (classID == 0 and subID == BANDAGE_SUB) then return "bandage" end
-    if classID == 0 and subID == FOOD_SUB and lines and not BI.IsBuffFood(lines) then
+    if classID == 0 and subID == FOOD_SUB and lines then
         for _, l in ipairs(lines) do
-            if type(l) == "string" and l:lower():find("health", 1, true) then return "food" end
+            if type(l) == "string" and l:lower():find("health", 1, true) then return "food", BI.IsBuffFood(lines) and true or false end
         end
     end
     return nil
@@ -504,14 +612,14 @@ local function healItems()
             lines = tipLines(id)
             if lines == nil then complete = false end
         end
-        local kind = BI.HealKind(name, classID, subID, lines)
-        if kind then out[#out + 1] = { id = id, kind = kind, name = name, rank = rankOf(id) } end
+        local kind, buff = BI.HealKind(name, classID, subID, lines)
+        if kind then out[#out + 1] = { id = id, kind = kind, name = name, rank = rankOf(id), buff = buff or nil } end
     end)
     if complete then healCache = out end
     return out
 end
 ns:On("BAG_UPDATE_DELAYED", function() healCache = nil end)
-ns:On("GET_ITEM_INFO_RECEIVED", function() healCache, bagNames = nil, nil end)
+ns:On("GET_ITEM_INFO_RECEIVED", function() healCache, bagNames, carriedCache = nil, nil, nil end)
 
 -- The item of this kind to use: the highest rank, or the lowest with
 -- lowFirst. ready(id) -> bool (nil: all count).
@@ -564,14 +672,35 @@ local function useStep(it, kind, label, reason, unit)
              unit = unit, label = label, reason = reason }
 end
 
--- Only one that's on your bars: the key is locked to its spell in a fight,
--- so a healthstone you can't press anywhere is advice you can't act on.
-local function readyOnBar(id) return itemReady(id) and (not ns.ItemOnBar or ns.ItemOnBar(id)) end
+-- Only one you can press in a fight: on your bars, or the one Alt + your key
+-- is set to. (The key itself is locked to its spell, so a healthstone you
+-- can't press anywhere is advice you can't act on.)
+local function readyToPress(id)
+    if not itemReady(id) then return false end
+    if not ns.ItemOnBar or ns.ItemOnBar(id) then return true end
+    local C = ns.cast
+    return C ~= nil and C.EmergencyItem ~= nil and C:EmergencyItem() == "item:" .. id
+end
+
+-- The healthstone (else healing potion) you carry, usable right now or not:
+-- what Alt + your key is set to before a fight.
+function BI.EmergencyCarry() return BI.PickEmergency(healItems()) end
+
+-- How to press it: Alt + your key when that's the item set on it, else from
+-- your bar or bag (the key itself can't change in a fight).
+function BI.EmergencyHow(item, altItem, altKey)
+    if altItem and altKey and item == altItem then return "press " .. altKey end
+    return "press it on your bar or in your bag: the key is locked in a fight"
+end
+
 function BI.EmergencyStep()
-    local it = BI.PickEmergency(healItems(), readyOnBar)
+    local it = BI.PickEmergency(healItems(), readyToPress)
     if not it then return nil end
+    local C = ns.cast
+    local first = C and C.Keys and C:Keys()[1]
+    local how = BI.EmergencyHow("item:" .. it.id, C and C.EmergencyItem and C:EmergencyItem(), first and C.ItemKeyFor and C.ItemKeyFor(first))
     return useStep(it, "emergency", it.kind == "healthstone" and "Healthstone!" or "Healing potion!",
-        "Low health: use your " .. it.name .. " now (press it on your bar: the key is locked in a fight)")
+        "Low health: use your " .. it.name .. " now (" .. how .. ")")
 end
 
 function BI.BandageStep(lowFirst)
@@ -582,8 +711,18 @@ function BI.BandageStep(lowFirst)
         "Hurt after your fight: bandage up (stand still while it heals)", "player")
 end
 
-function BI.FoodStep()
-    local it = BI.PickKind(healItems(), "food", false, itemReady)
+-- The food to heal with: plain food first (best rank); food that also makes
+-- you Well Fed only when there's no plain food and buffFood allows it.
+function BI.PickFood(items, buffFood, ready)
+    local plain, buff = {}, {}
+    for _, it in ipairs(items or {}) do
+        if it.kind == "food" then local t = it.buff and buff or plain; t[#t + 1] = it end
+    end
+    return BI.PickKind(plain, "food", false, ready) or (buffFood and BI.PickKind(buff, "food", false, ready)) or nil
+end
+
+function BI.FoodStep(buffFood)
+    local it = BI.PickFood(healItems(), buffFood, itemReady)
     if not it then return nil end
     return useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up")
 end
@@ -611,6 +750,7 @@ function BI:OpenMenu()
     end
     items[#items + 1] = toggle("Use bandages", "recoverBandage")
     items[#items + 1] = toggle("Eat food", "recoverFood")
+    items[#items + 1] = toggle("Eat Well Fed food too, when there's no plain food", "recoverBuffFood")
     items[#items + 1] = toggle("Cast heals", "recoverHeal")
     items[#items + 1] = { sep = true }
     items[#items + 1] = { title = true, text = "Bandages" }

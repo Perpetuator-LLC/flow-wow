@@ -21,7 +21,12 @@ Flow for WoW is a separate project from Flow Engine.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
-  if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button; Shift + mouse wheel over it resizes it.
+  if none is up, then Judgement or Crusader Strike), never a heal. Shift + key heals you, Alt +
+  key uses your healthstone (or best healing potion), in fights too. Shift-drag to move the
+  button; Shift + mouse wheel over it resizes it.
+- **Buff button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
+  items move to their own blue button left of the icon, so the Flow key is only your fight
+  (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
   target, with a Make N button for exactly that many, and tells you when to stop.
 - **Flow Actions** (same key, out of combat, at your route stop): at a fishing spot it equips
@@ -43,6 +48,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Status icons** above the Flow key, between fights only, instead of chat lines: by a campfire,
   what your group can add to the camp. Hover for details.
 - **Auto-repair** at vendors who repair (Options, on by default), after Flow sells your junk.
+- **Worn gear**: under 20% durability an anvil shows above the Flow key (hover: the item and the
+  nearest repair vendor Flow knows) and the route gets a Repair stop. When a service is far away,
+  Flow says if your hearthstone then a run looks clearly quicker (an estimate; it never uses it
+  for you).
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
   Remembers what you cast when the game hides your auras.
 - **Heals when your health is hidden** (WoW: Forever hides it from add-ons): the game's own

@@ -2714,14 +2714,49 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
                            Bob = { kits = { "Mana Well" }, at = -100 } }, 100),   -- (Bob: 200 s old; a list counts for 2 minutes)
         "Mia: Camp Tent, Enchanted Lute", "party camp objects: fresh lists only, realm dropped")
     t:eq(BI.PartyKitText({}, 100), nil, "no party lists: nothing")
+    -- With your party known: near, elsewhere, unknown, and people who left.
+    local lists = { ["Mia-Realm"] = { kits = { "Camp Tent" }, at = 95 }, Bob = { kits = { "Mana Well" }, at = 95 },
+                    Zed = { kits = { "Lodestone" }, at = 95 }, Ann = { kits = { "Fish Bowl" }, at = 95 } }
+    local roster = { { name = "Mia", near = true }, { name = "Bob", near = false }, { name = "Cid", near = true },
+                     { name = "Ann" } }
+    local can, rest = BI.PartyKitText(lists, 100, roster)
+    t:eq(can, "Ann (place unknown): Fish Bowl; Mia: Camp Tent", "only people near you (or unplaced) count; Zed left the party")
+    t:eq(rest, "Bob: elsewhere; Cid: unknown", "out of range: elsewhere; no list: unknown, not 'has nothing'")
+    local st = BI.PartyKitStatus(lists, 100, roster, { { name = "Enchanted Lute", state = "placed" }, { name = "Camp Tent", state = "notready" } })
+    t:eq(st.text, "2", "the count is the objects near you")
+    t:ok(st.tip:find("Bob: elsewhere", 1, true) ~= nil and st.tip:find("Enchanted Lute (placed), Camp Tent (not ready)", 1, true) ~= nil,
+        "the tip says who isn't counted and your own objects' state")
+    t:eq(BI.PartyKitStatus({ Bob = lists.Bob }, 100, { { name = "Bob", near = false } }), nil, "only someone elsewhere: no icon")
+    local pruned = BI.PruneParty({ Mia = {}, ["Zed-Realm"] = {} }, { { name = "Mia" } })
+    t:ok(pruned.Mia ~= nil and pruned["Zed-Realm"] == nil, "someone who left: their list is dropped")
+    -- Placed is per visit to a fire, not a fixed hour.
+    t:eq(BI.CampVisit(3, 100, 130), 3, "back within a minute: the same camp visit")
+    t:eq(BI.CampVisit(3, 100, 161), 4, "away over a minute: a new visit")
+    t:eq(BI.CampVisit(0, nil, 5), 1, "first fire: visit 1")
+    t:eq(BI.KitState(true, true, true), "placed", "placed by you this visit")
+    t:eq(BI.KitState(false, true, true), "ready", "have it, usable now")
+    t:eq(BI.KitState(false, true, false), "notready", "have it, on cooldown: not ready (not 'placed')")
+    t:eq(BI.KitState(false, false, false), nil, "don't have it: not listed")
+    -- The minute: counting, done, interrupted.
+    t:eq(BI.CampStep(true, false, true), "wait", "sitting, minute running: wait")
+    t:eq(BI.CampStep(true, true, false), nil, "minute done, buffs on: nothing more")
+    t:eq(BI.CampStep(true, false, false), "sit", "stood up before it ended (no minute, no buffs): sit again")
+    t:eq(BI.CampStep(false, false, true), nil, "walked away from the fire: nothing")
     t:eq(BI.HealKind("Minor Healthstone", 0, 0), "healthstone", "a healthstone")
     t:eq(BI.HealKind("Lesser Healing Potion", 0, 1), "potion", "a healing potion")
     t:eq(BI.HealKind("Minor Mana Potion", 0, 1), nil, "a mana potion doesn't heal")
     t:eq(BI.HealKind("Heavy Linen Bandage", 0, 7), "bandage", "a bandage")
     t:eq(BI.HealKind("Tough Jerky", 0, 5, { "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "food", "plain food heals")
     t:eq(BI.HealKind("Refreshing Spring Water", 0, 5, { "Use: Restores 151 mana over 18 sec." }), nil, "drink: no")
-    t:eq(BI.HealKind("Roasted Boar Meat", 0, 5, { "Use: Restores 294 health. ...you will become well fed..." }), nil,
-        "Well Fed food is left for the buff step")
+    local k, wf = BI.HealKind("Roasted Boar Meat", 0, 5, { "Use: Restores 294 health. ...you will become well fed..." })
+    t:eq(k, "food", "Well Fed food that restores health heals too")
+    t:eq(wf, true, "...and is marked as Well Fed food")
+    t:eq(select(2, BI.HealKind("Tough Jerky", 0, 5, { "Use: Restores 61 health over 18 sec." })), false, "plain food: not marked")
+    local foods = { { id = 1, kind = "food", rank = 5 }, { id = 2, kind = "food", rank = 25, buff = true } }
+    t:eq(BI.PickFood(foods, true).id, 1, "plain food before Well Fed food, whatever the rank")
+    t:eq(BI.PickFood({ foods[2] }, true).id, 2, "only Well Fed food: eat it to heal")
+    t:eq(BI.PickFood({ foods[2] }, false), nil, "only Well Fed food, and you keep it for the buff: none")
+    t:eq(BI.PickFood(foods, true, function(id) return id ~= 1 end).id, 2, "plain food unusable: the Well Fed food")
     local heal = { { id = 1, kind = "potion", rank = 15 }, { id = 2, kind = "healthstone", rank = 10 },
                    { id = 3, kind = "bandage", rank = 5 }, { id = 4, kind = "bandage", rank = 20 } }
     t:eq(BI.PickEmergency(heal).id, 2, "in a fight: the healthstone before the potion")
@@ -2749,6 +2784,7 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(not BI.WeaponFirst(false, nil, nil, true), "health hidden and hurt: the heal first")
     t:ok(not BI.WeaponFirst(true, nil, nil, false), "health hidden, enemy targeted: the opener first")
     t:ok(BI.WeaponFirst(false, 100, 0, false), "max health 0 (not known): Flow's estimate")
+    t:ok(BI.WeaponFirst(false, nil, nil), "health the client hides: counts as fine (no error)")
     t:ok(ns:Get("action", "buff:item").order < ns:Get("action", "bag:learn").order, "before learning a recipe in your bags")
     t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill stop: yes")
     t:ok(not BI.Killing({ at = false, goal = { key = "500:done", kind = "turnin" } }, GetTime() + 1000), "walking to a turn-in, no fight lately: no")
@@ -3180,6 +3216,16 @@ ns:Register("test", "shift + easy key: your heal on you, even in a fight", funct
     t:eq(C.HealKeyFor("ALT-CTRL-Q"), "ALT-CTRL-SHIFT-Q", "all modifiers")
     t:eq(C.HealKeyFor("SHIFT-F"), nil, "a key that already uses Shift: none")
     t:eq(C.HealKeyFor(nil), nil, "no key: none")
+    t:eq(C.ItemKeyFor("`"), "ALT-`", "Alt + your key: the healthstone or potion")
+    t:eq(C.ItemKeyFor("ALT-Q"), nil, "a key with Alt already: none")
+    t:eq(C.EmergencyItemFor({}, {}, { id = 5512 }), "item:5512", "the carried healthstone goes on Alt + key")
+    t:eq(C.EmergencyItemFor({}, {}, nil), nil, "none carried: nothing on it")
+    t:eq(C.EmergencyItemFor({ altItem = false }, {}, { id = 5512 }), nil, "Alt + key off: nothing")
+    t:eq(C.EmergencyItemFor({}, { emergencyItems = false }, { id = 5512 }), nil, "fight items off: nothing")
+    local BIh = ns.buffItems
+    t:eq(BIh.EmergencyHow("item:1", "item:1", "ALT-`"), "press ALT-`", "the item on Alt + key: say so")
+    t:ok(BIh.EmergencyHow("item:2", "item:1", "ALT-`"):find("bar or in your bag", 1, true) ~= nil, "another item (stone on cooldown): bar or bag")
+    t:ok(BIh.EmergencyHow("item:2", nil, nil):find("bar or in your bag", 1, true) ~= nil, "no Alt key: bar or bag")
     local def = { heals = { "Healing Touch", "Rejuvenation", "Regrowth" } }
     local ms = { ["Healing Touch"] = 1500, Rejuvenation = 0, Regrowth = 2000 }
     local function knows(s) return s ~= "Regrowth" end
@@ -4194,4 +4240,237 @@ ns:Register("test", "map: the trail to your next stop takes the arrow's colour",
     t:eq(M.LegLive(true, nil), false, "your next stop: the arrow's colour (by distance)")
     t:eq(M.LegLive(false, nil), nil, "a later stop: its own route colour")
     t:eq(M.LegLive(true, 0.5), nil, "a preview (alpha given): its own colour")
+end)
+
+ns:Register("test", "recovery: one order for every way of being hurt; fight healing apart", function(t)
+    local E, BI = ns.rotation, ns.buffItems
+    if not (E and BI and ns.db and ns.db.rotation) then t:ok(true, "(no rotation)") return end
+    local r = ns.db.rotation
+    local keep = { busy = E.RecoverBusy, mounted = E.Mounted, hd = E.HealDecision, lh = E.LowHealthHeal, eh = E.EarlyHeal,
+                   em = BI.EmergencyStep, band = BI.BandageStep, food = BI.FoodStep, hurt = E.hurt,
+                   order = r.recoverOrder, b = r.recoverBandage, f = r.recoverFood, h = r.recoverHeal,
+                   bf = r.recoverBuffFood, ei = r.emergencyItems }
+    local have, askedBuff = {}, nil
+    local def = { heals = { "Heal" } }
+    local ok, err = pcall(function()
+        E.RecoverBusy = function() return have.busy or false end
+        E.Mounted = function() return have.mounted or false end
+        E.HealDecision = function(_, ctx) return (have.spell and ctx.maxHp > 0 and ctx.hpPct < 0.5) and { spell = "Heal", kind = "heal" } or nil end
+        E.LowHealthHeal = function(_, ctx) return (have.spell and ctx.maxHp <= 0 and ctx.lowHealth) and { spell = "Fast Heal", kind = "emergency" } or nil end
+        E.EarlyHeal = function() return have.spell and { spell = "Early Heal", kind = "heal" } or nil end
+        BI.EmergencyStep = function() return have.stone and { label = "Healthstone!" } or have.potion and { label = "Healing potion!" } or nil end
+        BI.BandageStep = function() return have.bandage and { label = "Bandage" } or nil end
+        BI.FoodStep = function(buffFood) askedBuff = buffFood; return have.food and { label = "Food" } or nil end
+        local function set(order, b, f, h) r.recoverOrder, r.recoverBandage, r.recoverFood, r.recoverHeal = order, b, f, h end
+        local function pick(ctx)
+            local s = E:HealStep(ctx, def)
+            return s and (s.label or s.spell) or nil
+        end
+        local function isSpell(ctx)
+            local p = pick(ctx)
+            return p ~= nil and p:find("Heal", 1, true) ~= nil
+        end
+        -- Three ways of being hurt out of a fight.
+        local shown  = { inCombat = false, maxHp = 100, hp = 30, hpPct = 0.3 }                -- health readable
+        local hidden = { inCombat = false, maxHp = 0, hp = 0, hpPct = 1 }                     -- hidden: Flow's estimate
+        local warn   = { inCombat = false, maxHp = 0, hp = 0, hpPct = 1, lowHealth = true }   -- hidden: the game's warning
+        for name, ctx in pairs({ shown = shown, hidden = hidden, warn = warn }) do
+            E.hurt = (name == "hidden") and E.HURT.outBig or 0
+            have = { bandage = true, food = true, spell = true }
+            set(nil, nil, nil, nil)
+            t:eq(pick(ctx), "Bandage", name .. ": default order starts with the bandage, not the heal spell")
+            have.bandage = false
+            t:eq(pick(ctx), "Food", name .. ": no bandage: food")
+            have.food = false
+            t:ok(isSpell(ctx), name .. ": no bandage or food: a heal spell")
+            have = { bandage = true, food = true, spell = true }
+            set("heal,food,bandage")
+            t:ok(isSpell(ctx), name .. ": heal first when you put it first")
+            set("food,bandage,heal")
+            t:eq(pick(ctx), "Food", name .. ": food first when you put it first")
+            set(nil, false)
+            t:eq(pick(ctx), "Food", name .. ": bandages off: food")
+            set(nil, false, false)
+            t:ok(isSpell(ctx), name .. ": bandages and food off: a heal spell")
+            set(nil, false, false, false)
+            t:eq(pick(ctx), nil, name .. ": every step off: nothing, and no heal spell slips through")
+            set("heal,bandage,food", nil, nil, false)
+            t:eq(pick(ctx), "Bandage", name .. ": heal first but heals off: the bandage")
+            set(nil, nil, nil, nil)
+            have.busy = true
+            t:eq(pick(ctx), nil, name .. ": eating or casting: nothing")
+            have.busy, have.mounted = false, true
+            t:ok(isSpell(ctx), name .. ": mounted: no bandage or food, a heal spell")
+        end
+        -- Lightly hurt (estimate only): bandage or heal, but not food.
+        E.hurt = E.HURT.outStart
+        have = { food = true }
+        set(nil, nil, nil, nil)
+        t:eq(pick(hidden), nil, "lightly hurt: you don't sit down to eat")
+        E.hurt = 0
+        t:eq(pick(hidden), nil, "not hurt: nothing")
+        t:eq(pick({ inCombat = false, maxHp = 100, hp = 100, hpPct = 1 }), nil, "full health shown: nothing")
+        -- An enemy targeted: no sitting down to eat.
+        have = { food = true, spell = true }
+        t:ok(pick({ inCombat = false, maxHp = 100, hp = 30, hpPct = 0.3, hostile = true }) ~= "Food", "enemy targeted: no food")
+        -- The Well Fed food choice reaches the food step.
+        have = { food = true }
+        r.recoverBuffFood = false; pick(shown)
+        t:eq(askedBuff, false, "keep Well Fed food for the buff: passed on")
+        r.recoverBuffFood = nil; pick(shown)
+        t:eq(askedBuff, true, "by default Well Fed food may heal when there's no plain food")
+        -- In a fight: healthstone, then potion, then a heal spell; never the recovery order.
+        local fight = { inCombat = true, maxHp = 0, hp = 0, hpPct = 1, lowHealth = true }
+        r.emergencyItems = nil
+        have = { stone = true, potion = true, spell = true, bandage = true, food = true }
+        t:eq(pick(fight), "Healthstone!", "fight, low: the healthstone first")
+        have.stone = false
+        t:eq(pick(fight), "Healing potion!", "healthstone gone or on cooldown: the potion")
+        have.potion = false
+        t:eq(pick(fight), "Fast Heal", "neither usable: a heal spell")
+        have.spell = false
+        t:eq(pick(fight), nil, "nothing usable: nothing (never a bandage or food in a fight)")
+        have = { stone = true, spell = true }
+        r.emergencyItems = false
+        t:eq(pick(fight), "Fast Heal", "fight items off: straight to the heal spell")
+        r.emergencyItems = nil
+        set(nil, false, false, false)
+        t:eq(pick(fight), "Healthstone!", "recovery steps off don't touch fight healing")
+        have = { spell = true }
+        t:eq(pick({ inCombat = true, maxHp = 100, hp = 30, hpPct = 0.3 }), "Heal", "fight, health shown: the normal heal")
+        t:eq(pick({ inCombat = true, maxHp = 0, hp = 0, hpPct = 1 }), "Early Heal", "fight, health hidden, no warning: Flow's estimate")
+    end)
+    E.RecoverBusy, E.Mounted, E.HealDecision, E.LowHealthHeal, E.EarlyHeal = keep.busy, keep.mounted, keep.hd, keep.lh, keep.eh
+    BI.EmergencyStep, BI.BandageStep, BI.FoodStep, E.hurt = keep.em, keep.band, keep.food, keep.hurt
+    r.recoverOrder, r.recoverBandage, r.recoverFood, r.recoverHeal = keep.order, keep.b, keep.f, keep.h
+    r.recoverBuffFood, r.emergencyItems = keep.bf, keep.ei
+    t:ok(ok, "recovery checks ran" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+ns:Register("test", "repair: early warning, vendor decision, after the sale", function(t)
+    local R, V = ns.repair, ns.vendor or ns.sell
+    local function gear(g) return function(slot) local v = g[slot]; if v then return v[1], v[2] end end end
+    local pct, slot, low = R.Worst(gear({ [1] = { 50, 100 }, [5] = { 19, 100 }, [16] = { 60, 60 } }))
+    t:eq(slot, 5, "the most worn item is found"); t:eq(low, 1, "one item under 20%")
+    t:ok(R.Low(pct), "19%: warn")
+    pct = R.Worst(gear({ [1] = { 20, 100 }, [5] = { 80, 100 } }))
+    t:ok(not R.Low(pct), "exactly 20%: no warning yet")
+    _, slot, low = R.Worst(gear({ [1] = { 0, 0 }, [5] = { 90, 100 } }))
+    t:eq(slot, 5, "an item with no durability is skipped"); t:eq(low, 0, "and never counts as low")
+    pct = R.Worst(gear({}))
+    t:eq(pct, nil, "nothing with durability: unknown"); t:ok(not R.Low(pct), "unknown is never a warning")
+    _, slot, low = R.Worst(gear({ [1] = { 5, 100 }, [5] = { 10, 100 }, [7] = { 0, 100 } }))
+    t:eq(slot, 7, "a broken item is the worst"); t:eq(low, 3, "three under 20%")
+    local st = { pct = 0.18, slot = 5, low = 2 }
+    local lines = table.concat(R.Lines(st, "Old Vest", { name = "Smith Argus", yards = 240 }, false, nil, true), "\n")
+    t:ok(lines:find("Old Vest is at 18%", 1, true) ~= nil, "names the item and how worn")
+    t:ok(lines:find("Smith Argus, about 240 yd", 1, true) ~= nil, "names the nearest vendor")
+    t:ok(lines:find("2 items under 20%", 1, true) ~= nil, "says how many")
+    lines = table.concat(R.Lines(st, nil, nil, false, nil, true), "\n")
+    t:ok(lines:find("doesn't know a repair vendor", 1, true) ~= nil, "no vendor known: says so, no guess")
+    lines = table.concat(R.Lines(st, nil, nil, true, nil, false), "\n")
+    t:ok(lines:find("Looking up", 1, true) ~= nil, "vendor list still loading: says so")
+    t:ok(lines:find("Auto-repair is off", 1, true) ~= nil, "auto-repair off: says you press the button")
+    lines = table.concat(R.Lines(st, nil, { name = "X", yards = 5 }, false, "Estimate: hearth", true), "\n")
+    t:ok(lines:find("Estimate: hearth", 1, true) ~= nil, "the hearthstone estimate rides along when there is one")
+    if V and V.RepairDecision then
+        t:eq(V.RepairDecision(false, 100, 500, true), "none", "vendor doesn't repair: nothing")
+        t:eq(V.RepairDecision(true, 0, 500, true), "none", "nothing worn: nothing")
+        t:eq(V.RepairDecision(true, 100, 500, false), "off", "auto-repair off: say the cost, repair nothing")
+        t:eq(V.RepairDecision(true, 100, 99, true), "poor", "not enough money")
+        t:eq(V.RepairDecision(true, 100, nil, true), "poor", "money unknown: don't try")
+        t:eq(V.RepairDecision(true, 100, 100, true), "repair", "just enough: repair")
+        t:eq(V.RepairWhen(true, 3), "afterSale", "something sold: repair once the money is in")
+        t:eq(V.RepairWhen(true, 0), "now", "nothing sold: repair straight away")
+        t:eq(V.RepairWhen(false, 3), "now", "auto-sell off: repair straight away")
+    else
+        t:ok(false, "the vendor module isn't reachable from tests")
+    end
+end)
+
+ns:Register("test", "hearthstone: an estimate only when it clearly saves time", function(t)
+    local H = ns.hearth
+    local c = H.Compare(7000, 700, 0, 7)       -- 1000 s straight; 20 + 100 s by hearthstone
+    t:ok(c.better, "far away, inn next to it, off cooldown: quicker")
+    t:eq(math.floor(c.saving), 880, "the saving counts the cast and the loading screen")
+    t:ok(H.AdviceText(c, "Goldshire"):find("Estimate", 1, true) ~= nil, "it's labelled an estimate")
+    t:ok(H.AdviceText(c, "Goldshire"):find("never uses it for you", 1, true) ~= nil, "and says Flow won't use it")
+    c = H.Compare(7000, 700, 900, 7)           -- 900 s of cooldown eats the saving
+    t:ok(not c.better, "a long cooldown left: not quicker"); t:eq(H.AdviceText(c, "x"), nil, "so nothing is said")
+    c = H.Compare(7000, 700, 300, 7)
+    t:ok(c.better, "some cooldown left but still well ahead")
+    t:ok(H.AdviceText(c, "x"):find("left on its cooldown", 1, true) ~= nil, "the wait is named")
+    c = H.Compare(1400, 350, 0, 7)             -- 200 s straight, 70 s by hearthstone: saves 130 s
+    t:ok(c.better, "saves over two minutes and over a quarter: quicker")
+    c = H.Compare(1050, 350, 0, 7)             -- saves 80 s
+    t:ok(not c.better, "under two minutes saved: not worth saying")
+    c = H.Compare(7000, 5200, 0, 7)            -- saves 237 s of 1000: under a quarter
+    t:ok(not c.better, "a small share of a long trip: not worth saying")
+    t:eq(H.Compare(7000, nil, 0, 7), nil, "inn position unknown: no estimate")
+    t:eq(H.Compare(7000, 700, nil, 7), nil, "cooldown unknown (or no hearthstone): no estimate")
+    t:eq(H.Compare(nil, 700, 0, 7), nil, "distance unknown: no estimate")
+    t:eq(H.AdviceText(nil, "x"), nil, "no estimate: nothing said")
+end)
+
+ns:Register("test", "buff button: buffs off the main icon, onto their own button", function(t)
+    local BB = ns.buffButton
+    local list = { { spell = "Aspect", kind = "buff" }, { spell = "Strike" }, { spell = "Aura", kind = "buff" }, { spell = "Heal", kind = "heal" } }
+    local out = BB.Strip(list)
+    t:eq(#out, 2, "two rules left")
+    t:eq(out[1].spell, "Strike", "damage kept")
+    t:eq(out[2].spell, "Heal", "heal kept")
+    t:ok(BB.Strip(list) == out, "cached per list")
+    t:eq(#list, 4, "the rotation's own list is untouched")
+    local pally = BB.Strip({ { spell = "Seal of Righteousness", kind = "buff" }, { spell = "Devotion Aura", kind = "buff" },
+                             { spell = "Judgement" } })
+    t:eq(#pally, 2, "a paladin: the aura moves to the buff button")
+    t:eq(pally[1].spell, "Seal of Righteousness", "the seal stays on Flow's icon, with the fight")
+    for _, name in ipairs({ "Seal of Fury", "Battle Shout", "Commanding Shout", "Lightning Shield",
+                            "Power Word: Shield", "Hunter's Mark", "Bear Form", "Moonkin Form" }) do
+        t:ok(BB.OnAction({ spell = name }), name .. ": on the action button, with the fight")
+    end
+    for _, name in ipairs({ "Blessing of Might", "Devotion Aura", "Aspect of the Hawk", "Mark of the Wild",
+                            "Travel Form", "Trueshot Aura" }) do
+        t:ok(not BB.OnAction({ spell = name }), name .. ": on the buff button")
+    end
+    t:ok(not BB.OnAction({}) and not BB.OnAction(nil), "no spell: not on the action button")
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }).item, "item:2862", "out of combat: the weapon stone before a buff spell")
+    t:eq(BB.Pick({ spell = "Aura" }, nil).spell, "Aura", "the buff spell when the weapon needs nothing")
+    t:eq(BB.Pick(nil, { item = "item:2862" }).item, "item:2862", "the stone when no buff spell is due")
+    t:ok(BB.Pick(nil, nil) == nil, "nothing due: nothing")
+    t:eq(BB.FightSpell({ spell = "Aura" }, "Blessing"), "Aura", "fight: the buff due now")
+    t:eq(BB.FightSpell(nil, "Aura"), "Aura", "fight: else the one you last cast")
+    t:ok(BB.FightSpell(nil, nil) == nil, "fight: else nothing")
+    local idle = BB.Idle()
+    t:ok(idle.idle and idle.item == nil and idle.spell == nil, "idle: shows, does nothing")
+    local was = ns.db.buffButton and ns.db.buffButton.enabled
+    local item = ns:Get("action", "buff:item")
+    ns.db.buffButton = ns.db.buffButton or {}
+    ns.db.buffButton.enabled = true
+    t:ok(BB.On() and item.get({}) == nil, "on: stones and buff items aren't on the main icon")
+    ns.db.buffButton.enabled = false
+    t:ok(not BB.On(), "off: buffs and stones go back to Flow's icon")
+    ns.db.buffButton.enabled = nil
+    t:ok(not BB.On(), "never set: off (the Flow key keeps your buffs until you turn the button on)")
+    ns.db.buffButton.enabled = was
+end)
+
+ns:Register("test", "worn gear and hearthstone: run without errors, no red, no chat", function(t)
+    -- 0.35.133: the hearthstone check used the bare GetItemCount (gone on
+    -- Forever), so the estimate never showed.
+    local okH, left = pcall(ns.hearth.CooldownLeft, ns.hearth)
+    t:ok(okH, "hearthstone cooldown reads" .. (okH and "" or (": " .. tostring(left))))
+    if okH and ns.api.Count(ns.hearth.ITEM) == 0 then
+        t:eq(left, nil, "no hearthstone in your bags: no estimate")
+    end
+    -- The worn-gear icon: whatever your gear, it builds without an error,
+    -- and never in red.
+    local st = ns:Get("status", "repair")
+    local okS, icon = pcall(st.get)
+    t:ok(okS, "the worn-gear icon builds" .. (okS and "" or (": " .. tostring(icon))))
+    if okS and icon then
+        t:ok(not (icon.color[1] > 0.9 and icon.color[2] < 0.4), "its colour isn't red")
+    end
+    -- Auto-repair off: nothing to say at the vendor.
+    t:eq(ns.vendor.RepairDecision(true, 500, 1000, false), "off", "auto-repair off: Flow repairs nothing")
 end)
