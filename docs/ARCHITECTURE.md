@@ -97,7 +97,7 @@ cuts them into runs (one wing, your level, one trip) and compares each with your
 hour; it's timed in `/flow perf` as "dungeon runs". A prepared run is a `navGoal` source
 ("dungeon"): its pickups and lead-ins (only those you can take now, `ns.quests:Available`), then
 the entrance. Inside, `D:FilterInside` keeps only that dungeon's quests, your waypoint and the
-party route. The Flow key's `status` icon suggests the best run.
+party route. A gold key badge atop your quest list (Questie's tracker, else the Flow Tracker) suggests the best run (`D.KeyStatus`).
 
 ### UI helpers
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.146
+- **Dungeon key: a gold key atop your quest list.** A dungeon run worth doing (or the one you
+  prepared) shows as a gold key above the top-left corner of your quest list (Questie's, else the
+  Flow Tracker), not as an icon above the Flow key. Hover it for why, click it to prepare the
+  run. Restart WoW once: a new picture. (Thanks, BIMpossible: pull request 15.)
+
 ## 0.35.145
 - **Professions: a switch of their own.** The route list is Quests only, Optimal and
   Completionist, with one "Professions" tick under them, instead of two "Optimal with / without

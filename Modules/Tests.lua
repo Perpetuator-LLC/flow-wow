@@ -5145,3 +5145,24 @@ ns:Register("test", "route menu: professions are one tick of their own", functio
     t:ok(profs ~= nil, "a Professions tick")
     t:ok(old == nil, "no \"Optimal with / without professions\" any more")
 end)
+
+ns:Register("test", "dungeon key: a gold key badge atop the quest list", function(t)
+    -- 0.35.146 (pull request 15): the run worth doing is a badge on the quest
+    -- list, not an icon above the Flow key.
+    local D = ns.dungeons
+    local ok, st = pcall(D.KeyStatus)
+    t:ok(ok, "works out without an error" .. (ok and "" or (": " .. tostring(st))))
+    if ok and st then
+        t:ok(st.icon:find("DungeonKey", 1, true) ~= nil, "its own key picture")
+        t:ok(type(st.click) == "function" and st.clickText ~= nil, "a click prepares (or cancels) the run")
+    else
+        t:ok(true, "(no dungeon run to suggest now)")
+    end
+    t:eq(ns:Get("status", "dungeon"), nil, "not in the status row above the Flow key any more")
+    local b = D._badge and D._badge()
+    if b and b:IsShown() then
+        local okE, errE = pcall(b:GetScript("OnEnter"), b)
+        GameTooltip:Hide()
+        t:ok(okE, "hovering it runs" .. (okE and "" or (": " .. tostring(errE))))
+    end
+end)
