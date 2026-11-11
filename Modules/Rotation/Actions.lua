@@ -145,7 +145,15 @@ end
 
 local function near(goal, p, yards)
     if not (goal and p and ns.nav) then return false end
-    for _, pt in ipairs(goal.points or {}) do
+    -- Nowhere near the box around the stop's spawns: no need to measure each
+    -- one (this runs up to three times a tick; the route's spots are in yards).
+    local pts = goal.points
+    local box = pts and p.wx and ns.nav.SpawnBox and ns.nav.SpawnBox(pts)
+    if box and (not box.any or (not box.mixed and (box.cont ~= p.cont
+        or p.wx < box.x1 - yards or p.wx > box.x2 + yards or p.wy < box.y1 - yards or p.wy > box.y2 + yards))) then
+        return false
+    end
+    for _, pt in ipairs(pts or {}) do
         if pt.wx and pt.cont == p.cont then
             local e, s = ns.nav:Offset(p, pt.wx, pt.wy)
             if e and e * e + s * s < yards * yards then return true end
@@ -739,6 +747,21 @@ function X.HealGoal(goal)
     return (t:find("[Hh]ealed") or t:find("^[Hh]eal ")) ~= nil
 end
 
+-- The plan's heal-NPC stops, worked out once per plan: most routes have none,
+-- so the step costs nothing. (Checking every stop of the route around you,
+-- ten times a second, was the Flow key's biggest cost: 2.2 ms a second.)
+local healStops = setmetatable({}, { __mode = "k" })
+function X.HealStopsOf(plan)
+    local list = healStops[plan]
+    if list and list.n == #plan then return list end
+    list = { n = #plan }
+    for i, s in ipairs(plan) do
+        if X.HealGoal(s.goal) then list[#list + 1] = i end
+    end
+    healStops[plan] = list
+    return list
+end
+
 -- The heal-NPC stop around you (the current stop or one right by it), or nil.
 function X.HealGoalHere()
     local N = ns.nav
@@ -746,8 +769,11 @@ function X.HealGoalHere()
     if N.current and X.HealGoal(N.current.goal) then return N.current.goal end
     local plan = N.plan
     if not plan then return nil end
-    for _, i in ipairs(N.HereStops(plan, N:PlayerPos())) do
-        if X.HealGoal(plan[i].goal) then return plan[i].goal end
+    local list = X.HealStopsOf(plan)
+    if #list == 0 then return nil end
+    local p = N:PlayerPos()
+    for _, i in ipairs(list) do
+        if N.IsHere(plan, i, p) then return plan[i].goal end
     end
 end
 
@@ -808,6 +834,9 @@ end
 -- Friendly nameplates on while a heal-NPC stop is around you; back off when
 -- it isn't (only if Flow turned them on). Out of combat only.
 function X.FriendPlates(needed)
+    -- Not needed and Flow never turned them on: nothing to do (asked ten
+    -- times a second; no need to read the setting).
+    if not needed and not ns.db.actions.friendPlatesByFlow then return end
     if InCombatLockdown() or type(GetCVar) ~= "function" then return end
     local d = ns.db.actions
     local on = GetCVar("nameplateShowFriends") == "1"

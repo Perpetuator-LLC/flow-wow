@@ -4463,6 +4463,40 @@ ns:Register("test", "actions: quest NPCs to heal: the key targets one, then heal
     t:ok(type(X.FriendPlates) == "function", "friendly nameplates come on at such a stop")
 end)
 
+ns:Register("test", "actions: the heal-NPC step only looks at stops that need healing", function(t)
+    -- 0.35.153: it checked every stop of the route around you, ten times a
+    -- second (2.2 ms a second, the Flow key's biggest cost).
+    local X, N = ns.actions, ns.nav
+    local heal = { key = "90902:1", text = "Injured Deathguard healed", npcs = { "Injured Deathguard" },
+                   points = { { cont = 1, wx = 2000, wy = 2000 } } }
+    local plan = {
+        { goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } },
+        { goal = { key = "500:1", points = { { cont = 1, wx = 50, wy = 0 } } }, point = { cont = 1, wx = 50, wy = 0 } },
+        { goal = heal, point = { cont = 1, wx = 2000, wy = 2000 } },
+    }
+    t:eq(table.concat(X.HealStopsOf(plan), ","), "3", "the one heal stop, by its place on the route")
+    t:eq(#X.HealStopsOf({ plan[1], plan[2] }), 0, "a route without one: none")
+    with(N, "current", nil, function()
+        with(N, "plan", plan, function()
+            with(N, "PlayerPos", function() return { cont = 1, wx = 10, wy = 0 } end, function()
+                t:eq(X.HealGoalHere(), nil, "far from it: nothing")
+            end)
+            with(N, "PlayerPos", function() return { cont = 1, wx = 1990, wy = 2000 } end, function()
+                t:eq(X.HealGoalHere(), heal, "by it: that stop")
+            end)
+        end)
+    end)
+    t:ok(N.IsHere(plan, 1, nil), "the next stop is always here")
+    t:ok(not N.IsHere(plan, 3, { cont = 1, wx = 10, wy = 0 }), "a stop far from you and the next one isn't")
+    t:ok(N.IsHere(plan, 2, { cont = 1, wx = 2000, wy = 2000 }), "one by the next stop is")
+    t:ok(not N.IsHere(plan, 9, nil), "no such stop: no")
+    -- Not needed and Flow didn't turn friendly nameplates on: left alone.
+    with(ns.db.actions, "friendPlatesByFlow", nil, function()
+        t:ok(pcall(X.FriendPlates, false), "nothing to undo: no error, nothing read")
+        t:eq(ns.db.actions.friendPlatesByFlow, nil, "and nothing noted")
+    end)
+end)
+
 ns:Register("test", "Flow button: out of mana, a timer until you have enough", function(t)
     -- Yang: when the next spell waits for a cooldown or mana, show a timer.
     -- (Cooldowns already count down; mana gets one too.)
@@ -5145,7 +5179,7 @@ ns:Register("test", "map and arrow agree: area stops by every spawn; one spot pe
     -- 0.35.150: a box around each objective's spawns rules a far stop out
     -- at once; a list that grows, or spawns on two continents, still count.
     local pts = { { cont = 1, wx = 100, wy = 100 }, { cont = 1, wx = 300, wy = 50 } }
-    local b = N._boxOf(pts)
+    local b = N.SpawnBox(pts)
     t:ok(b.any and b.x1 == 100 and b.x2 == 300 and b.y1 == 50 and b.y2 == 100, "box spans the spawns")
     local far = { goal = { points = pts }, point = { cont = 1, wx = 300, wy = 50 } }
     t:ok(not N._stopNear(far, { cont = 1, wx = 2000, wy = 2000 }, 150), "outside the box: not here")

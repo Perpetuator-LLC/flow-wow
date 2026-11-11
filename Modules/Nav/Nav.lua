@@ -1439,7 +1439,7 @@ local function boxOf(points)
     boxes[points] = b
     return b
 end
-N._boxOf = boxOf   -- (tests)
+N.SpawnBox = boxOf   -- (Actions.lua's "at the stop" check; tests)
 local function stopNear(s, at, yards)
     if not at then return false end
     if within(s.point, at, yards) then return true end
@@ -1456,12 +1456,19 @@ local function stopNear(s, at, yards)
     return false
 end
 N._stopNear = stopNear   -- (tests)
-function N.HereStops(plan, p, yards)
+-- Is stop i of the plan "here": the next stop, or near you, or near the
+-- next stop? (One stop at a time, for a caller that only cares about a few.)
+function N.IsHere(plan, i, p, yards)
+    local s = plan and plan[i]
+    if not s then return false end
     yards = yards or N.HERE_YARDS
+    local first = plan[1] and plan[1].point
+    return i == 1 or stopNear(s, p, yards) or stopNear(s, first, yards)
+end
+function N.HereStops(plan, p, yards)
     local out = {}
-    local first = plan and plan[1] and plan[1].point
-    for i, s in ipairs(plan or {}) do
-        if i == 1 or stopNear(s, p, yards) or stopNear(s, first, yards) then out[#out + 1] = i end
+    for i in ipairs(plan or {}) do
+        if N.IsHere(plan, i, p, yards) then out[#out + 1] = i end
     end
     return out
 end

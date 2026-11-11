@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.153
+- **The Flow key's biggest cost, gone.** Looking for quest NPCs to heal (like "Injured
+  Deathguard healed") checked every stop of your route around you, ten times a second, even
+  when no stop needed healing: 2.2 ms of work a second, more than choosing your spell. It now
+  knows which stops need healing once per route (usually none) and checks only those. The
+  "where you are" check skips stops whose spawns are nowhere near you, the same way the map
+  does since 0.35.150.
+
 ## 0.35.152
 - **Fewer route refreshes.** When the profession plan checks whether a craft would be a gear
   upgrade and the item doesn't exist on this client (item numbers differ on Forever), the
