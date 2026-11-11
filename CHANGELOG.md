@@ -1,6 +1,60 @@
 # Changelog
 
 ## Unreleased
+- **Profession marker and path.** The faint profession arrow's stop now has its own pin on the world map and a dot on the
+  minimap, in the arrow's smoked-glass colour with a light ring, plus a dotted path through your next profession stops.
+- **Farm it here, not at the bank.** A profession plan only sends you to the bank when the banker is close or the material
+  can't be had on this map. Wolves around you beat 2 meat from a bank across the zone.
+- **Dungeon runs (needs Questie).** Flow plans one dungeon run at a time: the quests you can do
+  on this trip, at your level, in one wing. Later parts of a chain, quests above you and other
+  wings wait for the next run. Lead-in quests are traced back to the first one you can take now
+  (up to 3; "Include long lead-ins" per dungeon for more), and quests you can't get say why once
+  (class, race, reputation, profession, other faction). The arrow menu's new **Dungeons** section
+  lists the runs at your level with how they compare to your questing XP per hour (measured, or
+  estimated until Flow has 15 minutes of your questing): **Prepare this run** puts the pickups and
+  lead-ins on the route, then the entrance; **Straight to the entrance**; **Share quests** in a
+  group for the run quests party members lack. Inside, the route shows only that dungeon's
+  quests. Flow times your runs and uses your own run time from then on. "Suggest dungeons" turns
+  the suggestion off. A quest Questie files under its giver's zone counts for the dungeon when
+  all its objectives are in there. Scarlet Monastery, Blackrock Spire (Lower / Upper) and
+  Stratholme (Live / Undead) are split by their bosses: a quest that targets a boss, or an item
+  a boss drops, is that boss's wing; other creatures go by the bosses' levels. A breadcrumb to a
+  run quest goes on the route when its giver is within 150 yd of a stop you make anyway. It's
+  optional: dropped if it's a detour, and it never holds back the real quest or the entrance.
+- **Your weapon stone goes on with one press, and food that makes you Well Fed too.** When
+  you're about to kill a lot (at a kill or loot stop, or right after a fight) and your main hand
+  has no sharpening stone, weightstone or oil on it, the Flow key (out of combat, not in inns or
+  cities) puts the one in your bags on it, no more opening bags and clicking the weapon. Stones
+  and weapon oils are now found by name too, not only when the game files them as an item
+  enhancement. Never oil on a fishing pole. It shows on Flow's icon ahead of the out-of-combat
+  buff the rotation suggests (a paladin's seal, say), except when an enemy is targeted or you're
+  under half health. Same moment, if you aren't Well Fed and carry food that says it makes you
+  Well Fed, the Flow key eats it, after elixirs and the stone (you sit for ten seconds). Plain
+  food is left alone.
+- **Campfire buffs.** Near a lit campfire (yours or another player's, "Campfire Nearby") without
+  its camp buffs, Flow's key sits you down; it shows "Stay sitting" while the minute runs (a
+  press does nothing, so it never stands you up), then goes once the buffs are on. Not in combat,
+  mounted or fishing. The camp objects you carry or know (a tent, a mana well, a lute...) are
+  placed first, then you sit again so the buffs include them. In a group, party members running
+  Flow tell each other which objects they could add: a camp status icon above the key shows how
+  many, and hovering it lists who has what. Flow can't see the bags of players without it.
+- **Buff timer on the Flow icon.** When Flow suggests re-casting a buff that's still on (a
+  blessing, a seal, Mark of the Wild on a party member...), the icon shows the seconds it has left
+  once it's under 30, in light blue. Cooldown numbers still take the middle when there is one.
+- **Healthstone, then potion, at low health in a fight.** When the game's low-health warning is
+  on (or you're at a third of your health, where it's shown), Flow's icon shows your healthstone,
+  else your best healing potion, ahead of any heal spell, for every class. The key is locked in a
+  fight, so press it on your bar: it glows there.
+- **After a fight: bandage, then food, then a heal spell.** Hurt out of combat, the Flow key uses
+  your best bandage (not while Recently Bandaged), then food that heals (when you're quite hurt and
+  no enemy is targeted), then your heal spell. **Right-click the Flow key** for the options: the
+  order of the three steps, turning any of them off, best or lowest bandage first, the in-fight
+  healthstone/potion, and placing camp objects. Right-click never casts.
+- **Status icons above the Flow key** (between fights, no chat spam): a small row for things to
+  sort out (so far: what your group can add to the camp). Hover one for what it means; the key's
+  own tooltip lists them too. Turn the row off from the key's right-click menu.
+- **Auto-repair**: opening a vendor who repairs fixes everything if you have the gold, and says
+  what it cost (Options: "Auto-repair at vendors", on by default).
 - **The route on the world map is a faint dotted trail**, like a treasure map, instead of a solid
   line with crawling chevrons: it shows the way without covering the map. The stretch from you
   to your next stop (and that stop's dot) wears the arrow's colour, so with the distance colours
