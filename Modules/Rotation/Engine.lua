@@ -348,6 +348,39 @@ function E.RecoverBusy(ctx)
 end
 function E.Mounted() return (IsMounted and IsMounted()) and true or false end
 
+-- Fights ahead (a kill stop, or just after a fight) and not Well Fed: food
+-- that makes you Well Fed comes first when you eat (one meal does both).
+function E.WantWellFed()
+    local BI, X = ns.buffItems, ns.actions
+    if not (BI and BI.Killing) or A.Buff("player", "Well Fed") then return false end
+    local ok, ctx = pcall(function() return X and X:Context() end)
+    return BI.Killing(ok and ctx or nil) == true
+end
+
+-- Drinking: out of a fight at or below this share of your mana, with no
+-- enemy targeted (you'd sit down at the pull). You can drink while you eat.
+E.DRINK_PCT = 0.5
+function E.ManaShare()
+    local max = A.Safe(UnitPowerMax and UnitPowerMax("player", 0))
+    if not (max and max > 0) then return nil end
+    local mana = A.Safe(UnitPower and UnitPower("player", 0))
+    return mana and mana / max or nil
+end
+function E.Drinking()
+    return (A.Buff("player", function(n) return n == "Drink" or n == "Food & Drink" or n == "Refreshment" end)) and true or false
+end
+function E:DrinkStep(ctx)
+    local r = ns.db.rotation
+    if ctx.inCombat or ctx.hostile or ctx.casting or r.recoverDrink == false then return nil end
+    if UnitIsDeadOrGhost("player") or E.Mounted() or E.Drinking() then return nil end
+    local share = E.ManaShare()
+    if not share or share > E.DRINK_PCT then return nil end
+    local BI = ns.buffItems
+    local s = BI and BI.DrinkStep and BI.DrinkStep()
+    if s then s.fightType = ctx.fightType end
+    return s
+end
+
 -- part: with the buff button on (BuffButton.lua) the bandage and food are
 -- on it and only the heal spell is on the Flow key. nil = this is the Flow
 -- key ("heal" when the buff button is on, else "all"); "items" = the buff
@@ -370,7 +403,7 @@ function E:Recover(ctx, def, part)
         if step == "bandage" and BI and r.recoverBandage ~= false and not mounted then
             s = BI.BandageStep(r.bandageRank == "low")
         elseif step == "food" and BI and r.recoverFood ~= false and not mounted and not ctx.hostile and quite then
-            s = BI.FoodStep(r.recoverBuffFood ~= false)
+            s = BI.FoodStep(r.recoverBuffFood ~= false, E.WantWellFed())
         elseif step == "heal" and r.recoverHeal ~= false then
             s = direct or self:EarlyHeal(ctx, def)
         end
@@ -403,6 +436,50 @@ E.BREAKERS = {
     { spell = "Dire Bear Form", types = { ROOT = true }, form = true },
 }
 
+-------------------------------------------------------------------------------
+-- Stopping a cast
+-------------------------------------------------------------------------------
+
+-- Spells that stop your target's cast. near = it hits everything around you
+-- (War Stomp: 8 yards), so it needs the target close, not in spell range.
+-- Classes add theirs: table.insert(ns.rotation.INTERRUPTS, { spell = ... }).
+E.INTERRUPTS = {
+    { spell = "War Stomp", near = true },   -- tauren: stuns everything within 8 yd for 2 s
+}
+-- What the target is casting or channelling (nil: nothing, or the game hides it).
+function E.TargetCasting()
+    local name = A.Safe(UnitCastingInfo and UnitCastingInfo("target"))
+    if name then return name end
+    return A.Safe(UnitChannelInfo and UnitChannelInfo("target"))
+end
+-- Is the unit within about 10 yards? (the game's duel range; nil: can't tell)
+function E.Near(unit)
+    if not CheckInteractDistance then return nil end
+    local ok, near = pcall(CheckInteractDistance, unit, 3)
+    if not ok then return nil end
+    return A.Safe(near)
+end
+-- The interrupt to press now: your target is casting, and one you know is
+-- ready and reaches it. (In a fight the key is locked, so it shows on the
+-- icon; press it on your bar: it glows there.)
+function E:Interrupt(ctx, casting, near)
+    if not (ctx.inCombat and ctx.hostile) then return nil end
+    casting = casting or E.TargetCasting()
+    if not casting then return nil end
+    for _, r in ipairs(E.INTERRUPTS) do
+        local reach = true
+        if r.near then
+            local n = near
+            if n == nil then n = E.Near("target") end
+            reach = n == true   -- (can't tell: no, it would stomp at nothing)
+        end
+        if reach and self:Ready(r.spell, not r.near and "target" or nil) then
+            return { spell = r.spell, kind = "damage", fightType = ctx.fightType,
+                     reason = string.format("Stop its %s: %s", casting, r.spell) }
+        end
+    end
+end
+
 function E:BreakFree(ctx)
     local t = ctx.loc
     if not t then return nil end
@@ -418,7 +495,9 @@ end
 -- low health, then heal spells (real health, the game's low-health warning,
 -- then Flow's estimate). Out of one: only your recovery order.
 function E:HealStep(ctx, def)
-    if not ctx.inCombat then return self:Recover(ctx, def) end
+    -- Out of a fight: your recovery order, then a drink if you're low on mana
+    -- (also while you eat: Recover waits while you eat, drinking doesn't).
+    if not ctx.inCombat then return self:Recover(ctx, def) or self:DrinkStep(ctx) end
     local h = self:Emergency(ctx)
     if not h and def.heals then
         -- Your health is hidden (Forever): the game's own low-health warning
@@ -453,6 +532,10 @@ function E:Choose()
         return h
     end
     E.lastEarlyLog = nil
+
+    -- Your target is casting: stop it (War Stomp when it's close).
+    local int = self:Interrupt(ctx)
+    if int then return int end
 
     -- A curse, poison, disease or magic you can remove, on you or your group.
     local d = self:Dispel(ctx, def)
@@ -822,7 +905,7 @@ ns.commands.rot = function(arg)
         ns:Print("rotation helper " .. (r.enabled and "on" or "off"))
     elseif arg == "unlock" or arg == "lock" then
         r.locked = (arg == "lock")
-        ns:Print(r.locked and "icon hidden when there is nothing to press" or "icon always shown: hold Shift and drag it where you want")
+        ns:Print(r.locked and "icon hidden when there is nothing to press" or "icon always shown: hold Ctrl and drag it where you want")
     elseif arg == "debug" then
         r.debug = not r.debug
         ns:Print("debug " .. (r.debug and "on" or "off"))

@@ -35,6 +35,29 @@ local function setQuestie(open)
     if open then pcall(t.Expand, t) else pcall(t.Collapse, t) end
 end
 
+-- Questie's own tracker on or off (Flow Settings: "Hide Questie's tracker").
+-- Flips Questie's own setting the way its tracker toggle does: no reload,
+-- your tracked quests kept, and Questie's options show the same. (Questie's
+-- Disable() would reload and clear your tracked quests.) Hidden, the Flow
+-- Tracker undocks to its own spot. nil: Questie isn't loaded.
+function RT.QuestieTrackerShown()
+    local p = Questie and Questie.db and Questie.db.profile
+    if not p then return nil end
+    return p.trackerEnabled ~= false
+end
+function RT.SetQuestieTracker(show)
+    local p = Questie and Questie.db and Questie.db.profile
+    local t = questieTracker()
+    if not (p and t) then ns:Print("Questie isn't loaded.") return false end
+    p.trackerEnabled = show and true or false
+    if type(t.Update) == "function" then pcall(t.Update, t) end
+    if show and not t.started then
+        ns:Print("Questie's tracker comes back at your next /reload (it was off when the game started).")
+    end
+    RT:Refresh()
+    return true
+end
+
 function RT:Open(which)
     db().open = which  -- "flow" | "questie" | "none"
     if which == "flow" then setQuestie(false)
@@ -59,6 +82,8 @@ function RT.MenuItems()
     if questieTracker() then
         items[#items + 1] = { text = "Docked under Questie's tracker", checked = db().dock ~= false,
             func = function() ns.commands.tracker(db().dock ~= false and "undock" or "dock") end }
+        items[#items + 1] = { text = "Hide Questie's tracker", checked = RT.QuestieTrackerShown() == false,
+            func = function() RT.SetQuestieTracker(RT.QuestieTrackerShown() == false) end }
     end
     items[#items + 1] = { text = "Hide the Flow Tracker (/flow tracker on)", func = function() ns.commands.tracker("off") end }
     items[#items + 1] = { sep = true }
@@ -119,15 +144,15 @@ local function build()
     h:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Flow Tracker", 1, 1, 1)
-        GameTooltip:AddLine("Click: open or fold it. Right-click: its menu. Shift-drag: move it.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Click: open or fold it. Right-click: its menu. Ctrl-drag: move it.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     h:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    h:RegisterForDrag("LeftButton")  -- Shift-drag the header to move the tracker
-    -- Shift-drag the header to move it. Docked under Questie's tracker, the
+    h:RegisterForDrag("LeftButton")  -- Ctrl-drag the header to move the tracker
+    -- Ctrl-drag the header to move it. Docked under Questie's tracker, the
     -- drag undocks it; drop it just under Questie's tracker to dock again.
     h:SetScript("OnDragStart", function()
-        if not IsShiftKeyDown() then return end
+        if not ns.MoveKeyDown() then return end
         if f.docked then
             local l, tp = f:GetLeft(), f:GetTop()
             db().dock = false
@@ -437,7 +462,7 @@ ns.commands.tracker = function(arg)
     elseif arg == "dock" or arg == "undock" then
         db().dock = (arg == "dock")
         RT:Refresh()
-        ns:Print(arg == "dock" and "Flow Tracker docked under Questie's tracker." or "Flow Tracker undocked (Shift-drag its header to move it).")
+        ns:Print(arg == "dock" and "Flow Tracker docked under Questie's tracker." or "Flow Tracker undocked (Ctrl-drag its header to move it).")
     elseif arg == "questie" or arg == "flow" then
         RT:Open(arg)
     elseif arg == "here" or arg == "next" then
@@ -451,7 +476,7 @@ end
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
     "Everything to do around you and your waypoint (or your next stops: right-click its title), docked under Questie's tracker, one open at a time.",
     "Click a stop to open it (quest log or map); right-click a stop or the title for a menu. Change the route on the world map.",
-    "Shift-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock|here|next",
+    "Ctrl-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|questie|dock|undock|here|next",
 } })
 
 -- Timed for /flow perf.
@@ -462,3 +487,16 @@ ns:Register("window", "tracker", { name = "Flow Tracker", order = 20,
     hidden = function() return ns.db.tracker.enabled == false end,
     show = function() ns.commands.tracker("on") end,
     hide = function() ns.commands.tracker("off") end })
+
+-- Flow Settings: hide Questie's quest tracker (the Flow Tracker does its job).
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        label = "Hide Questie's tracker",
+        note = "(the Flow Tracker lists your quests)",
+        tip = "Turns off Questie's own quest tracker, the list Flow's tracker docks under, using Questie's own "
+            .. "setting: your tracked quests are kept, and Questie's options show the same. Off again: it "
+            .. "comes back (after a /reload if it was off when the game started). Needs Questie.",
+        get = function() return RT.QuestieTrackerShown() == false end,
+        set = function(on) RT.SetQuestieTracker(not on) end,
+    })
+end

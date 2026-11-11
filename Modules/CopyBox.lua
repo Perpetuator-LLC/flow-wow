@@ -64,7 +64,7 @@ local function build()
     f:EnableMouse(true)
     f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints(); f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.95)
     f.head = ns.theme:TitleBar(f, "Flow Copy", "Interface\\Icons\\INV_Misc_Note_01")
-    ns:MakeMovable(f, {}, true)   -- Shift-drag moves it (not saved: it opens in the middle)
+    ns:MakeMovable(f, {}, true)   -- Ctrl-drag moves it (not saved: it opens in the middle)
     tinsert(UISpecialFrames, "FlowCopyBox")   -- Esc closes it
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)

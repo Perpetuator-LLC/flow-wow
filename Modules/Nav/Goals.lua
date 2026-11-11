@@ -378,10 +378,21 @@ ns:Register("navGoal", "errands", {
         -- (Nav.lua remembers skipped stops and brings them back by itself).
         local waiting, costs, unknownCost = 0, {}, false
         local ok, items = pcall(ns:Get("advisor", "trainer").check)
+        -- Only spells you can train now count (0.35.142): a spell waiting on
+        -- another (Demoralizing Roar on Bear Form, from a class quest) and a
+        -- class quest's own spell aren't a reason to go to the trainer.
+        local later, laterFor = {}, {}
         if ok and items then
-            waiting = #items
             for _, it in ipairs(items) do
-                if it.cost then costs[#costs + 1] = it.cost else unknownCost = true end
+                if it.waitsFor then
+                    later[it.waitsFor] = later[it.waitsFor] or {}
+                    local name = it.text:match("^(.-): after ") or it.text
+                    table.insert(later[it.waitsFor], name)
+                    laterFor[#laterFor + 1] = it.waitsFor
+                elseif it.goalKey == "train:class" then
+                    waiting = waiting + 1
+                    if it.cost then costs[#costs + 1] = it.cost else unknownCost = true end
+                end
             end
         end
         table.sort(costs)
@@ -420,6 +431,21 @@ ns:Register("navGoal", "errands", {
                     details = { "New spells or ranks are waiting: " .. table.concat(names, " / ") .. ".",
                                 #costs > 0 and ("Cost: " .. coin(total) .. (unknownCost and " plus spells Flow hasn't seen priced" or "")) or nil },
                 }
+                local g = out[#out]
+                -- The ones that wait: say so, and when a stop on the route
+                -- teaches what they wait for (the Bear Form quest), train after
+                -- it so one trip does it all (soft: never blocks training).
+                for need, list in pairs(later) do
+                    g.details[#g.details + 1] = string.format("After %s: %s.", need, table.concat(list, ", "))
+                end
+                local seen = {}
+                for _, need in ipairs(laterFor) do
+                    if not seen[need] and not need:find("^something") then   -- (a spell, not "something first")
+                        seen[need] = true
+                        g.needs = g.needs or {}
+                        g.needs[#g.needs + 1] = { "spell:" .. need, soft = true }
+                    end
+                end
             end
         end
         return out

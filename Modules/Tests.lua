@@ -421,6 +421,86 @@ ns:Register("test", "planner: a quest's turn-in comes along with its objectives"
     t:ok(at["7:1"] and at["7:done"] and at["7:1"] < at["7:done"], "after its objective")
 end)
 
+ns:Register("test", "planner: finish the area you're in first", function(t)
+    local P = ns.planner
+    local saved = ns.db.nearFirst
+    ns.db.nearFirst = false   -- (the plain planner, without the near-first weights)
+    local ok, err = pcall(function()
+        local function goal(key, x, extra)
+            local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = 0 } } }
+            for k, v in pairs(extra or {}) do g[k] = v end
+            return g
+        end
+        local p = { cont = 0, wx = 0, wy = 0 }
+        -- Two stops around you, one behind you, two far ahead. The shortest
+        -- trip goes behind you first (2800 yd); finishing here first is 3200.
+        local function line() return { goal("A", 100), goal("B", 200), goal("W", -600), goal("E", 1500), goal("E2", 1600) } end
+        local plan = P:Plan(p, line(), { areaFirst = true })
+        t:eq(plan and plan[1].goal.key, "A", "the stops around you first")
+        t:eq(plan and plan[2].goal.key, "B", "both of them, before the far ones")
+        plan = P:Plan(p, line(), { areaFirst = false })
+        t:eq(plan and plan[1].goal.key, "W", "rule off: the shortest trip goes the other way first")
+        -- Leaving early only when it saves a lot.
+        t:ok(P.AreaKeepsFree(1000, 3000), "saves 2000 of 3000 yd: leave the area early")
+        t:ok(not P.AreaKeepsFree(2800, 3200), "saves 400 of 3200 yd: finish the area")
+        -- A turn-in nearby whose objective is far away can't be finished here.
+        plan = P:Plan(p, { goal("A", 100), goal("q:done", 150, { deps = { "q:1" } }), goal("q:1", -900), goal("E", 1500) },
+            { areaFirst = true })
+        local at = {}
+        for i, s in ipairs(plan or {}) do at[s.goal.key] = i end
+        t:eq(at.A, 1, "the area first")
+        t:ok(at["q:1"] and at["q:done"] and at["q:1"] < at["q:done"], "the turn-in still after its objective")
+        -- A quest to pick up a little further out still counts as the area.
+        plan = P:Plan(p, { goal("pickup:9", 450, { weight = 1 }), goal("W", -350), goal("E", 3000) }, { areaFirst = true })
+        t:eq(plan and plan[1].goal.key, "pickup:9", "a quest pickup 450 yd away is part of the area")
+        plan = P:Plan(p, { goal("X", 450), goal("W", -350), goal("E", 3000) }, { areaFirst = true })
+        t:eq(plan and plan[1].goal.key, "W", "any other stop 450 yd away isn't")
+    end)
+    ns.db.nearFirst = saved
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+ns:Register("test", "skill plan: gear you can make that's an upgrade, beside the fastest path", function(t)
+    local SP = ns.skillPlan
+    local gains = {
+        [101] = { 3, "tank", "belt A", "INVTYPE_WAIST" },
+        [102] = { 5, "tank", "belt B", "INVTYPE_WAIST" },
+        [103] = { 1, "tank", "gloves", "INVTYPE_HAND" },
+    }
+    local function gainOf(id)
+        local g = gains[id]
+        if g then return g[1], g[2], g[3], g[4] end
+    end
+    local ups = SP.PickUpgrades({
+        { recipe = "Belt A", item = 101 }, { recipe = "Belt B", item = 102 },
+        { recipe = "Bandage", item = 104 }, { recipe = "Gloves", item = 103 },
+    }, gainOf)
+    t:eq(#ups, 2, "one per slot, and only upgrades")
+    t:eq(ups[1] and ups[1].recipe, "Belt B", "the bigger belt upgrade, first")
+    t:eq(ups[2] and ups[2].recipe, "Gloves", "then the gloves")
+    -- From your profession window's recipes (Flow's own saved list).
+    local saved = ns.db.crafting["Blacksmithing"]
+    ns.db.crafting["Blacksmithing"] = { rank = 30, recipes = {
+        ["Belt B"] = { item = 102, diff = "optimal", reagents = { [2840] = 6 } },
+        ["Rough Sharpening Stone"] = { item = 2862, diff = "easy", reagents = { [2835] = 1 } },
+    } }
+    local ok, err = pcall(function()
+        ups = SP.Upgrades("Blacksmithing", gainOf)
+        t:eq(#ups, 1, "only the recipe that makes an upgrade")
+        t:eq(ups[1] and ups[1].station, "anvil", "Blacksmithing gear: at an anvil")
+        t:eq(ups[1] and ups[1].reagents[2840], 6, "its materials come along")
+        -- The fastest path is worked out from the guide alone: the upgrade
+        -- doesn't change what it makes.
+        local g = ns:Get("profGuide", "Blacksmithing")
+        local _, order = SP._simulate("Blacksmithing", g.steps, 1, 20, {})
+        for _, st in ipairs(order) do t:ok(st.recipe ~= "Belt B", "the fastest path doesn't make the belt") end
+        t:ok(#order > 0, "the fastest path still has its steps")
+    end)
+    ns.db.crafting["Blacksmithing"] = saved
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(#SP.Upgrades("No Such Profession", gainOf), 0, "a profession you never opened: nothing")
+end)
+
 ns:Register("test", "spec badge: better / worse / same per spec", function(t)
     t:eq(ns.SpecTrend(1.2), "up", "better"); t:eq(ns.SpecTrend(-3), "down", "worse")
     t:eq(ns.SpecTrend(0.2), "same", "about the same"); t:eq(ns.SpecTrend(nil), nil, "no score")
@@ -643,6 +723,70 @@ ns:Register("test", "cooking: meat you carry is used first, either meat will do"
     local alts = SP.Alternatives(g.steps, 2672)
     t:eq(alts[1], 2672, "wolf meat first"); t:eq(alts[2], 769, "boar meat stands in")
     t:eq(#SP.Alternatives(g.steps, 99999), 1, "unknown item: just itself")
+end)
+
+ns:Register("test", "profession route: map path skips 'anywhere' stops, capped", function(t)
+    local M = ns.mapOverlay
+    if not (M and M.ProfStops) then t:ok(false, "map overlay loaded") return end
+    local pt = { map = 1, x = 0.5, y = 0.5 }
+    local plan = { { goal = { key = "a", anywhere = true }, point = pt } }
+    for i = 1, 8 do plan[#plan + 1] = { goal = { key = "s" .. i }, point = pt } end
+    local out = M.ProfStops(plan, 5)
+    t:eq(#out, 5, "five stops on the map")
+    t:eq(out[1].goal.key, "s1", "'do it where you stand' left off")
+    t:eq(#M.ProfStops(nil), 0, "no profession route: nothing")
+    t:ok(ns.minimapPin.UpdateProf ~= nil, "minimap has a profession dot")
+end)
+
+ns:Register("test", "bank: far bank stock is skipped for mats you can farm here", function(t)
+    local SP = ns.skillPlan
+    t:ok(SP.UseBank(100, true), "banker close: use the bank")
+    t:ok(not SP.UseBank(1200, true), "banker across the zone, wolves here: farm them")
+    t:ok(SP.UseBank(1200, false), "can't get it here: the bank it is")
+    t:ok(not SP.UseBank(nil, true), "banker distance unknown, farmable: farm")
+    t:ok(SP.UseBank(nil, false), "banker distance unknown, not farmable: bank")
+    t:ok(SP.UseBank(1200, true, 40), "40 in the bank across the zone: worth the trip, not 40 to farm")
+    t:ok(not SP.UseBank(1200, true, 3), "3 in a far bank, farmable here: farm")
+    t:ok(not SP.FarmableHere(99999), "unknown item: not farmable")
+    -- Can you get it here? (made-up items; nothing is read from the game)
+    local HERB, HIDE, BAR, ORE, FISH, SOLD = 1, 2, 3, 4, 5, 6
+    local srcs = {
+        [HERB] = { gather = "Herbalism", skill = 50 }, [HIDE] = { drops = { "Wolf" } },
+        [BAR] = { smelt = { from = ORE, n = 1 } }, [ORE] = { gather = "Mining", skill = 1 },
+        [FISH] = { fished = true }, [SOLD] = { vendor = true },
+    }
+    local skills, mobsHere, soldHere = {}, false, false
+    local env = { source = function(id) return srcs[id] end, skill = function(n) return skills[n] end,
+                  dropsHere = function() return mobsHere end, soldHere = function() return soldHere end }
+    t:ok(not SP.Farmable(HERB, env), "no Herbalism: can't gather it")
+    skills.Herbalism = 49
+    t:ok(not SP.Farmable(HERB, env), "Herbalism too low for this herb: can't gather it")
+    t:ok(SP.UseBank(1200, SP.Farmable(HERB, env)), "so a far bank is still the way")
+    skills.Herbalism = 50
+    t:ok(SP.Farmable(HERB, env), "skill high enough: gather it")
+    t:ok(not SP.UseBank(1200, SP.Farmable(HERB, env)), "and the far bank is skipped")
+    t:ok(not SP.Farmable(HIDE, env), "the mob isn't on this map: not farmable here")
+    mobsHere = true
+    t:ok(SP.Farmable(HIDE, env), "the mob is here: farm it")
+    t:ok(not SP.Farmable(BAR, env), "bar, no Mining: its ore can't be had")
+    skills.Mining = 10
+    t:ok(SP.Farmable(BAR, env), "bar: farmable through its ore")
+    t:ok(not SP.Farmable(FISH, env), "no Fishing: not farmable"); skills.Fishing = 1
+    t:ok(SP.Farmable(FISH, env), "Fishing: farmable")
+    t:ok(not SP.Farmable(SOLD, env), "no vendor here sells it"); soldHere = true
+    t:ok(SP.Farmable(SOLD, env), "a vendor here sells it")
+    -- Part of what you need is in the bank: that part comes from it, the rest is still to get.
+    local st = SP.Stock(function() return 0 end, function(id) return id == HIDE and 2 or 0 end, function() end)
+    local r = st:Take(HIDE, 10)
+    t:eq(r.bank, 2, "the 2 in the bank"); t:eq(r.short, 8, "8 still to get")
+    -- Bank skipped (far, farmable): its stock isn't counted at all.
+    st = SP.Stock(function() return 0 end, function() return 0 end, function() end)
+    r = st:Take(HIDE, 10)
+    t:eq(r.bank, 0, "skipped bank: nothing from it"); t:eq(r.short, 10, "all 10 to farm")
+    -- What Flow knows of the bank is said, never assumed.
+    t:ok(SP.BankNote(nil, 1000):find("hasn't seen inside your bank", 1, true) ~= nil, "bank never read: says the counts may be off")
+    t:ok(SP.BankNote(1000, 1000 + 3600):find("last saw it", 1, true) ~= nil, "read this hour: as Flow last saw it")
+    t:ok(SP.BankNote(1000, 1000 + 5 * 86400):find("5 days ago: it may have changed", 1, true) ~= nil, "read 5 days ago: says it may have changed")
 end)
 
 ns:Register("test", "drops: rate moves from the guide's to yours", function(t)
@@ -1233,10 +1377,81 @@ ns:Register("test", "crafting: make exactly enough, and say what's next", functi
     for _, g in ipairs(ns.skillPlan.lastStops or {}) do
         if g.recipe then
             t:ok(g.makeCount and g.makeCount > 0, g.recipe .. ": has a count")
-            t:ok(g.target and g.planned, g.recipe .. ": knows its target and planned total")
+            t:ok(g.planned and (g.target or g.extra), g.recipe .. ": knows its target (or is a smelt / upgrade) and planned total")
             t:ok(g.text:find("|cffffd100", 1, true) ~= nil, g.recipe .. ": count highlighted")
         end
     end
+end)
+
+ns:Register("test", "skillplan: materials from bags, then bank, then smelting", function(t)
+    local SP = ns.skillPlan
+    local BAR, ORE, LEATHER = 900001, 900002, 900003
+    local bags = { [BAR] = 2, [ORE] = 3 }
+    local bank = { [BAR] = 1, [ORE] = 6, [LEATHER] = 4 }
+    local function smeltOf(id) if id == BAR then return { from = ORE, n = 1 } end end
+    local st = SP.Stock(function(id) return bags[id] or 0 end, function(id) return bank[id] or 0 end, smeltOf)
+    t:eq(st:Avail(BAR), 12, "2 bags + 1 bank + 9 ore to smelt")
+    local r = st:Take(BAR, 8)
+    t:eq(r.bags, 2, "bags first"); t:eq(r.bank, 1, "then the bank")
+    t:eq(r.smelt, 5, "then smelt the rest")
+    t:eq(r.oreBags, 3, "ore from your bags first"); t:eq(r.oreBank, 2, "then the bank's ore")
+    t:eq(r.short, 0, "nothing short")
+    t:eq(st:Avail(BAR), 4, "what's left counts once")
+    local try = st:Fork()
+    local r2 = try:Take(BAR, 6)
+    t:eq(r2.short, 2, "a copy sees only what's left")
+    t:eq(st:Avail(BAR), 4, "trying on the copy takes nothing")
+    local line = SP.SourceLine("Copper Bar", r, "Copper Ore")
+    t:ok(line:find("2 in your bags", 1, true) and line:find("1 from your bank", 1, true)
+        and line:find("smelt 5 from 5 Copper Ore (bags and bank)", 1, true), "says where each comes from: " .. line)
+    t:ok(SP.SourceLine("Tigerseye", { need = 2, bags = 0, bank = 0, smelt = 0, oreBags = 0, oreBank = 0, short = 2 })
+        :find("2 still to get", 1, true), "and what's still to get")
+end)
+
+ns:Register("test", "skillplan: the bank Flow saw counts, an upgrade with an unread material isn't makeable", function(t)
+    local SP = ns.skillPlan
+    local saved = ns.db.bank
+    local ok, err = pcall(function()
+        ns.db.bank = { items = { [900004] = 7 }, seenAt = 1 }
+        t:eq(SP.BankCount(900004), 7, "what Flow saw in your bank")
+        t:eq(SP.BankCount(900005), 0, "not in it: none")
+    end)
+    ns.db.bank = saved
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+    local ups = SP.PickUpgrades({ { recipe = "Boots", item = 1, reagents = { [2840] = 2 }, partial = true } },
+        function() return 3, "dps", "boots", "INVTYPE_FEET" end)
+    t:ok(ups[1] and ups[1].partial, "an incomplete material list comes along")
+    local lines = ns.craftHint.UpgradeLines({ { recipe = "Boots", tag = "+3 DPS", missing = { "2 Tigerseye", "4 Light Leather" } },
+                                             { recipe = "Belt", tag = "+1 DPS", missing = {}, unread = true } })
+    t:ok(lines[1]:find("needs 2 Tigerseye, 4 Light Leather", 1, true), "the fold-out says what's missing")
+    t:ok(lines[2]:find("open this window again", 1, true), "and when Flow couldn't read the materials")
+    for _, g in ipairs(SP.lastStops or {}) do
+        t:ok(not (g.key or ""):find("^upgrade:") or not g.blockedBy or not g.blockedBy:find("^needs %d"),
+            (g.recipe or g.key) .. ": an upgrade missing materials is never a stop")
+    end
+end)
+
+ns:Register("test", "crafting: the window shows the arrow's stop, materials and the upgrades fold-out", function(t)
+    local H = ns.craftHint
+    local a = { key = "craft:X:A", recipe = "A" }
+    local b = { key = "upgrade:X:B", recipe = "B" }
+    t:eq(H.Pick({ b, a }, { goal = { key = "craft:X:A" } }), a, "the faint arrow's stop wins")
+    t:eq(H.Pick({ b, a }, nil, { { goal = { key = "craft:X:A" } } }), a, "else the profession route's first")
+    t:eq(H.Pick({ b, a }), b, "else the first")
+    local lines, now = H.MaterialLines({ reagents = { [2840] = 2 } }, 4,
+        function() return 3 end, function() return 10 end)
+    t:eq(#lines, 1, "one line per material")
+    t:ok(lines[1]:find("3 in your bags", 1, true) and lines[1]:find("5 from your bank", 1, true), "bags then bank: " .. lines[1])
+    t:eq(now, 1, "make now only what your bags hold")
+    local ok, err = pcall(function()
+        local p = H.Panel()
+        local was = H.upgradesOpen
+        p.upBtn:Click()
+        t:eq(H.upgradesOpen, not was, "clicking opens / closes the fold-out")
+        p.upBtn:Click()
+        t:eq(H.upgradesOpen, was, "and back")
+    end)
+    t:ok(ok, "fold-out click" .. (ok and "" or (": " .. tostring(err))))
 end)
 
 ns:Register("test", "actions: a selected NPC never blocks the Flow key", function(t)
@@ -1378,7 +1593,7 @@ ns:Register("test", "resize: buttons stay between half and double size", functio
     t:eq(ns.ClampScale(nil), 1, "nothing saved: normal size")
 end)
 
-ns:Register("test", "click: Shift + drag moves and Shift + wheel resizes the Flow button", function(t)
+ns:Register("test", "click: Ctrl + drag moves and Ctrl + wheel resizes the Flow button", function(t)
     t:ok(ns.cast.handle ~= nil, "the Flow button has a handle")
     -- On a stand-in frame (made once), so your own buttons never move.
     local f = ns._testMoveFrame
@@ -1394,14 +1609,14 @@ ns:Register("test", "click: Shift + drag moves and Shift + wheel resizes the Flo
     ns.RestorePlace(f, { point = { "CENTER", "CENTER", 100, 50 } })
     t:eq(f:GetScale(), 1, "restored at normal size")
     f:Show()
-    -- The handle's own scripts run (no Shift held: they do nothing).
+    -- The handle's own scripts run (no Ctrl held: they do nothing).
     for _, s in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave" }) do
         local ok, err = pcall(h:GetScript(s), h)
         t:ok(ok, s .. " runs" .. (ok and "" or (": " .. tostring(err))))
     end
     local ok, err = pcall(h:GetScript("OnMouseWheel"), h, 1)
     t:ok(ok, "the wheel runs" .. (ok and "" or (": " .. tostring(err))))
-    if not IsShiftKeyDown() then t:eq(f:GetScale(), 1, "no Shift: the wheel leaves the size alone") end
+    if not ns.MoveKeyDown() then t:eq(f:GetScale(), 1, "no Ctrl: the wheel leaves the size alone") end
     t:ok(not h.moving, "no Shift: a press doesn't start a move")
     if InCombatLockdown() then
         t:ok(true, "(in a fight: resizing is off)")
@@ -1567,6 +1782,7 @@ ns:Register("test", "click: arrow style and colour in the menu and on the settin
         if flat then pcall(flat.func) end
         t:eq(N:ArrowStyle(), "flat", "menu: flat arrow")
         t:ok(N.arrowFrame.arrow.halo == nil and N.arrowFrame.arrow.SetRingSpin == nil, "rebuilt as the flat arrow")
+        t:ok(not N.arrowFrame.prof or N.arrowFrame.prof.arrow.halo == nil, "the faint profession arrow rebuilt as flat too")
         if col then pcall(col.func) end
         t:eq(N:ArrowColorMode(), colour == "route" and "distance" or "route", "menu: colour switched")
     else
@@ -1712,13 +1928,14 @@ ns:Register("test", "look: action borders, bag focus, pillars, router header", f
     end
 end)
 
-ns:Register("test", "arrow panel: a drawer under the arrow, folds with its tab", function(t)
+ns:Register("test", "arrow panel: a drawer under the arrow, closes with its X", function(t)
     local f = CreateFrame("Frame", nil, UIParent)
     f:SetSize(100, 60)
     ns.nav._makeDrawer(f)
-    t:ok(f.tab ~= nil and f.lip ~= nil, "pull tab and lip")
-    -- (Since 0.35.101 Shift-drag gives it a place of its own.)
-    t:ok(f:IsMovable(), "Shift-drag moves it")
+    t:ok(f.close ~= nil and f.lip ~= nil, "an X to close it, and the lip")
+    t:ok(f.tab == nil and f.pin == nil, "no pull tab or pin any more (0.35.139)")
+    -- (Since 0.35.101 Ctrl-drag (Shift-drag before 0.35.138) gives it a place of its own.)
+    t:ok(f:IsMovable(), "Ctrl-drag moves it")
     t:ok(type(f.Fold) == "function", "folds back up")
     f:Hide()
 end)
@@ -2092,6 +2309,157 @@ ns:Register("test", "waypoint: the game's map pin reads as a table or a vector",
     t:ok(okM, "the arrow's menu builds")
 end)
 
+ns:Register("test", "crafts wait while their materials stop is off the route", function(t)
+    local N = ns.nav
+    local bank = { key = "bank:Cooking", kind = "collect", text = "Get from your bank: 2 Stringy Wolf Meat" }
+    local cook = { key = "step:1", kind = "craft", deps = { "bank:Cooking" }, text = "Make 2 x Charred Wolf Meat" }
+    local after = { key = "step:2", kind = "craft", deps = { "step:1" }, text = "Make 1 x Spiced Wolf Meat" }
+    local free = { key = "step:3", kind = "craft", deps = { "smelt:done" }, text = "Make 1 x Herb Baked Egg" }
+    local all = { [bank.key] = bank, [cook.key] = cook, [after.key] = after, [free.key] = free }
+    local kept, held = N.HoldCrafts({ bank, cook, after, free }, all)
+    t:eq(#kept, 4, "bank stop on the route: every craft stays")
+    t:eq(#held, 0, "nothing held")
+    kept, held = N.HoldCrafts({ cook, after, free }, all)
+    t:ok(#kept == 1 and kept[1] == free, "bank stop off the route: only the craft that doesn't need it stays")
+    t:eq(#held, 2, "the craft needing the bank, and the one needing that craft, wait")
+    t:ok(held[1].blockedBy and held[1].blockedBy:find("Stringy Wolf Meat", 1, true) ~= nil, "it says what it waits for: " .. tostring(held[1].blockedBy))
+    t:eq(cook.blockedBy, nil, "the original goal isn't changed")
+end)
+
+ns:Register("test", "faint profession arrow: which stops, and when it shows", function(t)
+    local N = ns.nav
+    t:ok(N.IsProfessionStop({ key = "step:1", provider = "skillplan" }), "a skill-up step")
+    t:ok(N.IsProfessionStop({ key = "train:Mining", provider = "errands" }), "profession training")
+    t:ok(not N.IsProfessionStop({ key = "train:class", provider = "errands", milestone = true }), "class training stays on the quest arrow")
+    t:ok(not N.IsProfessionStop({ key = "123:1", provider = "questie" }), "a quest objective isn't one")
+    local q, m = { key = "1:1", provider = "questie" }, { key = "train:Mining", provider = "errands" }
+    local quest, prof = N.SplitProfessions({ q, m }, true)
+    t:ok(#quest == 1 and quest[1] == q and #prof == 1 and prof[1] == m, "on: quests on the main arrow, the trainer on the faint one")
+    quest, prof = N.SplitProfessions({ q, m }, false)
+    t:ok(#quest == 2 and #prof == 0, "off: everything on the main arrow")
+    quest, prof = N.SplitProfessions({ m }, true)
+    t:ok(#quest == 1 and #prof == 0, "only profession stops left: they stay on the main arrow")
+    local cfg = ns.db.nav
+    local arrow, mode, profs = cfg.profArrow, cfg.mode, cfg.professions
+    cfg.profArrow, cfg.mode, cfg.professions = nil, "optimal", true
+    t:ok(N:ProfPointerOn(), "on with Optimal with professions")
+    cfg.professions = false
+    t:ok(not N:ProfPointerOn(), "not with Optimal without professions")
+    cfg.professions, cfg.mode = true, "quests"
+    t:ok(not N:ProfPointerOn(), "not with Quests only")
+    cfg.mode, cfg.profArrow = "optimal", false
+    t:ok(not N:ProfPointerOn(), "not when you switched it off")
+    cfg.profArrow, cfg.mode, cfg.professions = arrow, mode, profs
+    local c = ns.theme.profPointer
+    t:ok(c and c[1] < 0.5 and c[2] < 0.5 and c[3] < 0.5, "dark grey")
+end)
+
+ns:Register("test", "profession arrow: off at the main stop, a faint ring at its own", function(t)
+    local N = ns.nav
+    t:eq(N.ProfArrowMode(false, false, true), "arrow", "on the way: it points")
+    t:eq(N.ProfArrowMode(true, false, true), "off", "at the main stop: no second arrow")
+    t:eq(N.ProfArrowMode(false, true, true), "ring", "at the profession stop: the ring")
+    t:eq(N.ProfArrowMode(true, true, true), "ring", "at both: the ring")
+    t:eq(N.ProfArrowMode(false, false, nil), "off", "can't tell which way you face: off")
+    -- The main stop's "here" passed in is the point, not the whole area:
+    -- in a big area quest the profession arrow keeps pointing.
+    t:ok(N.AtStopPoint(5), "on the main stop's point: off")
+    t:ok(not N.AtStopPoint(200), "elsewhere in its area: still points")
+    t:ok(not N.AtStopPoint(nil), "no distance: not there")
+    local f = N.arrowFrame
+    if not (f and f.prof) then t:ok(true, "(no arrow yet)") return end
+    t:ok(f.prof.ring ~= nil, "the profession arrow has a ring")
+    t:ok(f.prof.ring:GetAlpha() <= 0.5, "see-through")
+    t:ok(f.prof.beam == nil and f.prof.icon == nil, "no beam, no bouncing icon")
+end)
+
+ns:Register("test", "profession arrow: the main arrow's art, narrow and long, clear of the text", function(t)
+    local N = ns.nav
+    local f = N.arrowFrame
+    if not (f and f.prof and f.arrow) then t:ok(true, "(no arrow yet)") return end
+    local a = f.prof.arrow
+    t:ok(a.body and a.shine and a.shadow, "body, shine and shadow, like the main arrow")
+    t:ok(a.shaft == nil, "not drawn from lines")
+    local mainW, mainL = N.MAIN_WID * N.ON_NEEDLE_SCALE, N.MAIN_LEN * N.ON_NEEDLE_SCALE
+    t:ok(math.abs(N.PROF_ARROW_W * N.ART0_W / 64 - mainW * N.PROF_WID_K) < 0.01 and N.PROF_WID_K < 0.66, "thinner than the main arrow you see")
+    t:ok(math.abs(N.PROF_ARROW_H * N.ART0_H / 64 - mainL * N.PROF_LEN_K) < 0.01 and N.PROF_LEN_K > 1.33, "longer than the main arrow you see")
+    if a.turns then
+        t:ok(math.abs(a.body:GetWidth() - N.PROF_ARROW_W) < 0.5 and math.abs(a.body:GetHeight() - N.PROF_ARROW_H) < 0.5,
+            "drawn narrow and long")
+    end
+    local angle, at = a.angle, a.at
+    a:SetRotation(math.pi / 2)
+    t:ok(math.abs(a.angle - math.pi / 2) < 0.001, "remembers where it's heading")
+    a.at = math.pi / 2; a:Paint()
+    if a.turns and a.body.GetRotation then
+        t:ok(math.abs(a.body:GetRotation() - math.pi / 2) < 0.01, "a quarter turn: the art turns with it")
+    end
+    a:SetRotation(angle); a.at = at; a:Paint()
+    local c = ns.theme.profPointer
+    t:ok(c[1] < 0.2 and c[2] < 0.2 and c[3] < 0.2, "near black")
+    t:ok(f.prof:GetFrameLevel() < f.arrow:GetFrameLevel(), "under the main arrow")
+    local clear = N.NeedleClearance(f)
+    t:ok(f:GetHeight() / 2 + clear > N.PROF_LEN / 2, "the texts sit past the arrow's tip")
+    local was = f.arrow.overNeedle
+    N.SetOverNeedle(f, true)
+    t:ok(math.abs(f.arrow:GetScale() - N.ON_NEEDLE_SCALE) < 0.01 and f.arrow:GetAlpha() < 1,
+        "arrow showing: the main arrow is smaller and see-through")
+    local _, _, _, _, y = f.text:GetPoint(1)
+    t:ok(y and y <= -clear, "the main text moves down clear of it")
+    N.SetOverNeedle(f, false)
+    t:ok(math.abs(f.arrow:GetScale() - 1) < 0.01 and math.abs(f.arrow:GetAlpha() - 1) < 0.01,
+        "no profession arrow: the main arrow back to full size")
+    _, _, _, _, y = f.text:GetPoint(1)
+    t:ok(y and math.abs(y + 2) < 0.01, "and its text back in place")
+    N.SetOverNeedle(f, was)
+end)
+
+ns:Register("test", "travel by air: flight times, quicker by air, landing, the next zone", function(t)
+    local N = ns.nav
+    t:eq(N.FormatSeconds(50), "~50s", "seconds"); t:eq(N.FormatSeconds(0), "", "no time")
+    local savedF, savedT, savedR, savedTrip = ns.db.flights, ns.db.flightTimes, ns.db.flightRate, N.taxiTrip
+    local ok, err = pcall(function()
+        ns.db.flights = { A = { cont = 0, wx = 0, wy = 0 }, B = { cont = 0, wx = 2400, wy = 0 },
+                          C = { cont = 1, wx = 0, wy = 0 } }
+        ns.db.flightTimes, ns.db.flightRate = {}, nil
+        t:eq(N.FlightSeconds("A", "B"), 2400 / N.FLIGHT_RATE + N.FLIGHT_OVERHEAD, "never flown: a guess from the distance")
+        t:eq(N.FlightSeconds("A", "C"), nil, "another continent: no flight")
+        N.Landed({ from = "A", to = "B" }, 80)
+        t:eq(N.FlightSeconds("A", "B"), 80, "flown: what it took")
+        t:ok(ns.db.flightRate and math.abs(ns.db.flightRate - 2400 / 70) < 0.01, "and how fast flights go")
+        local p, pt = { cont = 0, wx = 50, wy = 0 }, { cont = 0, wx = 2380, wy = 0 }
+        local air = N.AirRoute(p, pt, 2330, 7)
+        t:ok(air and air.from == "A" and air.to == "B", "a long walk: fly from A to B")
+        t:ok(air and math.abs(air.sec - (70 / 7 + 80)) < 0.01, "walk to A, fly, walk from B")
+        t:eq(N.AirRoute(p, { cont = 0, wx = 300, wy = 0 }, 250, 7), nil, "a short walk: walk")
+        t:eq(N.AirRoute(p, { cont = 1, wx = 300, wy = 0 }, 250, 7), nil, "another continent: no air route")
+        t:ok(N.TravelTextNow(p, pt, 2330):find("by air", 1, true), "the arrow says by air")
+        ns.db.flights = {}
+        t:ok(not N.TravelTextNow(p, pt, 2330):find("by air", 1, true), "no flight masters known: on foot")
+        N.taxiTrip = nil
+        t:eq(N.TaxiLeft(), nil, "not flying: no landing")
+    end)
+    ns.db.flights, ns.db.flightTimes, ns.db.flightRate, N.taxiTrip = savedF, savedT, savedR, savedTrip
+    t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
+    -- The next zone along the line: zone 1 up to 230 yd, then zone 2.
+    local yd, z = N.FirstChange(1000, function(d) return d < 230 and 1 or 2 end)
+    t:ok(yd and math.abs(yd - 230) < 2 and z == 2, "the next zone starts at 230 yd")
+    t:eq(N.FirstChange(1000, function() return 1 end), nil, "one zone all the way: nothing")
+    t:ok(N.FirstChange(1000, function(d) return d < 230 and 1 or nil end) == nil, "off the map: not a zone")
+end)
+
+ns:Register("test", "travel time: yards to a short time at your speed", function(t)
+    local N = ns.nav
+    t:eq(N.FormatTravel(70, 7), "~10s", "70 yd running")
+    t:eq(N.FormatTravel(560, 7), "~1m 20s", "560 yd running")
+    t:eq(N.FormatTravel(2, 7), "~1s", "never ~0s")
+    t:eq(N.FormatTravel(7 * 3725, 7), "~1h 02m", "over an hour")
+    t:eq(N.FormatTravel(0, 7), "", "nothing to go")
+    t:eq(N.FormatTravel(100, 0), "", "no speed: no time")
+    t:eq(N.TravelSuffix(70, 7), " ~10s", "a space in front for the arrow text")
+    t:ok(N.TravelSpeed() > 0, "a speed even standing still")
+end)
+
 -------------------------------------------------------------------------------
 -- Click tests: press Flow's own buttons the way you would and check what you
 -- should see appears (a menu opens), so a broken button is caught at login
@@ -2109,6 +2477,44 @@ ns:Register("test", "click: the arrow's right-click menu opens", function(t)
     t:ok(ok, "right-click runs" .. (ok and "" or (": " .. tostring(err))))
     t:ok(menuShown(), "the menu is on screen")
     closeMenu()
+end)
+
+ns:Register("test", "click: the faint profession arrow (menu switches, its text)", function(t)
+    local N = ns.nav
+    local f = N.arrowFrame
+    if not (f and f.prof and f.prof.hit and f:GetScript("OnClick") and ns.menu) then t:ok(true, "(no arrow yet)") return end
+    t:ok(f.prof.arrow and f.prof:GetFrameLevel() < f.arrow:GetFrameLevel(), "drawn behind the main arrow")
+    closeMenu()
+    local ok, err = pcall(f.prof.hit:GetScript("OnClick"), f.prof.hit, "RightButton")
+    t:ok(ok, "right-click on its text runs" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "right-click: the arrow's menu")
+    closeMenu()
+    local okE, errE = pcall(f.prof.hit:GetScript("OnEnter"), f.prof.hit)
+    GameTooltip:Hide()
+    t:ok(okE, "hovering its text runs" .. (okE and "" or (": " .. tostring(errE))))
+    -- The arrow's menu has the switch, and it works.
+    local captured
+    local open = ns.menu.Open
+    ns.menu.Open = function(_, items) captured = items end
+    local okM, errM = pcall(f:GetScript("OnClick"), f, "RightButton")
+    ns.menu.Open = open
+    t:ok(okM, "the arrow's menu builds" .. (okM and "" or (": " .. tostring(errM))))
+    local item
+    for _, it in ipairs(captured or {}) do
+        if it.text and it.text:find("^Faint profession arrow") then item = it end
+    end
+    t:ok(item, "menu: the faint profession arrow switch")
+    local saved = ns.db.nav.profArrow
+    if item then
+        -- (N.Collect stood in for: the switch rebuilds the route, and two
+        -- full rebuilds at every login were a hitch for nothing.)
+        with(N, "Collect", function() end, function()
+            local okT, errT = pcall(item.func)
+            t:ok(okT, "the switch runs" .. (okT and "" or (": " .. tostring(errT))))
+            t:eq(ns.db.nav.profArrow == true, saved ~= true, "the switch flips it (off unless ticked)")
+        end)
+    end
+    ns.db.nav.profArrow = saved
 end)
 
 ns:Register("test", "click: the Flow Router's Route dropdown opens", function(t)
@@ -2763,6 +3169,24 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.PickEmergency(heal, function(id) return id ~= 2 end).id, 1, "healthstone on cooldown: the potion")
     t:eq(BI.PickKind(heal, "bandage").id, 4, "best bandage first by default")
     t:eq(BI.PickKind(heal, "bandage", true).id, 3, "lowest bandage first when you choose it")
+    -- The smallest bandage that fills you (0.35.134): a big one on a
+    -- scratch wastes most of it.
+    t:eq(BI.BandageHeal("Linen Bandage", { "Use: Heals 70 damage over 6 sec." }), 70, "from the tooltip")
+    t:eq(BI.BandageHeal("Heavy Wool Bandage", {}), 301, "else by its name")
+    t:eq(BI.BandageHeal("Mystery Rag", nil), nil, "unknown: can't tell")
+    local rolls = { { id = 1, kind = "bandage", rank = 5, name = "Linen Bandage" },
+                    { id = 2, kind = "bandage", rank = 15, name = "Wool Bandage" },
+                    { id = 3, kind = "bandage", rank = 25, name = "Heavy Wool Bandage" } }
+    local function healOf(it) return BI.BandageHeal(it.name) end
+    t:eq(BI.PickBandage(rolls, 50, false, nil, healOf).id, 1, "50 missing: Linen fills it")
+    t:eq(BI.PickBandage(rolls, 150, false, nil, healOf).id, 2, "150 missing: Wool, not Heavy Wool")
+    t:eq(BI.PickBandage(rolls, 900, false, nil, healOf).id, 3, "more than any fills: the biggest")
+    t:eq(BI.PickBandage(rolls, nil, false, nil, healOf).id, 3, "can't tell how hurt: the biggest, as before")
+    t:eq(BI.PickBandage(rolls, 900, true, nil, healOf).id, 1, "lowest first, your choice: the lowest")
+    t:eq(BI.PickBandage(rolls, 50, false, function(id) return id ~= 1 end, healOf).id, 2, "Linen not usable: the next that fills")
+    t:near(BI.MissingHealth(nil, 1000, 15, 60), 250, 0.01, "health hidden: Flow's estimate of max health")
+    t:eq(BI.MissingHealth(700, 1000, 15, 60), 300, "health shown: exact")
+    t:eq(BI.MissingHealth(nil, nil, 15, 60), nil, "max hidden too: can't tell")
     t:eq(table.concat(BI.Order(nil), ","), "bandage,food,heal", "default order: bandage, food, heal spell")
     t:eq(table.concat(BI.Order("heal,bandage"), ","), "heal,bandage,food", "your order, missing steps added")
     t:eq(table.concat(BI.Order("food,food,junk"), ","), "food,bandage,heal", "repeats and unknown words dropped")
@@ -3693,7 +4117,7 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
     t:eq(N.DrawerSide(10, 700, 56, 56, 1920, 1080, 340, 300), "right", "at the left edge: to the right")
     t:eq(N.DrawerSide(1880, 700, 56, 56, 1920, 1080, 340, 300), "left", "at the right edge: to the left")
     t:eq(N.DrawerSide(900, 200, 56, 56, 1920, 300, 340, 300), "below", "no room either way: the side with more")
-    -- Shift-dragged somewhere: it opens there; the menu puts it back.
+    -- Ctrl-dragged somewhere: it opens there; the menu puts it back.
     local arrow = CreateFrame("Frame", nil, UIParent)
     arrow:SetSize(56, 56); arrow:SetPoint("CENTER")
     local d = CreateFrame("Frame", nil, UIParent)
@@ -3709,40 +4133,11 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
     with(ns.db.nav, "drawerOpen", true, function()
         d:Fold(true)
         t:eq(ns.db.nav.drawerOpen, nil, "folding it yourself unpins it")
-        t:eq(d.pin.on, false, "the pin shows it unpinned")
+        t:ok(not d:IsShown(), "it closes at once (no slide)")
     end)
     d:Hide(); arrow:Hide()
 end)
 
-ns:Register("test", "arrow drawer: a pin button shows and switches pinned open", function(t)
-    -- Yang: a pin where the other views have their close button, showing
-    -- whether it's pinned, a click switching it.
-    local N = ns.nav
-    local d = CreateFrame("Frame", nil, UIParent)
-    d:SetSize(340, 200)
-    N._makeDrawer(d)
-    local p = d.pin
-    t:ok(p ~= nil, "the drawer has a pin")
-    local a, _, r = p:GetPoint()
-    t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, where the close button is on the other views")
-    with(ns.db.nav, "drawerOpen", nil, function()
-        p:Refresh()
-        t:eq(p.on, false, "not pinned: shown unpinned")
-        p:Click()
-        t:eq(ns.db.nav.drawerOpen, true, "click: pinned (stays open, and after a /reload)")
-        t:eq(p.on, true, "shown pinned")
-        t:eq(d.byHover, false, "pinned: doesn't fold when the mouse leaves")
-        p:Click()
-        t:eq(ns.db.nav.drawerOpen, nil, "click again: unpinned")
-        t:eq(p.on, false, "shown unpinned")
-        t:eq(d.byHover, true, "unpinned: folds once the mouse leaves")
-    end)
-    -- The glyph: straight in when pinned, tilted when not.
-    local on, off = N.PinPoints(true), N.PinPoints(false)
-    t:near(on[3][1], on[3][3], 0.01, "pinned: the needle points straight down")
-    t:ok(math.abs(off[3][1] - off[3][3]) > 2, "unpinned: the needle is tilted")
-    d:Hide()
-end)
 
 ns:Register("test", "actions: after a kill the Flow key loots the corpse", function(t)
     -- (Described targets only: a test that swaps the game's own functions,
@@ -4482,4 +4877,262 @@ ns:Register("test", "worn gear and hearthstone: run without errors, no red, no c
     end
     -- Auto-repair off: nothing to say at the vendor.
     t:eq(ns.vendor.RepairDecision(true, 500, 1000, false), "off", "auto-repair off: Flow repairs nothing")
+end)
+
+ns:Register("test", "easy button: War Stomp stops a cast close by; Roots opens on a melee mob", function(t)
+    local E = ns.rotation
+    -- 0.35.135: nothing ever suggested an interrupt or Entangling Roots.
+    local fight = { inCombat = true, hostile = true, fightType = "normal" }
+    with(E, "Ready", function(_, spell) return spell == "War Stomp" end, function()
+        local s = E:Interrupt(fight, "Lightning Bolt", true)
+        t:eq(s and s.spell, "War Stomp", "target casting, within 8 yards: War Stomp")
+        t:ok(s and s.reason:find("Lightning Bolt", 1, true) ~= nil, "it says what it stops")
+        t:eq(E:Interrupt(fight, "Lightning Bolt", false), nil, "too far for a stomp: nothing")
+        t:eq(E:Interrupt(fight, "Lightning Bolt", nil) == nil or E.Near("target") == true, true,
+            "can't tell how far: no stomp (unless the game says it's close)")
+        with(E, "TargetCasting", function() return nil end, function()
+            t:eq(E:Interrupt(fight), nil, "not casting: nothing")
+        end)
+        t:eq(E:Interrupt({ inCombat = false, hostile = true }, "Heal", true), nil, "out of a fight: nothing")
+    end)
+    with(E, "Ready", function() return false end, function()
+        t:eq(E:Interrupt(fight, "Heal", true), nil, "War Stomp not ready (or not a tauren): nothing")
+    end)
+    -- Roots: only on a mob without a mana pool, before its own heals and damage.
+    t:ok(ns.MeleeMob(0) and ns.MeleeMob(nil), "no mana pool (a beast, a fighter): melee")
+    t:ok(not ns.MeleeMob(120), "a mana pool: a caster, no roots")
+    local def = ns:Get("rotation", "DRUID")
+    local roots, moonfire
+    for i, r in ipairs(def.priority) do
+        if r.spell == "Entangling Roots" and not roots then roots = i end
+        if r.spell == "Moonfire" and not moonfire then moonfire = i end
+    end
+    t:ok(roots and moonfire and roots < moonfire, "Entangling Roots comes before Moonfire")
+    if ns.api.Form() == nil then
+        t:eq(def.pullLock({ spell = "Entangling Roots", kind = "damage" }, { Knows = function(_, s) return s == "Wrath" end }),
+            "Wrath", "rooting at the pull: the key still stays on Wrath for the fight")
+    else
+        t:ok(true, "(you're in a form: the caster pull lock isn't checked)")
+    end
+end)
+
+ns:Register("test", "easy button: drink when low on mana; Well Fed food first when fights are ahead", function(t)
+    local E, BI = ns.rotation, ns.buffItems
+    -- 0.35.136: Flow ate but never drank.
+    t:eq(BI.HealKind("Refreshing Spring Water", 0, 5, { "Use: Restores 151 mana over 18 sec." }), "drink", "water: a drink")
+    t:eq(BI.HealKind("Tough Hunk of Bread", 0, 5, { "Use: Restores 61 health over 18 sec." }), "food", "bread: food")
+    t:eq(BI.HealKind("Mystery Snack", 0, 5, { "Use: Restores 61 health and 100 mana over 18 sec." }), "food",
+        "health and mana: food (it heals)")
+    local food = { { id = 1, kind = "food", rank = 5, buff = false }, { id = 2, kind = "food", rank = 5, buff = true } }
+    t:eq(BI.PickFood(food, true, nil, false).id, 1, "nothing ahead: plain food first")
+    t:eq(BI.PickFood(food, true, nil, true).id, 2, "fights ahead, not Well Fed: the Well Fed food first")
+    t:eq(BI.PickFood(food, false, nil, true).id, 1, "Well Fed food turned off: plain food")
+    local out = { inCombat = false, hostile = false, fightType = "normal" }
+    with(E, "Mounted", function() return false end, function()
+    with(E, "Drinking", function() return false end, function()
+    with(BI, "DrinkStep", function() return { label = "Drink: Water" } end, function()
+    with(ns.db.rotation, "recoverDrink", nil, function()
+        with(E, "ManaShare", function() return 0.3 end, function()
+            local s = E:DrinkStep(out)
+            t:eq(s and s.label, "Drink: Water", "30% mana, out of a fight: drink")
+            t:eq(E:DrinkStep({ inCombat = true }), nil, "in a fight: no")
+            t:eq(E:DrinkStep({ inCombat = false, hostile = true }), nil, "an enemy targeted: no (you'd sit at the pull)")
+        end)
+        with(E, "ManaShare", function() return 0.8 end, function()
+            t:eq(E:DrinkStep(out), nil, "80% mana: no")
+        end)
+        with(E, "ManaShare", function() return nil end, function()
+            t:eq(E:DrinkStep(out), nil, "no mana (or hidden): no")
+        end)
+    end)
+    with(ns.db.rotation, "recoverDrink", false, function()
+        with(E, "ManaShare", function() return 0.1 end, function()
+            t:eq(E:DrinkStep(out), nil, "\"Drink when low on mana\" off: no")
+        end)
+    end)
+    end)
+    end)
+    end)
+    with(E, "Drinking", function() return true end, function()
+    with(E, "Mounted", function() return false end, function()
+    with(E, "ManaShare", function() return 0.1 end, function()
+        t:eq(E:DrinkStep(out), nil, "already drinking: no")
+    end)
+    end)
+    end)
+end)
+
+ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps in your heal", function(t)
+    -- 0.35.137: in a fight the icon showed the advice (Moonfire) while the
+    -- key cast Wrath, with Wrath tucked in the corner. Now the other way.
+    local held = { spell = "Wrath", kind = "held", label = "key: Wrath" }
+    local moonfire = { spell = "Moonfire", kind = "damage" }
+    local v, adv = ns.KeyView(moonfire, nil, false)
+    t:ok(v == moonfire and adv == nil, "out of a fight: the advice, which the key casts")
+    v, adv = ns.KeyView(moonfire, held, true)
+    t:eq(v.spell, "Wrath", "in a fight: the key's spell on the icon")
+    t:eq(v.kind, "key", "not greyed (it's what a press does)")
+    t:eq(adv, moonfire, "the advice goes to the corner")
+    v, adv = ns.KeyView({ spell = "Wrath", kind = "damage" }, held, true)
+    t:ok(v.spell == "Wrath" and adv == nil, "advice is the key's spell: no corner")
+    v, adv = ns.KeyView(nil, held, true)
+    t:ok(v == held and adv == nil, "nothing new to press: the held spell, greyed as before")
+    local sv, shifted = ns.ShiftView(v, "Rejuvenation", true, true)
+    t:ok(shifted and sv.spell == "Rejuvenation" and sv.kind == "heal", "Shift held: your heal swaps in")
+    sv, shifted = ns.ShiftView(v, "Rejuvenation", false, true)
+    t:ok(not shifted and sv == v, "Shift let go: back to the key's spell")
+    sv, shifted = ns.ShiftView(nil, "Rejuvenation", true, false)
+    t:ok(not shifted and sv == nil, "out of a fight with nothing to press: no button, no swap")
+    sv, shifted = ns.ShiftView(moonfire, nil, true, false)
+    t:ok(not shifted and sv == moonfire, "no heal known: nothing to swap in")
+    t:eq(ns.cast.AdviceLabel({ spell = "Rejuvenation" }, "Rejuvenation"), "Shift+", "corner: your heal is Shift + key")
+    t:eq(ns.cast.AdviceLabel(moonfire, "Rejuvenation"), "bar:", "corner: anything else, press it on your bar")
+end)
+
+ns:Register("test", "move with Ctrl (as in Questie); hide Questie's tracker", function(t)
+    -- 0.35.138: Shift moved things; it now shows what Shift + key casts.
+    t:eq(ns.MOVE_KEY, "Ctrl", "Ctrl moves Flow's frames")
+    t:eq(ns.MoveKeyDown(), IsControlKeyDown() and true or false, "the move key is Ctrl")
+    local b = _G.FlowCastButton
+    if b then t:eq(b:GetAttribute("ctrl-type1"), "macro", "Ctrl + click on the Flow button never casts (it moves it)")
+    else t:ok(true, "(no Flow key yet)") end
+    local RT = ns.routeTracker
+    local shown = RT.QuestieTrackerShown()
+    t:ok(shown == nil or type(shown) == "boolean", "Questie's tracker: on, off, or no Questie")
+    local found
+    for _, def in ipairs(ns.settings.extraChecks or {}) do
+        if def.label == "Hide Questie's tracker" then found = def end
+    end
+    t:ok(found ~= nil, "Flow Settings has \"Hide Questie's tracker\"")
+    if found then
+        local ok, v = pcall(found.get)
+        t:ok(ok and (v == true or v == false), "its tick box reads Questie's own setting")
+    end
+end)
+
+ns:Register("test", "click: the arrow drawer's X closes it", function(t)
+    local d = CreateFrame("Frame", nil, UIParent)
+    d:SetSize(340, 200)
+    ns.nav._makeDrawer(d)
+    with(ns.db.nav, "drawerOpen", true, function()
+        d:Show()
+        local ok, err = pcall(d.close:GetScript("OnClick"), d.close)
+        t:ok(ok, "the X runs" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(not d:IsShown(), "closed")
+        t:eq(ns.db.nav.drawerOpen, nil, "and stays closed after a /reload")
+    end)
+    local a, _, r = d.close:GetPoint()
+    t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, like Flow's other views")
+    d:Hide()
+end)
+
+ns:Register("test", "map and arrow agree: area stops by every spawn; one spot per stop", function(t)
+    local N = ns.nav
+    -- 0.35.140: "in this area" on the map and Flow Tracker went by a stop's
+    -- one route spot; the arrow by every spawn of its objective.
+    local wolves = { key = "500:1", points = { { cont = 1, wx = 900, wy = 900 }, { cont = 1, wx = 20, wy = 10 } } }
+    local plan = {
+        { goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } },   -- your next stop
+        { goal = wolves, point = { cont = 1, wx = 900, wy = 900 } },         -- route spot far off
+        { goal = { key = "600:1", points = { { cont = 1, wx = 3000, wy = 3000 } } }, point = { cont = 1, wx = 3000, wy = 3000 } },
+    }
+    t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 5, wy = 5 }), ","), "1,2",
+        "wolves whose spawns are here count, though their route spot is across the zone")
+    t:ok(N._stopNear(plan[2], { cont = 1, wx = 25, wy = 10 }, 150), "near one of its spawns")
+    t:ok(not N._stopNear(plan[3], { cont = 1, wx = 25, wy = 10 }, 150), "a stop far away isn't")
+    -- One spot per stop: the route's when it's planned, else the spawn nearest you.
+    with(N, "plan", plan, function()
+        t:eq(N:Spot(wolves, { cont = 1, wx = 5, wy = 5 }), plan[2].point, "on the route: its route spot (the arrow's)")
+    end)
+    with(N, "plan", {}, function()
+        local s = N:Spot(wolves, { cont = 1, wx = 5, wy = 5 })
+        t:ok(s and s.wx == 20, "off the route: the spawn nearest you, not the first one kept")
+    end)
+end)
+
+ns:Register("test", "new spells: one Flow Spells list, Place all on bar", function(t)
+    local NS = ns.newSpell
+    -- 0.35.141: each new spell had a card of its own for 10 s, the next one
+    -- replacing it; training five spells left you chasing cards.
+    local entries = { { id = 1, name = "Moonfire" }, { id = 2, name = "Thorns", slot = 5 },
+                      { id = 3, name = "Wrath", key = "Q" }, { id = 4, name = "Roots", skipped = true },
+                      { id = 5, name = "Rejuvenation" } }
+    local need = NS.Placeable(entries)
+    t:eq(#need, 2, "Place all: only the ones not on a bar, not on a key, not skipped")
+    t:ok(need[1].name == "Moonfire" and need[2].name == "Rejuvenation", "Moonfire and Rejuvenation")
+    t:eq(NS.RowWhere(entries[2]), "Action Bar 1, slot 5", "a row says where it is")
+    t:eq(NS.RowWhere(entries[3]), "key: Q", "or its key")
+    t:eq(NS.RowWhere(entries[4]), "not on your bars", "or that you skipped it")
+    t:ok(type(NS.PlaceAll) == "function" and type(NS.Close) == "function", "Place all and Close")
+end)
+
+ns:Register("test", "/flow keys: spells bound straight to a key, sorted", function(t)
+    local NS = ns.newSpell
+    local keys = { Moonfire = { "Q" }, Wrath = { "E", "SHIFT-E" }, Thorns = {} }
+    local list = NS.DirectKeys({ Moonfire = true, Wrath = true, Thorns = true },
+        function(n) local k = keys[n] or {}; return k[1], k[2] end)
+    t:eq(#list, 3, "Moonfire's key and both of Wrath's; Thorns has none")
+    t:eq(list[1].key .. "=" .. list[1].name, "E=Wrath", "sorted by key")
+    t:eq(list[3].key .. "=" .. list[3].name, "SHIFT-E=Wrath", "a second key too")
+    t:ok(ns.commands.keys ~= nil, "/flow keys")
+end)
+
+ns:Register("test", "needs: a stop goes after what provides it, or waits with the reason", function(t)
+    local N = ns.nav
+    -- 0.35.142: Demoralizing Roar needs Bear Form, from a class quest; Flow
+    -- sent a level-10 druid to train it anyway.
+    local have = { ["spell:Wrath"] = true }
+    local function met(tok) return have[tok] == true end
+    local function label(tok) return (tok:gsub("^%w+:", "")) end
+    local quest = { key = "6002:done", provides = { "spell:Bear Form" } }
+    local train = { key = "train:class", needs = { { "spell:Bear Form", soft = true } } }
+    local hard = { key = "skill:Bear", needs = { "spell:Bear Form" } }
+    local fine = { key = "x:1", needs = { "spell:Wrath" } }
+    N.ResolveNeeds({ quest, train, hard, fine }, met, label)
+    t:eq(train.deps and train.deps[1], "6002:done", "training goes after the quest that teaches Bear Form")
+    t:eq(train.after, "Bear Form", "and says so")
+    t:eq(hard.deps and hard.deps[1], "6002:done", "a hard need with a provider: ordered, not blocked")
+    t:eq(hard.blockedBy, nil, "not blocked while the provider is on the route")
+    t:eq(fine.deps, nil, "a need you meet: nothing")
+    local lone = { key = "skill:Bear", needs = { "spell:Bear Form" } }
+    local soft = { key = "train:class", needs = { { "spell:Bear Form", soft = true } } }
+    N.ResolveNeeds({ lone, soft }, met, label)
+    t:eq(lone.blockedBy, "needs Bear Form first", "nothing provides it: a hard need blocks, with the reason")
+    t:eq(soft.blockedBy, nil, "a soft need never blocks")
+    t:eq(soft.deps, nil, "and with no provider, no order either")
+    -- Two stops that would wait on each other: no loop.
+    local a = { key = "a", provides = { "spell:A" }, needs = { { "spell:B", soft = true } } }
+    local b = { key = "b", provides = { "spell:B" }, needs = { { "spell:A", soft = true } } }
+    N.ResolveNeeds({ a, b }, met, label)
+    t:ok(not (a.deps and b.deps), "never both waiting on each other")
+    -- The class quest provider: Body and Heart's turn-in teaches Bear Form (druids).
+    local _, class = UnitClass("player")
+    if class == "DRUID" then
+        local toks = N.ProvidesOf({ key = "6002:done" })
+        t:eq(toks[1], "spell:Bear Form", "Body and Heart (6002) teaches Bear Form")
+    else
+        t:ok(true, "(not a druid: the Bear Form quest isn't checked)")
+    end
+end)
+
+ns:Register("test", "trainer: spells that wait for another don't send you to train", function(t)
+    local T = ns.trainerAdvice
+    local known = { Wrath = true }
+    t:eq(T.WaitsFor("Bear Form", known, "unavailable", 10, 10), "Bear Form", "Demoralizing Roar waits for Bear Form")
+    t:eq(T.WaitsFor("Bear Form", { ["Bear Form"] = true }, "unavailable", 10, 10), nil, "with Bear Form known: trainable")
+    t:eq(T.WaitsFor(nil, known, "available", 10, 10), nil, "available: trainable")
+    t:eq(T.WaitsFor(nil, known, "unavailable", 12, 10), nil, "red only for your level then: not waiting (you've levelled)")
+    t:ok(T.WaitsFor(nil, known, "unavailable", 8, 10) ~= nil, "red although your level was enough: it needs something first")
+    local druid = ns:Get("classSpells", "DRUID")
+    local need
+    for _, s in ipairs(druid) do if s.spell == "Demoralizing Roar" then need = s.needs end end
+    t:eq(need, "Bear Form", "the druid data says Demoralizing Roar needs Bear Form")
+end)
+
+ns:Register("test", "needs: the town's errands don't pull a stop ahead of what it waits for", function(t)
+    local N = ns.nav
+    local train = { key = "train:class", deps = { "6002:done" } }
+    t:eq(N.HubBusiness(train, 10, { ["6002:done"] = true }, false), nil,
+        "training waits while the Bear Form quest's turn-in is still on the route")
+    t:eq(N.HubBusiness(train, 10, {}, false), "train", "turned in: training is town business again")
 end)

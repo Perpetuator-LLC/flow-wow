@@ -310,7 +310,7 @@ local function build(parent)
         function() return ns.nav:AreaMode() and "area" or ns.nav:StopsShown() or 0 end,
         function(v) if v == "area" then ns.nav:SetArea(true) else ns.nav:SetStopsShown(v) end end)
     _, y = check(f, y, "Tooltips where WoW shows them", "(and the stop card)",
-        "Flow's tooltips and its stop card open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A stop card you dragged somewhere stays there. (The arrow's drawer opens beside the arrow, or where you Shift-dragged it.)",
+        "Flow's tooltips and its stop card open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A stop card you dragged somewhere stays there. (The arrow's drawer opens beside the arrow, or where you Ctrl-dragged it.)",
         function() return ns.TipsAtGameSpot() end,
         function(on) ns.db.settings.tipsBeside = not on end)
     _, y = check(f, y, "Intro on the arrow when you log in", "(/flow splash replays it)",
