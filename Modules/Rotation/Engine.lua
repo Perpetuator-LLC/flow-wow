@@ -448,23 +448,40 @@ function E.UnitKind(class, assigned, power)
     return "melee"
 end
 
+-- A yes/no from the game, or `unknown` when it hides the answer. Forever can
+-- hand back a "secret" true/false, and even testing one (`if checked then`)
+-- errors. That stopped the easy button choosing anything out of a fight
+-- whenever you were in a group (0.35.123).
+function E.Yes(v, unknown)
+    v = A.Safe(v)
+    if v == nil then return unknown end
+    return v and true or false
+end
+-- Too far to buff? Only when the game plainly says it checked and you're out
+-- of range; when it won't say, they count as near (the cast checks range).
+function E.TooFar(inRange, checked)
+    return E.Yes(checked, false) and E.Yes(inRange, true) == false
+end
+
 -- Your party or raid, without you: only people you can buff now (online,
--- alive, near enough to see, friendly).
+-- alive, near enough to see, friendly). Anything the game hides counts in
+-- their favour; the cast itself is checked before Flow suggests it.
 function E.GroupUnits()
     local out = {}
     local raid = IsInRaid and IsInRaid()
     local n = raid and GetNumGroupMembers() or (GetNumSubgroupMembers and GetNumSubgroupMembers() or 0)
+    local Yes = E.Yes
     for i = 1, n do
         local unit = (raid and "raid" or "party") .. i
-        if UnitExists(unit) and not UnitIsUnit(unit, "player") and UnitIsConnected(unit)
-            and not UnitIsDeadOrGhost(unit) and UnitIsVisible(unit) and UnitIsFriend("player", unit) then
-            local inRange, checked = UnitInRange(unit)
-            if not (checked and not inRange) then
-                local _, class = UnitClass(unit)
-                local assigned = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or "NONE"
-                out[#out + 1] = { unit = unit, name = A.Safe(UnitName(unit)) or unit, guid = UnitGUID(unit),
-                                  class = class, kind = E.UnitKind(class, assigned, UnitPowerType(unit)) }
-            end
+        if Yes(UnitExists(unit), true) and not Yes(UnitIsUnit(unit, "player"), false)
+            and Yes(UnitIsConnected(unit), true) and not Yes(UnitIsDeadOrGhost(unit), false)
+            and Yes(UnitIsVisible(unit), true) and Yes(UnitIsFriend("player", unit), true)
+            and not E.TooFar(UnitInRange(unit)) then
+            local _, class = UnitClass(unit)
+            class = A.Safe(class)
+            local assigned = A.Safe(UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit)) or "NONE"
+            out[#out + 1] = { unit = unit, name = A.Safe(UnitName(unit)) or unit, guid = A.Safe(UnitGUID(unit)),
+                              class = class, kind = E.UnitKind(class, assigned, A.Safe(UnitPowerType(unit))) }
         end
     end
     return out

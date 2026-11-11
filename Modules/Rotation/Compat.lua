@@ -12,7 +12,9 @@ local C_Spell, C_SpellBook, C_UnitAuras = C_Spell, C_SpellBook, C_UnitAuras
 -- turns a secret into nil so callers treat it as "unknown".
 local issecret = issecretvalue
 function A.Safe(v)
-    if v ~= nil and issecret and issecret(v) then return nil end
+    -- Ask issecretvalue first: it takes nil, and it's the one thing that's
+    -- always allowed on a secret (no comparison before it).
+    if issecret and issecret(v) then return nil end
     return v
 end
 

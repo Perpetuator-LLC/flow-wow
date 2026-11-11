@@ -141,6 +141,10 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 - A `local` must be declared before any function that uses it is defined.
 - `ns:Register` errors on a duplicate key; tests that register helpers must do it once, at
   file level.
+- **A function defined twice in one file** (`function N:InArea` twice) silently keeps only the
+  later one. It broke the map twice (0.35.76, 0.35.123). Lint now refuses it; rename one.
+- **Never test a value the game may hide** (`if checked then`, `x > 0`): testing a secret
+  errors. Unwrap it first with `ns.api.Safe(x)` (nil = unknown) or `ns.rotation.Yes(x, default)`.
 
 ## Data rules
 

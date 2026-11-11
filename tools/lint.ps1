@@ -50,5 +50,23 @@ foreach ($s in ($luaFiles | Select-String -Pattern 'with\(\s*_G\s*,')) {
 }
 if ($taint -eq 0) { "game globals untouched by tests" }
 
-if ($lua -ne 0 -or $tex -ne 0 -or $taint -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
+# A function defined twice in one file (function N:InArea ... function N:InArea):
+# the later one silently replaces the first, and every call meant for the
+# first gets the wrong arguments. It broke the map twice (ShowStop, 0.35.76;
+# InArea, 0.35.123). Only top-level definitions count: a method on a frame
+# built inside a function (function a:SetRotation) is its own object's.
+$dupes = 0
+foreach ($f in (@($luaFiles) + @(Get-ChildItem -Path $root -Filter *.lua))) {
+    $seen = @{}
+    foreach ($s in (Select-String -Path $f.FullName -Pattern '^function\s+([A-Za-z_][\w.:]*)\s*\(')) {
+        $name = $s.Matches[0].Groups[1].Value
+        if ($seen.ContainsKey($name)) {
+            "{0}:{1}: {2} is already defined at line {3}; the later one replaces it. Rename one." -f $f.FullName.Substring($root.Length + 1), $s.LineNumber, $name, $seen[$name]
+            $dupes = 1
+        } else { $seen[$name] = $s.LineNumber }
+    }
+}
+if ($dupes -eq 0) { "no function defined twice" }
+
+if ($lua -ne 0 -or $tex -ne 0 -or $taint -ne 0 -or $dupes -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
 "lint OK"

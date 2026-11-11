@@ -979,8 +979,12 @@ function N:SetArea(on)
     stopsChanged()
 end
 -- Is stop i one of the area's? (Worked out at most twice a second.)
+-- (Named StopInArea: it was InArea too, the same name as "are you in a
+-- quest's area" further down, which replaced it, so with "All objectives in
+-- this area" on every map and Flow Tracker check failed with "attempt to
+-- index local 'goal' (a number)". Lint now refuses a name defined twice.)
 local areaCache = { at = -10 }
-function N:InArea(i)
+function N:StopInArea(i)
     local now = GetTime()
     if now - areaCache.at > 0.5 or areaCache.plan ~= N.plan then
         areaCache = { at = now, plan = N.plan, set = {} }
@@ -995,7 +999,7 @@ end
 -- Tracker call failed with "attempt to index local 'goal' (a number)".)
 function N:StopVisible(i, pointed)
     if pointed then return true end
-    if self:AreaMode() then return self:InArea(i) end
+    if self:AreaMode() then return self:StopInArea(i) end
     local limit = self:StopsShown()
     return limit == nil or i <= limit
 end

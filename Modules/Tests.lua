@@ -2363,8 +2363,24 @@ ns:Register("test", "nav: stops on the map and the stop card are separate", func
     end)
     -- The area choice: no error either.
     with(ns.db.nav, "stopsArea", true, function()
-        local ok = pcall(N.StopVisible, N, 3, false)
-        t:ok(ok, "the area: no error")
+        local ok, err = pcall(N.StopVisible, N, 3, false)
+        t:ok(ok, "the area: no error" .. (ok and "" or (": " .. tostring(err))))
+    end)
+    -- "Is stop i in the area" and "are you in a quest's area" are two
+    -- functions; one name for both broke the area choice (0.35.123).
+    t:ok(type(N.StopInArea) == "function" and N.StopInArea ~= N.InArea, "StopInArea is its own function")
+    local function stop(x) return { goal = { key = "1:" .. x }, point = { cont = 1, wx = x, wy = 0 } } end
+    local plan = { stop(0), stop(60), stop(5000) }
+    with(N, "plan", plan, function()
+    with(N, "PlayerPos", function() return { cont = 1, wx = 5, wy = 0 } end, function()
+    with(ns.db.nav, "stopsArea", true, function()
+        local ok, v2 = pcall(N.StopVisible, N, 2, false)
+        t:ok(ok and v2 == true, "the area: the stop by you shows" .. (ok and "" or (": " .. tostring(v2))))
+        local ok3, v3 = pcall(N.StopVisible, N, 3, false)
+        t:ok(ok3 and v3 == false, "the area: the far stop doesn't")
+        t:eq(N:StopVisible(3, true), true, "the area: the stop you point at always does")
+    end)
+    end)
     end)
 end)
 
@@ -2637,6 +2653,31 @@ ns:Register("test", "shift + easy key: your heal on you, even in a fight", funct
     t:eq(C.HealFor(def, function() return false end, function() return 0 end), nil, "no heal known: nothing")
     t:eq(C.HealFor({ heals = { "Flash of Light", "Holy Light" } }, function() return true end,
         function(s) return s == "Holy Light" and 2500 or 1500 end), "Flash of Light", "paladin: Flash of Light")
+end)
+
+ns:Register("test", "easy button: hidden yes/no answers from the game don't stop it", function(t)
+    -- Forever hid UnitInRange's "checked" from Flow, and testing it errored:
+    -- out of a fight in a group, the easy button chose nothing (0.35.123).
+    -- A stand-in secret: ns.api.Safe turns it into nil, as it does a real one.
+    local E, A = ns.rotation, ns.api
+    local SECRET = {}
+    local realSafe = A.Safe
+    with(A, "Safe", function(v) if v == SECRET then return nil end return realSafe(v) end, function()
+        t:eq(E.Yes(true, false), true, "a plain yes")
+        t:eq(E.Yes(false, true), false, "a plain no")
+        t:eq(E.Yes(nil, true), true, "no answer: the default")
+        t:eq(E.Yes(SECRET, true), true, "hidden: the default, no error")
+        t:eq(E.Yes(SECRET, false), false, "hidden: the other default")
+        t:eq(E.Yes(1, false), true, "a 1 counts as yes")
+        t:eq(E.TooFar(false, true), true, "checked and out of range: too far")
+        t:eq(E.TooFar(true, true), false, "checked and in range: near")
+        t:eq(E.TooFar(false, false), false, "not checked: near")
+        t:eq(E.TooFar(false, SECRET), false, "checked hidden: near (was an error)")
+        t:eq(E.TooFar(SECRET, true), false, "in range hidden: near")
+        t:eq(E.TooFar(nil, nil), false, "no answer at all: near")
+    end)
+    local ok, list = pcall(E.GroupUnits)
+    t:ok(ok and type(list) == "table", "your group is read without an error" .. (ok and "" or (": " .. tostring(list))))
 end)
 
 ns:Register("test", "cleanse: curses and poisons off you and your group; break free of roots", function(t)

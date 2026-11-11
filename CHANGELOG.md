@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.123
+- **Fixed: in a group, the easy button chose nothing out of a fight.** Before suggesting a
+  cleanse or a buff, Flow asks the game whether each person is in range. Forever hides that
+  answer, and the hidden yes/no stopped Flow before it got to your spells, so the button sat
+  empty between pulls. Now an answer the
+  game hides counts as "near" (the cast still checks range), and buffing and cleansing your
+  group work again.
+- **Fixed: "All objectives in this area" showed nothing on the map or in the Flow Tracker.**
+  Two of Flow's functions had the same name, and the second replaced the first, so every check
+  for "is this stop in the area" failed. They have separate names now, and Flow's lint check
+  refuses a function defined twice in one file, so this can't happen again unnoticed.
+
 ## 0.35.122
 - **Flow Chat sends by a quick reload, as plain text** (the default since 0.35.114; sending by
   screenshot stays an option, `/flow chat live on`). The notes in Flow, the bridge and
