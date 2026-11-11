@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+- **Profession window: make-now list is honest about chance.** Orange rows say "sure skill points"; yellow and
+  green say "maybe ... (not every time)", since a couple of yellows can give nothing. On the same number of
+  whole points, the sure recipe now comes first.
+- **Profession window: the goal gets its own box.** What Flow wants you to make next (with its materials and
+  the Make button) now sits in its own box under the right side of the profession window, with a legendary
+  orange border. The box under the left side keeps only the lists: make now from your bags, cheapest to buy,
+  and the upgrades fold-out.
+- **Map: a quieter next-stop marker.** The stop you're heading to on the world map is smaller (12 instead of 16)
+  with a thin, faint white ring instead of a bold one.
+- **Profession window: make now from your bags.** A new list above the cheapest one shows the recipes your bags
+  can make right now that still give skill, most skill points first, with how many you can make.
+- **Profession window: cheapest recipes for a skill point.** Under the profession window Flow now lists the
+  three recipes that cost the least in materials for each skill point, cheapest first. Costs come from auction
+  prices Flow has seen, then vendor prices. Hover a row for its materials; click it to show that recipe.
+
 ## 0.35.149
 - **Profession window: upgrades show their materials.** Flow now reads each recipe's materials on
   this client (it saved none before, so every upgrade said "open this window again"). Hover an
