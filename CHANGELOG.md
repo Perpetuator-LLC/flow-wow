@@ -16,10 +16,11 @@
 - **Why:** you play on the key. In one evening's combat log none of 221 casts was Moonfire,
   though Flow advised it all night, and in one death a heal was advised 65 times without
   Shift + key being pressed once.
-- **Shift + key and Alt + key now really cast what they show.** They were set in a way the game
-  only finds when no modifier is held, so with Shift down the press fell through to the key's
-  own spell: Shift + key cast Wrath, not your heal. (Not seen in play before now, because the
-  modifiers went unused.) All three are set the way the game looks them up.
+- **Shift + key and Alt + key are set the way the game looks them up.** They were set in a way
+  the game's own rules only find when no modifier is held; with Shift down, by those rules,
+  the press falls through to the key's own spell (Wrath, not your heal). This comes from
+  reading the rules, not from seeing it in play (the modifiers went unused): the next fights'
+  diagnostics will show what each press cast.
 - The diagnostics count Ctrl, Shift and Alt + key presses per fight, and `/flow key test` lists
   what each casts and is bound to.
 
