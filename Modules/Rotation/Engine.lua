@@ -930,8 +930,22 @@ function E:OnDeck(n, current)
 end
 -- What to press now. Also remembered as E.current so the profiler can tell
 -- whether you followed the suggestion.
+-- What the advice was `lookback` seconds before `now`: an instant cast lands
+-- and the advice moves on in the same moment, so a cast is judged against
+-- what was showing when you pressed (Choices.lua). Pure: values in.
+function E.AdviceBack(current, before, changedAt, now, lookback)
+    if changedAt and now - changedAt < lookback then return before end
+    return current
+end
+local function adviceName(s) return s and (s.spell or s.label or s.item) or nil end
+function E.AdviceAt(now, lookback)
+    return E.AdviceBack(adviceName(E.current), E.adviceBefore, E.adviceChangedAt, now, lookback)
+end
+
 function E:Evaluate()
     local s = self:Choose()
+    local was, new = adviceName(self.current), adviceName(s)
+    if was ~= new then self.adviceBefore, self.adviceChangedAt = was, GetTime() end
     self.current = s
     return s
 end

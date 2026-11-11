@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.159
+- **Flow learns from what you cast.** In every fight, each spell you cast is set beside what the
+  easy button advised at that moment: cast as advised, your key while the advice was a spell
+  on your bar, or your own pick. For the differences Flow notes the situation (moving, the
+  enemy on you, the target far, hurt, low mana, the advice out of range or on cooldown...), and
+  each fight remembers its choices, so fights with a choice can be set beside fights without
+  it. `/flow choices` shows the tally: what you do differently, when, and what it did to kill
+  speed. The rotation is then changed from that report, reason first, never as a blind copy.
+- The diagnostics now keep that tally and what the fight profiler has learned (`/flow fights`).
+
 ## 0.35.158
 - **Flow Talents** (`/flow talents`, or the "Spend N talent points" advice): your talent trees
   as the game has them, with Flow's levelling build laid over them. Gold is what to take with

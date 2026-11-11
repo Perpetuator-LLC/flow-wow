@@ -200,6 +200,11 @@ Flow for WoW is a separate project from Flow Engine.
 - **Advice list** (the round spyglass button with a count): spells to train (with cost), items
   to equip, professions behind your level, talents and habits from your best fights. Rows that
   are places route you there.
+- **Your choices** (`/flow choices`): every spell you cast in a fight is set beside what the
+  easy button advised at that moment: cast as advised, your key while the advice was a bar
+  spell, or your own pick. For the differences Flow notes the situation (moving, the enemy on
+  you, the advice out of range...) and compares kill speed in fights with and without that
+  choice. The rotation is tuned from this report: a pattern with a reason becomes a rule.
 - **Training and talents**: trainer reminders, profession targets for your level, and spec
   advice (`/flow spec`).
 - **Flow Talents** (`/flow talents`): your talent trees as the game has them, with Flow's

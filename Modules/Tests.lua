@@ -5497,6 +5497,59 @@ ns:Register("test", "click: /flow talents opens Flow Talents; its X closes it", 
     t:ok(type(T.Unspent()) == "number", "unspent points: a number, whichever talent system the game has")
 end)
 
+ns:Register("test", "choices: your casts set beside Flow's advice", function(t)
+    -- The player: compare what the easy button advised with what was cast,
+    -- and find the reason for the differences before changing the rotation.
+    local C, E = ns.choices, ns.rotation
+    if not C then t:ok(false, "Choices.lua not loaded") return end
+    t:eq(C.Kind("Wrath", "Wrath", "Wrath"), "advice", "cast what Flow advised")
+    t:eq(C.Kind("Wrath", "Moonfire", "Wrath"), "key", "pressed the key while the advice was a bar spell")
+    t:eq(C.Kind("Entangling Roots", "Wrath", "Wrath"), "own", "something else: your own choice")
+    t:eq(C.Kind("Healing Touch", nil, "Wrath"), "own", "Flow advised nothing: your own choice too")
+    -- The situation, as tags.
+    local tags = table.concat(C.Tags({ opening = true, moving = true, onYou = 1, near = false, hurt = 12, mana = 0.2,
+        targetHp = 0.9, attackers = 2, adviceRange = false, adviceCooldown = 4 }), ", ")
+    for _, want in ipairs({ "opening cast", "moving", "enemy on you", "target far", "hurt", "low mana",
+                            "target healthy", "several enemies", "advice out of range", "advice on cooldown" }) do
+        t:ok(tags:find(want, 1, true) ~= nil, "tag: " .. want)
+    end
+    t:eq(#C.Tags({ onYou = 0.5 }), 0, "nothing known: no tags")
+    -- The tally.
+    local data = { list = {} }
+    t:eq(C.Note(data, "Wrath", "Wrath", "Wrath", {}, 1), nil, "followed: counted, not a choice")
+    local key
+    for i = 1, 4 do key = C.Note(data, "Entangling Roots", "Wrath", "Wrath", i <= 3 and { "enemy on you", "moving" } or { "moving" }, 10 + i) end
+    C.Note(data, "Wrath", "Moonfire", "Wrath", { "opening cast" }, 20)
+    t:eq(data.casts, 6, "every cast counted")
+    t:eq(data.kinds.advice .. "/" .. data.kinds.key .. "/" .. data.kinds.own, "1/1/4", "by kind")
+    t:eq(data.list[key].n, 4, "the same choice adds up")
+    t:eq(C.TagLine(data.list[key]), "moving 100%, enemy on you 75%", "its commonest situations")
+    -- Fights with the choice beside fights without it.
+    local fights = {}
+    for i = 1, 3 do fights[#fights + 1] = { type = "normal", duration = 20, v = 12, own = { [key] = 1 } } end
+    for i = 1, 4 do fights[#fights + 1] = { type = "normal", duration = 25, v = 10 } end
+    fights[#fights + 1] = { type = "elite", duration = 90, v = 3 }   -- another kind of fight: not compared
+    local o = C.Outcome(key, fights, function(f) return f.v end)
+    t:ok(o and o.with == 3 and o.without == 4, "3 fights with it, 4 of the same type without")
+    t:near(o and o.speedWith / o.speedWithout or 0, 1.2, 0.001, "20% faster with it")
+    t:eq(C.Outcome(key, { fights[1], fights[4] }, function(f) return f.v end), nil, "too few fights: no verdict")
+    local report = table.concat(C.Report(data, fights, function(f) return f.v end), "\n")
+    t:ok(report:find("6 casts in fights: 17% what Flow advised, 17% your key while it advised a bar spell, 67% your own choice", 1, true) ~= nil,
+        "the shares: " .. report)
+    t:ok(report:find("Entangling Roots when Flow advised Wrath: 4x. Mostly: moving 100%, enemy on you 75%. Kill speed +20% in the 3 fights with it (4 without)", 1, true) ~= nil,
+        "a choice with its situations and what it did to kill speed")
+    t:ok(report:find("Wrath when Flow advised Moonfire: 1x", 1, true) ~= nil, "the key instead of bar advice is listed apart")
+    -- Only so many kinds are kept: the rarest go.
+    for i = 1, 5 do C.Note(data, "Spell " .. i, "Wrath", "Wrath", {}, 30 + i) end
+    t:eq(C.Trim(data, 3), 4, "over the limit: the rarest dropped")
+    t:ok(data.list[key] ~= nil, "the common one stays")
+    -- An instant is judged against the advice from a moment before it landed.
+    t:eq(E.AdviceBack("Wrath", "Moonfire", 10.0, 10.1, 0.3), "Moonfire", "advice changed 0.1 s ago: what showed when you pressed")
+    t:eq(E.AdviceBack("Wrath", "Moonfire", 10.0, 11.0, 0.3), "Wrath", "changed a second ago: the current advice")
+    t:eq(E.AdviceBack("Wrath", nil, nil, 5, 0.3), "Wrath", "never changed: the current advice")
+    t:ok(type(ns.commands.choices) == "function", "/flow choices")
+end)
+
 ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     -- 0.35.157: in place of Quests only / Optimal / Completionist + Professions.
     local N = ns.nav

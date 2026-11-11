@@ -21,7 +21,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `rotation` | class token | `{ heals, priority, priorities = { [fightType] = list } }` | Rotation engine |
 | `fightType` | e.g. `boss`, `aoe`, `elite`, `normal` | `{ order, label, match = fn(info) }` | Rotation (per-type lists), profiler |
 | `metric` | e.g. `dps`, `hps`, `tps`, `dtps` | `{ label, role, higherBetter, value = fn(fight) }` | Profiler: what a "good fight" means per role |
-| `fightProbe` | any | `{ start, tick, finish, events = { EVENT = fn(fight, ...) } }` | Profiler: what gets recorded per fight |
+| `fightProbe` | any | `{ start, tick, finish, events = { EVENT = fn(fight, ...) } }` | Profiler: what gets recorded per fight. `choices` (`Modules/Fight/Choices.lua`) sets each cast beside the easy button's advice at that moment (`advice` / `key` / `own`), with the situation as tags (`C.Tags`) and the choice kept on its fight (`fight.own`), so `/flow choices` (and the diagnostics) show what you do differently, when, and what it did to kill speed (`C.Outcome`). Rotation rules are changed from that report, reason first |
 | `advisor` | any | `{ check = fn() -> { {importance, text, improves}, ... } }` | Advice button, `/flow advice` |
 | `gearAnalyzer` | any | `fn(item) -> bonus{dps,heal,tank}, notes` | Gear scores, quest reward badges |
 | `profGuide` | profession name | `{ kind = "craft"|"gather", tool, steps = { {recipe, item, learn, yellow, green, grey, mats, station} }, nodes }` | Skill planner (`Modules/Crafting/SkillPlan.lua`) |
