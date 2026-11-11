@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- **The arrow follows the best route, not the closest stop.** "Finish the area you're in first" is now off unless
+  you tick it: it sent the arrow to every stop within 300 yards before the rest, even when the shorter trip went
+  the other way. The route is now the shortest whole trip by default.
 - **Profession stop: no white outline.** Its map pin and minimap dot are plain smoked glass: no light ring, no centre dot.
 - **Profession marker and path.** The faint profession arrow's stop now has its own pin on the world map and a dot on the
   minimap, in the arrow's smoked-glass colour with a light ring, plus a dotted path through your next profession stops.
