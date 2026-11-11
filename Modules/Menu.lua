@@ -287,6 +287,9 @@ function Menu:RouteItemsRaw()
         -- Hover-to-bind mode, easy to find (also in /flow settings and /flow bind).
         { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
           func = function() if ns.bind then ns.bind:Start() end end },
+        -- The keys that cast a spell straight away (bound from the Flow Spells
+        -- list): the game's own Key Bindings window never lists those.
+        { text = "Show keys bound straight to spells (in chat)", func = function() ns.commands.keys() end },
     }) do items[#items + 1] = it end
     -- In a group: your own route, join the party route (everyone on it: one
     -- route for all their quests, the same for all of you), or just one

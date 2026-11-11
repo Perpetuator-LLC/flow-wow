@@ -279,6 +279,29 @@ local function hotUp(spell, def, now)
     return hotCastAt[spell] ~= nil and now - hotCastAt[spell] < dur
 end
 
+-- Your heal for when you're really hurt: the fastest to cast that heals at
+-- once. A heal over time (def.hots) only when it's all you have: by the
+-- time you stop to heal, twelve seconds of ticks don't answer it.
+-- (0.35.163, from the player's own casts: 6 heals in fights, every one a
+-- Healing Touch where Flow advised Rejuvenation, and 48 Rejuvenation
+-- prompts left alone; in one death Rejuvenation was advised 65 times.)
+-- ok(spell): usable (or known); castMs(spell): its cast time.
+function E.DirectHeal(heals, hots, ok, castMs)
+    local isHot = {}
+    for _, sp in ipairs(hots or {}) do isHot[sp] = true end
+    local function fastest(direct)
+        local best, bestMs
+        for _, sp in ipairs(heals or {}) do
+            if not (direct and isHot[sp]) and ok(sp) then
+                local ms = castMs(sp) or 0
+                if not best or ms < bestMs then best, bestMs = sp, ms end
+            end
+        end
+        return best
+    end
+    return fastest(true) or fastest(false)
+end
+
 -- The heal to suggest for the estimate, or nil. hurt defaults to E.hurt.
 function E:EarlyHeal(ctx, def, hurt, now)
     hurt, now = hurt or E.hurt, now or GetTime()
@@ -310,7 +333,13 @@ function E:EarlyHeal(ctx, def, hurt, now)
                  reason = string.format("%s (Flow's estimate: about %d s of hits since you last healed; it can't see your health)", why, hurt) }
     end
     if ctx.inCombat then
-        if hurt >= H.inHeal then return heal(fast, "You've been hit a lot: heal now (Shift + key)") end
+        -- Hit a lot: a heal that lands at once (E.DirectHeal), not twelve
+        -- seconds of ticks. The same heal Shift + key casts (Cast.lua HealFor).
+        if hurt >= H.inHeal then
+            local direct = E.DirectHeal(heals, def.hots, function(sp) return self:Ready(sp) end,
+                function(sp) return select(3, A.SpellInfo(sp)) end)
+            return heal(direct or fast, "You've been hit a lot: heal now (Shift + key)")
+        end
         if hurt >= H.inHot and hot then return heal(hot, "Hit for a while: " .. hot .. " now, before it's a problem (Shift + key)") end
         return nil
     end
@@ -330,21 +359,17 @@ end
 -------------------------------------------------------------------------------
 
 -- Heal when the game's low-health warning is on (your health itself is
--- hidden from add-ons on Forever). The fastest heal you can cast: at a third
--- of your health there's no time for a slow one. In combat it shows on the
--- Flow icon and glows on your bar (the key is locked for the fight).
-function E:LowHealthHeal(ctx, heals)
+-- hidden from add-ons on Forever). The fastest heal that lands at once
+-- (E.DirectHeal; hots: the class's heals over time, which don't answer a
+-- third of your health). In combat it shows on the Flow icon; Shift + key
+-- casts it (the key is locked for the fight).
+function E:LowHealthHeal(ctx, heals, hots)
     if ctx.maxHp > 0 or not ctx.lowHealth or UnitIsDeadOrGhost("player") then return nil end
     if ctx.casting then
         for _, h in ipairs(heals) do if h == ctx.casting then return nil end end
     end
-    local best, bestCast
-    for _, spell in ipairs(heals) do
-        if self:Ready(spell) then
-            local _, _, castMs = A.SpellInfo(spell)
-            if not bestCast or (castMs or 0) < bestCast then best, bestCast = spell, castMs or 0 end
-        end
-    end
+    local best = E.DirectHeal(heals, hots, function(sp) return self:Ready(sp) end,
+        function(sp) return select(3, A.SpellInfo(sp)) end)
     if not best then return nil end
     return { spell = best, kind = ctx.inCombat and "emergency" or "heal",
              reason = "Low health (the game's warning is on): heal now" }
@@ -432,7 +457,7 @@ function E:Recover(ctx, def, part, all)
     -- the game's low-health warning. All three go through the same order,
     -- so a heal spell never jumps ahead of the bandage you put first, and
     -- "Cast heals" off means no heal spell at all out of a fight.
-    local direct = def.heals and (self:HealDecision(ctx, def.heals) or self:LowHealthHeal(ctx, def.heals)) or nil
+    local direct = def.heals and (self:HealDecision(ctx, def.heals) or self:LowHealthHeal(ctx, def.heals, def.hots)) or nil
     local quite = E.hurt >= E.HURT.outBig or ctx.lowHealth or (ctx.maxHp > 0 and ctx.hpPct <= E.FOOD_PCT)
     if not (E.hurt >= E.HURT.outStart or direct or quite) then return nil end
     local BI, r = ns.buffItems, ns.db.rotation
@@ -505,9 +530,25 @@ function E.TargetCasting()
     if name then return name end
     return A.Safe(UnitChannelInfo and UnitChannelInfo("target"))
 end
--- Is the unit within about 10 yards? (the game's duel range; nil: can't tell)
+-- May Flow ask the game how far a unit is? Out of a fight: about anyone
+-- there. In a fight the game only allows the question about an enemy you
+-- can attack: about a friend, a corpse or nobody it's forbidden, and asking
+-- got Flow "blocked from an action only available to the Blizzard UI"
+-- (0.35.159: the cast recorder asked it on every cast, also with yourself
+-- or nothing targeted). Pure: the game's answers in.
+function E.MayAskDistance(inCombat, exists, canAttack, dead)
+    if not exists then return false end
+    if not inCombat then return true end
+    return canAttack == true and not dead
+end
+-- Is the unit within about 10 yards? (the game's duel range; nil: can't
+-- tell, or may not ask)
 function E.Near(unit)
     if not CheckInteractDistance then return nil end
+    if not E.MayAskDistance(InCombatLockdown() and true or false, E.Yes(UnitExists(unit), false),
+            E.Yes(UnitCanAttack("player", unit), false), E.Yes(UnitIsDead(unit), true)) then
+        return nil
+    end
     local ok, near = pcall(CheckInteractDistance, unit, 3)
     if not ok then return nil end
     return A.Safe(near)
@@ -555,7 +596,7 @@ function E:HealStep(ctx, def)
     if not h and def.heals then
         -- Your health is hidden (Forever): the game's own low-health warning
         -- says when you're at about a third or less: heal now, fastest first.
-        h = self:HealDecision(ctx, def.heals) or self:LowHealthHeal(ctx, def.heals)
+        h = self:HealDecision(ctx, def.heals) or self:LowHealthHeal(ctx, def.heals, def.hots)
     end
     h = h or self:EarlyHeal(ctx, def)
     if h then h.fightType = ctx.fightType end

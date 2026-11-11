@@ -197,14 +197,19 @@ ns:Register("rotation", "DRUID", {
 
     -- The easy button's queue (Queue.lua): what Ctrl + key and Alt + key cast
     -- in a fight, for the form you're in at the pull (the first you know).
-    -- Caster: Moonfire beside Wrath, Entangling Roots to hold a mob off you
-    -- (War Stomp if you can't root yet). Cat: your finisher beside Claw (Rake
-    -- until you have one). Bear: Swipe beside Maul, Bash to stop a cast.
+    -- Caster: Entangling Roots beside Wrath, to hold a mob off you while you
+    -- cast (Moonfire until you can root); then Moonfire on Alt when no
+    -- healthstone or potion holds it (else War Stomp). Roots has Ctrl because
+    -- it's what Flow asks for most in a caster's fights: in one evening's
+    -- fights it advised Roots 18 times and Moonfire once, and every one of
+    -- those went uncast, being on the bar only (0.35.163).
+    -- Cat: your finisher beside Claw (Rake until you have one). Bear: Swipe
+    -- beside Maul, Bash to stop a cast.
     -- Shift + key is your heal; Alt is your healthstone or potion if you carry one.
     fightKeys = function()
         if inCat() then return { ctrl = { "Ferocious Bite", "Rip", "Rake" }, alt = {} } end
         if inBear() then return { ctrl = { "Swipe", "Demoralizing Roar" }, alt = { "Bash" } } end
-        return { ctrl = { "Moonfire" }, alt = { "Entangling Roots", "War Stomp" } }
+        return { ctrl = { "Entangling Roots", "Moonfire" }, alt = { "Moonfire", "War Stomp" } }
     end,
 
     -- Default priority (first match wins).

@@ -93,8 +93,8 @@ function Q.Slots(main, o)
             if not ctrl then ctrl = s elseif not alt then alt = s end
         end
     end
-    if not ctrl and o.ctrlSpell then ctrl = { spell = o.ctrlSpell, kind = "damage", reason = "Your second attack" } end
-    if not alt and o.altSpell then alt = { spell = o.altSpell, kind = "damage", reason = "Holds or stops your target" } end
+    if not ctrl and o.ctrlSpell then ctrl = { spell = o.ctrlSpell, kind = "damage", reason = "Your second spell for the fight" } end
+    if not alt and o.altSpell then alt = { spell = o.altSpell, kind = "damage", reason = "Your third spell for the fight" } end
     return { key = main, ctrl = ctrl, shift = shift, alt = alt }
 end
 

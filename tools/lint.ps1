@@ -68,5 +68,25 @@ foreach ($f in (@($luaFiles) + @(Get-ChildItem -Path $root -Filter *.lua))) {
 }
 if ($dupes -eq 0) { "no function defined twice" }
 
-if ($lua -ne 0 -or $tex -ne 0 -or $taint -ne 0 -or $dupes -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
+# A window's X (UIPanelCloseButton) left on the game's own click handler:
+# that handler hides through the game's panel code, which an add-on window
+# can't use in a fight, so the X did nothing until the fight ended (Escape
+# still worked). Every X sets its own OnClick within the next few lines
+# (0.35.163: six windows didn't).
+$closes = 0
+foreach ($f in $luaFiles) {
+    $lines = Get-Content $f.FullName
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '"UIPanelCloseButton"' -and $lines[$i] -match 'CreateFrame') {
+            $next = ($lines[$i..([Math]::Min($i + 5, $lines.Count - 1))] -join "`n")
+            if ($next -notmatch 'SetScript\("OnClick"') {
+                "{0}:{1}: this close button has no OnClick of its own; in a fight the game's handler won't close an add-on window. Add :SetScript(""OnClick"", function() f:Hide() end)." -f $f.FullName.Substring($root.Length + 1), ($i + 1)
+                $closes = 1
+            }
+        }
+    }
+}
+if ($closes -eq 0) { "every close button has its own handler" }
+
+if ($lua -ne 0 -or $tex -ne 0 -or $taint -ne 0 -or $dupes -ne 0 -or $closes -ne 0) { "LINT FAILED: fix the lines above before committing."; exit 1 }
 "lint OK"

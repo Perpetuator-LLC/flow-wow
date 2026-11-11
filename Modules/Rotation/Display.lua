@@ -58,7 +58,7 @@ end
 local function buildIcon(cfg)
     local f = CreateFrame("Frame", "FlowRotationIcon", UIParent)
     f:SetSize(52, 52)
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     ns.RestorePlace(f, cfg, 0, -160)  -- the cast button then puts it on top of itself
 
     f.tex = f:CreateTexture(nil, "ARTWORK")
@@ -667,6 +667,9 @@ local function tick()
         icon.swapped = swapped
         if swapped then icon.flash.anim:Stop(); icon.flash.anim:Play() end
     end
+    -- What the big icon shows, for the press audit (Audit.lua): the spell or
+    -- item, or nil when a modifier has swapped another in or it counts down.
+    E.iconShows = (view and not swapped and not view.countdown) and (view.spell or view.item) or nil
     local okR, err = pcall(render, view, cfg, advice or (not swapped and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
     -- Swords badge while auto attack is on.
@@ -727,7 +730,7 @@ local function pipAt(i)
     if pips[i] then return pips[i] end
     local p = CreateFrame("Button", nil, UIParent)
     p:SetSize(PIP, PIP)
-    p:SetFrameStrata("HIGH")
+    p:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     p:SetPoint("BOTTOMLEFT", icon, "TOPLEFT", (i - 1) * (PIP + 4), 6)
     p.back = p:CreateTexture(nil, "BACKGROUND")
     p.back:SetPoint("TOPLEFT", -1, 1); p.back:SetPoint("BOTTOMRIGHT", 1, -1)

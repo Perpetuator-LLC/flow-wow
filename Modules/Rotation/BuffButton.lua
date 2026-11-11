@@ -290,7 +290,7 @@ end
 local function build()
     btn = CreateFrame("Button", "FlowBuffButton", UIParent, "SecureActionButtonTemplate")
     btn:SetSize(40, 40)
-    btn:SetFrameStrata("HIGH")
+    btn:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     -- Where you left it, or (never moved) just left of the Flow button.
     local main = _G.FlowCastButton
     if ns.RestorePlace and (cfg().point or not main) then

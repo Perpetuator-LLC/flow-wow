@@ -85,6 +85,7 @@ function D:Snapshot(reason, spread)
         { "talents", function() c.talents("dump") end },
         { "fights", function() c.fights("") end },
         { "choices", function() if c.choices then c.choices("") end end },
+        { "press audit", function() if c.audit then c.audit("") end end },
         { "flow action", function() c.action("") end },
         { "perf", function() c.perf(spread and "quick" or "") end },   -- (at logout: the full figures, memory kept after clean-up too)
         { "tests", function()

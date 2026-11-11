@@ -308,7 +308,7 @@ end
 local function build(cfg)
     btn = CreateFrame("Button", "FlowCastButton", UIParent, "SecureActionButtonTemplate")
     btn:SetSize(52, 52)
-    btn:SetFrameStrata("HIGH")
+    btn:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     ns.RestorePlace(btn, cfg, 0, -160)
     -- Listen for both press and release: the secure button itself acts on the
     -- one matching your "cast on key down" setting. (Registering only one
@@ -387,17 +387,12 @@ local pendingKey = false
 -- unchanged. Setting: "Shift + easy key heals you" (/flow settings).
 local healSpell
 
--- Your heal for it: the fastest to cast of your class's heals that you know
--- (a fight is no time for a slow one). knows(spell), castMs(spell).
+-- Your heal for it: the fastest to cast, of the heals you know that land at
+-- once (E.DirectHeal: a heal over time only when it's all you have). The
+-- same heal Flow advises when you've been hit a lot, so the advice and
+-- Shift + key agree. knows(spell), castMs(spell).
 function C.HealFor(def, knows, castMs)
-    local best, bestMs
-    for _, spell in ipairs(def and def.heals or {}) do
-        if knows(spell) then
-            local ms = castMs(spell) or 0
-            if not best or ms < bestMs then best, bestMs = spell, ms end
-        end
-    end
-    return best
+    return E.DirectHeal(def and def.heals, def and def.hots, knows, castMs)
 end
 
 -- Your key with a modifier added, in the game's order (ALT, CTRL, SHIFT):
@@ -759,6 +754,13 @@ ns:OnLoad(function()
                 if mod == "shift" and E.NoteShiftPress then E.NoteShiftPress() end   -- (death reports)
             end
             return
+        end
+        -- Press audit (Audit.lua): what the icon showed and what the key was
+        -- really set to cast, at this press. (Key down only; a game command
+        -- on the key, like Interact, has nothing to compare.)
+        if down ~= false and button == "LeftButton" and ns.audit and not keyCommand then
+            pcall(ns.audit.Press, E.iconShows, btn:GetAttribute("spell") or btn:GetAttribute("item"),
+                InCombatLockdown() and true or false, fight and (GetTime() - fight.at) or nil, lockedSpell)
         end
         local s = E.shown
         local label = s and (s.label or s.key)

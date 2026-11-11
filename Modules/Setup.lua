@@ -251,6 +251,7 @@ local function build()
     sub:SetText("Ticked = on. Change what you like and click Apply. Hover a row for why. /flow setup reopens this.")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
+    close:SetScript("OnClick", function() f:Hide() end)   -- (our own: the game's handler can't close an add-on window in a fight)
 
     local function header(text, x)
         local h = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")

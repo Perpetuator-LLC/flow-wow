@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.163
+- **Fixed a blocked action** ("Flow has been blocked from an action only available to the
+  Blizzard UI"). The cast recorder asked the game how far your target was on every cast in a
+  fight, also with a friend, yourself or nothing targeted, which the game forbids there. It now
+  asks in a fight only about an enemy.
+- **Press audit: does the key cast what the icon shows?** At every key press Flow notes what
+  the icon showed, what the key was really set to cast, and what was cast. A press where the
+  icon and the key disagree is kept, with a screenshot of that moment (`/flow audit`;
+  `/flow audit shots off` for none). `/flow mark [note]` notes "it just happened" yourself.
+- **Hit a lot in a fight: a heal that lands at once.** Flow advised Rejuvenation; you healed
+  six times and each time with Healing Touch, and left 48 Rejuvenation prompts alone. A heal
+  over twelve seconds doesn't answer being badly hurt, so the advice is now your quickest
+  direct heal (Regrowth once trained, else Healing Touch), and Shift + key casts the same.
+- **Druid caster: Entangling Roots on Ctrl + key** (Moonfire on Alt when no potion holds it).
+  Roots is what Flow asks for most in your fights (18 times against Moonfire's once).
+- **Flow Talents: "Take these points"** spends your unspent points on the gold talents, after
+  you confirm. All or none: if the game refuses one, nothing is kept.
+- **Every Flow window's X closes it in a fight too** (six windows used the game's own close
+  handler, which can't close an add-on window in combat; Escape still worked).
+- **Flow's buttons sit under the game's own windows** (game menu, Settings).
+- **The arrival beam is mirrored below the ring**: it fades down as it fades up.
+- The menu has "Show keys bound straight to spells"; `/flow test` isn't run in a fight.
+
 ## 0.35.162
 - **The queue: four things on one key.** Right of the easy button, each a little smaller, are
   the three things your key casts with a modifier held, the modifier written above each:

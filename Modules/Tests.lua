@@ -52,6 +52,14 @@ local function run(filter)
 end
 
 ns.commands.test = function(arg)
+    -- Not in a fight: many tests open Flow's windows, click their buttons and
+    -- set the key, none of which the game allows mid-fight. Run in one
+    -- (0.35.161) a test failed for that alone, and clicked a line of your
+    -- real advice list on the way.
+    if InCombatLockdown() then
+        ns:Print("tests: not run in a fight (they open windows and set the key, which the game doesn't allow in one). Try again after it.")
+        return
+    end
     local passed, failed, checks, out = run(arg)
     local head = string.format("tests: %d passed, %d failed (%d checks)", passed, failed, checks)
     ns:Print(head)
@@ -310,18 +318,18 @@ ns:Register("test", "planner: near first, far stops and item drops wait", functi
     -- alone (0.35.126), so on Shortest this test failed (0.35.132).
     with(ns.xpValue, "Objective", function() return "xp" end, function()
     with(ns.db, "nearFirst", true, function()
-        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        local plan = ns.planner:Plan(p, { drop, kill }, { areaFirst = false })   -- (whatever your own "finish this area first" is)
         t:eq(plan and plan[1].goal.key, "2:1", "a kill right behind an item drop comes first")
         t:eq(drop.weight, nil, "the drop gets its own weight back")
         t:eq(kill.weight, 1, "the kill gets its own weight back")
     end)
     with(ns.db, "nearFirst", false, function()
-        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        local plan = ns.planner:Plan(p, { drop, kill }, { areaFirst = false })   -- (whatever your own "finish this area first" is)
         t:eq(plan and plan[1].goal.key, "1:1", "off: the nearer drop comes first")
     end)
     end)
     with(ns.xpValue, "Objective", function() return "distance" end, function()
-        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        local plan = ns.planner:Plan(p, { drop, kill }, { areaFirst = false })   -- (whatever your own "finish this area first" is)
         t:eq(plan and plan[1].goal.key, "1:1", "Shortest: the nearer drop comes first (near first stays out)")
     end)
 end)
@@ -555,7 +563,7 @@ ns:Register("test", "rotation: heals early on Flow's hurt estimate (health is hi
         t:eq(E:EarlyHeal(quiet, def, 20, far).spell, "Healing Touch", "hurt from your fights: the big heal")
         t:eq(E:EarlyHeal(fight, def, 5, far), nil, "early in a fight: attacks")
         t:eq(E:EarlyHeal(fight, def, 10, far).spell, "Rejuvenation", "hit for a while: HoT in the fight")
-        t:eq(E:EarlyHeal(fight, def, 25, far).spell, "Rejuvenation", "hit a lot: the fastest heal (instant)")
+        t:eq(E:EarlyHeal(fight, def, 25, far).spell, "Healing Touch", "hit a lot: a heal that lands at once, not one over 12 s (0.35.163)")
         t:ok(E:EarlyHeal(fight, def, 10, far).reason:find("Shift", 1, true) ~= nil, "says Shift + key casts it in a fight")
     end) end) end)
     with(E, "Ready", function() return true end, function()
@@ -1931,6 +1939,7 @@ ns:Register("test", "modern arrow: turns, colours, ring and beam when you arrive
     a:SetArrived(true)
     a:GetScript("OnUpdate")(a, 0.05)
     t:ok(a.halo:IsShown() and a.beam:IsShown() and a.ripple:IsShown(), "arrived: ring, ripple and beam")
+    t:ok(a.beamDown and a.beamDown:IsShown(), "and the beam mirrored below the ring: it fades down as it fades up")
     a:SetCenterIcon("Interface\\Icons\\INV_Misc_Food_15")
     t:ok(a.icon:IsShown(), "the stop's icon in the ring")
     a:SetWave(true)
@@ -4306,6 +4315,125 @@ ns:Register("test", "queue: modifier presses are set so the game finds them", fu
     end
     t:eq(b:GetAttribute("ctrl-type1"), "macro", "Ctrl + click with the mouse still only moves the button")
     t:ok(type(ns.perf.stats["easy button: queue"]) == "table", "the queue's upkeep is timed (/flow perf)")
+end)
+
+ns:Register("test", "taint: the distance question is asked in a fight only about an enemy", function(t)
+    -- 0.35.159 was "blocked from an action only available to the Blizzard UI":
+    -- the cast recorder asked how far the target was on every cast in a
+    -- fight, also with a friend, yourself or nothing targeted, which the game
+    -- forbids there.
+    local E = ns.rotation
+    t:ok(E.MayAskDistance(false, true, false, false), "out of a fight: a friend is fine")
+    t:ok(E.MayAskDistance(true, true, true, false), "in a fight: an enemy you can attack")
+    t:ok(not E.MayAskDistance(true, true, false, false), "in a fight, a friend (or yourself): not asked")
+    t:ok(not E.MayAskDistance(true, true, true, true), "in a fight, a corpse: not asked")
+    t:ok(not E.MayAskDistance(true, false, false, false), "nobody targeted: not asked")
+    t:ok(not E.MayAskDistance(false, false, false, false), "nobody targeted, out of a fight: not asked")
+    if not InCombatLockdown() then
+        t:ok(pcall(E.Near, "target"), "asking about your target now: no error")
+    end
+end)
+
+ns:Register("test", "heals: hit a lot, a heal that lands at once; Shift + key casts the same", function(t)
+    -- From the player's casts (0.35.163): 6 heals in fights, each a Healing
+    -- Touch where Flow advised Rejuvenation; 48 Rejuvenation prompts ignored.
+    local E, C = ns.rotation, ns.cast
+    local ms = { ["Healing Touch"] = 2500, Rejuvenation = 0, Regrowth = 2000 }
+    local function castMs(sp) return ms[sp] end
+    local heals, hots = { "Regrowth", "Healing Touch", "Rejuvenation" }, { "Rejuvenation" }
+    local function all() return true end
+    t:eq(E.DirectHeal(heals, hots, all, castMs), "Regrowth", "the fastest heal that lands at once")
+    t:eq(E.DirectHeal(heals, hots, function(sp) return sp ~= "Regrowth" end, castMs), "Healing Touch", "Regrowth not learned: Healing Touch, not the heal over time")
+    t:eq(E.DirectHeal(heals, hots, function(sp) return sp == "Rejuvenation" end, castMs), "Rejuvenation", "only a heal over time known: that one")
+    t:eq(E.DirectHeal(heals, nil, all, castMs), "Rejuvenation", "a class with no heals over time listed: simply the fastest")
+    t:eq(E.DirectHeal(heals, hots, function() return false end, castMs), nil, "none usable: none")
+    t:eq(C.HealFor({ heals = heals, hots = hots }, function(sp) return sp ~= "Regrowth" end, castMs), "Healing Touch",
+        "Shift + key: the same heal Flow advises when you're hit a lot")
+end)
+
+ns:Register("test", "press audit: does the key cast what the icon shows?", function(t)
+    -- The player: "when I hit the keybind it casts Wrath, sometimes even
+    -- when it was showing Moonfire". Each press is now noted with what the
+    -- icon showed, what the key was set to, and what was cast.
+    local Au = ns.audit
+    if not Au then t:ok(false, "Audit.lua not loaded") return end
+    t:ok(Au.Agree("Wrath", "Wrath"), "icon and key the same: agree")
+    t:ok(not Au.Agree("Moonfire", "Wrath"), "icon Moonfire, key set to Wrath: they disagree")
+    t:ok(Au.Agree(nil, "Wrath") and Au.Agree("Wrath", nil), "nothing to compare on one side: not a disagreement")
+    t:eq(Au.Judge({ icon = "Moonfire", set = "Moonfire" }, "Moonfire"), "ok", "cast what the icon showed")
+    t:eq(Au.Judge({ icon = "Moonfire", set = "Wrath" }, "Wrath"), "key", "cast the key's spell, not the icon's")
+    t:eq(Au.Judge({ icon = "Moonfire", set = "Wrath" }, "Thorns"), "other", "something else altogether")
+    t:eq(Au.Judge({ icon = "Moonfire", set = "Wrath" }, nil), "nothing", "no cast followed")
+    local line = Au.Line({ at = "00:12:31", icon = "Moonfire", set = "Wrath", cast = "Wrath", combat = true, sinceFight = 0.3,
+        advice = "Moonfire", lockedTo = "Wrath", shot = true })
+    t:eq(line, "00:12:31 icon Moonfire, key set to Wrath, cast Wrath; in a fight for 0.3 s; advice Moonfire; locked to Wrath; screenshot",
+        "a kept press reads plainly")
+    local report = table.concat(Au.Report({ counts = { ok = 8, key = 1, nothing = 2 }, disagreed = 1,
+        list = { { at = "00:12:31", icon = "Moonfire", set = "Wrath", cast = "Wrath", combat = false } } }), "\n")
+    t:ok(report:find("11 key presses: 8 cast what the icon showed, 1 cast the key's spell while the icon showed another", 1, true) ~= nil, "the tally: " .. report)
+    t:ok(report:find("icon Moonfire, key set to Wrath, cast Wrath; not in a fight", 1, true) ~= nil, "and each disagreement")
+    t:ok(Au.Report({})[1]:find("no key presses", 1, true) ~= nil, "nothing yet: says so")
+    -- A press goes into the tally (no screenshot in a test; your own tally put back after).
+    local d = ns.db.audit
+    local list, counts, disagreed, shots = d.list, d.counts, d.disagreed, d.shots
+    d.list, d.counts, d.disagreed, d.shots = {}, {}, nil, false
+    Au.Press("Moonfire", "Wrath", true, 0.2, "Wrath")
+    t:eq(d.disagreed, 1, "a press with the icon on Moonfire and the key on Wrath is kept")
+    t:eq(d.list[1] and d.list[1].icon, "Moonfire", "with what the icon showed")
+    t:eq(d.list[1] and d.list[1].shot, nil, "screenshots off: none taken")
+    Au.Press("Wrath", "Wrath", true, 1.5, "Wrath")
+    t:eq(d.disagreed, 1, "a press where they agree isn't")
+    t:eq(d.counts.nothing, 1, "the press before it got no cast: counted so")
+    d.list, d.counts, d.disagreed, d.shots = list, counts, disagreed, shots
+    t:ok(type(ns.commands.audit) == "function" and type(ns.commands.mark) == "function", "/flow audit and /flow mark")
+end)
+
+ns:Register("test", "click: Flow Talents takes the points only after you confirm, all or none", function(t)
+    local T = ns.talents
+    if not T then t:ok(false, "Talents.lua not loaded") return end
+    local byName = { Claws = { id = 11 }, Hide = { id = 12 } }
+    local list = { { name = "Claws" }, { name = "Claws" }, { name = "Hide" } }
+    local calls = {}
+    local function api(refuse, saves)
+        calls = {}
+        return {
+            purchase = function(id) calls[#calls + 1] = "buy " .. id; return id ~= refuse end,
+            commit = function() calls[#calls + 1] = "save"; return saves ~= false end,
+            rollback = function() calls[#calls + 1] = "undo" end,
+        }
+    end
+    local taken, problem = T.TakeWith(list, byName, api())
+    t:eq(taken, 3, "all three taken")
+    t:eq(problem, nil, "no problem")
+    t:eq(table.concat(calls, ", "), "buy 11, buy 11, buy 12, save", "each point, then saved once")
+    taken, problem = T.TakeWith(list, byName, api(12))
+    t:eq(taken, 0, "one refused: none kept")
+    t:ok(problem and problem:find("Hide", 1, true) ~= nil, "it says which: " .. tostring(problem))
+    t:eq(calls[#calls], "undo", "what was staged is undone")
+    taken = (T.TakeWith(list, byName, api(nil, false)))
+    t:eq(taken, 0, "the game wouldn't save: none kept")
+    t:eq(calls[#calls], "undo", "undone")
+    taken, problem = T.TakeWith({ { name = "Nonsense" } }, byName, api())
+    t:ok(taken == 0 and problem:find("no talent called Nonsense", 1, true) ~= nil, "a talent the game doesn't have: nothing bought")
+    t:eq(#calls, 0, "and nothing asked of the game")
+    t:eq((T.TakeWith({}, byName, api())), 0, "nothing to take: nothing")
+    -- The view hands its gold picks to the button; the button only ASKS.
+    local nodes = { { name = "Claws", x = 100, y = 10, rank = 0, max = 5 } }
+    local v = T.View(nodes, 2, { name = "Test", order = { { "Claws", 5 } } }, 11)
+    t:eq(#v.take, 2, "two points to spend: two picks for the button")
+    t:eq(#T.View(nodes, 0, { name = "Test", order = { { "Claws", 5 } } }, 11).take, 0, "no points: nothing to take")
+    T:Show()
+    local f = T._Frame()
+    if f and f.take then
+        local asked
+        with(T, "Ask", function(l) asked = l end, function()
+            f.takeList = v.take
+            t:ok(pcall(f.take:GetScript("OnClick"), f.take), "click: Take these points")
+        end)
+        t:eq(asked, v.take, "the click asks first, with the gold picks (nothing is spent by the click itself)")
+        f:Hide()
+    end
+    t:ok(type(T.CanTake()) == "boolean", "knows whether this client lets an add-on set talents")
 end)
 
 ns:Register("test", "spell ranks: a new rank replaces the old one on your bars", function(t)

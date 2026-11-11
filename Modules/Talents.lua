@@ -196,6 +196,93 @@ function T.RowState(node, plan, now)
 end
 
 -------------------------------------------------------------------------------
+-- Taking the points: "Take these points" in the view spends your unspent
+-- points on the build's next picks, after you confirm (a talent can only be
+-- taken back with a respec). Out of a fight only.
+-------------------------------------------------------------------------------
+
+-- The core, with the game's calls passed in (the tests pass their own):
+--   api.purchase(nodeID) -> bool, api.commit() -> bool, api.rollback()
+-- list: picks ({ name }), byName: { [name] = node }. Either every pick is
+-- taken and saved, or none is: a refused pick or a failed save rolls back
+-- what was staged. Returns how many were taken, and what went wrong.
+function T.TakeWith(list, byName, api)
+    local staged = 0
+    for _, p in ipairs(list or {}) do
+        local n = byName[p.name]
+        if not (n and api.purchase(n.id)) then
+            if staged > 0 then api.rollback() end
+            return 0, (n and "the game wouldn't take " or "the game has no talent called ") .. p.name
+        end
+        staged = staged + 1
+    end
+    if staged == 0 then return 0, "nothing to take" end
+    if not api.commit() then
+        api.rollback()
+        return 0, "the game wouldn't save them"
+    end
+    return staged
+end
+
+-- Can an add-on set talents on this client? (the modern talent system)
+function T.CanTake()
+    return (C_Traits and C_Traits.PurchaseRank and C_ClassTalents and C_ClassTalents.GetActiveConfigID) and true or false
+end
+
+-- Spends them (after the confirmation). Returns taken, problem.
+function T.Take(list)
+    if InCombatLockdown() then return 0, "not in a fight" end
+    if not T.CanTake() then return 0, "this client's talents can't be set by an add-on" end
+    local cfg = C_ClassTalents.GetActiveConfigID()
+    if not cfg then return 0, "the game hasn't given you talents yet" end
+    local byName = {}
+    for _, n in ipairs((T.Read())) do byName[n.name] = n end
+    local how
+    local taken, problem = T.TakeWith(list, byName, {
+        purchase = function(id)
+            local ok, did = pcall(C_Traits.PurchaseRank, cfg, id)
+            return ok and did == true
+        end,
+        -- Class talents are saved through C_ClassTalents where the client
+        -- has it (no saved loadout named: the active one), else C_Traits.
+        commit = function()
+            if C_ClassTalents.CommitConfig then
+                local ok, did = pcall(C_ClassTalents.CommitConfig, nil)
+                if ok and did then how = "C_ClassTalents.CommitConfig" return true end
+            end
+            if C_Traits.CommitConfig then
+                local ok, did = pcall(C_Traits.CommitConfig, cfg)
+                if ok and did then how = "C_Traits.CommitConfig" return true end
+            end
+            return false
+        end,
+        rollback = function() if C_Traits.RollbackConfig then pcall(C_Traits.RollbackConfig, cfg) end end,
+    })
+    ns:Log("talents", string.format("take %s: %d taken%s%s", T.Names(list), taken,
+        how and (" (saved with " .. how .. ")") or "", problem and (", problem: " .. problem) or ""))
+    return taken, problem
+end
+
+-- The confirmation, then T.Take.
+StaticPopupDialogs["FLOW_TALENTS"] = {
+    text = "%s", button1 = "Spend them", button2 = "Not now",
+    OnAccept = function(_, list)
+        local taken, problem = T.Take(list)
+        if taken > 0 then ns:Print(string.format("took %d talent point%s: %s.", taken, taken == 1 and "" or "s", T.Names(list)))
+        else ns:Print("couldn't take them: " .. tostring(problem) .. ". Spend them in the game's talent window.") end
+        T:Refresh()
+    end,
+    timeout = 0, whileDead = false, hideOnEscape = true, preferredIndex = 3,
+}
+function T.Ask(list)
+    if not (list and #list > 0) then return end
+    local dialog = StaticPopup_Show("FLOW_TALENTS", string.format(
+        "Spend %d talent point%s on:\n\n|cffffd200%s|r\n\nA talent can only be taken back with a respec.",
+        #list, #list == 1 and "" or "s", T.Names(list)))
+    if dialog then dialog.data = list end
+end
+
+-------------------------------------------------------------------------------
 -- The view
 -------------------------------------------------------------------------------
 
@@ -252,6 +339,20 @@ local function build()
     f.what = line(-32, "GameFontNormal")   -- the build and where it ends up
     f.now = line(-52)                      -- what to take now
     f.soon = line(-68)                     -- what comes at your next levels
+    -- "Take these points": spends them on the gold talents, after you confirm.
+    f.take = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.take:SetSize(150, 22)
+    f.take:SetPoint("TOPRIGHT", -34, -46)
+    f.take:SetText("Take these points")
+    f.take:SetScript("OnClick", function() T.Ask(f.takeList) end)
+    f.take:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Take these points", 1, 0.82, 0)
+        GameTooltip:AddLine("Spends your unspent points on the gold talents, in the build's order. It asks first: a talent can only be taken back with a respec. Not in a fight.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.take:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.take:Hide()
     f.cols = {}
     for c = 1, 3 do
         local col = { rows = {} }
@@ -292,7 +393,7 @@ function T.View(nodes, unspent, bld, level)
     local missing = T.Missing(picks, have)
     local nowList, now = {}, {}
     for i = 1, math.min(unspent or 0, #missing) do nowList[i] = missing[i]; now[missing[i].name] = true end
-    local v = { trees = {} }
+    local v = { trees = {}, take = bld and nowList or {} }   -- (take: what "Take these points" spends)
     -- Where the build ends up, tree by tree: "5 / 41 / 5".
     local ends = {}
     for i, tr in ipairs(trees) do
@@ -340,6 +441,9 @@ function T:Refresh()
     frame.what:SetText(#nodes > 0 and v.what or "The game hasn't given you talents yet (they start at level 10).")
     frame.now:SetText(v.now or "")
     frame.soon:SetText(v.soon or "")
+    frame.takeList = v.take
+    frame.take:SetShown(#v.take > 0 and T.CanTake())
+    frame.take:SetEnabled(not InCombatLockdown())
     for c, col in ipairs(frame.cols) do
         local tr = v.trees[c]
         col.title:SetText(tr and tr.title or "")

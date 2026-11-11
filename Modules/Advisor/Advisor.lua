@@ -85,7 +85,7 @@ local function buildButton()
     -- A round, minimap-style button: an icon in a gold ring, with a small
     -- orange count bubble. Pulses gently when new important advice appears.
     b:SetSize(34, 34)
-    b:SetFrameStrata("HIGH")
+    b:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     local p = ns.db.advisor.point
     if p then b:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else b:SetPoint("CENTER", UIParent, "CENTER", 52, -160) end
@@ -344,6 +344,7 @@ local function buildPanel()
     f.title:SetText("Flow Improvements")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
+    close:SetScript("OnClick", function() f:Hide() end)   -- (our own: the game's handler can't close an add-on window in a fight)
     f.rows = {}
     for i = 1, ROWS do
         local r = CreateFrame("Button", nil, f)

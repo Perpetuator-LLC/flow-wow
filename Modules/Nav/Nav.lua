@@ -1152,6 +1152,11 @@ function N:MakeArrowModern(parent)
     a.ripple:SetPoint("CENTER", a, "CENTER", 0, HALO_Y)
     a.beam = tex("ArrowBeam", "ARTWORK", 3, "ADD")
     a.beam:SetPoint("BOTTOM", a, "CENTER", 0, HALO_Y)
+    -- The same beam mirrored below the ring: it fades downward just as it
+    -- fades upward, so the light runs through the ring both ways.
+    a.beamDown = tex("ArrowBeam", "ARTWORK", 3, "ADD")
+    a.beamDown:SetTexCoord(0, 1, 1, 0)
+    a.beamDown:SetPoint("TOP", a, "CENTER", 0, HALO_Y)
     -- The stop's own icon (craft here, use from your bags) bouncing in the
     -- ring: round, on a dark disc.
     local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
@@ -1169,7 +1174,7 @@ function N:MakeArrowModern(parent)
             pcall(a.icon.AddMaskTexture, a.icon, mask)
         end
     end
-    for _, t in ipairs({ a.halo, a.ripple, a.beam, a.disc, a.icon }) do t:Hide() end
+    for _, t in ipairs({ a.halo, a.ripple, a.beam, a.beamDown, a.disc, a.icon }) do t:Hide() end
 
     -- a.r/g/b and a.angle are where the arrow is heading; a.cr/cg/cb and
     -- a.at are what's on screen, easing towards them (snapping while the
@@ -1194,6 +1199,7 @@ function N:MakeArrowModern(parent)
         a.halo:SetVertexColor(r, g, b)
         a.ripple:SetVertexColor(r, g, b)
         a.beam:SetVertexColor(r, g, b)
+        a.beamDown:SetVertexColor(r, g, b)
         a.disc:SetVertexColor(r * 0.3, g * 0.3, b * 0.3, 1)
     end
     local function paintFade()
@@ -1201,7 +1207,7 @@ function N:MakeArrowModern(parent)
         a.body:SetAlpha(on); a.shine:SetAlpha(on * 0.9)
         a.shadow:SetAlpha(on * 0.75); a.pool:SetAlpha(0.35 * on)
         local arrived = a.fade > 0.01
-        a.halo:SetShown(arrived); a.ripple:SetShown(arrived); a.beam:SetShown(arrived)
+        a.halo:SetShown(arrived); a.ripple:SetShown(arrived); a.beam:SetShown(arrived); a.beamDown:SetShown(arrived)
         local icon = a.arrived and not a.noBall and a.iconTex ~= nil
         a.icon:SetShown(icon); a.disc:SetShown(icon)
     end
@@ -1267,6 +1273,8 @@ function N:MakeArrowModern(parent)
             me.ripple:SetAlpha(f * (1 - u) * (me.wave and 0.9 or 0.6))
             me.beam:SetSize(18 + 4 * pulse, 50 + 8 * pulse)
             me.beam:SetAlpha(f * (0.45 + 0.25 * pulse))
+            me.beamDown:SetSize(18 + 4 * pulse, 50 + 8 * pulse)
+            me.beamDown:SetAlpha(f * (0.45 + 0.25 * pulse))
             if me.icon:IsShown() then
                 local hop = math.abs(math.sin(now * 3.2)) * 5   -- a hop: "do this here, now"
                 me.icon:SetPoint("CENTER", me, "CENTER", 0, 8 + hop)
@@ -2905,6 +2913,7 @@ local function buildCard()
     f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f.close:SetPoint("TOPRIGHT", 2, 2)
     f.close:SetScale(0.8)
+    f.close:SetScript("OnClick", function() f:Hide() end)   -- (our own: the game's handler can't close an add-on window in a fight)
     N.Draggable(f, "cardPoint", "beside what you click")
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)

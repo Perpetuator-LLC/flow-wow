@@ -554,7 +554,8 @@ ns.commands.keys = function()
     local C = ns.cast
     local keys = C and C.KeysOf and C.KeysOf(ns.db.cast) or {}
     if #keys > 0 then
-        print("  Flow key: " .. table.concat(keys, ", ") .. "  (Shift + it: your heal; Ctrl + it: on your target; Alt + it: healthstone or potion)")
+        print("  Flow key: " .. table.concat(keys, ", "))
+        for _, line in ipairs(C.QueueLines and C.QueueLines(C:Slots()) or {}) do print("    " .. line) end
     end
     print("  Change them: Key on the Flow Spells list, or /flow bind (hover a bar button, press a key).")
 end
