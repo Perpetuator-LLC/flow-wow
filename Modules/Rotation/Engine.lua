@@ -393,6 +393,50 @@ E.BREAKERS = {
     { spell = "Dire Bear Form", types = { ROOT = true }, form = true },
 }
 
+-------------------------------------------------------------------------------
+-- Stopping a cast
+-------------------------------------------------------------------------------
+
+-- Spells that stop your target's cast. near = it hits everything around you
+-- (War Stomp: 8 yards), so it needs the target close, not in spell range.
+-- Classes add theirs: table.insert(ns.rotation.INTERRUPTS, { spell = ... }).
+E.INTERRUPTS = {
+    { spell = "War Stomp", near = true },   -- tauren: stuns everything within 8 yd for 2 s
+}
+-- What the target is casting or channelling (nil: nothing, or the game hides it).
+function E.TargetCasting()
+    local name = A.Safe(UnitCastingInfo and UnitCastingInfo("target"))
+    if name then return name end
+    return A.Safe(UnitChannelInfo and UnitChannelInfo("target"))
+end
+-- Is the unit within about 10 yards? (the game's duel range; nil: can't tell)
+function E.Near(unit)
+    if not CheckInteractDistance then return nil end
+    local ok, near = pcall(CheckInteractDistance, unit, 3)
+    if not ok then return nil end
+    return A.Safe(near)
+end
+-- The interrupt to press now: your target is casting, and one you know is
+-- ready and reaches it. (In a fight the key is locked, so it shows on the
+-- icon; press it on your bar: it glows there.)
+function E:Interrupt(ctx, casting, near)
+    if not (ctx.inCombat and ctx.hostile) then return nil end
+    casting = casting or E.TargetCasting()
+    if not casting then return nil end
+    for _, r in ipairs(E.INTERRUPTS) do
+        local reach = true
+        if r.near then
+            local n = near
+            if n == nil then n = E.Near("target") end
+            reach = n == true   -- (can't tell: no, it would stomp at nothing)
+        end
+        if reach and self:Ready(r.spell, not r.near and "target" or nil) then
+            return { spell = r.spell, kind = "damage", fightType = ctx.fightType,
+                     reason = string.format("Stop its %s: %s", casting, r.spell) }
+        end
+    end
+end
+
 function E:BreakFree(ctx)
     local t = ctx.loc
     if not t then return nil end
@@ -443,6 +487,10 @@ function E:Choose()
         return h
     end
     E.lastEarlyLog = nil
+
+    -- Your target is casting: stop it (War Stomp when it's close).
+    local int = self:Interrupt(ctx)
+    if int then return int end
 
     -- A curse, poison, disease or magic you can remove, on you or your group.
     local d = self:Dispel(ctx, def)

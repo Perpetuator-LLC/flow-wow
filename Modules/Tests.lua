@@ -4492,3 +4492,40 @@ ns:Register("test", "worn gear and hearthstone: run without errors, no red, no c
     -- Auto-repair off: nothing to say at the vendor.
     t:eq(ns.vendor.RepairDecision(true, 500, 1000, false), "off", "auto-repair off: Flow repairs nothing")
 end)
+
+ns:Register("test", "easy button: War Stomp stops a cast close by; Roots opens on a melee mob", function(t)
+    local E = ns.rotation
+    -- 0.35.135: nothing ever suggested an interrupt or Entangling Roots.
+    local fight = { inCombat = true, hostile = true, fightType = "normal" }
+    with(E, "Ready", function(_, spell) return spell == "War Stomp" end, function()
+        local s = E:Interrupt(fight, "Lightning Bolt", true)
+        t:eq(s and s.spell, "War Stomp", "target casting, within 8 yards: War Stomp")
+        t:ok(s and s.reason:find("Lightning Bolt", 1, true) ~= nil, "it says what it stops")
+        t:eq(E:Interrupt(fight, "Lightning Bolt", false), nil, "too far for a stomp: nothing")
+        t:eq(E:Interrupt(fight, "Lightning Bolt", nil) == nil or E.Near("target") == true, true,
+            "can't tell how far: no stomp (unless the game says it's close)")
+        with(E, "TargetCasting", function() return nil end, function()
+            t:eq(E:Interrupt(fight), nil, "not casting: nothing")
+        end)
+        t:eq(E:Interrupt({ inCombat = false, hostile = true }, "Heal", true), nil, "out of a fight: nothing")
+    end)
+    with(E, "Ready", function() return false end, function()
+        t:eq(E:Interrupt(fight, "Heal", true), nil, "War Stomp not ready (or not a tauren): nothing")
+    end)
+    -- Roots: only on a mob without a mana pool, before its own heals and damage.
+    t:ok(ns.MeleeMob(0) and ns.MeleeMob(nil), "no mana pool (a beast, a fighter): melee")
+    t:ok(not ns.MeleeMob(120), "a mana pool: a caster, no roots")
+    local def = ns:Get("rotation", "DRUID")
+    local roots, moonfire
+    for i, r in ipairs(def.priority) do
+        if r.spell == "Entangling Roots" and not roots then roots = i end
+        if r.spell == "Moonfire" and not moonfire then moonfire = i end
+    end
+    t:ok(roots and moonfire and roots < moonfire, "Entangling Roots comes before Moonfire")
+    if ns.api.Form() == nil then
+        t:eq(def.pullLock({ spell = "Entangling Roots", kind = "damage" }, { Knows = function(_, s) return s == "Wrath" end }),
+            "Wrath", "rooting at the pull: the key still stays on Wrath for the fight")
+    else
+        t:ok(true, "(you're in a form: the caster pull lock isn't checked)")
+    end
+end)

@@ -60,6 +60,10 @@ Flow for WoW is a separate project from Flow Engine.
   emergency heal when you'd die before you could react.
 - **Break free**: stunned, feared or rooted, Flow suggests the spell that gets you out (Will to
   Survive / Every Man for Himself, Will of the Forsaken, Escape Artist, Blessing of Freedom).
+- **Stop a cast**: your target starts casting within 8 yards, Flow suggests War Stomp (tauren).
+  Classes add their own interrupts to `ns.rotation.INTERRUPTS`.
+- **Druid: Entangling Roots** opens on a melee mob (the key casts it before the pull), and shows
+  again when the mob comes for you mid-fight.
 - **Fight types**: boss, several enemies, elite or normal mob, each with its own priorities.
 - **Fight profiler**: records every fight and compares your best with your worst per fight
   type. It leans the rotation towards what worked (`/flow fights`).

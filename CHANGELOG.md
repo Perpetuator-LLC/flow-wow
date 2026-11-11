@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.135
+- **Druid: Entangling Roots.** On a melee mob (one without a mana pool), Flow opens with
+  Entangling Roots: the key casts it before the pull, then stays on Wrath for the fight while
+  Moonfire shows on the icon. When the mob comes for you again mid-fight, Roots shows on the
+  icon: press it on your bar and step back. Not when several mobs come at once.
+- **War Stomp stops a cast.** When your target starts casting within about 8 yards, the icon
+  shows War Stomp (tauren), ahead of your damage. In a fight the key can't change, so press it
+  on your bar: it glows there.
+
 ## 0.35.134
 - **The smallest bandage that fills you.** After a fight the Flow key picks the smallest bandage
   you carry that heals what you're missing (a Heavy Wool Bandage on a scratch wasted most of
