@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.126
+- **Dungeon runs (needs Questie).** The arrow menu has a new **Dungeons** section: the runs at
+  your level (one wing, the quests you can do on this trip) and how each compares to your
+  questing XP per hour. **Prepare this run** puts its pickups and lead-in quests on the route,
+  each once you can take it, then the entrance; inside, the route shows only that dungeon's
+  quests (and your group's shared route). **Share quests** in a group gives party members the
+  run quests they lack. A key icon above the Flow key suggests the best run; "Suggest dungeons"
+  turns that off. Scarlet Monastery, Blackrock Spire and Stratholme are split into their wings.
+  A prepared run stays on the route in "Current quests only" too.
+- **The route finishes what's around you first.** Far stops (more than 300 yd away) and item
+  drops whose mobs aren't near you wait until the stops next to you are done, so one far stop
+  no longer splits up a cluster of nearby ones. Not on the "Shortest" route, which stays the
+  shortest. `/flow nearfirst off` turns it off.
+- **Route updates no longer cause a hitch**: Flow reads one kind of stop per frame.
+- (Thanks, BIMpossible: pull request 10. Restart WoW once: this version adds new files.)
+
 ## 0.35.125
 - **Your weapon stone goes on with one press, and food that makes you Well Fed too.** When
   you're about to kill a lot (at a kill or loot stop, or right after a fight) and your main hand

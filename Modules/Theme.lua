@@ -39,6 +39,7 @@ ns.theme = {
     arrow    = rgb("E69F00"),  -- orange: Flow's accent colour on panels and buttons
     user     = rgb("56B4E9"),  -- sky blue: your own waypoint
     muted    = rgb("BBBBBB"),
+    good     = rgb("66FF66"),  -- green: worth doing (a dungeon run with your group)
 }
 
 -- Flow's panel title bar, the brand on every Flow panel (Flow Tracker, Flow

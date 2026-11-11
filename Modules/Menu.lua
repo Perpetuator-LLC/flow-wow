@@ -219,6 +219,14 @@ function Menu:RouteItemsRaw()
               if following then ns.follow:Stop() end
               if ns.waypoint:Get() then ns.waypoint:Clear(); ns:Print("waypoint cleared") end
           end },
+    }) do items[#items + 1] = it end
+    -- Dungeon runs worth doing at your level (Dungeons.lua; needs Questie).
+    -- (In a pcall: one error there must not stop the route menu opening.)
+    if ns.dungeons then
+        local ok, list = pcall(ns.dungeons.MenuItems, ns.dungeons)
+        for _, it in ipairs(ok and list or {}) do items[#items + 1] = it end
+    end
+    for _, it in ipairs({
         { sep = true },
         { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
           func = function() ns.commands.nav("unhide") end },

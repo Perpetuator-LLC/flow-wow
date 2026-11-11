@@ -69,6 +69,33 @@ Tracker (damage taken, target TTD, heal sizes)        FightTypes (boss/aoe/elite
 Advisor <--- trainer data, class spells, bags, skills, talents, profiler insights
 ```
 
+### Route weights
+
+The planner (`Modules/Nav/Planner.lua`) minimises sum(distance x weight). A stop's weight is
+set when the route is collected: by the stop itself (`navGoal`) and by the route objective
+(`routeObjective`, `Modules/Nav/XpValue.lua`). `Modules/Nav/NearFirst.lua` adds a weight that
+depends on where you stand, so it is applied on every plan, not at collect: stops beyond 300 yd
+get up to 3x heavier, item drops not within 150 yd 1.5x more, milestones are left alone. The
+goals get their own weights back after each plan. `/flow nearfirst on|off`. Not on the
+"Shortest" objective (or the completionist route, which plans by distance): that stays the
+shortest path.
+
+### Route refresh
+
+A refresh reads one `navGoal` source per frame, then plans in the next (`collectSpread` in
+`Modules/Nav/Nav.lua`), so no frame does all of it. The new stops replace the old in one step at
+the end. A change that arrives while it gathers, or a direct `N:Collect()`, makes it go once more.
+
+### Dungeon runs
+
+`Modules/Nav/Dungeons.lua` (needs Questie, read at runtime: nothing is copied into the repo)
+indexes each dungeon's quests in the background, a few per frame and never in combat. `D:Runs()`
+cuts them into runs (one wing, your level, one trip) and compares each with your questing XP per
+hour; it's timed in `/flow perf` as "dungeon runs". A prepared run is a `navGoal` source
+("dungeon"): its pickups and lead-ins (only those you can take now, `ns.quests:Available`), then
+the entrance. Inside, `D:FilterInside` keeps only that dungeon's quests, your waypoint and the
+party route. The Flow key's `status` icon suggests the best run.
+
 ### Rotation adaptation (and its limits)
 
 - Rules marked `adaptive = true` that sit next to each other form a group of roughly equal

@@ -266,6 +266,39 @@ ns:Register("test", "planner: nearest first, turn-in after its objective", funct
     t:eq(plan and plan[1].goal.key, "1:1", "objective before its turn-in")
 end)
 
+ns:Register("test", "planner: near first, far stops and item drops wait", function(t)
+    local F = ns.nearFirst
+    t:eq(F.Multiplier({}, 100), 1, "close: unchanged")
+    t:near(F.Multiplier({}, 1000), 2, 0.001, "1,000 yd: 2x")
+    t:eq(F.Multiplier({}, 9000), 3, "capped at 3x")
+    t:eq(F.Multiplier({ milestone = true }, 9000), 1, "class training left alone")
+    t:eq(F.Multiplier({ kind = "collect" }, 100), 1, "an item drop right here is fine")
+    t:near(F.Multiplier({ kind = "collect" }, 200), 1.5, 0.001, "a drop further off waits")
+    t:eq(F.Multiplier({ kind = "collect" }, nil), 1.5, "a drop with no spot near you waits")
+
+    local p = { cont = 0, wx = 0, wy = 0 }
+    local function goal(key, x, extra)
+        local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = 0 } } }
+        for k, v in pairs(extra or {}) do g[k] = v end
+        return g
+    end
+    -- Both straight ahead, the drop a little nearer. Unweighted the drop comes
+    -- first (300 + 10 yd vs 310 + 10); near first makes it 1.5x heavier, so the
+    -- kill right behind it comes first (310 + 10 x 1.5 vs 300 x 1.5 + 10).
+    local drop = goal("1:1", 300, { kind = "collect" })
+    local kill = goal("2:1", 310, { kind = "kill", weight = 1 })
+    local saved = ns.db.nearFirst
+    ns.db.nearFirst = true
+    local plan = ns.planner:Plan(p, { drop, kill }, {})
+    t:eq(plan and plan[1].goal.key, "2:1", "a kill right behind an item drop comes first")
+    t:eq(drop.weight, nil, "the drop gets its own weight back")
+    t:eq(kill.weight, 1, "the kill gets its own weight back")
+    ns.db.nearFirst = false
+    plan = ns.planner:Plan(p, { drop, kill }, {})
+    t:eq(plan and plan[1].goal.key, "1:1", "off: the nearer drop comes first")
+    ns.db.nearFirst = saved
+end)
+
 ns:Register("test", "planner: plans 30 stops, the far end nearest-next", function(t)
     local function goal(key, x, y, extra)
         local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = y or 0 } } }
@@ -1044,6 +1077,17 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     t:ok(#rep >= 1, "report has a summary line")
     t:ok(rep[1]:find("/flow perf", 1, true) ~= nil, "quick report skips the clean-up and says so")
     t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
+end)
+
+ns:Register("test", "perf: route refresh gathers one stop source at a time", function(t)
+    local N, P = ns.nav, ns.perf
+    local list = { "already here" }
+    N._gatherFrom("test: src", { collect = function() return { { key = "k1", text = "a" } } end }, list)
+    t:eq(#list, 2, "one source's stops added to the list being built")
+    t:eq(list[2].provider, "test: src", "stop tagged with its source")
+    N._gatherFrom("test: bad", { collect = function() error("boom") end }, list)
+    t:eq(#list, 2, "a failing source adds nothing and doesn't stop the refresh")
+    P.stats["gather: test: src"], P.stats["gather: test: bad"] = nil, nil
 end)
 
 ns:Register("test", "perf: a timed call inside another counts once", function(t)
@@ -3555,4 +3599,259 @@ ns:Register("test", "Flow button: out of mana, a timer until you have enough", f
     t:eq(W(nil, 40, 5), nil, "cost hidden: no timer")
     t:eq(W(100, nil, 5), nil, "mana hidden (in a fight): no timer")
     t:ok(type(ns.ManaWait) == "function", "worked out from the spell's cost, your mana and regeneration")
+end)
+
+-- Dungeon runs (Dungeons.lua): quest states, lead-ins traced back, runs cut
+-- by wing / level / mid-run turn-ins, and whether a run beats questing.
+local function dungeonCtx(quests, o)
+    o = o or {}
+    local byId = {}
+    for _, q in ipairs(quests) do byId[q.Id] = q end
+    return {
+        get = function(id) return byId[id] end,
+        done = o.done or {}, log = o.log or {}, level = o.level or 20,
+        eligible = o.eligible or function() return true end,
+        dungeonOf = function(id) return (o.dungeon or {})[id] end,
+        inside = o.inside, atEntrance = o.atEntrance, maxSteps = o.maxSteps,
+    }
+end
+
+ns:Register("test", "dungeons: quest states and lead-ins traced back", function(t)
+    local D = ns.dungeons
+    local quests = {
+        { Id = 100, name = "Main", level = 20 },
+        { Id = 101, name = "Locked", level = 20, preQuestSingle = { 201 } },
+        { Id = 201, name = "Step 2", level = 18, preQuestGroup = { 202 } },
+        { Id = 202, name = "Step 1", level = 17 },
+        { Id = 102, name = "Far", level = 20, preQuestSingle = { 301 } },
+        { Id = 301, level = 18, preQuestSingle = { 302 } }, { Id = 302, level = 18, preQuestSingle = { 303 } },
+        { Id = 303, level = 18, preQuestSingle = { 304 } }, { Id = 304, level = 18 },
+        { Id = 103, name = "Part 2", level = 21, preQuestSingle = { 100 } },
+        { Id = 104, name = "Class", level = 20 },
+        { Id = 105, name = "Either", level = 20, exclusiveTo = { 400 } },
+        { Id = 106, name = "Have", level = 20 }, { Id = 107, name = "Did", level = 20 },
+        { Id = 108, name = "Later", level = 30, requiredLevel = 25 },
+        { Id = 109, name = "Drops inside", level = 20 },
+        { Id = 110, name = "High lead-in", level = 20, preQuestSingle = { 500 } },
+        { Id = 500, level = 26, requiredLevel = 24 },
+        { Id = 111, name = "Any of", level = 20, preQuestSingle = { 600, 601 } },
+        { Id = 600, level = 18, preQuestSingle = { 602 } }, { Id = 602, level = 18 }, { Id = 601, level = 18 },
+    }
+    local dungeon = { [100] = 1, [101] = 1, [102] = 1, [103] = 1, [104] = 1, [105] = 1, [106] = 1, [107] = 1, [108] = 1 }
+    local ctx = dungeonCtx(quests, {
+        dungeon = dungeon, log = { [106] = true }, done = { [107] = true, [400] = true },
+        eligible = function(q) if q.Id == 104 then return false, "for another class" end return true end,
+        inside = function(q) return q.Id == 109 end,
+    })
+    local function state(id) for _, q in ipairs(quests) do if q.Id == id then return D.State(q, ctx) end end end
+    t:eq(state(100), "pickup", "no lead-in, giver outside: pick up")
+    local s, steps = state(101)
+    t:eq(s, "unlock", "short lead-in you can do now: unlock")
+    t:eq(steps and #steps, 2, "two lead-in quests")
+    t:eq(steps and steps[1].id, 202, "the first step comes first")
+    t:eq(steps and steps[2].id, 201, "then the second")
+    local s2, why = state(102)
+    t:eq(s2, "toolong", "a 4-quest lead-in is too long")
+    t:ok(why and why:find("4 quests"), "says how long: " .. tostring(why))
+    ctx.maxSteps = 6
+    t:eq(state(102), "unlock", "with long lead-ins on: unlock")
+    ctx.maxSteps = nil
+    t:eq(state(103), "nextrun", "part 2 of this dungeon's chain, turned in outside: next run")
+    ctx.atEntrance = function(q) return q.Id == 103 end
+    t:eq(state(103), "followup", "giver at the entrance: same run")
+    ctx.atEntrance = nil
+    local s3, why3 = state(104)
+    t:eq(s3, "notforyou", "another class: not for you")
+    t:eq(why3, "for another class", "the reason is kept")
+    t:eq(state(105), "notforyou", "ruled out by a quest you did")
+    t:eq(state(106), "ready", "in your log: ready")
+    t:eq(state(107), "done", "done")
+    t:eq(state(108), "nextrun", "above your level: next run")
+    t:eq(state(109), "inside", "starts inside")
+    t:eq(state(110), "toolong", "a lead-in above your level is too long")
+    local s4, st4 = state(111)
+    t:eq(s4, "unlock", "one of several: the shortest way")
+    t:eq(st4 and #st4, 1, "the 1-step way, not the 2-step one")
+    t:eq(st4 and st4[1].id, 601, "the shorter lead-in")
+    ctx.log[601] = true
+    local _, st5 = state(111)
+    t:ok(st5 and st5[1].inLog, "a lead-in already in your log is marked")
+    t:eq(D.State(quests[2], dungeonCtx(quests, { done = { [201] = true } })), "pickup", "lead-in done: pick up")
+    local loop = { { Id = 1, preQuestSingle = { 2 } }, { Id = 2, preQuestSingle = { 1 } } }
+    t:eq((D.Trace(loop[1], dungeonCtx(loop))), nil, "a looping chain doesn't hang")
+end)
+
+ns:Register("test", "dungeons: runs cut by wing, level and next run", function(t)
+    local D = ns.dungeons
+    local function e(id, lv, wing, state, info)
+        return { id = id, name = "Q" .. id, level = lv, dungeon = 796, dungeonName = "Scarlet Monastery",
+                 wing = wing, state = state, info = info }
+    end
+    local runs = D.CutRuns({
+        e(1, 32, "Library", "pickup"), e(2, 33, "Library", "ready"), e(3, 34, "Library", "nextrun"),
+        e(4, 38, "Armory", "pickup"), e(5, 40, "Cathedral", "pickup"),
+        e(6, 32, "Library", "unlock", { { id = 90, level = 30 }, { id = 91, level = 31, inLog = true } }),
+        e(7, 31, "Library", "unlock", { { id = 90, level = 30 } }),
+        e(8, 32, "Library", "notforyou", "for another class"), e(9, 32, "Library", "toolong", "a long lead-in (5 quests)"),
+        e(10, 20, "Library", "pickup"), e(11, 20, "Library", "ready"),
+        e(12, 32, "Library", "inside"), e(13, 32, "Library", "followup"),
+    }, 32, 27)
+    t:eq(#runs, 1, "only the Library has quests at 32: Armory and Cathedral are later runs")
+    local r = runs[1] or {}
+    t:eq(r.name, "Scarlet Monastery Library", "the run is the wing")
+    t:eq(r.pickups and #r.pickups, 1, "one to pick up (the grey one is left out)")
+    t:eq(r.ready and #r.ready, 2, "ready, grey or not")
+    t:eq(r.unlocks and #r.unlocks, 2, "two unlocked by lead-ins")
+    t:eq(r.leadIns and #r.leadIns, 1, "the shared lead-in once, the one in your log not at all")
+    t:eq(r.leadIns and r.leadIns[1] and r.leadIns[1].id, 90, "the lead-in to pick up")
+    t:eq(r.next, 1, "one more next run")
+    t:eq(r.skipped and r.skipped["for another class"], 1, "not for you, with why")
+    t:eq(r.toolong and #r.toolong, 1, "too long, listed")
+    t:eq(r.inside and #r.inside, 1, "starts inside")
+    t:eq(r.followups and #r.followups, 1, "follow-up at the entrance")
+    t:eq(r.count, 7, "seven quests this run")
+    local dm = D.CutRuns({
+        { id = 1, level = 18, dungeon = 1581, dungeonName = "The Deadmines", state = "pickup" },
+        { id = 2, level = 20, dungeon = 1581, dungeonName = "The Deadmines", state = "ready" },
+        { id = 3, level = 22, dungeon = 1581, dungeonName = "The Deadmines", state = "pickup" },
+    }, 18, 13)
+    t:eq(#dm, 1, "a dungeon without wings: one run")
+    t:eq(dm[1] and dm[1].count, 2, "level 18: the level-22 quest waits for the next run")
+    t:eq(dm[1] and dm[1].next, 1, "counted as next run")
+end)
+
+ns:Register("test", "dungeons: worth it, XP rate, run times, gathering", function(t)
+    local D = ns.dungeons
+    local run = { quests = { 1, 2, 3 }, levels = { [1] = 30, [2] = 30, [3] = 30 }, leadIns = {} }
+    local w = D.Worth(run, { level = 30, rate = 6570, runMinutes = 45, gatherMinutes = 15,
+        estimate = function() return 1000 end, share = function() return 1 end })
+    t:eq(w.questXP, 3000, "quest XP")
+    t:near(w.mobXP, 10140, 0.5, "elites: 100 kills, double XP, your share")
+    t:near(w.perHour, 13140, 0.5, "per hour over run + gathering")
+    t:near(w.ratio, 2, 0.001, "2x your questing rate")
+    t:eq(D.Worth(run, { level = 30, estimate = function() return 0 end, share = function() return 1 end }).ratio,
+        nil, "no rate: no ratio")
+    local s = {}
+    for i = 0, 19 do s[#s + 1] = { t = 1000 + i * 60, xp = 100 } end
+    t:near(D.RateFrom(s, 1000 + 19 * 60), 6000, 0.5, "19 minutes, 1,900 XP: 6,000 an hour")
+    t:eq(D.RateFrom({ { t = 0, xp = 5 }, { t = 60, xp = 5 } }, 60), nil, "under 15 minutes: no rate")
+    local g = { { t = 0, xp = 0 }, { t = 600, xp = 600 }, { t = 4600, xp = 600 } }
+    t:near(D.RateFrom(g, 4600), 3600, 0.5, "a break counts as 10 minutes")
+    t:eq(D.RateFrom(s, 1000 + 19 * 60 + 7200 + 1000), nil, "older than 2 hours: no rate")
+    local rec = D.LearnTime(nil, 30)
+    t:eq(rec.avg, 30, "first run")
+    rec = D.LearnTime(rec, 60)
+    t:eq(rec.avg, 45, "averaged")
+    t:eq(rec.n, 2, "two runs")
+    t:eq(D.LearnTime(rec, 3), rec, "a 3-minute peek doesn't count")
+    t:eq(D.LearnTime(rec, 300), rec, "a night away doesn't count")
+    local from, ent = { cont = 1, wx = 0, wy = 0 }, { cont = 1, wx = 840, wy = 0 }
+    t:near(D.GatherMinutes(from, { { cont = 1, wx = 420, wy = 0 } }, ent), 4, 0.01, "one stop on the way: 2 + 2 min")
+    t:near(D.GatherMinutes(from, {}, ent), 2, 0.01, "straight there: 2 min")
+    t:ok(D.GatherMinutes(from, { { cont = 2, wx = 0, wy = 0 } }, nil) > 5, "another continent: a long trip")
+    local order = D.GatherMinutes(from, { { cont = 1, wx = 840, wy = 0 }, { cont = 1, wx = 420, wy = 0 } }, nil)
+    t:near(order, 4 + 2, 0.01, "nearest first, not list order")
+    local withCrumb = { quests = { 1 }, levels = { [1] = 30 }, leadIns = {}, breadcrumbs = { { id = 9, level = 30 } } }
+    t:eq(D.Worth(withCrumb, { level = 30, estimate = function() return 1000 end, share = function() return 1 end })
+        .questXP, 2000, "a breadcrumb's XP counts")
+end)
+
+ns:Register("test", "dungeons: placed by objectives, wings by bosses, breadcrumbs on the way", function(t)
+    local D = ns.dungeons
+    t:eq(D.ObjectivesTop({ 1581, nil, 1581 }), 1581, "every placed objective in one dungeon")
+    t:eq(D.ObjectivesTop({ 1581, false }), nil, "one objective outside: not a dungeon quest")
+    t:eq(D.ObjectivesTop({ 1581, 796 }), nil, "two dungeons: neither")
+    t:eq(D.ObjectivesTop({ nil, nil }), nil, "nothing placed: nothing")
+    local wings = {
+        { name = "Graveyard", bosses = { [1] = true }, lo = 32, hi = 34 },
+        { name = "Library", bosses = { [2] = true }, lo = 34, hi = 37 },
+        { name = "Armory", bosses = { [3] = true }, lo = 40, hi = 40 },
+        { name = "Cathedral", bosses = { [4] = true }, lo = 40, hi = 42 },
+    }
+    local function wing(objs, lv) local w = D.WingFor(objs, wings, lv) return w and w.name end
+    t:eq(wing({ { creatures = { { id = 2, level = 37 } } } }), "Library", "kill a boss: the boss's wing")
+    t:eq(wing({ { creatures = { { id = 50, level = 31 }, { id = 3, level = 40 } } } }), "Armory",
+        "an item a boss drops: the boss's wing, not the trash that also drops it")
+    t:eq(wing({ { creatures = { { id = 50, level = 31 } } } }), "Graveyard", "trash: the wing its level fits")
+    t:eq(wing({ { creatures = { { id = 50, level = 40 } } } }, 40), nil,
+        "trash two wings fit, quest level two wings fit: no wing")
+    t:eq(wing({}, 36), "Library", "no creatures: the quest's level")
+    t:eq(wing({ { creatures = { { id = 1 } } }, { creatures = { { id = 2 } } } }), "Library",
+        "a tie: the later wing")
+    t:eq(wing({ { creatures = { { id = 4 } } }, { creatures = { { id = 50, level = 33 } } } }), "Cathedral",
+        "a boss outweighs one trash kill")
+    t:eq(D.WingFor({}, {}, 30), nil, "no wings: nil")
+    local stops = { { cont = 1, wx = 0, wy = 0 } }
+    local near = D.NearStops({
+        { id = 1, at = { cont = 1, wx = 100, wy = 0 } },
+        { id = 2, at = { cont = 1, wx = 200, wy = 0 } },
+        { id = 3, at = { cont = 2, wx = 0, wy = 0 } },
+        { id = 4 },
+    }, stops, 150)
+    t:eq(#near, 1, "only the breadcrumb near a stop")
+    t:eq(near[1] and near[1].id, 1, "the one 100 yards away")
+    local runs = D.CutRuns({
+        { id = 1, level = 58, dungeon = 1583, dungeonName = "Blackrock Spire", wing = "Upper",
+          wingTitle = "Upper Blackrock Spire", state = "pickup" },
+    }, 58, 53)
+    t:eq(runs[1] and runs[1].name, "Upper Blackrock Spire", "the wing's own run name")
+    t:eq(runs[1] and runs[1].breadcrumbs and #runs[1].breadcrumbs, 0, "no breadcrumbs until the route adds them")
+end)
+
+ns:Register("test", "dungeon runs: only quests you can take now; party stops stay inside", function(t)
+    local D = ns.dungeons
+    -- 0.35.126: a later part of a chain waits until the part before it is
+    -- turned in (the giver doesn't offer it yet).
+    t:ok(D.TakeNow({ Id = 1 }, function() return true end), "available: on the route")
+    t:ok(not D.TakeNow({ Id = 2 }, function() return false end), "not offered yet: off the route")
+    t:ok(D.TakeNow({ Id = 3 }, function() error("no data") end), "can't tell: on the route")
+    local function dungeonOf(id) return ({ [100] = 7, [200] = 9 })[id] end
+    t:ok(D.KeepInside({ key = "100:1" }, 7, dungeonOf), "this dungeon's quest stays")
+    t:ok(not D.KeepInside({ key = "200:1" }, 7, dungeonOf), "another dungeon's quest goes")
+    t:ok(D.KeepInside({ key = "party:12" }, 7, dungeonOf), "the shared party route stays (it has no kind)")
+    t:ok(D.KeepInside({ key = "user:wp" }, 7, dungeonOf), "your own waypoint stays")
+    t:ok(not D.KeepInside({ key = "train:class" }, 7, dungeonOf), "training waits until you're out")
+end)
+
+ns:Register("test", "route: near first leaves Shortest alone; a refresh mid-gather goes again", function(t)
+    local F, N = ns.nearFirst, ns.nav
+    t:ok(F.Applies("xp"), "Most XP: near first")
+    t:ok(not F.Applies("distance"), "Shortest (and completionist): left the shortest")
+    with(ns.db, "nearFirst", false, function()
+        t:ok(not F.Applies("xp"), "/flow nearfirst off: off")
+    end)
+    t:ok(type(N.MarkAgain) == "function", "a direct re-plan during gathering asks for one more")
+end)
+
+ns:Register("test", "click: the Dungeons menu entries are well formed and open", function(t)
+    local D = ns.dungeons
+    local ok, items = pcall(D.MenuItems, D)
+    t:ok(ok and type(items) == "table", "the Dungeons section builds" .. (ok and "" or (": " .. tostring(items))))
+    for _, it in ipairs(ok and items or {}) do
+        t:ok(it.sep or it.title or type(it.text) == "string", "an entry has text: " .. tostring(it.text))
+        t:ok(it.func == nil or type(it.func) == "function", "and a function if it does something")
+    end
+    -- "Suggest dungeons" turns it off and on.
+    local suggest
+    for _, it in ipairs(ok and items or {}) do if it.text == "Suggest dungeons" then suggest = it end end
+    if suggest then
+        with(ns.db.nav, "dungeonSuggest", ns.db.nav.dungeonSuggest, function()
+            local was = D:Suggest()
+            local okC = pcall(suggest.func)
+            t:ok(okC and D:Suggest() ~= was, "Suggest dungeons switches")
+        end)
+    else
+        t:ok(true, "(no Questie: no Dungeons section)")
+    end
+    -- A run's own menu opens (when there's a run at your level).
+    local runs = D:Available() and D:Runs()
+    if runs and runs[1] then
+        closeMenu()
+        local okM, err = pcall(D._runMenu, runs[1])
+        t:ok(okM, "a run's menu builds" .. (okM and "" or (": " .. tostring(err))))
+        t:ok(menuShown(), "and is on screen")
+        closeMenu()
+    else
+        t:ok(true, "(no dungeon run at your level to open)")
+    end
 end)
