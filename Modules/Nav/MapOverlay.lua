@@ -769,12 +769,11 @@ M.ProfPin = function() return profPin end   -- (tests)
 M.WaypointPin = function() return wpPin end
 
 -------------------------------------------------------------------------------
--- Route panel: the trip plan as a routed quest log. It takes over the game's
--- quest log area on the right of the map when that's open, otherwise it sits
--- just outside the map on the right, so it never covers the map itself.
--- (The Flow Router is opened and closed with the square map button; the old
--- quest log / map again) and brings it back. Same numbers and colours as the
--- map pins; hover a row to preview, click to choose.
+-- Route panel: the trip plan as a routed quest log, just outside the map on
+-- the right (to the right of the quest log), so it never covers the map or
+-- the quest log (RouterDock.lua). The Flow Router opens and closes with the
+-- square map button; the quest log with the game's own button. Same numbers
+-- and colours as the map pins; hover a row to preview, click to choose.
 -------------------------------------------------------------------------------
 
 local list
@@ -783,20 +782,12 @@ local ROW_H = 18
 
 local function collapsed() return ns.db.nav.mapListCollapsed == true end
 
--- The game's quest log side panel and Flow's route drawer share one slot:
--- only one is open at a time, and both can be closed (like the trackers).
--- Flow's square button sits just above the game's own side-panel button.
-local function sidePanelOpen()
-    local q = QuestMapFrame
-    return q and q:IsShown() and q:GetWidth() > 100 or false
-end
-
 -- Flow never opens or closes the game's quest log panel itself. Doing that
 -- (WorldMapFrame:HandleUserActionToggleSidePanel) from add-on code resized
 -- the map from Flow's code, which tainted the map's scroll data; in a fight
 -- the map's own pins were then blocked ("Button:SetPassThroughButtons()",
--- 0.35.47). So: with the quest log open, the Flow Router covers it; with it
--- closed, the Router docks beside the map (place()).
+-- 0.35.47). The two are separate: Flow's square button sits just above the
+-- game's own side-panel button, and each opens and closes its own panel.
 function M:SetDrawer(open)
     ns.db.nav.mapListCollapsed = not open
     M:Redraw()
@@ -851,38 +842,11 @@ local function buildButton()
         self:Draw()
         ns.Tip(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Flow Router")
-        GameTooltip:AddLine(collapsed() and "Open Flow's route list (over the quest log if it's open, else beside the map)."
+        GameTooltip:AddLine(collapsed() and "Open Flow's route list (beside the map, right of the quest log)."
             or "Close Flow's route list.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function(self) self:Draw(); GameTooltip:Hide() end)
-    -- The game's own quest-log button while Flow's drawer is open: the quest
-    -- log is already open underneath (the drawer covers it), so the click
-    -- should just close Flow's drawer and show it. A see-through Flow button
-    -- sits on top of the game's button for exactly that (no Blizzard code
-    -- runs). With the drawer closed it's hidden, and the game's button opens
-    -- and closes the quest log as usual.
-    if blizz then
-        local cover = CreateFrame("Button", "FlowMapQuestLogCover", WorldMapFrame)
-        cover:SetAllPoints(blizz)
-        cover:SetFrameStrata(blizz:GetFrameStrata())
-        cover:SetFrameLevel(blizz:GetFrameLevel() + 3)
-        cover.hl = cover:CreateTexture(nil, "HIGHLIGHT")
-        cover.hl:SetAllPoints(); cover.hl:SetColorTexture(1, 1, 1, 0.12)
-        cover:SetScript("OnClick", function()
-            ns.db.nav.mapListCollapsed = true
-            M:Redraw()
-        end)
-        cover:SetScript("OnEnter", function(self)
-            ns.Tip(self, "ANCHOR_LEFT")
-            GameTooltip:AddLine("Quest log")
-            GameTooltip:AddLine("Closes Flow Router and shows the quest log.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        cover:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        cover:Hide()
-        b.cover = cover
-    end
     -- Route on the map, on/off: one click, right above the drawer button. A
     -- little route (dots joined by lines) in the route colour; crossed out
     -- in red while the route is hidden.
@@ -952,19 +916,13 @@ local function buildButton()
     return b
 end
 
+-- Beside the map, to the right of the quest log (RouterDock.lua; just right
+-- of the map if that file didn't load).
 local function place()
+    if ns.routerDock and ns.routerDock.Place then ns.routerDock.Place(list) return end
     list:ClearAllPoints()
-    local q = QuestMapFrame
-    if q and q:IsShown() and q:GetWidth() > 100 then
-        -- Cover the quest log slot exactly (the quest log is "closed" while
-        -- the drawer is open).
-        list:SetPoint("TOPLEFT", q, "TOPLEFT", 0, 0)
-        list:SetPoint("BOTTOMRIGHT", q, "BOTTOMRIGHT", 0, 0)
-    else
-        -- No side panel on this client: dock outside, to the right of the map.
-        list:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", 2, 0)
-        list:SetSize(300, math.max(200, WorldMapFrame:GetHeight()))
-    end
+    list:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", 2, 0)
+    list:SetSize(300, math.max(200, WorldMapFrame:GetHeight()))
 end
 
 -- The row handle: a ^ chevron ("go here first"), or Flow's (o) target marker
@@ -1451,7 +1409,6 @@ local function updateList()
     -- Keep the panel up even with an empty route, so the mode can be switched back.
     plan = plan or {}
     if not ns.nav:PlayerPos() then list:Hide() return end
-    if button.cover then button.cover:SetShown(not collapsed() and sidePanelOpen()) end
     if collapsed() then list:Hide() return end
     place()
     list:Show()
@@ -1752,28 +1709,7 @@ function M:Preview(key)
     pcall(M.Redraw, M)
 end
 
--- The quest log key (L) shows the quest log, so the Flow Router steps
--- aside while it's open, and comes back the next time you open the map
--- (M). A hook after the game's own function: nothing of the game's runs
--- from Flow's code.
-function M.QuestLogOpened(mapShown)
-    if mapShown and not collapsed() then
-        M.asideForQuestLog = true
-        ns.db.nav.mapListCollapsed = true
-        pcall(M.Redraw, M)
-    end
-end
-function M.MapClosed()
-    if M.asideForQuestLog then
-        M.asideForQuestLog = nil
-        ns.db.nav.mapListCollapsed = false
-    end
-end
-
 ns:OnLoad(function()
-    if ToggleQuestLog then
-        hooksecurefunc("ToggleQuestLog", function() M.QuestLogOpened(WorldMapFrame and WorldMapFrame:IsShown()) end)
-    end
     local acc, open = 0, false
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, dt)
@@ -1785,7 +1721,6 @@ ns:OnLoad(function()
             if open then pcall(M.Tick, M) else pcall(M.Redraw, M) end
             open = true
         else
-            if open then M.MapClosed() end
             open = false
         end
     end)

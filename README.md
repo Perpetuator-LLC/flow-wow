@@ -123,7 +123,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Along the way**: optional farming (meat for Cooking) is never a detour; loot it as you go.
 - **Blocked stops**: stops you can't do yet stay listed, greyed, with the reason ("needs
   1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
-- **Flow Router** (the square button above the world map's quest log button): the route list
+- **Flow Router** (the square button above the world map's quest log button): the route list,
+  just right of the map (and so of the quest log; either or both can be open),
   with a "Route:" dropdown (current quests, optimal,
   completionist; professions on or off) and the order. Hover a stop for details, click it for its stop card, use the
   `^` handle to route from that stop (it stays marked red), right-click to hide it or "Point

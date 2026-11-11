@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.155
+- **The quest log and the Flow Router are separate.** Each opens and closes with its own
+  button, and both can be open at once: the Flow Router sits just right of the map, so right of
+  the quest log, instead of covering it. The quest log key (L) no longer closes the Router. On
+  a maximised map with no room on the right, the Router sits inside the map's right edge, left
+  of the quest log.
+
 ## 0.35.154
 - **No more waypoint on your character.** A "make it where you stand" stop (like "Make 1 x
   Charred Wolf Meat") follows you, but the world map pinned it where you stood when the route

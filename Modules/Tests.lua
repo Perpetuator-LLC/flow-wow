@@ -3069,22 +3069,24 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
     t:eq(ns.quests.HARD_ABOVE, 3, "quests 3+ levels up are the hard ones (not offered to pick up)")
 end)
 
-ns:Register("test", "quest log key (L): the Flow Router steps aside, back with the map", function(t)
-    local M = ns.mapOverlay
-    with(ns.db.nav, "mapListCollapsed", false, function()
-        with(M, "Redraw", function() end, function()
-            M.QuestLogOpened(true)
-            t:ok(ns.db.nav.mapListCollapsed == true, "L: the Router closes over the quest log")
-            M.MapClosed()
-            t:ok(ns.db.nav.mapListCollapsed == false, "the map closed: the Router is back next time")
-            M.QuestLogOpened(false)
-            t:ok(ns.db.nav.mapListCollapsed == false, "L closed the map: nothing changes")
-        end)
-    end)
-    with(ns.db.nav, "mapListCollapsed", true, function()
-        M.QuestLogOpened(true); M.MapClosed()
-        t:ok(ns.db.nav.mapListCollapsed == true, "you had it closed: it stays closed")
-    end)
+ns:Register("test", "core: a file added while the game runs loads on /reload", function(t)
+    -- WoW: Forever reloads every file on /reload, new ones too (RouterDock.lua
+    -- was added in 0.35.155 while the game ran). If this fails, new files need
+    -- a game restart again: say so in README.md and CLAUDE.md.
+    t:ok(ns.routerDock ~= nil and type(ns.routerDock.Place) == "function", "RouterDock.lua loaded")
+end)
+
+ns:Register("test", "map: the quest log and the Flow Router are separate; the Router sits right of it", function(t)
+    -- The player: both can be open; L no longer closes the Router, and the
+    -- Router no longer covers the quest log (0.35.155).
+    local M, D = ns.mapOverlay, ns.routerDock
+    t:eq(M.QuestLogOpened, nil, "no quest log hook: L leaves the Router as it is")
+    if not D then t:ok(false, "RouterDock.lua not loaded") return end
+    t:eq(D.Spot(1200, 1920, 302, true), "outside", "room on the right: outside the map, right of the quest log")
+    t:eq(D.Spot(1200, 1920, 302, false), "outside", "quest log closed: the same place")
+    t:eq(D.Spot(1900, 1920, 302, true), "besideLog", "maximised map, quest log open: inside, left of it")
+    t:eq(D.Spot(1900, 1920, 302, false), "inside", "maximised map, no quest log: inside the right edge")
+    t:eq(D.Spot(nil, 1920, 302, false), "inside", "map not placed yet: inside")
 end)
 
 ns:Register("test", "nearby: ore and herbs around you and your next stop", function(t)
