@@ -194,12 +194,15 @@ ns:Register("advisor", "gear", {
 
 ns:Register("advisor", "talents", {
     check = function()
-        local points = UnitCharacterPoints and UnitCharacterPoints("player") or 0
+        -- (Flow Talents reads the count from whichever talent system the client has.)
+        local points = (ns.talents and ns.talents.Unspent and ns.talents.Unspent())
+            or (UnitCharacterPoints and UnitCharacterPoints("player")) or 0
         if points and points > 0 then
             return { { importance = 85,
-                text = string.format("Spend %d talent point(s): /flow spec for the plan", points),
+                text = string.format("Spend %d talent point(s): Flow Talents says which", points),
                 improves = { "DPS", "Survival" },
-                open = function() ns.commands.spec("") end, openLabel = "the talent plan (/flow spec)" } }
+                open = function() if ns.talents then ns.talents:Show() else ns.commands.spec("") end end,
+                openLabel = "Flow Talents (/flow talents)" } }
         end
     end,
 })

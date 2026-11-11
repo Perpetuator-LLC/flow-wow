@@ -82,7 +82,7 @@ function D:Snapshot(reason, spread)
         { "party", function() c.party("") end },
         { "gear why", function() c.gear("why") end },
         { "prof plan", function() c.professions("plan") end },
-        { "talents", function() c.talents() end },
+        { "talents", function() c.talents("dump") end },
         { "flow action", function() c.action("") end },
         { "perf", function() c.perf(spread and "quick" or "") end },   -- (at logout: the full figures, memory kept after clean-up too)
         { "tests", function()

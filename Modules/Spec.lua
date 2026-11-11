@@ -58,6 +58,8 @@ function ns:LevelingRole()
 end
 
 local function unspentPoints()
+    -- (Flow Talents reads the game's own count, whichever talent system the client has.)
+    if ns.talents and ns.talents.Unspent then return ns.talents.Unspent() end
     if UnitCharacterPoints then return UnitCharacterPoints("player") or 0 end
     return 0
 end
@@ -73,9 +75,10 @@ local function describe()
     if mine ~= rec then
         print(string.format("  You chose |cff%s%s|r: gear advice uses that.", ns.ROLE_COLOR[mine], d.specs[mine].name))
     end
-    if #d.leveling.talentPlan == 0 then
-        print("  Point-by-point talent plan: coming once we confirm this game version's talent tree.")
-    end
+    local _, class = UnitClass("player")
+    print(ns:Get("talentBuild", class or "")
+        and "  Point by point: /flow talents (Flow Talents: what to take now and at each level)."
+        or "  /flow talents shows your trees; there's no point-by-point build for your class yet.")
 end
 
 ns:OnLoad(function(saved) saved.spec = saved.spec or {} end)
@@ -83,7 +86,7 @@ ns:PerCharacter("spec")   -- your role choice; nothing kept from before (it was 
 
 ns:On("PLAYER_LOGIN", function()
     if UnitLevel("player") >= 10 and unspentPoints() > 0 then
-        ns:Print(string.format("you have %d unspent talent point(s). /flow spec for advice.", unspentPoints()))
+        ns:Print(string.format("you have %d unspent talent point(s). /flow talents shows what to take.", unspentPoints()))
     end
 end)
 
@@ -148,17 +151,27 @@ local function dumpTraits()
         for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID) or {}) do
             local node = C_Traits.GetNodeInfo(cfg, nodeID)
             if node and node.ID ~= 0 and (node.maxRanks or 0) > 0 then
-                local names = {}
+                -- What it does (the game's own text, cut short) and which
+                -- talents it leads to: for writing a class's talentBuild.
+                local names, what = {}, nil
                 for _, entryID in ipairs(node.entryIDs or {}) do
                     local e = C_Traits.GetEntryInfo(cfg, entryID)
                     local def = e and e.definitionID and C_Traits.GetDefinitionInfo(e.definitionID)
                     local spell = def and (def.overrideName or (def.spellID and ns.api.SpellInfo(def.spellID)))
                     names[#names + 1] = tostring(spell or ("entry " .. entryID))
+                    if not what and def and def.spellID and ns.api.Description then
+                        local okD, text = pcall(ns.api.Description, def.spellID)
+                        if okD and type(text) == "string" and text ~= "" then what = text:gsub("%s+", " "):sub(1, 150) end
+                    end
                 end
+                local leads = {}
+                for _, edge in ipairs(node.visibleEdges or {}) do leads[#leads + 1] = tostring(edge.targetNode) end
                 n = n + 1
                 if n <= 120 then
-                    print(string.format("    node %d at %d,%d  %d/%d  %s", nodeID, node.posX or 0, node.posY or 0,
-                        node.currentRank or 0, node.maxRanks or 0, table.concat(names, " | ")))
+                    print(string.format("    node %d at %d,%d  %d/%d  %s%s%s", nodeID, node.posX or 0, node.posY or 0,
+                        node.currentRank or 0, node.maxRanks or 0, table.concat(names, " | "),
+                        #leads > 0 and ("  -> " .. table.concat(leads, ",")) or "",
+                        what and ("  :: " .. what) or ""))
                 end
             end
         end

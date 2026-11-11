@@ -201,7 +201,13 @@ Flow for WoW is a separate project from Flow Engine.
   to equip, professions behind your level, talents and habits from your best fights. Rows that
   are places route you there.
 - **Training and talents**: trainer reminders, profession targets for your level, and spec
-  advice (`/flow spec`, `/flow talents`).
+  advice (`/flow spec`).
+- **Flow Talents** (`/flow talents`): your talent trees as the game has them, with Flow's
+  levelling build over them: what to take with the points you have now (gold), what comes at
+  each of your next levels, and where the build ends up (druid: 5 / 41 / 5). Hover a talent
+  for the game's own text and why it's in the build. A reference: you spend the points.
+  A build is one registration per class (`talentBuild`); a class without one still sees its
+  trees.
 
 ### Quality of life
 - **Each character keeps its own**: fights, trainer, recipes, profession plan, role, hidden

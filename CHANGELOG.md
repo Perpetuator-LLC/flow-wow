@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.158
+- **Flow Talents** (`/flow talents`, or the "Spend N talent points" advice): your talent trees
+  as the game has them, with Flow's levelling build laid over them. Gold is what to take with
+  the points you have now; the line under it says what comes at each of your next levels; the
+  title says where the build ends up. Hover a talent for the game's own text and why it's in
+  the build. It's a reference to read beside the talent window: Flow never spends a point.
+- **Druid build**: Improved Wrath first (you cast until Cat Form at 20), then down the Feral
+  tree, Heart of the Wild after its last row: 5 / 41 / 5 at level 60. Other classes see their
+  trees, without a build yet.
+- **Unspent talent points are noticed on Forever.** The reminder and the advice read the old
+  talent system's count, which this client doesn't have; they now read the game's own.
+- The diagnostics now keep each talent's text and what it leads to, to check builds against.
+
 ## 0.35.157
 - **Tick what your route includes.** The three routes (Quests only, Optimal, Completionist) and
   their Professions switch are now one tick each, in the route menu (the Flow Router's "Route:"

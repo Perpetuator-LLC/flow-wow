@@ -32,7 +32,7 @@ ns:Register("class", "DRUID", {
             "From 10, Bear Form takes hits for tough pulls; from 20, Cat Form kills fastest and needs no mana.",
             "Feral talents help both Cat and Bear. Balance and Restoration level slower solo (mana breaks).",
         },
-        -- Talent points in order, filled in once we confirm this client's talent tree.
+        -- (The point-by-point build is the "talentBuild" registration at the end of this file.)
         -- PLACEHOLDER: { {tab = 2, index = 1}, ... }
         talentPlan = {},
     },
@@ -93,5 +93,39 @@ ns:Register("class", "DRUID", {
     proficiency = {
         [4] = { [0] = true, [1] = true, [2] = true, [8] = true },
         [2] = { [4] = true, [5] = true, [6] = true, [10] = true, [13] = true, [15] = true, [20] = true },
+    },
+})
+
+-- Flow Talents (Modules/Talents.lua): the levelling build, point by point,
+-- for Forever's druid trees (read from the game: /flow talents dump). Wrath
+-- first, since you cast until Cat Form at 20; then down the Feral tree, which
+-- serves Cat and Bear alike; Heart of the Wild (in Restoration here) once the
+-- Feral tree's last row is yours. The reasons say what each talent is known
+-- for; the game's own text is on each talent's hover.
+ns:Register("talentBuild", "DRUID", {
+    name = "Feral (Cat) levelling build",
+    role = "dps",
+    trees = { "Balance", "Feral", "Restoration" },
+    order = {
+        { "Improved Wrath", 5, why = "Until Cat Form at 20 you kill with Wrath: this makes it quicker to cast." },
+        { "Ferocity", 5, why = "Claw, Rake, Maul and Swipe cost less: ready for Bear Form now and Cat Form at 20." },
+        { "Feral Swiftness", 2, why = "Faster on your feet in Cat Form: less time between kills." },
+        { "Thick Hide", 3, why = "More armor from your gear: everything that hits you hurts less." },
+        { "Sharpened Claws", 2, why = "More critical strikes in Cat and Bear Form." },
+        { "Savage Fury", 2, why = "Claw, Rake, Maul and Swipe hit harder." },
+        { "Feral Charge", 1, why = "A charge in Bear Form: stops a caster, catches a runner." },
+        { "Blood Frenzy", 2, why = "Critical strikes build your finishers faster." },
+        { "Predatory Strikes", 3, why = "More attack power in Cat and Bear Form, growing with your level." },
+        { "Leader of the Pack", 1, why = "More critical strikes for you and your group in Cat or Bear Form." },
+        { "Shredding Attacks", 3, why = "Shred and Lacerate cost less." },
+        { "Predatory Discipline", 1, why = "The point that opens the next row." },
+        { "Rend and Tear", 5, why = "Far more damage to a bleeding target: Rake first, then everything hits harder." },
+        { "Primal Bite", 1, why = "The Feral tree's last row." },
+        { "Shifting Power", 1, why = "The Feral tree's last row." },
+        { "Heart of the Wild", 5, why = "More Intellect always; more Strength as a cat, more Stamina as a bear." },
+        { "Furor", 5, why = "Energy (or rage) the moment you shift: no slow start after a heal." },
+        { "Natural Instinct", 2, why = "Filling in the Feral tree." },
+        { "Lacerate", 1, why = "A bleed for Bear Form, for when you tank." },
+        { "Brutal Impact", 1, why = "Your stuns last longer." },
     },
 })

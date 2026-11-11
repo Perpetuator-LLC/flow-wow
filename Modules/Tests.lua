@@ -5402,6 +5402,101 @@ ns:Register("test", "route: the quest log event refreshes the route only when th
     t:ok(N.LogChanged(nil), "couldn't read the log: refresh, to be safe")
 end)
 
+ns:Register("test", "talents: a build laid over the game's trees", function(t)
+    local T = ns.talents
+    if not T then t:ok(false, "Talents.lua not loaded") return end
+    -- Two small trees: A (x 100-700) and B (x 5000), three rows.
+    local function tree()
+        return {
+            { name = "Claws", x = 100, y = 10, rank = 0, max = 5 }, { name = "Hide", x = 700, y = 10, rank = 0, max = 5 },
+            { name = "Pounce", x = 100, y = 20, rank = 0, max = 2 }, { name = "Roar", x = 100, y = 30, rank = 0, max = 1 },
+            { name = "Wrath+", x = 5000, y = 10, rank = 0, max = 5 }, { name = "Stars", x = 5000, y = 20, rank = 0, max = 3 },
+        }
+    end
+    local nodes = tree()
+    local trees = T.Arrange(nodes)
+    t:eq(#trees, 2, "two trees, told apart by the gap between them")
+    t:eq(trees[1].nodes[1].name, "Claws", "left tree first, top row first")
+    t:eq(nodes[3].tier, 2, "rows count from the top")
+    t:eq(nodes[5].tree, 2, "the far talent is in the second tree")
+    local build = { name = "Test build", trees = { "Cat", "Moon" },
+        order = { { "Wrath+", 2, why = "first" }, { "Claws", 5 }, { "Pounce", 2 }, { "Hide", 3 }, { "Roar", 1 } } }
+    local picks = T.Picks(build)
+    t:eq(#picks, 13, "one pick per point")
+    t:eq(picks[1].level, 10, "the first point comes at level 10")
+    t:eq(picks[3].name .. picks[3].rank, "Claws1", "then the next talent, rank by rank")
+    t:eq(picks[13].level, 22, "a point a level")
+    local plan = T.Plan(picks)
+    t:eq(plan.Claws.ranks, 5, "5 points planned in it")
+    t:eq(plan.Claws.from .. "-" .. plan.Claws.to, "12-16", "over those levels")
+    t:eq(plan["Wrath+"].why, "first", "with its reason")
+    -- What to take: what you don't have yet, in order.
+    local missing = T.Missing(picks, { ["Wrath+"] = 2, Claws = 1 })
+    t:eq(missing[1].name .. missing[1].rank, "Claws2", "you have Wrath+ 2/2 and Claws 1: Claws 2 is next")
+    t:eq(#missing, 10, "ten points still to come")
+    t:eq(T.Names({ picks[1], picks[2], picks[3] }), "Wrath+ x2, Claws", "named, counted")
+    -- Does a build fit the trees?
+    t:eq(#T.Check(build, tree()), 0, "this one does")
+    local early = T.Check({ order = { { "Pounce", 1 } } }, tree())
+    t:ok(early[1] and early[1]:find("needs 5 points", 1, true) ~= nil, "a second-row talent first: needs 5 points in its tree")
+    t:ok(#T.Check({ order = { { "Nonsense", 1 } } }, tree()) == 1, "a talent the game doesn't have: said")
+    t:ok(#T.Check({ order = { { "Claws", 6 } } }, tree()) == 1, "more points than it takes: said")
+    -- The view: level 11 with 2 points and nothing taken.
+    local v = T.View(tree(), 2, build, 11)
+    t:ok(v.what:find("Test build", 1, true) and v.what:find("11 / 2", 1, true), "the build and where it ends up, tree by tree: " .. v.what)
+    t:ok(v.now:find("Take now (2 points): Wrath+ x2", 1, true) ~= nil, "what to take now: " .. v.now)
+    t:ok(v.soon:find("12 Claws", 1, true) ~= nil, "then one a level, from your next level: " .. v.soon)
+    t:eq(v.trees[2].rows[1].state, "now", "Wrath+ is gold: take it now")
+    t:eq(v.trees[1].rows[1].state, "later", "Claws: in the build, later")
+    t:eq(v.trees[2].rows[2].state, "off", "Stars: not in the build")
+    local done = tree(); done[5].rank = 2
+    t:eq(T.View(done, 0, build, 12).trees[2].rows[1].state, "done", "taken as planned: done")
+    t:ok(T.View(tree(), 1, nil, 11).what:find("No levelling build", 1, true) ~= nil, "a class without a build still gets its trees")
+end)
+
+ns:Register("test", "talents: the druid build fits Forever's druid trees", function(t)
+    -- The trees as the game showed them (0.35.152's diagnostics): the Feral
+    -- tree whole, and the Balance and Restoration talents the build uses.
+    local T = ns.talents
+    local build = ns:Get("talentBuild", "DRUID")
+    if not (T and build) then t:ok(false, "no druid build") return end
+    local nodes = {}
+    local function add(name, x, y, max) nodes[#nodes + 1] = { name = name, x = x, y = y, rank = 0, max = max } end
+    add("Improved Wrath", 1620, 2130, 5); add("Genesis", 2220, 2130, 5)
+    add("Ferocity", 5620, 2130, 5); add("Furor", 6220, 2130, 5)
+    add("Feral Swiftness", 5020, 2730, 2); add("Feral Instinct", 5620, 2730, 3); add("Brutal Impact", 6220, 2730, 2); add("Thick Hide", 6820, 2730, 3)
+    add("Shredding Attacks", 5020, 3330, 3); add("Savage Fury", 5620, 3330, 2); add("Feral Charge", 6220, 3330, 1); add("Sharpened Claws", 6820, 3330, 2)
+    add("Predatory Strikes", 5020, 3930, 3); add("Lacerate", 5620, 3930, 1); add("Predatory Discipline", 6220, 3930, 1); add("Blood Frenzy", 6820, 3930, 2)
+    add("Leader of the Pack", 5620, 4530, 1); add("Natural Instinct", 6820, 4530, 2)
+    add("Rend and Tear", 5020, 5130, 5); add("Natural Reaction", 6820, 5130, 5)
+    add("Primal Bite", 5620, 5730, 1); add("Shifting Power", 6220, 5730, 1)
+    add("Nature's Focus", 9680, 2130, 5); add("Heart of the Wild", 10280, 2130, 5)
+    local problems = T.Check(build, nodes)
+    t:eq(#problems, 0, "every point can be taken in its order" .. (problems[1] and (": " .. problems[1]) or ""))
+    local picks = T.Picks(build)
+    t:eq(#picks, 51, "51 points: levels 10 to 60")
+    t:eq(picks[1].name, "Improved Wrath", "Wrath first: you cast until Cat Form")
+    t:eq(picks[#picks].level, 60, "the last one at 60")
+    local v = T.View(nodes, 2, build, 11)
+    t:ok(v.what:find("5 / 41 / 5", 1, true) ~= nil, "ends 5 / 41 / 5: " .. v.what)
+end)
+
+ns:Register("test", "click: /flow talents opens Flow Talents; its X closes it", function(t)
+    local T = ns.talents
+    if not T then t:ok(false, "Talents.lua not loaded") return end
+    local ok, err = pcall(ns.commands.talents, "")
+    t:ok(ok, "opens without an error" .. (ok and "" or (": " .. tostring(err))))
+    local f = T._Frame()
+    t:ok(f and f:IsShown(), "Flow Talents is up")
+    if f then
+        t:eq(f.head.text:GetText(), "Flow Talents", "named Flow Talents")
+        t:ok((f.what:GetText() or "") ~= "", "says which build (or that talents come at 10)")
+        t:ok(pcall(f.close:GetScript("OnClick"), f.close), "click: the X")
+        t:ok(not f:IsShown(), "closed")
+    end
+    t:ok(type(T.Unspent()) == "number", "unspent points: a number, whichever talent system the game has")
+end)
+
 ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     -- 0.35.157: in place of Quests only / Optimal / Completionist + Professions.
     local N = ns.nav

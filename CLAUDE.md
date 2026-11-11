@@ -168,8 +168,8 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   (`Modules/Theme.lua`): the same dark bar, orange accent and gold title as the Flow Tracker,
   Router and Seller. Colours come from `ns.theme`, never hard-coded per panel.
 - **Every view is named "Flow <Name>"**: Flow Tracker, Flow Router, Flow Seller, Flow
-  Improvements, Flow Chat, Flow Spells, Flow Professions, Flow Settings, Flow Setup, Flow Key
-  Bindings. Use that name in its title and wherever text mentions it ("Buy it back in the Flow
+  Improvements, Flow Chat, Flow Spells, Flow Talents, Flow Professions, Flow Settings, Flow
+  Setup, Flow Key Bindings. Use that name in its title and wherever text mentions it ("Buy it back in the Flow
   Seller"), and give any new view one the same way.
 
 ## Every change
