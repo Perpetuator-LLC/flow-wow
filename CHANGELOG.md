@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- **Professions: a switch of their own.** The route list is Quests only, Optimal, Completionist, with one
+  "Professions" tick under them instead of two "Optimal with / without professions" routes.
+
 ## 0.35.133
 - **Alt + Flow key: your healthstone, or your best healing potion**, in fights too, even when
   it's on none of your bars. It's set before the fight (WoW won't let it change during one).
