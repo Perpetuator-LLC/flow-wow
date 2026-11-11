@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Profession guides: the recipes to 300.** Cooking now goes past 225 with the bought Artisan recipes the
+  levelling guides use (Monster Omelet, Tender Wolf Steak, Spotted Yellowtail, then Nightfin Soup, Sunscale
+  Salmon, Mightfish Steak, Lobster Stew and Baked Salmon), with their vendor prices and the fish they need.
+  Blacksmithing 265-300 is Imperial Plate: its plans are quest rewards, so the stop says to accept Derotain
+  Mudsipper's quest in Gadgetzan (and why) instead of "buy". Thorium Bars smelt from Thorium Ore, and Mining
+  knows the Mithril and Thorium skill colours. The last three bandages are learned from your side's Triage
+  doctor, not the city trainer.
 - **Professions: training goes on the route, and plans stop at your cap.** The next tier (Journeyman, Expert,
   Artisan) is now a route stop from 25 points below your cap, as soon as your level allows, for every
   profession you have. Cooking, First Aid and Fishing get their Expert book (buy it, then read it) and their
