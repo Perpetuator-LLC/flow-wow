@@ -27,7 +27,8 @@ Flow for WoW is a separate project from Flow Engine.
   your Fishing Pole, puts on your best lure, casts, then reels in when the bobber splashes; at a
   mining or herb stop it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
   your weapons back. Upgrades in your bags: it equips them (first, when you target an enemy).
-  Crafting: campfire, open the profession, make exactly enough. Things to learn in your bags
+  Crafting: campfire, open the profession, make exactly enough; by an anvil, forge or cooking
+  fire with something to make, it opens Blacksmithing, Smelting or Cooking. Things to learn in your bags
   (recipes, scrolls): it learns them. One press per step.
   `/flow action` shows what it would do.
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.

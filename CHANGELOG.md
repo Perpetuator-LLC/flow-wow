@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.124
+- **By an anvil, a forge or a cooking fire, the Flow key opens your profession** (Blacksmithing,
+  Smelting when you carry ore, or Cooking), when you have something to make there: a recipe
+  you've seen in that profession's window with everything for it in your bags. Flow learns
+  where the game's anvils, forges and fires are each time your profession window says you're
+  by one; until then it guesses from where the blacksmith and cooking trainers stand. Your own
+  campfire counts too. (Thanks, BIMpossible: pull request 5.)
+
 ## 0.35.123
 - **Fixed: in a group, the easy button chose nothing out of a fight.** Before suggesting a
   cleanse or a buff, Flow asks the game whether each person is in range. Forever hides that

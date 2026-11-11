@@ -1392,13 +1392,29 @@ ns:Register("test", "craft station: the profession button by an anvil, forge or 
     local _, st = X.StationProf({ fire = true }, all, false)
     t:eq(st, "fire", "Cooking at a fire")
     t:eq(X.StationProf({ fire = true }, function() return false end, false), nil, "none known: nothing")
-    -- The action itself, at an anvil learned where you stand.
+    -- Only with something to make (0.35.124): not by every cooking trainer.
+    local bags = { [2672] = 2, [2589] = 1 }
+    local function n(id) return bags[id] or 0 end
+    local recipes = { ["Roasted Boar Meat"] = { reagents = { [2672] = 1 } }, ["Linen Bandage"] = { reagents = { [2589] = 2 } } }
+    t:ok(X.CanMakeWith(recipes, n), "Stringy Wolf Meat in your bags: something to cook")
+    t:ok(not X.CanMakeWith({ ["Linen Bandage"] = recipes["Linen Bandage"] }, n), "one Linen Cloth of two: nothing")
+    t:ok(not X.CanMakeWith(nil, n), "a profession never opened: nothing")
+    t:ok(not X.CanMakeWith({ X = { reagents = {} } }, n), "a recipe with no reagents seen doesn't count")
+    local cookOnly = function(sp) return sp == "Cooking" end
+    t:eq(X.StationProf({ fire = true }, all, false, function() return false end), nil, "at a fire with nothing to cook: nothing")
+    t:eq(X.StationProf({ fire = true }, all, false, cookOnly), "Cooking", "at a fire with meat: Cooking")
+    t:eq(X.StationProf({ anvil = true, forge = true, fire = true }, all, false, cookOnly), "Cooking",
+        "by an anvil with no bars, and a fire with meat: Cooking")
+    -- The action itself, at an anvil learned where you stand (with a recipe
+    -- you have everything for).
     local p = ns.nav:PlayerPos()
     local windowOpen = (TradeSkillFrame and TradeSkillFrame:IsShown()) or (ProfessionsFrame and ProfessionsFrame:IsShown())
     if p and ns.api.SpellInfo("Blacksmithing") and not InCombatLockdown() and not (IsMounted and IsMounted()) and not windowOpen then
         with(ns.db.actions, "stations", { { kind = "anvil", cont = p.cont, wx = p.wx, wy = p.wy } }, function()
+        with(ns.recipes, "Known", function() return { Anything = { reagents = { [2770] = 0 } } } end, function()
             local s = ns:Get("action", "craft:station").get(X:Context())
             t:ok(s and (s.spell == "Blacksmithing" or s.spell == "Smelting"), "the key opens Blacksmithing (Smelting with ore by a forge)")
+        end)
         end)
     else
         t:ok(true, "(no Blacksmithing, mounted or no position: the action check skipped)")

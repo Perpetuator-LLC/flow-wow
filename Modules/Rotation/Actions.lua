@@ -453,25 +453,46 @@ end
 
 -- The profession to open at these stations, and the station: Smelting at a
 -- forge when you carry ore (or don't smith), else Blacksmithing at an anvil
--- or forge, else Cooking at a fire. nil when you know none of them.
-function X.StationProf(near, knowsFn, hasOre)
-    local smelt = near.forge and knowsFn("Smelting")
-    local smith = (near.anvil or near.forge) and knowsFn("Blacksmithing")
+-- or forge, else Cooking at a fire. nil when you know none of them, or (with
+-- canMakeFn) when you have nothing to make in it: opening Cooking by every
+-- cooking trainer you walk past, with nothing to cook, would only nag.
+function X.StationProf(near, knowsFn, hasOre, canMakeFn)
+    local function can(prof) return knowsFn(prof) and (not canMakeFn or canMakeFn(prof)) end
+    local smelt = near.forge and can("Smelting")
+    local smith = (near.anvil or near.forge) and can("Blacksmithing")
     if smelt and (hasOre or not smith) then return "Smelting", "forge" end
     if smith then return "Blacksmithing", near.anvil and "anvil" or "forge" end
-    if near.fire and knowsFn("Cooking") then return "Cooking", "fire" end
+    if near.fire and can("Cooking") then return "Cooking", "fire" end
 end
 
 local function hasOre()
     for _, id in ipairs(X.ORES) do if count(id) > 0 then return true end end
     return false
 end
+
+-- Could you make anything? A recipe Flow saw in that profession's window
+-- ({ [name] = { reagents = { [itemID] = n } } }) with every reagent in your bags.
+function X.CanMakeWith(recipes, countFn)
+    for _, r in pairs(recipes or {}) do
+        local ok = r.reagents ~= nil and next(r.reagents) ~= nil
+        for id, n in pairs(r.reagents or {}) do
+            if (countFn(id) or 0) < n then ok = false; break end
+        end
+        if ok then return true end
+    end
+    return false
+end
+local function canMake(prof)
+    if prof == "Smelting" and hasOre() then return true end
+    return X.CanMakeWith(ns.recipes and ns.recipes:Known(prof), count)
+end
 ns:Register("action", "craft:station", { order = 49, get = function(ctx)
     if professionOpen() or (IsMounted and IsMounted()) then return nil end
     if not (knows("Cooking") or knows("Blacksmithing") or knows("Smelting")) then return nil end
     local near = X.StationsNear(ctx.p, ns.db.actions.stations, trainerSpots())
     near.fire = near.fire or X.FireNear()
-    local prof, station = X.StationProf(near, knows, hasOre())
+    if not (near.anvil or near.forge or near.fire) then return nil end
+    local prof, station = X.StationProf(near, knows, hasOre(), canMake)
     if not prof then return nil end
     return { type = "spell", spell = prof, unit = "player", icon = spellIcon(prof),
              label = string.format("Open %s (at the %s)", prof, station) }
