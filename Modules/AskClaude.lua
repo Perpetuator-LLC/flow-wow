@@ -398,6 +398,19 @@ local function buildBox()
     f.toChat = button(f.setup, "Chat anyway", 100)
     f.toChat:SetPoint("LEFT", f.copy, "RIGHT", 4, 0)
     f.toChat:SetScript("OnClick", function() ns.db.chat.setupSkipped = true; AC:Open() end)
+
+    -- Copy (chat view, in the title bar: the row below is full): the whole
+    -- conversation in the Flow Copy window (select, Ctrl+C; web addresses in
+    -- Claude's answers can be picked out one by one).
+    f.copyLog = button(f.chat, "Copy", 50)
+    f.copyLog:SetHeight(18)
+    f.copyLog:SetPoint("RIGHT", close, "LEFT", -2, 0)
+    f.copyLog:SetScript("OnClick", function()
+        if not ns.copyBox then f.status:SetText("Restart WoW once to load the Flow Copy window.") return end
+        local lines = AC.History(ns.claudeInbox, ns.db.chat, 20)
+        if #lines == 0 then f.status:SetText("Nothing to copy yet.") return end
+        ns.copyBox:Show("the Flow Chat conversation", lines)
+    end)
     f:Hide()
     return f
 end

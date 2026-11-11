@@ -96,6 +96,15 @@ hour; it's timed in `/flow perf` as "dungeon runs". A prepared run is a `navGoal
 the entrance. Inside, `D:FilterInside` keeps only that dungeon's quests, your waypoint and the
 party route. The Flow key's `status` icon suggests the best run.
 
+### UI helpers
+
+- `ns:MakeMovable(frame, save)` (`Core.lua`): Shift-drag for ordinary panels.
+- `ns:MoveHandle(button, opts)` (`Modules/MoveHandle.lua`): for secure buttons (the Flow key),
+  which can't be dragged themselves or moved in a fight: a handle over the button while Shift is
+  held, out of combat; drag to move, mouse wheel to resize. `ns.RestorePlace` puts it back.
+- `ns.copyBox:Show(title, lines)` (`Modules/CopyBox.lua`): the Flow Copy window, text selected
+  for Ctrl+C. Everything `ns:Print` says is kept for `/flow copy`.
+
 ### Rotation adaptation (and its limits)
 
 - Rules marked `adaptive = true` that sit next to each other form a group of roughly equal

@@ -21,7 +21,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
-  if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button.
+  if none is up, then Judgement or Crusader Strike), never a heal. Shift-drag to move the button; Shift + mouse wheel over it resizes it.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
   target, with a Make N button for exactly that many, and tells you when to stop.
 - **Flow Actions** (same key, out of combat, at your route stop): at a fishing spot it equips
@@ -83,15 +83,16 @@ Flow for WoW is a separate project from Flow Engine.
   and item drops whose mobs are spread out wait (`/flow nearfirst on|off`).
 - **Hub business first**: in a quest hub the route turns in every finished quest there and
   picks up the quests on offer before heading out, like a walkthrough.
-- **Quest areas**: in an objective area the arrow becomes a ring of little pillars that pop up
-  as you arrive (and run a wave when you're right on the spot); hover it to see every quest
-  there. A "do it here" stop (crafting, a recipe to learn) shows its own icon bouncing in the
-  ring.
-- **3D arrow**: a shaded chevron on the ground over a ring of pillars, with a floating sphere
-  when you've arrived (or the flat line arrow: right-click it and untick "3D arrow"). It turns
-  with your character. (The game doesn't tell add-ons where the camera points, so it can't
-  follow the camera.) The login intro spins the pillars around a gold FLOW with the version
-  underneath (`/flow splash`).
+- **Quest areas**: in an objective area the arrow shows a glowing ring, a beam of light and
+  ripples (they speed up when you're right on the spot); hover it to see every quest there. A
+  "do it here" stop (crafting, a recipe to learn) shows its own icon bouncing in the ring.
+- **Arrow**: a glossy metal chevron that glides as it turns and floats over its own shadow. Its
+  colour says how close you are: grey while the stop is in another zone, then orange (far) through
+  yellow to green (close), and blue once you're in its area (`/flow nav arrowcolor route` gives
+  it the route's colour instead). Right-click it to pick Modern, 3D (pillars) or Flat lines
+  (`/flow nav arrow modern|3d|flat`). It turns with your character. (The game doesn't tell
+  add-ons where the camera points, so it can't follow the camera.) The login intro spins the
+  arrow around a gold FLOW with the version underneath (`/flow splash`).
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
 - **Milestones**: class training and your mount always make the route and fit around the
   quests on the way. Flow tells you to start saving for your mount 5 levels early.
@@ -104,7 +105,8 @@ Flow for WoW is a separate project from Flow Engine.
   completionist) and the order. Hover a stop for details, click it for its stop card, use the
   `^` handle to route from that stop (it stays marked red), right-click to hide it or "Point
   the arrow here". A button above it shows or hides the route on the map.
-- **World map and minimap**: numbered waypoints with quest levels (`3 [9]`) and pickups
+- **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
+  to your next stop, and that stop's dot, in the arrow's colour); numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
 - **Stop card**: Flow's view of a stop (drag it by its title); the arrow's own panel slides
@@ -214,7 +216,7 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow action`, `/flow advice`, `/flow way` (`repair`, `vendor`, `clear`), `/flow map`,
 `/flow nav xp|distance|northup|unhide|sort|stops`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
-`/flow test`, `/flow api`.
+`/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`.
 
 ## For developers
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). Using Claude or another AI assistant? Point it

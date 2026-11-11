@@ -53,8 +53,15 @@ end
 
 ns.commands.test = function(arg)
     local passed, failed, checks, out = run(arg)
-    ns:Print(string.format("tests: %d passed, %d failed (%d checks)", passed, failed, checks))
+    local head = string.format("tests: %d passed, %d failed (%d checks)", passed, failed, checks)
+    ns:Print(head)
     for _, l in ipairs(out) do print(l) end
+    -- A failure: open it in the copy window too, so it can be copied out.
+    if failed > 0 and ns.copyBox then
+        local lines = { head }
+        for _, l in ipairs(out) do lines[#lines + 1] = l end
+        pcall(ns.copyBox.Show, ns.copyBox, "Flow self-tests: " .. failed .. " failed", lines)
+    end
 end
 
 -- After every login and /reload: run them all, and if anything fails say so
@@ -756,9 +763,20 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
         t:ok(not M._followPlayer(links, canvas, 1429), "standing still: nothing to move")
         pos.x = 0.42
         t:ok(M._followPlayer(links, canvas, 1429), "you moved: your lines follow")
-        t:near(leg[1], 0.42, 1e-6, "the chevrons' leg starts at you")
+        t:near(leg[1], 0.42, 1e-6, "the dots' leg starts at you")
         t:near(calls[#calls] and calls[#calls][1] or 0, 420, 1e-6, "the line starts at you (x)")
         t:near(calls[#calls] and calls[#calls][2] or 0, -420, 1e-6, "the line starts at you (y)")
+        local dotLeg = { 0.40, 0.60, 0.5, 0.5 }
+        local dotLinks = { n = 1, { leg = dotLeg } }   -- a dotted trail: no line, only its leg
+        dotLinks.px, dotLinks.py = 0.40, 0.60
+        pos.x = 0.44
+        t:ok(M._followPlayer(dotLinks, canvas, 1429), "a dotted trail follows you too")
+        t:near(dotLeg[1], 0.44, 1e-6, "its leg starts at you")
+        local spots = M._dotSpots(100, 12, 9)
+        t:near(spots[1], 9, 1e-6, "no dot under the first point")
+        t:near(spots[#spots], 91, 1e-6, "nor under the last")
+        t:ok(#spots >= 7 and #spots <= 9, "about 12 apart")
+        t:eq(#M._dotSpots(20, 12, 9), 0, "two points side by side: no dots")
 
         -- An area's shape is worked out once, again only when its spawns change.
         local g = { key = "t:area", area = true, points = {} }
@@ -1344,6 +1362,60 @@ ns:Register("test", "taint: moving the cast icon never happens in combat", funct
     ns.cast.moving = was
 end)
 
+ns:Register("test", "resize: buttons stay between half and double size", function(t)
+    t:eq(ns.ClampScale(1), 1, "normal size")
+    t:eq(ns.ClampScale(5), 2, "at most double")
+    t:eq(ns.ClampScale(0.1), 0.5, "at least half")
+    t:eq(ns.ClampScale(1.1 + 1e-9), 1.1, "rounded, so steps don't drift")
+    t:eq(ns.ClampScale(nil), 1, "nothing saved: normal size")
+end)
+
+ns:Register("test", "click: Shift + drag moves and Shift + wheel resizes the Flow button", function(t)
+    t:ok(ns.cast.handle ~= nil, "the Flow button has a handle")
+    -- On a stand-in frame (made once), so your own buttons never move.
+    local f = ns._testMoveFrame
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
+        f:SetSize(40, 40)
+        f:SetAlpha(0)
+        ns._testMoveFrame = f
+        f.save = {}
+        f.handle = ns:MoveHandle(f, { name = "test", save = function() return f.save end })
+    end
+    local h = f.handle
+    ns.RestorePlace(f, { point = { "CENTER", "CENTER", 100, 50 } })
+    t:eq(f:GetScale(), 1, "restored at normal size")
+    f:Show()
+    -- The handle's own scripts run (no Shift held: they do nothing).
+    for _, s in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave" }) do
+        local ok, err = pcall(h:GetScript(s), h)
+        t:ok(ok, s .. " runs" .. (ok and "" or (": " .. tostring(err))))
+    end
+    local ok, err = pcall(h:GetScript("OnMouseWheel"), h, 1)
+    t:ok(ok, "the wheel runs" .. (ok and "" or (": " .. tostring(err))))
+    if not IsShiftKeyDown() then t:eq(f:GetScale(), 1, "no Shift: the wheel leaves the size alone") end
+    t:ok(not h.moving, "no Shift: a press doesn't start a move")
+    if InCombatLockdown() then
+        t:ok(true, "(in a fight: resizing is off)")
+    else
+        local x0, y0 = f:GetCenter()
+        h:ScaleBy(1)
+        t:near(f:GetScale(), 1.1, 1e-3, "one notch: a tenth bigger")
+        t:near(f.save.scale, 1.1, 1e-3, "the size is saved")
+        t:ok(f.save.point and f.save.point[1] == "CENTER", "the spot is saved")
+        local x1, y1 = f:GetCenter()
+        if x0 and x1 then
+            t:ok(math.abs(x1 * 1.1 - x0) < 1 and math.abs(y1 * 1.1 - y0) < 1, "it grows around its centre")
+        end
+        for _ = 1, 30 do h:ScaleBy(-1) end
+        t:near(f:GetScale(), 0.5, 1e-3, "shrinks to half and stops")
+        -- Back where it was, at the saved size.
+        ns.RestorePlace(f, f.save)
+        t:near(f:GetScale(), 0.5, 1e-3, "restored at the saved size")
+    end
+    f:Hide()
+end)
+
 ns:Register("test", "route: what it optimises is pluggable", function(t)
     local X = ns.xpValue
     t:ok(ns:Get("routeObjective", "xp") and ns:Get("routeObjective", "distance"), "built-in objectives registered")
@@ -1381,6 +1453,128 @@ ns:Register("test", "arrow 3D: pillars on the ring and a sphere when you arrive"
     a:SetRingSpin(math.pi / 2)
     t:ok(a.ringAngle == math.pi / 2, "the ring can spin")
     a:Hide()
+end)
+
+ns:Register("test", "modern arrow: pictures for each turn", function(t)
+    local N = ns.nav
+    local i, l, r, top, b = N.ArrowCell(0)
+    t:eq(i, 0, "pointing up: the first picture")
+    t:ok(l == 0 and r == 1 / 16 and top == 0 and b == 1 / 8, "top-left cell of the sheet")
+    i, l, _, top = N.ArrowCell(math.pi / 2)
+    t:eq(i, 32, "a quarter turn left: picture 32")
+    t:ok(l == 0 and top == 2 / 8, "row 3, first column")
+    t:eq((N.ArrowCell(2 * math.pi - 0.001)), 0, "just short of a full turn: back to the first")
+    t:eq((N.ArrowCell(-math.pi / 2)), 96, "turning right works too")
+    t:eq((N.ArrowCell(nil)), 0, "no angle: pointing up")
+end)
+
+ns:Register("test", "modern arrow: grey away, orange to green closing in, blue here", function(t)
+    local N, th = ns.nav, ns.theme
+    local function same(r, g, b, c) return math.abs(r - c[1]) < 1e-6 and math.abs(g - c[2]) < 1e-6 and math.abs(b - c[3]) < 1e-6 end
+    t:ok(same(N.ArrowColor("away", 50), th.arrowAway), "another zone: grey, however close")
+    t:ok(same(N.ArrowColor("here", 900), th.arrowHere), "in the area: blue")
+    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar), "far away: orange")
+    t:ok(th.arrowFar[2] > 0.4, "far isn't red (red reads as \"can't\"; the arrow says go)")
+    t:ok(same(N.ArrowColor("zone", 10), th.arrowNear), "close by: green")
+    local r1, g1 = N.ArrowColor("zone", 500)
+    local r2, g2 = N.ArrowColor("zone", 150)
+    t:ok(g2 > g1 and r2 <= r1, "greener as you close in")
+    -- Which state: other continent / other zone / same zone / here.
+    local p = { cont = 0, map = 1429 }
+    t:eq(N.ArrowState(p, { cont = 1, map = 1411 }, false), "away", "other continent: away")
+    t:eq(N.ArrowState(p, { cont = 0, map = 1429 }, false), "zone", "same zone: by distance")
+    t:eq(N.ArrowState(p, { cont = 0, map = 1429 }, true), "here", "in the area: here")
+    t:eq(N.ArrowState(p, nil, false), "zone", "no point: by distance")
+    local zoneA, zoneB = N.ZoneOf(1429), N.ZoneOf(1436)
+    if zoneA and zoneB and zoneA ~= zoneB then
+        t:eq(N.ArrowState(p, { cont = 0, map = 1436 }, false), "away", "Westfall from Elwynn: away")
+    else
+        t:ok(true, "(map info not available here)")
+    end
+    -- The colour-blind palette has its own ramp.
+    local was = th:ColorBlind()
+    th:UsePalette("colorblind")
+    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar) and th.arrowFar.hex == "D55E00", "colour-blind: vermillion far away")
+    th:UsePalette(was and "colorblind" or "standard")
+end)
+
+ns:Register("test", "modern arrow: turns, colours, ring and beam when you arrive", function(t)
+    local a = ns.nav:MakeArrowModern(UIParent)
+    t:ok(a.body and a.shine and a.shadow and a.halo and a.beam, "body, highlights, shadow, ring and beam")
+    t:eq(a.SetRingSpin, nil, "no pillars: the login intro spins the arrow itself")
+    a.spinning = true
+    a:SetRotation(math.pi / 2)
+    t:eq(a.cell, 32, "spinning: the picture follows at once")
+    a:SetVertexColor(0.2, 0.4, 0.6)
+    t:ok(a.cr == 0.2 and a.cg == 0.4 and a.cb == 0.6, "spinning: the colour follows at once")
+    a.spinning = nil
+    a:SetVertexColor(1, 0, 0)
+    t:ok(a.r == 1 and a.cr == 0.2, "pointing: the colour eases there")
+    a:GetScript("OnUpdate")(a, 0.05)
+    t:ok(a.cr > 0.2 and a.cr < 1, "and moves a step each frame")
+    a:SetArrived(true)
+    a:GetScript("OnUpdate")(a, 0.05)
+    t:ok(a.halo:IsShown() and a.beam:IsShown() and a.ripple:IsShown(), "arrived: ring, ripple and beam")
+    a:SetCenterIcon("Interface\\Icons\\INV_Misc_Food_15")
+    t:ok(a.icon:IsShown(), "the stop's icon in the ring")
+    a:SetWave(true)
+    t:ok(a.wave, "on the spot: the ripples speed up")
+    a:SetArrived(false)
+    for _ = 1, 10 do a:GetScript("OnUpdate")(a, 0.05) end
+    t:ok(not a.halo:IsShown() and not a.icon:IsShown(), "pointing again: no ring, no icon")
+    t:eq(a.fade, 0, "the arrow is back")
+    a:SetWave(true)
+    t:ok(not a.wave, "no ripples unless arrived")
+    a:Hide()
+end)
+
+ns:Register("test", "click: arrow style and colour in the menu and on the settings page", function(t)
+    local N = ns.nav
+    local style, colour = ns.db.nav.arrowStyle, ns.db.nav.arrowColor
+    t:eq(N:ArrowStyle(), (style == "3d" or style == "flat") and style or "modern", "style read back")
+    -- The arrow's right-click menu lists every style and the colour switch.
+    local f = N.arrowFrame
+    if f and f:GetScript("OnClick") and ns.menu then
+        ns.menu:Close()
+        local captured
+        local open = ns.menu.Open
+        ns.menu.Open = function(_, items) captured = items end
+        local ok, err = pcall(f:GetScript("OnClick"), f, "RightButton")
+        ns.menu.Open = open
+        t:ok(ok, "right-click runs" .. (ok and "" or (": " .. tostring(err))))
+        local flat, col
+        for _, it in ipairs(captured or {}) do
+            if it.text == "Arrow: Flat lines" then flat = it end
+            if it.text == "Arrow colour by distance" then col = it end
+        end
+        t:ok(flat and col, "menu: the styles and the colour switch")
+        if flat then pcall(flat.func) end
+        t:eq(N:ArrowStyle(), "flat", "menu: flat arrow")
+        t:ok(N.arrowFrame.arrow.halo == nil and N.arrowFrame.arrow.SetRingSpin == nil, "rebuilt as the flat arrow")
+        if col then pcall(col.func) end
+        t:eq(N:ArrowColorMode(), colour == "route" and "distance" or "route", "menu: colour switched")
+    else
+        t:ok(true, "(no arrow yet)")
+    end
+    -- Settings page: the Arrow row's Modern button.
+    local row
+    for _, r in ipairs(ns.settings:Choices()) do
+        if r.label and r.label:GetText() == "Arrow" then row = r end
+    end
+    if row then
+        for _, b in ipairs(row.buttons) do
+            if b.value == "modern" then
+                local ok, err = pcall(b:GetScript("OnClick"), b, "LeftButton")
+                t:ok(ok, "the Modern button runs" .. (ok and "" or (": " .. tostring(err))))
+            end
+        end
+        t:eq(N:ArrowStyle(), "modern", "settings button: modern arrow")
+        t:ok(N.arrowFrame == nil or N.arrowFrame.arrow.halo ~= nil, "rebuilt as the modern arrow")
+    else
+        t:ok(true, "(settings page not built yet: open /flow settings once)")
+    end
+    N:SetArrowStyle(style)
+    ns.db.nav.arrowColor = colour
 end)
 
 ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon", function(t)
@@ -1711,6 +1905,81 @@ ns:Register("test", "minimap cloud: one smooth shape per area", function(t)
     t:eq(P.ShapeRow(square, 20), nil, "a row outside the shape: nothing")
     local s = P.Shrink(square, 0.5)
     t:near(s[2][1], 5, 0.01, "shrunk towards the middle")
+end)
+
+ns:Register("test", "minimap dot: on the stop, in the arrow's colour", function(t)
+    local N, P = ns.nav, ns.minimapPin
+    local A, B = { wx = 0, wy = 0 }, { wx = 30, wy = 0 }
+    local spot = { key = "test:spot" }
+    t:eq(N.DotPoint({ goal = spot, point = A }, false), A, "on the way: the stop's spot")
+    t:eq(N.DotPoint({ goal = spot, point = A }, true), A, "arrived: the spot you reached")
+    t:eq(N.DotPoint({ goal = spot, point = B }, true), A, "walking around there: the dot stays put")
+    t:eq(N.DotPoint({ goal = spot, point = B }, false), B, "left the stop: back on its spot")
+    t:eq(N.DotPoint({ goal = { key = "test:area", area = true }, point = A }, true), nil, "in a quest's area: no dot, the area shows")
+    t:eq(N.DotPoint({ goal = { key = "test:any", anywhere = true }, point = A }, false), nil, "a do-it-anywhere stop: no dot")
+    t:eq(N.DotPoint(nil), nil, "no stop: no dot")
+    local p = N:PlayerPos()
+    if not (Minimap and p and p.wx) then t:ok(true, "(no minimap or position)") return end
+    local col = { 0.1, 0.6, 0.3 }
+    P:Update(p, { cont = p.cont, wx = p.wx + 10, wy = p.wy }, spot, col, false)
+    local dot = P.Pin() and P.Pin().dot
+    if dot and P.Pin():IsShown() then
+        local r, g, b = dot:GetVertexColor()
+        t:ok(math.abs(r - 0.1) < 0.01 and math.abs(g - 0.6) < 0.01 and math.abs(b - 0.3) < 0.01, "dot: the arrow's colour")
+    end
+    t:eq(P.hereColor, nil, "on the way: the area keeps the route colour")
+    P:Update(p, nil, spot, col, true)
+    t:eq(P.hereColor, col, "in the area: the area takes the arrow's colour")
+    t:ok(not (P.Pin() and P.Pin():IsShown()), "no point: no dot")
+    P:Hide()
+    t:eq(P.hereColor, nil, "hidden: colour cleared")
+end)
+
+ns:Register("test", "copy window: plain text and web addresses", function(t)
+    local C = ns.copyBox
+    t:eq(C.Plain("|cff66ccffFlow|r: hi"), "Flow: hi", "colour codes gone")
+    t:eq(C.Plain("Equip |cff1eff00|Hitem:123::|h[Sword]|h|r now"), "Equip [Sword] now", "an item link keeps its name")
+    t:eq(C.Plain("a||b"), "a|b", "an escaped bar")
+    local l = C.Links("see https://example.com/a?b=1, and www.example.org then")
+    t:eq(#l, 2, "two web addresses")
+    t:eq(l[1], "https://example.com/a?b=1", "the https one, without the comma after it")
+    t:eq(l[2], "www.example.org", "the www one")
+    t:eq(#C.Links("http://x.io/y"), 1, "www inside an http one isn't counted twice")
+    -- (C.Add, not ns:Print: a test must not print in your chat at every login.)
+    with(C, "lines", {}, function()
+        C.Add("copy window |cff1eff00test|r line https://example.com")
+        t:eq(#C.lines, 1, "Flow's chat lines are kept")
+        t:ok(C.lines[1]:find("copy window test line", 1, true) ~= nil, "as plain text")
+    end)
+    t:ok(ns.commands.copy ~= nil, "/flow copy")
+end)
+
+ns:Register("test", "click: the copy window opens selected, and picks out web addresses", function(t)
+    local C = ns.copyBox
+    local f = C:Show("test", { "one https://example.com/x", "two www.example.org" })
+    t:ok(f and f:IsShown(), "shown")
+    t:eq(f.edit:GetText(), "one https://example.com/x\ntwo www.example.org", "the text, one line each")
+    t:eq(#f.links, 2, "two addresses found")
+    t:ok(f.linkBtn:IsEnabled(), "the address button is on")
+    local ok, err = pcall(f.linkBtn:GetScript("OnClick"), f.linkBtn)
+    t:ok(ok, "address button click: " .. tostring(err))
+    t:eq(f.linkAt, 1, "first address picked")
+    pcall(f.linkBtn:GetScript("OnClick"), f.linkBtn)
+    pcall(f.linkBtn:GetScript("OnClick"), f.linkBtn)
+    t:eq(f.linkAt, 1, "after the last one: back to the first")
+    ok, err = pcall(f.edit:GetScript("OnTextChanged"), f.edit, true)
+    t:ok(ok and f.edit:GetText() == f.text, "typing can't change it: " .. tostring(err))
+    ok, err = pcall(f.edit:GetScript("OnEscapePressed"), f.edit)
+    t:ok(ok and not f:IsShown(), "Esc closes it: " .. tostring(err))
+    t:ok(f.head.text:GetText():find("^Flow Copy") ~= nil, "it's the Flow Copy window")
+    local box = ns.askClaude and ns.askClaude.box
+    if box and box.copyLog then
+        ok, err = pcall(box.copyLog:GetScript("OnClick"), box.copyLog)
+        t:ok(ok, "Flow Chat Copy button: " .. tostring(err))
+    else
+        t:ok(true, "(Flow Chat not opened yet)")
+    end
+    C:Hide()
 end)
 
 ns:Register("test", "bags: things to learn and full bags", function(t)
@@ -3854,4 +4123,12 @@ ns:Register("test", "click: the Dungeons menu entries are well formed and open",
     else
         t:ok(true, "(no dungeon run at your level to open)")
     end
+end)
+
+ns:Register("test", "map: the trail to your next stop takes the arrow's colour", function(t)
+    local M = ns.mapOverlay
+    -- 0.35.127: `x and false or nil` is always nil, so it never did.
+    t:eq(M.LegLive(true, nil), false, "your next stop: the arrow's colour (by distance)")
+    t:eq(M.LegLive(false, nil), nil, "a later stop: its own route colour")
+    t:eq(M.LegLive(true, 0.5), nil, "a preview (alpha given): its own colour")
 end)

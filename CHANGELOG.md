@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.127
+- **A new arrow: modern, glossy, coloured by distance.** It's grey while your stop is in another
+  zone, turns from orange to green as you close in, and blue once you're in the area. It's the
+  new default: if you had the 3D arrow, you get the modern one once; switch back from the
+  arrow's right-click menu or Flow Settings (Arrow: Modern, 3D or Flat). "Arrow colour by
+  distance" off gives the route's own colour, as before. The minimap dot matches the arrow.
+- **The route on the world map is a faint dotted trail**, like a treasure map, instead of a solid
+  line with crawling chevrons: it shows the way without covering the map. The stretch from you
+  to your next stop (and that stop's dot) wears the arrow's colour; the rest of the route is
+  fainter. Your waypoint's trail is dotted too. Nothing moves every frame any more; /flow perf
+  shows the dots as "route dots".
+- **Resize the Flow button**: hold Shift over it and turn the mouse wheel (half to double size);
+  Shift-drag still moves it. Its spot and size are kept.
+- **Flow Copy: copy what Flow says.** `/flow copy` opens what Flow printed in chat lately, all
+  selected for Ctrl+C, with a button that picks out each web address in it. Flow Chat has a Copy
+  button in its title bar for the whole conversation.
+- **Restart WoW once** for this version: it adds new files (pictures and code), which a reload
+  doesn't load. (Thanks, BIMpossible: pull request 12.)
+
 ## 0.35.126
 - **Dungeon runs (needs Questie).** The arrow menu has a new **Dungeons** section: the runs at
   your level (one wing, the quests you can do on this trip) and how each compares to your
