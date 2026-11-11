@@ -90,7 +90,11 @@ local function flatMap(map)
 end
 
 function N:ToWorld(map, x, y)
-    local f = map and flatMap(map)
+    -- A spot with no map (an NPC place saved without one): nil, not an error
+    -- from the game (it stopped the anvil/forge step finding trainers, 0.35.130).
+    map, x, y = tonumber(map), tonumber(x), tonumber(y)
+    if not (map and x and y) then return nil end
+    local f = flatMap(map)
     if f then return f.cont, f.ox + x * f.ux + y * f.vx, f.oy + x * f.uy + y * f.vy end
     return gameToWorld(map, x, y)
 end

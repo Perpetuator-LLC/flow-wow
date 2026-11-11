@@ -420,8 +420,9 @@ local function trainerSpots()
     for kind, prof in pairs({ anvil = "Blacksmithing", fire = "Cooking" }) do
         for _, name in ipairs(ns.places:TrainersFor(prof)) do
             for _, pt in ipairs(ns.places:Points(name)) do
-                local cont, wx, wy = ns.nav:ToWorld(pt.map, pt.x, pt.y)
-                if cont then out[kind][#out[kind] + 1] = { cont = cont, wx = wx, wy = wy } end
+                -- (pcall: one odd spot mustn't stop the step for every trainer)
+                local ok, cont, wx, wy = pcall(ns.nav.ToWorld, ns.nav, pt.map, pt.x, pt.y)
+                if ok and cont then out[kind][#out[kind] + 1] = { cont = cont, wx = wx, wy = wy } end
             end
         end
     end

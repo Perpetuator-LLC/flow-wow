@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.130
+- **Fixed: the Flow key never opened your profession by an anvil, forge or fire** (0.35.124).
+  An NPC spot saved without a map stopped it looking for trainers; such a spot is now skipped.
+- Fixed two self-tests that failed at every login (the arrow colours, camp objects from your
+  group): the tests were wrong, not Flow.
+
 ## 0.35.129
 - **Fixed: The Longwalkers doesn't need a fishing pole.** 0.35.128 got it wrong: when you
   reached the back of Palemane Rock, Perith Stormhoof was away, walking another player out. The

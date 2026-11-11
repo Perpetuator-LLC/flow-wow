@@ -1470,12 +1470,17 @@ end)
 
 ns:Register("test", "modern arrow: grey away, orange to green closing in, blue here", function(t)
     local N, th = ns.nav, ns.theme
-    local function same(r, g, b, c) return math.abs(r - c[1]) < 1e-6 and math.abs(g - c[2]) < 1e-6 and math.abs(b - c[3]) < 1e-6 end
-    t:ok(same(N.ArrowColor("away", 50), th.arrowAway), "another zone: grey, however close")
-    t:ok(same(N.ArrowColor("here", 900), th.arrowHere), "in the area: blue")
-    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar), "far away: orange")
+    -- (The colour goes in as a table: `same(N.ArrowColor(...), c)` passed only
+    -- its first value, since Lua keeps one result of a call that isn't last.)
+    local function same(state, d, c)
+        local r, g, b = N.ArrowColor(state, d)
+        return c ~= nil and math.abs(r - c[1]) < 1e-6 and math.abs(g - c[2]) < 1e-6 and math.abs(b - c[3]) < 1e-6
+    end
+    t:ok(same("away", 50, th.arrowAway), "another zone: grey, however close")
+    t:ok(same("here", 900, th.arrowHere), "in the area: blue")
+    t:ok(same("zone", 2000, th.arrowFar), "far away: orange")
     t:ok(th.arrowFar[2] > 0.4, "far isn't red (red reads as \"can't\"; the arrow says go)")
-    t:ok(same(N.ArrowColor("zone", 10), th.arrowNear), "close by: green")
+    t:ok(same("zone", 10, th.arrowNear), "close by: green")
     local r1, g1 = N.ArrowColor("zone", 500)
     local r2, g2 = N.ArrowColor("zone", 150)
     t:ok(g2 > g1 and r2 <= r1, "greener as you close in")
@@ -1494,8 +1499,11 @@ ns:Register("test", "modern arrow: grey away, orange to green closing in, blue h
     -- The colour-blind palette has its own ramp.
     local was = th:ColorBlind()
     th:UsePalette("colorblind")
-    t:ok(same(N.ArrowColor("zone", 2000), th.arrowFar) and th.arrowFar.hex == "D55E00", "colour-blind: vermillion far away")
+    t:ok(same("zone", 2000, th.arrowFar) and th.arrowFar.hex == "E69F00", "colour-blind: orange far away")
     th:UsePalette(was and "colorblind" or "standard")
+    -- A spot with no map gives nothing, not an error (0.35.130).
+    local ok, cont = pcall(N.ToWorld, N, nil, 0.5, 0.5)
+    t:ok(ok and cont == nil, "ToWorld with no map: nil")
 end)
 
 ns:Register("test", "modern arrow: turns, colours, ring and beam when you arrive", function(t)
@@ -2695,7 +2703,7 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.CampStep(true, false, true, { name = "Camp Tent" }), "wait", "the minute is running: never stand up to place one")
     t:eq(BI.CampStep(true, true, false, nil, 100), "sit", "just placed one: sit again so the buffs include it")
     t:eq(BI.PartyKitText({ ["Mia-Realm"] = { kits = { "Camp Tent", "Enchanted Lute" }, at = 95 },
-                           Bob = { kits = { "Mana Well" }, at = 10 } }, 100),
+                           Bob = { kits = { "Mana Well" }, at = -100 } }, 100),   -- (Bob: 200 s old; a list counts for 2 minutes)
         "Mia: Camp Tent, Enchanted Lute", "party camp objects: fresh lists only, realm dropped")
     t:eq(BI.PartyKitText({}, 100), nil, "no party lists: nothing")
     t:eq(BI.HealKind("Minor Healthstone", 0, 0), "healthstone", "a healthstone")
