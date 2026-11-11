@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.137
+- **The easy button shows what your key will cast.** In a fight WoW won't let the key change,
+  so Flow sets it at the pull (Wrath, Maul, Claw...). The icon now shows that spell, what a
+  press really does. A better spell the key can't switch to (Moonfire, War Stomp, Entangling
+  Roots) shows in the bottom-right corner, marked "bar:": press it on your action bar, where it
+  glows. When it's your heal, the corner says "Shift+" (Shift + key casts it). It used to be the
+  other way round, which made the key look like it ignored the icon.
+- **Hold Shift to see what Shift + key casts**: your heal swaps onto the icon, with a pulsing
+  green "SHIFT+" beside it; let go and it swaps back.
+
 ## 0.35.136
 - **The Flow key drinks too.** Out of a fight with no enemy targeted, at half your mana or
   less, it drinks your best water (also while you're eating: press again after the food).

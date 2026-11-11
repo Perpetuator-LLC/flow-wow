@@ -4575,3 +4575,30 @@ ns:Register("test", "easy button: drink when low on mana; Well Fed food first wh
     end)
     end)
 end)
+
+ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps in your heal", function(t)
+    -- 0.35.137: in a fight the icon showed the advice (Moonfire) while the
+    -- key cast Wrath, with Wrath tucked in the corner. Now the other way.
+    local held = { spell = "Wrath", kind = "held", label = "key: Wrath" }
+    local moonfire = { spell = "Moonfire", kind = "damage" }
+    local v, adv = ns.KeyView(moonfire, nil, false)
+    t:ok(v == moonfire and adv == nil, "out of a fight: the advice, which the key casts")
+    v, adv = ns.KeyView(moonfire, held, true)
+    t:eq(v.spell, "Wrath", "in a fight: the key's spell on the icon")
+    t:eq(v.kind, "key", "not greyed (it's what a press does)")
+    t:eq(adv, moonfire, "the advice goes to the corner")
+    v, adv = ns.KeyView({ spell = "Wrath", kind = "damage" }, held, true)
+    t:ok(v.spell == "Wrath" and adv == nil, "advice is the key's spell: no corner")
+    v, adv = ns.KeyView(nil, held, true)
+    t:ok(v == held and adv == nil, "nothing new to press: the held spell, greyed as before")
+    local sv, shifted = ns.ShiftView(v, "Rejuvenation", true, true)
+    t:ok(shifted and sv.spell == "Rejuvenation" and sv.kind == "heal", "Shift held: your heal swaps in")
+    sv, shifted = ns.ShiftView(v, "Rejuvenation", false, true)
+    t:ok(not shifted and sv == v, "Shift let go: back to the key's spell")
+    sv, shifted = ns.ShiftView(nil, "Rejuvenation", true, false)
+    t:ok(not shifted and sv == nil, "out of a fight with nothing to press: no button, no swap")
+    sv, shifted = ns.ShiftView(moonfire, nil, true, false)
+    t:ok(not shifted and sv == moonfire, "no heal known: nothing to swap in")
+    t:eq(ns.cast.AdviceLabel({ spell = "Rejuvenation" }, "Rejuvenation"), "Shift+", "corner: your heal is Shift + key")
+    t:eq(ns.cast.AdviceLabel(moonfire, "Rejuvenation"), "bar:", "corner: anything else, press it on your bar")
+end)

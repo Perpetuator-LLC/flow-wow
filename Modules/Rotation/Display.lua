@@ -11,6 +11,7 @@ local COLORS = {
     heal      = { 1.0, 0.8, 0.2 },    -- gold, steady pulse
     emergency = { 1.0, 0.85, 0.1 },   -- bright gold, fast pulse
     held      = { 0.55, 0.55, 0.55 }, -- grey: what the key still does mid-fight (nothing new to press)
+    key       = { 0.2, 1.0, 0.2 },    -- green: the key's spell for this fight, with better advice in the corner
 }
 
 local BAR_PREFIXES = {
@@ -138,6 +139,18 @@ local function buildIcon(cfg)
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
+
+    -- "SHIFT+" beside the icon while you hold Shift: the icon then shows
+    -- what Shift + your key casts (your heal), pulsing so it's noticed.
+    f.shiftTag = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.shiftTag:SetPoint("RIGHT", f, "LEFT", -6, 0)
+    f.shiftTag:SetText("SHIFT+")
+    f.shiftTag:SetTextColor(0.4, 1, 0.4)
+    f.shiftTag.pulse = f.shiftTag:CreateAnimationGroup()
+    f.shiftTag.pulse:SetLooping("BOUNCE")
+    local shiftFade = f.shiftTag.pulse:CreateAnimation("Alpha")
+    shiftFade:SetFromAlpha(1); shiftFade:SetToAlpha(0.35); shiftFade:SetDuration(0.45)
+    f.shiftTag:Hide()
 
     -- Position and moving are handled by the secure cast button underneath
     -- (Modules/Rotation/Cast.lua): the icon is anchored to it.
@@ -379,7 +392,26 @@ local function actionColor(s)
     return COLORS.buff
 end
 ns.ActionColor = actionColor  -- (tests)
-local function render(s, cfg)
+-- What the icon shows: what a press of your key casts now.
+--   s: the advice; held: what the key was set to at the pull (in a fight it
+--   can't change). In a fight, when the advice is something else, the icon
+--   shows the held spell and the advice goes to the corner (press it on your
+--   bar, or Shift + key for your heal). Returns view, advice.
+function ns.KeyView(s, held, inCombat)
+    if not (inCombat and held) then return s, nil end
+    if s and s.spell == held.spell then return s, nil end
+    if not s then return held, nil end   -- (nothing new to press: greyed, as before)
+    return { spell = held.spell, kind = "key", label = held.label, held = true }, s
+end
+-- Holding Shift: Shift + your key's spell (your heal) swaps in, while the
+-- key would do anything at all (the button is there: in a fight, or with
+-- something to press).
+function ns.ShiftView(view, healSpell, shiftDown, inCombat)
+    if not (healSpell and shiftDown and (view or inCombat)) then return view, false end
+    return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
+end
+
+local function render(s, cfg, glow)
     -- New to Flow: the icon comes in at your first enemy (Reveal.lua). The
     -- key still casts the suggestion meanwhile.
     if ns.reveal and not ns.reveal:Shown("icon") then
@@ -438,11 +470,17 @@ local function render(s, cfg)
     else icon.tex:SetVertexColor(1, 1, 1) end
     icon:Show()
 
-    local key = tostring(s.spell or s.item or s.type) .. s.kind
+    -- What lights up on your action bars: `glow`, the advice (in a fight,
+    -- the spell to press on your bar while the icon shows the key's).
+    local key = tostring(s.spell or s.item or s.type) .. s.kind .. "|" .. tostring(glow and (glow.spell or glow.item))
     if key ~= current then
         current = key
         -- (A held spell isn't advice: no glow on your action bars.)
-        if (s.spell or s.item) and s.kind ~= "held" then showGlows(s, color, s.kind) else clearGlows() end
+        if glow and (glow.spell or glow.item) and glow.kind ~= "held" and glow.kind ~= "key" then
+            showGlows(glow, COLORS[glow.kind] or actionColor(glow), glow.kind)
+        else
+            clearGlows()
+        end
     end
 end
 
@@ -476,13 +514,23 @@ local function onUpdate(_, dt)
         local okA, a = pcall(ns.actions.Current, ns.actions)
         if okA and a and (a.urgent or not s) then s = a end
     end
-    E.shown = s   -- what the icon shows = what the key does (Cast.lua)
-    -- Mid-fight with nothing new to press, the key still does what it was
-    -- set to at the pull: show that, greyed, instead of an empty spot (the
-    -- key never does something while the button looks gone).
-    local view = s
-    if not s and InCombatLockdown() and ns.cast and ns.cast.Held then view = ns.cast:Held() end
-    local okR, err = pcall(render, view, cfg)
+    E.shown = s   -- what the key does out of a fight (Cast.lua sets it)
+    -- The icon shows what a press of your key casts now (ns.KeyView): in a
+    -- fight, what it was set to at the pull, with the advice it can't do in
+    -- the corner (E.advice, Cast.lua: press it on your bar, where it glows).
+    -- Mid-fight with nothing new to press: the held spell, greyed.
+    local inCombat = InCombatLockdown()
+    local held = inCombat and ns.cast and ns.cast.Held and ns.cast:Held() or nil
+    local view, advice = ns.KeyView(s, held, inCombat)
+    E.advice = advice
+    -- Shift held: Shift + key's spell swaps in, "SHIFT+" beside it.
+    local shifted
+    view, shifted = ns.ShiftView(view, ns.cast and ns.cast.HealSpell and ns.cast:HealSpell(), IsShiftKeyDown(), inCombat)
+    if shifted ~= icon.shiftTag:IsShown() then
+        icon.shiftTag:SetShown(shifted)
+        if shifted then icon.shiftTag.pulse:Play() else icon.shiftTag.pulse:Stop() end
+    end
+    local okR, err = pcall(render, view, cfg, advice or (not shifted and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
     -- Swords badge while auto attack is on.
     local swinging = icon:IsShown() and A.Swinging()

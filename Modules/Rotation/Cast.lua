@@ -241,8 +241,10 @@ function C:FillTooltip(tt)
     local key = C:KeyLabel()
     tt:AddLine(key ~= "" and ("Key: " .. key) or "No key yet: /flow settings", 0.8, 0.8, 0.8)
     if key ~= "" and C:HealSpell() then
-        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too).", 0.4, 1, 0.4)
+        tt:AddLine("Shift + key: " .. C:HealSpell() .. " on you (works in fights too). Hold Shift: the icon shows it.", 0.4, 1, 0.4)
     end
+    tt:AddLine("In a fight the icon shows what your key casts (it's set at the pull); a better spell to press "
+        .. "on your bar shows in the corner (bar:), where it also glows.", 0.8, 0.8, 0.8, true)
     if key ~= "" and helpful(s) and ns.db.cast.ctrlTarget ~= false then
         tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
     end
@@ -252,6 +254,12 @@ function C:FillTooltip(tt)
         tt:AddLine(st.tip, c[1], c[2], c[3], true)
     end
     tt:AddLine("Right-click: options (after-fight order, bandages, camp).", 0.6, 0.6, 0.6)
+end
+
+-- The corner label for advice the key can't do mid-fight.
+function C.AdviceLabel(adv, healSpell)
+    if adv and healSpell and adv.spell == healSpell then return "Shift+" end
+    return "bar:"
 end
 
 local function refreshLabels()
@@ -272,12 +280,15 @@ local function refreshLabels()
     else
         keyText:SetText(C:KeyLabel(true))
     end
-    -- In combat, show what the key is locked to when it differs from the
-    -- advice. (With no advice at all, the icon itself shows it: C:Held.)
-    local liveSpell = live and live.spell
-    if InCombatLockdown() and lockedSpell and liveSpell and lockedSpell ~= liveSpell then
-        local _, tex = A.SpellInfo(lockedSpell)
+    -- In a fight the icon shows what the key casts (it was set at the pull);
+    -- the corner shows the better spell it can't switch to (Display.lua,
+    -- E.advice): "Shift+" when that's your heal (Shift + key casts it),
+    -- else "bar:" (press it on your action bar, where it glows).
+    local adv = InCombatLockdown() and E.advice or nil
+    if adv and adv.spell then
+        local _, tex = A.SpellInfo(adv.spell)
         lockIcon.tex:SetTexture(tex)
+        lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell()))
         lockIcon:Show()
     else
         lockIcon:Hide()
@@ -338,7 +349,7 @@ local function build(cfg)
         lockIcon.tex:SetAllPoints()
         lockIcon.label = lockIcon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         lockIcon.label:SetPoint("RIGHT", lockIcon, "LEFT", -2, 0)
-        lockIcon.label:SetText("key:")
+        lockIcon.label:SetText("bar:")
         lockIcon:Hide()
     end
     -- Shift: drag to move, mouse wheel to resize (the icon too).
