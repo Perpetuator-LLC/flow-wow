@@ -294,16 +294,24 @@ ns:Register("test", "planner: near first, far stops and item drops wait", functi
     -- kill right behind it comes first (310 + 10 x 1.5 vs 300 x 1.5 + 10).
     local drop = goal("1:1", 300, { kind = "collect" })
     local kill = goal("2:1", 310, { kind = "kill", weight = 1 })
-    local saved = ns.db.nearFirst
-    ns.db.nearFirst = true
-    local plan = ns.planner:Plan(p, { drop, kill }, {})
-    t:eq(plan and plan[1].goal.key, "2:1", "a kill right behind an item drop comes first")
-    t:eq(drop.weight, nil, "the drop gets its own weight back")
-    t:eq(kill.weight, 1, "the kill gets its own weight back")
-    ns.db.nearFirst = false
-    plan = ns.planner:Plan(p, { drop, kill }, {})
-    t:eq(plan and plan[1].goal.key, "1:1", "off: the nearer drop comes first")
-    ns.db.nearFirst = saved
+    -- On the Most XP route whatever yours is: near first leaves Shortest
+    -- alone (0.35.126), so on Shortest this test failed (0.35.132).
+    with(ns.xpValue, "Objective", function() return "xp" end, function()
+    with(ns.db, "nearFirst", true, function()
+        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        t:eq(plan and plan[1].goal.key, "2:1", "a kill right behind an item drop comes first")
+        t:eq(drop.weight, nil, "the drop gets its own weight back")
+        t:eq(kill.weight, 1, "the kill gets its own weight back")
+    end)
+    with(ns.db, "nearFirst", false, function()
+        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        t:eq(plan and plan[1].goal.key, "1:1", "off: the nearer drop comes first")
+    end)
+    end)
+    with(ns.xpValue, "Objective", function() return "distance" end, function()
+        local plan = ns.planner:Plan(p, { drop, kill }, {})
+        t:eq(plan and plan[1].goal.key, "1:1", "Shortest: the nearer drop comes first (near first stays out)")
+    end)
 end)
 
 ns:Register("test", "planner: plans 30 stops, the far end nearest-next", function(t)

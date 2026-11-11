@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.132
+- Fixed a self-test that failed whenever your route was set to Shortest (near first rightly
+  stays off there; the test now checks both ways).
+
 ## 0.35.131
 - Fixed the last self-test that failed at every login (the anvil, forge or fire step's own
   test). Correction to 0.35.130: the step itself worked in the game; its test used spots
