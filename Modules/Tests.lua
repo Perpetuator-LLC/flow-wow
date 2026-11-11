@@ -761,6 +761,17 @@ ns:Register("test", "bank: far bank stock is skipped for mats you can farm here"
     t:ok(SP.UseBank(1200, true, 40), "40 in the bank across the zone: worth the trip, not 40 to farm")
     t:ok(not SP.UseBank(1200, true, 3), "3 in a far bank, farmable here: farm")
     t:ok(not SP.FarmableHere(99999), "unknown item: not farmable")
+    -- 0.35.150: asked once per material per route gather, not every time.
+    local asked = 0
+    with(SP, "Farmable", function() asked = asked + 1; return true end, function()
+        SP.ForgetFarmable()
+        t:ok(SP.FarmableHere(77) and SP.FarmableHere(77), "farmable both times")
+        t:eq(asked, 1, "worked out once")
+        SP.ForgetFarmable()
+        SP.FarmableHere(77)
+        t:eq(asked, 2, "worked out again after the next gather")
+    end)
+    SP.ForgetFarmable()
     -- Can you get it here? (made-up items; nothing is read from the game)
     local HERB, HIDE, BAR, ORE, FISH, SOLD = 1, 2, 3, 4, 5, 6
     local srcs = {
@@ -1255,6 +1266,9 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     P.stats["test: wrapped"] = nil
     t:ok(P.stats["arrow + minimap (10/s)"] ~= nil, "route arrow timed")
     t:ok(P.stats["route: order stops"] ~= nil, "planner timed")
+    for _, name in ipairs({ "rotation: choosing the spell", "flow actions", "status icons (1/s)" }) do
+        t:ok(P.stats[name] ~= nil, name .. ": timed apart from drawing the key")
+    end
     -- quick: a full clean-up inside the login self-test run is a hitch.
     local rep = P:Report(true)
     t:ok(#rep >= 1, "report has a summary line")
@@ -1271,6 +1285,18 @@ ns:Register("test", "perf: route refresh gathers one stop source at a time", fun
     N._gatherFrom("test: bad", { collect = function() error("boom") end }, list)
     t:eq(#list, 2, "a failing source adds nothing and doesn't stop the refresh")
     P.stats["gather: test: src"], P.stats["gather: test: bad"] = nil, nil
+end)
+
+ns:Register("test", "drink: drinking is told by the buff's name", function(t)
+    local E = ns.rotation
+    for _, name in ipairs({ "Drink", "Food & Drink", "Refreshment" }) do
+        with(ns.api, "Buff", function(_, match) return match(name), 10 end, function()
+            t:ok(E.Drinking(), name .. ": drinking")
+        end)
+    end
+    with(ns.api, "Buff", function(_, match) return match("Food"), 10 end, function()
+        t:ok(not E.Drinking(), "eating only: not drinking")
+    end)
 end)
 
 ns:Register("test", "perf: a timed call inside another counts once", function(t)
@@ -5079,6 +5105,20 @@ ns:Register("test", "map and arrow agree: area stops by every spawn; one spot pe
         "wolves whose spawns are here count, though their route spot is across the zone")
     t:ok(N._stopNear(plan[2], { cont = 1, wx = 25, wy = 10 }, 150), "near one of its spawns")
     t:ok(not N._stopNear(plan[3], { cont = 1, wx = 25, wy = 10 }, 150), "a stop far away isn't")
+    -- 0.35.150: a box around each objective's spawns rules a far stop out
+    -- at once; a list that grows, or spawns on two continents, still count.
+    local pts = { { cont = 1, wx = 100, wy = 100 }, { cont = 1, wx = 300, wy = 50 } }
+    local b = N._boxOf(pts)
+    t:ok(b.any and b.x1 == 100 and b.x2 == 300 and b.y1 == 50 and b.y2 == 100, "box spans the spawns")
+    local far = { goal = { points = pts }, point = { cont = 1, wx = 300, wy = 50 } }
+    t:ok(not N._stopNear(far, { cont = 1, wx = 2000, wy = 2000 }, 150), "outside the box: not here")
+    t:ok(not N._stopNear(far, { cont = 2, wx = 100, wy = 100 }, 150), "same spot, other continent: not here")
+    t:ok(N._stopNear(far, { cont = 1, wx = 150, wy = 120 }, 150), "inside the box, near a spawn: here")
+    pts[3] = { cont = 1, wx = 2000, wy = 1990 }
+    t:ok(N._stopNear(far, { cont = 1, wx = 2000, wy = 2000 }, 150), "a spawn added later: its box grows")
+    local both = { goal = { points = { { cont = 1, wx = 0, wy = 0 }, { cont = 2, wx = 500, wy = 500 } } } }
+    t:ok(N._stopNear(both, { cont = 2, wx = 510, wy = 500 }, 150), "spawns on two continents: each still counts")
+    t:ok(not N._stopNear({ goal = { points = {} } }, { cont = 1, wx = 0, wy = 0 }, 150), "no spawns, no spot: not here")
     -- One spot per stop: the route's when it's planned, else the spawn nearest you.
     with(N, "plan", plan, function()
         t:eq(N:Spot(wolves, { cont = 1, wx = 5, wy = 5 }), plan[2].point, "on the route: its route spot (the arrow's)")

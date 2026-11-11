@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.150
+- **Flow uses less of your computer again.** Since 0.35.140 Flow had grown from about 9 to 12
+  ms of work per second. The "in this area" check on the map and Flow Tracker now rules out an
+  objective nowhere near you at once instead of checking its spawns one by one; whether you can
+  farm a material in this zone is worked out once per route update instead of every time it's
+  asked; and the easy button stops making two small throwaway functions ten times a second.
+  `/flow perf` now times choosing the spell, Flow Actions and the status icons on their own
+  lines, so the next slow spot shows exactly where it is.
+
 ## 0.35.149
 - **Profession window: upgrades show their materials.** Flow now reads each recipe's materials on
   this client (it saved none before, so every upgrade said "open this window again"). Hover an

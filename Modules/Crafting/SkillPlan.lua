@@ -797,7 +797,19 @@ local hereEnv = {
     dropsHere = function(names) local _, here = npcPoints(names); return here and true or false end,
     soldHere = function(id) local _, here = vendorPoints(id); return here and true or false end,
 }
-function SP.FarmableHere(id) return SP.Farmable(id, hereEnv) end
+-- Remembered per material until the next route gather (which wipes it):
+-- looking up every spawn and vendor of each material on every gather made
+-- the skill-plan gather 8 times slower in 0.35.140.
+local farmMemo = {}
+function SP.FarmableHere(id)
+    local v = farmMemo[id]
+    if v == nil then
+        v = SP.Farmable(id, hereEnv) and true or false
+        farmMemo[id] = v
+    end
+    return v
+end
+function SP.ForgetFarmable() wipe(farmMemo) end
 
 -- How sure Flow is of your bank, for the bank stop: seenAt = when Flow last
 -- read it (nil: never). Never read, or read days ago, is said as such: the
@@ -1298,6 +1310,7 @@ ns:Register("navGoal", "skillplan", {
         SP.lastFromFish = 0
         SP.lastUpgrades = {}
         SP.lastWaiting = {}
+        SP.ForgetFarmable()   -- (you may have moved zone since the last gather)
         for prof, t in pairs(SP.lastTargets) do
             local ok, err = pcall(planProfession, prof, t, out)
             if not ok then ns:Log("skillplan", prof .. ": " .. tostring(err)) end

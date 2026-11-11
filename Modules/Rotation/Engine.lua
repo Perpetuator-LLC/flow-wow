@@ -224,7 +224,8 @@ function E.BeingHit()
 end
 
 local EATING = { Food = true, Drink = true, ["Food & Drink"] = true, Refreshment = true }
-local function eating() return (A.Buff("player", function(n) return EATING[n] end)) end
+local function isEating(n) return EATING[n] end   -- (one function, not a new one ten times a second)
+local function eating() return (A.Buff("player", isEating)) end
 
 -- One step of the estimate. inCombat, hit (0..1), eat, low: what the game says now.
 function E.StepHurt(hurt, dt, inCombat, hit, eat, low)
@@ -366,8 +367,10 @@ function E.ManaShare()
     local mana = A.Safe(UnitPower and UnitPower("player", 0))
     return mana and mana / max or nil
 end
+local DRINKING = { Drink = true, ["Food & Drink"] = true, Refreshment = true }
+local function isDrinking(n) return DRINKING[n] == true end
 function E.Drinking()
-    return (A.Buff("player", function(n) return n == "Drink" or n == "Food & Drink" or n == "Refreshment" end)) and true or false
+    return (A.Buff("player", isDrinking)) and true or false
 end
 function E:DrinkStep(ctx)
     local r = ns.db.rotation

@@ -1415,10 +1415,42 @@ end
 -- objective whose wolves roam right here counts even when its one route spot
 -- is across the zone (0.35.140: the map and Flow Tracker went by that one
 -- spot only, the arrow by every spawn, so they disagreed).
+-- (Each objective's spawns get a box around them, worked out once: a stop
+-- nowhere near you is ruled out at once instead of spawn by spawn. Checking
+-- up to 80 spawns of every stop, twice a second, doubled the Flow Tracker's
+-- cost in 0.35.140.)
+-- (Keyed by the spawn list itself and its length, so a list that is
+-- replaced or grows gets a new box.)
+local boxes = setmetatable({}, { __mode = "k" })
+local function boxOf(points)
+    local b = boxes[points]
+    if b and b.n == #points then return b end
+    b = { n = #points }
+    for _, pt in ipairs(points) do
+        if pt.wx and pt.wy then
+            if not b.any then b.any, b.cont, b.x1, b.x2, b.y1, b.y2 = true, pt.cont, pt.wx, pt.wx, pt.wy, pt.wy
+            elseif pt.cont ~= b.cont then b.mixed = true
+            else
+                if pt.wx < b.x1 then b.x1 = pt.wx elseif pt.wx > b.x2 then b.x2 = pt.wx end
+                if pt.wy < b.y1 then b.y1 = pt.wy elseif pt.wy > b.y2 then b.y2 = pt.wy end
+            end
+        end
+    end
+    boxes[points] = b
+    return b
+end
+N._boxOf = boxOf   -- (tests)
 local function stopNear(s, at, yards)
     if not at then return false end
     if within(s.point, at, yards) then return true end
-    for _, pt in ipairs(s.goal and s.goal.points or {}) do
+    local pts = s.goal and s.goal.points
+    local b = pts and boxOf(pts)
+    if not (b and b.any) or not at.wx then return false end
+    if not b.mixed and (b.cont ~= at.cont or at.wx < b.x1 - yards or at.wx > b.x2 + yards
+        or at.wy < b.y1 - yards or at.wy > b.y2 + yards) then
+        return false
+    end
+    for _, pt in ipairs(pts) do
         if within(pt, at, yards) then return true end
     end
     return false

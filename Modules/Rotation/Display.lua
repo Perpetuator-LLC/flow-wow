@@ -484,6 +484,13 @@ local function render(s, cfg, glow)
     end
 end
 
+-- Timed apart for /flow perf, so a slow tick says which part costs: picking
+-- the spell, Flow Actions, or drawing it (what's left in "rotation + actions").
+-- (They look E.Evaluate and ns.actions up at each call: Actions.lua loads
+-- after this file, and tests stand in for both.)
+local timedEvaluate = ns.perf.Wrap("rotation: choosing the spell", function() return E:Evaluate() end)
+local timedActions = ns.perf.Wrap("flow actions", function() return ns.actions:Current() end)
+
 local elapsed = 0
 local function onUpdate(_, dt)
     elapsed = elapsed + dt
@@ -497,7 +504,7 @@ local function onUpdate(_, dt)
         return
     end
 
-    local ok, s = pcall(E.Evaluate, E)
+    local ok, s = pcall(timedEvaluate)
     if not ok then
         -- Keep the error for /flow rot why; print it at most every 5s in debug.
         local now = GetTime()
@@ -511,7 +518,7 @@ local function onUpdate(_, dt)
     -- Out of combat, a Flow Action (equip the pole, cast Fishing...) when
     -- there's no spell to suggest, or before it when it's urgent (reel in).
     if not InCombatLockdown() and ns.actions then
-        local okA, a = pcall(ns.actions.Current, ns.actions)
+        local okA, a = pcall(timedActions)
         if okA and a and (a.urgent or not s) then s = a end
     end
     E.shown = s   -- what the key does out of a fight (Cast.lua sets it)
@@ -645,6 +652,7 @@ local function renderStatus()
 end
 
 local statusElapsed = 1
+local timedStatus = ns.perf.Wrap("status icons (1/s)", renderStatus)   -- (/flow perf)
 ns:OnLoad(function(saved)
     icon = buildIcon(saved.rotation)
     E.icon = icon  -- for the cast button (Cast.lua)
@@ -655,7 +663,7 @@ ns:OnLoad(function(saved)
         statusElapsed = statusElapsed + dt
         if statusElapsed < 1 then return end
         statusElapsed = 0
-        local ok, err = pcall(renderStatus)
+        local ok, err = pcall(timedStatus)
         if not ok then E.lastError, E.lastErrorAt = "status: " .. tostring(err), GetTime() end
     end)
 end)
