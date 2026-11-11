@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.139
+- **The arrow's drawer: click to open, X to close.** Click the arrow to open it; click the arrow
+  again, or the X at its top right, to close it. The pin is gone (it stays open, following your
+  stops and across a /reload, until you close it), and so are the pull tab, closing by clicking
+  inside it, opening on hover, and the slide: it opens and closes at once.
+
 ## 0.35.138
 - **Ctrl-drag moves things now, as in Questie** (it was Shift, which now shows what Shift +
   your key casts). The Flow key, the arrow and its drawer, the Flow Tracker, the buff button and

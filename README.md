@@ -126,8 +126,8 @@ Flow for WoW is a separate project from Flow Engine.
   to your next stop, and that stop's dot, in the arrow's colour); numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
-- **Stop card**: Flow's view of a stop (drag it by its title); the arrow's own panel slides
-  out under the arrow like a drawer.
+- **Stop card**: Flow's view of a stop (drag it by its title). The arrow's own panel is a drawer
+  beside the arrow: click the arrow to open it, click again or its X to close it.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
   order). Click a row for its stop card; hover it to see its area on the minimap; Ctrl-drag
   the header to move it.

@@ -1712,11 +1712,12 @@ ns:Register("test", "look: action borders, bag focus, pillars, router header", f
     end
 end)
 
-ns:Register("test", "arrow panel: a drawer under the arrow, folds with its tab", function(t)
+ns:Register("test", "arrow panel: a drawer under the arrow, closes with its X", function(t)
     local f = CreateFrame("Frame", nil, UIParent)
     f:SetSize(100, 60)
     ns.nav._makeDrawer(f)
-    t:ok(f.tab ~= nil and f.lip ~= nil, "pull tab and lip")
+    t:ok(f.close ~= nil and f.lip ~= nil, "an X to close it, and the lip")
+    t:ok(f.tab == nil and f.pin == nil, "no pull tab or pin any more (0.35.139)")
     -- (Since 0.35.101 Ctrl-drag (Shift-drag before 0.35.138) gives it a place of its own.)
     t:ok(f:IsMovable(), "Ctrl-drag moves it")
     t:ok(type(f.Fold) == "function", "folds back up")
@@ -3727,40 +3728,11 @@ ns:Register("test", "arrow drawer: opens on the side of the arrow with room", fu
     with(ns.db.nav, "drawerOpen", true, function()
         d:Fold(true)
         t:eq(ns.db.nav.drawerOpen, nil, "folding it yourself unpins it")
-        t:eq(d.pin.on, false, "the pin shows it unpinned")
+        t:ok(not d:IsShown(), "it closes at once (no slide)")
     end)
     d:Hide(); arrow:Hide()
 end)
 
-ns:Register("test", "arrow drawer: a pin button shows and switches pinned open", function(t)
-    -- Yang: a pin where the other views have their close button, showing
-    -- whether it's pinned, a click switching it.
-    local N = ns.nav
-    local d = CreateFrame("Frame", nil, UIParent)
-    d:SetSize(340, 200)
-    N._makeDrawer(d)
-    local p = d.pin
-    t:ok(p ~= nil, "the drawer has a pin")
-    local a, _, r = p:GetPoint()
-    t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, where the close button is on the other views")
-    with(ns.db.nav, "drawerOpen", nil, function()
-        p:Refresh()
-        t:eq(p.on, false, "not pinned: shown unpinned")
-        p:Click()
-        t:eq(ns.db.nav.drawerOpen, true, "click: pinned (stays open, and after a /reload)")
-        t:eq(p.on, true, "shown pinned")
-        t:eq(d.byHover, false, "pinned: doesn't fold when the mouse leaves")
-        p:Click()
-        t:eq(ns.db.nav.drawerOpen, nil, "click again: unpinned")
-        t:eq(p.on, false, "shown unpinned")
-        t:eq(d.byHover, true, "unpinned: folds once the mouse leaves")
-    end)
-    -- The glyph: straight in when pinned, tilted when not.
-    local on, off = N.PinPoints(true), N.PinPoints(false)
-    t:near(on[3][1], on[3][3], 0.01, "pinned: the needle points straight down")
-    t:ok(math.abs(off[3][1] - off[3][3]) > 2, "unpinned: the needle is tilted")
-    d:Hide()
-end)
 
 ns:Register("test", "actions: after a kill the Flow key loots the corpse", function(t)
     -- (Described targets only: a test that swaps the game's own functions,
@@ -4622,4 +4594,20 @@ ns:Register("test", "move with Ctrl (as in Questie); hide Questie's tracker", fu
         local ok, v = pcall(found.get)
         t:ok(ok and (v == true or v == false), "its tick box reads Questie's own setting")
     end
+end)
+
+ns:Register("test", "click: the arrow drawer's X closes it", function(t)
+    local d = CreateFrame("Frame", nil, UIParent)
+    d:SetSize(340, 200)
+    ns.nav._makeDrawer(d)
+    with(ns.db.nav, "drawerOpen", true, function()
+        d:Show()
+        local ok, err = pcall(d.close:GetScript("OnClick"), d.close)
+        t:ok(ok, "the X runs" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(not d:IsShown(), "closed")
+        t:eq(ns.db.nav.drawerOpen, nil, "and stays closed after a /reload")
+    end)
+    local a, _, r = d.close:GetPoint()
+    t:ok(a == "TOPRIGHT" and r == "TOPRIGHT", "top right, like Flow's other views")
+    d:Hide()
 end)

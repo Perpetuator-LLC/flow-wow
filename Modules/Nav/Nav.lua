@@ -2019,7 +2019,6 @@ function N.Draggable(f, key, home)
         f:StopMovingOrSizing()
         local a, _, b, x, y = f:GetPoint()
         ns.db.nav[key] = { a, b, x, y }
-        f.byHover = false   -- you moved it: keep it open
     end)
     h:SetScript("OnMouseUp", function(_, button)
         if button == "RightButton" and ns.db.nav[key] then
@@ -2056,13 +2055,13 @@ local function fillHero(p, g, distText)
     return task
 end
 
--- The arrow's panel is a drawer: it slides out of the arrow (below it, a lip
--- joins it to the arrow's text), and a pull tab at the bottom with a ^ folds
--- it back. It opens on whichever side of the arrow has room (N.DrawerSide):
--- below, above near the bottom of the screen, to the right or left at a
--- screen edge. Ctrl-drag it to give it a place of its own (the arrow's
--- right-click menu puts it back). Click the arrow to pin it open: it follows
--- your current stop, and stays open after a /reload until you fold it.
+-- The arrow's panel is a drawer beside the arrow (below it, a lip joins it
+-- to the arrow's text). Click the arrow to open it, click again or its X to
+-- close it; it opens and closes at once (no slide), follows your current
+-- stop, and stays open after a /reload until you close it. It opens on
+-- whichever side of the arrow has room (N.DrawerSide): below, above near the
+-- bottom of the screen, to the right or left at a screen edge. Ctrl-drag it
+-- to give it a place of its own (the arrow's right-click menu puts it back).
 -- (The stop card, shared by the Flow Tracker and Router, is a separate window.)
 
 -- Which side of the arrow the drawer opens on. Arrow at ax, ay (left,
@@ -2090,7 +2089,6 @@ local function placeDrawer(drawer, arrow)
     if saved then
         drawer:SetPoint(saved[1], UIParent, saved[2], saved[3], saved[4])
         drawer.lip:Hide()
-        drawer:SetSlideOrigin("TOP")
         return "yours"
     end
     local k = (arrow:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
@@ -2099,87 +2097,20 @@ local function placeDrawer(drawer, arrow)
     local p = DRAWER_POINTS[side]
     drawer:SetPoint(p[1], arrow, p[2], p[3], p[4])
     drawer.lip:SetShown(side == "below")
-    drawer:SetSlideOrigin(side == "above" and "BOTTOM" or "TOP")
     return side
 end
 N._placeDrawer = placeDrawer   -- (tests)
 
--- Flow's pin button: a small red square where Flow's other views have their
--- close button (top right), with a pushpin drawn on it: upright and gold when
--- pinned, tilted and grey when not. isOn() says which; a click calls
--- set(not isOn()). onLeave: called when the mouse leaves it.
-N.PIN_GLYPH = {   -- a pushpin pointing down: cap, body, needle (x1, y1, x2, y2, thickness)
-    { -4, 4, 4, 4, 3 }, { 0, 4, 0, -1, 4 }, { 0, -1, 0, -7, 1.5 },
-}
-function N.PinPoints(on)
-    -- Not pinned: tilted, a pin lying loose. Pinned: straight in.
-    local a = on and 0 or math.rad(45)
-    local c, s = math.cos(a), math.sin(a)
-    local out = {}
-    for i, l in ipairs(N.PIN_GLYPH) do
-        out[i] = { l[1] * c - l[2] * s, l[1] * s + l[2] * c, l[3] * c - l[4] * s, l[3] * s + l[4] * c, l[5] }
-    end
-    return out
-end
-function N.MakePin(parent, isOn, set, onLeave)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(20, 20)
-    b:SetPoint("TOPRIGHT", -3, -3)
-    -- The close button's colours: a dark rim round a red face, lighter on hover.
-    b.rim = b:CreateTexture(nil, "BACKGROUND"); b.rim:SetAllPoints()
-    b.rim:SetColorTexture(0.16, 0.05, 0.03, 1)
-    b.face = b:CreateTexture(nil, "BORDER")
-    b.face:SetPoint("TOPLEFT", 2, -2); b.face:SetPoint("BOTTOMRIGHT", -2, 2)
-    b.face:SetColorTexture(0.55, 0.10, 0.06, 1)
-    b.glow = b:CreateTexture(nil, "HIGHLIGHT"); b.glow:SetAllPoints(b.face)
-    b.glow:SetColorTexture(1, 0.45, 0.3, 0.3)
-    b.lines = {}
-    for i = 1, #N.PIN_GLYPH do b.lines[i] = b:CreateLine(nil, "ARTWORK") end
-    function b:Refresh()
-        local on = isOn() and true or false
-        if self.on == on then return end
-        self.on = on
-        local r, g, bl = 1, 0.82, 0.2       -- pinned: gold
-        if not on then r, g, bl = 0.75, 0.75, 0.75 end
-        for i, p in ipairs(N.PinPoints(on)) do
-            local l = self.lines[i]
-            l:SetThickness(p[5])
-            l:SetStartPoint("CENTER", self, p[1], p[2])
-            l:SetEndPoint("CENTER", self, p[3], p[4])
-            l:SetColorTexture(r, g, bl, 1)
-        end
-    end
-    local function tip(self)
-        ns.Tip(self, "ANCHOR_TOP")
-        if isOn() then
-            GameTooltip:AddLine("Pinned open", 1, 0.82, 0.2)
-            GameTooltip:AddLine("Stays open as the arrow moves on to the next stop, and after a /reload. Click to unpin.", 1, 1, 1, true)
-        else
-            GameTooltip:AddLine("Pin it open", 1, 1, 1)
-            GameTooltip:AddLine("Click: it stays open as the arrow moves on to the next stop.", 0.8, 0.8, 0.8, true)
-        end
-        GameTooltip:Show()
-    end
-    b:SetScript("OnClick", function(self)
-        set(not isOn())
-        self:Refresh()
-        if self:IsMouseOver() then tip(self) end
-    end)
-    b:SetScript("OnEnter", tip)
-    b:SetScript("OnLeave", function() GameTooltip:Hide(); if onLeave then onLeave() end end)
-    b:Refresh()
-    return b
-end
-
 local function makeDrawer(f)
     local BG = { 0.04, 0.04, 0.07, 0.92 }
-    -- The pin: shows whether the drawer is pinned open, a click switches it.
-    -- Unpinned, it folds once the mouse leaves it (like a hover-opened one).
-    f.pin = N.MakePin(f, function() return ns.db.nav.drawerOpen == true end, function(on)
-        ns.db.nav.drawerOpen = on or nil
-        f.byHover = not on
-    end, function() if N.FoldIfAway then N.FoldIfAway() end end)
-    if f.hero and f.hero.dist then   -- (the pin takes the top-right corner)
+    -- An X closes it, top right as on Flow's other views; a click on the
+    -- arrow opens and closes it too. (0.35.139: no more pin, hover-open, pull
+    -- tab or slide: it opens and closes at once, and stays open, following
+    -- your stops and across a /reload, until you close it.)
+    f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    f.close:SetPoint("TOPRIGHT", 2, 2)
+    f.close:SetScript("OnClick", function() f:Fold(true) end)
+    if f.hero and f.hero.dist then   -- (the X takes the top-right corner)
         f.hero.dist:ClearAllPoints()
         f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
     end
@@ -2187,61 +2118,12 @@ local function makeDrawer(f)
     f.lip:SetSize(90, 5)
     f.lip:SetPoint("BOTTOM", f, "TOP", 0, 0)
     f.lip:SetColorTexture(BG[1], BG[2], BG[3], BG[4])
-    local tab = CreateFrame("Button", nil, f)
-    tab:SetSize(64, 14)
-    tab:SetPoint("TOP", f, "BOTTOM", 0, 0)
-    tab.bg = tab:CreateTexture(nil, "BACKGROUND"); tab.bg:SetAllPoints()
-    tab.bg:SetColorTexture(BG[1], BG[2], BG[3], BG[4])
-    tab.arms = { tab:CreateLine(nil, "ARTWORK"), tab:CreateLine(nil, "ARTWORK") }
-    for k, l in ipairs(tab.arms) do
-        l:SetThickness(2)
-        l:SetStartPoint("CENTER", tab, (k == 1 and -1 or 1) * 6, -2)
-        l:SetEndPoint("CENTER", tab, 0, 3)
-        l:SetColorTexture(1, 1, 1, 0.75)
-    end
-    tab:SetScript("OnEnter", function(self)
-        for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 1) end
-        ns.Tip(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Fold the drawer back up", 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    tab:SetScript("OnLeave", function(self)
-        for _, l in ipairs(self.arms) do l:SetColorTexture(1, 1, 1, 0.75) end
-        GameTooltip:Hide()
-    end)
-    tab:SetScript("OnClick", function() f:Fold(true) end)
-    f.tab = tab
-    -- Slide: grow out from the arrow's side when it opens, shrink back when it folds.
-    local function slide(from, to, done)
-        local g = f:CreateAnimationGroup()
-        local a = g:CreateAnimation("Scale")
-        if a.SetScaleFrom then a:SetScaleFrom(1, from); a:SetScaleTo(1, to)
-        else a:SetFromScale(1, from); a:SetToScale(1, to) end
-        a:SetOrigin("TOP", 0, 0)
-        a:SetDuration(0.14)
-        a:SetSmoothing(from < to and "OUT" or "IN")
-        if done then g:SetScript("OnFinished", done) end
-        g.scale = a
-        return g
-    end
-    f.openAnim = slide(0.05, 1)
-    f.foldAnim = slide(1, 0.05, function() f:Hide() end)
-    function f:SetSlideOrigin(point)
-        self.openAnim.scale:SetOrigin(point, 0, 0)
-        self.foldAnim.scale:SetOrigin(point, 0, 0)
-    end
-    f:HookScript("OnShow", function(self) self.foldAnim:Stop(); self.openAnim:Play() end)
-    -- byYou: you folded it (the tab, a click on it or the arrow), so it's no
-    -- longer pinned open; a hover-opened drawer folding by itself leaves that alone.
+    -- byYou: you closed it (the X or the arrow): it stays closed after a /reload.
     function f:Fold(byYou)
         if byYou then ns.db.nav.drawerOpen = nil end
-        self.pin:Refresh()
-        if not self:IsShown() or self.foldAnim:IsPlaying() then return end
-        self.openAnim:Stop(); self.foldAnim:Play()
+        self:Hide()
     end
-    -- A hover-opened drawer folds once the mouse is off it and the arrow.
-    f:HookScript("OnLeave", function() if N.FoldIfAway then N.FoldIfAway() end end)
-    -- Ctrl-drag: your own place for it (saved). A plain click folds it.
+    -- Ctrl-drag: your own place for it (saved).
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:RegisterForDrag("LeftButton")
@@ -2250,15 +2132,11 @@ local function makeDrawer(f)
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        self.dragging = nil
         local a, _, r, x, y = self:GetPoint()
         ns.db.nav.drawerPoint = { a, r, x, y }
         self.lip:Hide()
         ns:Print("the drawer stays here now (right-click the arrow: \"Drawer next to the arrow\" puts it back).")
-    end)
-    f:SetScript("OnMouseUp", function(self)
-        if self.dragging then self.dragging = nil return end
-        if ns.MoveKeyDown() then return end
-        self:Fold(true)
     end)
 end
 
@@ -2275,7 +2153,6 @@ local function showPanel()
     local g = current.goal
     local h = panel.hero
     local task = fillHero(panel, g, string.format("%d yd", current.d or 0))
-    panel.pin:Refresh()
 
     local lines = {}
     if g.title and g.title ~= task then lines[#lines + 1] = "|cffffd200" .. g.title .. "|r" end
@@ -2497,14 +2374,13 @@ local function buildArrow()
                 end }
             end
             ns.menu:Open(items)
-        elseif panel and panel:IsShown() and not panel.byHover then
+        elseif panel and panel:IsShown() then
             panel:Fold(true)
         else
-            -- A click pins it open (a hover-opened panel becomes pinned), and
-            -- it stays open across a /reload until you fold it.
+            -- A click opens it; it stays open (across a /reload too) until
+            -- you close it: the X, or another click on the arrow.
             showPanel()
             ns.db.nav.drawerOpen = true
-            if panel then panel.byHover = false; panel.pin:Refresh() end
         end
     end)
     -- The text under the arrow (stop name, distance) clicks like the arrow:
@@ -2538,33 +2414,11 @@ local function buildArrow()
         end
         GameTooltip:Show()
     end
-    -- In the area (ring showing): hovering opens the full panel, and leaving
-    -- closes it again unless you clicked it open. Elsewhere: a tooltip, and a
-    -- click opens the panel.
-    local function enter(owner)
-        if N.arrived and current and not (panel and panel:IsShown()) then
-            showPanel()
-            panel.byHover = true
-        elseif not (N.arrived and panel and panel:IsShown()) then
-            tip(owner)
-        end
-    end
-    -- Leaving the arrow folds a hover-opened drawer, unless you moved onto
-    -- the drawer (to pin it): then it folds when you leave the drawer. A
-    -- moment's grace for crossing the gap between them.
-    function N.FoldIfAway(now)
-        if not (panel and panel.byHover) then return end
-        if not now then C_Timer.After(0.3, function() N.FoldIfAway(true) end) return end
-        if panel:IsMouseOver() or f:IsMouseOver() or (f.textHit and f.textHit:IsMouseOver()) then return end
-        panel:Fold(); panel.byHover = false
-    end
-    local function leave()
-        GameTooltip:Hide()
-        N.FoldIfAway()
-    end
-    f:SetScript("OnEnter", function() enter(f) end)
+    -- Hovering shows a tooltip (not the drawer: a click opens that).
+    local function leave() GameTooltip:Hide() end
+    f:SetScript("OnEnter", function() tip(f) end)
     f:SetScript("OnLeave", leave)
-    f.textHit:SetScript("OnEnter", function() enter(f) end)
+    f.textHit:SetScript("OnEnter", function() tip(f) end)
     f.textHit:SetScript("OnLeave", leave)
     f:Hide()
     return f
@@ -2806,10 +2660,9 @@ local function update()
     frame:Show()
     if panel and panel:IsShown() then showPanel()
     elseif ns.db.nav.drawerOpen and not N.drawerRestored then
-        -- Pinned open before the /reload: open again, once, now there's a stop.
+        -- Open before the /reload: open again, once, now there's a stop.
         N.drawerRestored = true
         showPanel()
-        if panel then panel.byHover = false end
     end
 end
 
