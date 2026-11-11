@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.142
+- **Training waits for what it needs.** Demoralizing Roar, Maul, Growl and the other bear
+  spells need Bear Form first, which a druid gets from a class quest, not the trainer (cat
+  spells need Cat Form). Flow counted them as "to train" and sent you to the trainer for them.
+  Now the training stop counts only what you can train now, lists the rest ("After Bear Form:
+  Demoralizing Roar, Maul..."), and with the Bear Form quest on your route goes after it, so one
+  trip trains everything. A spell that was red at the trainer for something other than your
+  level waits too, instead of sending you back.
+- **Stops in the right order, in general.** Any stop can now say what it needs first (a spell,
+  a level, a quest, an item): it goes after the stop that provides it, marked "(after ...)", or
+  waits with the reason when nothing on the route does. The town's errands no longer pull a
+  stop ahead of what it waits for, and the planner brings in what a must-do stop waits for
+  instead of dropping it.
+- Restart WoW once: a new file.
+
 ## 0.35.141
 - **New spells: one Flow Spells list.** Training several spells used to show a card for each,
   one at a time, every new one closing the last. Now they all go into one list: a row per spell

@@ -136,6 +136,29 @@ local function candidates(p, goals)
             if all then kept[#kept + 1] = s; keptKeys[s.key] = true; extra = extra + 1 end
         end
     end
+    -- A chosen stop or a milestone (class training) that needs another stop
+    -- first (Needs.lua: train after the Bear Form quest) pulls that stop in,
+    -- rather than being left out for it: a few extra at most, and the stops
+    -- those need in turn. (0.35.142: training could vanish from the route
+    -- when the quest it waits for was too far for the cut.)
+    local byKey = {}
+    for _, s in ipairs(stops) do byKey[s.key] = s end
+    local pulled, changed = 0, true
+    while changed and pulled < 8 do
+        changed = false
+        for _, s in ipairs(kept) do
+            if forced(s.key) or s.goal.milestone or s.pulled then
+                for _, dep in ipairs(s.goal.deps or {}) do
+                    local d = byKey[dep]
+                    if d and not keptKeys[dep] and pulled < 8 then
+                        d.pulled = true
+                        kept[#kept + 1] = d; keptKeys[dep] = true
+                        pulled, changed = pulled + 1, true
+                    end
+                end
+            end
+        end
+    end
     -- A turn-in whose objectives didn't make the cut would be planned too
     -- early; leave it out until they're in range.
     local out = {}

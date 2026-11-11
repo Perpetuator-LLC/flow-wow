@@ -392,6 +392,12 @@ function N:Collect(gathered)
         list = {}
         for key, provider in ns:Each("navGoal") do gatherFrom(key, provider, list) end
     end
+    -- What stops need first (Needs.lua): after the stop that provides it, or
+    -- blocked with the reason when nothing on the route does.
+    if N.ResolveNeeds then
+        local okN, errN = pcall(N.ResolveNeeds, list)
+        if not okN then ns:Log("nav", "needs: " .. tostring(errN)) end
+    end
     -- Blocked stops stay off the route but are listed (with a lock and the
     -- reason) on the map list and the tracker:
     --   goal.blockedBy = "needs Mining"     set by the goal's provider
@@ -1352,6 +1358,8 @@ function N:FormatStop(i, goal, label)
     local textColor = kind and kind.color.hex or "ffffff"
     -- A stop in another zone, waiting until this zone is done: says where.
     local where = goal.awayZone and string.format(" |cff888888(%s, after this zone)|r", goal.awayZone) or ""
+    -- A stop that goes after another (Needs.lua): "after Bear Form".
+    if goal.after then where = where .. string.format(" |cff888888(after %s)|r", goal.after) end
     return string.format("%s|cff%s%s|r |cff%s%s|r%s", icon, numColor, label or tostring(i),
         textColor, goal.text or goal.title or "?", where)
 end
@@ -1482,13 +1490,18 @@ end
 -- trainer has nothing left for you (N.TrainerHasSomething).
 function N.HubBusiness(g, d, present, nothingToLearn, radius)
     if not d then return nil end
+    -- (Not while a stop it goes after is still on the route: training after
+    -- the Bear Form quest, Needs.lua. The town's errands go first and would
+    -- otherwise pull it ahead of what it waits for.)
     if g.key:find("^train:") then
-        if g.cost or (g.key == "train:class" and nothingToLearn) then return nil end
+        if g.cost or (g.key == "train:class" and nothingToLearn) or not ready(g, present) then return nil end
         return d <= N.TRAIN_NEAR and "train" or nil
     end
     if d > (radius or HUB_RADIUS) then return nil end
     if g.key:find(":done$") and ready(g, present) then return "turnin" end
-    if g.provider == "pickups" or (g.provider == "dungeon" and g.key:find("^pickup:")) then return "pickup" end   -- (a prepared dungeon run's too)
+    if (g.provider == "pickups" or (g.provider == "dungeon" and g.key:find("^pickup:"))) and ready(g, present) then   -- (a prepared dungeon run's too)
+        return "pickup"
+    end
     return nil
 end
 

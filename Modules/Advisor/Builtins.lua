@@ -14,6 +14,22 @@ end
 -- Training: spells and ranks you could have but don't.
 -------------------------------------------------------------------------------
 
+local T = {}
+ns.trainerAdvice = T
+-- What a spell at the trainer waits for, or nil when you can train it:
+--   needs: the spell it needs first (class data, "Bear Form"); known: your spells;
+--   category, level: as your last visit showed it; seenAt: your level then.
+-- Red at the trainer although its level was within yours then: it needs
+-- something Flow has no data for ("something first: it was red").
+function T.WaitsFor(needs, known, category, level, seenAt)
+    if needs and not known[needs] then return needs end
+    if needs then return nil end   -- (you have what it needs now)
+    if category == "unavailable" and (level or 0) > 0 and seenAt and level <= seenAt then
+        return "something first (it was red at the trainer)"
+    end
+    return nil
+end
+
 local CATEGORY_WORDS = { available = true, unavailable = true, used = true }
 
 ns:Register("advisor", "trainer", {
@@ -37,8 +53,22 @@ ns:Register("advisor", "trainer", {
             local firstRank = not s.modern and (s.sub == "" or s.sub == "Rank 1")
             if known[s.name] and firstRank then learnable = false end
             if s.category == "used" then learnable = false end
+            local info = classSpellInfo(s.name)
+            -- Waits for another spell first (Demoralizing Roar: Bear Form, from
+            -- a class quest), or was red at the trainer for something other
+            -- than your level: listed as waiting, not "go train" (0.35.142).
+            local waitFor = T.WaitsFor(info and info.needs, known, s.category, s.level, ns.db.trainer.seenAt)
+            if learnable and waitFor and not known[s.name] then
+                out[#out + 1] = {
+                    importance = 40,
+                    text = string.format("%s: after %s", s.name, waitFor),
+                    improves = info and info.improves or { "Stronger rank" },
+                    waitsFor = waitFor,
+                }
+                listed[s.name] = true
+                learnable = false
+            end
             if learnable and s.level <= level then
-                local info = classSpellInfo(s.name)
                 out[#out + 1] = {
                     importance = 80,
                     text = string.format("Train %s%s at your class trainer", s.name,
@@ -53,7 +83,15 @@ ns:Register("advisor", "trainer", {
 
         -- 2. Guide data for spells you've never seen at a trainer yet.
         for _, s in ipairs(ns:Get("classSpells", classToken()) or {}) do
-            if s.level <= level and not known[s.spell] and not listed[s.spell] then
+            local waitFor = s.needs and not known[s.needs] and s.needs or nil
+            if s.level <= level and not known[s.spell] and not listed[s.spell] and waitFor then
+                out[#out + 1] = {
+                    importance = 40,
+                    text = string.format("%s: after %s", s.spell, waitFor),
+                    improves = s.improves,
+                    waitsFor = waitFor,
+                }
+            elseif s.level <= level and not known[s.spell] and not listed[s.spell] then
                 out[#out + 1] = {
                     importance = 75,
                     text = string.format("Get %s (level %d%s)", s.spell, s.level,

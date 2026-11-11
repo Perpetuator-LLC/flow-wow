@@ -4662,3 +4662,63 @@ ns:Register("test", "/flow keys: spells bound straight to a key, sorted", functi
     t:eq(list[3].key .. "=" .. list[3].name, "SHIFT-E=Wrath", "a second key too")
     t:ok(ns.commands.keys ~= nil, "/flow keys")
 end)
+
+ns:Register("test", "needs: a stop goes after what provides it, or waits with the reason", function(t)
+    local N = ns.nav
+    -- 0.35.142: Demoralizing Roar needs Bear Form, from a class quest; Flow
+    -- sent a level-10 druid to train it anyway.
+    local have = { ["spell:Wrath"] = true }
+    local function met(tok) return have[tok] == true end
+    local function label(tok) return (tok:gsub("^%w+:", "")) end
+    local quest = { key = "6002:done", provides = { "spell:Bear Form" } }
+    local train = { key = "train:class", needs = { { "spell:Bear Form", soft = true } } }
+    local hard = { key = "skill:Bear", needs = { "spell:Bear Form" } }
+    local fine = { key = "x:1", needs = { "spell:Wrath" } }
+    N.ResolveNeeds({ quest, train, hard, fine }, met, label)
+    t:eq(train.deps and train.deps[1], "6002:done", "training goes after the quest that teaches Bear Form")
+    t:eq(train.after, "Bear Form", "and says so")
+    t:eq(hard.deps and hard.deps[1], "6002:done", "a hard need with a provider: ordered, not blocked")
+    t:eq(hard.blockedBy, nil, "not blocked while the provider is on the route")
+    t:eq(fine.deps, nil, "a need you meet: nothing")
+    local lone = { key = "skill:Bear", needs = { "spell:Bear Form" } }
+    local soft = { key = "train:class", needs = { { "spell:Bear Form", soft = true } } }
+    N.ResolveNeeds({ lone, soft }, met, label)
+    t:eq(lone.blockedBy, "needs Bear Form first", "nothing provides it: a hard need blocks, with the reason")
+    t:eq(soft.blockedBy, nil, "a soft need never blocks")
+    t:eq(soft.deps, nil, "and with no provider, no order either")
+    -- Two stops that would wait on each other: no loop.
+    local a = { key = "a", provides = { "spell:A" }, needs = { { "spell:B", soft = true } } }
+    local b = { key = "b", provides = { "spell:B" }, needs = { { "spell:A", soft = true } } }
+    N.ResolveNeeds({ a, b }, met, label)
+    t:ok(not (a.deps and b.deps), "never both waiting on each other")
+    -- The class quest provider: Body and Heart's turn-in teaches Bear Form (druids).
+    local _, class = UnitClass("player")
+    if class == "DRUID" then
+        local toks = N.ProvidesOf({ key = "6002:done" })
+        t:eq(toks[1], "spell:Bear Form", "Body and Heart (6002) teaches Bear Form")
+    else
+        t:ok(true, "(not a druid: the Bear Form quest isn't checked)")
+    end
+end)
+
+ns:Register("test", "trainer: spells that wait for another don't send you to train", function(t)
+    local T = ns.trainerAdvice
+    local known = { Wrath = true }
+    t:eq(T.WaitsFor("Bear Form", known, "unavailable", 10, 10), "Bear Form", "Demoralizing Roar waits for Bear Form")
+    t:eq(T.WaitsFor("Bear Form", { ["Bear Form"] = true }, "unavailable", 10, 10), nil, "with Bear Form known: trainable")
+    t:eq(T.WaitsFor(nil, known, "available", 10, 10), nil, "available: trainable")
+    t:eq(T.WaitsFor(nil, known, "unavailable", 12, 10), nil, "red only for your level then: not waiting (you've levelled)")
+    t:ok(T.WaitsFor(nil, known, "unavailable", 8, 10) ~= nil, "red although your level was enough: it needs something first")
+    local druid = ns:Get("classSpells", "DRUID")
+    local need
+    for _, s in ipairs(druid) do if s.spell == "Demoralizing Roar" then need = s.needs end end
+    t:eq(need, "Bear Form", "the druid data says Demoralizing Roar needs Bear Form")
+end)
+
+ns:Register("test", "needs: the town's errands don't pull a stop ahead of what it waits for", function(t)
+    local N = ns.nav
+    local train = { key = "train:class", deps = { "6002:done" } }
+    t:eq(N.HubBusiness(train, 10, { ["6002:done"] = true }, false), nil,
+        "training waits while the Bear Form quest's turn-in is still on the route")
+    t:eq(N.HubBusiness(train, 10, {}, false), "train", "turned in: training is town business again")
+end)

@@ -79,7 +79,9 @@ Flow for WoW is a separate project from Flow Engine.
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
   entrances so it sends you in through the door, not over the top. A quest stop says when it's
   an escort (its giver may be away walking another player out, for a few minutes) or when the
-  giver is deep in a cave (The Longwalkers).
+  giver is deep in a cave (The Longwalkers). A stop that needs something first goes after the
+  stop that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
+  Roar and Maul comes after the class quest that teaches Bear Form.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Most XP first**
   (epic purple, the default) and **Shortest path** (rare blue) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
