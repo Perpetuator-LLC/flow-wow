@@ -709,6 +709,9 @@ ns:Register("test", "tools: any version of a tool counts", function(t)
     t:eq(D:ToolProfession(987654, "Mining Pick"), "Mining", "another item ID, same name")
     t:eq(D:ToolProfession(987655, "Sturdy Blacksmith Hammer"), "Blacksmithing", "name contains the tool")
     t:eq(D:ToolProfession(987656, "Rusty Sword"), nil, "not a tool")
+    t:eq(D:ToolProfession(6218, nil), "Enchanting", "Runed Copper Rod is an Enchanting tool")
+    t:eq(D:ToolProfession(11145, nil), "Enchanting", "Runed Truesilver Rod too")
+    t:eq(D:ToolProfession(10498, nil), "Engineering", "Gyromatic Micro-Adjustor is an Engineering tool")
 end)
 
 -- Test-only setup rows: hidden except while this test runs (the registry has no remove).
@@ -1281,6 +1284,23 @@ ns:Register("test", "skillplan: the guides' recipes to 300", function(t)
     t:ok(onPath("Blacksmithing", 297, "Imperial Plate Boots"), "Blacksmithing 297: Imperial Plate Boots")
     t:ok(select(3, SP._simulate("Blacksmithing__test", ns:Get("profGuide", "Blacksmithing").steps, 265, 300, {})), "Blacksmithing 265 -> 300 reaches")
     t:ok(select(3, SP._simulate("Cooking__test", ns:Get("profGuide", "Cooking").steps, 225, 300, {})), "Cooking 225 -> 300 reaches")
+    -- The crafting guides in GuidesCrafting.lua: each one's path runs 1 -> 300 with no gap.
+    for _, prof in ipairs({ "Tailoring", "Leatherworking", "Alchemy", "Enchanting", "Engineering" }) do
+        local g = ns:Get("profGuide", prof)
+        t:ok(g and g.artisan and g.artisan.Horde and g.artisan.Alliance, prof .. ": has an Artisan trainer for each side")
+        t:ok(g and select(3, SP._simulate(prof .. "__test", g.steps, 1, 300, {})), prof .. " 1 -> 300 reaches")
+    end
+    t:ok(onPath("Tailoring", 290, "Runecloth Gloves"), "Tailoring 290: Runecloth Gloves")
+    t:ok(onPath("Leatherworking", 295, "Runic Leather Headband"), "Leatherworking 295: Runic Leather Headband")
+    t:ok(onPath("Alchemy", 290, "Major Healing Potion"), "Alchemy 290: Major Healing Potion")
+    t:ok(onPath("Enchanting", 240, "Enchant Chest - Superior Health"), "Enchanting 240: Enchant Chest - Superior Health")
+    t:ok(onPath("Enchanting", 210, "Enchant Bracer - Strength"), "Enchanting 210: back on Bracer - Strength after the rod")
+    t:ok(not onPath("Enchanting", 200, "Enchant Bracer - Strength"), "Enchanting 200: the Truesilver Rod, not another bracer")
+    t:ok(onPath("Engineering", 290, "Thorium Tube"), "Engineering 290: Thorium Tube")
+    -- Each enchant names the rod it needs in your bags.
+    for _, s in ipairs(ns:Get("profGuide", "Enchanting").steps) do
+        if s.recipe:find("^Enchant ") then t:ok(s.tool, "Enchanting: " .. s.recipe .. " names its rod") end
+    end
 
     -- Imperial Plate plans: accept the quest at its giver, not "buy".
     local bracers

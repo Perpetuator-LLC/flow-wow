@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- **Profession guides: Tailoring, Leatherworking, Alchemy, Enchanting and Engineering, 1-300.** Each follows
+  the cheapest levelling route: trainer recipes plus the fewest bought patterns (Runecloth Gloves; Wicked
+  Leather Gauntlets and Runic Leather Headband; Superior Mana and Major Healing Potion; the Enchanting formulas
+  for Minor Agility, Lesser Strength, Lesser Mana Oil, Greater Stamina and Superior Defense; the Thorium Widget
+  and Thorium Tube schematics), with vendor prices for the thread, dye, vials and rods they need. Herbs come
+  from Herbalism nodes; cloth, leather and enchanting dust show as Auction House buys. Enchants say which rod
+  they need and Engineering says when you need the Arclight Spanner; an engineer's Blacksmith Hammer is kept.
+  The Artisan trainer is the one each profession really uses (Annora in Uldaman for Enchanting).
 - **Profession guides: the recipes to 300.** Cooking now goes past 225 with the bought Artisan recipes the
   levelling guides use (Monster Omelet, Tender Wolf Steak, Spotted Yellowtail, then Nightfin Soup, Sunscale
   Salmon, Mightfish Steak, Lobster Stew and Baked Salmon), with their vendor prices and the fish they need.

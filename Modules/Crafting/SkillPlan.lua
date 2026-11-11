@@ -30,9 +30,13 @@ local function profIcon(prof)
 end
 SP.ProfIcon = profIcon
 -- A tool for this profession in your bags or equipped (any version of it).
+-- The tool's own profession decides what counts: an engineer's Blacksmith
+-- Hammer is any Blacksmith Hammer, not an Arclight Spanner.
 local function hasTool(prof, id)
     if id and count(id) > 0 then return true end
-    return ns.disposition and ns.disposition.HasTool and ns.disposition:HasTool(prof) or false
+    local D = ns.disposition
+    if not (D and D.HasTool) then return false end
+    return D:HasTool(id and D.ToolProfession and D:ToolProfession(id) or prof)
 end
 local function src(id) return ns:Get("itemSource", id) end
 local function itemName(id)
@@ -606,7 +610,11 @@ function SP.TierGoal(prof, level, optional)
                       details = { why },
                       blockedBy = "Flow needs Questie to find the quest's giver" }), tier
     end
-    local names = ns.places:TrainersFor(prof)
+    -- Artisan is taught by one trainer per side (guide `artisan`), not the
+    -- city's (Enchanting: Annora, inside Uldaman).
+    local g = ns:Get("profGuide", prof)
+    local names = (tier.cap == 225 and g and g.artisan) and SP.StepTrainers(prof, { trainer = g.artisan })
+        or ns.places:TrainersFor(prof)
     local pts = npcPoints(names)
     return goal({ points = pts, npcs = names,
                   text = string.format("Train %s (%s)", title, #names > 0 and table.concat(names, " / ") or "trainer"),
@@ -1312,7 +1320,9 @@ local function planProfession(prof, t, out)
             local deps, depBlocked = before(takes)
             local pts, anywhere = stationPoints(s.station), false
             if not pts or #pts == 0 then pts, anywhere = { playerPoint() }, true end
+            if s.tool then watched[s.tool] = true end
             local blocked = toolMissing and ("needs a " .. toolMissing)
+                or (s.tool and count(s.tool) == 0 and ("needs a " .. itemName(s.tool) .. " (make it first)"))
                 or (known and not known[s.recipe] and (s.recipeItem and (count(s.recipeItem) > 0 and "use the recipe in your bags first"
                         or (s.quest and "get the plans from the quest first") or ("buy " .. itemName(s.recipeItem) .. " first"))
                     or ("learn " .. s.recipe .. " first")))

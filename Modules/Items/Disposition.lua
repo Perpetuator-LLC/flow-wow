@@ -209,9 +209,16 @@ local TOOLS = {
     [2901] = "Mining", [5956] = "Blacksmithing", [6219] = "Engineering", [7005] = "Skinning",
     [6256] = "Fishing", [6365] = "Fishing", [6366] = "Fishing", [6367] = "Fishing", [12225] = "Fishing",
     [19022] = "Fishing", [19970] = "Fishing", [12709] = "Skinning", [19901] = "Skinning",
+    -- Enchanting rods (each recipe wants its own rod, so all are kept) and
+    -- the Gyromatic Micro-Adjustor.
+    [6218] = "Enchanting", [6339] = "Enchanting", [11130] = "Enchanting", [11145] = "Enchanting",
+    [16207] = "Enchanting", [10498] = "Engineering",
 }
 local TOOL_NAMES = { { "Mining Pick", "Mining" }, { "Blacksmith Hammer", "Blacksmithing" },
     { "Skinning Knife", "Skinning" }, { "Fishing Pole", "Fishing" }, { "Arclight Spanner", "Engineering" } }
+-- Another profession's tools a profession also needs: engineers work
+-- with a Blacksmith Hammer.
+local TOOL_ALSO = { Blacksmithing = { "Engineering" } }
 D.TOOLS = TOOLS
 
 -- Which profession a tool is for (by item ID, else by name), or nil.
@@ -238,12 +245,15 @@ function D:HasTool(prof)
 end
 
 reg("professionTool", 3, function(i)
-    local prof = D:ToolProfession(i.id, i.name)
-    if not prof then return nil end
-    local planned = false
-    for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end
-    if ns.api.Skill(prof) or planned then
-        return { action = "keep", icon = PROF_ICON[prof], reason = "tool for " .. prof }
+    local own = D:ToolProfession(i.id, i.name)
+    if not own then return nil end
+    local plan = ns:ProfessionPlan() or {}
+    for _, prof in ipairs({ own, unpack(TOOL_ALSO[own] or {}) }) do
+        local planned = false
+        for _, p in ipairs(plan) do if p.name == prof then planned = true end end
+        if ns.api.Skill(prof) or planned then
+            return { action = "keep", icon = PROF_ICON[prof], reason = "tool for " .. prof }
+        end
     end
 end)
 
