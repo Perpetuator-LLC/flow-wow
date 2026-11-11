@@ -45,7 +45,8 @@ C._helpful = helpful
 
 -- What the key itself is bound to instead of Flow's button: nil (the
 -- button), "INTERACTTARGET" (reel in the bobber, mine the vein, loot your
--- kill) or "STARTATTACK" (the game's Start Attack: auto attack on, never off).
+-- kill), "SITORSTAND" (sit by a campfire) or "STARTATTACK" (the game's Start
+-- Attack: auto attack on, never off).
 local keyCommand = nil
 
 function C.IsAttack(spell) return spell == "Attack" or spell == "Auto Attack" end
@@ -69,6 +70,7 @@ end
 function C.KeyCommandFor(s, canStartAttack)
     if not s then return nil end
     if s.type == "interact" then return "INTERACTTARGET" end
+    if s.type == "sit" then return "SITORSTAND" end
     if C.IsAttack(s.spell) and canStartAttack then return "STARTATTACK" end
     return nil
 end
@@ -86,6 +88,8 @@ local function describe(s)
     if not s then return "" end
     if s.type == "item" then return "/use " .. tostring(s.item) .. (s.targetSlot and (" on slot " .. s.targetSlot) or "") end
     if s.type == "interact" then return "Interact" end
+    if s.type == "sit" then return "Sit" end
+    if s.type == "wait" then return "Wait" end
     if s.type == "clear" then return "/cleartarget" end
     if s.type == "target" then return "/target " .. tostring(s.unit) end
     if s.type == "click" then return "/click " .. tostring(s.label) end
@@ -137,6 +141,7 @@ local function setAction(s)
         btn:SetAttribute("type", "item")
         btn:SetAttribute("item", s.item)
         btn:SetAttribute("target-slot", s.targetSlot)
+        btn:SetAttribute("unit", s.unit)   -- (a bandage: on you)
     else
         btn:SetAttribute("type", nil)
     end
@@ -242,6 +247,11 @@ function C:FillTooltip(tt)
         tt:AddLine("Ctrl + key: " .. s.spell .. " on your target instead.", 0.4, 0.8, 1)
     end
     tt:AddLine("Hold Shift: a handle appears; drag it to move the icon.", 0.6, 0.6, 0.6)
+    for _, st in ipairs(E.status or {}) do
+        local c = st.color or { 1, 0.82, 0 }
+        tt:AddLine(st.tip, c[1], c[2], c[3], true)
+    end
+    tt:AddLine("Right-click: options (after-fight order, bandages, camp).", 0.6, 0.6, 0.6)
 end
 
 local function refreshLabels()
@@ -251,7 +261,7 @@ local function refreshLabels()
     local live = E.current
     local first = C.KeysOf(ns.db.cast)[1]
     local healKey = first and C.HealSpell and C:HealSpell() and C.HealKeyFor(first)
-    if InCombatLockdown() and healKey and live and (live.kind == "heal" or live.kind == "emergency")
+    if InCombatLockdown() and healKey and live and live.spell and (live.kind == "heal" or live.kind == "emergency")
         and lockedSpell ~= live.spell then
         keyText:SetText("|cff66ff66S-" .. C.ShortKey(first, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end) .. "|r")
         if not ns.db.cast.healTipShown then
@@ -290,6 +300,11 @@ local function build(cfg)
     -- Shift + drag moves it; make shift-clicks do nothing so moving never casts.
     btn:SetAttribute("shift-type1", "macro")
     btn:SetAttribute("shift-macrotext1", "")
+    -- Right-click never casts: it opens the key's options (below). "*" covers
+    -- Shift/Ctrl/Alt + right-click too ("type2" alone left Shift + right-click
+    -- falling back to "type", the spell).
+    btn:SetAttribute("*type2", "macro")
+    btn:SetAttribute("*macrotext2", "")
     btn:SetMovable(true)
     btn:SetClampedToScreen(true)
     btn:RegisterForDrag("LeftButton")
@@ -297,6 +312,12 @@ local function build(cfg)
         if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving(); C.moving = true end
     end)
     btn:SetScript("OnDragStop", function() C:EndMove() end)
+    -- Right-click: the Flow key's options (recovery order, bandages, camp).
+    btn:HookScript("OnClick", function(_, button, down)
+        if button == "RightButton" and not down and not InCombatLockdown() and ns.buffItems then
+            ns.buffItems:OpenMenu()
+        end
+    end)
     btn:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
         pcall(C.FillTooltip, C, GameTooltip)
@@ -484,9 +505,9 @@ end)
 ns:On("PLAYER_REGEN_DISABLED", function()
     if btn and not btn:IsShown() then btn:Show() end  -- key must work all fight
     setHeal()   -- Shift + key: your heal, all fight
-    -- The key goes back to Flow's button for the fight (not Interact). This
+    -- The key goes back to Flow's button for the fight (not Interact or Sit). This
     -- event comes just before the lockdown, so changes are still allowed.
-    if keyCommand == "INTERACTTARGET" then C:SetKeyCommand(nil) end
+    if keyCommand == "INTERACTTARGET" or keyCommand == "SITORSTAND" then C:SetKeyCommand(nil) end
     local helper = assistantSpell()
     if helper then
         setAction({ spell = helper })
@@ -623,7 +644,8 @@ ns:OnLoad(function()
         acc = 0
         fight.ticks = fight.ticks + 1
         local s = E.current
-        if s then fight.seen[s.spell] = (fight.seen[s.spell] or 0) + 1 else fight.empty = fight.empty + 1 end
+        local what = s and (s.spell or s.item or s.label or "?")
+        if what then fight.seen[what] = (fight.seen[what] or 0) + 1 else fight.empty = fight.empty + 1 end
     end)
 end)
 

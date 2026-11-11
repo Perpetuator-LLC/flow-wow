@@ -410,9 +410,32 @@ function V:Panel()
     return panel
 end
 
+-------------------------------------------------------------------------------
+-- Auto-repair
+-------------------------------------------------------------------------------
+
+-- At a vendor who repairs: repair everything, if you can afford it
+-- (Options: "Auto-repair at vendors").
+function V:AutoRepair()
+    if not (CanMerchantRepair and CanMerchantRepair() and GetRepairAllCost and RepairAllItems) then return end
+    local cost, can = GetRepairAllCost()
+    cost = tonumber(cost) or 0
+    if cost <= 0 then return end
+    if not can or (GetMoney and GetMoney() < cost) then
+        ns:Print("can't afford to repair your gear here (" .. money(cost) .. ")")
+        return
+    end
+    RepairAllItems()
+    ns:Print("repaired your gear for " .. money(cost))
+end
+
 ns:On("MERCHANT_SHOW", function()
     merchantOpen = true
-    if not ns.db.sell.enabled then return end
+    local repair = ns.db.sell.autoRepair ~= false
+    if not ns.db.sell.enabled then
+        if repair then V:AutoRepair() end
+        return
+    end
     V:Panel()
     wipe(sold); junkSold = 0
     V.visitCollapsed = nil  -- each visit starts open if there's something to sell, else collapsed
@@ -427,6 +450,11 @@ ns:On("MERCHANT_SHOW", function()
         if ns.db.sell.autoAll then sold = sold + (V:SellProposed() or 0) end
         V:Cleanup(sold)   -- Auto-cleanup: tidy your bags after auto-sell
         V:Refresh()
+        -- Repair after selling: the junk's gold comes in first (a moment
+        -- later), so a short purse isn't "can't afford" before the sale.
+        if repair then
+            C_Timer.After(sold > 0 and 0.6 or 0, function() if merchantOpen then V:AutoRepair() end end)
+        end
     end)
 end)
 
@@ -466,7 +494,16 @@ ns:OnLoad(function(saved)
     if saved.sell.autoJunk == nil then saved.sell.autoJunk = true end
     -- Auto-sell the rest of Flow's "sell" items too (you asked for it).
     if saved.sell.autoAll == nil then saved.sell.autoAll = true end
+    if saved.sell.autoRepair == nil then saved.sell.autoRepair = true end
 end)
+
+ns:Register("setupItem", "autoRepair", {
+    order = 17, label = "Auto-repair at vendors",
+    why = "Repairs all your gear when you open a vendor who repairs, if you have the gold (Flow says what it cost).",
+    isOn = function() return ns.db.sell.autoRepair ~= false end,
+    set = function(on) ns.db.sell.autoRepair = on end,
+    suggested = true, default = true, isNew = true,
+})
 
 ns:Register("setupItem", "autoAll", {
     order = 16, label = "Auto-sell everything Flow marks to sell",

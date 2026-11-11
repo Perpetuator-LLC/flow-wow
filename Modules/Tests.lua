@@ -63,9 +63,14 @@ end
 ns:On("PLAYER_LOGIN", function()
     C_Timer.After(8, function()
         if InCombatLockdown() then return end
-        local ok, passed, failed, _, out = pcall(run)
+        local t0 = debugprofilestop and debugprofilestop()
+        local ok, passed, failed, checks, out = pcall(run)
+        local ms = t0 and (debugprofilestop() - t0) or 0
         if not ok then ns:Log("tests", "run failed: " .. tostring(passed)) return end
-        ns:Log("tests", string.format("at login: %d passed, %d failed", passed, failed))
+        ns:Log("tests", string.format("at login: %d passed, %d failed (%.0f ms)", passed, failed, ms))
+        -- Kept for the after-login diagnostics, so it needn't run them again.
+        ns.lastTestRun = { at = date("%H:%M:%S"), passed = passed, failed = failed, checks = checks,
+                           out = out, ms = ms }
         if failed > 0 then
             local first = (out[1] or ""):gsub("^FAIL ", "")
             ns:Print(string.format("|cffff6060%d self-test%s failed|r (%s%s). Details: /flow test",
@@ -1034,7 +1039,10 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     P.stats["test: wrapped"] = nil
     t:ok(P.stats["arrow + minimap (10/s)"] ~= nil, "route arrow timed")
     t:ok(P.stats["route: order stops"] ~= nil, "planner timed")
-    t:ok(#P:Report() >= 1, "report has a summary line")
+    -- quick: a full clean-up inside the login self-test run is a hitch.
+    local rep = P:Report(true)
+    t:ok(#rep >= 1, "report has a summary line")
+    t:ok(rep[1]:find("/flow perf", 1, true) ~= nil, "quick report skips the clean-up and says so")
     t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
 end)
 
@@ -1581,6 +1589,12 @@ ns:Register("test", "Flow button: cooldown timer text", function(t)
     t:eq(T(98, 6, 100), "4.0", "under 10 s: tenths")
     t:eq(T(0.5, 300, 100), "4m", "minutes when long")
     t:eq(T(10, 30, 100), "", "finished: no timer")
+    local B = ns.BuffTimerText
+    t:eq(B(nil), "", "buff gone: no buff timer")
+    t:eq(B(45), "", "buff with 30 s or more left: no buff timer")
+    t:eq(B(math.huge), "", "buff that never runs out: no buff timer")
+    t:eq(B(22.4), "22", "buff under 30 s: seconds left")
+    t:eq(B(4.25), "4.2", "buff under 10 s: tenths")
 end)
 
 ns:Register("test", "Flow button: grey when you can't cast it, red out of range", function(t)
@@ -2293,17 +2307,100 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
         { id = 1, sub = 2, name = "Elixir of Lion's Strength", spell = "Lesser Strength" },
         { id = 2, sub = 6, name = "Rough Sharpening Stone" },
         { id = 3, sub = 6, name = "Rough Weightstone" },
+        { id = 4, sub = 5, name = "Roasted Boar Meat" },
     }
     local none = function() return false end
     local all = function() return true end
-    t:eq(BI.Pick(items, none, 7, false).id, 1, "elixir first, when its buff is missing")
-    t:eq(BI.Pick(items, all, 7, false).id, 2, "buff on: a sharpening stone for a sword")
-    t:eq(BI.Pick(items, all, 4, false).id, 3, "a weightstone for a mace")
-    t:eq(BI.Pick(items, all, 7, true), nil, "the weapon has one already: nothing")
+    local fedOnly = function(spell) return spell ~= BI.WELL_FED end
+    t:eq(BI.Pick(items, none, 7, false, true).id, 1, "elixir first, when its buff is missing")
+    t:eq(BI.Pick(items, all, 7, false, true).id, 2, "buff on: a sharpening stone for a sword")
+    t:eq(BI.Pick(items, all, 4, false, true).id, 3, "a weightstone for a mace")
+    t:eq(BI.Pick(items, all, 7, true, true), nil, "the weapon has one already, Well Fed: nothing")
+    t:eq(BI.Pick(items, fedOnly, 7, true, true).id, 4, "not Well Fed: eat, after the quick ones")
     t:ok(BI.FitsWeapon("Minor Wizard Oil", 10), "oil goes on anything")
     t:ok(not BI.FitsWeapon("Rough Sharpening Stone", 4), "no sharpening stone on a mace")
+    t:ok(not BI.FitsWeapon("Minor Wizard Oil", 20), "no oil on a fishing pole")
+    t:eq(BI.Pick(items, none, 7, false, false), nil, "not about to fight: the stone waits too")
+    t:eq(BI.Pick(items, fedOnly, 7, true, false), nil, "not about to fight: no food")
+    t:ok(BI.IsBuffFood({ "Roasted Boar Meat", "Use: Restores 294 health over 27 sec. If you spend at least 10 seconds eating you will become well fed." }),
+        "food that says Well Fed")
+    t:ok(not BI.IsBuffFood({ "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "plain food: no")
+    t:ok(not BI.IsBuffFood(nil), "no tooltip yet: no")
+    t:eq(BI.CampStep(true, false, false), "sit", "by a campfire without its buffs: sit")
+    t:eq(BI.CampStep(true, false, true), "wait", "the minute is running: wait, don't stand up")
+    t:eq(BI.CampStep(true, true, false), nil, "camp buffs on: nothing")
+    t:eq(BI.CampStep(false, false, false), nil, "no campfire near: nothing")
+    t:eq(BI.CampStep(true, false, false, { name = "Camp Tent" }), "place", "a camp object to place: before sitting")
+    t:eq(BI.CampStep(true, true, false, { name = "Camp Tent" }), "place", "buffs on: still place it (it adds to them)")
+    t:eq(BI.CampStep(true, false, true, { name = "Camp Tent" }), "wait", "the minute is running: never stand up to place one")
+    t:eq(BI.CampStep(true, true, false, nil, 100), "sit", "just placed one: sit again so the buffs include it")
+    t:eq(BI.PartyKitText({ ["Mia-Realm"] = { kits = { "Camp Tent", "Enchanted Lute" }, at = 95 },
+                           Bob = { kits = { "Mana Well" }, at = 10 } }, 100),
+        "Mia: Camp Tent, Enchanted Lute", "party camp objects: fresh lists only, realm dropped")
+    t:eq(BI.PartyKitText({}, 100), nil, "no party lists: nothing")
+    t:eq(BI.HealKind("Minor Healthstone", 0, 0), "healthstone", "a healthstone")
+    t:eq(BI.HealKind("Lesser Healing Potion", 0, 1), "potion", "a healing potion")
+    t:eq(BI.HealKind("Minor Mana Potion", 0, 1), nil, "a mana potion doesn't heal")
+    t:eq(BI.HealKind("Heavy Linen Bandage", 0, 7), "bandage", "a bandage")
+    t:eq(BI.HealKind("Tough Jerky", 0, 5, { "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "food", "plain food heals")
+    t:eq(BI.HealKind("Refreshing Spring Water", 0, 5, { "Use: Restores 151 mana over 18 sec." }), nil, "drink: no")
+    t:eq(BI.HealKind("Roasted Boar Meat", 0, 5, { "Use: Restores 294 health. ...you will become well fed..." }), nil,
+        "Well Fed food is left for the buff step")
+    local heal = { { id = 1, kind = "potion", rank = 15 }, { id = 2, kind = "healthstone", rank = 10 },
+                   { id = 3, kind = "bandage", rank = 5 }, { id = 4, kind = "bandage", rank = 20 } }
+    t:eq(BI.PickEmergency(heal).id, 2, "in a fight: the healthstone before the potion")
+    t:eq(BI.PickEmergency(heal, function(id) return id ~= 2 end).id, 1, "healthstone on cooldown: the potion")
+    t:eq(BI.PickKind(heal, "bandage").id, 4, "best bandage first by default")
+    t:eq(BI.PickKind(heal, "bandage", true).id, 3, "lowest bandage first when you choose it")
+    t:eq(table.concat(BI.Order(nil), ","), "bandage,food,heal", "default order: bandage, food, heal spell")
+    t:eq(table.concat(BI.Order("heal,bandage"), ","), "heal,bandage,food", "your order, missing steps added")
+    t:eq(table.concat(BI.Order("food,food,junk"), ","), "food,bandage,heal", "repeats and unknown words dropped")
+    t:eq(BI.PartyKitStatus({}, 100), nil, "no party objects: no camp icon")
+    t:eq(BI.PartyKitStatus({ Mia = { kits = { "Camp Tent", "Enchanted Lute" }, at = 95 } }, 100).text, "2",
+        "camp icon: how many objects your group can add")
+    t:ok(BI.IsWeaponBuff("Rough Sharpening Stone"), "a stone by its name")
+    t:ok(BI.IsWeaponBuff("Coarse Weightstone"), "a weightstone by its name")
+    t:ok(BI.IsWeaponBuff("Minor Wizard Oil") and BI.IsWeaponBuff("Frost Oil"), "weapon oils by name")
+    t:ok(not BI.IsWeaponBuff("Oily Blackmouth") and not BI.IsWeaponBuff("Fire Oil")
+        and not BI.IsWeaponBuff("Oil of Immolation"), "fish and reagents aren't weapon oils")
+    t:ok(not BI.IsWeaponBuff(nil), "no name yet: no")
+    t:ok(BI.WeaponFirst(false, 100, 100), "out of combat, no enemy, healthy: the stone goes before the rotation's buff")
+    t:ok(not BI.WeaponFirst(true, 100, 100), "enemy targeted: the opener first")
+    t:ok(not BI.WeaponFirst(false, 40, 100), "under half health: the heal first")
+    -- WoW: Forever hides your health (0.35.125: testing it errored, so the
+    -- stone never showed): Flow's own estimate of how hurt you are decides.
+    t:ok(BI.WeaponFirst(false, nil, nil, false), "health hidden, not hurt by Flow's estimate: the stone first")
+    t:ok(not BI.WeaponFirst(false, nil, nil, true), "health hidden and hurt: the heal first")
+    t:ok(not BI.WeaponFirst(true, nil, nil, false), "health hidden, enemy targeted: the opener first")
+    t:ok(BI.WeaponFirst(false, 100, 0, false), "max health 0 (not known): Flow's estimate")
+    t:ok(ns:Get("action", "buff:item").order < ns:Get("action", "bag:learn").order, "before learning a recipe in your bags")
     t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill stop: yes")
     t:ok(not BI.Killing({ at = false, goal = { key = "500:done", kind = "turnin" } }, GetTime() + 1000), "walking to a turn-in, no fight lately: no")
+end)
+
+ns:Register("test", "Flow key: camp names from your group, bandages, items on your bars", function(t)
+    local BI, E = ns.buffItems, ns.rotation
+    t:eq(table.concat(BI.ParseKits("Camp Tent, Enchanted Lute,Camp Tent,|cffff0000click me|r"), ","),
+        "Camp Tent,Enchanted Lute", "a party member's camp objects: known names only, each once")
+    t:eq(#BI.ParseKits(nil), 0, "nothing sent: nothing")
+    t:ok(E.IsBandage("First Aid"), "a bandage is a First Aid channel")
+    t:ok(not E.IsBandage("Rejuvenation") and not E.IsBandage(nil), "other channels aren't")
+    t:ok(type(ns.ItemOnBar) == "function", "Flow knows which items are on your bars")
+    t:ok(not ns.ItemOnBar(nil) and not ns.ItemOnBar(999999), "an item on no bar: no")
+end)
+
+ns:Register("test", "click: the Flow key's right-click menu opens; right-click never casts", function(t)
+    closeMenu()
+    local ok, err = pcall(ns.buffItems.OpenMenu, ns.buffItems)
+    t:ok(ok, "the menu builds" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "the menu is on screen")
+    local has = {}
+    for _, it in ipairs(ns.menu.items or {}) do if it.text then has[it.text] = true end end
+    t:ok(has["Use bandages"] and has["Lowest bandage first"] and has["Status icons above the key"], "its options are there")
+    closeMenu()
+    local b = _G.FlowCastButton
+    if b then t:eq(b:GetAttribute("*type2"), "macro", "right-click with any modifier runs an empty macro, never the spell")
+    else t:ok(true, "(no Flow key yet)") end
 end)
 
 ns:Register("test", "crafting: a bar for the whole batch", function(t)
@@ -3267,6 +3364,9 @@ ns:Register("test", "easy button: Attack only ever turns auto attack on", functi
     t:eq(C.KeyCommandFor({ spell = "Auto Attack", kind = "damage" }, true), "STARTATTACK", "Auto Attack too")
     t:eq(C.KeyCommandFor({ spell = "Attack", kind = "damage" }, false), nil, "no Start Attack in this client: Flow's button")
     t:eq(C.KeyCommandFor({ type = "interact" }, true), "INTERACTTARGET", "a Flow Action's Interact")
+    t:eq(C.KeyCommandFor({ type = "sit" }, true), "SITORSTAND", "by a campfire: the game's Sit/Stand")
+    t:eq(C.KeyCommandFor({ type = "wait" }, true), nil, "waiting at the fire: Flow's button (which does nothing)")
+    t:eq(C._describe({ type = "sit" }), "Sit", "sit described")
     t:eq(C.KeyCommandFor({ spell = "Judgement", kind = "damage" }, true), nil, "a real spell: Flow's button")
     t:eq(C.KeyCommandFor(nil, true), nil, "nothing to press: Flow's button (which does nothing)")
     -- For a fight: never the toggling Attack spell.

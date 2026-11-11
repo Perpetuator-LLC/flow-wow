@@ -14,7 +14,8 @@ Flow for WoW is a separate project from Flow Engine.
 ### Combat
 - **Rotation helper**: an icon shows the spell to press next, and the matching action bar or
   stance bar button glows. The border colour says why: green attack, light blue buff, gold heal,
-  fast gold pulse heal now. A big cooldown timer sits on the icon; the next three spells are
+  fast gold pulse heal now. A big cooldown timer sits on the icon (and, when it suggests
+  re-casting a buff, the buff's last 30 seconds in light blue); the next three spells are
   **on deck** to its right (shrinking, with their timers, reordering as the fight changes), and
   a crossed-swords badge on its left shows auto attack is on.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
@@ -29,8 +30,19 @@ Flow for WoW is a separate project from Flow Engine.
   your weapons back. Upgrades in your bags: it equips them (first, when you target an enemy).
   Crafting: campfire, open the profession, make exactly enough; by an anvil, forge or cooking
   fire with something to make, it opens Blacksmithing, Smelting or Cooking. Things to learn in your bags
-  (recipes, scrolls): it learns them. One press per step.
+  (recipes, scrolls): it learns them. About to fight (a kill stop, or just
+  after a fight): elixirs and scrolls, a stone or oil on your weapon, then food that makes you Well
+  Fed. By a WoW: Forever campfire: place the camp objects you carry (a tent, a lute...), then sit
+  for the camp buffs (the key sits you down; stay a minute); party members running Flow say which
+  objects they could add. One press per step.
   `/flow action` shows what it would do.
+- **Healing items**: low in a fight, Flow's icon shows your healthstone, then your best healing
+  potion, when it's on one of your action bars (press it there: it glows). After a fight the key
+  recovers you: bandage, then food, then a heal spell by default. Right-click the Flow key to
+  change that order, turn steps off, or use your lowest bandages first.
+- **Status icons** above the Flow key, between fights only, instead of chat lines: by a campfire,
+  what your group can add to the camp. Hover for details.
+- **Auto-repair** at vendors who repair (Options, on by default), after Flow sells your junk.
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
   Remembers what you cast when the game hides your auras.
 - **Heals when your health is hidden** (WoW: Forever hides it from add-ons): the game's own

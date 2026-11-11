@@ -21,6 +21,7 @@ local BAR_PREFIXES = {
 
 local icon, glows, current
 local buttonsBySpell = {}
+local buttonsByItem = {}   -- item ID -> buttons (a healthstone, a bandage)
 
 -- A coloured frame made of plain colour textures. Works on every client
 -- (no dependency on Blizzard art files).
@@ -174,7 +175,7 @@ local function glowFor(btn)
 end
 
 local function scanButtons()
-    wipe(buttonsBySpell)
+    wipe(buttonsBySpell); wipe(buttonsByItem)
     for _, prefix in ipairs(BAR_PREFIXES) do
         for i = 1, 12 do
             local btn = _G[prefix .. i]
@@ -190,6 +191,10 @@ local function scanButtons()
                             table.insert(buttonsBySpell[name], btn)
                             glowFor(btn)  -- build now, out of combat
                         end
+                    elseif kind == "item" and id then
+                        buttonsByItem[id] = buttonsByItem[id] or {}
+                        table.insert(buttonsByItem[id], btn)
+                        glowFor(btn)
                     end
                 end
             end
@@ -214,9 +219,23 @@ local function clearGlows()
     end
 end
 
-local function showGlows(spell, color, kind)
+-- Is this item on one of your action bars? (In a fight the key is locked, so
+-- an item is only worth suggesting where you can press it: BuffItems.lua.)
+function ns.ItemOnBar(id)
+    local list = id and buttonsByItem[tonumber(id)]
+    return list ~= nil and #list > 0
+end
+
+-- The buttons holding a suggestion: its spell, or its item.
+local function buttonsOf(s)
+    if s.spell then return buttonsBySpell[s.spell] or {} end
+    local id = s.item and tonumber(tostring(s.item):match("(%d+)"))
+    return id and buttonsByItem[id] or {}
+end
+
+local function showGlows(s, color, kind)
     clearGlows()
-    for _, btn in ipairs(buttonsBySpell[spell] or {}) do
+    for _, btn in ipairs(buttonsOf(s)) do
         local g = glowFor(btn)
         g.border:SetColor(color[1], color[2], color[3])
         g.fade:SetDuration(kind == "emergency" and 0.2 or 0.45)
@@ -327,6 +346,26 @@ function ns.CooldownText(start, dur, now)
     return string.format("%.1f", left)
 end
 
+-- The buff timer: when Flow suggests re-casting a buff that's still on but
+-- running out, the seconds it has left (under 30), in aqua (BUFF_TIMER: the
+-- mana wait is blue). "" when it's gone, lasts longer, or never runs out.
+local BUFF_SHOW = 30
+local BUFF_TIMER = { 0.55, 1.0, 0.85 }
+function ns.BuffTimerText(left)
+    left = ns.api.Safe(left)
+    if type(left) ~= "number" or left <= 0 or left >= BUFF_SHOW then return "" end
+    if left >= 10 then return string.format("%d", math.floor(left + 0.5)) end
+    return string.format("%.1f", left)
+end
+
+-- Seconds left on the buff a suggestion re-casts (on whoever it's for).
+local function buffLeft(s)
+    if s.kind ~= "buff" or not s.spell then return nil end
+    local ok, up, left = pcall(A.Buff, s.unit or "player", s.spell)
+    if ok and up then return left end
+    return nil
+end
+
 -- Border for a Flow Action (equip the pole, make a campfire...): not the
 -- route purple, which reads as "epic item". Spells use the spell colour
 -- (light blue, like buffs); items their own quality colour (white, green...).
@@ -338,7 +377,7 @@ local function actionColor(s)
         if c then return { c.r, c.g, c.b } end
         return { 1, 1, 1 }
     end
-    if s.type == "interact" or s.type == "clear" or s.type == "click" then return { 0.85, 0.85, 0.85 } end
+    if s.type == "interact" or s.type == "clear" or s.type == "click" or s.type == "sit" or s.type == "wait" then return { 0.85, 0.85, 0.85 } end
     return COLORS.buff
 end
 ns.ActionColor = actionColor  -- (tests)
@@ -372,6 +411,7 @@ local function render(s, cfg)
     icon.text:SetText(s.label or (s.target and ("on " .. s.target)) or (cfg.debug and s.reason) or "")
     local how, start, dur = setCooldown(icon.cd, s)
     E.cooldownShown = how
+    icon.timer:SetTextColor(1, 0.95, 0.7)
     icon.timer:SetText(ns.CooldownText(start, dur, GetTime()))
     -- Grey: can't cast it now (mana, or not usable); red: out of range.
     local okT, tint, oom = pcall(tintOf, s)
@@ -384,6 +424,16 @@ local function render(s, cfg)
             icon.timer:SetText("|cff7fb2ff" .. (wait >= 60 and string.format("%dm", math.ceil(wait / 60)) or tostring(wait)) .. "|r")
         end
     end
+    -- A buff Flow suggests re-casting while it's still on: its last 30
+    -- seconds, in aqua (not the mana blue). Only when nothing else counts
+    -- down there, the game's own cooldown numbers included.
+    if how == "none" and (icon.timer:GetText() or "") == "" then
+        local bt = ns.BuffTimerText(buffLeft(s))
+        if bt ~= "" then
+            icon.timer:SetTextColor(BUFF_TIMER[1], BUFF_TIMER[2], BUFF_TIMER[3])
+            icon.timer:SetText(bt)
+        end
+    end
     icon.tex:SetDesaturated(tv and tv[4] or (s.kind == "held"))
     if tv then icon.tex:SetVertexColor(tv[1], tv[2], tv[3])
     elseif s.kind == "held" then icon.tex:SetVertexColor(0.7, 0.7, 0.7)
@@ -394,7 +444,7 @@ local function render(s, cfg)
     if key ~= current then
         current = key
         -- (A held spell isn't advice: no glow on your action bars.)
-        if s.spell and s.kind ~= "held" then showGlows(s.spell, color, s.kind) else clearGlows() end
+        if (s.spell or s.item) and s.kind ~= "held" then showGlows(s, color, s.kind) else clearGlows() end
     end
 end
 
@@ -467,12 +517,104 @@ local function onUpdate(_, dt)
     end
 end
 
+-------------------------------------------------------------------------------
+-- Status icons: a small row above Flow's icon for things to sort out between
+-- fights (worn gear, what your group can add to the camp...), instead of
+-- chat lines. Hidden in fights. Hover one: what it means; click: its fix.
+-- ns:Register("status", key, { order = n, get = function() return
+--     { icon = tex, text = "25%", color = { r, g, b }, tip = "...", click = fn } end })
+-------------------------------------------------------------------------------
+
+local PIP = 20
+local pips = {}
+
+-- The status entries to show now, in order: { key, icon, text, color, tip, click }.
+function E.StatusList()
+    local out = {}
+    for key, def in ns:Each("status") do
+        local ok, st = pcall(def.get)
+        if ok and type(st) == "table" then
+            st.key, st.order = key, def.order or 50
+            out[#out + 1] = st
+        end
+    end
+    table.sort(out, function(a, b) return a.order < b.order end)
+    return out
+end
+
+local function pipAt(i)
+    if pips[i] then return pips[i] end
+    local p = CreateFrame("Button", nil, UIParent)
+    p:SetSize(PIP, PIP)
+    p:SetFrameStrata("HIGH")
+    p:SetPoint("BOTTOMLEFT", icon, "TOPLEFT", (i - 1) * (PIP + 4), 6)
+    p.back = p:CreateTexture(nil, "BACKGROUND")
+    p.back:SetPoint("TOPLEFT", -1, 1); p.back:SetPoint("BOTTOMRIGHT", 1, -1)
+    p.tex = p:CreateTexture(nil, "ARTWORK")
+    p.tex:SetAllPoints(); p.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    p.text = p:CreateFontString(nil, "OVERLAY")
+    p.text:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
+    p.text:SetPoint("BOTTOM", p, "BOTTOM", 0, -1)
+    p:SetScript("OnEnter", function(self)
+        local st = self.status
+        if not st then return end
+        ns.Tip(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(st.tip or "", 1, 1, 1, true)
+        if st.click then GameTooltip:AddLine("Click: " .. (st.clickText or "fix it"), 0.6, 0.6, 0.6) end
+        GameTooltip:Show()
+    end)
+    p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    p:SetScript("OnClick", function(self)
+        local st = self.status
+        if st and st.click then pcall(st.click) end
+    end)
+    pips[i] = p
+    return p
+end
+
+local function renderStatus()
+    local cfg = ns.db.rotation
+    local list = {}
+    if cfg.enabled and cfg.statusIcons ~= false and not InCombatLockdown() and icon
+        and not (ns.reveal and not ns.reveal:Shown("icon")) then
+        list = E.StatusList()
+    end
+    E.status = list   -- (for the Flow key's tooltip)
+    for i = 1, math.max(#list, #pips) do
+        local st = list[i]
+        if st then
+            local p = pipAt(i)
+            local c = st.color or { 1, 0.82, 0 }
+            p.status = st
+            p.tex:SetTexture(st.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            p.back:SetColorTexture(c[1], c[2], c[3], 0.95)
+            p.text:SetText(st.text or "")
+            p.text:SetTextColor(c[1], c[2], c[3])
+            p:Show()
+        elseif pips[i] then
+            pips[i].status = nil
+            pips[i]:Hide()
+        end
+    end
+end
+
+local statusElapsed = 1
 ns:OnLoad(function(saved)
     icon = buildIcon(saved.rotation)
     E.icon = icon  -- for the cast button (Cast.lua)
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", ns.perf.Wrap("rotation + actions (10/s)", onUpdate))
+    local status = CreateFrame("Frame")
+    status:SetScript("OnUpdate", function(_, dt)
+        statusElapsed = statusElapsed + dt
+        if statusElapsed < 1 then return end
+        statusElapsed = 0
+        local ok, err = pcall(renderStatus)
+        if not ok then E.lastError, E.lastErrorAt = "status: " .. tostring(err), GetTime() end
+    end)
 end)
+ns:On("PLAYER_REGEN_DISABLED", function() statusElapsed = 1 end)
+ns:On("PLAYER_REGEN_ENABLED", function() statusElapsed = 1 end)
 
 local function rescan()
     scanButtons()

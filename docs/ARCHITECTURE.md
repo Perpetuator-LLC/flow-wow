@@ -34,7 +34,8 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `mount` | race token, e.g. `Human` | `{ trainer, vendor, what }` NPC names | Mount milestone (`Modules/Nav/Mounts.lua`) |
 | `sharedPlaces` | `community` | `{ npcs = { [name] = { id, map, x, y, roles = "vendor,repair", f = "H" | "A" | "AH" } }, mailboxes = { {map, x, y} } }` | NPC spots Flow players shared (`Learned/Places.lua`, written by `tools/share-places.ps1`; docs/SHARE-PLACES.md): route points and "Nearest ..." where you haven't been yourself |
 | `mountRule` | `default` | `{ level, ridingCost, mountCost, saveFrom, classMount = { CLASS = spell } }` | Mount milestone: when to save, learn and buy |
-| `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`) |
+| `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact" or "sit" or "wait", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`, `BuffItems.lua`). `urgent` shows ahead of the rotation's own suggestion |
+| `status` | any | `{ order, get = fn() -> { icon, text, color, tip } or nil }` | Status icons in a row above the Flow key, between fights (`Modules/Rotation/Display.lua`): things to sort out, instead of chat lines. Turned off from the key's right-click menu |
 | `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
