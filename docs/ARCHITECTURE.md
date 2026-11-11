@@ -37,6 +37,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact" or "sit" or "wait", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`, `BuffItems.lua`). `urgent` shows ahead of the rotation's own suggestion |
 | `status` | any | `{ order, get = fn() -> { icon, text, color, tip } or nil }` | Status icons in a row above the Flow key, between fights (`Modules/Rotation/Display.lua`): things to sort out, instead of chat lines. Turned off from the key's right-click menu |
 | `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason |
+| `questNeed` | quest ID | `{ tool = "Fishing", item = id, where = "deep in Palemane Rock", note }` | What a quest giver wants you to have before offering it, which Questie doesn't say (`Modules/Quests/QuestNeeds.lua`): the pickup waits with that reason until you have it; `where` and `note` go on its stop |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
 `ns.commands.name = fn(args)` gives `/flow name`.

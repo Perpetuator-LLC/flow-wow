@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.128
+- **The Longwalkers waits until you have a fishing pole.** Perith Stormhoof, at the back of
+  Palemane Rock, offers nothing without one, and nothing told Flow that, so it sent you through
+  a cave of gnolls for a quest you couldn't take. Now the pickup stays off the route, and the Flow
+  Router lists it as "needs a Fishing Pole first" with who sells one. It comes back as soon as you
+  carry a pole. Its stop also reads "Accept: The Longwalkers (deep in Palemane Rock)", with a note
+  to expect a fight on the way in.
+- Quests like it are easy to add: one line each in `Modules\Quests\QuestNeeds.lua`, for whatever
+  a giver wants you to carry first (a profession's tool or an item).
+- **Restart WoW once** for this version: it adds a file (QuestNeeds.lua).
+
 ## 0.35.127
 - **A new arrow: modern, glossy, coloured by distance.** It's grey while your stop is in another
   zone, turns from orange to green as you close in, and blue once you're in the area. It's the

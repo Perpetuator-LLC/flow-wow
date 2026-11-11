@@ -254,7 +254,7 @@ ns:Register("navGoal", "pickups", {
         for _, q in ipairs(list) do
             if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
                 and not (ns.dungeons and ns.dungeons:Claims(q.id)) then
-                goals[#goals + 1] = {
+                local g = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
                     npcs = q.starter.name and { q.starter.name } or nil,
                     kind = isDaily(q.raw) and "daily" or "accept",
@@ -264,6 +264,10 @@ ns:Register("navGoal", "pickups", {
                     details = { string.format("Level %d quest from %s.", q.level or 0, q.starter.name or "?"),
                                 "You haven't done it yet and it's still worth the XP." },
                 }
+                -- What the giver wants you to have first, and where they are
+                -- (Modules/Quests/QuestNeeds.lua): waits until you have it.
+                if ns.quests.PickupNeed then ns.quests:PickupNeed(g, q.id) end
+                goals[#goals + 1] = g
             end
         end
         return goals
