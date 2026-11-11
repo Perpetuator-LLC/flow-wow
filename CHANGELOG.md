@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **Profession window: upgrades show their materials.** Flow now reads each recipe's materials on this client
+  (it saved none before, so every upgrade said "open this window again"). Hover an upgrade for what it takes
+  and what you have; click it to show that recipe in the profession window.
+
 ## 0.35.144
 - Fixed three self-tests that failed at every login after 0.35.143: they expected the faint
   profession arrow on by default (it's off unless ticked now) and water not to count (the key
