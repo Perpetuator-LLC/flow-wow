@@ -599,6 +599,7 @@ end
 -- Options > AddOns > Flow, under "Flow".
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
+        group = "key",
         label = "Buff button beside Flow's icon",
         note = "(own key: /flow buffkey <key>)",
         tip = "Your buffs (auras, aspects, blessings, party buffs), weapon stones and oils, your bandage and "

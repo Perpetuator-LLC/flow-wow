@@ -86,21 +86,24 @@ ns:Register("routeObjective", "distance", {
 })
 
 -- Route states (map list, arrow right-click, /flow nav xp|distance|custom|sort):
---   any routeObjective key ("xp" by default, "distance", ...): optimised
+--   any routeObjective key ("distance" by default, "xp", ...): optimised
 --   "custom"  Custom route: you picked the next stop (its ^ in the Flow Router,
 --             or "Go here first"). The route goes there first, then carries on
 --             planned with your last objective ("base"), and stays Custom
 --             (orange) until you pick an objective again. ("selected" is its
 --             older name, in old saves.)
+-- The objective a new character starts with: the shortest path (0.35.170;
+-- it was Most XP). Your own choice, once made, is kept.
+X.DEFAULT = "distance"
 local function known(m) return m and ns:Get("routeObjective", m) ~= nil end
 function X:Mode()
-    local m = ns.db.nav.sorter or "xp"
+    local m = ns.db.nav.sorter or X.DEFAULT
     return m == "selected" and "custom" or m
 end
 function X:IsCustom() return self:Mode() == "custom" end
 function X:Base()
     local b = ns.db.nav.baseSorter
-    return known(b) and b or "xp"
+    return known(b) and b or X.DEFAULT
 end
 -- The objective in effect now (key, definition).
 function X:Objective()

@@ -131,6 +131,8 @@ function P:Fill(plan)
     end
 end
 
+P._Frame = function() return frame end   -- (the Flow button on the profession window; tests)
+
 function P:Open()
     frame = frame or build()
     local names = {}

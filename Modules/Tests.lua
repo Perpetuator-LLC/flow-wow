@@ -2075,7 +2075,7 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
         t:eq(#out, 1, "keep picks the stops")
         t:eq(out[1] and out[1].weight, 0.5, "weigh scales the weight")
         ns.db.nav.sorter, ns.db.nav.baseSorter = "nonsense", nil
-        t:eq((X:Objective()), "xp", "unknown objective falls back to Most XP")
+        t:eq((X:Objective()), "distance", "unknown objective falls back to the default, the shortest path")
     end)
     ns.db.nav.sorter, ns.db.nav.baseSorter = saved.s, saved.b
     with(ns.db.nav, "kinds", { lowQuests = true }, function()
@@ -4620,6 +4620,9 @@ ns:Register("test", "press audit: does the key cast what the icon shows?", funct
     local d = ns.db.audit
     local list, counts, disagreed, shots = d.list, d.counts, d.disagreed, d.shots
     d.list, d.counts, d.disagreed, d.shots = {}, {}, nil, false
+    Au._Forget()   -- (a press left waiting, yours or an earlier run's, isn't this test's)
+    local realLog = ns.Log
+    ns.Log = function() end   -- (the test's presses stay out of your log)
     Au.Press("Moonfire", "Wrath", true, 0.2, "Wrath")
     t:eq(d.disagreed, 1, "a press with the icon on Moonfire and the key on Wrath is kept")
     t:eq(d.list[1] and d.list[1].icon, "Moonfire", "with what the icon showed")
@@ -4627,6 +4630,13 @@ ns:Register("test", "press audit: does the key cast what the icon shows?", funct
     Au.Press("Wrath", "Wrath", true, 1.5, "Wrath")
     t:eq(d.disagreed, 1, "a press where they agree isn't")
     t:eq(d.counts.nothing, 1, "the press before it got no cast: counted so")
+    Au._Forget()
+    local leftover = {}
+    d.counts = leftover
+    Au.Press("Wrath", "Wrath", false)
+    t:eq(next(leftover), nil, "and the test's last press isn't counted into the next one")
+    Au._Forget()
+    ns.Log = realLog
     d.list, d.counts, d.disagreed, d.shots = list, counts, disagreed, shots
     t:ok(type(ns.commands.audit) == "function" and type(ns.commands.mark) == "function", "/flow audit and /flow mark")
 end)
@@ -6028,9 +6038,9 @@ ns:Register("test", "move with Ctrl (as in Questie); hide Questie's tracker", fu
     t:ok(shown == nil or type(shown) == "boolean", "Questie's tracker: on, off, or no Questie")
     local found
     for _, def in ipairs(ns.settings.extraChecks or {}) do
-        if def.label == "Hide Questie's tracker" then found = def end
+        if def.label == "Show Questie's tracker" then found = def end
     end
-    t:ok(found ~= nil, "Flow Settings has \"Hide Questie's tracker\"")
+    t:ok(found ~= nil, "Flow Settings has \"Show Questie's tracker\"")
     if found then
         local ok, v = pcall(found.get)
         t:ok(ok and (v == true or v == false), "its tick box reads Questie's own setting")
@@ -6505,4 +6515,217 @@ ns:Register("test", "quests not offered: only quests you could take now are judg
             t:ok(Q.Expected({ Id = 99902 }, 99902), "already skipped once: still judged (a second miss counts)")
         end)
     end)
+end)
+
+ns:Register("test", "map: the path drifts toward the next stop, and its opacity is yours", function(t)
+    local M = ns.mapOverlay
+    -- "make the dots between waypoints slowly move in the direction the path indicates"
+    local still = M._dotSpots(100, 12, 9)
+    local moving, step = M._dotSpots(100, 12, 9, true)
+    t:eq(#moving, #still - 1, "moving: the last dot is left out (each drifts on to the next one's place)")
+    t:near(moving[1], 9, 1e-6, "the first starts at the near stop's edge")
+    t:near(moving[#moving] + step, 91, 1e-6, "the last drifts up to the far stop's edge, no further")
+    t:eq(#M._dotSpots(20, 12, 9, true), 0, "two points side by side: still no dots")
+    with(ns.db.nav, "pathMotion", nil, function()
+        local lite = ns.Lite and ns.Lite() and true or false
+        t:eq(M.PathMoves(), not lite, "the path moves (unless Flow is in lite mode)")
+        ns.db.nav.pathMotion = false
+        t:eq(M.PathMoves(), false, "turned off: it stands still")
+    end)
+    -- One dot: it drifts with a step, carries on when drawn again with the
+    -- same step, starts again with a new one, stands still with none.
+    local plays, stops, offset = 0, 0, nil
+    local d = { CreateAnimationGroup = function()
+        return { SetLooping = function() end, Stop = function() stops = stops + 1 end, Play = function() plays = plays + 1 end,
+                 CreateAnimation = function()
+                     return { SetDuration = function() end, SetOffset = function(_, x, y) offset = x .. "," .. y end }
+                 end }
+    end }
+    M._drift(d, 3, 4)
+    t:eq(plays, 1, "a dot with a step drifts")
+    t:eq(offset, "3,4", "by that step, toward the next stop")
+    M._drift(d, 3, 4)
+    t:eq(plays, 1, "drawn again with the same step: it carries on, not started over")
+    M._drift(d, 5, 0)
+    t:eq(plays, 2, "the leg turned: started again with the new step")
+    M._drift(d)
+    t:ok(not d.moving and stops >= 1, "no step: it stands still")
+    -- "add an opacity slider for the path"
+    t:near(M.LegAlpha(0.45, 0.5), 0.45, 1e-6, "50% (the default): the look it always had")
+    t:near(M.LegAlpha(0.45, 1), 0.9, 1e-6, "100%: twice as strong")
+    t:near(M.LegAlpha(0.8, 1), 1, 1e-6, "never past solid")
+    t:ok(M.LegAlpha(0.45, 0.1) < 0.1, "10%: barely there")
+    with(ns.db.nav, "pathAlpha", nil, function()
+        t:near(M.PathAlpha(), 0.5, 1e-6, "never set: 50%")
+        ns.db.nav.pathAlpha = 7
+        t:near(M.PathAlpha(), 1, 1e-6, "a value out of range is brought back in")
+        t:near(M:SetPathAlpha(0.8), 0.8, 1e-6, "set to 80%")
+        t:near(ns.db.nav.pathAlpha, 0.8, 1e-6, "and kept")
+    end)
+end)
+
+ns:Register("test", "route: the shortest path is the default order", function(t)
+    local X = ns.xpValue
+    t:eq(X.DEFAULT, "distance", "the default objective: the shortest path")
+    local db = ns.db.nav
+    local saved = { s = db.sorter, b = db.baseSorter }
+    db.sorter, db.baseSorter = nil, nil
+    t:eq(X:Mode(), "distance", "a character that never chose: Shortest")
+    t:eq(X:Base(), "distance", "and a Custom route goes back to Shortest")
+    db.sorter = "xp"
+    t:eq(X:Mode(), "xp", "Most XP, once chosen, is kept")
+    db.sorter, db.baseSorter = saved.s, saved.b
+end)
+
+ns:Register("test", "settings: options are grouped by when you use them; WoW's own stay apart", function(t)
+    local S = ns.settings
+    local keys = {}
+    for i, g in ipairs(S.GROUPS) do keys[i] = g.key end
+    t:eq(table.concat(keys, " "), "key group route quests loot learn screen fun more", "the groups, in the order they're shown")
+    local n = 0
+    for _, g in ipairs(S.GROUPS) do n = n + #S.ExtrasFor(g.key) end
+    t:eq(n, #S.extraChecks, "every tick another file added is in exactly one group")
+    local function inGroup(label, key)
+        for _, x in ipairs(S.ExtrasFor(key)) do if x.label == label then return true end end
+        return false
+    end
+    t:ok(inGroup("Show Questie's tracker", "screen"), "Questie's tracker: On your screen")
+    t:ok(inGroup("Show WoW's quest tracker", "screen"), "WoW's quest tracker: On your screen")
+    t:ok(inGroup("Flow buttons on WoW's windows", "screen"), "Flow's buttons on WoW's windows: On your screen")
+    t:ok(inGroup("Finish the area you're in first", "route"), "the area-first tick: Finding your way")
+    t:ok(inGroup("Buff button beside Flow's icon", "key"), "the buff button: Your easy key")
+    with(S, "extraChecks", { { label = "x", group = "nowhere" }, { label = "y" } }, function()
+        t:eq(#S.ExtrasFor("more"), 2, "a tick with no group, or one Flow doesn't know: under More")
+        t:eq(#S.ExtrasFor("route"), 0, "and nowhere else")
+    end)
+    -- The page itself (built here if you haven't opened it yet).
+    local ok, err = pcall(S._Build)
+    t:ok(ok, "the page builds" .. (ok and "" or (": " .. tostring(err))))
+    local heads = table.concat(S:Headings(), " | ")
+    t:ok(heads:find("Your easy key | In a group | Finding your way | Quests | Loot and selling | New spells and professions | On your screen", 1, true) ~= nil,
+        "headings by use: " .. heads)
+    local wow, screen = heads:find("Suggested WoW settings", 1, true), heads:find("On your screen", 1, true)
+    t:ok(wow and screen and wow > screen, "WoW's own settings come last, under their own heading")
+    local function has(label)
+        for _, c in ipairs(S:Checks()) do
+            if (c.label:GetText() or ""):find(label, 1, true) == 1 then return true end
+        end
+        return false
+    end
+    for _, label in ipairs({ "Path moves along the route", "Show WoW's quest tracker", "Flow buttons on WoW's windows",
+                             "Turn in finished quests for you", "Shift + easy key heals you", "Show the Flow Tracker" }) do
+        t:ok(has(label), "the page has \"" .. label .. "\"")
+    end
+    -- click: the Path opacity slider.
+    local slider
+    for _, s in ipairs(S:Sliders()) do if s.name == "Path opacity" then slider = s end end
+    t:ok(slider ~= nil, "a Path opacity slider")
+    if slider then
+        with(ns.db.nav, "pathAlpha", nil, function()
+            local ran, why = pcall(slider:GetScript("OnValueChanged"), slider, 0.8)
+            t:ok(ran, "click: dragging it runs" .. (ran and "" or (": " .. tostring(why))))
+            t:near(ns.db.nav.pathAlpha or 0, 0.8, 1e-6, "and sets the path's opacity")
+            t:eq(slider.value:GetText(), "80%", "shown as a percentage")
+            slider.filling = true
+            pcall(slider:GetScript("OnValueChanged"), slider, 0.3)
+            slider.filling = false
+            t:near(ns.db.nav.pathAlpha or 0, 0.8, 1e-6, "the page filling itself in isn't a change of yours")
+        end)
+    end
+end)
+
+ns:Register("test", "tracker: WoW's own quest tracker, shown or hidden as you set it", function(t)
+    -- "on reload the default wow tracker comes up": with Questie's tracker
+    -- off, nothing hid the game's own. Now there's a tick for it.
+    local RT = ns.routeTracker
+    t:eq(RT.GameTrackerStep(nil, true, false), nil, "never chosen: left to the game")
+    t:eq(RT.GameTrackerStep(true, true, false), nil, "ticked (show): left to the game")
+    t:eq(RT.GameTrackerStep(false, true, false), "hide", "unticked, and it's showing: hide it")
+    t:eq(RT.GameTrackerStep(false, false, false), nil, "already hidden: nothing to do")
+    t:eq(RT.GameTrackerStep(false, true, true), "wait", "in a fight: once the fight is over")
+    local shown, hides = true, 0
+    local fake = { IsShown = function() return shown end, Hide = function() shown = false; hides = hides + 1 end }
+    with(ns.db.tracker, "gameTracker", false, function()
+        RT.ApplyGameTracker(fake)
+        t:eq(hides, 1, "unticked: the game's tracker is hidden")
+        RT.ApplyGameTracker(fake)
+        t:eq(hides, 1, "once: not again while it stays hidden")
+        shown = true
+        RT.ApplyGameTracker(fake)
+        t:eq(hides, 2, "the game showed it again: hidden again")
+        t:eq(RT.GameTrackerWanted(), false, "and the tick reads unticked")
+    end)
+    shown = true
+    with(ns.db.tracker, "gameTracker", nil, function()
+        RT.ApplyGameTracker(fake)
+        t:eq(hides, 2, "never chosen: Flow doesn't touch it")
+        t:eq(RT.GameTrackerWanted(), true, "and the tick reads Show")
+    end)
+    local byText = {}
+    for _, it in ipairs(RT.MenuItems()) do if it.text then byText[it.text] = it end end
+    if RT._gameTracker() then
+        local it = byText["Show WoW's quest tracker"]
+        t:ok(it ~= nil, "the Flow Tracker's menu offers it")
+        t:eq(it and it.checked, RT.GameTrackerWanted(), "ticked while it's left showing")
+    end
+    t:ok(byText["Hide Questie's tracker"] == nil, "Questie's is a Show tick too (both read the same way)")
+end)
+
+ns:Register("test", "click: Flow's buttons on WoW's windows open their Flow view", function(t)
+    local GB = ns.gameButtons
+    if not GB then t:ok(false, "GameButtons.lua not loaded") return end
+    -- Finding the game's window: dots walk into a window's parts, and the
+    -- first of a button's windows that exists is the one.
+    local tab = { IsShown = function() return true end }
+    local win = { IsShown = function() return true end, TalentsFrame = tab, name = "not a frame" }
+    local env = { PlayerSpellsFrame = win, Number = 5 }
+    t:ok(GB.Resolve("PlayerSpellsFrame.TalentsFrame", env) == tab, "a tab of a window is found by its path")
+    t:ok(GB.Resolve("PlayerSpellsFrame", env) == win, "a window by its name")
+    t:eq(GB.Resolve("PlayerSpellsFrame.Missing", env), nil, "a missing part: nothing")
+    t:eq(GB.Resolve("PlayerSpellsFrame.name", env), nil, "a part that isn't a frame: nothing")
+    t:eq(GB.Resolve("Nope.TalentsFrame", env), nil, "a missing window: nothing")
+    t:eq(GB.Resolve("Number.TalentsFrame", env), nil, "something that isn't a window: nothing")
+    local f, path = GB.Find({ frames = { "OldTalentFrame", "PlayerSpellsFrame.TalentsFrame", "PlayerSpellsFrame" } }, env)
+    t:ok(f == tab and path == "PlayerSpellsFrame.TalentsFrame", "the first of its windows that exists")
+    t:eq(GB.Find({ frames = { "A", "B" } }, env), nil, "none of them loaded yet: no button yet")
+    -- The window a part belongs to (the button sits in that window's title bar).
+    local screen = {}
+    local w = { GetParent = function() return screen end }
+    local mid = { GetParent = function() return w end }
+    local part = { GetParent = function() return mid end }
+    t:ok(GB.Window(part, screen) == w, "a part's window: its outermost parent under the screen")
+    t:ok(GB.Window(w, screen) == w, "a window: itself")
+    t:eq(GB.Line({ label = "Flow Talents", frames = { "A", "B" } }, nil), "Flow Talents: its window isn't loaded yet (looked for A, B)",
+        "/flow buttons says which windows it looked for")
+    t:eq(GB.Line({ label = "Flow Talents" }, "PlayerSpellsFrame.TalentsFrame", true),
+        "Flow Talents: on PlayerSpellsFrame.TalentsFrame, showing now", "and which one it found")
+    -- The built-in ones: each has a window to sit on and a Flow view to open.
+    local keys = {}
+    for _, e in ipairs(GB.List()) do
+        keys[e.key] = true
+        t:ok(type(e.def.click) == "function" and #(e.def.frames or {}) > 0, e.key .. ": a window to sit on and a view to open")
+        t:ok((e.def.label or ""):find("^Flow ") ~= nil, e.key .. ": named for its Flow view (" .. tostring(e.def.label) .. ")")
+    end
+    t:ok(keys.talents and keys.spellbook and keys.professions and keys.character, "talents, spellbook, professions and character windows")
+    with(ns.db.settings, "gameButtons", false, function() t:eq(GB.On(), false, "the setting turns them all off") end)
+    with(ns.db.settings, "gameButtons", nil, function() t:eq(GB.On(), true, "on unless you turn them off") end)
+    -- click: the talent window's button opens Flow Talents, and closes it
+    -- again ("closed by default": nothing opens until you click).
+    local T = ns.talents
+    local frame = T._Frame()
+    local was = frame and frame:IsShown() and true or false
+    t:ok(GB.Click("talents"), "click: runs")
+    frame = T._Frame()
+    t:eq(frame and frame:IsShown() and true or false, not was, "Flow Talents " .. (was and "closes" or "opens"))
+    t:ok(GB.Click("talents"), "click again: runs")
+    t:eq(frame and frame:IsShown() and true or false, was, "and it's back as it was")
+    t:eq(GB.Click("no-such-button"), false, "an unknown button: nothing happens")
+    -- A button that's on a window now: its own OnClick, the way a click runs it.
+    local b = GB._Buttons().talents
+    if b then
+        local ran = pcall(b:GetScript("OnClick"), b)
+        t:ok(ran, "click: the button on the talent window runs")
+        pcall(b:GetScript("OnClick"), b)   -- (and back)
+        t:eq(frame and frame:IsShown() and true or false, was, "Flow Talents is back as it was")
+    end
 end)

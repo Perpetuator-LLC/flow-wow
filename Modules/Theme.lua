@@ -62,13 +62,14 @@ ns.theme = {
 -- frameType "Button" when the bar is clickable. Returns the bar with
 -- .bg, .accent, .icon and .text (the title).
 ns.theme.TITLE_H = 24
+ns.theme.BAR = { 0.11, 0.09, 0.06, 0.92 }   -- the dark bar itself (also Flow's buttons on WoW's windows)
 function ns.theme:TitleBar(parent, title, icon, frameType)
     local h = CreateFrame(frameType or "Frame", nil, parent)
     h.flowTitleBar = true
     h:SetHeight(self.TITLE_H)
     h:SetPoint("TOPLEFT"); h:SetPoint("TOPRIGHT")
     h.bg = h:CreateTexture(nil, "BACKGROUND"); h.bg:SetAllPoints()
-    h.bg:SetColorTexture(0.11, 0.09, 0.06, 0.92)
+    h.bg:SetColorTexture(self.BAR[1], self.BAR[2], self.BAR[3], self.BAR[4])
     local o = self.arrow
     h.accent = h:CreateTexture(nil, "BORDER")
     h.accent:SetPoint("TOPLEFT"); h.accent:SetPoint("BOTTOMLEFT"); h.accent:SetWidth(4)
@@ -102,7 +103,7 @@ function ns.theme:ModeText(mode, text) return "|cff" .. self:ModeColor(mode).hex
 -- Route colour from the order mode (call after the mode changes).
 function ns.theme:UpdateRoute()
     local p = PALETTES[self.palette or "standard"]
-    local mode = ns.db and ns.db.nav and ns.db.nav.sorter or "xp"
+    local mode = ns.db and ns.db.nav and ns.db.nav.sorter or (ns.xpValue and ns.xpValue.DEFAULT) or "distance"
     if mode == "selected" then mode = "custom" end   -- (its older name)
     local obj = ns.Get and ns:Get("routeObjective", mode)
     set(self, "route", p.modes[mode] or (obj and obj.color) or p.modes.xp)

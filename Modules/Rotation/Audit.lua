@@ -103,6 +103,11 @@ local function settle(cast)
     last = nil
 end
 
+-- Forgets the press still waiting for its cast (the tests: a press they made
+-- must not be counted into your tally at your next real press, nor into the
+-- next run of the test).
+function Au._Forget() last = nil end
+
 -- A press of the key itself (Cast.lua calls it; not Ctrl / Shift / Alt + key).
 --   icon: what the big icon shows; set: what the key is set to cast now
 function Au.Press(icon, set, inCombat, sinceFight, lockedTo)

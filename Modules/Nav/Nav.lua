@@ -2212,7 +2212,7 @@ function N:Select(key)
     if key then
         ns.db.nav.sorter = "custom"
     elseif ns.db.nav.sorter == "custom" or ns.db.nav.sorter == "selected" then
-        ns.db.nav.sorter = ns.xpValue and ns.xpValue:Base() or "xp"
+        ns.db.nav.sorter = ns.xpValue and ns.xpValue:Base() or "distance"
     end
     ns.theme:UpdateRoute()
     self.planDirty = true
@@ -3887,6 +3887,7 @@ ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
 -- Options > AddOns > Flow, under "Flow".
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
+        group = "route",
         label = "Faint profession arrow",
         note = "(with Professions on the route)",
         tip = "Profession stops (training, skill-ups) get their own route and a faint dark grey arrow behind "
@@ -3896,6 +3897,7 @@ if ns.settings and ns.settings.AddCheck then
         set = function(on) N:SetProfArrow(on) end,
     })
     ns.settings:AddCheck({
+        group = "route",
         label = "Finish the area you're in first",
         note = "(stops within 300 yd)",
         tip = "Off (default): the arrow follows the shortest whole trip. On: the route clears the stops "

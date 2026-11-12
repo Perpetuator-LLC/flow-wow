@@ -35,7 +35,7 @@ local topics = {
         "/flow prof plan - how Flow plans to raise your professions (what to make, materials, where from)",
         "/flow test [name] - run Flow's self-tests (also run on every /reload into the diagnostics)",
         "/flow copy - what Flow said in chat lately, in a box you can copy from (web addresses too)",
-        "/flow nav xp on|off - most XP first (default) or shortest path; hover a quest stop for its XP",
+        "/flow nav xp on|off - most XP first, or the shortest path (default); hover a quest stop for its XP",
         "/flow nav stops 1|3|5|10|all - how many of your next stops the map and Flow Tracker show (also in the arrow menu)",
         "Map: the square button above the game's quest log button opens and closes Flow's route list (one or the other, or neither)",
         "/flow nav on|off|learn|forget",

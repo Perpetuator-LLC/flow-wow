@@ -59,11 +59,39 @@ Before starting a new change, bring your copy up to date: `git checkout main`,
 - **Don't bump the version** in `Flow.toc`. Add a player-facing line under `## Unreleased` at
   the top of `CHANGELOG.md` (add that heading if it isn't there). The maintainer gives it a
   version number when merging, so PRs don't collide over the version line.
+- **If it builds on another open PR of yours**, say so in the description ("builds on #18").
+  The maintainer merges them bottom up; knowing the order saves working it out.
 - Say how you tested it in game (class, level, zone) and paste the `/flow test` result.
 - Don't commit `Learned/CombatLog.lua` changes (it's generated from your own combat logs),
   anything from your `WTF` folder, or data copied from other addons or sites.
 - Flow is licensed under the [GPLv3](LICENSE). By sending a PR you agree your contribution is
   licensed the same way.
+
+### Before you send it: what review keeps finding
+
+The same handful of things come up in most pull requests. A minute on each saves a round of
+fixes after the merge (the full list, with the version each one bit in, is in
+[docs/MERGING.md](docs/MERGING.md)):
+
+- **Items through `ns.api`**: `ns.api.Count(id)`, `ns.api.ItemInfo(id)`, never the bare
+  `GetItemCount` / `GetItemInfo` (gone or moved on Forever). Match an item by ID **or** name.
+- **Nothing asked about distance in a fight** except through `ns.rotation.Near`: the game
+  forbids `CheckInteractDistance` in combat on anything but an enemy, and the player gets a
+  "blocked action" popup.
+- **Nothing heavy on a tick**: code that runs 10 times a second, or on every refresh of an open
+  window, mustn't read all your buffs, bags or the whole plan each time. Once a second, out of
+  a fight, or kept until its inputs change. `/flow perf` shows what it costs.
+- **One character's choice is saved per character**: `ns:PerCharacter("section.field")`.
+- **A new option joins the group it belongs to** and looks like its neighbours: a tick among
+  ticks, in the settings group where a player would look for it while doing that thing
+  (`S:AddCheck{ group = "route", ... }`, see `Modules/Settings.lua`).
+- **Tests don't depend on you**: not on being out of a fight, alive, on an English client, or
+  on your own route ticks. Pass values in, and put back everything the test changes, including
+  anything a module remembers between calls.
+- **Anything clickable has a click test**, colours come from `ns.theme`, and a new view is
+  named "Flow <Name>".
+- **Skill numbers and item facts are checked**, not remembered: wrong data sends the route to
+  the wrong place.
 
 ## Reporting a bug
 

@@ -91,8 +91,8 @@ Flow for WoW is a separate project from Flow Engine.
   ore into bars. A stop that needs something first goes after the
   stop that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
   Roar and Maul comes after the class quest that teaches Bear Form.
-- **The route's colour tells you its state** (arrow, route and waypoints): **Most XP first**
-  (epic purple, the default) and **Shortest path** (rare blue) are optimised; **Custom route**
+- **The route's colour tells you its state** (arrow, route and waypoints): **Shortest path**
+  (rare blue, the default) and **Most XP first** (epic purple) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
   "Go here next"). It goes there first and stays orange until you choose Most XP or Shortest
   again. The top row's (o) is where you're heading (a white ring on the map). Tooltips show
@@ -140,7 +140,9 @@ Flow for WoW is a separate project from Flow Engine.
   `^` handle to route from that stop (it stays marked red), right-click to hide it or "Point
   the arrow here". A button above it shows or hides the route on the map.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
-  to your next stop, and that stop's dot, in the arrow's colour); numbered waypoints with quest levels (`3 [9]`) and pickups
+  to your next stop, and that stop's dot, in the arrow's colour). The dots drift slowly toward
+  the next stop, so you see which way the route goes, and "Path opacity" in the settings makes
+  the trail stronger or fainter; numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
 - **Stop card**: Flow's view of a stop (drag it by its title). The arrow's own panel is a drawer
@@ -148,6 +150,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
   order). It and Questie's tracker open and fold on their own: either or both. Click a row for
   its stop card; hover it to see its area on the minimap; Ctrl-drag the header to move it.
+  Its right-click menu (and Flow Settings) shows or hides the other two quest lists: Questie's
+  tracker and WoW's own (which comes back at a /reload once Questie's is off).
 - **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
   the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
   the arrow's right-click menu, or `/flow nav stops 1|3|5|10|all`). The Flow Router always lists
@@ -218,12 +222,18 @@ Flow for WoW is a separate project from Flow Engine.
   for the game's own text and why it's in the build. A reference: you spend the points.
   A build is one registration per class (`talentBuild`); a class without one still sees its
   trees.
+- **Flow buttons on WoW's windows**: a small button in the title bar of the game's talent
+  window, spellbook, profession window and character window opens the Flow view that goes with
+  it (Flow Talents, Flow Key Bindings, Flow Professions, Flow Improvements). Nothing opens until
+  you click. `/flow buttons`; one registration each (`gameButton`).
 
 ### Quality of life
 - **Each character keeps its own**: fights, trainer, recipes, profession plan, role, hidden
   stops and the like are saved per character, so "Ways to improve" and the route are about the
   character you're on. Settings, learned trails and NPC places are shared by all of them.
-- **Options > AddOns > Flow**: your cast key, Flow's own options, and Flow's suggested WoW
+- **Options > AddOns > Flow**: Flow's options, grouped by when you use them (your easy key, in
+  a group, finding your way, quests, loot and selling, new spells and professions, what's on
+  your screen), and, kept apart, Flow's suggested WoW
   settings (auto loot, nameplates, target of target, camera zoom, the camera staying where you
   put it, the low-health warning, the Interact key reaching objects, timestamps...) with a "Use
   Flow's suggestions" button. When an update adds a suggestion, the page shows once more.
@@ -266,7 +276,9 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`.
 
 ## For developers
-Start with [CONTRIBUTING.md](CONTRIBUTING.md). Using Claude or another AI assistant? Point it
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) (it lists what review keeps finding, so your pull
+request needs fewer fixes; the maintainer's side of a merge is [docs/MERGING.md](docs/MERGING.md)).
+Using Claude or another AI assistant? Point it
 at this folder: [CLAUDE.md](CLAUDE.md) tells it how Flow is built and how to test in game. To
 talk to Claude from inside the game and get updates by themselves:
 [docs/ASK-CLAUDE.md](docs/ASK-CLAUDE.md).

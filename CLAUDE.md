@@ -200,3 +200,20 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 4. If you add a registry kind, a command or a feature, update `docs/ARCHITECTURE.md` and the
    README feature list.
 5. One commit per change, message `Flow x.y.z: what changed`.
+6. **A new option** goes in the settings group where a player would look for it while doing
+   that thing (`S.GROUPS` in `Modules/Settings.lua`: Your easy key, In a group, Finding your
+   way, Quests, Loot and selling, New spells and professions, On your screen), not in a group
+   named after the part of Flow that implements it. From another file:
+   `ns.settings:AddCheck{ group = "route", ... }`. The game's own settings stay apart, under
+   "Suggested WoW settings".
+7. **A new Flow view that goes with one of the game's windows** gets a button on that window:
+   one `ns:Register("gameButton", ...)` (`Modules/GameButtons.lua`). The view stays closed until
+   it's clicked.
+
+## Merging pull requests (the maintainer's branch only)
+
+[docs/MERGING.md](docs/MERGING.md) is the checklist: fetch the heads, merge stacked pull
+requests bottom up in a side worktree, settle the changelog with `tools/pr-changelog.sh`,
+review against the list of things that keep coming up, fix on top as one more version, check
+the heads again, fast-forward, push, confirm they closed. If a merge teaches you something that
+isn't in it, change that file in the same commit.

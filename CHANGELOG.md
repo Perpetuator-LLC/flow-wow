@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.35.170
+- **The path on the world map moves.** Its dots drift slowly from each stop toward the next,
+  so you can see which way the route goes. The game moves them, so it costs Flow nothing while
+  they drift. "Path moves along the route" in Flow Settings turns it off (`/flow map move off`).
+- **Path opacity**: a slider in Flow Settings (Finding your way), from barely there to solid.
+  50% is the look it had (`/flow map opacity 10-100`).
+- **Shortest path is the default route order** for a character that never chose one (it was
+  Most XP first). Your own choice stays as it is.
+- **Flow Settings are grouped by when you use them**, not by which part of Flow they belong
+  to: Your easy key, In a group, Finding your way, Quests, Loot and selling, New spells and
+  professions, On your screen, Just for fun. WoW's own settings (Flow's suggestions) stay
+  apart, at the bottom. Nothing was removed; the ticks only moved.
+- **Show WoW's quest tracker**: a tick in Flow Settings (On your screen) and in the Flow
+  Tracker's right-click menu. With Questie's tracker off, the game's own came back at every
+  /reload; unticked, Flow hides it and keeps it hidden. "Hide Questie's tracker" now reads
+  "Show Questie's tracker", so both ticks say the same thing.
+- **Flow buttons on WoW's windows**: a small button in the title bar of the game's talent
+  window opens Flow Talents; the spellbook has one for Flow Key Bindings, the profession
+  window for Flow Professions, the character window for Flow Improvements. Nothing opens until
+  you click. `/flow buttons` lists them; "Flow buttons on WoW's windows" in Flow Settings turns
+  them off. (If one doesn't show on your client: open that window, type `/flow buttons`, and
+  the window's name is in the diagnostics.)
+- The "press audit" self-test failed on its second run in a session (it counted a press left
+  over from its first); it now cleans up, and no longer writes to your log.
+- For contributors: `docs/MERGING.md` is how pull requests are merged, with the list of what
+  review keeps finding; CONTRIBUTING.md has the short version to check before sending one.
+
 ## 0.35.169
 Fixes from the review of pull requests 18 to 22 (0.35.164 to 0.35.168):
 - **Profession window:** the goal box shows only when there is something to make (it said

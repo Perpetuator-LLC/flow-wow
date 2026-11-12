@@ -36,7 +36,7 @@ function F.Applies(objective)
     if not F.On() then return false end
     if objective == nil then
         local X = ns.xpValue
-        objective = X and X.Objective and (X:Objective()) or "xp"
+        objective = X and X.Objective and (X:Objective()) or "distance"
     end
     return objective ~= "distance"
 end

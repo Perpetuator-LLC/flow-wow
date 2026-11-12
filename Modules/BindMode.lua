@@ -262,6 +262,9 @@ end
 -- Start / save / stop
 -------------------------------------------------------------------------------
 
+-- Is hover-to-bind mode on? (Flow's button on the spellbook lights up with it.)
+function B:Active() return active end
+
 function B:Start()
     if InCombatLockdown() then ns:Print("key bindings can't change in combat") return end
     if active then return end

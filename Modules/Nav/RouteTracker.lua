@@ -24,7 +24,7 @@ end
 
 local function db() return ns.db.tracker end
 
--- Questie's own tracker on or off (Flow Settings: "Hide Questie's tracker").
+-- Questie's own tracker on or off (Flow Settings: "Show Questie's tracker").
 -- Flips Questie's own setting the way its tracker toggle does: no reload,
 -- your tracked quests kept, and Questie's options show the same. (Questie's
 -- Disable() would reload and clear your tracked quests.) Hidden, the Flow
@@ -44,8 +44,86 @@ function RT.SetQuestieTracker(show)
         ns:Print("Questie's tracker comes back at your next /reload (it was off when the game started).")
     end
     RT:Refresh()
+    if not show and RT.GameTrackerWanted() and RT._gameTracker() then
+        ns:Print("With Questie's tracker off, WoW's own quest tracker comes back at your next /reload. To hide that too: "
+            .. "untick \"Show WoW's quest tracker\" (the Flow Tracker's right-click menu, or Flow Settings).")
+    end
     return true
 end
+
+-- WoW's own quest tracker (the list of tracked quests under the minimap),
+-- shown or hidden: "Show WoW's quest tracker" in Flow Settings and in this
+-- tracker's menu (0.35.170). Questie hides it while Questie's own tracker is
+-- on; with Questie's off (above) the game's comes back at the next /reload,
+-- over the Flow Tracker, which is what this is for.
+--   nil (never chosen) or true: Flow leaves it to the game.
+--   false: Flow hides it, and again each time the game shows it. In a fight
+--          Flow waits until the fight is over (the frame can be protected).
+local function gameTracker()
+    return _G.ObjectiveTrackerFrame or _G.QuestWatchFrame or _G.WatchFrame
+end
+RT._gameTracker = gameTracker
+function RT.GameTrackerWanted() return db().gameTracker ~= false end
+
+-- Pure: what to do with it now. want: your setting; shown: it's showing;
+-- combat: a fight is on. "hide", "wait" (until the fight is over) or nil.
+function RT.GameTrackerStep(want, shown, combat)
+    if want ~= false or not shown then return nil end
+    return combat and "wait" or "hide"
+end
+
+local gtHooked, gtAfterFight = {}, nil
+function RT.ApplyGameTracker(f)
+    f = f or gameTracker()
+    if not f then return nil end
+    local step = RT.GameTrackerStep(db().gameTracker, f:IsShown() and true or false, InCombatLockdown() and true or false)
+    if step == "wait" then gtAfterFight = "hide"
+    elseif step == "hide" then f:Hide() end
+    return step
+end
+-- Hidden stays hidden: each time the game shows it again, it's hidden again.
+local function hookGameTracker(f)
+    if not f or gtHooked[f] or not f.HookScript then return end
+    gtHooked[f] = true
+    f:HookScript("OnShow", function(self) RT.ApplyGameTracker(self) end)
+end
+function RT.SetGameTracker(show)
+    db().gameTracker = show and true or false
+    local f = gameTracker()
+    if not f then ns:Print("Flow doesn't know this client's own quest tracker.") return false end
+    hookGameTracker(f)
+    if not show then
+        RT.ApplyGameTracker(f)
+    elseif InCombatLockdown() then
+        gtAfterFight = "show"
+    else
+        f:Show()   -- back to the game (and to Questie, which hides it while its own tracker is on)
+    end
+    return true
+end
+ns:On("PLAYER_REGEN_ENABLED", function()
+    local what = gtAfterFight
+    gtAfterFight = nil
+    local f = what and gameTracker()
+    if not f then return end
+    if what == "show" then
+        if db().gameTracker ~= false then f:Show() end
+    else
+        RT.ApplyGameTracker(f)
+    end
+end)
+-- At login: hidden if that's your setting (now, and once more a little later
+-- for a tracker the game builds late).
+ns:On("PLAYER_ENTERING_WORLD", function()
+    if db().gameTracker ~= false then return end
+    local function hide()
+        local f = gameTracker()
+        hookGameTracker(f)
+        RT.ApplyGameTracker(f)
+    end
+    hide()
+    C_Timer.After(3, hide)
+end)
 
 -- Open ("flow") or fold ("none") the Flow Tracker. Questie's tracker is left
 -- as it is: each is opened and folded by its own header.
@@ -72,8 +150,12 @@ function RT.MenuItems()
     if questieTracker() then
         items[#items + 1] = { text = "Docked under Questie's tracker", checked = db().dock ~= false,
             func = function() ns.commands.tracker(db().dock ~= false and "undock" or "dock") end }
-        items[#items + 1] = { text = "Hide Questie's tracker", checked = RT.QuestieTrackerShown() == false,
+        items[#items + 1] = { text = "Show Questie's tracker", checked = RT.QuestieTrackerShown() ~= false,
             func = function() RT.SetQuestieTracker(RT.QuestieTrackerShown() == false) end }
+    end
+    if gameTracker() then
+        items[#items + 1] = { text = "Show WoW's quest tracker", checked = RT.GameTrackerWanted(),
+            func = function() RT.SetGameTracker(not RT.GameTrackerWanted()) end }
     end
     items[#items + 1] = { text = "Hide the Flow Tracker (/flow tracker on)", func = function() ns.commands.tracker("off") end }
     items[#items + 1] = { sep = true }
@@ -480,15 +562,28 @@ ns:Register("window", "tracker", { name = "Flow Tracker", order = 20,
     show = function() ns.commands.tracker("on") end,
     hide = function() ns.commands.tracker("off") end })
 
--- Flow Settings: hide Questie's quest tracker (the Flow Tracker does its job).
+-- Flow Settings, "On your screen": the other quest trackers, shown or not
+-- (the Flow Tracker lists your quests, so both can go).
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
-        label = "Hide Questie's tracker",
-        note = "(the Flow Tracker lists your quests)",
-        tip = "Turns off Questie's own quest tracker, the list Flow's tracker docks under, using Questie's own "
-            .. "setting: your tracked quests are kept, and Questie's options show the same. Off again: it "
+        group = "screen",
+        label = "Show Questie's tracker",
+        note = "(off: the Flow Tracker lists your quests)",
+        tip = "Off turns off Questie's own quest tracker, the list Flow's tracker docks under, using Questie's own "
+            .. "setting: your tracked quests are kept, and Questie's options show the same. On again: it "
             .. "comes back (after a /reload if it was off when the game started). Needs Questie.",
-        get = function() return RT.QuestieTrackerShown() == false end,
-        set = function(on) RT.SetQuestieTracker(not on) end,
+        get = function() return RT.QuestieTrackerShown() == true end,
+        set = function(on) RT.SetQuestieTracker(on) end,
+    })
+    ns.settings:AddCheck({
+        group = "screen",
+        label = "Show WoW's quest tracker",
+        note = "(the game's own list under the minimap)",
+        tip = "Off hides the game's own quest tracker, and hides it again whenever the game brings it back (in a "
+            .. "fight: as soon as the fight is over). Questie hides it by itself while Questie's tracker is on; "
+            .. "with Questie's off, the game's shows again after a /reload, and this is how you hide that too. "
+            .. "On (default): Flow leaves it to the game.",
+        get = function() return RT.GameTrackerWanted() end,
+        set = function(on) RT.SetGameTracker(on) end,
     })
 end

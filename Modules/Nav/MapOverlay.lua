@@ -217,13 +217,42 @@ M._pin = pin   -- (tests)
 -- from you to the stop you're heading to wears the arrow's colour (and the
 -- stop's dot too), a little stronger; the rest of the route is fainter.
 -- Legs are kept from the last draw; the dots are drawn again only when you
--- move or the arrow's colour changes (no animation, nothing every frame).
+-- move or the arrow's colour changes. The dots drift slowly toward the next
+-- stop, so the trail shows which way it goes (0.35.170): the game moves them
+-- (a looping animation on each dot), so still nothing of Flow's runs per frame.
 local legs, dots, nDots = {}, {}, 0
 local DOT_GAP = 12     -- screen pixels between dots
 local DOT_SIZE = 4     -- screen pixels across
 local DOT_CLEAR = 9    -- no dots this close to either end (under the stops' points)
+local DOT_CYCLE = 2    -- seconds a dot takes to drift to the next dot's place (6 pixels a second)
 local FIRST_ALPHA, REST_ALPHA = 0.8, 0.45
 local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+
+-- Does the trail move? Yes, unless you turned it off ("Path moves along the
+-- route") or Flow is in lite mode.
+function M.PathMoves()
+    if ns.Lite and ns.Lite() then return false end
+    return ns.db.nav.pathMotion ~= false
+end
+
+-- "Path opacity" (Flow Settings, /flow map opacity): 0.1 to 1. The default,
+-- 0.5, is the look the trail always had (the leg to your next stop at 0.8,
+-- the rest at 0.45); 1 doubles that, up to fully solid.
+M.PATH_ALPHA = 0.5
+function M.PathAlpha()
+    local v = tonumber(ns.db.nav.pathAlpha) or M.PATH_ALPHA
+    return math.max(0.1, math.min(1, v))
+end
+function M:SetPathAlpha(v)
+    v = math.max(0.1, math.min(1, tonumber(v) or M.PATH_ALPHA))
+    ns.db.nav.pathAlpha = v
+    M.PathChanged()
+    return v
+end
+-- A leg's own alpha under your setting (pure: the tests pass both).
+function M.LegAlpha(alpha, setting)
+    return math.max(0.05, math.min(1, (alpha or 1) * (setting or M.PATH_ALPHA) / M.PATH_ALPHA))
+end
 
 -- The arrow's colour right now (Nav sets it each time it turns the arrow),
 -- for the trail to where it points: the route's first stop (waypoint false)
@@ -236,15 +265,17 @@ function arrowColor(waypoint)
 end
 
 -- Where along a leg len long the dots go: evenly, about gap apart, none
--- within clear of either end.
-local function dotSpots(len, gap, clear)
+-- within clear of either end. Also returns the step between two dots.
+-- moving: the last dot is left out, because each dot drifts one step on, to
+-- the next dot's place (the last of them to where that one would be).
+local function dotSpots(len, gap, clear, moving)
     local out = {}
     local span = len - 2 * clear
-    if span < gap * 0.5 then return out end
+    if span < gap * 0.5 then return out, 0 end
     local n = math.max(1, math.floor(span / gap + 0.5))
     local step = span / n
-    for i = 0, n do out[#out + 1] = clear + i * step end
-    return out
+    for i = 0, moving and n - 1 or n do out[#out + 1] = clear + i * step end
+    return out, step
 end
 M._dotSpots = dotSpots   -- (tests)
 
@@ -271,6 +302,39 @@ local function dot()
     return d
 end
 
+-- A dot drifts one step (ox, oy) to the next dot's place, then starts again,
+-- over and over: the trail seems to flow toward the stop. The game moves it
+-- (a looping Translation). No ox: it stands still.
+local canDrift = true   -- false once this client refused the animation
+local function drift(d, ox, oy)
+    if not ox then
+        if d.moving then d.ag:Stop(); d.moving = false end
+        return
+    end
+    if not d.ag then
+        local ok, err = pcall(function()
+            d.ag = d:CreateAnimationGroup()
+            d.ag:SetLooping("REPEAT")
+            d.tr = d.ag:CreateAnimation("Translation")
+            d.tr:SetDuration(DOT_CYCLE)
+        end)
+        if not ok then
+            canDrift, d.ag = false, nil
+            ns:Log("map", "the trail can't move on this client: " .. tostring(err))
+            return
+        end
+    end
+    -- The same step as before: it carries on (a redraw doesn't restart it).
+    if d.moving and math.abs(d.ox - ox) < 0.01 and math.abs(d.oy - oy) < 0.01 then return end
+    d.ag:Stop()
+    d.tr:SetOffset(ox, oy)
+    d.ox, d.oy, d.moving = ox, oy, true
+    -- Started partway, by the clock: every dot is at the same point of its
+    -- step, so the leg from you (drawn again as you walk) doesn't jump back.
+    d.ag:Play(false, GetTime() % DOT_CYCLE)
+end
+M._drift = drift   -- (tests)
+
 local function drawDots()
     local c = canvas()
     if not (c and host) then return end
@@ -278,15 +342,18 @@ local function drawDots()
     nDots = 0
     local w, h, sc = c:GetWidth(), c:GetHeight(), canvasScale()
     local gap, size, clear = DOT_GAP / sc, DOT_SIZE / sc, DOT_CLEAR / sc
+    local moving = canDrift and M.PathMoves()
+    local strength = M.PathAlpha()
     for _, leg in ipairs(legs) do
         local x1, y1, x2, y2 = leg[1] * w, -leg[2] * h, leg[3] * w, -leg[4] * h
         local dx, dy = x2 - x1, y2 - y1
         local len = math.sqrt(dx * dx + dy * dy)
         local col = (leg.live ~= nil and arrowColor(leg.live)) or leg.color
-        local a = leg.alpha
+        local a = M.LegAlpha(leg.alpha, strength)
         if len > 0 then
             local ux, uy = dx / len, dy / len
-            for _, along in ipairs(dotSpots(len, gap, clear)) do
+            local spots, step = dotSpots(len, gap, clear, moving)
+            for _, along in ipairs(spots) do
                 if nDots >= 600 then break end
                 local d = dot()
                 -- Only what changed is set again (size, colour, showing).
@@ -295,10 +362,21 @@ local function drawDots()
                 d:ClearAllPoints()
                 d:SetPoint("CENTER", c, "TOPLEFT", x1 + ux * along, y1 + uy * along)
                 if not d.on then d:Show(); d.on = true end
+                if moving then drift(d, ux * step, uy * step) else drift(d) end
             end
         end
     end
-    for i = nDots + 1, old do dots[i]:Hide(); dots[i].on = false end
+    for i = nDots + 1, old do dots[i]:Hide(); dots[i].on = false; drift(dots[i]) end
+end
+
+-- The map closed: the dots stop drifting (they start again at the next draw).
+function M.StopDots()
+    for i = 1, #dots do drift(dots[i]) end
+end
+
+-- "Path opacity" or "Path moves" changed: the trail is drawn again if the map is open.
+function M.PathChanged()
+    if WorldMapFrame and WorldMapFrame:IsShown() then pcall(drawDots) end
 end
 -- Timed apart from the redraws so /flow perf shows it.
 local drawDotsTimed = ns.perf.Wrap("world map (route dots)", drawDots)
@@ -1294,8 +1372,8 @@ local function buildList()
     -- optimised route.
     f.sorts = {}
     local SORTS = {
-        { "xp", "Most XP", 6, "Most XP first (default): the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
-        { "distance", "Shortest", 92, "Shortest path: nearest stops first, XP ignored." },
+        { "xp", "Most XP", 6, "Most XP first: the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
+        { "distance", "Shortest", 92, "Shortest path (default): nearest stops first, XP ignored." },
         { "custom", "Custom route", 172, "On when you pick the next stop yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again. Greyed out while you're on one of those." },
     }
     for _, sdef in ipairs(SORTS) do
@@ -1773,6 +1851,7 @@ ns:OnLoad(function()
             if open then pcall(M.Tick, M) else pcall(M.Redraw, M) end
             open = true
         else
+            if open then pcall(M.StopDots) end   -- (the dots stop drifting while it's closed)
             open = false
         end
     end)
@@ -1780,6 +1859,19 @@ end)
 
 ns.commands.map = function(arg)
     arg = (arg or ""):lower()
+    local pct = arg:match("^opacity%s+(%d+)%%?$")
+    if pct then
+        local v = M:SetPathAlpha(tonumber(pct) / 100)
+        ns:Print(string.format("path opacity %d%%", v * 100 + 0.5))
+        return
+    end
+    local move = arg:match("^move%s+(o[nf]f?)$")
+    if move then
+        ns.db.nav.pathMotion = (move == "on")
+        M.PathChanged()
+        ns:Print("the path on the map " .. (move == "on" and "moves toward your next stops" or "stands still"))
+        return
+    end
     if arg == "on" or arg == "off" then
         ns.db.nav.mapRoute = (arg == "on")
         if arg == "off" then
@@ -1793,7 +1885,7 @@ ns.commands.map = function(arg)
         end
         ns:Print("route on the world map " .. arg)
     else
-        ns:Print("/flow map on|off. Hover a checkpoint to preview, click to choose. Alt-click the map to set a waypoint.")
+        ns:Print("/flow map on|off, /flow map opacity 10-100, /flow map move on|off. Hover a checkpoint to preview, click to choose. Alt-click the map to set a waypoint.")
     end
 end
 
