@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.173
+- **A third profession is no longer taken for unlearned.** WoW: Forever lets one character
+  have more professions than the game's two profession slots (Herbalism, Blacksmithing and
+  Skinning on one druid). Flow read only the slots, so it thought Skinning wasn't learned and
+  sent the route to the Skinning trainer, where all that was left to learn was Journeyman,
+  which needs skill 50. Flow now reads every list the game has and puts them together; a
+  profession it can see you have but can't read the skill of is yours all the same: no trip
+  to its trainer, and no skill-ups planned from a number it would have to make up.
+  `/flow skills` shows what each part of the game reports (also in the diagnostics).
+
 ## 0.35.172
 - **The way up Thunder Bluff, and into the next zone.** The game gives add-ons no map of
   walkable ground and no heights, so a stop on the bluff and one at its foot looked a few

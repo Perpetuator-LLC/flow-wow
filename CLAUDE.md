@@ -135,6 +135,11 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   ("Can't measure restricted regions").
 - Item IDs can differ from classic: match tools and materials by ID **or** name.
 - Talents use `C_ClassTalents` / `C_Traits`, not the classic talent API.
+- **A character can have more than two primary professions** (Herbalism, Blacksmithing and
+  Skinning on one druid). `GetProfessions()` only lists two: always go through
+  `ns.api.Professions()` / `ns.api.Skill(name)`, which merge every list the game has
+  (`/flow skills` shows them). `ns.api.Skill` returns `0, 0, true` for a profession you have
+  whose skill the game doesn't report: treat that as "has it", and plan nothing from the 0.
 - Some item globals are gone (`GetItemCount` lives in `C_Item`). Use `ns.api.Count(id)`,
   `ns.api.ItemInfo`, `ns.api.ItemIcon`, `ns.api.IsUsableItem` (Compat.lua), never the bare globals.
 - Never move, resize, show or hide a secure frame (the cast button) in combat, and finish any

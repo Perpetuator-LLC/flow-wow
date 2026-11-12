@@ -299,40 +299,206 @@ function A.ProfessionSet()
     return set
 end
 
-function A.Professions()
-    local out = {}
-    if GetProfessions and GetProfessionInfo then
-        local list = { GetProfessions() }
-        for i = 1, 6 do
-            local idx = list[i]
-            if idx then
-                local name, _, rank, max = GetProfessionInfo(idx)
-                if name then out[#out + 1] = { name = name, rank = rank or 0, max = max or 0, primary = i <= 2 } end
-            end
-        end
-        if #out > 0 then return out end
+-- WoW: Forever lets one character have more professions than the game's two
+-- "primary" slots (a druid with Herbalism, Blacksmithing and Skinning).
+-- GetProfessions() lists two of them, so Flow took the third for unlearned
+-- and sent the route to its trainer, where the only thing left to learn
+-- needed a skill the character didn't have yet ("Journeyman Skinning needs
+-- 50 and I don't have it, but it is taking me there", 0.35.173). So every
+-- source is read, and merged by name:
+--   1. slots    the profession slots (GetProfessions)
+--   2. lines    every profession line the trade skill API knows, when it has
+--               a cap (learned)
+--   3. window   the classic skills window, where a client still has it
+--   4. spells   the profession's own spell in your spellbook: you have it,
+--               even where Flow can't read its skill (rank 0, cap 0, unsure)
+-- /flow skills prints what each source says (also in the diagnostics).
+A.PROFESSION_NAMES = { "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Herbalism", "Leatherworking",
+                       "Mining", "Skinning", "Tailoring", "Cooking", "First Aid", "Fishing" }
+local PRIMARY = { Alchemy = true, Blacksmithing = true, Enchanting = true, Engineering = true, Herbalism = true,
+                  Leatherworking = true, Mining = true, Skinning = true, Tailoring = true }
+-- The spell that shows you have a profession (its own name, unless listed).
+local PROFESSION_SPELLS = { Mining = { "Mining", "Smelting", "Find Minerals" },
+                            Herbalism = { "Herbalism", "Herb Gathering", "Find Herbs" } }
+
+-- Pure: "Classic Skinning", "Skinning (Kalimdor)" -> "Skinning"; a name
+-- that holds none of the professions comes back as it is.
+function A.BaseProfession(name)
+    if type(name) ~= "string" then return nil end
+    for _, n in ipairs(A.PROFESSION_NAMES) do
+        if name == n then return n end
     end
-    if GetNumSkillLines then
-        local section
-        for i = 1, GetNumSkillLines() do
-            local n, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
-            if isHeader then section = n
-            elseif section == "Professions" or section == "Secondary Skills" then
-                out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, primary = section == "Professions" }
-            elseif n then
-                -- Other sections (weapons etc.) aren't professions, but keep
-                -- them findable by name for A.Skill.
-                out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, other = true }
+    for _, n in ipairs(A.PROFESSION_NAMES) do
+        if name:find(n, 1, true) then return n end
+    end
+    return name
+end
+
+-- Pure: merges lists of { name, rank, max, primary, other, unsure } by name.
+-- The first to name a profession lists it; a later one that knows its cap
+-- fills in the numbers for one that only knew you have it.
+function A.MergeProfessions(...)
+    local out, at = {}, {}
+    for _, list in ipairs({ ... }) do
+        for _, p in ipairs(list) do
+            local i = p.name and at[p.name]
+            if p.name and not i then
+                out[#out + 1] = { name = p.name, rank = p.rank or 0, max = p.max or 0, primary = p.primary,
+                                  other = p.other, unsure = p.unsure }
+                at[p.name] = #out
+            elseif i and (out[i].max or 0) == 0 and (p.max or 0) > 0 then
+                out[i].rank, out[i].max, out[i].unsure = p.rank or 0, p.max, nil
             end
         end
     end
     return out
 end
 
+local function fromSlots()
+    local out = {}
+    if not (GetProfessions and GetProfessionInfo) then return out end
+    local list = { GetProfessions() }
+    for i = 1, 6 do
+        local idx = list[i]
+        if idx then
+            local name, _, rank, max = GetProfessionInfo(idx)
+            if name then out[#out + 1] = { name = name, rank = rank or 0, max = max or 0, primary = i <= 2 } end
+        end
+    end
+    return out
+end
+
+local function fromLines()
+    local out = {}
+    local T = C_TradeSkillUI
+    if not (T and T.GetAllProfessionTradeSkillLines and T.GetProfessionInfoBySkillLineID) then return out end
+    local ok, ids = pcall(T.GetAllProfessionTradeSkillLines)
+    if not ok or type(ids) ~= "table" then return out end
+    for _, id in ipairs(ids) do
+        local ok2, info = pcall(T.GetProfessionInfoBySkillLineID, id)
+        if ok2 and type(info) == "table" and info.professionName and (info.maxSkillLevel or 0) > 0 then
+            local name = A.BaseProfession(info.parentProfessionName or info.professionName)
+            out[#out + 1] = { name = name, rank = info.skillLevel or 0, max = info.maxSkillLevel,
+                              primary = PRIMARY[name] or false, raw = info.professionName }
+        end
+    end
+    return out
+end
+
+local function fromWindow()
+    local out = {}
+    if not (GetNumSkillLines and GetSkillLineInfo) then return out end
+    local section
+    for i = 1, GetNumSkillLines() do
+        local n, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
+        if isHeader then section = n
+        elseif section == "Professions" or section == "Secondary Skills" then
+            out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, primary = section == "Professions" }
+        elseif n then
+            -- Other sections (weapons etc.) aren't professions, but keep
+            -- them findable by name for A.Skill.
+            out[#out + 1] = { name = n, rank = rank or 0, max = maxRank or 0, other = true }
+        end
+    end
+    return out
+end
+
+-- Do you know a spell, by its number? true / false, or nil when this client
+-- has no way to ask.
+local function knowsSpell(id)
+    if not id then return nil end
+    for _, fn in ipairs({ C_SpellBook and C_SpellBook.IsSpellKnown or false, IsPlayerSpell or false, IsSpellKnown or false }) do
+        if fn then
+            local ok, known = pcall(fn, id)
+            if ok and known ~= nil then return known and true or false end
+        end
+    end
+    return nil
+end
+
+-- Pure: is a profession's spell proof that you have it? Its name has to
+-- resolve (the game only resolves the names of spells in your spellbook),
+-- and where the game can be asked "do you know this spell", it mustn't say
+-- no (so a client that resolved every name wouldn't hand you every
+-- profession).
+function A.SpellProves(resolves, known)
+    return resolves == true and known ~= false
+end
+
+local function fromSpells()
+    local out = {}
+    for _, name in ipairs(A.PROFESSION_NAMES) do
+        for _, spell in ipairs(PROFESSION_SPELLS[name] or { name }) do
+            local ok, found, _, _, id = pcall(A.SpellInfo, spell)
+            local resolves = ok and found ~= nil
+            local known = resolves and knowsSpell(id) or nil
+            if A.SpellProves(resolves, known) then
+                out[#out + 1] = { name = name, rank = 0, max = 0, primary = PRIMARY[name] or false, unsure = true,
+                                  spell = spell, id = id, known = known }
+                break
+            end
+        end
+    end
+    return out
+end
+
+-- What each source says, for /flow skills: { { source, list } }.
+function A.ProfessionSources()
+    return { { "slots", fromSlots() }, { "lines", fromLines() }, { "window", fromWindow() }, { "spells", fromSpells() } }
+end
+
+-- Read at most once a second (it's asked for by name from many places), and
+-- again when your skills change.
+local professions, professionsAt
+function A.Professions()
+    local now = GetTime and GetTime() or 0
+    if professions and professionsAt and now - professionsAt < 1 then return professions end
+    professions = A.MergeProfessions(fromSlots(), fromLines(), fromWindow(), fromSpells())
+    professionsAt = now
+    return professions
+end
+function A.ForgetProfessions() professions = nil end
+
+-- Rank and cap of a profession (or a weapon skill, where the client lists
+-- them); nil when you don't have it. A profession Flow knows you have but
+-- can't read the skill of: 0, 0, true.
 function A.Skill(name)
     for _, p in ipairs(A.Professions()) do
-        if p.name == name then return p.rank, p.max end
+        if p.name == name then return p.rank, p.max, p.unsure end
     end
+end
+
+for _, ev in ipairs({ "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "TRADE_SKILL_SHOW", "SPELLS_CHANGED",
+                      "PLAYER_ENTERING_WORLD", "TRAINER_CLOSED" }) do
+    ns:On(ev, A.ForgetProfessions)
+end
+
+-- One line a source: "slots: Herbalism 13/75, Cooking 32/75".
+function A.ProfessionLines(sources)
+    local out = {}
+    for _, s in ipairs(sources) do
+        local bits = {}
+        for _, p in ipairs(s[2]) do
+            if not p.other then
+                bits[#bits + 1] = p.unsure and (p.name .. " (you have it; skill not readable here)"
+                        .. (p.id and string.format(" [spell %s, known: %s]", tostring(p.id), tostring(p.known)) or ""))
+                    or string.format("%s %d/%d%s", p.name, p.rank or 0, p.max or 0,
+                        (p.raw and p.raw ~= p.name) and (" [" .. p.raw .. "]") or "")
+            end
+        end
+        out[#out + 1] = s[1] .. ": " .. (#bits > 0 and table.concat(bits, ", ") or "nothing")
+    end
+    return out
+end
+
+ns.commands.skills = function()
+    ns:Print("your professions, as each part of the game reports them:")
+    for _, line in ipairs(A.ProfessionLines(A.ProfessionSources())) do print("  " .. line) end
+    local bits = {}
+    for _, p in ipairs(A.Professions()) do
+        if not p.other then bits[#bits + 1] = p.unsure and (p.name .. " ?") or string.format("%s %d/%d", p.name, p.rank, p.max) end
+    end
+    print("  Flow goes by: " .. (#bits > 0 and table.concat(bits, ", ") or "none"))
 end
 
 -- World latency in seconds.

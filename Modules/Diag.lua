@@ -83,6 +83,7 @@ function D:Snapshot(reason, spread)
         { "gear why", function() c.gear("why") end },
         { "inventory", function() if c.inventory then c.inventory("") end end },
         { "prof plan", function() c.professions("plan") end },
+        { "skills", function() if c.skills then c.skills("") end end },
         { "talents", function() c.talents("dump") end },
         { "fights", function() c.fights("") end },
         { "choices", function() if c.choices then c.choices("") end end },

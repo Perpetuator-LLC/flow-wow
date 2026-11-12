@@ -7066,3 +7066,59 @@ ns:Register("test", "professions: a recipe isn't bought long before you can lear
     local ok3, asBefore = pcall(SP._recipeStop, "Cooking", step, {})
     t:ok(ok3 and asBefore and asBefore.key == "buy:99999001", "no skill given: as before")
 end)
+
+ns:Register("test", "professions: a third profession the game's two slots leave out is still yours", function(t)
+    -- "journeyman skinning needs 50 and I don't have it but it is taking me
+    -- there": Forever lets a character have Herbalism, Blacksmithing and
+    -- Skinning; the game's profession slots list two, so Flow took Skinning
+    -- for unlearned and sent the route to its trainer.
+    local A, SP = ns.api, ns.skillPlan
+    local slots = { { name = "Herbalism", rank = 13, max = 75, primary = true }, { name = "Cooking", rank = 32, max = 75 } }
+    local lines = { { name = "Skinning", rank = 22, max = 75, primary = true }, { name = "Herbalism", rank = 13, max = 75 } }
+    local spells = { { name = "Skinning", rank = 0, max = 0, unsure = true }, { name = "Blacksmithing", rank = 0, max = 0, unsure = true } }
+    local all = A.MergeProfessions(slots, lines, {}, spells)
+    local by = {}
+    for _, p in ipairs(all) do by[p.name] = p end
+    t:eq(#all, 4, "each profession once, whichever sources name it")
+    t:ok(by.Skinning and by.Skinning.rank == 22 and by.Skinning.max == 75 and not by.Skinning.unsure,
+        "Skinning isn't in the slots: its skill comes from the next source that knows it")
+    t:ok(by.Blacksmithing and by.Blacksmithing.unsure and by.Blacksmithing.max == 0,
+        "only its spell is known: yours, with a skill Flow can't read")
+    local filled = A.MergeProfessions(spells, lines)
+    t:ok(filled[1].name == "Skinning" and filled[1].rank == 22 and not filled[1].unsure,
+        "a source with the numbers fills in one that only knew you have it")
+    t:eq(A.BaseProfession("Classic Skinning"), "Skinning", "a line named for an expansion is still Skinning")
+    t:eq(A.BaseProfession("First Aid"), "First Aid", "a plain name stays")
+    t:eq(A.BaseProfession("Jewelcrafting"), "Jewelcrafting", "one Flow doesn't know stays as it is")
+    with(A, "Professions", function() return all end, function()
+        local rank, max, unsure = A.Skill("Skinning")
+        t:ok(rank == 22 and max == 75 and not unsure, "A.Skill finds it")
+        rank, max, unsure = A.Skill("Blacksmithing")
+        t:ok(rank == 0 and max == 0 and unsure == true, "one Flow can't read: 0, 0, unsure (not nil: you have it)")
+        t:eq(A.Skill("Mining"), nil, "one you don't have: nil")
+        -- No trip to the trainer for either: Skinning 22 is short of the 50
+        -- Journeyman needs, and Blacksmithing has no number to go by.
+        local steps = ns.professions.NextSteps({ { name = "Skinning" }, { name = "Blacksmithing" }, { name = "Mining" } }, A.Skill, 12)
+        t:eq(#steps, 1, "only the one you really don't have is a thing to learn")
+        t:eq(steps[1] and steps[1].name, "Mining", "that's Mining")
+        t:eq(steps[1] and steps[1].kind, "learn", "to learn, not to train")
+    end)
+    local tier = SP.Tier("Skinning", 22, 75, 12)
+    t:ok(tier and tier.name == "Journeyman" and tier.skill == 50 and not tier.ready, "Journeyman Skinning needs skill 50: at 22 it isn't on the route")
+    t:ok(SP.Tier("Skinning", 50, 75, 12).ready, "at 50 it is")
+    t:eq(SP.Tier("Blacksmithing", 0, 0, 12), nil, "a skill Flow can't read: no tier stop at all")
+    local text = table.concat(A.ProfessionLines({ { "slots", slots }, { "spells", spells } }), "\n")
+    t:ok(text:find("slots: Herbalism 13/75, Cooking 32/75", 1, true) ~= nil, "/flow skills lists each source: " .. text)
+    t:ok(text:find("Blacksmithing (you have it; skill not readable here)", 1, true) ~= nil, "and says when a skill can't be read")
+    local ok, sources = pcall(A.ProfessionSources)
+    t:ok(ok and type(sources) == "table" and #sources == 4, "the game's own lists read without error")
+    t:ok(type(ns.commands.skills) == "function", "/flow skills")
+end)
+
+ns:Register("test", "professions: a profession's spell is proof only when the game doesn't say you lack it", function(t)
+    local A = ns.api
+    t:eq(A.SpellProves(true, true), true, "its name resolves and the game says you know it: yours")
+    t:eq(A.SpellProves(true, nil), true, "its name resolves and the game can't be asked: yours")
+    t:eq(A.SpellProves(true, false), false, "its name resolves but the game says you don't know it: not proof")
+    t:eq(A.SpellProves(false, nil), false, "its name doesn't resolve: not yours")
+end)

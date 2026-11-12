@@ -268,7 +268,7 @@ ns:Register("advisor", "professions", {
                         and string.format("%s is capped at %d: learn %s %s", p.name, p.max, tier.name, p.name)
                         or string.format("%s %d of %d: you can learn %s %s now", p.name, p.rank, p.max, tier.name, p.name),
                     improves = { "Professions" }, goalKey = "train:" .. p.name }
-            elseif p.rank + 15 < (ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target) then
+            elseif not p.unsure and p.rank + 15 < (ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target) then
                 out[#out + 1] = { importance = 30,
                     text = string.format("%s is %d; aim for about %d at level %d", p.name, p.rank, ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target, level),
                     improves = { "Professions" }, goalKey = "skill:" .. p.name }

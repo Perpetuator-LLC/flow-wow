@@ -125,9 +125,10 @@ function P:Fill(plan)
     local on = {}
     for _, p in ipairs(plan) do on[p.name] = true end
     for _, c in ipairs(frame.checks) do
-        local have = ns.api.Skill(c.name)
+        local have, _, unsure = ns.api.Skill(c.name)
         c:SetChecked(on[c.name] or false)
-        c.label:SetText(c.name .. (have and string.format(" |cff888888(%d)|r", have) or ""))
+        -- (A profession you have whose skill the game doesn't report here: "(yours)", not "(0)".)
+        c.label:SetText(c.name .. (unsure and " |cff888888(yours)|r" or (have and string.format(" |cff888888(%d)|r", have) or "")))
     end
 end
 

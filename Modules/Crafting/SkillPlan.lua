@@ -1166,7 +1166,7 @@ end
 
 local function planProfession(prof, t, out)
     local g = ns:Get("profGuide", prof)
-    local rank, max = A.Skill(prof)
+    local rank, max, unsure = A.Skill(prof)
     local label = why(t, prof, rank or 0)
     local weight = t.optional and 1.5 or 1.0
     local base = { title = t.quest or prof, optional = t.optional, weight = weight }
@@ -1181,6 +1181,15 @@ local function planProfession(prof, t, out)
         add({ key = "skillplan:" .. prof, kind = "proftrainer", points = { playerPoint() },
               text = prof .. ": learn it at a trainer first",
               blockedBy = "you don't have " .. prof })
+        return
+    end
+    -- You have it, but the game doesn't give Flow its skill here (a third
+    -- profession on WoW: Forever): nothing is planned from a number Flow
+    -- would have to make up. It's listed with the reason, not routed.
+    if unsure then
+        add({ key = "skillplan:" .. prof, kind = "skill", points = { playerPoint() }, anywhere = true,
+              text = prof .. ": Flow can't read your skill yet",
+              blockedBy = "the game doesn't report your " .. prof .. " skill to add-ons here (/flow skills shows what it does report)" })
         return
     end
     if rank >= t.target then return end
