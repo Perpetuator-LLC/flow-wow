@@ -1380,6 +1380,15 @@ ns:Register("test", "skillplan: fishing feeds cooking", function(t)
     t:ok(crafts[g.steps[3]] == nil, "no fish in bags: plan doesn't count on cooking fish")
 end)
 
+ns:Register("test", "skillplan: stops stay on your continent", function(t)
+    local SP = ns.skillPlan
+    local p = ns.nav and ns.nav.PlayerPos and ns.nav:PlayerPos()
+    if not (p and p.cont) then return end
+    local pts = SP._sameContinent({ { cont = p.cont, x = 1 }, { cont = p.cont + 1000, x = 2 } })
+    t:eq(#pts, 1, "the other continent's point is dropped")
+    t:eq(pts[1].x, 1, "the one on your continent stays")
+end)
+
 ns:Register("test", "skillplan: the guides' recipes to 300", function(t)
     local SP = ns.skillPlan
     -- Every bought recipe has a source, so its step knows what it is and roughly costs.

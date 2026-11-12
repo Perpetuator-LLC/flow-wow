@@ -227,6 +227,24 @@ function SP.NodesHere(prof, map)
     return out
 end
 
+-- Only the points on the continent you stand on: a trainer or vendor across
+-- the sea is no stop while you level here (a flight or boat isn't a detour
+-- worth sending you on for a recipe). Unknown continent (no position yet):
+-- nothing is dropped.
+local function sameContinent(pts)
+    local p = playerPoint()
+    local mine = p and p.cont
+    if not mine then return pts end
+    local out = {}
+    for _, pt in ipairs(pts or {}) do
+        local c = pt.cont
+        if not c and pt.map and ns.nav and ns.nav.ToWorld then c = ns.nav:ToWorld(pt.map, pt.x, pt.y) end
+        if not c or c == mine then out[#out + 1] = pt end
+    end
+    return out
+end
+SP._sameContinent = sameContinent  -- for /flow test
+
 local function npcPoints(names)
     if ns.quests.NPCsByName then ns.quests:NPCsByName(names) end
     local map, mine, all = here(), {}, {}
@@ -236,6 +254,8 @@ local function npcPoints(names)
             all[#all + 1] = pt
         end
     end
+    all = sameContinent(all)
+    mine = sameContinent(mine)
     return #mine > 0 and mine or all, #mine > 0, all
 end
 
@@ -278,7 +298,7 @@ local function vendorPoints(itemId)
         end
     end
     local pts, onMap = spawnPoints(spawns)
-    return pts, onMap, names
+    return sameContinent(pts), onMap, names
 end
 
 -- Cooking fires: you can make one anywhere (Basic Campfire) only with Simple
@@ -1671,7 +1691,11 @@ local function planProfession(prof, t, out)
         end
         -- The crafts that wait for more: set aside what you have for them,
         -- gather the rest (ore for what smelts).
-        if planned > n then
+        -- A recipe you don't have yet (its learn/buy stop is above) gets no
+        -- mats stops: the recipe comes first, then the plan re-forms and
+        -- tells you what to gather for it.
+        local unlearned = known and not known[s.recipe]
+        if planned > n and not unlearned then
             local shorts = {}
             for _, id in ipairs(ids) do
                 shorts[id] = stock:Take(id, (planned - n) * s.mats[id]).short
