@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.35.165
+- **Professions: training goes on the route, and plans stop at your cap.** The next tier (Journeyman, Expert,
+  Artisan) is now a route stop from 25 points below your cap, as soon as your level allows, for every
+  profession you have. Cooking, First Aid and Fishing get their Expert book (buy it, then read it) and their
+  Artisan quest instead of a trainer. The skill plan no longer plans past your cap: Cooking 62 of 75 plans to
+  75, then "Train Journeyman Cooking", instead of buying 45 apples for points you can't get yet. Vendors of the
+  other faction are no longer picked for a "Buy" stop.
+- **Quests: more checks before planning a pickup.** Flow now leaves out quests over their highest level, parts
+  of a quest you aren't on, breadcrumbs for a quest you're already on or past, quests Questie marks as never
+  offered, and quests that need a reputation, profession skill or spell you don't have. Lead-in quests count
+  as done as soon as the game says so, even before Flow's list has them.
+- **Buff button: Well Fed food before a bandage.** Hurt after a fight and not Well Fed with the food for it in
+  your bags: the button shows the food first, since one meal heals you and buffs you.
+- **Well Fed food first.** Not Well Fed and carrying the food for it, the buff button and the Flow key show
+  that food before elixirs, weapon stones, oils and your buff spells (it lasts longest, and you sit to eat).
+- **Buff button: lure for your fishing pole.** With a fishing pole on and no lure on it, the buff button shows
+  "Put <lure> on your pole", lit, anywhere (not only at a fishing stop). It picks the lure with the biggest
+  bonus you carry and can use first, the smallest last. Healing up after a fight still comes first. At a
+  fishing stop without your pole on, the button shows "Equip your Fishing Pole" (your weapons go back on when
+  you leave, as with the Flow key). Then it casts your line, and with a buff key set (/flow buffkey Q), that
+  key reels in while the line is out: press it when the bobber splashes.
+- **Professions: follow the levelling guides' path.** The skill plan now makes what the public levelling guides
+  make at each skill, instead of grinding one recipe on until it turns grey (Cooking 62 no longer says 105
+  Charred Wolf Meat). Cooking has a Horde path (Kodo, Strider Stew, Lizard Tail) and an Alliance path (Bear
+  Meat, Crab, Wolf Kabob) to 130, then Omelet and Roast Raptor to 225; fish you catch stand in for the meat
+  they match. First Aid runs to 300, Blacksmithing to 270. Recipes sold by a vendor get a "Buy" stop, and the
+  plan and profession window say when the guides switch recipe. Recipes only a quest teaches are left out.
+- **Buff button: shows your next buff ahead of time.** Out of combat the blue buff button now always shows the
+  next buff it would do (a missing aura or blessing, your stone or oil, buff food), faded, so you can use it
+  when you choose. It lights up only when a fight is near: an enemy targeted, a kill stop, or just after a fight.
+  Your bandage or food when hurt and the campfire steps stay bright. Hover it for why it's faded.
+  (Thanks, BIMpossible: pull request 19.)
+
 ## 0.35.164
 - **Profession window: make-now list is honest about chance.** Orange rows say "sure skill points"; yellow and
   green say "maybe ... (not every time)", since a couple of yellows can give nothing. On the same number of

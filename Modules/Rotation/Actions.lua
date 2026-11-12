@@ -261,46 +261,70 @@ ns:On("UI_ERROR_MESSAGE", function(_, msg) X.NoteDry(A.Safe(msg)) end)
 -- The steps
 -------------------------------------------------------------------------------
 
--- Fishing: equip the pole.
-ns:Register("action", "fish:equip", { order = 10, get = function(ctx)
-    if not ctx.atFish or ctx.pole then return nil end
+-- Fishing: equip the pole, at a fishing stop (Flow key and buff button).
+-- before: remember your weapons, so they go back on when you leave.
+function X.EquipStep(ctx)
+    if not (ctx and ctx.atFish) or ctx.pole then return nil end
     -- Not with an enemy targeted: you're about to fight (weapon stays on).
     if UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target") then return nil end
     for _, id in ipairs(bagItems()) do
         if X.IsPole(id) then
             return { type = "item", item = "item:" .. id, icon = itemIcon(id), label = "Equip your Fishing Pole",
-                     before = saveWeapons }
+                     fish = true, reason = "You're at a fishing spot", before = saveWeapons }
         end
     end
-end })
+end
+ns:Register("action", "fish:equip", { order = 10, get = X.EquipStep })
+
+-- The lure to put on: the biggest bonus you carry and can use first, the
+-- smallest last (X.LURES order). has(id) -> count; canUse(id) -> bool.
+function X.BestLure(has, canUse)
+    for _, id in ipairs(X.LURES) do
+        if (has(id) or 0) > 0 and canUse(id) then return id end
+    end
+end
+
+-- A lure step for a pole that's on with no lure (nil otherwise). The buff
+-- button shows it whenever the pole is on; the Flow key at a fishing spot.
+function X.LureStep(ctx)
+    if not (ctx and ctx.pole) or lured() or channeling("Fishing") then return nil end
+    local id = X.BestLure(count, usable)
+    if not id then return nil end
+    local name = (A.ItemInfo and A.ItemInfo(id)) or "a lure"
+    return { type = "item", item = "item:" .. id, targetSlot = MAIN, icon = itemIcon(id), fish = true,
+             label = "Put " .. name .. " on your pole",
+             reason = "Your fishing pole has no lure on it" }
+end
 
 -- Fishing: a lure on the pole (best one you carry that you can use).
 ns:Register("action", "fish:lure", { order = 20, get = function(ctx)
-    if not (ctx.fishing and ctx.pole) or lured() or channeling("Fishing") then return nil end
-    for _, id in ipairs(X.LURES) do
-        if count(id) > 0 and usable(id) then
-            local name = (A.ItemInfo and A.ItemInfo(id)) or "a lure"
-            return { type = "item", item = "item:" .. id, targetSlot = MAIN, icon = itemIcon(id),
-                     label = "Put " .. name .. " on your pole" }
-        end
-    end
+    if not ctx.fishing then return nil end
+    return X.LureStep(ctx)
 end })
 
 -- Fishing: reel in. While the line is out, the key presses Interact, which
--- clicks your bobber (press when it splashes).
-ns:Register("action", "fish:reel", { order = 30, get = function(ctx)
-    if not (ctx.pole and channeling("Fishing") and X.CanInteract()) then return nil end
-    if X.FriendlyTarget() then return X.ClearTargetStep("so the key reels in, not talks to your target") end
-    return { type = "interact", icon = spellIcon("Fishing"), label = "Press when the bobber splashes", urgent = true }
-end })
+-- clicks your bobber (press when it splashes). Flow key and buff button.
+function X.ReelStep(ctx)
+    if not (ctx and ctx.pole and channeling("Fishing") and X.CanInteract()) then return nil end
+    if X.FriendlyTarget() then
+        local s = X.ClearTargetStep("so the key reels in, not talks to your target")
+        s.fish = true
+        return s
+    end
+    return { type = "interact", icon = spellIcon("Fishing"), label = "Press when the bobber splashes", urgent = true,
+             fish = true, reason = "Your line is out: press when the bobber splashes" }
+end
+ns:Register("action", "fish:reel", { order = 30, get = X.ReelStep })
 
--- Fishing: cast.
-ns:Register("action", "fish:cast", { order = 40, get = function(ctx)
-    if not (ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
+-- Fishing: cast. Flow key and buff button.
+function X.CastStep(ctx)
+    if not (ctx and ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
     if not knows("Fishing") then return nil end
-    return { type = "spell", spell = "Fishing", unit = "player", icon = spellIcon("Fishing"),
-             label = ctx.noWater and "Face the water, then cast" or "Cast your line" }
-end })
+    return { type = "spell", spell = "Fishing", unit = "player", icon = spellIcon("Fishing"), fish = true,
+             label = ctx.noWater and "Face the water, then cast" or "Cast your line",
+             reason = ctx.noWater and "Your last cast missed the water" or "Your pole is on and you're at the water" }
+end
+ns:Register("action", "fish:cast", { order = 40, get = X.CastStep })
 
 -- Crafting where you stand (a "Make 4 x Roasted Boar Meat" stop that follows
 -- you): the key makes a campfire if the recipe needs one, opens the

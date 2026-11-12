@@ -635,6 +635,13 @@ ns:Register("test", "quests: availability (level, events, not offered)", functio
     local me = UnitLevel("player")
     t:ok(Q:Available({ Id = 999101, requiredLevel = 1 }), "low level, no requirements: available")
     t:ok(not Q:Available({ Id = 999102, requiredLevel = me + 5 }), "requires a higher level: not available")
+    if me > 1 then
+        t:ok(not Q:Available({ Id = 999105, requiredLevel = 1, requiredMaxLevel = me - 1 }), "over its highest level: not available")
+    end
+    t:ok(not Q:Available({ Id = 999106, requiredLevel = 1, preQuestGroup = { 999190 } }), "a quest that must come first isn't done: not available")
+    t:ok(not Q:Available({ Id = 999107, requiredLevel = 1, preQuestSingle = { 999191, 999192 } }), "none of the lead-ins done: not available")
+    t:ok(not Q:Available({ Id = 999108, requiredLevel = 1, parentQuest = 999193 }), "part of a quest you aren't on: not available")
+    t:ok(not Q:Available({ Id = 999109, requiredLevel = 1, requiredSpell = 999194 }), "needs a spell you don't know: not available")
     t:ok(not Q:Offered(999103, { zoneOrSort = -1003 }), "holiday quest with no event on: not offered")
     ns.db.quests.notOffered = ns.db.quests.notOffered or {}
     -- Not offered: one visit skips it for ten minutes, a second visit for a day.
@@ -1305,6 +1312,30 @@ ns:Register("test", "skillplan: fishing feeds cooking", function(t)
     -- The fish step is never preferred over meat you'd farm when you have no fish.
     local crafts = SP._simulate("Cooking", g.steps, 1, 10, {})
     t:ok(crafts[g.steps[3]] == nil, "no fish in bags: plan doesn't count on cooking fish")
+end)
+
+ns:Register("test", "skillplan: follows the levelling guides' path", function(t)
+    local SP = ns.skillPlan
+    local g = ns:Get("profGuide", "Cooking")
+    -- Owner: at Cooking 62 the plan said 105 Charred Wolf Meat to 100.
+    local path = SP._onPath(g.steps, 62)
+    t:ok(#path > 0, "the guide has a step for Cooking 62")
+    local mine = UnitFactionGroup("player")
+    for _, s in ipairs(path) do
+        t:ok(s.recipe ~= "Charred Wolf Meat", "62: not Charred Wolf Meat (" .. s.recipe .. ")")
+        t:ok(not s.faction or s.faction == mine, "62: your side's recipe (" .. s.recipe .. ")")
+    end
+    local _, order, reaches = SP._simulate("Cooking__test", g.steps, 62, 100, {})
+    t:ok(reaches, "62 -> 100 reaches")
+    for _, s in ipairs(order) do t:ok(s.recipe ~= "Charred Wolf Meat", "62 -> 100 makes no Charred Wolf Meat") end
+    t:eq(order[1] and order[1].recipe, mine == "Horde" and "Strider Stew" or "Smoked Bear Meat", "62: the guides' recipe first")
+    -- Fish recipes have no path of their own.
+    for _, s in ipairs(SP._onPath(g.steps, 60)) do t:ok(not s.recipe:find("Mud Snapper"), "60: fish only stands in") end
+    -- A step the guides use twice (Rough Bronze Leggings 110-125, 140-160).
+    local bs = ns:Get("profGuide", "Blacksmithing")
+    local at145 = SP._onPath(bs.steps, 145)
+    t:eq(#at145, 1, "145: one step"); t:eq(at145[1] and at145[1].recipe, "Rough Bronze Leggings", "145: back to bronze leggings")
+    t:eq(SP._onPath(bs.steps, 130)[1].recipe, "Heavy Grinding Stone", "130: heavy grinding stones in between")
 end)
 
 ns:Register("test", "perf: Flow's update loops are timed", function(t)
@@ -3353,11 +3384,13 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     local none = function() return false end
     local all = function() return true end
     local fedOnly = function(spell) return spell ~= BI.WELL_FED end
-    t:eq(BI.Pick(items, none, 7, false, true).id, 1, "elixir first, when its buff is missing")
+    t:eq(BI.Pick(items, none, 7, false, true).id, 4, "not Well Fed: the food first, before the elixir")
+    local fed = function(spell) return spell == BI.WELL_FED end
+    t:eq(BI.Pick(items, fed, 7, false, true).id, 1, "Well Fed: the elixir, when its buff is missing")
     t:eq(BI.Pick(items, all, 7, false, true).id, 2, "buff on: a sharpening stone for a sword")
     t:eq(BI.Pick(items, all, 4, false, true).id, 3, "a weightstone for a mace")
     t:eq(BI.Pick(items, all, 7, true, true), nil, "the weapon has one already, Well Fed: nothing")
-    t:eq(BI.Pick(items, fedOnly, 7, true, true).id, 4, "not Well Fed: eat, after the quick ones")
+    t:eq(BI.Pick(items, fedOnly, 7, true, true).id, 4, "not Well Fed: eat")
     t:ok(BI.FitsWeapon("Minor Wizard Oil", 10), "oil goes on anything")
     t:ok(not BI.FitsWeapon("Rough Sharpening Stone", 4), "no sharpening stone on a mace")
     t:ok(not BI.FitsWeapon("Minor Wizard Oil", 20), "no oil on a fishing pole")
@@ -3796,6 +3829,18 @@ ns:Register("test", "professions: what to do next, and when the reminder opens",
     t:eq(steps[2].kind, "train", "Skinning at its cap: train the next tier")
     t:eq(steps[#steps].name, "Fishing", "optional ones last")
     t:eq(#P.NextSteps(plan, skill, 8), 2, "not at level 8: Journeyman needs level 10 (Herbalism + Fishing left)")
+    ranks.Skinning = { 55, 75 }
+    t:eq(P.NextSteps(plan, skill, 12)[2].kind, "train", "25 below the cap: the trainer teaches the next tier already")
+    ranks.Skinning = { 75, 75 }
+    local SP = ns.skillPlan
+    local tier = SP.Tier("Cooking", 62, 75, 12)
+    t:ok(tier and tier.ready and tier.name == "Journeyman" and tier.how == "trainer", "Cooking 62 of 75 at level 12: Journeyman, ready")
+    t:ok(not SP.Tier("Cooking", 45, 75, 12).ready, "Cooking 45 of 75: Journeyman needs 50 first")
+    t:ok(not SP.Tier("Cooking", 70, 75, 8).ready, "level 8: Journeyman needs level 10")
+    t:eq(SP.Tier("Cooking", 140, 150, 25).how, "book", "Expert Cooking: from the book")
+    t:eq(SP.Tier("First Aid", 210, 225, 35).how, "quest", "Artisan First Aid: from the quest")
+    t:eq(SP.Tier("Mining", 210, 225, 35).how, "trainer", "Artisan Mining: from a trainer")
+    t:ok(SP.Tier("Mining", 300, 300, 60) == nil, "at 300: no next tier")
     t:eq(P.StepsKey(steps), "learn:Herbalism,train:Skinning", "the reminder's key leaves optional ones out")
     local s = { level = 12, revealed = true }
     t:ok(P.ShouldRemind("login", steps, s), "something to do: it opens")
@@ -5363,8 +5408,72 @@ ns:Register("test", "buff button: buffs off the main icon, onto their own button
     t:ok(BB.Pick(nil, nil) == nil, "nothing due: nothing")
     t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).label, "Bandage",
         "hurt after a fight: the bandage or food before any buff")
+    local feast = { item = "item:724", wellFed = true }
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Bandage" }).item, "item:724",
+        "hurt and not Well Fed: the Well Fed food before the bandage")
+    t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, { label = "Bandage" }).item, "item:724",
+        "hurt, no fight near yet: the Well Fed food still before the bandage")
     t:eq(BB.Pick({ spell = "Aura" }, nil, nil, { type = "sit" }).spell, "Aura", "by a campfire: your buffs before you sit")
     t:eq(BB.Pick(nil, nil, nil, { type = "sit" }).type, "sit", "by a campfire with nothing else due: sit")
+    -- The next buff shows ahead of time, faded until a fight is near.
+    local soon = { item = "item:2862", soon = true }
+    t:eq(BB.Pick({ spell = "Aura" }, soon).spell, "Aura", "no fight near: a missing buff spell before a stone preview")
+    t:eq(BB.Pick(nil, soon).item, "item:2862", "no fight near: the stone shows ahead of time")
+    t:eq(BB.Pick(nil, soon, nil, { type = "sit" }).type, "sit", "by a campfire: sit before a stone preview")
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).item, "item:724",
+        "not Well Fed, no fight near: the food before a buff spell or the campfire")
+    local aura = { spell = "Aura" }
+    t:ok(not BB.Bright(aura, false), "no fight near: the next buff is faded")
+    t:ok(BB.Bright(aura, true), "a fight near: the buff lights up")
+    t:ok(not BB.Bright(soon, false), "no fight near: the stone preview is faded")
+    local band, sit = { label = "Bandage" }, { type = "sit" }
+    t:ok(not BB.Bright(band, false) and not BB.Bright(sit, false), "no fight near: bandage and campfire are faded too")
+    t:ok(BB.Bright(band, true), "a fight near (just after one): the bandage lights up")
+    t:ok(not BB.Bright(BB.Idle(), true) and not BB.Bright(nil, true), "nothing due: never bright")
+    -- Fishing (pole to equip at a fishing stop, or a lure for it): after healing
+    -- up, lit with no fight near.
+    local lure = { item = "item:6529", fish = true }
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, nil, nil, lure).item, "item:6529",
+        "pole on with no lure: the lure before buffs and items")
+    t:eq(BB.Pick(nil, nil, { label = "Bandage" }, nil, lure).label, "Bandage", "hurt with the pole on: heal first, then the lure")
+    t:ok(BB.Bright(lure, false), "the lure is lit with no fight near")
+    local X = ns.actions
+    t:ok(X.EquipStep({ atFish = false, pole = false }) == nil, "away from a fishing stop: no pole equip")
+    t:ok(X.EquipStep({ atFish = true, pole = true }) == nil, "pole already on: no pole equip")
+    t:ok(X.CastStep({ fishing = false, pole = true }) == nil, "not at the water: no cast")
+    t:ok(X.CastStep({ fishing = true, pole = false }) == nil, "no pole on: no cast")
+    t:ok(X.ReelStep({ pole = false }) == nil, "no pole on: no reel")
+    t:eq(BB.Pick({ spell = "Aura" }, nil, nil, nil, { spell = "Fishing", fish = true }).spell, "Fishing",
+        "fishing: the cast before a buff spell")
+    t:ok(BB.Bright({ type = "interact", fish = true }, false), "line out: reel in is lit")
+    local bag = { [6529] = 3, [6530] = 2, [6533] = 1 }
+    local function has(id) return bag[id] end
+    t:eq(X.BestLure(has, function() return true end), 6533, "several lures: the biggest bonus first")
+    t:eq(X.BestLure(has, function(id) return id ~= 6533 end), 6530, "can't use the biggest: the next one down")
+    bag = { [6529] = 3 }
+    t:eq(X.BestLure(has, function() return true end), 6529, "only the smallest left: that one last")
+    t:ok(X.BestLure(function() return 0 end, function() return true end) == nil, "no lures: nothing")
+    -- Nothing due: the buff that runs out first, faded, with its time left.
+    local first = BB.Soonest({ { step = { spell = "Mark" }, left = 900 }, { step = { spell = "Thorns" }, left = 200 },
+                              { step = { spell = "Aura" }, left = math.huge } })
+    t:eq(first and first.spell, "Thorns", "nothing due: the buff running out first")
+    t:ok(first.later and first.left == 200, "it's marked as still on, with its time left")
+    t:eq(BB.Soonest({ { step = { spell = "Aura" }, left = math.huge } }).spell, "Aura", "only a never-ending buff: that one")
+    t:ok(BB.Soonest({}) == nil, "no buffs at all: nothing")
+    t:ok(not BB.Bright(first, true), "a fight near, buff still 3 min on: stays faded")
+    t:ok(BB.Bright({ spell = "Thorns", later = true, left = 30 }, true), "a fight near, buff running out: lights up")
+    t:eq(BB.Left(900), "15m", "time left in minutes")
+    t:eq(BB.Left(40), "40s", "under a minute: seconds")
+    t:eq(BB.Left(math.huge), "on", "never runs out: on")
+    local BIt = ns.buffItems
+    t:ok(BIt and type(BIt.ItemStep) == "function" and type(BIt.FightNear) == "function",
+        "buff items: a preview step and a fight-near check exist")
+    local okS = pcall(BIt.ItemStep, {}, true)
+    t:ok(okS, "buff item preview runs without errors")
+    local okU, up = pcall(BIt.UpcomingItems)
+    t:ok(okU and type(up) == "table", "buff items still on: a list, without errors")
+    local okN, near = pcall(BIt.FightNear, {})
+    t:ok(okN and type(near) == "boolean", "fight near: a plain yes or no")
     t:eq(BB.FightSpell({ spell = "Aura" }, "Blessing"), "Aura", "fight: the buff due now")
     t:eq(BB.FightSpell(nil, "Aura"), "Aura", "fight: else the one you last cast")
     t:ok(BB.FightSpell(nil, nil) == nil, "fight: else nothing")

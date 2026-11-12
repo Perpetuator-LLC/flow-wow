@@ -143,9 +143,15 @@ ns:On("MERCHANT_SHOW", function() C_Timer.After(0.3, function() pcall(recordPric
 local function vendorPoints(itemId)
     local item = ns.quests:QuestieGet("GetItem", itemId)
     local spawns, names = {}, {}
+    local mine = UnitFactionGroup and UnitFactionGroup("player")
+    local friendly = ns.places and ns.places.FriendlyTo
     for _, id in ipairs(item and item.vendors or {}) do
         local npc = ns.quests:QuestieGet("GetNPC", id)
-        if npc and npc.spawns then spawns[#spawns + 1] = npc.spawns; names[#names + 1] = npc.name end
+        -- Only vendors who'll sell to you: the other faction's would send you
+        -- across the world to someone who attacks you.
+        if npc and npc.spawns and not (friendly and not friendly(npc.friendlyToFaction, mine)) then
+            spawns[#spawns + 1] = npc.spawns; names[#names + 1] = npc.name
+        end
     end
     local pts, onMap = spawnPoints(spawns)
     return pts, onMap, names
@@ -268,14 +274,55 @@ local function matUnits(step)
     return math.max(n, 1)
 end
 
--- Expected crafts per step to go from rank to target: at each point, the
--- step with the most skill per material. When two are as good (Charred Wolf
--- Meat, Roasted Boar Meat), the one whose materials are in your bags wins, so
--- what you already carry gets used before anything is farmed.
+-- A step your faction can use (a guide step may name one: its recipe or
+-- meat is only sold or found on that side).
+local function forYou(s)
+    if not s.faction then return true end
+    local mine = UnitFactionGroup and UnitFactionGroup("player")
+    return not mine or mine == s.faction
+end
+
+-- The guide's own path: the steps it says to use at this skill (`use =
+-- { from, to }`, from public levelling guides). Only where the guide says
+-- nothing does any recipe that still gives skill count, so the plan never
+-- grinds a recipe on to grey when the proven path has moved on (owner: 105
+-- Charred Wolf Meat for Cooking 62 -> 100).
+-- `use` is one range or a list of them ({ { 110, 125 }, { 140, 160 } }).
+local function inUse(use, rank)
+    if type(use[1]) == "table" then
+        for _, u in ipairs(use) do if rank >= u[1] and rank < u[2] then return true end end
+        return false
+    end
+    return rank >= use[1] and rank < use[2]
+end
+local function onPath(steps, rank)
+    local out, any = {}, false
+    for _, s in ipairs(steps) do
+        if s.use and forYou(s) then
+            any = true
+            if inUse(s.use, rank) then out[#out + 1] = s end
+        end
+    end
+    if #out > 0 then return out end
+    if any then
+        -- Past what the guide covers, or a gap: whatever still gives skill.
+        local rest = {}
+        for _, s in ipairs(steps) do if forYou(s) then rest[#rest + 1] = s end end
+        return rest
+    end
+    return steps
+end
+SP._onPath = onPath
+
+-- Expected crafts per step to go from rank to target: at each point, of the
+-- steps the guide uses there, the one with the most skill per material. When
+-- two are as good (Charred Wolf Meat, Roasted Boar Meat), the one whose
+-- materials are in your bags wins, so what you already carry gets used before
+-- anything is farmed.
 -- `have` (optional): item ID -> count in bags; defaults to your bags.
 local simulate
 function simulate(prof, steps, rank, target, have)
-    local crafts, order = {}, {}
+    local crafts, order, spans = {}, {}, {}   -- spans: step -> { from, to } skill it covers
     local left = {}
     local function bag(id)
         if left[id] == nil then left[id] = (have and have[id]) or (not have and count(id)) or 0 end
@@ -286,24 +333,33 @@ function simulate(prof, steps, rank, target, have)
         return true
     end
     local guard = 0
-    while rank < target and guard < 600 do
-        guard = guard + 1
+    local function pick(cands)
         local best, bestV, bestC, bestHave
-        for _, s in ipairs(steps) do
+        for _, s in ipairs(cands) do
             local c = chance(prof, s, rank)
             local v = c / matUnits(s)
             local h = canMake(s)
-            if c > 0 and (not bestV or v > bestV or (v == bestV and h and not bestHave)) then
+            if c > 0 and forYou(s) and (not bestV or v > bestV or (v == bestV and h and not bestHave)) then
                 best, bestV, bestC, bestHave = s, v, c, h
             end
         end
+        return best, bestC, bestHave
+    end
+    while rank < target and guard < 2000 do
+        guard = guard + 1
+        local path = onPath(steps, rank)
+        local best, bestC, bestHave = pick(path)
+        -- The guide's step for here gives nothing (grey early in your game):
+        -- any recipe that still does.
+        if not best and path ~= steps then best, bestC, bestHave = pick(steps) end
         if not best then break end
-        if not crafts[best] then crafts[best] = 0; order[#order + 1] = best end
+        if not crafts[best] then crafts[best] = 0; order[#order + 1] = best; spans[best] = { math.floor(rank) } end
         crafts[best] = crafts[best] + 1
         if bestHave then for id, q in pairs(best.mats or {}) do left[id] = bag(id) - q end end
         rank = rank + bestC
+        spans[best][2] = math.min(math.floor(rank + 1e-9), target)
     end
-    return crafts, order, rank >= target
+    return crafts, order, rank >= target, spans
 end
 
 -- Materials that stand in for `id`: dropped materials of other steps that
@@ -466,6 +522,90 @@ end
 
 local watched = {}  -- item IDs whose counts change the plan
 
+-- The next skill tier: how you learn it, and whether you can now.
+-- Journeyman (cap 75 -> 150) needs level 10 and skill 50, Expert (150 -> 225)
+-- level 20 and 125, Artisan (225 -> 300) level 35 and 200: the trainer teaches
+-- it from 25 below the cap, so it goes on the route then, not once you're stuck.
+-- Cooking, First Aid and Fishing learn Expert from a book and Artisan from a
+-- quest; everything else from its trainer.
+SP.TIER_LEVEL = { [75] = 10, [150] = 20, [225] = 35 }
+local TIER_NAME = { [75] = "Journeyman", [150] = "Expert", [225] = "Artisan" }
+local TIER_BOOK = { Cooking = 16072, ["First Aid"] = 16084, Fishing = 16083 }
+-- Clamlette Surprise; Triage (Horde, Alliance); Nat Pagle, Angler Extreme.
+local TIER_QUEST = { Cooking = { 6610 }, ["First Aid"] = { 6622, 6624 }, Fishing = { 6607 } }
+--   -> { name, cap, level, skill, how = "trainer" | "book" | "quest", book, quests, ready } or nil
+function SP.Tier(prof, rank, max, level)
+    if not (rank and max and max > 0 and max < 300) then return nil end
+    local t = { name = TIER_NAME[max] or "next", cap = max, level = SP.TIER_LEVEL[max] or 0, skill = max - 25 }
+    if max == 150 and TIER_BOOK[prof] then t.how, t.book = "book", TIER_BOOK[prof]
+    elseif max == 225 and TIER_QUEST[prof] then t.how, t.quests = "quest", TIER_QUEST[prof]
+    else t.how = "trainer" end
+    t.ready = rank >= t.skill and (level or 0) >= t.level
+    return t
+end
+
+-- The route stop that learns the next tier (key "train:<prof>"), once you
+-- can: the trainer, the book (buy it, then read it) or the quest's giver.
+-- nil while you can't yet, or while the quest is already in your log.
+-- deps: the craft stops past your cap wait for it.
+function SP.TierGoal(prof, level, optional)
+    local rank, max = A.Skill(prof)
+    local tier = SP.Tier(prof, rank, max, level)
+    if not (tier and tier.ready) then return nil, tier end
+    local key, title = "train:" .. prof, tier.name .. " " .. prof
+    local why = string.format("%s %d of %d: %s raises the cap to %d.", prof, rank, max, title, max + 75)
+    local base = { key = key, title = title, optional = optional, weight = optional and 1.4 or 1.0 }
+    local function goal(g)
+        for k, v in pairs(base) do if g[k] == nil then g[k] = v end end
+        return g
+    end
+    if tier.how == "book" then
+        local id = tier.book
+        watched[id] = true
+        local name = itemName(id)
+        if count(id) > 0 then
+            return goal({ kind = "skill", points = { playerPoint() }, anywhere = true,
+                          text = string.format("Read %s (in your bags): %s", name, title),
+                          details = { why, "Right-click it in your bags to learn it." } }), tier
+        end
+        local pts, _, sellers = vendorPoints(id)
+        return goal({ kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(id),
+                      text = string.format("Buy %s: %s", name, title),
+                      details = { why, "No trainer teaches it: the book does. Read it once you have it.",
+                                  #sellers > 0 and ("Sold by " .. table.concat(sellers, " or ") .. ".") or nil },
+                      blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil }), tier
+    end
+    if tier.how == "quest" then
+        local Q = ns.quests
+        for _, id in ipairs(tier.quests) do
+            if Q:IsCompleted(id) or Q:InLog(id) then return nil, tier end
+        end
+        for _, id in ipairs(tier.quests) do
+            local q = Q:QuestieGet("GetQuest", id)
+            local giver = q and q.Starts and q.Starts.NPC and q.Starts.NPC[1]
+            local npc = giver and Q:QuestieGet("GetNPC", giver)
+            local fits = q and (not ns.dungeons or not ns.dungeons.Eligible or ns.dungeons.Eligible(q))
+            if fits and npc and npc.spawns then
+                local pts = spawnPoints({ npc.spawns })
+                return goal({ kind = "accept", points = pts, npcs = { npc.name },
+                              text = string.format("Accept %s (%s): %s", q.name or "the quest", npc.name, title),
+                              details = { why, string.format("No trainer teaches it: %s's quest does.", npc.name) },
+                              blockedBy = #pts == 0 and ("Flow doesn't know where " .. npc.name .. " stands") or nil }), tier
+            end
+        end
+        return goal({ kind = "skill", points = { playerPoint() },
+                      text = title .. ": a quest teaches it",
+                      details = { why },
+                      blockedBy = "Flow needs Questie to find the quest's giver" }), tier
+    end
+    local names = ns.places:TrainersFor(prof)
+    local pts = npcPoints(names)
+    return goal({ points = pts, npcs = names,
+                  text = string.format("Train %s (%s)", title, #names > 0 and table.concat(names, " / ") or "trainer"),
+                  details = { why, #names > 0 and ("At " .. table.concat(names, " or ") .. ".") or nil },
+                  blockedBy = #pts == 0 and ("no known " .. prof .. " trainer") or nil }), tier
+end
+
 -- The tool a profession needs (guide `tool`: Mining Pick, Blacksmith Hammer,
 -- Fishing Pole) when you don't have one: a "Buy a X" stop, and X's name so
 -- the stops that need it can say "needs a X". Nothing when you have it.
@@ -551,11 +691,17 @@ local function recipeStop(prof, s, known)
                  icon = BAG_ICON, useItem = s.recipeItem,   -- in your bags: the arrow shows a bag
                  text = "Learn " .. s.recipe .. ": use the recipe in your bags" }
     end
+    local fish = false
+    for mid in pairs(s.mats or {}) do
+        local ms = src(mid)
+        if ms and ms.fished then fish = true end
+    end
     local pts, _, sellers = vendorPoints(s.recipeItem)
     return { key = "buy:" .. s.recipeItem, kind = "merchant", points = pts, npcs = sellers,
              cost = SP.Price(s.recipeItem),
              text = "Buy " .. name,
-             details = { "So you can cook what you catch (skip it if you already know " .. s.recipe .. ")." },
+             details = { fish and ("So you can cook what you catch (skip it if you already know " .. s.recipe .. ").")
+                             or ("The levelling guides make " .. s.recipe .. " here. A vendor sells it; the trainer doesn't teach it.") },
              blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil }
 end
 
@@ -928,10 +1074,32 @@ local function planProfession(prof, t, out)
         return
     end
     if rank >= t.target then return end
+    -- Past your cap: plan only up to it (skill can't go higher, so no
+    -- crafting or buying for the points above it), and put the next tier on
+    -- the route. Once you've trained it the plan goes on from there.
     if max and max > 0 and t.target > max then
-        add({ key = "skillplan:cap:" .. prof, kind = "proftrainer", points = { playerPoint() },
-              text = string.format("%s is capped at %d: train the next tier", prof, max),
-              blockedBy = string.format("%s capped at %d", prof, max) })
+        local planned = false
+        if ns.nav:Includes("professions") then   -- (the route menu's Professions tick)
+            for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end
+        end
+        local tg, tier = SP.TierGoal(prof, UnitLevel("player"), t.optional)
+        if tg and not planned then out[#out + 1] = tg end
+        local after = tier and tier.name and (tier.name .. " " .. prof) or "the next tier"
+        t = setmetatable({ target = max }, { __index = t })
+        label = string.format("%s%s %d -> %d, then %s", t.quest and (t.quest .. ": ") or "", prof, rank, max, after)
+        if tier and not tier.ready then
+            label = label .. string.format(" (needs level %d and skill %d)", tier.level, tier.skill)
+        end
+        if rank >= max then
+            -- Capped and the next tier can't be learned yet: say why. (When it
+            -- can, the "train:" stop above is the next step.)
+            if tier and not tier.ready then
+                add({ key = "skillplan:cap:" .. prof, kind = "skill", points = { playerPoint() }, anywhere = true,
+                      text = string.format("%s is capped at %d: %s next", prof, max, after),
+                      blockedBy = string.format("%s needs level %d", after, tier.level) })
+            end
+            return
+        end
     end
     if not g then
         add({ key = "skillplan:" .. prof, kind = "skill", points = { playerPoint() },
@@ -978,7 +1146,12 @@ local function planProfession(prof, t, out)
 
     -- Mining also levels from the veins themselves.
     local steps = g.steps or {}
-    local crafts, order, reaches = simulate(prof, steps, rank, t.target)
+    local crafts, order, reaches, spans = simulate(prof, steps, rank, t.target)
+    -- Each step's share of the climb, and what the guide does after it.
+    local function stepTo(s) return spans[s] and spans[s][2] or t.target end
+    local function after(s)
+        for i, o in ipairs(order) do if o == s then return order[i + 1] end end
+    end
 
     -- One stock for the whole plan: bags, then bank, then smelting. What it
     -- takes from the bank becomes a bank stop, what it smelts a smelt stop;
@@ -1102,8 +1275,10 @@ local function planProfession(prof, t, out)
             SP.lastWaiting = SP.lastWaiting or {}
             local list = SP.lastWaiting[prof] or {}
             SP.lastWaiting[prof] = list
+            local nx = after(s)
             list[#list + 1] = { prof = prof, recipe = s.recipe, makeCount = planned, planned = planned,
-                                rank = rank, target = t.target, reagents = s.mats,
+                                rank = rank, target = t.target, stepTo = stepTo(s), nextRecipe = nx and nx.recipe,
+                                reagents = s.mats,
                                 unlearned = (known and not known[s.recipe]) or nil }
         end
         if n > 0 then
@@ -1118,11 +1293,14 @@ local function planProfession(prof, t, out)
             -- it's highlighted, and the details say why that many.
             local num = "|cffffd100" .. n .. "|r"
             local c = chance(prof, s, rank)
+            local from = spans[s] and spans[s][1] or rank
+            local nx = after(s)
             local details = {
-                string.format("%d takes %s %d -> %d: %s.", planned, prof, rank, t.target,
-                    c >= 1 and "each one gives a skill point while it's yellow"
-                    or "it's green now, so only some give a point (Flow counted on that)"),
-                "More than that won't raise the skill further for now, so it'd be wasted materials.",
+                string.format("%d takes %s %d -> %d: %s.", planned, prof, from, stepTo(s),
+                    c >= 1 and "each one gives a skill point while it's orange"
+                    or "it isn't orange, so only some give a point (Flow counted on that)"),
+                nx and string.format("Then the levelling guides switch to %s: past %d this one gives too little.", nx.recipe, stepTo(s))
+                    or "More than that won't raise the skill further for now, so it'd be wasted materials.",
             }
             if n < planned then
                 details[#details + 1] = string.format("You have materials for %d now; the rest comes after you gather more.", n)
@@ -1150,6 +1328,7 @@ local function planProfession(prof, t, out)
                   icon = profIcon(prof), station = s.station,
                   -- For the profession window hint (CraftHint.lua).
                   prof = prof, recipe = s.recipe, makeCount = n, planned = planned, rank = rank, target = t.target,
+                  stepTo = stepTo(s), nextRecipe = nx and nx.recipe,
                   text = s.recipe:find("^Smelt ") and string.format("%s x%s at a forge", s.recipe, num)
                       or string.format("Make %s x %s", num, s.recipe),
                   details = details,
@@ -1333,6 +1512,11 @@ local function planProfession(prof, t, out)
                   cost = SP.Price(id) and SP.Price(id) * n or nil,
                   text = string.format("Buy %d %s", n, name),
                   blockedBy = #pts == 0 and ("Flow doesn't know who sells " .. name) or nil })
+        elseif s and s.made then
+            -- You make it yourself (Heavy Grinding Stone for Green Iron Leggings).
+            add({ key = "need:" .. id, kind = "collect", points = { playerPoint() },
+                  text = string.format("Make %d %s (%s)", n, name, s.made),
+                  blockedBy = string.format("make %d %s first (%s)", n, name, s.made) })
         else
             add({ key = "need:" .. id, kind = "collect", points = { playerPoint() },
                   text = string.format("Get %d %s", n, name),
@@ -1440,11 +1624,13 @@ function SP:Explain()
     local any = false
     for prof, t in pairs(SP:Targets()) do
         any = true
-        local rank = A.Skill(prof)
-        ns:Print(string.format("%s %s -> %d%s", prof, tostring(rank), t.target, t.quest and (" (" .. t.quest .. ")") or ""))
+        local rank, max = A.Skill(prof)
+        local to = (max and max > 0) and math.min(t.target, max) or t.target
+        ns:Print(string.format("%s %s -> %d%s%s", prof, tostring(rank), to, to < t.target and (" (cap; wants " .. t.target .. ")") or "",
+            t.quest and (" (" .. t.quest .. ")") or ""))
         local g = ns:Get("profGuide", prof)
         if g and g.steps and rank then
-            local crafts, order = simulate(prof, g.steps, rank, t.target)
+            local crafts, order = simulate(prof, g.steps, rank, to)
             for _, s in ipairs(order) do
                 local mats = {}
                 for id, q in pairs(s.mats or {}) do
