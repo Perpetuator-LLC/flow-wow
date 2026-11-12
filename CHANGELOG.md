@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.35.174
+- **A quest in your log is always on your route.** Thunderhorn Cleansing and Stalk With The
+  Earthmother were in the log but not on the route: Flow dropped any objective it had no place
+  for. Now: an objective that's "do this at a place" (Cleanse the Thunderhorn Water Well) is
+  a stop at the place the quest data has for it; one the quest data has no place for goes to
+  the game's own marker for the quest when the game has one; and where neither knows, it's on
+  the list with a lock and the reason ("Flow doesn't know where: no spot for Pine Salve. Your
+  quest log says how"), instead of not being there at all. The same for a finished quest with
+  nowhere known to hand it in, and for a quest the quest data doesn't have.
+- **The class quest for a spell is always a stop.** Flow Improvements said "Get Bear Form
+  (class quest)" while the route never went there: the quests to pick up are chosen by zone
+  and level, and a class quest can fall outside both. The part of the chain you can pick up
+  now is worked out on its own and always put on the route ("Accept: Heeding the Call (Bear
+  Form)"), and the improvement names the quest and links to that stop. `/flow nav why` says
+  where each class quest stands.
+- **Upgrades at vendors.** Gear a vendor sells carries the same badge as your bags and quest
+  rewards: per spec, a green arrow up (better than what that spec wears), a red one down, or
+  a dash. When something for sale is better for the spec you level as, Flow says so once in
+  chat with the price.
+- **Journeyman Skinning: the trainer's word decides.** 0.35.173's explanation was wrong. Your
+  Skinning read fine (58 of 75); Flow kept the trainer on the route because classic's rule
+  says Journeyman is yours at skill 50 and level 10, and WoW: Forever asks for more. Flow now
+  reads what the trainer itself says about the next tier each time you open one (the level
+  and skill it asks for, the price, whether you can learn it) and goes by that: off the route
+  until you qualify, and until you can pay. Open the Skinning trainer once so it can read it.
+- **Click bindings: a false alarm fixed.** 0.35.171's check expected the buttons under other
+  names and called a working left and right click dead (also in Flow Improvements). Your
+  click bindings are the game's defaults; that wasn't why party frames ignored clicks.
+
 ## 0.35.173
 - **A third profession is no longer taken for unlearned.** WoW: Forever lets one character
   have more professions than the game's two profession slots (Herbalism, Blacksmithing and

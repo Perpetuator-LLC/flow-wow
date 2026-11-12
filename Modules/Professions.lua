@@ -196,18 +196,32 @@ local SHOW = 8
 -- The level each next tier needs (by the skill cap you're at now).
 local TIER_LEVEL = { [75] = 10, [150] = 20, [225] = 35 }
 
+-- Can the next tier be learned now? The classic rule (25 below the cap, and
+-- the level the tier needs), unless the trainer said otherwise (seenOf).
+function P.TierReady(name, rank, max, level, seenOf)
+    local seen = seenOf and seenOf(name, max) or nil
+    local SP = ns.skillPlan
+    if seen and SP and SP.Tier then
+        local tier = SP.Tier(name, rank, max, level, seen)
+        return tier ~= nil and tier.ready == true
+    end
+    return rank >= max - 25 and (level or 0) >= (TIER_LEVEL[max] or 0)
+end
+
 -- What to do next for the professions in a plan, primaries first, optional
 -- ones last. skill(name) -> rank, max (nil: not learned).
+--   seenOf(name, max) (optional): what that profession's trainer said the
+--   next tier asks for (SkillPlan SP.TierSeen), which beats the classic rule.
 --   -> { { name, kind = "learn" | "train", optional, text } }
-function P.NextSteps(plan, skill, level)
+function P.NextSteps(plan, skill, level, seenOf)
     local steps = {}
     for i, p in ipairs(plan or {}) do
         local rank, max = skill(p.name)
         local step
         if not rank then
             step = { name = p.name, kind = "learn", text = "Learn " .. p.name }
-        elseif max and max > 0 and max < 300 and rank >= max - 25 and (level or 0) >= (TIER_LEVEL[max] or 0) then
-            -- The trainer teaches the next tier from 25 below the cap.
+        elseif max and max > 0 and max < 300 and P.TierReady(p.name, rank, max, level, seenOf) then
+            -- The trainer teaches the next tier from 25 below the cap (or from what it told you itself).
             step = { name = p.name, kind = "train", text = string.format("Train the next %s tier (%d/%d)", p.name, rank, max) }
         end
         if step then
@@ -351,7 +365,7 @@ local function buildCard()
 end
 
 function P:ShowReminder(steps)
-    steps = steps or P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, UnitLevel("player"))
+    steps = steps or P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, UnitLevel("player"), ns.skillPlan and ns.skillPlan.TierSeen)
     if #steps == 0 then return false end
     remindCard = remindCard or buildCard()
     local f = remindCard
@@ -398,7 +412,7 @@ local remindedOnce, townsSeen, waiting = false, {}, nil
 
 local function remind(why)
     local level = UnitLevel("player")
-    local steps = P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, level)
+    local steps = P.NextSteps(ns:ProfessionPlan(), ns.api.Skill, level, ns.skillPlan and ns.skillPlan.TierSeen)
     local key = P.StepsKey(steps)
     local d = ns.db.prof
     if why == "change" and key == (d.lastKey or "") then return end

@@ -111,8 +111,29 @@ local function questGoals(db, q, goals, opts)
     local function cant(why)
         if opts.unplaced then opts.unplaced[#opts.unplaced + 1] = { id = q.id, title = q.title, why = why } end
     end
+    -- The game's own marker for one of your quests ({ map, x, y } or nil):
+    -- where Flow goes when its quest data has no place (opts.waypoint: tests).
+    local waypoint = opts.waypoint or ns.quests.GameWaypoint or function() return nil end
+    local missing = {}   -- unfinished objectives with no place: { key, text, why, kind }
     local quest = call(db, "GetQuest", q.id)
-    if not quest then cant("Questie doesn't know this quest (a WoW: Forever one?), so Flow has no place for it") return end
+    if not quest then
+        cant("Questie doesn't know this quest (a WoW: Forever one?), so Flow has no place for it")
+        -- Still on your route: at the game's marker, else listed with the reason.
+        local key = prefix .. q.id .. ":wp"
+        if not opts.who and not skip(key) then
+            local wp = waypoint(q.id)
+            goals[#goals + 1] = {
+                key = key, points = wp and { wp } or {}, title = q.title, kind = q.complete and "turnin" or "use",
+                area = (wp and not q.complete) or nil,
+                text = (q.complete and "Turn in: " or "") .. (q.title or "a quest"),
+                details = { "Quest: " .. (q.title or "?"),
+                            wp and "Flow's quest data doesn't have this quest: the arrow goes to the game's own marker for it."
+                                or "Flow's quest data doesn't have this quest." },
+                blockedBy = (not wp) and "Flow doesn't know where: its quest data doesn't have this quest (a WoW: Forever one?). Your quest log says how." or nil,
+            }
+        end
+        return
+    end
     local title = q.title or quest.name
     -- Where the quest is handed in. For unfinished quests this is a later
     -- stop that the planner puts after the objectives (deps), so it can
@@ -138,6 +159,17 @@ local function questGoals(db, q, goals, opts)
     if not skip(turnIn.key) then goals[#goals + 1] = turnIn end
     if #turnIn.points == 0 then
         cant("Flow doesn't know where it's handed in (" .. (who or "no NPC or object in Questie") .. ")")
+        -- A finished quest with nowhere known to hand it in: the game's own
+        -- marker, else listed with the reason ("Searching for the Lost Satchel").
+        if q.complete and not opts.who then
+            local wp = waypoint(q.id)
+            if wp then
+                turnIn.points = { wp }
+                table.insert(turnIn.details, "Flow's quest data has no place for it: the arrow goes to the game's own marker.")
+            else
+                turnIn.blockedBy = "Flow doesn't know where it's handed in" .. (who and (" (" .. who .. ")") or "") .. ". Your quest log says who to."
+            end
+        end
     end
     if q.complete then return end
     for i, obj in ipairs(q.objectives) do
@@ -148,6 +180,7 @@ local function questGoals(db, q, goals, opts)
         local key = prefix .. q.id .. ":" .. i
         if not obj.finished and not od and not skillObj then
             cant(string.format("objective %d (%s): Questie has no data for it", i, tostring(obj.text or "?")))
+            missing[#missing + 1] = { key = key, text = obj.text, why = "Questie has no data for it", kind = "use" }
         end
         if not obj.finished and od and not skillObj then
             local spawns, verb, what, elite = {}, nil, nil, false
@@ -160,6 +193,11 @@ local function questGoals(db, q, goals, opts)
                 if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
             elseif od.Type == "object" then
                 what = objectSpawns(db, spawns, od.Id); verb = "Use"
+            elseif od.Type == "event" and type(od.Coordinates) == "table" then
+                -- "Cleanse the Thunderhorn Water Well": something to do at a
+                -- place. Questie has the place (the quest's trigger spot).
+                spawns[#spawns + 1] = od.Coordinates
+                verb, what = "Go to", od.Text or obj.text
             elseif od.Type == "item" then
                 local item = call(db, "GetItem", od.Id)
                 verb = "Collect"; what = item and item.name
@@ -201,9 +239,46 @@ local function questGoals(db, q, goals, opts)
                     }
                 end
             elseif verb then
-                cant(string.format("objective %d (%s): Questie has no spot for %s", i, tostring(obj.text or "?"), tostring(what or "it")))
+                local why = string.format("Questie has no spot for %s", tostring(what or "it"))
+                cant(string.format("objective %d (%s): %s", i, tostring(obj.text or "?"), why))
+                missing[#missing + 1] = { key = key, text = obj.text, why = why, kind = verb == "Collect" and "collect" or "use" }
             elseif od then
+                local why = string.format("it's a kind Flow can't place (%s)", tostring(od.Type))
                 cant(string.format("objective %d (%s): a kind Flow can't place (%s)", i, tostring(obj.text or "?"), tostring(od.Type)))
+                missing[#missing + 1] = { key = key, text = obj.text, why = why, kind = "use" }
+            end
+        end
+    end
+    -- Objectives Flow couldn't place still belong on your route ("I don't see
+    -- Thunderhorn Cleansing in my route but I have it", 0.35.174): at the
+    -- game's own marker for the quest where it has one, else listed with the
+    -- lock and the reason, so the quest never just isn't there. (Your own
+    -- quests only: a party member's has no marker of yours.)
+    if #missing > 0 and not opts.who then
+        local wp = waypoint(q.id)
+        if wp then
+            local key = prefix .. q.id .. ":wp"
+            for _ = 1, #missing do table.insert(turnIn.deps, key) end
+            if not skip(key) then
+                local d = { "Quest: " .. (title or "?") }
+                for _, m in ipairs(missing) do d[#d + 1] = "Objective: " .. (ns.ProgressText(m.text) or "?") end
+                d[#d + 1] = "Flow's quest data has no place for this: the arrow goes to the game's own marker for the quest."
+                goals[#goals + 1] = {
+                    key = key, points = { wp }, title = title, level = quest.level, kind = "use", area = true,
+                    text = (title and (title .. ": ") or "") .. (ns.ProgressText(missing[1].text) or "see your quest log"),
+                    details = d,
+                }
+            end
+        else
+            for _, m in ipairs(missing) do
+                if not skip(m.key) then
+                    goals[#goals + 1] = {
+                        key = m.key, points = {}, title = title, level = quest.level, kind = m.kind,
+                        text = (title and (title .. ": ") or "") .. (ns.ProgressText(m.text) or "an objective"),
+                        details = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(m.text) or "?") },
+                        blockedBy = "Flow doesn't know where: " .. m.why .. ". Your quest log says how.",
+                    }
+                end
             end
         end
     end
@@ -236,10 +311,40 @@ end
 
 -- Quests you haven't picked up yet that are still worth doing (from the
 -- missed-quests scan: zones you've quested in, doable, not done).
+-- Class quests that teach a spell (Bear Form): the part of the chain you can
+-- pick up now is always a stop, whatever the zone and level rules below say
+-- about it (QuestData.lua Q:ClassQuestSteps). Pure: adds to `goals` (or marks
+-- the stop that's there). points(spawns) -> map points.
+local function addClassQuests(goals, steps, points)
+    for _, e in ipairs(steps or {}) do
+        local q = e.quest
+        if e.state == "accept" and q and q.id then
+            local key, found = "pickup:" .. q.id, nil
+            for _, g in ipairs(goals) do if g.key == key then found = g end end
+            local why = string.format("Your class quest: it leads to %s.", e.spell)
+            if found then
+                found.weight, found.classQuest = 0.7, e.spell
+                table.insert(found.details, 1, why)
+            else
+                local who = q.starter and q.starter.name
+                local pts = q.starter and q.starter.spawns and points(q.starter.spawns) or {}
+                goals[#goals + 1] = {
+                    key = key, weight = 0.7, level = q.level, classQuest = e.spell,
+                    npcs = who and { who } or nil, kind = "accept", points = pts, title = q.name,
+                    text = "Accept: " .. (q.name or "your class quest") .. " (" .. e.spell .. ")",
+                    details = { why, string.format("Level %d quest from %s.", q.level or 0, who or "its giver") },
+                    blockedBy = #pts == 0 and ("Flow doesn't know where " .. (who or "its giver") .. " stands") or nil,
+                }
+            end
+        end
+    end
+    return goals
+end
+ns.quests.AddClassQuests = addClassQuests   -- (tests)
+
 ns:Register("navGoal", "pickups", {
     collect = function()
         local list = ns.quests:Missed()
-        if not list then return nil end
         -- Quest log full: picking up more is pointless.
         if ns.quests.FreeSlots and ns.quests:FreeSlots() == 0 then return nil end
         local level = UnitLevel("player")
@@ -254,7 +359,7 @@ ns:Register("navGoal", "pickups", {
         -- quests and found them very hard; a level-1 one was sent 700 yd for one.)
         local ceiling = level + ns.quests.HARD_ABOVE - 1
         local goals = {}
-        for _, q in ipairs(list) do
+        for _, q in ipairs(list or {}) do
             if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
                 and not (ns.dungeons and ns.dungeons:Claims(q.id)) then
                 local g = {
@@ -274,6 +379,15 @@ ns:Register("navGoal", "pickups", {
                 goals[#goals + 1] = g
             end
         end
+        if ns.quests.ClassQuestSteps then
+            local ok, steps = pcall(ns.quests.ClassQuestSteps, ns.quests)
+            if ok then
+                ns.quests.classSteps = steps   -- (/flow nav why)
+                addClassQuests(goals, steps, spawnPoints)
+            end
+        end
+        -- (Nothing worked out yet and no class quest: no answer, as before.)
+        if not list and #goals == 0 then return nil end
         return goals
     end,
 })

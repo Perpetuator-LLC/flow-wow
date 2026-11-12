@@ -91,7 +91,11 @@ Flow for WoW is a separate project from Flow Engine.
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
   entrances so it sends you in through the door, not over the top. A quest stop says when it's
   an escort (its giver may be away walking another player out, for a few minutes) or when the
-  giver is deep in a cave (The Longwalkers). Distances come with a travel time (by air when a
+  giver is deep in a cave (The Longwalkers). A quest in your log is always on the route: where
+  the quest data has no place for an objective, the stop goes to the game's own marker for the
+  quest, or is listed with a lock and the reason. A class quest that teaches a spell (Bear Form)
+  is always a stop, whatever zone it starts in. Profession trainers are read when you open
+  them, so the next tier is only on the route once that trainer says you can learn it. Distances come with a travel time (by air when a
   flight is quicker; Flow learns flight masters as you fly). Optional, off by default: a faint
   profession arrow (profession stops on a route of their own, behind the main arrow), and
   "Finish the area you're in first". Profession plans use what's in your bags and bank and smelt
@@ -207,6 +211,8 @@ Flow for WoW is a separate project from Flow Engine.
   for that role (Equipment Manager or `/flow gear save`). Weapon speed counts for each spec.
 - **Quest reward badges**: the same spec icons and arrows on quest rewards, or a gold coin on
   the best one to sell.
+- **Upgrades at vendors**: the same badge on gear a vendor sells, and one line in chat when
+  something for sale is better for the spec you level as, with its price.
 - **Bag icons**: spec marks per role, the (o) marker on an item your current stop wants you to
   use, gold coin to sell, AH, DE, a quest "!" for items your quests need, and profession icons
   for materials and tools. The tooltip lists every reason to keep an item (e.g. "Linen for

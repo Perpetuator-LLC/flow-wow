@@ -24,6 +24,15 @@ ns.clickCheck = CC
 
 local BUTTON_NAME = { BUTTON1 = "Left button", BUTTON2 = "Right button", BUTTON3 = "Middle button",
                       BUTTON4 = "Button 4", BUTTON5 = "Button 5" }
+-- The game names the buttons "LeftButton", "RightButton"... here (0.35.171
+-- expected "BUTTON1" and so called a perfectly good left click dead).
+local BUTTON_ID = { LeftButton = "BUTTON1", RightButton = "BUTTON2", MiddleButton = "BUTTON3",
+                    Button4 = "BUTTON4", Button5 = "BUTTON5" }
+-- Pure: either spelling -> "BUTTON1".
+function CC.Button(name)
+    if type(name) ~= "string" then return name end
+    return BUTTON_ID[name] or name:upper()
+end
 -- (The game's own numbers: Enum.ClickBindingType and Enum.ClickBindingInteraction.)
 local TYPE = { SPELL = 1, MACRO = 2, INTERACTION = 3, PET = 4 }
 local INTERACTION = { [1] = "Target", [2] = "Open menu" }
@@ -50,7 +59,7 @@ function CC.Problems(bindings)
     if type(bindings) ~= "table" or #bindings == 0 then return out end
     local plain, anywhere = {}, {}
     for _, b in ipairs(bindings) do
-        if (b.modifiers or 0) == 0 and b.button then plain[b.button] = b end
+        if (b.modifiers or 0) == 0 and b.button then plain[CC.Button(b.button)] = b end
         if b.type == TYPE.INTERACTION then anywhere[b.actionID] = b end
     end
     local function look(button, id, name)
@@ -87,7 +96,7 @@ function CC.Report(bindings, spellName, modText)
     end
     for _, b in ipairs(bindings) do
         out[#out + 1] = string.format("%s%s: %s", modText and modText(b.modifiers or 0) or "",
-            BUTTON_NAME[b.button] or tostring(b.button), CC.What(b, spellName))
+            BUTTON_NAME[CC.Button(b.button)] or tostring(b.button), CC.What(b, spellName))
     end
     local problems = CC.Problems(bindings)
     for _, p in ipairs(problems) do out[#out + 1] = "!! " .. p end

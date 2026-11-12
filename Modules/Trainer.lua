@@ -104,12 +104,78 @@ ns:PerCharacter("trainer", { adopt = function(old, ctx)
     return nil
 end })
 
+-------------------------------------------------------------------------------
+-- What a profession trainer asks for the next tier (Journeyman, Expert,
+-- Artisan). Flow's own numbers are classic's (skill 50 and level 10 for
+-- Journeyman); WoW: Forever's differ, and the only place that says what they
+-- are is the trainer's own list. So each time you open a profession trainer
+-- the next tier's line is read: the level and skill it asks for, its price,
+-- and whether you can learn it now. The route goes by that from then on
+-- (SkillPlan SP.Tier): no more trips to a trainer who'll only say "not yet".
+-------------------------------------------------------------------------------
+
+-- Pure: the tier's line among a trainer's services ({ name, sub, category }).
+function TR.TierService(services, tierName)
+    if not tierName then return nil end
+    for _, s in ipairs(services or {}) do
+        if s.category ~= "used" and s.category ~= "header"
+            and ((s.name or ""):find(tierName, 1, true) or (s.sub or ""):find(tierName, 1, true)) then
+            return s
+        end
+    end
+end
+
+-- Pure: "level 50 and Skinning 125" from what a tier asks for.
+function TR.TierAsks(prof, level, skill)
+    local bits = {}
+    if (level or 0) > 0 then bits[#bits + 1] = "level " .. level end
+    if (skill or 0) > 0 then bits[#bits + 1] = prof .. " " .. skill end
+    return #bits > 0 and table.concat(bits, " and ") or nil
+end
+
+function TR.ReadTier()
+    if not GetNumTrainerServices then return end
+    local prof = ns.places and ns.places.TrainerProfession and ns.places.TrainerProfession()
+    if not prof then return end
+    local rank, max = ns.api.Skill(prof)
+    local SP = ns.skillPlan
+    local tierName = SP and SP.TierName and SP.TierName(max)
+    if not (rank and tierName) then return end
+    local list = {}
+    for i = 1, GetNumTrainerServices() do
+        local name, category, sub = serviceInfo(i)
+        local skill = 0
+        if GetTrainerServiceSkillReq then
+            local ok, _, need = pcall(GetTrainerServiceSkillReq, i)
+            if ok and type(need) == "number" then skill = need end
+        end
+        list[#list + 1] = { name = name, sub = sub, category = category, skill = skill,
+                            level = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0,
+                            cost = GetTrainerServiceCost and GetTrainerServiceCost(i) or 0 }
+    end
+    local s = TR.TierService(list, tierName)
+    if not s then return end
+    ns.db.prof.tierSeen = ns.db.prof.tierSeen or {}
+    local was = ns.db.prof.tierSeen[prof]
+    ns.db.prof.tierSeen[prof] = { cap = max, name = s.name, category = s.category, level = s.level or 0, skill = s.skill or 0,
+                                  cost = s.cost or 0, atLevel = UnitLevel("player"), atRank = rank }
+    if was and was.cap == max and was.category == s.category and was.level == (s.level or 0) and was.skill == (s.skill or 0) then return end
+    local asks = TR.TierAsks(prof, s.level, s.skill)
+    ns:Log("trainer", string.format("%s %s: %s at the trainer; asks for %s; costs %s", tierName, prof, tostring(s.category),
+        asks or "nothing Flow can read", tostring(s.cost)))
+    if s.category == "unavailable" then
+        ns:Print(string.format("%s %s isn't yours to learn yet%s. Flow takes it off your route until it is.", tierName, prof,
+            asks and (": the trainer asks for " .. asks) or ""))
+    end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a profession trainer read") end
+end
+
 ns:On("TRAINER_SHOW", function()
     -- Trainer list fills in a moment after the window opens.
-    C_Timer.After(0.2, function() pcall(listAvailable); pcall(record) end)
+    C_Timer.After(0.2, function() pcall(listAvailable); pcall(record); pcall(TR.ReadTier) end)
 end)
 
-ns:On("TRAINER_UPDATE", function() pcall(record) end)
+ns:On("TRAINER_UPDATE", function() pcall(record); pcall(TR.ReadTier) end)
 
 ns:On("PLAYER_LEVEL_UP", function(level)
     ns:Print(string.format("level %d! Visit your class trainer: you may have new spells or ranks to learn.", level))

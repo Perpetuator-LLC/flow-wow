@@ -3947,6 +3947,9 @@ ns.commands.nav = function(arg)
         for _, u in ipairs(ns.quests.unplaced or {}) do
             print(string.format("  can't place: %s [%s] - %s", tostring(u.title), tostring(u.id), u.why))
         end
+        for _, e in ipairs(ns.quests.classSteps or {}) do
+            print("  class quest: " .. ns.quests.ClassQuestLine(e))
+        end
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
         print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")

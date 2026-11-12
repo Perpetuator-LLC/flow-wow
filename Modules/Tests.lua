@@ -3382,7 +3382,7 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
     -- A level-5 quest at level 2 (3 above you): hard, planned after the easy ones.
     local hardGoals = {}
     ns.quests.QuestGoals(db, q, hardGoals, { level = 2 })
-    if hardGoals[2] then
+    if hardGoals[2] and not hardGoals[2].blockedBy then   -- (a stop with no place is listed, locked: 0.35.174)
         t:ok(hardGoals[2].hard and hardGoals[2].weight == 1.6, "3 levels above you: hard, planned later")
         local easy = {}
         ns.quests.QuestGoals(db, q, easy, { level = 3 })
@@ -7121,4 +7121,240 @@ ns:Register("test", "professions: a profession's spell is proof only when the ga
     t:eq(A.SpellProves(true, nil), true, "its name resolves and the game can't be asked: yours")
     t:eq(A.SpellProves(true, false), false, "its name resolves but the game says you don't know it: not proof")
     t:eq(A.SpellProves(false, nil), false, "its name doesn't resolve: not yours")
+end)
+
+ns:Register("test", "route: a quest in your log is always on the route, even where Flow has no place for it", function(t)
+    -- "I don't see the Thunderhorn Cleansing in my route but I have it, same
+    -- with Stalk With The Earthmother"
+    local db = {
+        GetQuest = function(id)
+            if id == 758 then return { name = "Thunderhorn Cleansing", level = 8, Finisher = { NPC = { 2 } },
+                ObjectiveData = { { Type = "event", Text = "Cleanse the Thunderhorn Water Well", Coordinates = { [12] = { { 44, 45 } } } } } } end
+            if id == 76160 then return { name = "Stalk With The Earthmother", level = 10, Finisher = { NPC = { 2 } },
+                ObjectiveData = { { Type = "item", Id = 9 } } } end
+            if id == 5722 then return { name = "Searching for the Lost Satchel", level = 13, Finisher = { NPC = { 3 } }, ObjectiveData = {} } end
+        end,
+        GetNPC = function(id)
+            if id == 2 then return { name = "Mull Thunderhorn", spawns = { [12] = { { 42, 60 } } } } end
+            if id == 3 then return { name = "Maur Grimtotem" } end   -- (no place known)
+        end,
+        GetItem = function(id) if id == 9 then return { name = "Pine Salve" } end end,
+    }
+    local function byKey(goals)
+        local out = {}
+        for _, g in ipairs(goals) do out[g.key] = g end
+        return out
+    end
+    local none = function() return nil end
+    local marker = function() return { map = 1412, x = 0.5, y = 0.5 } end
+
+    -- An event objective: Questie has its place.
+    local goals = {}
+    ns.quests.QuestGoals(db, { id = 758, title = "Thunderhorn Cleansing", complete = false,
+        objectives = { { text = "Cleanse the Thunderhorn Water Well", finished = false } } }, goals, { waypoint = none })
+    local g = byKey(goals)["758:1"]
+    if g and not g.blockedBy then
+        t:ok(#g.points > 0 and g.text:find("Cleanse the Thunderhorn Water Well", 1, true) ~= nil,
+            "an event objective is a stop at the place Questie has for it")
+        local turn = byKey(goals)["758:done"]
+        t:ok(turn and turn.deps[1] == "758:1", "and its turn-in waits for it")
+    else
+        t:ok(g ~= nil, "(no map for the test zone here: the objective is listed without a place)")
+    end
+
+    -- An item nobody knows the source of: listed with the lock and the reason...
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
+        objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = none })
+    g = byKey(goals)["76160:1"]
+    t:ok(g ~= nil, "an objective Flow can't place is still a stop on the list")
+    t:ok(g and g.blockedBy and g.blockedBy:find("Questie has no spot for Pine Salve", 1, true) ~= nil, "with the reason: " .. tostring(g and g.blockedBy))
+    t:ok(g and g.text:find("Stalk With The Earthmother", 1, true) ~= nil, "and the quest's name")
+    -- ...or placed where the game itself marks the quest.
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
+        objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = marker })
+    g = byKey(goals)["76160:wp"]
+    t:ok(g and g.points[1] and g.points[1].map == 1412 and not g.blockedBy, "the game marks the quest: the stop goes there")
+    t:eq(byKey(goals)["76160:1"], nil, "and it isn't listed twice")
+    local turnIn = byKey(goals)["76160:done"]
+    t:ok(turnIn and turnIn.deps[1] == "76160:wp", "its turn-in waits for it")
+    -- A party member's quest: neither (the marker is for your own).
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
+        objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = marker, prefix = "help:", who = "Bob" })
+    t:eq(byKey(goals)["help:76160:wp"], nil, "a party member's unplaceable objective: no stop of yours")
+
+    -- A finished quest with no known place to hand it in.
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = none })
+    g = byKey(goals)["5722:done"]
+    t:ok(g and g.blockedBy and g.blockedBy:find("Maur Grimtotem", 1, true) ~= nil, "nowhere known to hand it in: listed, with who to")
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = marker })
+    g = byKey(goals)["5722:done"]
+    t:ok(g and #g.points == 1 and not g.blockedBy, "the game marks where: the turn-in goes there")
+
+    -- A quest the quest data doesn't have at all (one of WoW: Forever's own).
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 99999, title = "A Forever Quest", complete = false, objectives = {} }, goals, { waypoint = none })
+    g = byKey(goals)["99999:wp"]
+    t:ok(g and g.blockedBy ~= nil and g.text == "A Forever Quest", "unknown to the quest data: listed with the reason")
+    goals = {}
+    ns.quests.QuestGoals(db, { id = 99999, title = "A Forever Quest", complete = true, objectives = {} }, goals, { waypoint = marker })
+    g = byKey(goals)["99999:wp"]
+    t:ok(g and #g.points == 1 and g.text == "Turn in: A Forever Quest", "the game marks it: a stop there")
+    t:ok(type(ns.quests.GameWaypoint) == "function" and (pcall(ns.quests.GameWaypoint, 99999)), "the game's marker reads without error")
+end)
+
+ns:Register("test", "route: the class quest for a spell is always a stop (Bear Form)", function(t)
+    -- "Flow Improvements shows I need Bear Form, the level 10 druid quest,
+    -- but the Flow Tracker isn't having me go there"
+    local Q = ns.quests
+    -- Heeding the Call -> Moonglade -> Great Bear Spirit -> Back to Thunder Bluff -> Body and Heart.
+    local chain = {
+        [6002] = { id = 6002, name = "Body and Heart", raw = { preQuestSingle = { 5932 } } },
+        [5932] = { id = 5932, name = "Back to Thunder Bluff", raw = { preQuestSingle = { 5930 } } },
+        [5930] = { id = 5930, name = "Great Bear Spirit", raw = { preQuestSingle = { 5922 } } },
+        [5922] = { id = 5922, name = "Moonglade", raw = { preQuestSingle = { 5928 } } },
+        [5928] = { id = 5928, name = "Heeding the Call", level = 10, raw = {},
+                   starter = { name = "Turak Runetotem", spawns = { [12] = { { 42, 60 } } } } },
+    }
+    local function get(id) return chain[id] end
+    local function state(doneSet, logSet)
+        return Q.ChainStep(6002, get, function(id) return doneSet[id] == true end, function(id) return logSet[id] == true end)
+    end
+    local s, q = state({}, {})
+    t:ok(s == "accept" and q and q.id == 5928, "nothing done yet: pick up the first part, Heeding the Call")
+    s, q = state({ [5928] = true }, {})
+    t:ok(s == "accept" and q and q.id == 5922, "the first part done: the next one")
+    s, q = state({ [5928] = true }, { [5922] = true })
+    t:ok(s == "inlog" and q and q.id == 5922, "a part in your log: its own stops take you on")
+    s, q = state({ [5928] = true, [5922] = true, [5930] = true, [5932] = true }, {})
+    t:ok(s == "accept" and q and q.id == 6002, "all but the last done: the quest that teaches the spell")
+    s = state({ [6002] = true }, {})
+    t:eq(s, "done", "the teaching quest done: nothing to pick up")
+    t:eq((Q.ChainStep(7777, get, function() return false end, function() return false end)), "unknown", "a quest the data doesn't have: unknown")
+    -- Two quests that can come first (one a faction): the one meant for you.
+    local two = {
+        [10] = { id = 10, name = "Teach", raw = { preQuestSingle = { 11, 12 } } },
+        [11] = { id = 11, name = "Alliance start", raw = { side = "A" } },
+        [12] = { id = 12, name = "Horde start", raw = { side = "H" } },
+    }
+    s, q = Q.ChainStep(10, function(id) return two[id] end, function() return false end, function() return false end,
+        function(x) return x.raw.side == "H" end)
+    t:ok(s == "accept" and q and q.id == 12, "of two ways in, the one for your side")
+
+    -- On the route: a stop of its own when the pickups didn't have it...
+    local goals = {}
+    local onMap = function() return { { map = 1412, x = 0.4, y = 0.6 } } end
+    local nowhere = function() return {} end
+    Q.AddClassQuests(goals, { { spell = "Bear Form", state = "accept", quest = chain[5928] } }, onMap)
+    t:eq(#goals, 1, "the class quest's first part is a stop")
+    t:eq(goals[1] and goals[1].key, "pickup:5928", "under the pickup's own key")
+    t:ok(goals[1] and goals[1].text == "Accept: Heeding the Call (Bear Form)" and goals[1].details[1]:find("leads to Bear Form", 1, true) ~= nil,
+        "named, and saying what it leads to")
+    -- ...and the same stop, marked, when they did.
+    goals = { { key = "pickup:5928", weight = 0.9, details = { "Level 10 quest." } } }
+    Q.AddClassQuests(goals, { { spell = "Bear Form", state = "accept", quest = chain[5928] } }, nowhere)
+    t:ok(#goals == 1 and goals[1].classQuest == "Bear Form" and goals[1].weight == 0.7, "already among the pickups: marked, not added twice")
+    -- No place known for its giver: listed with the reason.
+    goals = {}
+    Q.AddClassQuests(goals, { { spell = "Bear Form", state = "accept", quest = chain[5928] } }, nowhere)
+    t:ok(goals[1] and goals[1].blockedBy and goals[1].blockedBy:find("Turak Runetotem", 1, true) ~= nil, "no place for its giver: listed, saying who")
+    goals = {}
+    Q.AddClassQuests(goals, { { spell = "Bear Form", state = "inlog", quest = chain[5922] }, { spell = "Aquatic Form", state = "unknown" } }, nowhere)
+    t:eq(#goals, 0, "in your log, or unknown to the data: no pickup")
+    -- Flow Improvements links to it, and /flow nav why says where it stands.
+    local key, text = Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "accept", quest = chain[5928] } })
+    t:eq(key, "pickup:5928", "the improvement's link is the stop")
+    t:eq(text, "Heeding the Call from Turak Runetotem", "and it says which quest, from whom")
+    t:eq((Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "inlog", quest = chain[5922] } })), nil, "nothing to pick up: no link")
+    t:eq(Q.ClassQuestLine({ spell = "Bear Form", state = "accept", quest = chain[5928] }),
+        "Bear Form: pick up \"Heeding the Call\" from Turak Runetotem", "the route check says it")
+    t:ok(Q.ClassQuestLine({ spell = "Bear Form", state = "unknown" }):find("doesn't have its class quest", 1, true) ~= nil, "or that the data doesn't have it")
+    local ok, steps = pcall(Q.ClassQuestSteps, Q)
+    t:ok(ok and type(steps) == "table", "your own class quests read without error")
+end)
+
+ns:Register("test", "clicks: the game's own button names count (no false alarm)", function(t)
+    -- 0.35.171 expected "BUTTON1"; the game says "LeftButton", so a good left
+    -- click was reported dead (and Flow Improvements said to fix it).
+    local CC = ns.clickCheck
+    local asTheGameSays = { { type = 3, actionID = 1, button = "LeftButton", modifiers = 0 },
+                            { type = 3, actionID = 2, button = "RightButton", modifiers = 0 } }
+    t:eq(#CC.Problems(asTheGameSays), 0, "LeftButton targets and RightButton opens the menu: nothing wrong")
+    t:eq(CC.Button("LeftButton"), "BUTTON1", "LeftButton is the left button")
+    t:eq(CC.Button("BUTTON2"), "BUTTON2", "the other spelling stays")
+    local report = table.concat(CC.Report(asTheGameSays), "\n")
+    t:ok(report:find("Left button: Target", 1, true) ~= nil and report:find("!!", 1, true) == nil, "the report reads plainly, with no warning: " .. report)
+    local moved = { { type = 1, actionID = 5185, button = "LeftButton", modifiers = 1 } }
+    t:eq(#CC.Problems(moved), 2, "a spell on Shift + LeftButton and nothing on the plain clicks: still spotted")
+end)
+
+ns:Register("test", "vendor: gear for sale shows whether it's an upgrade, per spec", function(t)
+    -- "when I go to an item vendor it should show me if the items are upgrades"
+    local MM = ns.merchantMarks
+    if not MM then t:ok(false, "MerchantMarks.lua not loaded") return end
+    t:eq(MM.Index(1, 10, 3), 3, "page 1, button 3: the vendor's 3rd item")
+    t:eq(MM.Index(2, 10, 3), 13, "page 2, button 3: the 13th")
+    local better = { canUse = true, diffs = { dps = 3.2, heal = -1, tank = 0 } }
+    t:ok(MM.Diffs(better) == better.diffs, "gear you can use: a badge with each spec's difference")
+    t:eq(MM.Diffs({ canUse = false }), nil, "gear you can't use: no badge")
+    t:eq(MM.Diffs(nil), nil, "not gear (or not loaded yet): no badge")
+    t:near(MM.UpgradeFor(better, "dps") or 0, 3.2, 1e-6, "better for the spec you level as: an upgrade")
+    t:eq(MM.UpgradeFor(better, "heal"), nil, "worse for another spec: not one")
+    t:eq(MM.UpgradeFor(better, "tank"), nil, "the same: not one")
+    local money = function(c) return c .. "c" end
+    t:eq(MM.Line({}, "DPS", money), nil, "nothing better for sale: nothing said")
+    t:eq(MM.Line({ { link = "[Staff]", gain = 3.2, price = 240, afford = true } }, "DPS", money),
+        "for sale here, better than what you wear: [Staff] (+3 DPS, 240c)", "an upgrade you can pay for")
+    t:eq(MM.Line({ { link = "[Staff]", gain = 3.2, price = 900, afford = false } }, "DPS", money),
+        "for sale here, better than what you wear: [Staff] (+3 DPS, 900c, more than you have)", "one you can't pay for yet")
+    -- With no vendor open, a look does nothing (and doesn't error).
+    t:ok(pcall(MM._update), "no vendor open: nothing happens")
+end)
+
+ns:Register("test", "professions: the trainer's own word on the next tier beats the classic rule", function(t)
+    -- "journeyman skinning needs level 50 and I don't have it but it is
+    -- taking me there": Skinning was 58 of 75 at level 12, enough for
+    -- classic's Journeyman (skill 50, level 10), so Flow kept the trainer on
+    -- the route. What the trainer says now decides.
+    local SP, TR, P = ns.skillPlan, ns.trainer, ns.professions
+    local classic = SP.Tier("Skinning", 58, 75, 12)
+    t:ok(classic and classic.ready, "never looked at the trainer: classic's rule (skill 50, level 10)")
+    local seen = { cap = 75, category = "unavailable", level = 50, skill = 50, cost = 500, atLevel = 12, atRank = 58 }
+    local tier = SP.Tier("Skinning", 58, 75, 12, seen)
+    t:ok(tier and not tier.ready and tier.level == 50, "the trainer asks for level 50: not on the route at level 12")
+    t:eq(tier and tier.cost, 500, "its price is remembered (the route waits until you can pay)")
+    t:ok(SP.Tier("Skinning", 58, 75, 50, seen).ready, "at level 50: back on the route")
+    -- Red at the trainer for a reason it didn't name: wait for a level or five skill points.
+    local red = { cap = 75, category = "unavailable", level = 0, skill = 0, atLevel = 12, atRank = 58 }
+    tier = SP.Tier("Skinning", 58, 75, 12, red)
+    t:ok(tier and not tier.ready and tier.wait ~= nil, "red at the trainer, no reason Flow could read: off the route for now")
+    t:ok(SP.Tier("Skinning", 58, 75, 13, red).ready, "a level later: worth another look")
+    t:ok(SP.Tier("Skinning", 63, 75, 12, red).ready, "or five skill points later")
+    local green = { cap = 75, category = "available", level = 10, skill = 50, cost = 500, atLevel = 12, atRank = 58 }
+    t:ok(SP.Tier("Skinning", 58, 75, 12, green).ready, "available at the trainer: on the route")
+    -- A book-taught tier isn't the trainer's to say.
+    t:eq(SP.Tier("Cooking", 130, 150, 20, { cap = 150, category = "unavailable", level = 60 }).how, "book", "Expert Cooking is a book: unchanged")
+    t:eq(SP.TierName(75), "Journeyman", "the tier after a cap of 75")
+    -- Reading the trainer's list.
+    local services = {
+        { name = "Apprentice Skinner", category = "used" },
+        { name = "Journeyman Skinner", category = "unavailable", level = 50, skill = 50, cost = 500 },
+    }
+    local s = TR.TierService(services, "Journeyman")
+    t:ok(s and s.level == 50, "the tier's line is found by its name")
+    t:eq(TR.TierService({ { name = "Skinning", sub = "Journeyman", category = "available" } }, "Journeyman").category, "available",
+        "or by its rank text")
+    t:eq(TR.TierService({ { name = "Journeyman Skinner", category = "used" } }, "Journeyman"), nil, "one you've learned already: not it")
+    t:eq(TR.TierService(services, nil), nil, "no next tier: nothing")
+    t:eq(TR.TierAsks("Skinning", 50, 50), "level 50 and Skinning 50", "what it asks for, in words")
+    t:eq(TR.TierAsks("Skinning", 0, 0), nil, "nothing Flow could read: nothing to say")
+    -- The reminder card goes by it too.
+    local function skill() return 58, 75 end
+    t:eq(#P.NextSteps({ { name = "Skinning" } }, skill, 12), 1, "the classic rule: train the next tier")
+    t:eq(#P.NextSteps({ { name = "Skinning" } }, skill, 12, function() return seen end), 0, "the trainer said level 50: no reminder")
+    t:ok(pcall(TR.ReadTier), "reading a trainer that isn't open does nothing")
 end)

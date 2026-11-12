@@ -578,8 +578,21 @@ local TIER_NAME = { [75] = "Journeyman", [150] = "Expert", [225] = "Artisan" }
 local TIER_BOOK = { Cooking = 16072, ["First Aid"] = 16084, Fishing = 16083 }
 -- Clamlette Surprise; Triage (Horde, Alliance); Nat Pagle, Angler Extreme.
 local TIER_QUEST = { Cooking = { 6610 }, ["First Aid"] = { 6622, 6624 }, Fishing = { 6607 } }
---   -> { name, cap, level, skill, how = "trainer" | "book" | "quest", book, quests, ready } or nil
-function SP.Tier(prof, rank, max, level)
+--
+-- Those numbers are classic's. WoW: Forever has its own ("Journeyman Skinning
+-- needs level 50 and I don't have it, but it is taking me there", at Skinning
+-- 58 and level 12), so what the trainer itself says wins: each time you open
+-- a profession trainer, Flow reads what the next tier asks for (Trainer.lua,
+-- kept per character in ns.db.prof.tierSeen) and goes by that from then on.
+--   seen: { cap, level, skill, cost, category, atLevel, atRank } as read at
+--         the trainer for this cap, or nil / false (never looked).
+--   -> { name, cap, level, skill, cost, how = "trainer" | "book" | "quest", book, quests, ready, wait } or nil
+function SP.TierName(max) return max and TIER_NAME[max] or nil end
+function SP.TierSeen(prof, max)
+    local s = ns.db and ns.db.prof and ns.db.prof.tierSeen and ns.db.prof.tierSeen[prof]
+    return (s and s.cap == max) and s or nil
+end
+function SP.Tier(prof, rank, max, level, seen)
     if not (rank and max and max > 0 and max < 300) then return nil end
     local t = { name = TIER_NAME[max] or "next", cap = max, level = SP.TIER_LEVEL[max] or 0, skill = max - 25 }
     if max == 150 and TIER_BOOK[prof] then t.how, t.book = "book", TIER_BOOK[prof]
@@ -587,7 +600,20 @@ function SP.Tier(prof, rank, max, level)
         -- (The Artisan quests ask for the cap itself, 225, not 25 below it.)
         t.how, t.quests, t.skill = "quest", TIER_QUEST[prof], max
     else t.how = "trainer" end
+    if seen and t.how == "trainer" then
+        if (seen.level or 0) > 0 then t.level = seen.level end
+        if (seen.skill or 0) > 0 then t.skill = seen.skill end
+        if (seen.cost or 0) > 0 then t.cost = seen.cost end
+        t.seen = true
+    end
     t.ready = rank >= t.skill and (level or 0) >= t.level
+    -- Red at the trainer although the level and skill it named were met:
+    -- something else is in the way. Not on the route again until you've
+    -- gained a level or five skill points since.
+    if t.ready and seen and t.how == "trainer" and seen.category == "unavailable"
+        and (level or 0) <= (seen.atLevel or 0) and rank < (seen.atRank or 0) + 5 then
+        t.ready, t.wait = false, "it was red at the trainer"
+    end
     return t
 end
 
@@ -608,11 +634,12 @@ end
 -- deps: the craft stops past your cap wait for it.
 function SP.TierGoal(prof, level, optional)
     local rank, max = A.Skill(prof)
-    local tier = SP.Tier(prof, rank, max, level)
+    local tier = SP.Tier(prof, rank, max, level, SP.TierSeen(prof, max))
     if not (tier and tier.ready) then return nil, tier end
     local key, title = "train:" .. prof, tier.name .. " " .. prof
     local why = string.format("%s %d of %d: %s raises the cap to %d.", prof, rank, max, title, max + 75)
-    local base = { key = key, title = title, optional = optional, weight = optional and 1.4 or 1.0 }
+    -- (cost: what the trainer asked when you last looked; the route waits until you can pay.)
+    local base = { key = key, title = title, optional = optional, weight = optional and 1.4 or 1.0, cost = tier.cost }
     local function goal(g)
         for k, v in pairs(base) do if g[k] == nil then g[k] = v end end
         return g

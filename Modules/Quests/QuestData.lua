@@ -574,6 +574,140 @@ function Q:FreeSlots()
     return math.max(0, max - n), max
 end
 
+-------------------------------------------------------------------------------
+-- Class quests that teach a spell (Bear Form at 10; classSpells `quest`).
+-- "Flow Improvements shows I need Bear Form, the level 10 druid quest, but
+-- the Flow Tracker isn't having me go there": the quests to pick up are
+-- chosen by zone and level, and a class quest can fall outside both. So the
+-- part of its chain you can pick up now is worked out on its own, and the
+-- route always carries it (Goals.lua, the pickups).
+-------------------------------------------------------------------------------
+
+-- Is a quest for your race and class? (raw: the quest as Questie has it.)
+local function forMe(raw)
+    if not (band and raw) then return true end
+    local _, _, raceID = UnitRace("player")
+    local _, _, classID = UnitClass("player")
+    if raw.requiredRaces and raw.requiredRaces ~= 0 and raceID
+        and band(raw.requiredRaces, 2 ^ (raceID - 1)) == 0 then return false end
+    if raw.requiredClasses and raw.requiredClasses ~= 0 and classID
+        and band(raw.requiredClasses, 2 ^ (classID - 1)) == 0 then return false end
+    return true
+end
+
+-- Pure: the part of a quest chain to do now, walking back from the quest
+-- that teaches the spell over the quests that must come first.
+--   get(id) -> { id, name, raw = { preQuestGroup, preQuestSingle } } or nil
+--   isDone(id), isInLog(id) -> bool;  mine(q) -> bool (for your race / class)
+--   -> "accept", q    pick this one up: everything before it is done
+--      "inlog", q     it's in your log already (its objectives are the stops)
+--      "done", q      the teaching quest is done
+--      "unknown"      the quest data doesn't have the chain
+function Q.ChainStep(teach, get, isDone, isInLog, mine)
+    local cur = get(teach)
+    if not cur then return "unknown" end
+    if isDone(teach) then return "done", cur end
+    for _ = 1, 12 do
+        if isInLog(cur.id) then return "inlog", cur end
+        local raw = cur.raw or {}
+        local before
+        for _, id in ipairs(raw.preQuestGroup or {}) do      -- all of these first
+            if not before and not isDone(id) then before = id end
+        end
+        local single = raw.preQuestSingle or {}              -- and one of these
+        if not before and #single > 0 then
+            local any = false
+            for _, id in ipairs(single) do if isDone(id) then any = true end end
+            if not any then
+                for _, id in ipairs(single) do
+                    local q = get(id)
+                    if not before and q and (not mine or mine(q)) then before = id end
+                end
+                before = before or single[1]
+            end
+        end
+        if not before then return "accept", cur end
+        local prev = get(before)
+        if not prev then return "unknown" end
+        cur = prev
+    end
+    return "accept", cur
+end
+
+-- Each spell a class quest teaches that you don't know yet (and are old
+-- enough for): { spell, state, quest }. state as Q.ChainStep, or
+-- "notOffered" (its giver didn't offer it when you last talked), "level"
+-- (the quest needs a higher level).
+function Q:ClassQuestSteps()
+    local out = {}
+    local src = self:Source()
+    if not (src and src.get) then return out end
+    local _, token = UnitClass("player")
+    local level = UnitLevel("player")
+    local known = ns.rotation and ns.rotation:KnownSpells() or {}
+    local function isInLog(id) return inLog[id] == true end
+    local function mine(q) return forMe(q.raw) end
+    for _, s in ipairs(ns:Get("classSpells", token) or {}) do
+        if s.quest and not known[s.spell] and (s.level or 0) <= level then
+            local entry = { spell = s.spell, state = "unknown" }
+            for _, id in ipairs(s.quest) do
+                local q = src.get(id)
+                if q and mine(q) then
+                    entry.state, entry.quest = Q.ChainStep(id, src.get, done, isInLog, mine)
+                    local step = entry.quest
+                    if entry.state == "accept" and step then
+                        if (step.minLevel or 0) > level then entry.state = "level"
+                        elseif not Q:Offered(step.id, step.raw) then entry.state = "notOffered" end
+                    end
+                    break
+                end
+            end
+            out[#out + 1] = entry
+        end
+    end
+    return out
+end
+
+-- One line a spell, for /flow nav why.
+function Q.ClassQuestLine(e)
+    local q = e.quest
+    local name = q and q.name or "its quest"
+    if e.state == "accept" then
+        return string.format("%s: pick up \"%s\"%s", e.spell, name, q.starter and q.starter.name and (" from " .. q.starter.name) or "")
+    elseif e.state == "inlog" then return string.format("%s: \"%s\" is in your log", e.spell, name)
+    elseif e.state == "done" then return string.format("%s: its quest is done", e.spell)
+    elseif e.state == "level" then return string.format("%s: \"%s\" needs level %d", e.spell, name, q and q.minLevel or 0)
+    elseif e.state == "notOffered" then return string.format("%s: \"%s\" wasn't offered when you last talked to its giver", e.spell, name) end
+    return string.format("%s: Flow's quest data doesn't have its class quest here", e.spell)
+end
+
+-- The route stop for a spell's class quest ("pickup:5928") and a few words
+-- about it ("Heeding the Call from Turak Runetotem"), from the last look
+-- (Goals.lua keeps it in Q.classSteps); nil when there's nothing to pick up.
+function Q.ClassQuestKey(spell, steps)
+    for _, e in ipairs(steps or Q.classSteps or {}) do
+        if e.spell == spell and e.state == "accept" and e.quest and e.quest.id then
+            local who = e.quest.starter and e.quest.starter.name
+            return "pickup:" .. e.quest.id, (e.quest.name or "its quest") .. (who and (" from " .. who) or "")
+        end
+    end
+end
+
+-- The game's own marker for a quest in your log (its "next waypoint"), where
+-- this client has one: { map, x, y }, or nil. For quests and objectives
+-- Flow's quest data has no place for (WoW: Forever's own quests).
+function Q.GameWaypoint(id)
+    if not (id and C_QuestLog and C_QuestLog.GetNextWaypoint) then return nil end
+    local ok, map, x, y = pcall(C_QuestLog.GetNextWaypoint, id)
+    if not ok then return nil end
+    local S = ns.api.Safe
+    map, x, y = S(map), S(x), S(y)
+    if type(map) == "number" and type(x) == "number" and type(y) == "number" and (x > 0 or y > 0) then
+        return { map = map, x = x, y = y }
+    end
+    return nil
+end
+
 -- LibQuestDB-1.0 (MIT, also covers Forever-only quests by name/level).
 -- PLACEHOLDER: wire up once we confirm its API in game.
 

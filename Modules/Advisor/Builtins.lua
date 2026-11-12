@@ -92,12 +92,16 @@ ns:Register("advisor", "trainer", {
                     waitsFor = waitFor,
                 }
             elseif s.level <= level and not known[s.spell] and not listed[s.spell] then
+                -- A class quest teaches it: its link is the quest's stop on your route
+                -- ("Accept: Heeding the Call"), and the text says which quest.
+                local questKey, questText
+                if s.quest and ns.quests and ns.quests.ClassQuestKey then questKey, questText = ns.quests.ClassQuestKey(s.spell) end
                 out[#out + 1] = {
                     importance = 75,
                     text = string.format("Get %s (level %d%s)", s.spell, s.level,
-                        s.note and (", " .. s.note) or ", class trainer"),
+                        questText and (", class quest: " .. questText) or (s.note and (", " .. s.note) or ", class trainer")),
                     improves = s.improves,
-                    goalKey = not s.note and "train:class" or nil,   -- (its link: your class trainer's stop)
+                    goalKey = (not s.note and "train:class") or questKey,   -- (its link: the stop on your route)
                 }
             end
         end
@@ -261,7 +265,7 @@ ns:Register("advisor", "professions", {
         local skills, collapsed = professionSkills()
         for _, p in ipairs(skills) do
             if p.primary then primaries = primaries + 1 end
-            local tier = ns.skillPlan and ns.skillPlan.Tier and ns.skillPlan.Tier(p.name, p.rank, p.max, level)
+            local tier = ns.skillPlan and ns.skillPlan.Tier and ns.skillPlan.Tier(p.name, p.rank, p.max, level, ns.skillPlan.TierSeen(p.name, p.max))
             if tier and tier.ready then
                 out[#out + 1] = { importance = p.rank >= p.max and 60 or 45,
                     text = p.rank >= p.max
