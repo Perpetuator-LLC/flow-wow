@@ -44,6 +44,23 @@ local function itemName(id)
     return (s and s.name) or (A.ItemInfo and A.ItemInfo(id)) or ("item " .. id)
 end
 
+-- Do you carry the tool one step needs (an enchanter's rod, the Gyromatic
+-- Micro-Adjustor)? By its item ID, else by its name in your bags: Forever's
+-- items can have other IDs than the classic ones (review of pull request 22:
+-- by ID alone, every enchant stayed blocked on a client with other IDs).
+local function haveStepTool(id)
+    if count(id) > 0 then return true end
+    local s = src(id)
+    local D = ns.disposition
+    if not (s and s.name and D and D.EachBagItem) then return false end
+    local found = false
+    D:EachBagItem(function(_, _, link)
+        if link and link:find("[" .. s.name .. "]", 1, true) then found = true end
+    end)
+    return found
+end
+SP._haveStepTool = haveStepTool   -- (tests)
+
 -- Profession name as the guides spell it ("first aid" -> "First Aid").
 local function profName(lower)
     for name in ns:Each("profGuide") do
@@ -229,8 +246,8 @@ function SP.MatCost(id)
     if ok and ah and ah > 0 then return ah end
     local v = SP.Price(id)
     if v and v > 0 then return v end
-    local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    local ok2, sell = pcall(function() return get and select(11, get(id)) end)
+    -- (ns.api.ItemInfo: some item globals are gone on Forever.)
+    local ok2, sell = pcall(function() return A.ItemInfo and select(11, A.ItemInfo(id)) end)
     if ok2 and sell and sell > 0 then return sell end
 end
 
@@ -566,7 +583,9 @@ function SP.Tier(prof, rank, max, level)
     if not (rank and max and max > 0 and max < 300) then return nil end
     local t = { name = TIER_NAME[max] or "next", cap = max, level = SP.TIER_LEVEL[max] or 0, skill = max - 25 }
     if max == 150 and TIER_BOOK[prof] then t.how, t.book = "book", TIER_BOOK[prof]
-    elseif max == 225 and TIER_QUEST[prof] then t.how, t.quests = "quest", TIER_QUEST[prof]
+    elseif max == 225 and TIER_QUEST[prof] then
+        -- (The Artisan quests ask for the cap itself, 225, not 25 below it.)
+        t.how, t.quests, t.skill = "quest", TIER_QUEST[prof], max
     else t.how = "trainer" end
     t.ready = rank >= t.skill and (level or 0) >= t.level
     return t
@@ -1160,7 +1179,9 @@ local function planProfession(prof, t, out)
             for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end
         end
         local tg, tier = SP.TierGoal(prof, UnitLevel("player"), t.optional)
-        if tg and not planned then out[#out + 1] = tg end
+        -- (Planned professions get theirs from the errands, which skip a stop Flow
+        -- can't place: then it is listed here, blocked with the reason, not lost.)
+        if tg and (not planned or not (tg.points and #tg.points > 0)) then out[#out + 1] = tg end
         local after = tier and tier.name and (tier.name .. " " .. prof) or "the next tier"
         t = setmetatable({ target = max }, { __index = t })
         label = string.format("%s%s %d -> %d, then %s", t.quest and (t.quest .. ": ") or "", prof, rank, max, after)
@@ -1365,7 +1386,7 @@ local function planProfession(prof, t, out)
             if not pts or #pts == 0 then pts, anywhere = { playerPoint() }, true end
             if s.tool then watched[s.tool] = true end
             local blocked = toolMissing and ("needs a " .. toolMissing)
-                or (s.tool and count(s.tool) == 0 and ("needs a " .. itemName(s.tool) .. " (make it first)"))
+                or (s.tool and not haveStepTool(s.tool) and ("needs a " .. itemName(s.tool) .. " (make it first)"))
                 or (known and not known[s.recipe] and (s.recipeItem and (count(s.recipeItem) > 0 and "use the recipe in your bags first"
                         or (s.quest and "get the plans from the quest first") or ("buy " .. itemName(s.recipeItem) .. " first"))
                     or ("learn " .. s.recipe .. " first")))

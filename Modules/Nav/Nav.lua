@@ -397,6 +397,10 @@ function N:Collect(gathered)
     -- claims stay: a dungeon run you prepared, party stops. First of all, so
     -- a stop never waits on (or is listed as blocked by) a kind you left out.
     list = N.FilterKinds(list, function(kind) return N:Includes(kind) end, UnitLevel("player"))
+    -- "Only the dungeon run" (Dungeons.lua): just the prepared run's stops. Here
+    -- with the ticks, before the blocked stops are set apart, so a blocked
+    -- stop of another kind isn't listed either.
+    if ns.dungeons and ns.dungeons.FilterOnly then list = ns.dungeons:FilterOnly(list) end
     -- What stops need first (Needs.lua): after the stop that provides it, or
     -- blocked with the reason when nothing on the route does.
     if N.ResolveNeeds then
@@ -443,8 +447,6 @@ function N:Collect(gathered)
     if ns.partyHelp then list = ns.partyHelp:FilterGoals(list) end
     -- Inside a dungeon: only its quests (Dungeons.lua).
     if ns.dungeons then list = ns.dungeons:FilterInside(list) end
-    -- Route: Dungeon run: only the prepared run's stops (Dungeons.lua).
-    if ns.dungeons and ns.dungeons.FilterOnly then list = ns.dungeons:FilterOnly(list) end
     -- Stops you hid (right-click on the map) stay out of the route; they're
     -- kept in N.hiddenGoals so the map panel can list and unhide them.
     local hidden = ns.db.nav.hidden or {}
@@ -1851,14 +1853,41 @@ end
 -- master nearest a, the flight (the yards you'd run in its seconds) and the
 -- walk on from the one nearest b. nil without a flight between them. The
 -- route picks stops by this when it beats the straight line (Planner: air).
-function N.TravelYards(a, b, speed)
+-- memo (optional): { [from] = { [to] = seconds or false } }, flight times
+-- already worked out in this plan.
+function N.TravelYards(a, b, speed, memo)
     if not (a and b and a.wx and b.wx and a.cont == b.cont and ns.db.flights) then return nil end
     local from, d1 = flightMasterOf(a)
     local to, d2 = flightMasterOf(b)
     if not (from and to) or from == to then return nil end
-    local fly = N.FlightSeconds(from, to)
+    local fly
+    if memo then
+        local row = memo[from]
+        if not row then row = {}; memo[from] = row end
+        fly = row[to]
+        if fly == nil then fly = N.FlightSeconds(from, to) or false; row[to] = fly end
+    else
+        fly = N.FlightSeconds(from, to)
+    end
     if not fly then return nil end
     return d1 + d2 + fly * (speed or N.TravelSpeed())
+end
+
+-- The planner's "by flight" answer for one plan (Planner: air), or nil when
+-- you know fewer than two flight masters (then nothing can be flown, and
+-- the planner needn't ask). The planner asks it for thousands of pairs of
+-- spots a plan, so your speed is read once and each pair of flight masters
+-- is worked out once (review of pull request 20: it read your speed and
+-- built a text key on every call).
+function N.PlanAir()
+    local n = 0
+    for _ in pairs(ns.db.flights or {}) do
+        n = n + 1
+        if n >= 2 then break end
+    end
+    if n < 2 then return nil end
+    local speed, memo = N.TravelSpeed(), {}
+    return function(a, b) return N.TravelYards(a, b, speed, memo) end
 end
 
 -- By air to a point from where you are: { sec, from, to } when walking to a
@@ -2327,7 +2356,7 @@ function N:Options(sel)
     -- come first, unless you picked a stop yourself.
     if not sel.first and not sel.tour and ns.dungeons and ns.dungeons:Prepared() then
         for _, g in ipairs(goals) do
-            if g.provider == "dungeon" then
+            if g.provider == "dungeon" and not g.optional then   -- (not the "only if you pass by" ones)
                 tour = tour or {}
                 tour[g.key] = true
             end
@@ -2364,7 +2393,7 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
-    return { first = first, tour = tour, here = here, away = away, air = N.TravelYards }
+    return { first = first, tour = tour, here = here, away = away, air = N.PlanAir() }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.35.169
+Fixes from the review of pull requests 18 to 22 (0.35.164 to 0.35.168):
+- **Profession window:** the goal box shows only when there is something to make (it said
+  "nothing to make here" with a dead "Make 0" beside the make-now list), and on a narrow
+  profession window the lists sit under it instead of over it.
+- **Cannibalize:** asking how far the corpse is goes through Flow's guarded check (the game
+  forbids that question in a fight). With a corpse to eat, the other ways to heal up are still
+  offered on Ctrl and Alt + key.
+- **Buff button:** its "what's next" list read every buff of yours ten times a second, in
+  fights too; now once a second, out of a fight.
+- **Route planning with flights:** your speed and each pair of flight masters are worked out
+  once a plan, not for every pair of spots; with fewer than two known flight masters the
+  planner isn't asked at all.
+- **Only the dungeon run** is a tick of its own under what the route includes (the three
+  routes it sat with are ticks since 0.35.157), kept per character. A run you prepared no
+  longer forces its "only if you pass by" quests to the front of the route.
+- **Artisan Cooking, First Aid and Fishing** go on the route at skill 225, which their quests
+  ask for, not 200. A capped profession whose trainer Flow can't place is listed with the
+  reason instead of vanishing.
+- **Guides:** Thorium needs Mining 245 (not 230). Cooking 225 to 250 goes through Monster
+  Omelet and Tender Wolf Steak again. The enchanting rods are named, count when they carry
+  another item number on this client, and no longer ask for a Blacksmithing stop nobody plans.
+- Self-tests: one called an item function Forever doesn't have (so it failed at every login),
+  one only held on an English client.
+
 ## 0.35.168
 - **Profession guides: Tailoring, Leatherworking, Alchemy, Enchanting and Engineering, 1-300.** Each follows
   the cheapest levelling route: trainer recipes plus the fewest bought patterns (Runecloth Gloves; Wicked
@@ -75,7 +100,7 @@
 - **Buff button: shows your next buff ahead of time.** Out of combat the blue buff button now always shows the
   next buff it would do (a missing aura or blessing, your stone or oil, buff food), faded, so you can use it
   when you choose. It lights up only when a fight is near: an enemy targeted, a kill stop, or just after a fight.
-  Your bandage or food when hurt and the campfire steps stay bright. Hover it for why it's faded.
+  Your bandage or food when hurt and the campfire steps are faded the same way until then. Hover it for why.
   (Thanks, BIMpossible: pull request 19.)
 
 ## 0.35.164

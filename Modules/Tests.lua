@@ -1431,7 +1431,7 @@ ns:Register("test", "skillplan: the guides' recipes to 300", function(t)
         if fname == "GetNPC" then return { name = "Derotain Mudsipper", spawns = {} } end
     end
     local ok, err = pcall(function()
-        if GetItemCount(bracers.recipeItem) > 0 then return end   -- (you have the plans: it says "use")
+        if ns.api.Count(bracers.recipeItem) > 0 then return end   -- (you have the plans: it says "use")
         local r = SP._recipeStop("Blacksmithing", bracers, {})
         t:eq(r and r.kind, "accept", "quest plans: an accept stop")
         t:eq(r and r.key, "recipequest:7655", "quest plans: keyed by the quest")
@@ -4679,6 +4679,72 @@ ns:Register("test", "click: Flow Talents takes the points only after you confirm
     t:ok(type(T.CanTake()) == "boolean", "knows whether this client lets an add-on set talents")
 end)
 
+ns:Register("test", "review fixes for pull requests 18 to 22", function(t)
+    local E, N, SP = ns.rotation, ns.nav, ns.skillPlan
+    -- 20: Cannibalize is the first way to heal up, and the others still
+    -- follow it in the queue's list (returning early left the list empty).
+    local keep = { busy = E.RecoverBusy, fine = E.HealthFine, hd = E.HealDecision, lh = E.LowHealthHeal,
+                   eh = E.EarlyHeal, can = E.CannibalizeStep, mounted = E.Mounted, hurt = E.hurt }
+    local r = ns.db.rotation
+    local keepHeal = r.recoverHeal
+    E.RecoverBusy = function() return false end
+    E.HealthFine = function() return false end
+    E.HealDecision = function() return nil end
+    E.LowHealthHeal = function() return nil end
+    E.EarlyHeal = function() return { spell = "Fast Heal", kind = "heal" } end
+    E.CannibalizeStep = function() return { spell = "Cannibalize", kind = "heal" } end
+    E.Mounted = function() return false end
+    E.hurt, r.recoverHeal = E.HURT.outBig, nil
+    local ok, options = pcall(E.RecoverOptions, E, { inCombat = false, maxHp = 0, hp = 0, hpPct = 1 }, { heals = { "Fast Heal" } })
+    E.RecoverBusy, E.HealthFine, E.HealDecision, E.LowHealthHeal = keep.busy, keep.fine, keep.hd, keep.lh
+    E.EarlyHeal, E.CannibalizeStep, E.Mounted, E.hurt, r.recoverHeal = keep.eh, keep.can, keep.mounted, keep.hurt, keepHeal
+    t:ok(ok, "listing the ways to heal up: no error" .. (ok and "" or (": " .. tostring(options))))
+    if ok then
+        t:eq(options[1] and options[1].spell, "Cannibalize", "Cannibalize first")
+        local heal
+        for _, s in ipairs(options) do if s.spell == "Fast Heal" then heal = true end end
+        t:ok(heal, "and the heal spell is still offered after it")
+    end
+    -- 19: the Artisan quests ask for the cap itself (225), not 25 below it.
+    local quest = SP.Tier("Cooking", 210, 225, 60)
+    t:eq(quest and quest.how, "quest", "Artisan Cooking: a quest teaches it")
+    t:eq(quest and quest.skill, 225, "which asks for skill 225")
+    t:ok(quest and not quest.ready, "at 210 it isn't on the route yet")
+    t:ok(SP.Tier("Cooking", 225, 225, 60).ready, "at 225 it is")
+    local trainer = SP.Tier("Mining", 130, 150, 60)
+    t:eq(trainer and trainer.skill, 125, "a trainer's tier: from 25 below the cap, as before")
+    -- 20: the planner's flight times, cheap per plan.
+    with(ns.db, "flights", { One = { cont = 0, wx = 0, wy = 0 } }, function()
+        t:eq(N.PlanAir(), nil, "one flight master known: nothing to fly, the planner isn't asked")
+    end)
+    with(ns.db, "flights", { One = { cont = 0, wx = 0, wy = 0 }, Two = { cont = 0, wx = 3000, wy = 0 } }, function()
+    with(ns.db, "flightTimes", {}, function()
+        local air = N.PlanAir()
+        t:ok(type(air) == "function", "two known: an answer for this plan")
+        local a, b = { cont = 0, wx = 100, wy = 0 }, { cont = 0, wx = 2900, wy = 0 }
+        local first = air and air(a, b)
+        t:ok(type(first) == "number" and first > 200, "walk to one, fly, walk from the other")
+        t:eq(air and air(a, b), first, "asked again: the same (worked out once)")
+        t:eq(air and air(a, { cont = 0, wx = 200, wy = 0 }), nil, "the same flight master at both ends: no flight")
+    end) end)
+    -- 22: a step's tool counts by its name too (other item IDs on Forever).
+    local D = ns.disposition
+    with(ns.api, "Count", function() return 0 end, function()
+        with(D, "EachBagItem", function(_, fn) fn(0, 1, "|cffffffff|Hitem:999999::|h[Runed Copper Rod]|h|r") end, function()
+            t:ok(SP._haveStepTool(6218), "a Runed Copper Rod with another item ID still counts")
+            t:ok(not SP._haveStepTool(6339), "no Runed Silver Rod in your bags: missing")
+        end)
+    end)
+    t:eq(D:ToolProfession(999999, "Runed Copper Rod"), "Enchanting", "and it's kept as an enchanter's tool")
+    -- 20: "Only the dungeon run" is a tick of its own, not a fourth route.
+    local it = ns.dungeons and ns.dungeons.RouteItem and select(2, pcall(ns.dungeons.RouteItem, ns.dungeons))
+    if type(it) == "table" then
+        t:ok(it.radio == nil, "the dungeon run: a tick under the route's ticks")
+        t:ok(it.text:find("Only the dungeon run", 1, true) ~= nil, "named for what it does")
+    end
+    t:ok(ns:Get("charData", "nav.dungeonOnly") ~= nil, "and it's each character's own")
+end)
+
 ns:Register("test", "spell ranks: a new rank replaces the old one on your bars", function(t)
     local NS = ns.newSpell
     local ups = NS.RankUps({ Wrath = 5176, Moonfire = 8921 }, { Wrath = 5177, Moonfire = 8921, Thorns = 467 })
@@ -5565,6 +5631,12 @@ ns:Register("test", "learn key: no recipe for a profession you don't have (or no
     local ranks = { Cooking = 60, ["First Aid"] = 150 }
     local function skill(n) return ranks[n] end
     local function blocked(lines, red) return X.RecipeBlocked(lines, red, skill) end
+    -- (The pattern comes from the game's own text: only an English client's
+    -- reads like this, so the English lines below are checked there only.)
+    if (ITEM_MIN_SKILL or "Requires %s (%d)") ~= "Requires %s (%d)" then
+        t:ok(type(X._MIN_SKILL) == "string", "(not an English client: the skill line pattern exists)")
+        return
+    end
     t:eq(X._MIN_SKILL, "^Requires (.-) %((%d+)%)$", "the skill line pattern from the game's text")
     t:eq(blocked({ "Pattern: Red Linen Robe", "Requires Tailoring (40)" }), true, "Tailoring recipe, no Tailoring: not learnable")
     t:eq(blocked({ "Recipe: Smoked Bear Meat", "Requires Cooking (80)" }), true, "Cooking 60, recipe needs 80: not yet")

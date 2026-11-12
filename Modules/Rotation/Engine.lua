@@ -477,7 +477,8 @@ function E.CannibalCorpse()
     if A.Safe(UnitIsPlayer and UnitIsPlayer("target")) and not A.Safe(UnitCanAttack("player", "target")) then return false end
     local kind = A.Safe(UnitCreatureType and UnitCreatureType("target"))
     if not E.CorpseFits(kind, creatureTypeName) then return false end
-    local close = CheckInteractDistance and A.Safe(CheckInteractDistance("target", 3))
+    -- (E.Near: in a fight the game forbids asking how far a corpse is; it asks only when it may.)
+    local close = E.Near("target")
     return true, close and true or false
 end
 function E:CannibalizeStep(ctx)
@@ -512,8 +513,14 @@ function E:Recover(ctx, def, part, all)
     -- Cannibalize first (free, on the buff button with your bandages).
     local can = self:CannibalizeStep(ctx)
     if can then
-        if part == "heal" then return nil end
-        return can
+        -- (Listing every option for the queue: it's the first of them, and
+        -- the others still follow; returning here left the queue with none.)
+        if all then
+            all[#all + 1] = can
+        else
+            if part == "heal" then return nil end
+            return can
+        end
     end
     for _, step in ipairs(BI and BI.Order(r.recoverOrder) or { "heal" }) do
         local s

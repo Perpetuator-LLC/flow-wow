@@ -538,8 +538,17 @@ function H:Refresh()
         panel.btn:SetText("Make " .. now)
         panel.btn:SetEnabled(now > 0)
     end
-    layoutGoal(matLines)
-    goal:Show()
+    -- The goal box only with a goal (or one waiting for materials): without
+    -- one it said "nothing to make here" with a dead "Make 0", right beside
+    -- a list of what you can make now (review of pull request 18).
+    local hasGoal = (g or waiting) and true or false
+    if hasGoal then layoutGoal(matLines); goal:Show() else goal:Hide() end
+    -- A window too narrow for both boxes side by side (the old profession
+    -- window): the lists go under the goal box instead of over it.
+    if hasGoal and (frame:GetWidth() or 0) < WIDTH + GOAL_WIDTH + 4 then
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPRIGHT", goal, "BOTTOMRIGHT", 0, -2)
+    end
     if layout(upLines, ups, cheap, nowRows) then panel:Show() else panel:Hide() end
 end
 

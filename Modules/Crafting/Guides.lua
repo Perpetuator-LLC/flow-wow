@@ -56,8 +56,8 @@ ns:Register("itemSource", 3575, { name = "Iron Bar", smelt = { from = 2772, n = 
 ns:Register("itemSource", 3858, { name = "Mithril Ore", gather = "Mining", objects = MITHRIL_VEIN, node = "Mithril Deposit", skill = 175, yield = 2 })
 ns:Register("itemSource", 7912, { name = "Solid Stone", gather = "Mining", objects = MITHRIL_VEIN, node = "Mithril Deposit", skill = 175, yield = 0.8 })
 ns:Register("itemSource", 3860, { name = "Mithril Bar", smelt = { from = 3858, n = 1, skill = 175, spell = "Smelt Mithril" } })
-ns:Register("itemSource", 12365, { name = "Dense Stone", gather = "Mining", objects = THORIUM_VEIN, node = "Thorium Vein", skill = 230, yield = 0.8 })
-ns:Register("itemSource", 10620, { name = "Thorium Ore", gather = "Mining", objects = THORIUM_VEIN, node = "Thorium Vein", skill = 230, yield = 2 })
+ns:Register("itemSource", 12365, { name = "Dense Stone", gather = "Mining", objects = THORIUM_VEIN, node = "Thorium Vein", skill = 245, yield = 0.8 })
+ns:Register("itemSource", 10620, { name = "Thorium Ore", gather = "Mining", objects = THORIUM_VEIN, node = "Thorium Vein", skill = 245, yield = 2 })
 ns:Register("itemSource", 12359, { name = "Thorium Bar", smelt = { from = 10620, n = 1, skill = 250, spell = "Smelt Thorium" } })
 -- Made by an earlier Blacksmithing step.
 ns:Register("itemSource", 3486, { name = "Heavy Grinding Stone", made = "Blacksmithing" })
@@ -198,7 +198,7 @@ ns:Register("profGuide", "Mining", {
         { item = 2771, learn = 65, yellow = 90, green = 115, grey = 165 },
         { item = 2772, learn = 125, yellow = 150, green = 175, grey = 225 },
         { item = 3858, learn = 175, yellow = 200, green = 225, grey = 275 },
-        { item = 10620, learn = 230, yellow = 255, green = 280, grey = 330 },
+        { item = 10620, learn = 245, yellow = 270, green = 295, grey = 345 },
     },
     steps = {
         { recipe = "Smelt Copper", item = 2840, learn = 1, yellow = 25, green = 47, grey = 70, mats = { [2770] = 1 }, station = "forge" },
@@ -271,7 +271,7 @@ ns:Register("profGuide", "Cooking", {
         { recipe = "Tender Wolf Steak", item = 18045, learn = 225, yellow = 250, green = 262, grey = 275, mats = { [12208] = 1, [3713] = 1 },
           station = "fire", recipeItem = 18046, use = { 225, 250 } },
         { recipe = "Spotted Yellowtail", item = 6887, learn = 225, yellow = 250, green = 262, grey = 275, mats = { [4603] = 1 },
-          station = "fire", recipeItem = 13939, use = { 225, 250 } },
+          station = "fire", recipeItem = 13939 },   -- (not on the path: its one fished material made it beat Tender Wolf Steak and Monster Omelet every time, and fished materials get no stop)
         { recipe = "Nightfin Soup", item = 13931, learn = 250, yellow = 275, green = 285, grey = 295, mats = { [13759] = 1, [159] = 1 },
           station = "fire", recipeItem = 13945, use = { 250, 285 } },
         { recipe = "Poached Sunscale Salmon", item = 13932, learn = 250, yellow = 275, green = 285, grey = 295, mats = { [13760] = 1 },

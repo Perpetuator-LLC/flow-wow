@@ -153,7 +153,8 @@ end
 
 local liveBuff, liveAt = nil, 0   -- the rotation's buff suggestion, and when it was worked out
 local liveRecover                 -- hurt after a fight: the bandage or food to use (same moment)
-local liveNext                    -- your buffs still on, with their time left (same moment)
+local liveNext                    -- your buffs still on, with their time left (out of a fight, once a second)
+local liveNextAt = -math.huge
 
 -- In towns and inns too: the button only shows it (faded), you choose.
 local function ready(rule, ctx)
@@ -214,8 +215,16 @@ function E:Choose()
         liveBuff, liveAt = okB and b or nil, GetTime()
         local okR, rec = pcall(self.Recover, self, ctx, def, "items")
         liveRecover = okR and rec or nil
-        local okN, on = pcall(onSpells, def, ctx)
-        liveNext = okN and on or nil
+        -- Your buffs still on (for "what's next" on the button): only shown
+        -- out of a fight, and it reads every buff of yours for each buff
+        -- rule, so once a second there, not ten times a second everywhere
+        -- (review of pull request 19).
+        if ctx.inCombat then
+            liveNext = nil
+        elseif GetTime() - liveNextAt >= 1 then
+            local okN, on = pcall(onSpells, def, ctx)
+            liveNext, liveNextAt = okN and on or nil, GetTime()
+        end
     end
     return s
 end

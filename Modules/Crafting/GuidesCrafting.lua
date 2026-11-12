@@ -91,9 +91,18 @@ ns:Register("itemSource", 10505, { name = "Solid Blasting Powder", made = "Engin
 ns:Register("itemSource", 10560, { name = "Unstable Trigger", made = "Engineering" })
 ns:Register("itemSource", 10561, { name = "Mithril Casing", made = "Engineering" })
 -- The Enchanting rods start from a Blacksmith's rod (or the Auction House).
-ns:Register("itemSource", 6338,  { name = "Silver Rod", made = "Blacksmithing" })
-ns:Register("itemSource", 11128, { name = "Golden Rod", made = "Blacksmithing" })
-ns:Register("itemSource", 11144, { name = "Truesilver Rod", made = "Blacksmithing" })
+ns:Register("itemSource", 6338,  { name = "Silver Rod" })
+ns:Register("itemSource", 11128, { name = "Golden Rod" })
+ns:Register("itemSource", 11144, { name = "Truesilver Rod" })
+-- The tools single steps need, by name: a stop then reads "needs a Runed
+-- Copper Rod" (not "item 6218"), and one with another item ID on this
+-- client still counts as carried (SkillPlan matches by ID, else by name).
+ns:Register("itemSource", 6218,  { name = "Runed Copper Rod" })
+ns:Register("itemSource", 6339,  { name = "Runed Silver Rod" })
+ns:Register("itemSource", 11130, { name = "Runed Golden Rod" })
+ns:Register("itemSource", 11145, { name = "Runed Truesilver Rod" })
+ns:Register("itemSource", 16207, { name = "Runed Arcanite Rod" })
+ns:Register("itemSource", 10498, { name = "Gyromatic Micro-Adjustor" })
 
 -- Annora teaches Artisan Enchanting, inside Uldaman.
 ns:Register("npcIds", "artisan-trainers", { ["Annora"] = 11073 })

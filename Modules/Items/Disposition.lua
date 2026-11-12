@@ -215,7 +215,9 @@ local TOOLS = {
     [16207] = "Enchanting", [10498] = "Engineering",
 }
 local TOOL_NAMES = { { "Mining Pick", "Mining" }, { "Blacksmith Hammer", "Blacksmithing" },
-    { "Skinning Knife", "Skinning" }, { "Fishing Pole", "Fishing" }, { "Arclight Spanner", "Engineering" } }
+    { "Skinning Knife", "Skinning" }, { "Fishing Pole", "Fishing" }, { "Arclight Spanner", "Engineering" },
+    { "Runed Copper Rod", "Enchanting" }, { "Runed Silver Rod", "Enchanting" }, { "Runed Golden Rod", "Enchanting" },
+    { "Runed Truesilver Rod", "Enchanting" }, { "Runed Arcanite Rod", "Enchanting" }, { "Gyromatic Micro-Adjustor", "Engineering" } }
 -- Another profession's tools a profession also needs: engineers work
 -- with a Blacksmith Hammer.
 local TOOL_ALSO = { Blacksmithing = { "Engineering" } }

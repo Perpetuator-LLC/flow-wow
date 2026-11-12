@@ -779,6 +779,7 @@ ns:PerCharacter("nav.dungeonIn")
 ns:PerCharacter("nav.dungeonTimes")
 ns:PerCharacter("nav.xpSamples")
 ns:PerCharacter("nav.dungeonLong")
+ns:PerCharacter("nav.dungeonOnly")   -- ("Only the dungeon run": this character's, like the run it follows)
 
 function D:Suggest() return ns.db.nav.dungeonSuggest ~= false end
 function D:LongLeadIns(top) return charData("dungeonLong")[top] == true end
