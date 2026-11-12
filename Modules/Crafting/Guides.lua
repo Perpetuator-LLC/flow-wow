@@ -14,12 +14,14 @@
 --   ns:Register("profGuide", "<Profession>", {
 --       kind = "craft" | "gather",
 --       tool = itemID,                       -- needed in your bags (craft)
+--       artisan = { Horde = "name", Alliance = "name" }, -- teaches Artisan (225 -> 300) instead of the city trainers
 --       steps = { { recipe, item, learn, yellow, green, grey, mats = { [itemID] = n },
 --                   use = { from, to } | { { from, to }, ... },   -- the guides' path
 --                   faction = "Horde" | "Alliance",               -- only that side
 --                   recipeItem = itemID,                          -- bought, not trained
 --                   quest = { id, npc },                          -- the recipe is that quest's reward
 --                   trainer = { Horde = "name", Alliance = "name" }, -- taught there, not by a city trainer
+--                   tool = itemID,                                -- this recipe needs it in your bags (a rod, the Spanner)
 --                   station = "anvil" | "forge" | "fire" | nil } } })
 --   ns:Register("itemSource", itemID, {
 --       name, gather = "<Profession>", objects = { objectIDs }, skill = n, yield = per node,
