@@ -299,13 +299,13 @@ function A.ProfessionSet()
     return set
 end
 
--- WoW: Forever lets one character have more professions than the game's two
--- "primary" slots (a druid with Herbalism, Blacksmithing and Skinning).
--- GetProfessions() lists two of them, so Flow took the third for unlearned
--- and sent the route to its trainer, where the only thing left to learn
--- needed a skill the character didn't have yet ("Journeyman Skinning needs
--- 50 and I don't have it, but it is taking me there", 0.35.173). So every
--- source is read, and merged by name:
+-- Your professions come from more than one place, so that one the game's
+-- profession slots leave out is never taken for unlearned (and the route
+-- never sent to its trainer to "learn" it). Every source is read, and merged
+-- by name. (Written in 0.35.173 on the guess that the slots had missed a
+-- druid's Skinning; /flow skills then showed the slots had it all along, at
+-- 58 of 75. The merge stays as a safeguard; the trainer trips were fixed in
+-- 0.35.174, Trainer.lua TR.ReadTier.)
 --   1. slots    the profession slots (GetProfessions)
 --   2. lines    every profession line the trade skill API knows, when it has
 --               a cap (learned)
