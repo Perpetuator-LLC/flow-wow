@@ -455,3 +455,116 @@ reg("unneededGear", 50, function(i)
     end
     return { action = "sell", reason = "not better than your gear for any role" }
 end)
+
+-------------------------------------------------------------------------------
+-- Inventory: your bags as Flow sees them (/flow inventory, and saved with
+-- the diagnostics at every /reload). One line an item, its stacks added up:
+-- what Flow would do with it, why, which rule said so, what a vendor pays,
+-- and what the auction house asked when Flow last looked. For going through
+-- the bags with a reason for every slot ("keep my bags as empty as possible:
+-- just what I need to quest and for my professions, the rest can go").
+-------------------------------------------------------------------------------
+local QUALITY = { [0] = "grey", [1] = "white", [2] = "green", [3] = "blue", [4] = "purple", [5] = "orange" }
+local ACTION_ORDER = { sell = 1, ah = 2, de = 3, equip = 4, keep = 5 }
+local ACTION_SHORT = { sell = "SELL", ah = "AH", de = "DE", equip = "EQUIP", keep = "KEEP" }
+
+-- Pure: one row an item and verdict, from the slots.
+--   slots: { { id, name, count, action, reason, rule, sell, quality, bound, kind, ah } }
+-- Sorted: what leaves first (sell, auction, disenchant), then equip, then
+-- keep; by name within each.
+function D.InventoryRows(slots)
+    local byKey, rows = {}, {}
+    for _, s in ipairs(slots) do
+        local key = tostring(s.id) .. ":" .. tostring(s.action) .. ":" .. tostring(s.rule)
+        local r = byKey[key]
+        if not r then
+            r = { id = s.id, name = s.name, action = s.action, reason = s.reason, rule = s.rule, sell = s.sell,
+                  quality = s.quality, bound = s.bound, kind = s.kind, ah = s.ah, count = 0, stacks = 0 }
+            byKey[key] = r
+            rows[#rows + 1] = r
+        end
+        r.count = r.count + (s.count or 1)
+        r.stacks = r.stacks + 1
+    end
+    table.sort(rows, function(a, b)
+        local ao, bo = ACTION_ORDER[a.action] or 9, ACTION_ORDER[b.action] or 9
+        if ao ~= bo then return ao < bo end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    return rows
+end
+
+-- Pure: one row as text. money(copper) -> "1s 20c".
+function D.InventoryLine(r, money)
+    money = money or tostring
+    local bits = { QUALITY[r.quality or 1] or "?" }
+    if r.kind and r.kind ~= "" then bits[#bits + 1] = r.kind end
+    if r.bound then bits[#bits + 1] = "soulbound" end
+    bits[#bits + 1] = (r.sell or 0) > 0 and ("vendor " .. money(r.sell) .. " each") or "no vendor price"
+    if r.ah then bits[#bits + 1] = "auction " .. money(r.ah) .. " each" end
+    return string.format("%-5s %3d x %s [%s] in %d slot%s (%s): %s {%s}", ACTION_SHORT[r.action] or tostring(r.action),
+        r.count, tostring(r.name), tostring(r.id), r.stacks, r.stacks == 1 and "" or "s", table.concat(bits, ", "),
+        tostring(r.reason), tostring(r.rule or "no rule"))
+end
+
+-- Pure: the heading: slots used, and how many Flow would empty.
+function D.InventorySummary(rows, used, total)
+    local n = { sell = 0, ah = 0, de = 0 }
+    local value = 0
+    for _, r in ipairs(rows) do
+        if n[r.action] then n[r.action] = n[r.action] + r.stacks end
+        if r.action == "sell" then value = value + (r.sell or 0) * r.count end
+    end
+    return string.format("%d of %d bag slots used; Flow would empty %d (sell %d, auction house %d, disenchant %d)",
+        used or 0, total or 0, n.sell + n.ah + n.de, n.sell, n.ah, n.de), value
+end
+
+local function stackOf(bag, slot)
+    if CC and CC.GetContainerItemInfo then
+        local info = CC.GetContainerItemInfo(bag, slot)
+        return info and info.stackCount or 1
+    end
+    local _, count = GetContainerItemInfo(bag, slot)
+    return count or 1
+end
+
+-- The bags, read now: rows, slots used, slots in all.
+function D:Inventory()
+    local slots, used, total = {}, 0, 0
+    local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    for bag = 0, 4 do total = total + ((numSlots and numSlots(bag)) or 0) end
+    self:EachBagItem(function(bag, slot, link)
+        used = used + 1
+        local v = self:Decide(bag, slot, link)
+        local item = v and v.item
+        local kind
+        if get then
+            local ok, _, _, _, _, _, itemType, subType = pcall(get, link)
+            if ok and itemType then kind = (subType and subType ~= "" and subType ~= itemType) and (itemType .. ": " .. subType) or itemType end
+        end
+        slots[#slots + 1] = {
+            id = tonumber(link:match("item:(%d+)")), name = link:match("%[(.-)%]"), count = stackOf(bag, slot),
+            action = v and v.action or "?", reason = v and v.reason or "not loaded yet", rule = v and v.rule,
+            sell = item and item.sellPrice, quality = item and item.quality, bound = item and item.bound, kind = kind,
+            ah = self:AuctionPrice(link),
+        }
+    end)
+    return D.InventoryRows(slots), used, total
+end
+
+ns.commands.inventory = function()
+    local rows, used, total = D:Inventory()
+    local money = ns.auction and ns.auction.Money or tostring
+    local head, value = D.InventorySummary(rows, used, total)
+    ns:Print("inventory: " .. head .. (value > 0 and (", " .. money(value) .. " at a vendor") or ""))
+    for _, r in ipairs(rows) do print("  " .. D.InventoryLine(r, money)) end
+    -- Which auction house this client has (Flow's price scan needs the classic one).
+    print(string.format("  auction house: classic search %s, newer one %s; Flow knows a price for %d item(s) here",
+        (QueryAuctionItems and GetAuctionItemInfo) and "yes" or "no", C_AuctionHouse and "yes" or "no",
+        ns.auction and ns.auction.Known and ns.auction:Known() or 0))
+end
+ns.commands.inv = ns.commands.inventory
+
+ns:Register("help", "inventory", { order = 44, title = "Inventory", lines = {
+    "/flow inventory: every item in your bags with what Flow would do (sell, auction house, keep) and why. It's saved with the diagnostics.",
+} })

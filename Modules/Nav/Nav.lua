@@ -2969,7 +2969,10 @@ local function textTooltip()
 end
 N._textTooltip = textTooltip  -- (tests)
 
-local function uiLink(parent, label, fn)
+-- arm(link): called when the mouse comes over the link, for a link that
+-- opens one of the game's own windows (MapOpen.lua puts a secure button over
+-- it, so the game opens its window itself).
+local function uiLink(parent, label, fn, arm)
     local b = CreateFrame("Button", nil, parent)
     b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     b.text:SetPoint("LEFT")
@@ -2981,11 +2984,15 @@ local function uiLink(parent, label, fn)
     b.line:SetHeight(1)
     b.line:SetColorTexture(0.35, 0.7, 1, 0.6)
     b:SetSize(b.text:GetStringWidth() + 2, 14)
-    b:SetScript("OnEnter", function(self) self.text:SetTextColor(1, 1, 1); N:ClickCursor(true) end)
+    b:SetScript("OnEnter", function(self)
+        self.text:SetTextColor(1, 1, 1); N:ClickCursor(true)
+        if arm then pcall(arm, self) end
+    end)
     b:SetScript("OnLeave", function(self) self.text:SetTextColor(0.35, 0.7, 1); N:ClickCursor(false) end)
     b:SetScript("OnClick", function() fn(); N:ClickCursor(false) end)
     return b
 end
+N._uiLink = uiLink   -- (tests)
 
 
 local function buildCard()
@@ -3000,18 +3007,30 @@ local function buildCard()
     N.Draggable(f, "cardPoint", "beside what you click")
     f.hero.dist:ClearAllPoints()
     f.hero.dist:SetPoint("BOTTOMRIGHT", -10, 8)
+    -- "Select in quest log" and "Show on map" open the game's window when it's
+    -- closed (0.35.171): MapOpen.lua lets the game do the opening (its own
+    -- button, clicked through a secure one), so Flow's code still never runs
+    -- the map. Where that can't be (a fight, a client without those buttons)
+    -- the link does what it did: selects, highlights, and says which key.
     f.links = {
         quest = uiLink(f, "Select in quest log", function()
             N:OpenInGame(f.goal)
-            ns:Print("selected in your quest log: press L (or M) to read it.")
+            if not WorldMapFrame:IsShown() then ns:Print("selected in your quest log: press L (or M) to read it.") end
+        end, function(self)
+            return ns.mapOpen and ns.mapOpen.Arm(self, "log", function() N:OpenInGame(f.goal) end)
         end),
         map = uiLink(f, "Show on map", function()
             local g = f.goal
             if ns.mapOverlay then ns.mapOverlay:Focus(g.key, 20) end
             if not WorldMapFrame:IsShown() then ns:Print("press M: Flow highlights it on your map.") end
+        end, function(self)
+            return ns.mapOpen and ns.mapOpen.Arm(self, "map", nil, function()
+                if ns.mapOverlay and f.goal then ns.mapOverlay:Focus(f.goal.key, 20) end
+            end)
         end),
         first = uiLink(f, "Go here next", function() N:Select(f.goal.key); f:Hide() end),
     }
+    f:HookScript("OnHide", function() if ns.mapOpen then ns.mapOpen.Disarm() end end)
     return f
 end
 

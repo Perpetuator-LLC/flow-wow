@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.35.171
+- **Auto attack starts at the pull.** Casting at an enemy doesn't turn your auto attack on in
+  WoW: Forever, and your key can't change once the fight is on, so a caster never swung. Now,
+  with a new enemy targeted and no fight yet, the first press of your key turns auto attack on
+  (instant, the game's own Start Attack: on, never off) and your opener comes with the next
+  press. If two presses don't start it, Flow lets it go and shows your opener. Off: "Start
+  auto attack at the pull" in Flow Settings (Your easy key). While it's on and the enemy is
+  out of reach the game may say "You are too far away". One enemy can be left out:
+  `ns:Register("noAutoAttack", "<its name>", { why = "..." })`.
+- **The heal prompt clears when your health is full.** Your health is hidden from add-ons
+  here, so Flow only counted down by the clock and could ask for a heal for a minute at a full
+  bar. The game still says when your health changes: out of a fight, six seconds with no
+  change means it's full, and the prompt goes.
+- **"Show on map" and "Select in quest log" open the map** when it's closed. The game opens
+  its own window (Flow passes your click to the zone name over the minimap, or the Quest Log
+  button), so Flow's code still never runs the map. In a fight the links do what they did.
+- **Clicking a party member does nothing?** `/flow clicks` lists what each mouse button does
+  on unit frames (the game's Click Bindings). Binding a spell to the plain left or right
+  button takes it from "Target" / "Open menu", and moving the spell to a modifier later
+  doesn't give it back: the plain click is left with nothing. Flow says so (also in Flow
+  Improvements) and where to fix it. `/flow under` says what's under the mouse.
+- **`/flow inventory`**: every item in your bags with what Flow would do (sell, auction house,
+  keep), why, which rule said so, the vendor price and the last auction price. Saved with the
+  diagnostics, to go through the bags slot by slot.
+
 ## 0.35.170
 - **The path on the world map moves.** Its dots drift slowly from each stop toward the next,
   so you can see which way the route goes. The game moves them, so it costs Flow nothing while

@@ -6729,3 +6729,192 @@ ns:Register("test", "click: Flow's buttons on WoW's windows open their Flow view
         t:eq(frame and frame:IsShown() and true or false, was, "Flow Talents is back as it was")
     end
 end)
+
+ns:Register("test", "clicks: a plain click on a unit frame that does nothing is spotted", function(t)
+    -- "I click to select party members and nothing, right click and nothing.
+    -- I had click cast without a modifier but I added the modifier now."
+    local CC = ns.clickCheck
+    if not CC then t:ok(false, "ClickCheck.lua not loaded") return end
+    local defaults = { { type = 3, actionID = 1, button = "BUTTON1", modifiers = 0 },
+                       { type = 3, actionID = 2, button = "BUTTON2", modifiers = 0 } }
+    t:eq(#CC.Problems(defaults), 0, "the game's defaults (left targets, right opens the menu): nothing wrong")
+    t:eq(#CC.Problems({}), 0, "no list at all: Flow says nothing (a client may not list its defaults)")
+    t:eq(#CC.Problems(nil), 0, "no click casting on this client: nothing")
+    -- The spells moved to Shift + click; Target and Open menu were never given their buttons back.
+    local moved = { { type = 1, actionID = 5185, button = "BUTTON1", modifiers = 1 },
+                    { type = 1, actionID = 774, button = "BUTTON2", modifiers = 1 } }
+    local p = CC.Problems(moved)
+    t:eq(#p, 2, "spells moved to a modifier: both plain clicks are dead")
+    t:ok(p[1] and p[1]:find("plain left button on a unit frame does nothing", 1, true) ~= nil
+        and p[1]:find("has no button at all", 1, true) ~= nil, "left: " .. tostring(p[1]))
+    t:ok(p[2] and p[2]:find("plain right button", 1, true) ~= nil and p[2]:find("Open menu", 1, true) ~= nil, "right: " .. tostring(p[2]))
+    -- A spell on the plain left button: Target has lost its button.
+    p = CC.Problems({ { type = 1, actionID = 5185, button = "BUTTON1", modifiers = 0 },
+                      { type = 3, actionID = 2, button = "BUTTON2", modifiers = 0 } })
+    t:eq(#p, 1, "a spell on the plain left button: one thing wrong")
+    t:ok(p[1] and p[1]:find("\"Target\" has no button", 1, true) ~= nil, tostring(p[1]))
+    -- Target needs Shift now: the plain click still does nothing.
+    p = CC.Problems({ { type = 3, actionID = 1, button = "BUTTON1", modifiers = 1 },
+                      { type = 3, actionID = 2, button = "BUTTON2", modifiers = 0 } })
+    t:ok(#p == 1 and p[1]:find("needs a modifier", 1, true) ~= nil, "Target on Shift + click: " .. tostring(p[1]))
+    t:eq(CC.What({ type = 1, actionID = 5185 }, function() return "Healing Touch" end), "casts Healing Touch", "a spell binding in words")
+    t:eq(CC.What({ type = 3, actionID = 2 }), "Open menu", "an interaction in words")
+    local report = table.concat(CC.Report(moved, function() return "Healing Touch" end, function(m) return m == 0 and "" or "Shift + " end), "\n")
+    t:ok(report:find("Shift + Left button: casts Healing Touch", 1, true) ~= nil, "the report lists each binding: " .. report)
+    t:ok(report:find("Click Bindings", 1, true) ~= nil, "and says where to fix it")
+    t:ok(CC.Report(nil)[1]:find("no click casting", 1, true) ~= nil, "no such feature here: says so")
+    -- Reading the game's, the advice line and what's under the mouse: no errors.
+    local okRead, list = pcall(CC.Read)
+    t:ok(okRead and (list == nil or type(list) == "table"), "the game's click bindings read without error")
+    local adv = ns:Get("advisor", "clickBindings")
+    local okAdv, items = pcall(adv.check)
+    t:ok(okAdv and type(items) == "table", "Flow Improvements asks without error")
+    local okUnder, names = pcall(CC.Under)
+    t:ok(okUnder and type(names) == "table", "/flow under reads what's under the mouse")
+    t:ok(type(ns.commands.clicks) == "function" and type(ns.commands.under) == "function", "/flow clicks and /flow under")
+end)
+
+ns:Register("test", "rotation: the first press at a new enemy starts auto attack", function(t)
+    -- "it still doesn't seem to enable auto-attack after I engage an enemy"
+    local E, C = ns.rotation, ns.cast
+    local base = { on = true, hostile = true, inCombat = false, attacking = false, canStart = true, barred = false }
+    local function with1(k, v)
+        local s = {}
+        for key, val in pairs(base) do s[key] = val end
+        s[k] = v
+        return E.EngageFirst(s)
+    end
+    t:eq(E.EngageFirst(base), true, "a new enemy, no fight yet, not swinging: auto attack first")
+    t:eq(with1("attacking", true), false, "already swinging: straight to your opener")
+    t:eq(with1("inCombat", true), false, "a fight is on: the key keeps its fight spell")
+    t:eq(with1("hostile", false), false, "no enemy targeted: nothing")
+    t:eq(with1("canStart", false), false, "no Start Attack on this client: never the Attack spell (it toggles)")
+    t:eq(with1("barred", true), false, "an enemy on the noAutoAttack list: left alone")
+    t:eq(with1("on", false), false, "the setting off: nothing")
+    with(ns.db.rotation, "autoAttack", nil, function() t:eq(E.AutoAttackOn(), true, "on unless you turn it off") end)
+    with(ns.db.rotation, "autoAttack", false, function() t:eq(E.AutoAttackOn(), false, "off when you untick it") end)
+
+    -- The step itself, with Flow's own checks stood in for.
+    local known, eng = E:KnownSpells(), E._engage
+    local saved = { unit = eng.unit, presses = eng.presses, gaveUp = eng.gaveUp, current = E.current }
+    local realLog = ns.Log
+    ns.Log = function() end   -- (the test's lines stay out of your log)
+    local ok, err = pcall(function()
+        with(ns.db.rotation, "autoAttack", nil, function()
+        with(known, "Auto Attack", true, function()
+        with(ns.api, "Swinging", function() return false end, function()
+        with(C, "HasStartAttack", function() return true end, function()
+            eng.unit, eng.presses, eng.gaveUp = "not this one", 0, false
+            local ctx = { hostile = true, inCombat = false, fightType = "normal" }
+            local s = E:EngageStep(ctx)
+            t:ok(s and s.engage and s.spell == "Auto Attack", "the step: Start attacking")
+            t:eq(s and C.KeyCommandFor(s, true), "STARTATTACK", "the key is the game's Start Attack (on, never off)")
+            t:eq(E:EngageStep({ hostile = true, inCombat = true }), nil, "in a fight: not offered")
+            t:eq(E:EngageStep({ hostile = false, inCombat = false }), nil, "no enemy: not offered")
+            -- Pressed twice and the game didn't start it: Flow lets go.
+            E.current = s
+            E.NoteKeyPress(); E.NoteKeyPress()
+            E.current = saved.current
+            t:eq(eng.presses, 2, "presses of the key are counted while it's Start Attack")
+            t:eq(E:EngageStep(ctx), nil, "two presses and no swing: your opener shows instead (the key is never stuck)")
+            t:eq(E:EngageStep(ctx), nil, "and it stays out of the way for that enemy")
+            -- A press while the key shows something else isn't counted.
+            eng.presses = 0
+            E.current = { spell = "Wrath" }
+            E.NoteKeyPress()
+            E.current = saved.current
+            t:eq(eng.presses, 0, "a press of your opener isn't counted")
+        end) end) end) end)
+    end)
+    ns.Log = realLog
+    E.current = saved.current
+    eng.unit, eng.presses, eng.gaveUp = saved.unit, saved.presses, saved.gaveUp
+    t:ok(ok, "the step runs" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+ns:Register("test", "heal: a full health bar clears the heal prompt", function(t)
+    -- "after my health fills the 'cast a heal' in the easy button doesn't clear"
+    local E = ns.rotation
+    t:eq(E.FULL_QUIET, 6, "six quiet seconds (regen ticks come every 2 s)")
+    t:eq(E.HealthSettled(100, 90, 80, 0), false, "never saw your health change out of a fight: not trusted")
+    t:eq(E.HealthSettled(100, 97, 80, 3), false, "it changed 3 s ago: still filling")
+    t:eq(E.HealthSettled(100, 93, 80, 3), true, "no change for 7 s, out of a fight: full")
+    t:eq(E.HealthSettled(100, 50, 96, 3), false, "the fight ended 4 s ago: regen hasn't had time to show")
+    t:eq(E.HealthSettled(100, 50, 93, 3), true, "7 s after the fight with no change at all: you came out of it full")
+    t:eq(E.HealthSettled(100, nil, nil, 2), true, "no change since you logged in: full")
+    t:ok(type(E._health) == "table" and type(E._health.out) == "number", "the count of changes is kept for /flow rot why")
+end)
+
+local mapOpenLink   -- (made once: a test may not make a new frame every run)
+ns:Register("test", "click: stop card links open the map through the game's own button", function(t)
+    -- "can the select on map and select quest links open the map if it is not open?"
+    local O = ns.mapOpen
+    if not O then t:ok(false, "MapOpen.lua not loaded") return end
+    t:eq(O.CanArm(false, false, {}), true, "map closed, no fight, the game has a button: the link opens it")
+    t:eq(O.CanArm(true, false, {}), false, "in a fight: the plain link (a secure button can't be placed)")
+    t:eq(O.CanArm(false, true, {}), false, "already open: the plain link (the game's button would close it)")
+    t:eq(O.CanArm(false, false, nil), false, "no such button on this client: the plain link")
+    local x, y, w, h = O.Rect(100, 200, 80, 14, 0.5)
+    t:ok(x == 49 and y == 99 and w == 42 and h == 9, "the secure button sits exactly over the link, a pixel to spare")
+    t:eq(O.Rect(nil, 1, 2, 3), nil, "a link that isn't placed yet: nothing")
+    local zone = { IsShown = function() return true end }
+    local log = { IsShown = function() return true end }
+    local env = { MinimapCluster = { IsShown = function() return true end, ZoneTextButton = zone } }
+    local f, path = O.Target("map", env)
+    t:ok(f == zone and path == "MinimapCluster.ZoneTextButton", "the map: the zone name over the minimap")
+    f = O.Target("log", env)
+    t:ok(f == zone, "no Quest Log button: the quest link opens the map instead")
+    env.QuestLogMicroButton = log
+    f, path = O.Target("log", env)
+    t:ok(f == log and path == "QuestLogMicroButton", "the quest log: its own button on the menu bar")
+    t:eq(O.Target("map", {}), nil, "none of them here: nothing")
+    t:eq(#O.Lines(), 3, "/flow buttons says which buttons the links use")
+    -- click: the link arms when the mouse comes over it, and its own click still works.
+    if not mapOpenLink then
+        mapOpenLink = ns.nav._uiLink(UIParent, "test link", function() mapOpenLink.clicks = (mapOpenLink.clicks or 0) + 1 end,
+            function() mapOpenLink.arms = (mapOpenLink.arms or 0) + 1 end)
+        mapOpenLink:SetPoint("CENTER", UIParent, "CENTER", 0, -2000)   -- (off the screen)
+    end
+    local armed, clicked = mapOpenLink.arms or 0, mapOpenLink.clicks or 0
+    t:ok(pcall(mapOpenLink:GetScript("OnEnter"), mapOpenLink), "hover: runs")
+    t:eq((mapOpenLink.arms or 0) - armed, 1, "and arms the link")
+    t:ok(pcall(mapOpenLink:GetScript("OnClick"), mapOpenLink), "click: runs")
+    t:eq((mapOpenLink.clicks or 0) - clicked, 1, "the plain click still does the link's own thing")
+    pcall(mapOpenLink:GetScript("OnLeave"), mapOpenLink)
+    -- Arming for real (a secure button over the link), then letting go.
+    local okArm, did = pcall(O.Arm, mapOpenLink, "map")
+    t:ok(okArm, "arming runs" .. (okArm and "" or (": " .. tostring(did))))
+    local okOff = pcall(O.Disarm)
+    t:ok(okOff, "and letting go runs")
+    local ov = O._Overlay()
+    t:ok(not ov or not ov:IsShown() or InCombatLockdown(), "nothing is left over the link afterwards")
+end)
+
+ns:Register("test", "inventory: every bag item with what Flow would do and why", function(t)
+    -- "you take inventory while I'm in the game and you optimize the bags"
+    local D = ns.disposition
+    local rows = D.InventoryRows({
+        { id = 2589, name = "Linen Cloth", count = 20, action = "keep", reason = "for First Aid", rule = "professionMaterial", sell = 13, quality = 1 },
+        { id = 222, name = "Odd Relic", count = 1, action = "keep", reason = "quest item", rule = "quest", sell = 0, quality = 1, bound = true, kind = "Quest" },
+        { id = 2589, name = "Linen Cloth", count = 5, action = "keep", reason = "for First Aid", rule = "professionMaterial", sell = 13, quality = 1 },
+        { id = 111, name = "Broken Fang", count = 3, action = "sell", reason = "junk", rule = "junk", sell = 7, quality = 0 },
+    })
+    t:eq(#rows, 3, "the stacks of one item are one row")
+    t:eq(rows[1].name, "Broken Fang", "what leaves your bags comes first")
+    t:eq(rows[2].name, "Linen Cloth", "then what stays, by name")
+    t:ok(rows[2].count == 25 and rows[2].stacks == 2, "counts and slots added up")
+    local money = function(c) return c .. "c" end
+    local line = D.InventoryLine(rows[1], money)
+    t:ok(line:find("SELL", 1, true) == 1 and line:find("3 x Broken Fang [111] in 1 slot (grey, vendor 7c each): junk {junk}", 1, true) ~= nil,
+        "a row reads plainly: " .. line)
+    line = D.InventoryLine(rows[3], money)
+    t:ok(line:find("1 x Odd Relic [222] in 1 slot (white, Quest, soulbound, no vendor price): quest item {quest}", 1, true) ~= nil,
+        "a quest item no vendor takes: " .. line)
+    local head, value = D.InventorySummary(rows, 40, 68)
+    t:eq(head, "40 of 68 bag slots used; Flow would empty 1 (sell 1, auction house 0, disenchant 0)", "the heading")
+    t:eq(value, 21, "and what a vendor pays for it")
+    local ok, live, used, total = pcall(D.Inventory, D)
+    t:ok(ok and type(live) == "table" and (used or 0) <= (total or 0), "your own bags read without error")
+    t:ok(type(ns.commands.inventory) == "function" and ns.commands.inv == ns.commands.inventory, "/flow inventory (and /flow inv)")
+    t:ok(type(ns.auction.Known) == "function" and type(ns.auction:Known()) == "number", "how many auction prices Flow has")
+end)

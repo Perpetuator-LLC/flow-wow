@@ -665,6 +665,63 @@ function E:HealStep(ctx, def)
     return h
 end
 
+-------------------------------------------------------------------------------
+-- Auto attack at the pull
+-------------------------------------------------------------------------------
+-- WoW: Forever doesn't turn your auto attack on when you cast at an enemy,
+-- and the key can't change once the fight is on, so a caster's key (Wrath all
+-- fight) never started it: "it still doesn't enable auto-attack after I
+-- engage an enemy". So the first press at a new enemy, before the fight,
+-- turns auto attack on: the key is the game's own Start Attack then (on,
+-- never off; Cast.lua), it's instant, and your opener comes with the next
+-- press. Only where the game has Start Attack: the Attack spell toggles, and
+-- a second press would turn it off again.
+--   Off: "Start auto attack at the pull" (Flow Settings, Your easy key).
+--   Not for one enemy (a boss whose shield hurts whoever hits it):
+--     ns:Register("noAutoAttack", "<its name>", { why = "..." })
+-- If two presses don't start it (the game refused), Flow lets it go for that
+-- enemy and shows your opener, so the key is never stuck.
+function E.AutoAttackOn() return ns.db.rotation.autoAttack ~= false end
+
+-- Pure: should the pull start with auto attack? s = { on (the setting),
+-- hostile, inCombat, attacking, canStart (the game has Start Attack),
+-- barred (this enemy is on the noAutoAttack list) }.
+function E.EngageFirst(s)
+    return (s.on and s.hostile and not s.inCombat and not s.attacking and s.canStart and not s.barred) and true or false
+end
+
+local engage = { unit = nil, presses = 0, gaveUp = false }
+E._engage = engage   -- (tests)
+E.ENGAGE_TRIES = 2
+
+-- A press of the Flow key (Cast.lua tells): counted while it's Start Attack.
+function E.NoteKeyPress()
+    if E.current and E.current.engage then engage.presses = engage.presses + 1 end
+end
+
+function E:EngageStep(ctx)
+    if not ctx.hostile or ctx.inCombat then return nil end
+    local name = A.Safe(UnitName("target"))
+    local id = A.Safe(UnitGUID and UnitGUID("target")) or name
+    if id ~= engage.unit then engage.unit, engage.presses, engage.gaveUp = id, 0, false end
+    if engage.gaveUp then return nil end
+    local spell = (known["Auto Attack"] and "Auto Attack") or (known["Attack"] and "Attack") or nil
+    if not spell then return nil end
+    local want = E.EngageFirst({
+        on = E.AutoAttackOn(), hostile = true, inCombat = false, attacking = A.Swinging(),
+        canStart = (ns.cast and ns.cast.HasStartAttack and ns.cast.HasStartAttack()) and true or false,
+        barred = name ~= nil and ns:Get("noAutoAttack", name) ~= nil,
+    })
+    if not want then return nil end
+    if engage.presses >= E.ENGAGE_TRIES then
+        engage.gaveUp = true
+        ns:Log("cast", string.format("auto attack didn't start after %d presses: on with your opener", engage.presses))
+        return nil
+    end
+    return { spell = spell, kind = "damage", engage = true, fightType = ctx.fightType,
+             reason = "Start attacking: auto attack on now, your opener with the next press" }
+end
+
 function E:Choose()
     local def = self:Definition()
     if not def then return nil end
@@ -696,6 +753,10 @@ function E:Choose()
     -- A curse, poison, disease or magic you can remove, on you or your group.
     local d = self:Dispel(ctx, def)
     if d then return d end
+
+    -- A new enemy, no fight yet: auto attack on first (one instant press).
+    local atk = self:EngageStep(ctx)
+    if atk then return atk end
 
     local list = priorityFor(def, ctx)
     local i = 1
@@ -1007,6 +1068,9 @@ function E:Explain()
     local H = E.HURT
     out[#out + 1] = string.format("Hurt estimate: %.0f s of hits (heals out of a fight at %d+, big heal at %d+; in a fight HoT at %d+, heal at %d+); an enemy on you now: %s",
         E.hurt, H.outStart, H.outBig, H.inHot, H.inHeal, tostring(E.BeingHit()))
+    local hl = E._health or {}
+    out[#out + 1] = string.format("Full-health check: your health changed %d time(s) out of a fight this session, and cleared the estimate %d time(s). Auto attack at the pull: %s; swinging now: %s",
+        hl.out or 0, hl.cleared or 0, E.AutoAttackOn() and "on" or "off", tostring(A.Swinging()))
     local s = self.current
     out[#out + 1] = "Suggesting now: " .. (s and ((s.spell or s.label or "?") .. " (" .. tostring(s.reason) .. ")") or "nothing")
     for _, rule in ipairs(priorityFor(def, ctx)) do
@@ -1146,6 +1210,37 @@ end
 -- fight in the log: how long you were hit, the estimate before and after.
 local fightLog
 local probes = { wounds = 0, readable = 0 }
+
+-- Full health, without reading it. Your health is hidden on Forever, but the
+-- game still says WHEN it changes (UNIT_HEALTH, no numbers needed). Out of a
+-- fight it regenerates in ticks, so it keeps changing until it's full, then
+-- stops. A few quiet seconds out of a fight therefore mean: full. The
+-- estimate goes to 0 and the "heal up" prompt clears ("after my health fills
+-- the 'cast a heal' doesn't clear": the estimate only counted down by the
+-- clock, 1 every 3 s, so a full bar could still read as hurt for a minute).
+-- Only trusted once this session has seen your health change out of a fight
+-- (a client that never sends the event changes nothing).
+E.FULL_QUIET = 6   -- seconds without a change (regen ticks come every 2 s)
+local health = { last = nil, since = nil, out = 0, cleared = 0 }
+E._health = health   -- (tests, /flow rot why)
+
+-- Pure: is your health full? lastChange: when it last changed; since: when
+-- the quiet could start counting (the fight ended, you came back to life);
+-- seen: changes seen out of a fight this session.
+function E.HealthSettled(now, lastChange, since, seen, quiet)
+    if (seen or 0) < 1 then return false end
+    return now - math.max(lastChange or 0, since or 0) >= (quiet or E.FULL_QUIET)
+end
+
+local healthFrame = CreateFrame("Frame")
+if healthFrame.RegisterUnitEvent then pcall(healthFrame.RegisterUnitEvent, healthFrame, "UNIT_HEALTH", "player")
+else pcall(healthFrame.RegisterEvent, healthFrame, "UNIT_HEALTH") end
+healthFrame:SetScript("OnEvent", function(_, _, unit)
+    if unit ~= "player" then return end
+    health.last = GetTime()
+    if not UnitAffectingCombat("player") then health.out = health.out + 1 end
+end)
+
 C_Timer.NewTicker(0.5, function()
     if UnitIsDeadOrGhost("player") then E.hurt = 0 return end
     local inCombat = UnitAffectingCombat("player") and true or false
@@ -1157,12 +1252,19 @@ C_Timer.NewTicker(0.5, function()
     local low = A.LowHealthWarning() == true
     if low and fightLog then fightLog.low = true end
     E.hurt = E.StepHurt(E.hurt, 0.5, inCombat, hit, not inCombat and eating(), low)
+    -- Out of a fight and your health has stopped changing: it's full.
+    if not inCombat and not low and E.hurt > 0 and E.HealthSettled(GetTime(), health.last, health.since, health.out) then
+        ns:Log("heal", string.format("your health stopped changing (%d s): full, hurt %.0f -> 0", E.FULL_QUIET, E.hurt))
+        E.hurt = 0
+        health.cleared = health.cleared + 1
+    end
 end)
 
 ns:On("PLAYER_REGEN_DISABLED", function()
     fightLog = { start = GetTime(), hurt = E.hurt, hit = 0, unknown = 0 }
 end)
 ns:On("PLAYER_REGEN_ENABLED", function()
+    health.since = GetTime()   -- (regen starts now: the quiet counts from here)
     local f = fightLog
     fightLog = nil
     if not f then return end
@@ -1207,7 +1309,7 @@ ns:On("UNIT_SPELLCAST_CHANNEL_START", function(unit, _, spellID)
     ns:Log("heal", string.format("bandage: hurt %.0f -> %.0f", before, E.hurt))
 end)
 ns:On("PLAYER_LEVEL_UP", function() E.hurt = 0 end)                -- a new level fills your health
-ns:On("PLAYER_UNGHOST", function() E.hurt = E.HURT.outBig + 5 end)  -- back from the dead: about half
+ns:On("PLAYER_UNGHOST", function() E.hurt = E.HURT.outBig + 5; health.since = GetTime() end)  -- back from the dead: about half
 
 -------------------------------------------------------------------------------
 -- Death reports: what happened in the fight you died in, so the easy button
@@ -1350,3 +1452,19 @@ ns:Register("window", "easybutton", { name = "Flow easy button", order = 30,
     hidden = function() return ns.db.rotation.enabled == false end,
     show = function() ns.commands.rot("on") end,
     hide = function() ns.commands.rot("off") end })
+
+-- Flow Settings, "Your easy key".
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "Start auto attack at the pull",
+        note = "(the first press at a new enemy)",
+        tip = "Casting at an enemy doesn't start your auto attack on WoW: Forever, and your key can't change once "
+            .. "the fight is on. Ticked: with a new enemy targeted and no fight yet, the first press of your key "
+            .. "turns auto attack on (instant), and your opener comes with the next press. Off: the key goes "
+            .. "straight to your opener, and you only swing if you start it yourself. (While it's on and the enemy "
+            .. "is out of reach, the game may say \"You are too far away\".)",
+        get = function() return E.AutoAttackOn() end,
+        set = function(on) ns.db.rotation.autoAttack = on and true or false end,
+    })
+end

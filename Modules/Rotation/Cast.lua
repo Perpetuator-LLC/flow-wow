@@ -866,7 +866,7 @@ spy:SetScript("OnKeyDown", function(_, key)
         if key == k:match("[^-]+$") then mine = k end
     end
     if not mine then return end
-    -- (key press noted below)
+    if E.NoteKeyPress then E.NoteKeyPress() end   -- (the pull's Start Attack press is counted: Engine EngageStep)
     clicksAtPress = fight and fight.clicks or 0
     if fight then fight.keys = (fight.keys or 0) + 1 end
     if spyLogged < 6 then
@@ -881,3 +881,16 @@ spy:SetScript("OnKeyDown", function(_, key)
     end
 end)
 ns:On("PLAYER_REGEN_DISABLED", function() spyLogged = 0 end)
+-- A Flow key on a mouse button (Button 4 / 5, the wheel button): no key event
+-- comes for those, so the game's own "a mouse button went down" tells.
+local MOUSE_KEY = { MiddleButton = "BUTTON3", Button4 = "BUTTON4", Button5 = "BUTTON5" }
+ns:On("GLOBAL_MOUSE_DOWN", function(button)
+    local key = MOUSE_KEY[button or ""]
+    if not key or not (ns.db and ns.db.cast) then return end
+    for _, k in ipairs(C.KeysOf(ns.db.cast)) do
+        if k:match("[^-]+$") == key then
+            if E.NoteKeyPress then E.NoteKeyPress() end
+            return
+        end
+    end
+end)

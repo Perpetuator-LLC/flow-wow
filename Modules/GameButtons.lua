@@ -281,6 +281,9 @@ ns.commands.buttons = function(arg)
         local b = buttons[e.key]
         print("  " .. GB.Line(e.def, paths[e.key], b and b:IsVisible()))
     end
+    if ns.mapOpen then
+        for _, l in ipairs(ns.mapOpen.Lines()) do print("  " .. l) end
+    end
     local open = GB.OpenWindows()
     if #open > 0 then
         local line = "WoW windows open now: " .. table.concat(open, ", ")

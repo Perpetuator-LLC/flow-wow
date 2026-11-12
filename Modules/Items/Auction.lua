@@ -66,6 +66,13 @@ function AH:Price(id)
     return e and e.price, e and e.at
 end
 
+-- How many items Flow has a price for, on this realm and faction.
+function AH:Known()
+    local n = 0
+    for _ in pairs(store()) do n = n + 1 end
+    return n
+end
+
 -------------------------------------------------------------------------------
 -- Watch list
 -------------------------------------------------------------------------------

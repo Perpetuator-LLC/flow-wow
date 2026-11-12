@@ -17,6 +17,11 @@ Flow for WoW is a separate project from Flow Engine.
   fast gold pulse heal now. A big cooldown timer sits on the icon (and, when it suggests
   re-casting a buff, the buff's last 30 seconds in light blue), and a crossed-swords badge on
   its left shows auto attack is on.
+- **Auto attack at the pull**: with a new enemy targeted and no fight yet, the first press of
+  your key turns auto attack on (the game's own Start Attack: on, never off), and your opener
+  comes with the next press. WoW: Forever doesn't start it when you cast, and the key can't
+  change once the fight is on. A switch in the settings; one enemy can be left out
+  (`noAutoAttack`).
 - **The queue: four things on one key.** Right of the icon, each a little smaller, sit the
   three things your key casts with a modifier held, the modifier written above each: **CTRL**
   your second attack (Moonfire beside Wrath; between fights the next way to heal up, or the
@@ -65,6 +70,8 @@ Flow for WoW is a separate project from Flow Engine.
   red low-health warning triggers your fastest heal; after any fight of 6 s or more a heal is
   offered for 15 s. Where health is readable, heals are timed so none of it is wasted, with an
   emergency heal when you'd die before you could react.
+  Out of a fight the prompt clears as soon as your health is full: the game still says when
+  your health changes, and six seconds without a change mean a full bar.
 - **Break free**: stunned, feared or rooted, Flow suggests the spell that gets you out (Will to
   Survive / Every Man for Himself, Will of the Forsaken, Escape Artist, Blessing of Freedom).
 - **Stop a cast**: your target starts casting within 8 yards, Flow suggests War Stomp (tauren).
@@ -145,7 +152,9 @@ Flow for WoW is a separate project from Flow Engine.
   the trail stronger or fainter; numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
-- **Stop card**: Flow's view of a stop (drag it by its title). The arrow's own panel is a drawer
+- **Stop card**: Flow's view of a stop (drag it by its title). Its "Show on map" and "Select in
+  quest log" links open the map when it's closed (the game opens its own window: Flow passes
+  your click to the game's own button, so its code never runs the map). The arrow's own panel is a drawer
   beside the arrow: click the arrow to open it, click again or its X to close it.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
   order). It and Questie's tracker open and fold on their own: either or both. Click a row for
@@ -198,6 +207,9 @@ Flow for WoW is a separate project from Flow Engine.
   First Aid").
 - **Weapon skills**: Flow knows which weapon skills you've trained; an upgrade that needs one
   puts a weapon master stop on the route. Weapons your class can never use are marked to sell.
+- **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
+  auction house, keep), why and which rule said so, the vendor price and the last auction
+  price. Saved with the diagnostics.
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
   It never sells profession tools or materials you need. Buy any item back with one click, and
