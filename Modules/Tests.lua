@@ -925,6 +925,9 @@ ns:Register("test", "map: the stop you're heading to has a white ring, the rest 
     local r, g, b = p.edge:GetVertexColor()
     t:ok(r > 0.99 and g > 0.99 and b > 0.99, "heading there: white ring")
     t:ok(p.hole:IsShown(), "with the (o) gap and dot")
+    t:ok(p:GetWidth() <= 12.5, "small, not a giant dot")
+    local _, _, _, a = p.edge:GetVertexColor()
+    t:ok(a and a < 0.6, "the white ring is faint")
     p = ns.mapOverlay._pin(c, 0.6, 0.6, "2", ns.theme.route, stop, nil, false)
     r, g, b = p.edge:GetVertexColor()
     t:ok(r < 0.01 and g < 0.01 and b < 0.01, "other stops: black ring")
@@ -1615,6 +1618,13 @@ ns:Register("test", "crafting: the window shows the arrow's stop, materials and 
     t:eq(now, 1, "make now only what your bags hold")
     local ok, err = pcall(function()
         local p = H.Panel()
+        t:ok(p.goalBox and p.goalBox ~= p, "the goal has its own box, apart from the lists")
+        t:eq(p.btn:GetParent(), p.goalBox, "the Make button sits in the goal box")
+        t:eq(_G.FlowCraftGoal and _G.FlowCraftGoal.btn, p.btn, "the action key finds the Make button")
+        if p.goalBox.GetBackdropBorderColor then
+            local r, g, b = p.goalBox:GetBackdropBorderColor()
+            t:ok(r > 0.95 and math.abs(g - 0.5) < 0.05 and b < 0.05, "the goal box has a legendary orange border")
+        end
         local was = H.upgradesOpen
         p.upBtn:Click()
         t:eq(H.upgradesOpen, not was, "clicking opens / closes the fold-out")
@@ -1622,6 +1632,49 @@ ns:Register("test", "crafting: the window shows the arrow's stop, materials and 
         t:eq(H.upgradesOpen, was, "and back")
     end)
     t:ok(ok, "fold-out click" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+ns:Register("test", "crafting: skill recipes are ranked by material cost per skill point", function(t)
+    local known = {
+        Dear   = { diff = "optimal", reagents = { [1] = 10 } },   -- 100 a point
+        Cheap  = { diff = "medium",  reagents = { [1] = 3 } },    -- 30 / 0.6 = 50 a point
+        Grey   = { diff = "trivial", reagents = { [1] = 1 } },    -- gives no skill
+        NoIdea = { diff = "optimal", reagents = { [2] = 1 } },    -- no price known
+    }
+    local list = ns.skillPlan.CheapSkillUps(known, function(id) return id == 1 and 10 or nil end)
+    t:eq(#list, 3, "the grey one is left out")
+    t:eq(list[1].recipe, "Cheap", "cheapest per skill point first")
+    t:eq(list[2].recipe, "Dear", "then the dearer one")
+    t:eq(list[3].recipe, "NoIdea", "unknown prices go last")
+    local rows = ns.craftHint.CheapRows(list, 2)
+    t:eq(#rows, 2, "only the top ones are shown")
+    t:ok(rows[1].line:find("Cheap", 1, true), "the row names the recipe: " .. rows[1].line)
+end)
+
+ns:Register("test", "crafting: what your bags make for skill is ranked by skill points", function(t)
+    local known = {
+        Two    = { diff = "optimal", reagents = { [1] = 2 } },          -- 5 made, 5 points
+        Many   = { diff = "easy",    reagents = { [1] = 1 } },          -- 10 made, 2 points
+        Both   = { diff = "medium",  reagents = { [1] = 1, [2] = 1 } }, -- 3 made, 1.8 points
+        Lack   = { diff = "optimal", reagents = { [3] = 1 } },          -- none in bags
+        Grey   = { diff = "trivial", reagents = { [1] = 1 } },
+    }
+    local bags = { [1] = 10, [2] = 3 }
+    local list = ns.skillPlan.MakeNowSkillUps(known, function(id) return bags[id] or 0 end)
+    t:eq(#list, 3, "what you can't make, and grey, are left out")
+    t:eq(list[1].recipe, "Two", "most skill points first")
+    t:eq(list[1].count, 5, "how many your bags make")
+    t:eq(list[2].recipe, "Many", "then the next most")
+    t:eq(list[3].count, 3, "the scarcest material sets the count")
+    local rows = ns.craftHint.MakeNowRows(list, 3)
+    t:ok(rows[1].line:find("make 5, 5 sure skill points", 1, true), "orange: sure points: " .. rows[1].line)
+    t:ok(rows[2].line:find("maybe 2 skill points (not every time)", 1, true), "others: maybe: " .. rows[2].line)
+    -- 4 yellow (2.4 expected) vs 2 orange (2 sure): the sure one first.
+    local tie = ns.skillPlan.MakeNowSkillUps({
+        Pants = { diff = "medium",  reagents = { [1] = 1 } },
+        Belt  = { diff = "optimal", reagents = { [2] = 1 } },
+    }, function(id) return id == 1 and 4 or 2 end)
+    t:eq(tie[1].recipe, "Belt", "on the same whole points, the sure recipe first")
 end)
 
 ns:Register("test", "crafting: an upgrade's hover lists its materials, read from the newest recipe data", function(t)
@@ -2017,7 +2070,10 @@ ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon"
     if s then t:eq(s.spell, "Basic Campfire", "makes a campfire first") else t:ok(true, "(no wood or no Basic Campfire: the route buys wood)") end
     -- First Aid (no station): open it straight away.
     local fa = get("craft:open", { goal = { key = "craft:First Aid:X", recipe = "Linen Bandage", prof = "First Aid", anywhere = true }, at = true })
-    if ns.api.SpellInfo("First Aid") and not (TradeSkillFrame and TradeSkillFrame:IsShown()) then
+    -- (Not with a profession window already open: then the key presses Make
+    -- instead. This client's window is ProfessionsFrame, not TradeSkillFrame.)
+    local winOpen = (TradeSkillFrame and TradeSkillFrame:IsShown()) or (ProfessionsFrame and ProfessionsFrame:IsShown())
+    if ns.api.SpellInfo("First Aid") and not winOpen then
         t:eq(fa and fa.spell, "First Aid", "opens First Aid")
     end
     t:eq(ns.cast._describe({ type = "click", label = "Make 4 x Roasted Boar Meat" }), "/click Make 4 x Roasted Boar Meat", "click step described")

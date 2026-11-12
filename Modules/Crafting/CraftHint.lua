@@ -16,7 +16,9 @@ ns.craftHint = H
 
 local GOLD = "|cffffd100"
 local WIDTH = 340
-local panel
+local GOAL_WIDTH = 260
+local panel   -- under the window: what you can do (make now, cheapest, upgrades)
+local goal    -- right of the window: the plan's goal (make N x, its materials, Make)
 H.upgradesOpen = false   -- the upgrades fold-out is open
 local made = {}        -- recipe -> crafted since Flow suggested the count
 local announced = {}   -- prof -> target already announced as reached
@@ -169,6 +171,45 @@ function H.Select(recipe)
     return false
 end
 
+-- The cheapest recipes for a skill point, as panel rows: at most `max`,
+-- each { recipe, reagents, tag, line, note } (hover and click like an
+-- upgrade row). list: SP.CheapSkillUps(...).
+local DIFF_WORD = { optimal = "|cffff8040orange|r", medium = "|cffffff00yellow|r", easy = "|cff40c040green|r" }
+function H.CheapRows(list, max)
+    local money = (ns.auction and ns.auction.Money) or tostring
+    local out = {}
+    for i, c in ipairs(list or {}) do
+        if i > (max or 3) then break end
+        local tag = c.unpriced and "some material prices unknown"
+            or ("about " .. money(math.ceil(c.perPoint)) .. " a skill point")
+        out[#out + 1] = { recipe = c.recipe, reagents = c.reagents, tag = tag,
+            line = string.format("%d. %s (%s): %s", i, c.recipe, DIFF_WORD[c.diff] or c.diff or "?", tag),
+            note = "Cost: auction prices Flow has seen, else vendor prices. Orange always gives a point, yellow most times, green now and then." }
+    end
+    return out
+end
+
+-- What you can make right now for skill, as panel rows: at most `max`,
+-- each { recipe, reagents, tag, line, note }. list: SP.MakeNowSkillUps(...).
+function H.MakeNowRows(list, max)
+    local out = {}
+    for i, c in ipairs(list or {}) do
+        if i > (max or 3) then break end
+        local tag
+        if c.diff == "optimal" then
+            tag = string.format("make %d, %d sure skill point%s", c.count, c.count, c.count == 1 and "" or "s")
+        else
+            local pts = math.max(math.floor(c.points + 1e-9), 0)
+            tag = string.format("make %d, maybe %d skill point%s (not every time)", c.count, pts, pts == 1 and "" or "s")
+        end
+        out[#out + 1] = { recipe = c.recipe, reagents = c.reagents, tag = tag,
+            line = string.format("%d. %s (%s): %s", i, c.recipe, DIFF_WORD[c.diff] or c.diff or "?", tag),
+            note = "From what's in your bags now. Orange gives a point every time. Yellow gives one about half"
+                .. " the time and green now and then, so a few can give none. Recipes turn green, then grey, as you climb." }
+    end
+    return out
+end
+
 function H.ToggleUpgrades()
     H.upgradesOpen = not H.upgradesOpen
     if panel and panel:IsShown() then H:Refresh() end
@@ -208,16 +249,21 @@ local function remaining(g)
     return math.max(0, (g.makeCount or 0) - (made[g.recipe] or 0))
 end
 
--- This panel's hover text sits beside the panel, never over it: over it, it
--- hid the Make button and the rows you were pointing at.
+-- Hover text sits beside its box, never over it: over it, it hid the Make
+-- button and the rows you were pointing at. The goal box's goes to its right.
 local function tipBeside(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_NONE")
     GameTooltip:ClearAllPoints()
     GameTooltip:SetPoint("TOPLEFT", panel, "TOPRIGHT", 4, 0)
 end
+local function tipUnderGoal(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOPLEFT", goal, "TOPRIGHT", 4, 0)
+end
 
 local function tooltip(owner, g)
-    tipBeside(owner)
+    tipUnderGoal(owner)
     GameTooltip:AddLine(string.format("Make %s%d|r x %s", GOLD, remaining(g), g.recipe), 1, 1, 1)
     for _, d in ipairs(g.details or {}) do GameTooltip:AddLine(d, 0.8, 0.8, 0.8, true) end
     local nextStop = H.NextStop(g.key)
@@ -225,26 +271,39 @@ local function tooltip(owner, g)
     GameTooltip:Show()
 end
 
-local function build()
-    panel = CreateFrame("Frame", "FlowCraftHint", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    panel:SetSize(WIDTH, 52)
-    panel:SetFrameStrata("HIGH")
-    if panel.SetBackdrop then
-        panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-        panel:SetBackdropColor(0.06, 0.05, 0.08, 0.92)
-        local r = ns.theme.route
-        panel:SetBackdropBorderColor(r[1], r[2], r[3], 1)
+-- The legendary item colour (|cffff8000): the goal box's border.
+H.GOAL_BORDER = { 1, 0.5, 0 }
+
+local function box(name, width, border)
+    local f = CreateFrame("Frame", name, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f:SetSize(width, 52)
+    f:SetFrameStrata("HIGH")
+    if f.SetBackdrop then
+        f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+        f:SetBackdropColor(0.06, 0.05, 0.08, 0.92)
+        local r = border or ns.theme.route
+        f:SetBackdropBorderColor(r[1], r[2], r[3], 1)
     end
-    panel.text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    panel.text:SetPoint("TOPLEFT", 8, -7); panel.text:SetPoint("RIGHT", -96, 0)
+    return f
+end
+
+local function build()
+    panel = box("FlowCraftHint", WIDTH)
+    -- The goal lives in its own box under the window's right side, apart from the
+    -- lists of what you can do (owner: "keep the goal separate from the
+    -- ability"). Its parts stay reachable as panel.text / sub / mats / btn.
+    goal = box("FlowCraftGoal", GOAL_WIDTH, H.GOAL_BORDER)
+    panel.goalBox = goal
+    panel.text = goal:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.text:SetPoint("TOPLEFT", 8, -7); panel.text:SetPoint("RIGHT", goal, "RIGHT", -96, 0)
     panel.text:SetJustifyH("LEFT")
-    panel.sub = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    panel.sub:SetPoint("TOPLEFT", panel.text, "BOTTOMLEFT", 0, -3); panel.sub:SetPoint("RIGHT", -96, 0)
+    panel.sub = goal:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    panel.sub:SetPoint("TOPLEFT", panel.text, "BOTTOMLEFT", 0, -3); panel.sub:SetPoint("RIGHT", goal, "RIGHT", -96, 0)
     panel.sub:SetJustifyH("LEFT")
     -- Where each material comes from (bags, bank, smelting).
-    panel.mats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.mats = goal:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     panel.mats:SetPoint("TOPLEFT", panel.sub, "BOTTOMLEFT", 0, -4)
-    panel.mats:SetWidth(WIDTH - 16)
+    panel.mats:SetWidth(GOAL_WIDTH - 16)
     panel.mats:SetJustifyH("LEFT")
     local m = ns.theme.muted or { 0.75, 0.75, 0.75 }
     panel.mats:SetTextColor(m[1], m[2], m[3])
@@ -255,7 +314,14 @@ local function build()
     panel.upBtn.label:SetPoint("LEFT")
     panel.upBtn:SetScript("OnClick", function() H.ToggleUpgrades() end)
     panel.upRows = {}   -- one row per upgrade: hover for its materials, click to show it
-    panel.btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    panel.cheapHdr = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    panel.cheapHdr:SetText("Cheapest to buy materials for (per skill point)")
+    panel.cheapHdr:Hide()
+    panel.nowHdr = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    panel.nowHdr:SetText("Make now from your bags")
+    panel.nowHdr:Hide()
+    panel.btn = CreateFrame("Button", nil, goal, "UIPanelButtonTemplate")
+    goal.btn = panel.btn   -- (the action key presses it: Rotation/Actions.lua)
     panel.btn:SetSize(84, 24); panel.btn:SetPoint("TOPRIGHT", -6, -6)
     panel.btn:SetScript("OnClick", function(self)
         local g, n = panel.goal, panel.makeNow or 0
@@ -267,11 +333,13 @@ local function build()
         end
     end)
     panel:EnableMouse(true)
-    panel:SetScript("OnEnter", function(self) if self.goal then tooltip(self, self.goal) end end)
-    panel:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    goal:EnableMouse(true)
+    goal:SetScript("OnEnter", function(self) if panel.goal then tooltip(self, panel.goal) end end)
+    goal:SetScript("OnLeave", function() GameTooltip:Hide() end)
     panel.btn:SetScript("OnEnter", function() if panel.goal then tooltip(panel.btn, panel.goal) end end)
     panel.btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     panel:Hide()
+    goal:Hide()
 end
 
 -- The panel, built once (tests use it too).
@@ -294,6 +362,7 @@ local function upgradeTip(row)
     if u.unread then
         GameTooltip:AddLine("Flow couldn't read all its materials yet. Close and open this window.", 0.8, 0.8, 0.8, true)
     end
+    if u.note then GameTooltip:AddLine(u.note, 0.8, 0.8, 0.8, true) end
     GameTooltip:AddLine("Click to show it in the profession window.", 0.6, 0.9, 1, true)
     GameTooltip:Show()
 end
@@ -322,14 +391,49 @@ local function upRow(i)
     return row
 end
 
--- Lays out the material lines and the fold-out, and sizes the panel.
--- ups: the upgrades behind upLines, same order.
-local function layout(matLines, upLines, ups)
+-- Sizes the goal box to its text and material lines.
+local function layoutGoal(matLines)
     panel.mats:SetText(table.concat(matLines, "\n"))
     local h = 7 + panel.text:GetStringHeight() + 3 + panel.sub:GetStringHeight() + 4
     if #matLines > 0 then h = h + panel.mats:GetStringHeight() + 4 end
+    goal:SetHeight(math.max(36, h + 6))
+end
+
+-- Lays out the lists under the window and sizes that panel; false when
+-- there is nothing to list (the panel then stays hidden).
+-- ups: the upgrades behind upLines, same order.
+-- nowRows: what your bags make for skill (H.MakeNowRows), shown first;
+-- cheap: the cheapest recipes to buy materials for (H.CheapRows), next.
+local function layout(upLines, ups, cheap, nowRows)
+    local h = 6
     panel.upBtn:ClearAllPoints()
     local shown = 0
+    local function place(u, line)
+        shown = shown + 1
+        local row = upRow(shown)
+        row.u = u
+        row.label:SetText(line)
+        local rh = math.max(10, row.label:GetStringHeight())
+        row:SetHeight(rh)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -h)
+        row:Show()
+        h = h + rh + 2
+    end
+    local function section(hdr, rows)
+        if rows and #rows > 0 then
+            hdr:ClearAllPoints()
+            hdr:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -h)
+            hdr:Show()
+            h = h + 14
+            for _, c in ipairs(rows) do place(c, c.line) end
+            h = h + 2
+        else
+            hdr:Hide()
+        end
+    end
+    section(panel.nowHdr, nowRows)
+    section(panel.cheapHdr, cheap)
     if #upLines > 0 then
         panel.upBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -h)
         panel.upBtn.label:SetText(string.format("%s Upgrades you lack materials for (%d)",
@@ -337,25 +441,24 @@ local function layout(matLines, upLines, ups)
         panel.upBtn:Show()
         h = h + 16
         if H.upgradesOpen then
-            for i, line in ipairs(upLines) do
-                local row = upRow(i)
-                row.u = ups and ups[i]
-                row.label:SetText(line)
-                local rh = math.max(10, row.label:GetStringHeight())
-                row:SetHeight(rh)
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -h)
-                row:Show()
-                h = h + rh + 2
-                shown = i
-            end
+            for i, line in ipairs(upLines) do place(ups and ups[i], line) end
             h = h + 2
         end
     else
         panel.upBtn:Hide()
     end
     for i = shown + 1, #panel.upRows do panel.upRows[i]:Hide() end
-    panel:SetHeight(math.max(52, h + 6))
+    panel:SetHeight(h + 4)
+    return (#upLines + #cheap + #nowRows) > 0
+end
+
+local function hideAll()
+    if panel then panel:Hide() end
+    if goal then goal:Hide() end
+end
+
+local function anyShown()
+    return (panel and panel:IsShown()) or (goal and goal:IsShown())
 end
 
 -- A new plan (after your bags change) already counts from what's left: start over.
@@ -376,8 +479,12 @@ function H:Refresh()
     -- Planned for the skill, but you hold nothing to make it from yet.
     local waiting = not g and prof and ns.skillPlan and ns.skillPlan.lastWaiting
         and ns.skillPlan.lastWaiting[prof] and ns.skillPlan.lastWaiting[prof][1] or nil
-    if not (frame and (g or waiting or #upLines > 0)) then
-        if panel then panel:Hide() end
+    local SPm = ns.skillPlan
+    local known = prof and ns.recipes and ns.recipes:Known(prof) or nil
+    local cheap = (known and SPm and SPm.CheapSkillUps) and H.CheapRows(SPm.CheapSkillUps(known), 3) or {}
+    local nowRows = (known and SPm and SPm.MakeNowSkillUps) and H.MakeNowRows(SPm.MakeNowSkillUps(known), 3) or {}
+    if not (frame and (g or waiting or #upLines > 0 or #cheap > 0 or #nowRows > 0)) then
+        hideAll()
         return
     end
     if not panel then build() end
@@ -385,6 +492,8 @@ function H:Refresh()
     panel.makeNow = 0
     panel:ClearAllPoints()
     panel:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -2)
+    goal:ClearAllPoints()
+    goal:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", 0, -2)
     local rank = A.Skill(prof) or (g and g.rank)
     local matLines = {}
     if waiting then
@@ -421,8 +530,9 @@ function H:Refresh()
         panel.btn:SetText("Make " .. now)
         panel.btn:SetEnabled(now > 0)
     end
-    layout(matLines, upLines, ups)
-    panel:Show()
+    layoutGoal(matLines)
+    goal:Show()
+    if layout(upLines, ups, cheap, nowRows) then panel:Show() else panel:Hide() end
 end
 
 -- The skill reached its target while you craft: say stop, and where next.
@@ -448,20 +558,20 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     for _, g in ipairs(ns.skillPlan and ns.skillPlan.lastStops or {}) do
         if g.recipe == name then made[name] = (made[name] or 0) + 1; lastCraftAt = GetTime() end
     end
-    if panel and panel:IsShown() then H:Refresh() end
+    if anyShown() then H:Refresh() end
 end)
 
 
-ns:On("SKILL_LINES_CHANGED", function() checkReached(); if panel and panel:IsShown() then H:Refresh() end end)
+ns:On("SKILL_LINES_CHANGED", function() checkReached(); if anyShown() then H:Refresh() end end)
 ns:On("CHAT_MSG_SKILL", function() C_Timer.After(0.2, checkReached) end)
 for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_UPDATE" }) do
     ns:On(ev, function() C_Timer.After(0.4, function() pcall(H.Refresh, H) end) end)
 end
-ns:On("TRADE_SKILL_CLOSE", function() if panel then panel:Hide() end end)
+ns:On("TRADE_SKILL_CLOSE", hideAll)
 
 -- The skill planner calls this when it has planned again. Without it the
 -- panel kept asking for an upgrade you'd already made until something else
 -- (equipping it) happened to redraw the panel.
 function H.PlanChanged()
-    if panel and panel:IsShown() then pcall(H.Refresh, H) end
+    if anyShown() then pcall(H.Refresh, H) end
 end
