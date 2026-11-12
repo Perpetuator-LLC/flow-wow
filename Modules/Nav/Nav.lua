@@ -2393,7 +2393,8 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
-    return { first = first, tour = tour, here = here, away = away, air = N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil }
+    return { first = first, tour = tour, here = here, away = away, air = N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil,
+             port = ns.travelSpells and ns.travelSpells.PlanPort() or nil }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
@@ -2717,6 +2718,12 @@ end
 local function steer(p, choice)
     local pt = choice.point
     local direct = choice.d
+    -- A stop a cast away (Teleport: Moonglade): the panel and the arrow say so.
+    local TS = ns.travelSpells
+    if TS then
+        local spell = TS.Spell(p, pt)
+        N.port, N.portHint = spell and spell.name or nil, TS.Hint(p, pt)
+    end
     -- The stop is in another region: by a gate you've used, never straight
     -- through the cliff. The gate is where to walk to until you're through.
     local via = ns.gates and ns.gates.Via(p, pt) or nil
@@ -3018,6 +3025,7 @@ local function showPanel()
     for _, l in ipairs(g.details or {}) do
         if not l:find("^Quest: ") and not l:find("^Objective: ") then lines[#lines + 1] = "|cffcccccc" .. l .. "|r" end
     end
+    if N.portHint then lines[#lines + 1] = "|cff66ccff" .. N.portHint .. "|r" end
     lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via) .. "|r"
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
@@ -3634,7 +3642,8 @@ local function update()
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length)
                 or (how == "entrance" and " (it's inside: entrance first)")
-                or (how == "gate" and N.GateText(N.via, length)) or ""))
+                or (how == "gate" and N.GateText(N.via, length)) or "")
+            .. (N.port and (": cast " .. N.port) or ""))
         frame.arrow:SetArrived(false)
     end
     -- Right on the spot (on a spawn spot, or at the stop itself): the pillars

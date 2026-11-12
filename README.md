@@ -106,7 +106,8 @@ Flow for WoW is a separate project from Flow Engine.
   lift (up Thunder Bluff, through a pass into the next zone). A stop in another part of the
   map goes by the way you've used: the arrow leads to the lift, the route counts the ride (so
   stops on the bluff are done together), and the map's dotted path bends through it. Capital
-  cities are walled: where Flow knows no way in yet, it says so. `/flow gates`.
+  cities are walled: where Flow knows no way in yet, it says so. `/flow gates`. A druid's
+  Teleport: Moonglade counts as travel too: a stop in Moonglade is one cast away.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Shortest path**
   (rare blue, the default) and **Most XP first** (epic purple) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or

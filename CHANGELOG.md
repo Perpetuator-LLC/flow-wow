@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.175
+- **Bear Form: the class quest in your log comes first.** "Moonglade" was in the log, but
+  its stop is at the far end of Kalimdor, so the route left it for last and the Flow Tracker
+  never sent you. A class quest that leads to a spell you don't have is now a milestone: it
+  isn't put off for being far or in another zone. And a druid's **Teleport: Moonglade**
+  counts as travel: a stop in Moonglade is one cast away, the arrow says "cast Teleport:
+  Moonglade", and its panel says so too (or, if you don't know the spell yet, where it comes
+  from). Other travel spells: `ns:Register("travelSpell", ...)`.
+- **Thunder Bluff's lifts, not its rim.** Walking along the edge of the bluff the game's map
+  flips between Mulgore and Thunder Bluff, and Flow took each flip for a way up: four in
+  twenty minutes, on a mesa with two lifts. A way into Thunder Bluff is now learned only when
+  you stood still as the map changed (a lift carried you). The ones learned before are
+  forgotten: ride a lift up once more.
+
 ## 0.35.174
 - **A quest in your log is always on your route.** Thunderhorn Cleansing and Stalk With The
   Earthmother were in the log but not on the route: Flow dropped any objective it had no place

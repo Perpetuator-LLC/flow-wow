@@ -47,7 +47,7 @@ local function between2(a, b) return dist(a.wx, a.wy, b.wx, b.wy) end
 
 -- The capital cities, by the game's map numbers (Thunder Bluff's seen in
 -- play: "your map: 1456"). Each is walled off from the zone around it.
-ns:Register("walledMap", 1456, { why = "Thunder Bluff: on a mesa, lifts only" })
+ns:Register("walledMap", 1456, { why = "Thunder Bluff: on a mesa, lifts only", lift = true })
 ns:Register("walledMap", 1454, { why = "Orgrimmar: behind walls, gates only" })
 ns:Register("walledMap", 1458, { why = "Undercity: underground, lifts and the sewers" })
 ns:Register("walledMap", 1453, { why = "Stormwind: behind walls, gates only" })
@@ -61,6 +61,11 @@ ns:Register("walledMap", 1457, { why = "Darnassus: on Teldrassil, a portal" })
 local regionOf = {}   -- [uiMapID] = region (a map number), or false (none: a continent, the world)
 
 function G.Walled(region) return region ~= nil and ns:Get("walledMap", region) ~= nil end
+-- Reached only by lift (`lift = true`): a way in is learned only from a ride.
+function G.LiftOnly(region)
+    local w = region ~= nil and ns:Get("walledMap", region)
+    return (w and w.lift == true) or false
+end
 
 -- The region a map belongs to: itself when it's walled, else its zone. nil
 -- for a continent or world map (nothing to say about those).
@@ -97,10 +102,13 @@ end
 -------------------------------------------------------------------------------
 
 -- Is a crossing from one region into another one to learn? Into a walled
--- place: yes. Out of one into the open: no.
-function G.Learnable(from, to, walledFrom, walledTo)
+-- place: yes. Out of one into the open: no. Into a place only lifts reach
+-- (liftOnly): only when you rode one (rode), not when the map flipped as you
+-- walked along its edge.
+function G.Learnable(from, to, walledFrom, walledTo, liftOnly, rode)
     if not (from and to) or from == to then return false end
     if walledFrom and not walledTo then return false end
+    if liftOnly and not rode then return false end
     return true
 end
 
@@ -248,31 +256,63 @@ end
 -- Learning them as you walk
 -------------------------------------------------------------------------------
 
--- You crossed from one map to another on foot: keep the spot.
-function G.Learn(fromMap, toMap, p)
+-- You crossed from one map to another on foot: keep the spot. rode: you
+-- stood still on the map while it happened (a lift carried you).
+function G.Learn(fromMap, toMap, p, rode)
     local a, b = G.Region(fromMap), G.Region(toMap)
-    if not G.Learnable(a, b, G.Walled(a), G.Walled(b)) then return false end
+    if not G.Learnable(a, b, G.Walled(a), G.Walled(b), G.LiftOnly(b), rode) then return false end
     local list = store()
     if #list >= G.MAX or not G.IsNew(list, p.cont, p.wx, p.wy, a, b) then return false end
     list[#list + 1] = { cont = p.cont, wx = floor(p.wx), wy = floor(p.wy), a = a, b = b }
     G.Forget()
-    ns:Log("nav", string.format("learned a way from %s into %s", G.Name(a), G.Name(b)))
+    ns:Log("nav", string.format("learned a way from %s into %s%s", G.Name(a), G.Name(b), rode and " (a lift)" or ""))
     if ns.nav then ns.nav.planDirty = true end
     return true
 end
 
--- Called with where you are, several times a second (Nav.lua). carried: on
--- a flight path or flying, which is no walk.
-local last
-function G.Track(p, carried)
-    if not p or carried then last = nil return end
-    if last and last.cont == p.cont and last.map ~= p.map and dist(p.wx, p.wy, last.wx, last.wy) <= G.MAX_STEP then
-        G.Learn(last.map, p.map, p)
-    end
-    last = last or {}
-    last.cont, last.wx, last.wy, last.map = p.cont, p.wx, p.wy, p.map
+-- A lift, or a walk? On a lift you stand still on the map while it carries
+-- you up, and the map changes under you. Walking along the rim of Thunder
+-- Bluff the game's map flips between Mulgore and Thunder Bluff too: four
+-- "ways in" were learned in twenty minutes on a mesa with two lifts, and a
+-- spot under a bridge is no way up (0.35.175). So into a lift-only place a
+-- way is learned only when you rode. Pure:
+--   stillSince: when you last stopped moving (nil while moving)
+--   lastSpan, endedAt: how long your last standstill was, and when it ended
+G.RIDE_STILL = 1.5   -- standing this long as the map changes: riding
+G.RIDE_SPAN = 3      -- or a standstill this long...
+G.RIDE_AFTER = 2.5   -- ...that ended this short a while ago (you stepped off)
+G.STILL_SPEED = 1    -- yards a second: slower than this is standing
+function G.Rode(now, stillSince, lastSpan, endedAt)
+    if stillSince and now - stillSince >= G.RIDE_STILL then return true end
+    return (lastSpan or 0) >= G.RIDE_SPAN and now - (endedAt or -math.huge) <= G.RIDE_AFTER
 end
 
+-- Called with where you are, several times a second (Nav.lua). carried: on
+-- a flight path or flying, which is no walk. now: the clock (tests pass it).
+local last
+local still = { since = nil, lastSpan = 0, endedAt = -math.huge }
+function G.Track(p, carried, now)
+    now = now or GetTime()
+    if not p or carried then
+        last, still.since, still.lastSpan, still.endedAt = nil, nil, 0, -math.huge
+        return
+    end
+    if last and last.cont == p.cont then
+        local moved = dist(p.wx, p.wy, last.wx, last.wy)
+        local dt = math.max(now - (last.t or now), 0.01)
+        if moved / dt < G.STILL_SPEED then
+            still.since = still.since or now
+        else
+            if still.since then still.lastSpan, still.endedAt = now - still.since, now end
+            still.since = nil
+        end
+        if last.map ~= p.map and moved <= G.MAX_STEP then
+            G.Learn(last.map, p.map, p, G.Rode(now, still.since, still.lastSpan, still.endedAt))
+        end
+    end
+    last = last or {}
+    last.cont, last.wx, last.wy, last.map, last.t = p.cont, p.wx, p.wy, p.map, now
+end
 -------------------------------------------------------------------------------
 -- /flow gates
 -------------------------------------------------------------------------------
@@ -308,3 +348,21 @@ ns:Register("help", "gates", { order = 36, title = "Ways between maps", lines = 
     "Flow learns where you cross from one map into another on foot (a lift up Thunder Bluff, a pass between zones) and sends the arrow, the route and the map's path through them.",
     "/flow gates: the ones it knows. /flow gates forget.",
 } })
+
+-- Ways into a lift-only place learned before 0.35.175 may be spots where the
+-- map flipped as you walked its rim, not lifts: forgotten once, and learned
+-- again the next time you ride up.
+ns:OnLoad(function(saved)
+    local nav = saved.nav
+    if not nav or (nav.gatesRule or 1) >= 2 then return end
+    nav.gatesRule = 2
+    local kept, dropped = {}, 0
+    for _, g in ipairs(nav.gates or {}) do
+        if G.LiftOnly(g.a) or G.LiftOnly(g.b) then dropped = dropped + 1 else kept[#kept + 1] = g end
+    end
+    nav.gates = kept
+    G.Forget()
+    if dropped > 0 then
+        ns:Log("nav", string.format("forgot %d way(s) into lift-only places learned before the lift rule: ride a lift up once more", dropped))
+    end
+end)

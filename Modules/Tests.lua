@@ -7002,19 +7002,40 @@ ns:Register("test", "pathing: between regions the way goes by a gate (Thunder Bl
     local ok, err = pcall(function()
         with(ns.db.nav, "gates", {}, function()
             G.Forget()
+            -- Walking the rim of Thunder Bluff, the game's map flips between
+            -- Mulgore and Thunder Bluff: that's no way up (four were learned
+            -- in twenty minutes, on a mesa with two lifts).
             G.Track(nil)
-            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, false)
-            G.Track({ cont = 1, wx = 104, wy = 2, map = 1456 }, false)
-            t:eq(#ns.db.nav.gates, 1, "stepped from Mulgore's map onto Thunder Bluff's: the spot is kept")
-            G.Track({ cont = 1, wx = 110, wy = 2, map = 1412 }, false)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, false, 100)
+            G.Track({ cont = 1, wx = 100.7, wy = 0, map = 1456 }, false, 100.1)
+            t:eq(#ns.db.nav.gates, 0, "walking as the map flips to Thunder Bluff's: not a way in (lifts only)")
+            -- A lift: you stand still on the map while it carries you up.
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, false, 200)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, false, 201)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1456 }, false, 203)
+            t:eq(#ns.db.nav.gates, 1, "standing still as the map becomes Thunder Bluff's (a lift): the spot is kept")
+            G.Track({ cont = 1, wx = 110, wy = 2, map = 1412 }, false, 204)
             t:eq(#ns.db.nav.gates, 1, "back down (out of a walled place): not learned")
-            G.Track({ cont = 1, wx = 2000, wy = 2000, map = 1456 }, false)
+            G.Track({ cont = 1, wx = 2000, wy = 2000, map = 1456 }, false, 205)
             t:eq(#ns.db.nav.gates, 1, "a jump of 2000 yd is a hearthstone, not a walk: not learned")
             G.Track(nil)
-            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, true)
-            G.Track({ cont = 1, wx = 104, wy = 2, map = 1456 }, true)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, true, 300)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1456 }, true, 303)
             t:eq(#ns.db.nav.gates, 1, "carried in on a flight path: not learned")
-            t:eq(#G.Lines(), 1, "/flow gates lists it")
+            -- Stepping off at the top: the long standstill ended a moment ago.
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 600, wy = 0, map = 1412 }, false, 400)
+            G.Track({ cont = 1, wx = 600, wy = 0, map = 1412 }, false, 401)
+            G.Track({ cont = 1, wx = 600, wy = 0, map = 1412 }, false, 408)
+            G.Track({ cont = 1, wx = 603, wy = 0, map = 1456 }, false, 408.5)
+            t:eq(#ns.db.nav.gates, 2, "the map changes as you step off the lift: kept too")
+            -- Between two ordinary zones a walk is how you cross.
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 900, wy = 0, map = 1412 }, false, 500)
+            G.Track({ cont = 1, wx = 900.7, wy = 0, map = 1413 }, false, 500.1)
+            t:eq(#ns.db.nav.gates, 3, "walking from one zone into the next: learned (a pass)")
+            t:eq(#G.Lines(), 3, "/flow gates lists them")
         end)
     end)
     ns.Log = realLog
@@ -7357,4 +7378,58 @@ ns:Register("test", "professions: the trainer's own word on the next tier beats 
     t:eq(#P.NextSteps({ { name = "Skinning" } }, skill, 12), 1, "the classic rule: train the next tier")
     t:eq(#P.NextSteps({ { name = "Skinning" } }, skill, 12, function() return seen end), 0, "the trainer said level 50: no reminder")
     t:ok(pcall(TR.ReadTier), "reading a trainer that isn't open does nothing")
+end)
+
+ns:Register("test", "pathing: a way into a lift-only place is learned from a ride, not from walking its rim", function(t)
+    local G = ns.gates
+    t:eq(G.LiftOnly(1456), true, "Thunder Bluff: lifts only")
+    t:eq(G.LiftOnly(1454), false, "Orgrimmar: you walk in through its gates")
+    t:eq(G.LiftOnly(1412), false, "a zone: no")
+    t:eq(G.Learnable(1412, 1456, false, true, true, false), false, "into a lift-only place on foot: not a way in")
+    t:eq(G.Learnable(1412, 1456, false, true, true, true), true, "by lift: learned")
+    t:eq(G.Learnable(1411, 1454, false, true, false, false), true, "into a walled city through its gate: learned on foot")
+    t:eq(G.Rode(10, 8, 0, -math.huge), true, "still for 2 s as the map changes: riding")
+    t:eq(G.Rode(10, 9.5, 0, -math.huge), false, "still for half a second: not yet")
+    t:eq(G.Rode(10, nil, 5, 8), true, "a 5 s standstill that ended 2 s ago: you stepped off the lift")
+    t:eq(G.Rode(10, nil, 5, 5), false, "it ended 5 s ago: you've been walking since")
+    t:eq(G.Rode(10, nil, 1, 9.5), false, "a short pause, then walking: not a ride")
+end)
+
+ns:Register("test", "route: a class quest in your log comes first, and a travel spell makes it near", function(t)
+    -- "Flow Improvements shows I need Bear Form, but the Flow Tracker isn't
+    -- having me go there": "Moonglade" was in the log, its stop thousands of
+    -- yards north, so the route left it for last.
+    local Q, TS = ns.quests, ns.travelSpells
+    local goals = {
+        { key = "5922:done", weight = 0.8, details = { "Hand it in to Dendrite Starblaze." } },
+        { key = "758:1", details = {} },
+    }
+    Q.MarkClassQuests(goals, { { spell = "Bear Form", state = "inlog", quest = { id = 5922 } } })
+    t:ok(goals[1].milestone and goals[1].classQuest == "Bear Form" and goals[1].weight == 0.6, "the class quest's stop is a milestone, weighted to come early")
+    t:ok(goals[1].details[1]:find("leads to Bear Form", 1, true) ~= nil, "and says what it leads to")
+    t:ok(not goals[2].milestone, "other quests are left as they are")
+    local plain = { { key = "5922:done", weight = 0.8, details = {} } }
+    Q.MarkClassQuests(plain, { { spell = "Bear Form", state = "accept", quest = { id = 5922 } } })
+    t:ok(not plain[1].milestone, "a class quest not yet in your log: nothing to mark")
+
+    -- A druid's Teleport: Moonglade.
+    if not TS then t:ok(false, "TravelSpells.lua not loaded") return end
+    local spells = { { name = "Teleport: Moonglade", map = 1450, class = "DRUID" } }
+    local function zoneOf(m) return m end
+    local mulgore, moonglade = { map = 1412 }, { map = 1450 }
+    local s = TS.Fits(mulgore, moonglade, spells, zoneOf, "DRUID")
+    t:eq(s and s.name, "Teleport: Moonglade", "a stop in Moonglade from Mulgore: one cast away")
+    t:eq(TS.Fits(moonglade, moonglade, spells, zoneOf, "DRUID"), nil, "already in Moonglade: walk")
+    t:eq(TS.Fits(mulgore, { map = 1413 }, spells, zoneOf, "DRUID"), nil, "a stop elsewhere: the spell doesn't go there")
+    t:eq(TS.Fits(mulgore, moonglade, spells, zoneOf, "PALADIN"), nil, "another class: not theirs")
+    t:eq(TS.Fits(mulgore, {}, spells, zoneOf, "DRUID"), nil, "a spot with no map: nothing")
+    -- The planner measures such a stop as near.
+    local a = { cont = 1, wx = 0, wy = 0, map = 1412 }
+    local b = { cont = 1, wx = 9000, wy = 0, map = 1450 }
+    local port = function(x, y) return TS.Fits(x, y, spells, zoneOf, "DRUID") and TS.YARDS or nil end
+    t:near(ns.planner._Far(a, b, { port = port }), TS.YARDS, 1e-6, "9000 yd on foot, one cast with the spell: counted as the cast")
+    t:near(ns.planner._Far(a, b, {}), 9000, 1e-6, "without it: the walk")
+    t:near(ns.planner._Far(b, a, { port = port }), 9000, 1e-6, "the way back is on foot (the spell goes one way)")
+    t:ok(pcall(TS.PlanPort), "your own travel spells read without error")
+    t:ok(pcall(TS.Hint, a, b), "and the panel's line")
 end)

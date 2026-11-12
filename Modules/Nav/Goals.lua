@@ -293,6 +293,31 @@ local function questGoals(db, q, goals, opts)
 end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 
+-- A class quest in your log that leads to a spell you don't have (Bear Form,
+-- "Moonglade"): its stops are milestones, so the route doesn't leave them
+-- for last because they're far or in another zone ("the Flow Tracker isn't
+-- having me go there", 0.35.175). Pure: marks the goals of those quests.
+--   steps: Q:ClassQuestSteps() ({ spell, state, quest = { id } })
+local function markClassQuests(goals, steps)
+    local spellOf = {}
+    for _, e in ipairs(steps or {}) do
+        if e.state == "inlog" and e.quest and e.quest.id then spellOf[e.quest.id] = e.spell end
+    end
+    if not next(spellOf) then return goals end
+    for _, g in ipairs(goals) do
+        local id = type(g.key) == "string" and tonumber(g.key:match("^(%d+):"))
+        local spell = id and spellOf[id]
+        if spell then
+            g.milestone, g.classQuest = true, spell
+            g.weight = math.min(g.weight or 1, 0.6)
+            g.details = g.details or {}
+            table.insert(g.details, 1, string.format("Your class quest: it leads to %s.", spell))
+        end
+    end
+    return goals
+end
+ns.quests.MarkClassQuests = markClassQuests   -- (tests)
+
 ns:Register("navGoal", "questie", {
     collect = function()
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
@@ -300,6 +325,10 @@ ns:Register("navGoal", "questie", {
         local goals, unplaced = {}, {}
         for _, q in ipairs(questLog()) do questGoals(db, q, goals, { unplaced = unplaced }) end
         ns.quests.unplaced = unplaced   -- (/flow nav why)
+        if ns.quests.ClassQuestSteps then
+            local ok, steps = pcall(ns.quests.ClassQuestSteps, ns.quests)
+            if ok then markClassQuests(goals, steps) end
+        end
         return goals
     end,
 })
