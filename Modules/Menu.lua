@@ -216,6 +216,15 @@ function Menu:RouteItemsRaw()
     local nHidden = 0
     for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
     local items = Menu.KindItems()
+    -- Only the dungeon run (Dungeons.lua, pull request 20): a tick under what
+    -- the route includes. On, the route keeps only the prepared run's stops
+    -- (its quests, then the entrance), whatever else is ticked; click it
+    -- again to go back to your ticks.
+    local D = ns.dungeons
+    if D and D.RouteItem then
+        local ok, it = pcall(D.RouteItem, D)
+        if ok and it then items[#items + 1] = it end
+    end
     -- Next to what the route includes: one click sends the arrow to the
     -- nearest of these first (your waypoint; the route carries on after).
     for _, it in ipairs({

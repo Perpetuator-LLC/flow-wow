@@ -967,14 +967,16 @@ function D:Prepare(key)
     local extra = {}
     if #run.leadIns > 0 then extra[#extra + 1] = string.format("%d unlock quests", #run.leadIns) end
     if #run.breadcrumbs > 0 then extra[#extra + 1] = string.format("%d on the way", #run.breadcrumbs) end
-    ns:Print(string.format("%s: %d to pick up%s, then the entrance.", run.name,
+    ns:Print(string.format("%s: %d to pick up%s, then the entrance. The route takes you to each.", run.name,
         #run.pickups + #run.leadIns + #run.breadcrumbs,
         #extra > 0 and (" (" .. table.concat(extra, ", ") .. ")") or ""))
+    for _, line in ipairs(D.QuestLines(run, D.QuestInfo)) do ns:Print("  " .. line) end
     if ns.nav and ns.nav.Collect then ns.nav:Collect() end
 end
 
 function D:Cancel()
     ns.db.nav.dungeonRun = {}
+    ns.db.nav.dungeonOnly = nil
     if ns.nav and ns.nav.Collect then ns.nav:Collect() end
 end
 
@@ -1048,6 +1050,142 @@ function D:FilterInside(list)
 end
 
 -------------------------------------------------------------------------------
+-- Route: Dungeon run (the Route menu). Only the prepared run's stops: its
+-- pickups and entrance, the objectives and turn-ins of its quests in your log
+-- (with their unlock and on-the-way quests), your waypoint and the party's.
+-------------------------------------------------------------------------------
+
+function D:RunOnly() return ns.db.nav.dungeonOnly == true and self:Prepared() ~= nil end
+
+-- Route: Dungeon run for `key` (else the run you prepared, else the best
+-- one); false turns it off (the run stays prepared).
+function D:SetRunOnly(key)
+    if key == false then
+        ns.db.nav.dungeonOnly = nil
+        if ns.nav and ns.nav.Collect then ns.nav:Collect() end
+        return
+    end
+    key = key or self:Prepared() or (self:Best() and self:Best().key)
+    if not key then
+        ns:Print("no dungeon run to follow: open Dungeons in the Route menu and prepare one")
+        return
+    end
+    ns.db.nav.dungeonOnly = true
+    if self:Prepared() ~= key then self:Prepare(key)
+    elseif ns.nav and ns.nav.Collect then ns.nav:Collect() end
+end
+
+-- Its tick in the Route menu, under what the route includes (Menu.lua); nil
+-- without Questie's dungeons. A tick, not one of several routes (the three
+-- routes became ticks in 0.35.157): on, only the run's stops stay, whatever
+-- else is ticked; click it again for your ticks back.
+function D:RouteItem()
+    if not self:Available() then return nil end
+    local key = self:Prepared()
+    local name = key and ns.db.nav.dungeonRun.name
+    if not name then
+        local best = self:Best()
+        name = best and best.name
+    end
+    if not name then
+        return { text = "|cff777777Only the dungeon run (prepare one under Dungeons, below)|r", disabled = true }
+    end
+    return { text = "Only the dungeon run: " .. name, checked = self:RunOnly(),
+             tip = "Only this run's stops: its quests, then the entrance. Click again to go back to what you ticked above.",
+             func = function() if self:RunOnly() then self:SetRunOnly(false) else self:SetRunOnly() end end }
+end
+
+-- Every quest the run needs: the ones it counts, their unlocks, lead-ins and
+-- the quests on the way.
+function D.RunIds(run)
+    local ids = {}
+    for _, id in ipairs(run.quests or {}) do ids[id] = true end
+    for _, st in ipairs(run.leadIns or {}) do ids[st.id] = true end
+    for _, u in ipairs(run.unlocks or {}) do
+        for _, st in ipairs(u.steps or {}) do ids[st.id] = true end
+    end
+    for _, b in ipairs(run.breadcrumbs or {}) do ids[b.id] = true end
+    return ids
+end
+
+-- Does stop g stay on Route: Dungeon run? ids = D.RunIds(run).
+function D.KeepForRun(g, ids)
+    if g.provider == "dungeon" then return true end
+    local k = g.key or ""
+    local id = questOf(k)
+    if id then return ids[id] == true end
+    return k:find("^user:") ~= nil or k:find("^help:") ~= nil or k:find("^party:") ~= nil
+end
+
+function D:FilterOnly(list)
+    if not self:RunOnly() then return list end
+    local run = self:Run(self:Prepared())
+    if not run then return list end
+    local ids, out = D.RunIds(run), {}
+    for _, g in ipairs(list) do
+        if D.KeepForRun(g, ids) then out[#out + 1] = g end
+    end
+    return out
+end
+
+-- The route only plans the continent you're on, so a run whose quest givers
+-- are across the sea would show nothing. These say where they are: map pins
+-- (MapOverlay.lua), rows in the Flow Router and the arrow's text.
+D.CONTINENTS = { [0] = "Eastern Kingdoms", [1] = "Kalimdor" }
+
+-- How to cross to continent `to` (Classic: zeppelins for the Horde, boats for
+-- the Alliance, Booty Bay - Ratchet for anyone).
+function D.TravelHint(to, faction)
+    if to == 1 then
+        if faction == "Horde" then
+            return "Zeppelin to Orgrimmar: the tower outside Undercity (Tirisfal Glades) or Grom'gol (Stranglethorn Vale)."
+        elseif faction == "Alliance" then
+            return "Boat from Menethil Harbor (Wetlands) to Auberdine or Theramore."
+        end
+        return "Boat from Booty Bay to Ratchet."
+    elseif to == 0 then
+        if faction == "Horde" then
+            return "Zeppelin from the tower outside Orgrimmar (Durotar) to Undercity or Grom'gol."
+        elseif faction == "Alliance" then
+            return "Boat from Auberdine (Darkshore) or Theramore to Menethil Harbor."
+        end
+        return "Boat from Ratchet to Booty Bay."
+    end
+end
+
+-- The run's stops with no spot on continent `cont`: { { goal, cont } }. With
+-- Route: Dungeon run every stop counts (the route holds nothing else);
+-- otherwise only the run's own (pickups, entrance).
+function D:AwayGoals(goals, cont)
+    local out = {}
+    if not (cont and self:Prepared()) then return out end
+    local only = self:RunOnly()
+    for _, g in ipairs(goals or {}) do
+        if (only or g.provider == "dungeon") and not g.anywhere then
+            local here, there = false, nil
+            for _, pt in ipairs(g.points or {}) do
+                if pt.cont == cont then here = true break end
+                there = there or pt.cont
+            end
+            if not here and there then out[#out + 1] = { goal = g, cont = there } end
+        end
+    end
+    return out
+end
+
+-- What the arrow says when nothing on your continent is left but the run's
+-- stops are elsewhere: text, sub; nil when that isn't so.
+function D:AwayHint(goals, cont, faction)
+    local away = self:AwayGoals(goals, cont)
+    if #away == 0 then return nil end
+    local to = away[1].cont
+    local run = ns.db.nav.dungeonRun
+    return string.format("%s: %d stop%s in %s", (run and run.name) or "Dungeon run", #away,
+            #away > 1 and "s" or "", D.CONTINENTS[to] or "another continent"),
+        D.TravelHint(to, faction) or "Travel there: they show on its map."
+end
+
+-------------------------------------------------------------------------------
 -- Route stops for a prepared run
 -------------------------------------------------------------------------------
 
@@ -1065,7 +1203,7 @@ ns:Register("navGoal", "dungeon", {
         local run = D:Run(key)
         if not run then return nil end
         local goals = {}
-        local required = 0
+        local needed, unplaced = {}, {}
         local function pickup(id, why, optional)
             local q = quest(id)
             if not q or ns.quests:InLog(id) then return end
@@ -1075,8 +1213,14 @@ ns:Register("navGoal", "dungeon", {
             -- (an event's, another race's or class's) stay off the route.
             if not D.TakeNow(q) then return end
             local pts = starterPoints(q)
-            if #pts == 0 then return end
             local g = starterNPC(q)
+            if #pts == 0 then
+                -- (Questie doesn't place its giver: said on the entrance stop)
+                if not optional then
+                    unplaced[#unplaced + 1] = (q.name or "quest") .. (g and g.name and (" from " .. g.name) or "")
+                end
+                return
+            end
             goals[#goals + 1] = {
                 key = "pickup:" .. id, weight = optional and 1.2 or 1.0, optional = optional or nil, level = q.level,
                 npcs = g and g.name and { g.name } or nil, kind = "accept", points = pts,
@@ -1085,19 +1229,25 @@ ns:Register("navGoal", "dungeon", {
                             optional and "Optional: only if you pass by. Skipping it never blocks the run."
                                 or ("For your " .. run.name .. " run.") },
             }
-            if not optional then required = required + 1 end
+            if not optional then needed[#needed + 1] = "pickup:" .. id end
         end
         for _, id in ipairs(run.pickups) do pickup(id, "for " .. run.name) end
         for _, st in ipairs(run.leadIns) do pickup(st.id, "unlocks " .. (st.unlocks or "a dungeon quest")) end
         -- Breadcrumbs: picked up only on the way, never part of the chain.
         for _, b in ipairs(run.breadcrumbs or {}) do pickup(b.id, "leads to " .. (b.leadsTo or "a dungeon quest"), true) end
-        -- The entrance, last (optional breadcrumbs don't hold it back); not while you're in there or just came out.
+        -- The entrance, after the pickups (optional breadcrumbs don't hold
+        -- it back), so the whole trip shows; not while you're in there or
+        -- just came out. (It used to appear only once every pickup was in
+        -- your log: until then the route didn't say where the run went.)
         local been = ns.db.nav.dungeonIn
-        if required == 0 and run.entrance and not currentDungeon() and not (been and been.key == run.dungeon) then
+        if run.entrance and not currentDungeon() and not (been and been.key == run.dungeon) then
+            local details = { string.format("%d quests for this run.", run.count) }
+            if #needed > 0 then details[#details + 1] = string.format("After the %d pickup%s.", #needed, #needed > 1 and "s" or "") end
+            for _, u in ipairs(unplaced) do details[#details + 1] = "Not on the map (find the giver yourself): " .. u .. "." end
             goals[#goals + 1] = {
                 key = "dungeon:" .. run.key, weight = 0.8, kind = "waypoint", points = { run.entrance },
-                title = run.name, text = "Enter " .. run.name,
-                details = { string.format("%d quests for this run.", run.count) },
+                title = run.name, text = "Enter " .. run.name, deps = #needed > 0 and needed or nil,
+                details = details,
             }
         end
         return goals
@@ -1136,7 +1286,56 @@ local function ratioText(run)
     return run.worth.ratio and string.format("%.1fx", run.worth.ratio) or "?"
 end
 
-function D.Summary(run, solo)
+-- Who gives quest id and where: { name, level, giver, zone, item }. The
+-- giver is the NPC (or object) that starts it; item: it starts from an item.
+function D.QuestInfo(id)
+    local q = quest(id)
+    if not q then return { name = "quest " .. tostring(id) } end
+    local info = { name = q.name, level = q.level }
+    local g = starterNPC(q)
+    if g then
+        info.giver = g.name
+        local zone = g.zoneID
+        if not zone and g.spawns then zone = next(g.spawns) end
+        info.zone = zone and ns.quests:ZoneName(zone) or nil
+    elseif q.Starts and q.Starts.Item and q.Starts.Item[1] then
+        info.item = true
+    elseif q.Starts and q.Starts.GameObject and q.Starts.GameObject[1] then
+        local o = ns.quests:QuestieGet("GetObject", q.Starts.GameObject[1])
+        info.giver = o and o.name or nil
+    end
+    return info
+end
+
+-- One line per quest of the run, in the order you do them: the ones to pick
+-- up (with who gives them and where), the lead-ins they need, then the
+-- ones in your log and the ones that start inside. info(id) -> D.QuestInfo.
+D.QUEST_LINES = 12
+function D.QuestLines(run, info)
+    local lines = {}
+    local function add(prefix, id)
+        local i = info(id) or {}
+        local who = ""
+        if i.giver then who = " - " .. i.giver .. (i.zone and (", " .. i.zone) or "")
+        elseif i.item then who = " - starts from an item" end
+        lines[#lines + 1] = string.format("%s %s%s%s", prefix, i.name or ("quest " .. tostring(id)),
+            i.level and string.format(" (%d)", i.level) or "", who)
+    end
+    for _, st in ipairs(run.leadIns or {}) do add("Unlock:", st.id) end
+    for _, id in ipairs(run.pickups or {}) do add("Pick up:", id) end
+    for _, b in ipairs(run.breadcrumbs or {}) do add("On the way:", b.id) end
+    for _, id in ipairs(run.ready or {}) do add("In your log:", id) end
+    for _, id in ipairs(run.inside or {}) do add("Starts inside:", id) end
+    if #lines > D.QUEST_LINES then
+        local more = #lines - D.QUEST_LINES
+        for i = #lines, D.QUEST_LINES + 1, -1 do lines[i] = nil end
+        lines[#lines + 1] = string.format("... and %d more.", more)
+    end
+    return lines
+end
+
+-- info (optional, D.QuestInfo): list the quests too, one per line.
+function D.Summary(run, solo, info)
     local lines = {}
     lines[#lines + 1] = string.format("%s: about %s your questing XP per hour%s.", run.name, ratioText(run),
         run.estimatedRate and " (estimated)" or "")
@@ -1155,6 +1354,9 @@ function D.Summary(run, solo)
     lines[#lines + 1] = string.format("About %d min (%d to gather).", math.floor(run.worth.minutes + 0.5),
         math.floor(run.gatherMinutes + 0.5))
     if solo then lines[#lines + 1] = "Needs a group." end
+    if info then
+        for _, line in ipairs(D.QuestLines(run, info)) do lines[#lines + 1] = line end
+    end
     return lines
 end
 
@@ -1171,10 +1373,14 @@ end
 local function runMenu(run)
     local prepared = D:Prepared() == run.key
     local items = { { title = true, text = run.name } }
-    for _, line in ipairs(D.Summary(run, not ns.party:InGroup())) do
+    for _, line in ipairs(D.Summary(run, not ns.party:InGroup(), D.QuestInfo)) do
         items[#items + 1] = { text = muted(line), disabled = true }
     end
     items[#items + 1] = { sep = true }
+    items[#items + 1] = { text = "Route: only this run (its quest givers on the map, then the entrance)",
+        checked = prepared and D:RunOnly(), func = function()
+            if prepared and D:RunOnly() then D:SetRunOnly(false) else D:SetRunOnly(run.key) end
+        end }
     if prepared then
         items[#items + 1] = { text = "Cancel this run", func = function() D:Cancel() end }
     else
@@ -1247,7 +1453,7 @@ do
             icon = "Interface\\AddOns\\Flow\\Modules\\Nav\\Art\\DungeonKey",
             text = ratioText(run),
             color = solo and T.muted or T.good,
-            tip = table.concat(D.Summary(run, solo), "\n"),
+            tip = table.concat(D.Summary(run, solo, D.QuestInfo), "\n"),
             click = function() if D:Prepared() == run.key then D:Cancel() else D:Prepare(run.key) end end,
             clickText = prepared and "Cancel this run" or "Prepare this run",
         }
@@ -1356,7 +1562,7 @@ local function finishRun()
     local times = charData("dungeonTimes")
     times[inn.key] = D.LearnTime(times[inn.key], (inn.left - inn.t) / 60)
     local run = ns.db.nav.dungeonRun
-    if run and run.dungeon == inn.key then ns.db.nav.dungeonRun = {} end
+    if run and run.dungeon == inn.key then ns.db.nav.dungeonRun = {}; ns.db.nav.dungeonOnly = nil end
     ns.db.nav.dungeonIn = {}
     D.dirty = true
 end

@@ -443,6 +443,8 @@ function N:Collect(gathered)
     if ns.partyHelp then list = ns.partyHelp:FilterGoals(list) end
     -- Inside a dungeon: only its quests (Dungeons.lua).
     if ns.dungeons then list = ns.dungeons:FilterInside(list) end
+    -- Route: Dungeon run: only the prepared run's stops (Dungeons.lua).
+    if ns.dungeons and ns.dungeons.FilterOnly then list = ns.dungeons:FilterOnly(list) end
     -- Stops you hid (right-click on the map) stay out of the route; they're
     -- kept in N.hiddenGoals so the map panel can list and unhide them.
     local hidden = ns.db.nav.hidden or {}
@@ -1805,6 +1807,7 @@ function N.LearnTaxiNodes(nodes, map)
         local cont, wx, wy = N:ToWorld(map, n.x, n.y)
         if cont and wx then known[n.name] = { cont = cont, wx = wx, wy = wy } end
     end
+    N.flightGen = (N.flightGen or 0) + 1
 end
 
 -- Seconds a flight takes: what it took last time, else a guess from the
@@ -1827,6 +1830,35 @@ local function nearestFlightMaster(cont, wx, wy)
         end
     end
     return best, bd
+end
+N.NearestFlightMaster = nearestFlightMaster
+
+-- Each spot's nearest flight master, kept until you learn a new one (the
+-- route asks this for the same spots thousands of times a plan).
+local fmCache = setmetatable({}, { __mode = "k" })
+local function flightMasterOf(pt)
+    local c = fmCache[pt]
+    local gen = N.flightGen or 0
+    if c and c.gen == gen and c.wx == pt.wx and c.wy == pt.wy and c.flights == ns.db.flights then
+        return c.name, c.d
+    end
+    local name, d = nearestFlightMaster(pt.cont, pt.wx, pt.wy)
+    fmCache[pt] = { gen = gen, wx = pt.wx, wy = pt.wy, flights = ns.db.flights, name = name, d = d }
+    return name, d
+end
+
+-- Running yards from spot a to spot b by flight: the walk to the flight
+-- master nearest a, the flight (the yards you'd run in its seconds) and the
+-- walk on from the one nearest b. nil without a flight between them. The
+-- route picks stops by this when it beats the straight line (Planner: air).
+function N.TravelYards(a, b, speed)
+    if not (a and b and a.wx and b.wx and a.cont == b.cont and ns.db.flights) then return nil end
+    local from, d1 = flightMasterOf(a)
+    local to, d2 = flightMasterOf(b)
+    if not (from and to) or from == to then return nil end
+    local fly = N.FlightSeconds(from, to)
+    if not fly then return nil end
+    return d1 + d2 + fly * (speed or N.TravelSpeed())
 end
 
 -- By air to a point from where you are: { sec, from, to } when walking to a
@@ -2291,6 +2323,16 @@ function N:Options(sel)
     if not tour and not sel.first and self:Mode() ~= "quests" then
         tour = self:PickupKeys()
     end
+    -- A dungeon run you prepared (the key): its pickups, then its entrance,
+    -- come first, unless you picked a stop yourself.
+    if not sel.first and not sel.tour and ns.dungeons and ns.dungeons:Prepared() then
+        for _, g in ipairs(goals) do
+            if g.provider == "dungeon" then
+                tour = tour or {}
+                tour[g.key] = true
+            end
+        end
+    end
     -- (Party members' quests, PartyHelp.lua, need no order of their own:
     -- "Combined" is one optimal route over everyone's stops, and "Just
     -- <name>'s" leaves only theirs on the route.)
@@ -2322,7 +2364,7 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
-    return { first = first, tour = tour, here = here, away = away }
+    return { first = first, tour = tour, here = here, away = away, air = N.TravelYards }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
@@ -2377,6 +2419,18 @@ local function anyReachable(p)
     end
     reach.goals, reach.cont, reach.yes, reach.at = goals, p.cont, yes, GetTime()
     return yes
+end
+
+-- The arrow's words when nothing here is left but a dungeon run's stops are
+-- on another continent (worked out at most every 2 s: it reads every stop).
+local away = { at = -10 }
+local function awayHint(p)
+    if not (ns.dungeons and ns.dungeons.AwayHint) then return nil end
+    if away.goals == goals and away.cont == p.cont and GetTime() - away.at < 2 then return away.text, away.sub end
+    local ok, text, sub = pcall(ns.dungeons.AwayHint, ns.dungeons, goals, p.cont, UnitFactionGroup("player"))
+    if not ok then text, sub = nil, nil end
+    away.goals, away.cont, away.at, away.text, away.sub = goals, p.cont, GetTime(), text, sub
+    return text, sub
 end
 
 local function choose(p)
@@ -3341,7 +3395,15 @@ local function update()
         end
     end
     if not choice then
-        if #goals == 0 and not ns.quests:Source() then
+        -- Nothing on this continent, but the dungeon run's stops are on the
+        -- other one: say where, and how to get there (Dungeons.lua).
+        local hint, sub = awayHint(p)
+        if hint then
+            frame.text:SetText(hint)
+            frame.sub:SetText(sub or "")
+            frame.arrow:Hide()
+            frame:Show()
+        elseif #goals == 0 and not ns.quests:Source() then
             frame.text:SetText("No directions yet")
             frame.sub:SetText("Install Questie + QuestieDB for quest locations")
             frame.arrow:Hide()
