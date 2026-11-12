@@ -664,13 +664,32 @@ end
 -- A "make it where you stand" stop (crafting with no station): it follows
 -- you, so the world map gives it no pin, area or line.
 function M.FollowsYou(s) return (s and s.goal and s.goal.anywhere) and true or false end
+-- The dotted path follows the way you'd really walk (0.35.172): the leg from
+-- you along the trail the arrow follows, and any leg into another region
+-- (up Thunder Bluff, into the next zone) through the gate (N.LegVia). Pure:
+-- the points one leg is drawn through on this map, start and end included.
+--   mids: world points between the ends (or nil); place(pt) -> x, y on the
+--   map shown, or nil when it isn't on it.
+function M.LegChain(sx, sy, ex, ey, mids, place)
+    local chain = { { sx, sy } }
+    for _, m in ipairs(mids or {}) do
+        local mx, my = place(m)
+        if mx then chain[#chain + 1] = { mx, my } end
+    end
+    chain[#chain + 1] = { ex, ey }
+    return chain
+end
+
 local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     if not plan then return end
-    local px, py = toMap(ns.nav:PlayerPos(), mapID)
+    local you = ns.nav:PlayerPos()
+    local px, py = toMap(you, mapID)
     local labels = ns.nav:PlanLabels(plan)
     local hovered
     local fromYou = px ~= nil   -- the next line drawn starts at you
     local broken = false        -- a hidden stop since the last one drawn
+    local prevPt = fromYou and you or nil   -- where the leg being drawn starts, in the world
+    local function place(m) return toMap(m, mapID) end
     for i, s in ipairs(plan) do
         -- A "make it where you stand" stop follows you: its spot is wherever you
         -- stood when the route was planned, so it gets no pin (it sat on your
@@ -690,13 +709,25 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                 -- so it's clear where to go now; the rest fainter. (A preview,
                 -- alpha given, keeps its own colour.)
                 local first = (i == 1)
-                legs[#legs + 1] = { px, py, x, y, color = first and alpha == nil and theme().route or color,
-                                    live = M.LegLive(first, alpha),
-                                    alpha = (first and FIRST_ALPHA or REST_ALPHA) * (alpha or 1) }
-                if fromYou then addLink(links, nil, legs[#legs]) end
+                local col = first and alpha == nil and theme().route or color
+                local live, la = M.LegLive(first, alpha), (first and FIRST_ALPHA or REST_ALPHA) * (alpha or 1)
+                -- (A preview keeps straight lines: it's a sketch of another order.)
+                local mids
+                if alpha == nil and prevPt and ns.nav.LegVia then
+                    local ok, list = pcall(ns.nav.LegVia, prevPt, s.point, first and fromYou)
+                    mids = ok and list or nil
+                end
+                local chain = M.LegChain(px, py, x, y, mids, place)
+                for k = 1, #chain - 1 do
+                    legs[#legs + 1] = { chain[k][1], chain[k][2], chain[k + 1][1], chain[k + 1][2],
+                                        color = col, live = live, alpha = la }
+                    -- Only the stretch that starts at you follows you between redraws.
+                    if fromYou and k == 1 then addLink(links, nil, legs[#legs]) end
+                end
             end
             fromYou = false
             px, py = x, y
+            prevPt = s.point
             if not beyond then broken = false end
             if withPins then
                 local kind = ns.theme.kinds[ns.nav:StopKind(s.goal)]
@@ -1674,6 +1705,8 @@ local function changed(st, c, mapID, pointed)
     d = setv(st, "run", (ns.dungeons and ns.dungeons:Prepared()) or false) or d
     d = setv(st, "runOnly", ns.db.nav.dungeonOnly == true) or d
     d = setv(st, "here", (mapID and toMap(p, mapID)) ~= nil) or d
+    -- The arrow's way changed (a trail point passed, a gate reached): the path is drawn again.
+    d = setv(st, "path", (ns.nav.PathStamp and ns.nav.PathStamp()) or false) or d
     local plan = ns.nav.plan or EMPTY
     local sp = st.plan or {}
     st.plan = sp

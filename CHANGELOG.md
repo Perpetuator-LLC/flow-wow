@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.172
+- **The way up Thunder Bluff, and into the next zone.** The game gives add-ons no map of
+  walkable ground and no heights, so a stop on the bluff and one at its foot looked a few
+  yards apart and the arrow pointed through the cliff. Flow now learns the **ways between
+  maps**: each time you walk (or ride a lift) from one map into another, the spot is kept, for
+  all your characters. A stop in another part of the map then goes by the way you've used:
+  the arrow leads to the lift ("by the way into Thunder Bluff"), then on; the route counts the
+  ride, so everything on the bluff is done together instead of mixed with stops below; and
+  the map's path bends through it. Capital cities are walled: where Flow doesn't know a way
+  in yet, the arrow's panel says so, and one trip in teaches it. `/flow gates` lists them.
+  (One ride up each lift after this update: Flow can't tell lifts from old trails.)
+- **The dots follow the path.** On the world map the stretch from you to your next stop is
+  drawn along the trail the arrow is following, through the gate or the cave's entrance, not
+  as a straight line; later stretches bend through their gates and entrances too.
+- **Trails you've walked are used by default** ("Arrow follows paths you've walked" was off
+  unless ticked): round a cliff or along a road you've walked before, when that's at most half
+  again as long as the straight line. Flow still has no terrain data: in places you've never
+  been it points straight.
+- **A recipe isn't bought long before you can learn it.** "Buy Recipe: Longjaw Mud Snapper"
+  (it needs Cooking 50) was on the route at Cooking 32, and once bought Flow asked you to use
+  a recipe the game wouldn't teach yet. A bought recipe now joins the route when your skill
+  is within 10 points of it, and "use it" waits until you can.
+
 ## 0.35.171
 - **Auto attack starts at the pull.** Casting at an enemy doesn't turn your auto attack on in
   WoW: Forever, and your key can't change once the fight is on, so a caster never swung. Now,

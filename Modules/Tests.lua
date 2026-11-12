@@ -3929,7 +3929,10 @@ ns:Register("test", "arrow: straight at the stop unless a trail really helps", f
     t:eq(N.Carrot(pts, 1, 0, 0, 35), 3, "leads to the furthest trail point within 35 yd")
     t:eq(N.Carrot(pts, 4, 0, 0, 35), 4, "nothing that close ahead: the next one")
     with(ns.db.nav, "arrowPaths", nil, function()
-        t:ok(ns.db.nav.arrowPaths ~= true, "off by default: straight at the stop")
+        t:eq(N.TrailsOn(), true, "on unless you turn it off (0.35.172): a trail you've walked, when it's at most half again as long")
+    end)
+    with(ns.db.nav, "arrowPaths", false, function()
+        t:eq(N.TrailsOn(), false, "turned off: straight at the stop")
     end)
 end)
 
@@ -6917,4 +6920,149 @@ ns:Register("test", "inventory: every bag item with what Flow would do and why",
     t:ok(ok and type(live) == "table" and (used or 0) <= (total or 0), "your own bags read without error")
     t:ok(type(ns.commands.inventory) == "function" and ns.commands.inv == ns.commands.inventory, "/flow inventory (and /flow inv)")
     t:ok(type(ns.auction.Known) == "function" and type(ns.auction:Known()) == "number", "how many auction prices Flow has")
+end)
+
+ns:Register("test", "pathing: between regions the way goes by a gate (Thunder Bluff's lifts, a zone's pass)", function(t)
+    -- "we need pathing working, walls, caves, Thunderbluff elevators"
+    local G = ns.gates
+    if not G then t:ok(false, "Gates.lua not loaded") return end
+    -- What's learned: the way INTO a walled place, and any way between two zones.
+    t:eq(G.Learnable(1412, 1456, false, true), true, "from Mulgore up into Thunder Bluff: a gate to learn")
+    t:eq(G.Learnable(1456, 1412, true, false), false, "out of Thunder Bluff: not learned (you can leave a mesa by falling off it)")
+    t:eq(G.Learnable(1412, 1413, false, false), true, "from one zone into the next: learned")
+    t:eq(G.Learnable(1412, 1412, false, false), false, "the same region: nothing")
+    t:eq(G.Learnable(nil, 1412, false, false), false, "no region (a continent map): nothing")
+    local known = { { cont = 1, wx = 100, wy = 100, a = 1412, b = 1456 } }
+    t:eq(G.IsNew(known, 1, 120, 110, 1456, 1412), false, "the same lift again: already known")
+    t:eq(G.IsNew(known, 1, 400, 100, 1412, 1456), true, "the other lift: new")
+    t:eq(G.IsNew(known, 1, 100, 100, 1412, 1413), true, "another pair of regions at the same spot: new")
+    t:ok(G.Walled(1456) and not G.Walled(1412), "Thunder Bluff is walled (a mesa); Mulgore isn't")
+
+    -- Two lifts up the bluff and a pass into the next zone.
+    local lift1 = { cont = 1, wx = 100, wy = 0, a = 1412, b = 1456 }
+    local lift2 = { cont = 1, wx = 500, wy = 0, a = 1412, b = 1456 }
+    local pass = { cont = 1, wx = 0, wy = 1000, a = 1412, b = 1413 }
+    local gates = { lift1, lift2, pass }
+    local function between(r1, r2)
+        local out = {}
+        for _, g in ipairs(gates) do
+            if (g.a == r1 and g.b == r2) or (g.a == r2 and g.b == r1) then out[#out + 1] = g end
+        end
+        return out
+    end
+    local function touching(r)
+        local out = {}
+        for _, g in ipairs(gates) do if g.a == r or g.b == r then out[#out + 1] = g end end
+        return out
+    end
+    local below, top = { cont = 1, wx = 90, wy = 30, map = 1412 }, { cont = 1, wx = 110, wy = 20, map = 1456 }
+    local r = G.Route(below, top, 1412, 1456, between, touching)
+    t:ok(r and #r.points == 1 and r.points[1] == lift1, "from the foot of the bluff to the top: the nearer lift")
+    t:near(r and r.yards or 0, 53.98, 0.05, "the walk: to the lift and on, not the 22 yd it looks from above")
+    local barrens = { cont = 1, wx = 0, wy = 1500, map = 1413 }
+    r = G.Route(barrens, top, 1413, 1456, between, touching)
+    t:ok(r and #r.points == 2 and r.points[1] == pass and r.points[2] == lift1, "two regions away: the pass, then the lift")
+    t:eq(G.Route(below, top, 1412, 1999, between, touching), nil, "no way known between them: nothing")
+    t:eq(G.Route({ cont = 0, wx = 0, wy = 0 }, top, 1412, 1456, between, touching), nil, "gates on another continent don't count")
+    local part = G.Partial(top, { cont = 1, wx = 5000, wy = 5000 }, 1456, touching)
+    t:ok(part and part.partial and part.points[1] == lift1, "out of a walled place with no whole way known: its nearest gate first")
+    t:eq(G.Partial(top, below, 1454, touching), nil, "a walled place with no gate yet: nothing")
+
+    -- The whole thing, with those gates standing in for yours.
+    with(G, "Region", function(m) return m end, function()
+    with(G, "Between", between, function()
+    with(G, "Touching", touching, function()
+    with(G, "Count", function() return #gates end, function()
+        local via = G.Via(below, top)
+        t:ok(via and via.points[1] == lift1 and via.to == 1456, "the arrow's way up Thunder Bluff: by the lift")
+        t:eq(G.Via(below, { cont = 1, wx = 300, wy = 300, map = 1412 }), nil, "the same region: a straight line")
+        t:eq(G.Via(below, { cont = 1, wx = 300, wy = 300 }), nil, "a spot with no map: a straight line")
+        t:eq(G.Via(below, { cont = 1, wx = 1, wy = 1, map = 1999 }), nil, "two open zones with no gate known: a straight line, as before")
+        local city = G.Via(below, { cont = 1, wx = 3000, wy = 3000, map = 1454 })
+        t:ok(city and city.unknown and #city.points == 0, "a walled city Flow has never walked into: it says it doesn't know the way")
+        -- The planner: stops on the bluff cost the lift ride, so they're done together.
+        local walk = G.PlanWalk()
+        t:ok(type(walk) == "function", "the planner gets the walk by gate")
+        if walk then
+            t:near(walk(below, top) or 0, 53.98, 0.05, "foot to top: by the lift")
+            t:eq(walk(below, { cont = 1, wx = 300, wy = 300, map = 1412 }), nil, "the same region: nothing to add")
+            t:near(ns.planner._Far(below, top, { walk = walk }), 53.98, 0.05, "the planner measures by the gate")
+            t:near(ns.planner._Far(below, top, {}), 22.36, 0.05, "without it: the straight line")
+            t:near(ns.planner._Far(below, { cont = 1, wx = 300, wy = 300, map = 1412 }, { walk = walk }), 342.05, 0.05,
+                "two spots on one map: the straight line, never asked")
+        end
+    end) end) end) end)
+    with(G, "Count", function() return 0 end, function()
+        t:eq(G.PlanWalk(), nil, "no gate known at all: the planner isn't asked")
+    end)
+
+    -- Learning one: you walk (or ride the lift) from one map into another.
+    local realLog = ns.Log
+    ns.Log = function() end
+    local ok, err = pcall(function()
+        with(ns.db.nav, "gates", {}, function()
+            G.Forget()
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, false)
+            G.Track({ cont = 1, wx = 104, wy = 2, map = 1456 }, false)
+            t:eq(#ns.db.nav.gates, 1, "stepped from Mulgore's map onto Thunder Bluff's: the spot is kept")
+            G.Track({ cont = 1, wx = 110, wy = 2, map = 1412 }, false)
+            t:eq(#ns.db.nav.gates, 1, "back down (out of a walled place): not learned")
+            G.Track({ cont = 1, wx = 2000, wy = 2000, map = 1456 }, false)
+            t:eq(#ns.db.nav.gates, 1, "a jump of 2000 yd is a hearthstone, not a walk: not learned")
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 100, wy = 0, map = 1412 }, true)
+            G.Track({ cont = 1, wx = 104, wy = 2, map = 1456 }, true)
+            t:eq(#ns.db.nav.gates, 1, "carried in on a flight path: not learned")
+            t:eq(#G.Lines(), 1, "/flow gates lists it")
+        end)
+    end)
+    ns.Log = realLog
+    G.Track(nil)
+    G.Forget()
+    t:ok(ok, "learning runs" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(type(ns.commands.gates) == "function", "/flow gates")
+end)
+
+ns:Register("test", "map: the dotted path follows the way you'd walk", function(t)
+    -- "the dots should follow the path"
+    local M, N = ns.mapOverlay, ns.nav
+    local mids = { { id = 1 }, { id = 2 }, { id = 3 } }
+    local chain = M.LegChain(0.1, 0.1, 0.9, 0.9, mids, function(m)
+        if m.id == 2 then return nil end   -- (not on the map shown)
+        return m.id / 10, 0.5
+    end)
+    t:eq(#chain, 4, "a leg bends through the points on this map: start, two of them, end")
+    t:ok(chain[1][1] == 0.1 and chain[2][1] == 0.1 and chain[3][1] == 0.3 and chain[4][1] == 0.9, "in order")
+    t:eq(#M.LegChain(0, 0, 1, 1, nil, function() end), 2, "nothing between: a straight leg, as before")
+    -- The arrow says how it's taking you.
+    t:eq(N.HowText("path"), "Following a trail you've walked before.", "a trail")
+    t:ok(N.HowText("gate"):find("the way in you've used before", 1, true) ~= nil, "a gate: " .. N.HowText("gate"))
+    t:ok(N.HowText("entrance"):find("entrance first", 1, true) ~= nil, "a cave")
+    t:eq(N.HowText("direct"), "Straight line: no known trail yet.", "straight")
+    t:ok(N.HowText("direct", { points = {}, unknown = true, from = 1412, to = 1456 }):find("doesn't know the way", 1, true) ~= nil,
+        "a walled place Flow has no way into yet: it says so")
+    t:eq(N.GateText(nil), "", "no gate: nothing beside the distance")
+    t:ok(N.GateText({ points = { {} }, yards = 340 }, 340):find("340 yd", 1, true) ~= nil, "a gate: the walk by it")
+    t:ok(type(N.PathStamp()) == "string", "the map knows when the arrow's way changes")
+    local okVia, via = pcall(N.LegVia, { cont = 1, wx = 0, wy = 0, map = 1412 }, { cont = 1, wx = 10, wy = 10, map = 1412 }, false)
+    t:ok(okVia and via == nil, "a leg inside one region, not the arrow's own: a straight line")
+end)
+
+ns:Register("test", "professions: a recipe isn't bought long before you can learn it", function(t)
+    -- "longjaw mud snapper requires 50, but it [was on the route at Cooking 32]"
+    local SP = ns.skillPlan
+    t:eq(SP.BUY_AHEAD, 10, "bought once you're within 10 points")
+    t:eq(SP.RecipeDue(50, 32), false, "Cooking 32, the recipe needs 50: not yet")
+    t:eq(SP.RecipeDue(50, 40), true, "at 40: buy it now")
+    t:eq(SP.RecipeDue(50, 49, 0), false, "in your bags at 49: the game won't let you learn it yet")
+    t:eq(SP.RecipeDue(50, 50, 0), true, "at 50: use it")
+    t:eq(SP.RecipeDue(50, nil), true, "skill not looked at: as before")
+    local step = { recipe = "Flow Test Fish", recipeItem = 99999001, learn = 50, mats = {} }
+    local ok, early = pcall(SP._recipeStop, "Cooking", step, {}, 32)
+    t:ok(ok and early == nil, "the buy stop at 32: none")
+    local ok2, due = pcall(SP._recipeStop, "Cooking", step, {}, 45)
+    t:ok(ok2 and due and due.key == "buy:99999001", "at 45: Buy Recipe is on the route")
+    local ok3, asBefore = pcall(SP._recipeStop, "Cooking", step, {})
+    t:ok(ok3 and asBefore and asBefore.key == "buy:99999001", "no skill given: as before")
 end)

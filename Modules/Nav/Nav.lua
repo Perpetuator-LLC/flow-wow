@@ -2393,7 +2393,7 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
-    return { first = first, tour = tour, here = here, away = away, air = N.PlanAir() }
+    return { first = first, tour = tour, here = here, away = away, air = N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
@@ -2639,17 +2639,22 @@ function N.Carrot(pts, idx, px, py, ahead)
     return best
 end
 
-local function steer(p, choice)
-    local pt = choice.point
-    local direct = choice.d
-    -- A stop inside a cave while you're outside: never straight at it (that
-    -- leads on top of the cave). Follow a trail in, or head for the entrance.
-    local inside = not (IsIndoors and IsIndoors()) and N:Inside(p.cont, pt.wx, pt.wy)
-    if not inside and ns.db.nav.arrowPaths ~= true then route = nil return pt.wx, pt.wy, "direct", direct end
+-- "Arrow follows paths you've walked": on unless you turn it off (0.35.172;
+-- it was off unless ticked). A trail is only taken when it's at most half
+-- again as long as the straight line, so it bends round a cliff you've
+-- walked round before without wandering off along an old detour.
+function N.TrailsOn() return ns.db.nav.arrowPaths ~= false end
+
+-- Where to walk now to reach one place (pt: { wx, wy }): along a trail
+-- you've walked, by a cave's entrance, or straight. key: what the trail is
+-- for (a stop, or the gate on the way to it), so it's planned again when
+-- that changes.
+local function steerTo(p, pt, direct, key, inside)
+    if not inside and not N.TrailsOn() then route = nil return pt.wx, pt.wy, "direct", direct end
     if direct < 80 and not inside then route = nil return pt.wx, pt.wy, "direct", direct end
 
     local now = GetTime()
-    local stale = not route or route.goalKey ~= choice.goal.key or route.cont ~= p.cont
+    local stale = not route or route.goalKey ~= key or route.cont ~= p.cont
     if route and not stale then
         local g = graph(p.cont)
         local w = route.nodes[route.idx]
@@ -2664,7 +2669,7 @@ local function steer(p, choice)
         if s and t and s ~= t then
             local nodes, length = astar(p.cont, s, t)
             if nodes and N.TrailWorthIt(length + (td or 0), direct, inside) then
-                route = { goalKey = choice.goal.key, cont = p.cont, nodes = nodes, idx = 1,
+                route = { goalKey = key, cont = p.cont, nodes = nodes, idx = 1,
                           length = length + (td or 0) }
             end
         end
@@ -2701,6 +2706,105 @@ local function steer(p, choice)
     local ahead = route.idx + N.Carrot(pts, 1, p.wx, p.wy, LOOKAHEAD) - 1
     n = route.nodes[ahead] or n
     return g.x[n], g.y[n], "path", route.length
+end
+
+-- Where the arrow points for this stop. Returns wx, wy, how, yards:
+--   "direct"    straight at the stop
+--   "path"      along a trail you've walked
+--   "entrance"  to the way into the cave or building the stop is in
+--   "gate"      to the way into another region (Gates.lua: the lift up
+--               Thunder Bluff, the pass into the next zone), then on
+local function steer(p, choice)
+    local pt = choice.point
+    local direct = choice.d
+    -- The stop is in another region: by a gate you've used, never straight
+    -- through the cliff. The gate is where to walk to until you're through.
+    local via = ns.gates and ns.gates.Via(p, pt) or nil
+    N.via = via
+    local gate = via and via.points[1]
+    if gate then
+        local toGate = dist(p.wx, p.wy, gate.wx, gate.wy)
+        if toGate > ARRIVED then
+            local wx, wy, how = steerTo(p, gate, toGate, choice.goal.key .. ":gate", false)
+            return wx, wy, how == "path" and "path" or "gate", via.yards
+        end
+    end
+    -- A stop inside a cave while you're outside: never straight at it (that
+    -- leads on top of the cave). Follow a trail in, or head for the entrance.
+    local inside = not (IsIndoors and IsIndoors()) and N:Inside(p.cont, pt.wx, pt.wy)
+    return steerTo(p, pt, direct, choice.goal.key, inside)
+end
+
+-- The places a leg of the route passes between its two ends ({ cont, wx,
+-- wy } each), or nil when it's a straight line. For the world map's dotted
+-- path, which follows the way you'd really walk (0.35.172).
+--   live: the leg from you to your next stop: the arrow's own way now (the
+--         trail it follows, the gate it heads for). Other legs: their gates.
+N.LEG_POINTS = 60   -- at most this many trail points a leg (a long trail is thinned)
+function N.LegVia(a, b, live)
+    local out
+    if live and route and N.how == "path" then
+        local g = graph(route.cont)
+        local n = #route.nodes - route.idx + 1
+        local step = math.max(1, math.ceil(n / N.LEG_POINTS))
+        out = {}
+        for i = route.idx, #route.nodes, step do
+            local node = route.nodes[i]
+            out[#out + 1] = { cont = route.cont, wx = g.x[node], wy = g.y[node] }
+        end
+    end
+    local via = ns.gates and ns.gates.Via(a, b)
+    if via and via.points[1] then
+        out = out or {}
+        for _, gate in ipairs(via.points) do
+            local lastPt = out[#out]
+            -- (A trail that already ends at the gate: not twice.)
+            if not lastPt or dist(lastPt.wx, lastPt.wy, gate.wx, gate.wy) > ARRIVED then
+                out[#out + 1] = { cont = gate.cont, wx = gate.wx, wy = gate.wy }
+            end
+        end
+    end
+    -- Into a cave or building you've been in (and the leg isn't already a
+    -- trail): through its entrance.
+    if not out and b and b.wx and b.cont and N:Inside(b.cont, b.wx, b.wy)
+        and not (a and a.wx and N:Inside(a.cont, a.wx, a.wy)) then
+        local e = entranceNear(b.cont, b.wx, b.wy)
+        if e then out = { { cont = e.cont, wx = e.wx, wy = e.wy } } end
+    end
+    return out
+end
+
+-- " (by the way into Thunder Bluff, 340 yd)": beside the distance while the
+-- arrow leads to a gate.
+function N.GateText(via, yards)
+    local gate = via and via.points and via.points[1]
+    if not gate then return "" end
+    local G = ns.gates
+    local into = (G and via.to and G.Name(via.to)) or nil
+    return string.format(" (by the way %s, %d yd)", into and ("into " .. into) or "through", yards or via.yards or 0)
+end
+
+-- One line for the arrow's panel: how it's taking you there.
+function N.HowText(how, via)
+    if how == "path" then return "Following a trail you've walked before." end
+    if how == "entrance" then return "It's inside: the arrow takes you to the entrance first." end
+    if how == "gate" then
+        return "It's in another part of the map you can't walk straight into: the arrow takes you to the way in you've used before (a lift, a gate, a pass)."
+    end
+    if via and via.unknown then
+        local G = ns.gates
+        return string.format("Straight line: Flow doesn't know the way %s yet. It learns it the first time you go in on foot (or by lift).",
+            (G and via.to and G.Walled(via.to) and ("into " .. G.Name(via.to))) or (G and via.from and ("out of " .. G.Name(via.from))) or "there")
+    end
+    return "Straight line: no known trail yet."
+end
+
+-- Changes whenever the arrow's way changes (a trail point passed, a gate
+-- reached): the world map draws its path again then.
+function N.PathStamp()
+    local via = N.via
+    return (N.how or "") .. (route and (":" .. tostring(route.goalKey) .. ":" .. route.idx .. ":" .. #route.nodes) or "")
+        .. ((via and via.points[1]) and (":g" .. #via.points .. ":" .. via.points[1].wx) or "")
 end
 
 -------------------------------------------------------------------------------
@@ -2914,8 +3018,7 @@ local function showPanel()
     for _, l in ipairs(g.details or {}) do
         if not l:find("^Quest: ") and not l:find("^Objective: ") then lines[#lines + 1] = "|cffcccccc" .. l .. "|r" end
     end
-    lines[#lines + 1] = "|cff888888" .. (N.how == "path" and "Following a trail you've walked before."
-        or "Straight line: no known trail yet.") .. "|r"
+    lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via) .. "|r"
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
         lines[#lines + 1] = " "
@@ -3414,7 +3517,11 @@ local function update()
     if N.intro then return end   -- the login intro is playing on the arrow (Splash.lua)
     local p = N:PlayerPos()
     if not p then frame:Hide() return end
-    if cfg.learn then record(p) end
+    if cfg.learn then
+        record(p)
+        -- (Gates.lua: where you cross from one map into another on foot.)
+        if ns.gates then ns.gates.Track(p, (UnitOnTaxi and UnitOnTaxi("player")) or (IsFlying and IsFlying()) or false) end
+    end
 
     -- Dead: the arrow turns red and points back to your corpse.
     if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then
@@ -3523,10 +3630,11 @@ local function update()
         end
     else
         frame.sub:SetText(string.format("%d yd%s%s%s", choice.d,
-            N.TravelText(p, choice.point, how == "path" and length or choice.d),
+            N.TravelText(p, choice.point, (how == "path" or how == "gate") and length or choice.d),
             (not facing and b) and (" " .. compass(b)) or "",
             how == "path" and string.format(" (trail, %d yd walk)", length)
-                or (how == "entrance" and " (it's inside: entrance first)" or "")))
+                or (how == "entrance" and " (it's inside: entrance first)")
+                or (how == "gate" and N.GateText(N.via, length)) or ""))
         frame.arrow:SetArrived(false)
     end
     -- Right on the spot (on a spawn spot, or at the stop itself): the pillars

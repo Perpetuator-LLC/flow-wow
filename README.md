@@ -98,6 +98,11 @@ Flow for WoW is a separate project from Flow Engine.
   ore into bars. A stop that needs something first goes after the
   stop that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
   Roar and Maul comes after the class quest that teaches Bear Form.
+- **Ways between maps**: Flow learns where you cross from one map into another on foot or by
+  lift (up Thunder Bluff, through a pass into the next zone). A stop in another part of the
+  map goes by the way you've used: the arrow leads to the lift, the route counts the ride (so
+  stops on the bluff are done together), and the map's dotted path bends through it. Capital
+  cities are walled: where Flow knows no way in yet, it says so. `/flow gates`.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Shortest path**
   (rare blue, the default) and **Most XP first** (epic purple) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
@@ -149,7 +154,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
   to your next stop, and that stop's dot, in the arrow's colour). The dots drift slowly toward
   the next stop, so you see which way the route goes, and "Path opacity" in the settings makes
-  the trail stronger or fainter; numbered waypoints with quest levels (`3 [9]`) and pickups
+  the trail stronger or fainter. The stretch from you follows the way the arrow takes (a
+  trail you've walked, a gate, a cave's entrance), not a straight line; numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
   with borders; the minimap shows your current stop's area the same way, and the (o) marker.
 - **Stop card**: Flow's view of a stop (drag it by its title). Its "Show on map" and "Select in

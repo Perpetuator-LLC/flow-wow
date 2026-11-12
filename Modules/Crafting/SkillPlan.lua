@@ -760,17 +760,31 @@ local function questRecipeStop(s)
                  or (#pts == 0 and ("Flow doesn't know where " .. who .. " stands")) or nil }
 end
 
+-- A bought recipe goes on the route once your skill is within this many
+-- points of what it needs, not before: "Longjaw Mud Snapper requires 50" and
+-- Flow sent a cook at 32 to buy it, then asked to use a recipe the game
+-- wouldn't let them learn (0.35.172). Pure: rank nil = unknown, so yes.
+SP.BUY_AHEAD = 10
+function SP.RecipeDue(learn, rank, ahead)
+    if not (learn and rank) then return true end
+    return rank >= learn - (ahead or SP.BUY_AHEAD)
+end
+
 -- "Buy Recipe: X" for a bought recipe you don't have (as far as Flow knows).
-local function recipeStop(prof, s, known)
+-- rank: your skill in the profession (nil: not looked at).
+local function recipeStop(prof, s, known, rank)
     if not s.recipeItem or (known and known[s.recipe]) then return nil end
     local name = itemName(s.recipeItem)
     watched[s.recipeItem] = true
     if count(s.recipeItem) > 0 then
+        -- In your bags but your skill is too low to learn it: nothing to do yet.
+        if not SP.RecipeDue(s.learn, rank, 0) then return nil end
         return { key = "use:" .. s.recipeItem, kind = "craft", points = { playerPoint() }, anywhere = true,
                  icon = BAG_ICON, useItem = s.recipeItem,   -- in your bags: the arrow shows a bag
                  text = "Learn " .. s.recipe .. ": use the recipe in your bags" }
     end
     if s.quest then return questRecipeStop(s) end
+    if not SP.RecipeDue(s.learn, rank) then return nil end   -- (too early to buy: it waits until you're nearly there)
     local fish = false
     for mid in pairs(s.mats or {}) do
         local ms = src(mid)
@@ -1326,7 +1340,7 @@ local function planProfession(prof, t, out)
     for _, s in ipairs(order) do
         if s.recipeItem then
             -- Bought, not trained (Recipe: Brilliant Smallfish).
-            local r = recipeStop(prof, s, known)
+            local r = recipeStop(prof, s, known, rank)
             if r then add(r) end
         elseif known and not known[s.recipe] and s.learn <= rank then
             local names, who = SP.StepTrainers(prof, s)
@@ -1564,7 +1578,7 @@ local function planProfession(prof, t, out)
                 fromFish = math.min(n, math.floor(SP.PlannedCatch(SP.lastTargets) * (fishSrc.share or 0.7)))
                 if fromFish > 0 then
                     watched[fishId] = true
-                    local r = recipeStop(prof, fishStep, known)
+                    local r = recipeStop(prof, fishStep, known, rank)
                     if r then add(r) end
                 end
             end

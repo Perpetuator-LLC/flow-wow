@@ -262,10 +262,10 @@ function P:EstimateStops()
     if next(common) then
         local n = 0
         for _ in pairs(shared) do n = n + 1 end
-        plan = ns.planner:Plan(p, goals, { tour = common, air = ns.nav.PlanAir() })
+        plan = ns.planner:Plan(p, goals, { tour = common, air = ns.nav.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil })
         why = n .. " quest(s) you share come first"
     else
-        plan = ns.planner:Plan(p, goals, { air = ns.nav.PlanAir() })
+        plan = ns.planner:Plan(p, goals, { air = ns.nav.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil })
         why = "your current route (no shared quests yet)"
     end
     local stops = {}

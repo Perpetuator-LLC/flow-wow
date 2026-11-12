@@ -425,8 +425,8 @@ local function build(parent)
             function() return ns.nav:ArrowColorMode() == "distance" end,
             function(on) ns.nav:SetArrowColorMode(on and "distance" or "route") end)
         _, y = check(f, y, "Arrow follows paths you've walked", "(off = straight at the stop)",
-            "Off (default): the arrow points straight at your stop, except into caves and buildings, where it follows the way you walked in. On: outdoors too it follows a path you've walked when that's at most half again as long as the straight line (around a cliff, along a road).",
-            function() return ns.db.nav.arrowPaths == true end,
+            "On (default): the arrow follows a path you've walked before when that's at most half again as long as the straight line (round a cliff, along a road), and the world map's dotted path bends with it. Into caves and buildings, and into places with their own way in (up Thunder Bluff by its lifts, into the next zone by its pass), it always takes the way you've used. Off: straight at the stop, except those.",
+            function() return ns.db.nav.arrowPaths ~= false end,
             function(on) ns.db.nav.arrowPaths = on end)
         _, y = check(f, y, "Finish a zone before leaving it", "(quests too low or high don't count)",
             "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",

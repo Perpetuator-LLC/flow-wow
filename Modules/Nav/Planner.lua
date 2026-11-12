@@ -61,6 +61,9 @@ end
 --           flight, as the yards you'd run in that time), nil if none.
 --           Stops are then picked by the time they take, not the straight
 --           line (Nav sets it: N.TravelYards).
+--   walk  = function(a, b) -> yards: the walk from spot a to spot b when it
+--           goes by a gate (two spots in different regions: Gates.lua), nil
+--           when it's the straight line.
 local OPT = {}
 
 -- A flight never beats a short walk: below this the straight line is the
@@ -71,6 +74,12 @@ local AIR_MIN = 300
 -- or by flight when that's quicker.
 local function far(a, b)
     local d = dist(a.wx, a.wy, b.wx, b.wy)
+    -- On different maps (one up on Thunder Bluff, one at its foot; the next
+    -- zone): the walk goes by a gate, not through the cliff (Gates.lua).
+    if OPT.walk and a.map ~= b.map then
+        local ok, w = pcall(OPT.walk, a, b)
+        if ok and type(w) == "number" and w > d then d = w end
+    end
     if OPT.air and d > AIR_MIN then
         local ok, t = pcall(OPT.air, a, b)
         if ok and type(t) == "number" and t < d then return t end
