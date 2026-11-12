@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.167
+- **Profession guides: the recipes to 300.** Cooking now goes past 225 with the bought Artisan recipes the
+  levelling guides use (Monster Omelet, Tender Wolf Steak, Spotted Yellowtail, then Nightfin Soup, Sunscale
+  Salmon, Mightfish Steak, Lobster Stew and Baked Salmon), with their vendor prices and the fish they need.
+  Blacksmithing 265-300 is Imperial Plate: its plans are quest rewards, so the stop says to accept Derotain
+  Mudsipper's quest in Gadgetzan (and why) instead of "buy". Thorium Bars smelt from Thorium Ore, and Mining
+  knows the Mithril and Thorium skill colours. The last three bandages are learned from your side's Triage
+  doctor, not the city trainer.
+  (Thanks, BIMpossible: pull request 21.)
+
 ## 0.35.166
 - **Dungeon key: the quests and the route show.** The run's tooltip, its menu and the "Prepare" chat line now
   list each quest: what to pick up, who gives it and in which zone, the lead-ins, the ones in your log and the
