@@ -226,6 +226,7 @@ end
 local EATING = { Food = true, Drink = true, ["Food & Drink"] = true, Refreshment = true }
 local function isEating(n) return EATING[n] end   -- (one function, not a new one ten times a second)
 local function eating() return (A.Buff("player", isEating)) end
+function E.EatingNow() return eating() and true or false end
 
 -- Well Fed food: the buff comes after 10 seconds of eating. When the key's
 -- last suggestion was such a food and you start eating, the button counts
@@ -401,6 +402,61 @@ end
 -- then a heal spell. A step you have nothing for is skipped. Not while you
 -- eat, cast or channel (a bandage is a channel); food only when you're quite
 -- hurt and no enemy is targeted (you'd sit down at the pull).
+-------------------------------------------------------------------------------
+-- After a fight: eat and drink together, or bandage (0.35.197)
+-------------------------------------------------------------------------------
+-- "Can't the items after combat swap, so it could say to eat, and then drink
+-- one right after the other? Else bandage, if only health and the bandage
+-- covers it?"
+--   * You'll sit to drink (low on mana, or you've cast a few spells and
+--     carry a drink): food comes before the bandage, lightly hurt or not, and
+--     the drink is offered the moment you're eating. One sit does both.
+--   * No drink needed and a bandage covers what you're missing: the bandage
+--     comes before food (eight seconds on your feet, not thirty sitting).
+--   * Otherwise: your own order (right-click the Flow key).
+-- The game hides your mana here, so "a few spells" is counted in casts:
+-- each cast that costs mana adds one; out of a fight one comes back every
+-- 12 seconds, drinking one every 3.
+E.SPENT = { drink = 3, back = 12, drinking = 3, max = 30 }
+E.spent = 0
+-- Pure: the count after `dt` seconds.
+function E.StepSpent(spent, dt, inCombat, drinking)
+    if drinking then return math.max(0, spent - dt / E.SPENT.drinking) end
+    if inCombat then return spent end
+    return math.max(0, spent - dt / E.SPENT.back)
+end
+-- Pure: worth a drink with your food? (You're sitting anyway.)
+function E.DrinkWithFood(spent, min) return (spent or 0) >= (min or E.SPENT.drink) end
+-- Pure: the recovery order for right now.
+--   order: yours, { "bandage", "food", "heal" } in some order
+--   sitting: you'll drink; covers: a bandage of yours fills what you're missing
+function E.SmartRecover(order, sitting, covers)
+    local out = {}
+    for _, s in ipairs(order or {}) do out[#out + 1] = s end
+    local function before(a, b)
+        local ia, ib
+        for i, s in ipairs(out) do
+            if s == a then ia = i elseif s == b then ib = i end
+        end
+        if ia and ib and ia > ib then
+            table.remove(out, ia)
+            table.insert(out, ib, a)
+        end
+    end
+    if sitting then before("food", "bandage")
+    elseif covers then before("bandage", "food") end
+    return out
+end
+-- Pure: does a bandage cover it? missing: health you lack (nil: hidden);
+-- best: the most one of your bandages heals (nil: none); hurt: Flow's
+-- estimate, used where your health is hidden (a bandage is worth
+-- E.HEAL_VALUE["First Aid"] of it).
+function E.BandageCovers(missing, best, hurt, worth)
+    if not best then return false end
+    if missing then return best >= missing end
+    return (hurt or 0) > 0 and (hurt or 0) <= (worth or 0)
+end
+
 -- Above this share of your health (where the game shows it) Flow suggests
 -- no heal of any kind: no spell, bandage, food or Cannibalize. Its own
 -- estimate (E.hurt) only counts while your health is hidden.
@@ -476,9 +532,13 @@ function E:DrinkStep(ctx)
     if ctx.inCombat or ctx.hostile or ctx.casting or r.recoverDrink == false then return nil end
     if UnitIsDeadOrGhost("player") or E.Mounted() or E.Drinking() then return nil end
     local share = E.ManaShare()
-    if not E.ManaLow(share, share == nil and E.CantAfford(self:Definition())) then return nil end
+    -- Low on mana; or you're eating and have cast a few spells: one sit does both.
+    local low = E.ManaLow(share, share == nil and E.CantAfford(self:Definition()))
+    local withFood = r.recoverSmart ~= false and E.EatingNow() and E.DrinkWithFood(E.spent)
+    if not (low or withFood) then return nil end
     local BI = ns.buffItems
     local s = BI and BI.DrinkStep and BI.DrinkStep()
+    if s and withFood and not low then s.reason = "You're eating: drink with it (you've cast a few spells)" end
     if s then s.fightType = ctx.fightType end
     return s
 end
@@ -555,11 +615,21 @@ function E:Recover(ctx, def, part, all)
             return can
         end
     end
-    for _, step in ipairs(BI and BI.Order(r.recoverOrder) or { "heal" }) do
+    local order = BI and BI.Order(r.recoverOrder) or { "heal" }
+    -- Eat and drink together, or bandage when it covers it (above).
+    local sitting = false
+    if BI and r.recoverSmart ~= false then
+        local okS, sit, covers = pcall(E.RecoverNow, self, ctx, def)
+        if okS then
+            sitting = sit and true or false
+            order = E.SmartRecover(order, sitting, covers)
+        end
+    end
+    for _, step in ipairs(order) do
         local s
         if step == "bandage" and BI and r.recoverBandage ~= false and not mounted then
             s = BI.BandageStep(r.bandageRank == "low")
-        elseif step == "food" and BI and r.recoverFood ~= false and not mounted and not ctx.hostile and quite then
+        elseif step == "food" and BI and r.recoverFood ~= false and not mounted and not ctx.hostile and (quite or sitting) then
             s = BI.FoodStep(r.recoverBuffFood ~= false, E.WantWellFed())
         elseif step == "heal" and r.recoverHeal ~= false then
             s = direct or self:EarlyHeal(ctx, def)
@@ -575,6 +645,18 @@ function E:Recover(ctx, def, part, all)
         end
     end
     return nil
+end
+
+-- Right now: will you sit to drink (and so eat with it), and does a bandage
+-- cover what you're missing? -> sitting, covers
+function E:RecoverNow(ctx, def)
+    local BI, r = ns.buffItems, ns.db.rotation
+    local share = E.ManaShare()
+    local canDrink = r.recoverDrink ~= false and not ctx.hostile and BI.DrinkItem and BI.DrinkItem() ~= nil
+    local sitting = canDrink and (E.ManaLow(share, share == nil and E.CantAfford(def)) or E.DrinkWithFood(E.spent)) or false
+    local missing = BI.MissingHealth(UnitHealth("player"), UnitHealthMax("player"), nil, nil)
+    local best = BI.BestBandage and BI.BestBandage() or nil
+    return sitting, E.BandageCovers(missing, best, E.hurt, E.HEAL_VALUE["First Aid"])
 end
 
 -- Every way to heal up right now, in your recovery order (bandage, food,
@@ -1412,6 +1494,7 @@ C_Timer.NewTicker(0.5, function()
     local low = A.LowHealthWarning() == true
     if low and fightLog then fightLog.low = true end
     E.hurt = E.StepHurt(E.hurt, 0.5, inCombat, hit, not inCombat and eating(), low)
+    E.spent = E.StepSpent(E.spent, 0.5, inCombat, E.Drinking())
     -- Out of a fight and your health has stopped changing: it's full.
     if not inCombat and not low and E.hurt > 0 and E.HealthSettled(GetTime(), health.last, health.since, health.out) then
         ns:Log("heal", string.format("your health stopped changing (%d s): full, hurt %.0f -> 0", E.FULL_QUIET, E.hurt))
@@ -1459,6 +1542,25 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     E.hurt = math.max(0, E.hurt - value)
     ns:Log("heal", string.format("cast %s: hurt %.0f -> %.0f", name, before, E.hurt))
 end)
+-- Each cast of yours that costs mana: one more spent (E.SPENT).
+function E.CostsMana(spell)
+    local get = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
+    if not get then return true end   -- (can't ask: count it)
+    local ok, costs = pcall(get, spell)
+    if not ok or type(costs) ~= "table" then return true end
+    for _, c in ipairs(costs) do
+        local cost = A.Safe(c.cost)
+        if (c.type == 0 or c.name == "MANA") and (cost == nil or cost > 0) then return true end
+    end
+    return false
+end
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if name and known[name] and E.CostsMana(name) then E.spent = math.min(E.SPENT.max, E.spent + 1) end
+end)
+ns:On("PLAYER_LEVEL_UP", function() E.spent = 0 end)   -- (a new level fills your mana)
+
 -- A bandage is a channel named "First Aid". The First Aid profession window
 -- opens with a spell of the same name that isn't a channel and heals nothing.
 function E.IsBandage(channelName) return channelName == "First Aid" end

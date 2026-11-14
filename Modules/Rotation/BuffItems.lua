@@ -807,6 +807,20 @@ function BI.MissingHealth(hp, maxHp, hurt, hurtMax)
     return maxHp * math.min(1, math.max(0, hurt) / hurtMax)
 end
 
+-- The most one of your bandages heals right now (nil: none you can use, or
+-- you've bandaged too recently).
+function BI.BestBandage()
+    if bandaged() then return nil end
+    local best
+    for _, it in ipairs(healItems()) do
+        if it.kind == "bandage" and itemReady(it.id) then
+            local h = BI.BandageHeal(it.name, tipLines(it.id)) or 0
+            if not best or h > best then best = h end
+        end
+    end
+    return best
+end
+
 function BI.BandageStep(lowFirst)
     if bandaged() then return nil end
     local E = ns.rotation

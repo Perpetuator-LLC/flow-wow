@@ -954,6 +954,12 @@ if ns.settings and ns.settings.AddCheck then
         tip = "With a dead player targeted, out of a fight, your key casts your resurrection on them (Revive, Resurrection, Redemption, Ancestral Spirit). Not on someone who has released: a ghost can't be raised.",
         get = function() return ns.db.actions.res ~= false end,
         set = function(on) ns.db.actions.res = on and true or false end }
+    -- (The engine's: E.SmartRecover, E:RecoverNow.)
+    ns.settings:AddCheck{ group = "key", label = "After a fight: eat and drink in one sit, or bandage when that covers it",
+        note = "(off: always your own order)",
+        tip = "When you'll sit to drink anyway (low on mana, or a few spells cast and a drink in your bags), food comes before the bandage and the drink is offered the moment you're eating. When no drink is needed and a bandage covers what you're missing, the bandage comes first. Otherwise your own recovery order (right-click the Flow key).",
+        get = function() return ns.db.rotation.recoverSmart ~= false end,
+        set = function(on) ns.db.rotation.recoverSmart = on and true or false end }
     -- (The step itself is the engine's: E:FriendTarget.)
     ns.settings:AddCheck{ group = "group", label = "Buff and heal a friendly player you target",
         note = "(out of a fight, not in a city or inn)",

@@ -5534,10 +5534,12 @@ ns:Register("test", "recovery: one order for every way of being hurt; fight heal
     local keep = { busy = E.RecoverBusy, mounted = E.Mounted, hd = E.HealDecision, lh = E.LowHealthHeal, eh = E.EarlyHeal,
                    em = BI.EmergencyStep, band = BI.BandageStep, food = BI.FoodStep, hurt = E.hurt, can = E.CannibalizeStep,
                    order = r.recoverOrder, b = r.recoverBandage, f = r.recoverFood, h = r.recoverHeal,
-                   bf = r.recoverBuffFood, ei = r.emergencyItems }
+                   bf = r.recoverBuffFood, ei = r.emergencyItems, rn = E.RecoverNow }
     local have, askedBuff = {}, nil
     local def = { heals = { "Heal" } }
     local ok, err = pcall(function()
+        -- (Your own order, as written: no drink to sit for, no bandage that covers it. 0.35.197's choice has its own test.)
+        E.RecoverNow = function() return false, false end
         E.RecoverBusy = function() return have.busy or false end
         E.Mounted = function() return have.mounted or false end
         E.HealDecision = function(_, ctx) return (have.spell and ctx.maxHp > 0 and ctx.hpPct < 0.5) and { spell = "Heal", kind = "heal" } or nil end
@@ -5650,6 +5652,7 @@ ns:Register("test", "recovery: one order for every way of being hurt; fight heal
     E.RecoverBusy, E.Mounted, E.HealDecision, E.LowHealthHeal, E.EarlyHeal = keep.busy, keep.mounted, keep.hd, keep.lh, keep.eh
     BI.EmergencyStep, BI.BandageStep, BI.FoodStep, E.hurt = keep.em, keep.band, keep.food, keep.hurt
     E.CannibalizeStep = keep.can
+    E.RecoverNow = keep.rn
     r.recoverOrder, r.recoverBandage, r.recoverFood, r.recoverHeal = keep.order, keep.b, keep.f, keep.h
     r.recoverBuffFood, r.emergencyItems = keep.bf, keep.ei
     t:ok(ok, "recovery checks ran" .. (ok and "" or (": " .. tostring(err))))
@@ -5956,6 +5959,9 @@ ns:Register("test", "easy button: drink when low on mana; Well Fed food first wh
     t:eq(BI.PickFood(food, true, nil, true).id, 2, "fights ahead, not Well Fed: the Well Fed food first")
     t:eq(BI.PickFood(food, false, nil, true).id, 1, "Well Fed food turned off: plain food")
     local out = { inCombat = false, hostile = false, fightType = "normal" }
+    -- (Not eating, for this test: while you eat, a few casts are enough for a drink. 0.35.197, tested on its own.)
+    local eatingNow = E.EatingNow
+    E.EatingNow = function() return false end
     with(E, "Mounted", function() return false end, function()
     with(E, "Drinking", function() return false end, function()
     with(BI, "DrinkStep", function() return { label = "Drink: Water" } end, function()
@@ -5996,6 +6002,7 @@ ns:Register("test", "easy button: drink when low on mana; Well Fed food first wh
     end)
     end)
     end)
+    E.EatingNow = eatingNow
 end)
 
 ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps in your heal", function(t)
@@ -8861,4 +8868,98 @@ ns:Register("test", "export: your quests, skills and the route as lines a script
     local okS, list = pcall(S.All, S, "flight", 5)
     t:ok(okS and type(list) == "table" and #list <= 5, "the flight masters Flow can find, nearest first" .. (okS and "" or (": " .. tostring(list))))
     t:ok(type(ns.commands.export) == "function", "/flow export")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.197: after a fight: eat and drink together, or bandage when it
+-- covers it.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "recovery: eat and drink in one sit, or bandage when it covers it", function(t)
+    if deadSkip(t) then return end
+    local E, BI = ns.rotation, ns.buffItems
+    -- The count of mana casts: up with each cast, back with time.
+    t:near(E.StepSpent(4, 12, false, false), 3, 0.001, "out of a fight: one cast comes back every 12 seconds")
+    t:near(E.StepSpent(4, 12, true, false), 4, 0.001, "in a fight: none")
+    t:near(E.StepSpent(4, 6, false, true), 2, 0.001, "drinking: one every 3 seconds")
+    t:near(E.StepSpent(0.2, 60, false, false), 0, 0.001, "never below none")
+    t:ok(E.DrinkWithFood(3), "three casts: worth a drink with your food")
+    t:ok(not E.DrinkWithFood(2), "two: not yet")
+    t:ok(not E.DrinkWithFood(nil), "nothing counted: no")
+    -- The order for now.
+    local mine = { "bandage", "food", "heal" }
+    t:eq(table.concat(E.SmartRecover(mine, true, false), ","), "food,bandage,heal", "you'll sit to drink: food first (one sit does both)")
+    t:eq(table.concat(E.SmartRecover(mine, true, true), ","), "food,bandage,heal", "and so even when a bandage would cover it")
+    t:eq(table.concat(E.SmartRecover({ "food", "bandage", "heal" }, false, true), ","), "bandage,food,heal", "no drink needed, a bandage covers it: the bandage first")
+    t:eq(table.concat(E.SmartRecover(mine, false, false), ","), "bandage,food,heal", "neither: your own order")
+    t:eq(table.concat(E.SmartRecover({ "heal", "food", "bandage" }, false, false), ","), "heal,food,bandage", "whatever your order is")
+    t:eq(table.concat(E.SmartRecover({ "heal", "bandage", "food" }, true, false), ","), "heal,food,bandage", "a heal spell you put first stays first")
+    t:eq(#mine, 3, "your saved order isn't changed")
+    -- Does a bandage cover it?
+    t:ok(E.BandageCovers(100, 114, 0, 15), "114 healed for 100 missing: yes")
+    t:ok(not E.BandageCovers(300, 114, 0, 15), "114 for 300 missing: no")
+    t:ok(E.BandageCovers(nil, 114, 10, 15), "health hidden: by Flow's estimate, a little hurt: yes")
+    t:ok(not E.BandageCovers(nil, 114, 30, 15), "health hidden, badly hurt: no")
+    t:ok(not E.BandageCovers(nil, 114, 0, 15), "not hurt: nothing to cover")
+    t:ok(not E.BandageCovers(100, nil, 0, 15), "no bandage: no")
+
+    -- The key: with the food and bandage stood in for.
+    local r = ns.db.rotation
+    local keep = { busy = E.RecoverBusy, mounted = E.Mounted, hd = E.HealDecision, lh = E.LowHealthHeal, eh = E.EarlyHeal,
+                   band = BI.BandageStep, food = BI.FoodStep, hurt = E.hurt, can = E.CannibalizeStep, now = E.RecoverNow,
+                   order = r.recoverOrder, smart = r.recoverSmart, b = r.recoverBandage, f = r.recoverFood, h = r.recoverHeal,
+                   eat = E.EatingNow, drinking = E.Drinking, share = E.ManaShare, cant = E.CantAfford, spent = E.spent,
+                   drink = BI.DrinkStep, rd = r.recoverDrink }
+    local ok, err = pcall(function()
+        E.RecoverBusy = function() return false end
+        E.Mounted = function() return false end
+        E.HealDecision, E.LowHealthHeal, E.EarlyHeal = function() end, function() end, function() end
+        E.CannibalizeStep = function() end
+        BI.BandageStep = function() return { label = "Bandage" } end
+        BI.FoodStep = function() return { label = "Food" } end
+        r.recoverOrder, r.recoverBandage, r.recoverFood, r.recoverHeal, r.recoverSmart = "bandage,food,heal", nil, nil, nil, nil
+        E.hurt = 8   -- (hurt a little: enough for a bandage, not for food on its own)
+        local ctx = { inCombat = false, hostile = false, maxHp = 0, hpPct = 0 }
+        local def = { heals = {} }
+        local function pick() local s = E:Recover(ctx, def, "all"); return s and s.label end
+        E.RecoverNow = function() return false, false end
+        t:eq(pick(), "Bandage", "nothing special: your order, the bandage")
+        E.RecoverNow = function() return true, false end
+        t:eq(pick(), "Food", "you'll sit to drink: food first, though you're only a little hurt")
+        E.RecoverNow = function() return false, true end
+        r.recoverOrder = "food,bandage,heal"
+        E.hurt = 20
+        t:eq(pick(), "Bandage", "food first in your order, but a bandage covers it and no drink is needed: the bandage")
+        r.recoverSmart = false
+        t:eq(pick(), "Food", "switched off: your own order again")
+        r.recoverSmart = nil
+        -- The drink, the moment you're eating.
+        BI.DrinkStep = function() return { label = "Drink: Water" } end
+        E.Drinking = function() return false end
+        E.ManaShare = function() return nil end
+        E.CantAfford = function() return false end
+        r.recoverDrink = nil
+        E.EatingNow = function() return true end
+        E.spent = 4
+        local s = E:DrinkStep(ctx)
+        t:eq(s and s.label, "Drink: Water", "eating, four casts spent: drink with it")
+        t:ok(s and s.reason and s.reason:find("eating", 1, true) ~= nil, "and it says why")
+        E.spent = 1
+        t:eq(E:DrinkStep(ctx), nil, "eating, hardly any mana spent: no drink")
+        E.spent = 4
+        E.EatingNow = function() return false end
+        t:eq(E:DrinkStep(ctx), nil, "not eating, mana not low: no drink on its own")
+        r.recoverSmart = false
+        E.EatingNow = function() return true end
+        t:eq(E:DrinkStep(ctx), nil, "switched off: only when low on mana")
+    end)
+    E.RecoverBusy, E.Mounted, E.HealDecision, E.LowHealthHeal, E.EarlyHeal = keep.busy, keep.mounted, keep.hd, keep.lh, keep.eh
+    BI.BandageStep, BI.FoodStep, E.hurt, E.CannibalizeStep, E.RecoverNow = keep.band, keep.food, keep.hurt, keep.can, keep.now
+    r.recoverOrder, r.recoverSmart, r.recoverBandage, r.recoverFood, r.recoverHeal = keep.order, keep.smart, keep.b, keep.f, keep.h
+    E.EatingNow, E.Drinking, E.ManaShare, E.CantAfford, E.spent = keep.eat, keep.drinking, keep.share, keep.cant, keep.spent
+    BI.DrinkStep, r.recoverDrink = keep.drink, keep.rd
+    t:ok(ok, "the key's recovery runs" .. (ok and "" or (": " .. tostring(err))))
+    local okN, sitting, covers = pcall(E.RecoverNow, E, { hostile = false }, E:Definition() or { heals = {} })
+    t:ok(okN and type(sitting) == "boolean" and type(covers) == "boolean", "what it is right now reads from the game" .. (okN and "" or (": " .. tostring(sitting))))
+    t:ok(type(E.CostsMana("Wrath")) == "boolean", "whether a spell costs mana can be asked")
 end)

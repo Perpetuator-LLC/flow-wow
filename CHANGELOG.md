@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.197
+- **After a fight: eat and drink in one sit, or bandage when that covers it.** The key
+  followed your recovery order whatever your mana was, and a drink came only when you were
+  nearly empty. Now:
+  - When you'll sit to drink (low on mana, or you've cast three or more spells and carry a
+    drink), **food comes before the bandage**, even when you're only a little hurt, and the
+    **drink is offered the moment you're eating**: one press for food, the next for water.
+  - When no drink is needed and **a bandage covers what you're missing**, the bandage comes
+    first: eight seconds standing, not thirty sitting.
+  - Otherwise your own order, as before.
+  The game hides your mana here, so "spent" is counted in casts: each cast that costs mana
+  adds one; out of a fight one comes back every 12 seconds, drinking one every 3. "After a
+  fight: eat and drink in one sit..." in Flow Settings (Your easy key) turns it off.
+
 ## 0.35.196
 - **A second opinion on the route.** `/flow export` (and every diagnostics snapshot) now
   writes your quests and their objectives, your professions, every stop Flow knows of (on
