@@ -46,6 +46,8 @@ Flow for WoW is a separate project from Flow Engine.
   A kill you have targeted: it loots it, then skins it when the game says it's skinnable and
   you have Skinning (or gathers from it, where Herbalism, Mining or Engineering can). A dead
   friend targeted: it casts your resurrection. A quest's item at its stop: it uses it.
+  A living friendly player targeted (in your group or not): your buffs for others, then a
+  heal when they're hurt or in a fight, with mana to spare.
   Crafting: campfire, open the profession, make exactly enough; by an anvil, forge or cooking
   fire with something to make, it opens Blacksmithing, Smelting or Cooking. Things to learn in your bags
   (recipes, scrolls): it learns them. About to fight (a kill stop, or just

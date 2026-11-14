@@ -172,9 +172,9 @@ local function buildIcon(cfg)
     -- "SHIFT+" beside the icon while you hold Shift: the icon then shows
     -- what Shift + your key casts (your heal), pulsing so it's noticed.
     f.shiftTag = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    -- (Above the icon's right corner: the queue is on its left, the
-    -- crossed swords on its right, the key's bind above its middle.)
-    f.shiftTag:SetPoint("BOTTOMLEFT", f, "TOPRIGHT", 4, 2)
+    -- (On the left, right above the modifier names: it says which of them
+    -- you're holding. It was to the right of the key's bind for one version.)
+    f.shiftTag:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", -10, 0)
     f.shiftTag:SetText("SHIFT+")
     f.shiftTag:SetTextColor(0.4, 1, 0.4)
     f.shiftTag.pulse = f.shiftTag:CreateAnimationGroup()

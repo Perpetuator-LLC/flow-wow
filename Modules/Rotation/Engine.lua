@@ -825,7 +825,12 @@ function E:Choose()
         local far = self:FarOpener(list, ctx)
         if far then return far end
     end
-    -- Nothing for you to press: buff your party or raid.
+    -- Nothing for you to press. A friendly player targeted: your buffs for
+    -- them, then a heal.
+    local okF, friend = pcall(self.FriendTarget, self, ctx, def)
+    if okF and friend then return friend end
+    if not okF then self.lastError, self.lastErrorAt = tostring(friend), GetTime() end
+    -- Else: buff your party or raid.
     return self:GroupBuff(ctx, def)
 end
 
@@ -998,6 +1003,123 @@ end
 function E.ClearGroupCache() groupCache = nil end
 
 -------------------------------------------------------------------------------
+-- A friendly player you have targeted (0.35.193)
+-------------------------------------------------------------------------------
+-- "When targeting friendly non-group players it would be nice to have
+-- suggested spells for friendlies: I can give Mark and Thorns, so those show,
+-- and if I cast through those the easy button becomes heal; or if in combat
+-- and their health is low, heal."
+--
+-- Out of a fight of your own, with a living friendly player targeted (in
+-- your group or not), and not in an inn or city: your buffs for others
+-- (def.groupBuffs, every one of them: you picked this person), then a heal.
+-- Hurt and in a fight comes first. Their health is one of the things WoW:
+-- Forever may hide; then Flow goes by whether they're in a fight (heal
+-- them), and out of one puts a heal over time on them once.
+-- Mana sense: buffs for others only with half your mana or more, heals with
+-- a quarter (where the game shows your mana; where it doesn't, as long as
+-- none of your own heals is out of reach).
+E.FRIEND_HURT = 0.9
+E.FRIEND_MANA = 0.5
+E.FRIEND_HEAL_MANA = 0.25
+
+-- Pure: can you spare the mana? share: your mana's share (nil: hidden);
+-- cantAfford: one of your heals is out of reach; floor: the share to keep.
+function E.CanSpare(share, cantAfford, floor)
+    if share ~= nil then return share >= (floor or 0) end
+    return cantAfford ~= true
+end
+
+-- Pure: what the key does for a friendly player.
+--   f: { hurt = true | false | nil (the game won't say), inCombat = theirs }
+--   buffs: { { spell, covered } }: your buffs for others you could cast now, in order
+--   heal: { hot = a heal over time not on them yet, direct = your quick heal } (either may be nil)
+--   spareBuff, spareHeal: you have the mana for each kind
+-- -> { spell, kind = "buff" | "heal", why } or nil
+function E.FriendStep(f, buffs, heal, spareBuff, spareHeal)
+    if not f then return nil end
+    local function healStep(why, hotOnly)
+        if not (heal and spareHeal) then return nil end
+        if heal.hot then return { spell = heal.hot, kind = "heal", why = why } end
+        if heal.direct and not hotOnly then return { spell = heal.direct, kind = "heal", why = why } end
+        return nil
+    end
+    if f.hurt == true and f.inCombat then
+        local h = healStep("hurt in a fight")
+        if h then return h end
+    end
+    if spareBuff then
+        for _, b in ipairs(buffs or {}) do
+            if not b.covered then return { spell = b.spell, kind = "buff", why = "missing" } end
+        end
+    end
+    if f.hurt == true then return healStep("hurt") end
+    if f.hurt == nil then
+        if f.inCombat then return healStep("in a fight") end
+        return healStep("top up", true)   -- (their health is hidden: one heal over time, no more)
+    end
+    return nil
+end
+
+-- Why, in words, for the icon's tooltip.
+function E.FriendReason(pick, name)
+    name = name or "your target"
+    if pick.kind == "buff" then return string.format("%s for %s (your target): they don't have it", pick.spell, name) end
+    if pick.why == "hurt in a fight" then return string.format("%s on %s: hurt, and in a fight", pick.spell, name) end
+    if pick.why == "hurt" then return string.format("%s on %s: they're hurt", pick.spell, name) end
+    if pick.why == "in a fight" then return string.format("%s on %s: in a fight (the game hides their health)", pick.spell, name) end
+    return string.format("%s on %s: a heal over time (the game hides their health)", pick.spell, name)
+end
+
+local friendCache   -- { guid, at, s }: asked ten times a second
+function E:FriendTarget(ctx, def, now)
+    if ns.db.rotation.friendTarget == false or not def then return nil end
+    if ctx.inCombat or ctx.hostile or E.Resting() then return nil end
+    local list = def.groupBuffs
+    if list and list.canCast and not list.canCast() then return nil end   -- (a druid in a form casts neither)
+    local Yes = E.Yes
+    if not (Yes(UnitExists("target"), false) and Yes(UnitIsPlayer("target"), false)) then return nil end
+    if Yes(UnitIsUnit("target", "player"), false) or not Yes(UnitIsFriend("player", "target"), false)
+        or Yes(UnitIsDeadOrGhost("target"), false) or not Yes(UnitIsConnected("target"), true) then return nil end
+    now = now or GetTime()
+    local guid = A.Safe(UnitGUID("target"))
+    if friendCache and friendCache.guid == guid and now - friendCache.at < 0.5 then return friendCache.s end
+    local name = A.Safe(UnitName("target")) or "your target"
+    local hp, max = A.Safe(UnitHealth("target")), A.Safe(UnitHealthMax("target"))
+    local hurt
+    if type(hp) == "number" and type(max) == "number" and max > 0 then hurt = (hp / max) < E.FRIEND_HURT end
+    local f = { hurt = hurt, inCombat = Yes(UnitAffectingCombat("target"), false) }
+    local u = { unit = "target", guid = guid, name = name }
+    local buffs = {}
+    for _, rule in ipairs(list or {}) do
+        if self:Knows(rule.spell) then
+            local covered = E.GroupCovered(u, rule, now)
+            if covered or self:Ready(rule.spell, "target") then buffs[#buffs + 1] = { spell = rule.spell, covered = covered } end
+        end
+    end
+    local heal = {}
+    for _, hot in ipairs(def.hots or {}) do
+        local lasts = (def.hotDuration and def.hotDuration[hot]) or 12
+        if not heal.hot and self:Knows(hot) and self:Ready(hot, "target")
+            and not E.GroupCovered(u, { spell = hot, minutes = lasts / 60, rebuff = 2 }, now) then
+            heal.hot = hot
+        end
+    end
+    local direct = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
+    if direct and self:Ready(direct, "target") then heal.direct = direct end
+    local share, cant = E.ManaShare(), E.CantAfford(def)
+    local pick = E.FriendStep(f, buffs, heal, E.CanSpare(share, cant, E.FRIEND_MANA), E.CanSpare(share, cant, E.FRIEND_HEAL_MANA))
+    local s
+    if pick then
+        s = { spell = pick.spell, kind = pick.kind, unit = "target", target = name, guid = guid,
+              fightType = ctx.fightType, reason = E.FriendReason(pick, name) }
+    end
+    friendCache = { guid = guid, at = now, s = s }
+    return s
+end
+function E.ClearFriendCache() friendCache = nil end
+
+-------------------------------------------------------------------------------
 -- Removing curses, poisons, diseases and magic
 -------------------------------------------------------------------------------
 -- A rotation lists what it can remove (def.dispels, in order of preference):
@@ -1070,6 +1192,7 @@ function E.ClearDispelCache() dispelCache = nil end
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellId)
     if unit ~= "player" then return end
     groupCache, dispelCache = nil, nil
+    E.ClearFriendCache()
     local s = E.current
     if not (s and s.guid and s.unit) then return end
     local name = A.SpellInfo(A.Safe(spellId) or 0)

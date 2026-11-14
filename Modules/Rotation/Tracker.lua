@@ -26,9 +26,24 @@ local function db() return ns.db.rotation end
 -- Damage taken
 -------------------------------------------------------------------------------
 
+-- Who last hit (or swung at) you, and when: [guid or name] = time.
+local lastBy = {}
+local function noteHit(source, guid, now)
+    if guid then lastBy[guid] = now end
+    if source then lastBy[source] = now end
+end
+-- Did this one hit you (or swing at you and miss) in the last `within` seconds?
+function T:HitBy(guid, name, within, now)
+    now = now or GetTime()
+    local at = (guid and lastBy[guid]) or (name and lastBy[name])
+    return at ~= nil and now - at <= (within or 3)
+end
+function T._NoteHit(source, guid, now) noteHit(source, guid, now) end   -- (tests)
+
 local function addDamage(amount, source, guid)
     if not amount or amount <= 0 then return end
     local now = GetTime()
+    noteHit(source, guid, now)
     hits[#hits + 1] = { now, amount, guid }
     if source and combatStart then
         fightBySource[source] = (fightBySource[source] or 0) + amount
@@ -169,6 +184,8 @@ local function onCombatLog()
     if dstGUID == playerGUID then
         if sub == "SWING_DAMAGE" then
             addDamage(a12, srcName, srcGUID)
+        elseif sub == "SWING_MISSED" then
+            noteHit(srcName, srcGUID, GetTime())   -- (dodged or missed: it's still on you, in melee)
         elseif sub == "SPELL_DAMAGE" or sub == "SPELL_PERIODIC_DAMAGE"
             or sub == "RANGE_DAMAGE" then
             addDamage(a15, srcName, srcGUID)

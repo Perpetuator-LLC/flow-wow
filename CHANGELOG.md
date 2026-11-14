@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.193
+- **A friendly player targeted: your buffs, then a heal.** Out of a fight of your own, with
+  a living friendly player targeted (in your group or not), your key casts your buffs for
+  others on them: a druid's Mark of the Wild, then Thorns. With those on, the key becomes a
+  heal when they're hurt; hurt and in a fight, the heal comes before the buffs. Where the
+  game hides their health (it may, as it hides yours), Flow heals them while they're in a
+  fight, and otherwise puts one heal over time on them and stops. Not in a city or inn.
+  Mana sense: buffs for others only with half your mana or more, heals with a quarter. A
+  tick in Flow Settings (In a group) turns it off.
+- **Nature's Grasp when it's on you.** A melee mob that is on you and has just hit you (or
+  swung and missed): Flow advises Nature's Grasp, ahead of Entangling Roots, because Roots
+  is a cast and gets pushed back under blows. Entangling Roots stays the advice for a mob
+  still on its way. Only with mana left to cast after it. In a fight your key can't change,
+  so it shows in the corner of the icon and glows on your action bar; when you carry no
+  healing potion or healthstone, Alt + key casts it.
+- **Skinning only when it can be done.** The key offers to skin only a corpse that has been
+  emptied (you opened it, or the game says nothing on it is yours) and is within reach
+  (about 10 yards).
+- The tag that names the modifier you're holding ("SHIFT+") is on the left again, right
+  above the modifier names.
+
 ## 0.35.192
 - Fixed a self-test that 0.35.189 broke (the Flow Tracker's title now stops at the locked
   count, which stops at the +/- button: the test still looked for the old arrangement).

@@ -8477,8 +8477,9 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     local sp, srel, srp, sx = icon.swing:GetPoint(1)
     t:ok(sp == "LEFT" and srel == icon and srp == "RIGHT" and (sx or 0) > 0, "the crossed swords are on its right")
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
-    local tp, trel, trp = icon.shiftTag:GetPoint(1)
-    t:ok(tp == "BOTTOMLEFT" and trel == icon and trp == "TOPRIGHT", "the SHIFT+ tag is above its right corner, clear of both")
+    -- (0.35.193: on the left, right above the modifier names it speaks of.)
+    local tp, trel, trp, tx = icon.shiftTag:GetPoint(1)
+    t:ok(tp == "BOTTOMRIGHT" and trel == icon and trp == "TOPLEFT" and (tx or 0) < 0, "the SHIFT+ tag is above the modifier names, left of the icon")
 end)
 
 -------------------------------------------------------------------------------
@@ -8601,4 +8602,124 @@ ns:Register("test", "cast key: a modifier press isn't logged as a missed click",
     t:ok(not C.Missed(4, 3), "a click reached it (the key's own, or Ctrl / Shift / Alt + key): not missed")
     t:ok(C.Missed(nil, nil), "no fight's count yet and no click: missed")
     t:ok(not C.Missed(1, nil), "the first click of the fight: not missed")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.193: skin only what can be skinned now; a friendly player targeted;
+-- Nature's Grasp when a melee mob is on you.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy button: skinning waits for an emptied corpse within reach", function(t)
+    local X = ns.actions
+    local corpse = { dead = true, player = false, guid = "g", name = "Plainstrider", hasLoot = false }
+    t:ok(X.CorpseReady(corpse, false, true), "nothing left on it, and close: ready")
+    t:ok(X.CorpseReady(corpse, false, nil), "the game won't say how far: counted as near (the press is checked)")
+    t:ok(not X.CorpseReady(corpse, false, false), "too far: not offered")
+    t:ok(not X.CorpseReady({ dead = true, player = false, guid = "g", hasLoot = true }, false, true), "loot still on it: can't be skinned yet")
+    t:ok(not X.CorpseReady({ dead = true, player = false, guid = "g" }, false, true), "the game can't say what's on it and you haven't opened it: no")
+    t:ok(X.CorpseReady({ dead = true, player = false, guid = "g" }, true, true), "you opened it: ready")
+    t:ok(not X.CorpseReady({ dead = false, player = false }, true, true), "alive: no")
+    t:ok(not X.CorpseReady({ dead = true, player = true }, true, true), "a player: no")
+    t:ok(not X.CorpseReady(nil, true, true), "no target: no")
+    local ok, near = pcall(X.TargetInReach)
+    t:ok(ok and (near == nil or type(near) == "boolean"), "asking the game how near your target is runs")
+    local action = ns:Get("action", "gather:corpse")
+    if not action then return end
+    local yes = function() return true end
+    local line = { "Plainstrider", X.CORPSE_LINES[1].text }
+    with(ns.db.actions, "skin", nil, function()
+        local okA, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, hasProf = yes, inRange = false })
+        t:ok(okA and step == nil, "the action: out of reach, no skinning on the key")
+        okA, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, hasProf = yes, inRange = true })
+        t:ok(okA and step and step.label == "Skin Plainstrider", "in reach: Skin Plainstrider")
+    end)
+end)
+
+ns:Register("test", "easy button: a friendly player targeted gets your buffs, then a heal", function(t)
+    local E = ns.rotation
+    -- Mana sense.
+    t:ok(E.CanSpare(0.8, false, 0.5), "80% mana, half to keep: yes")
+    t:ok(not E.CanSpare(0.3, false, 0.5), "30%: no")
+    t:ok(E.CanSpare(nil, false, 0.5), "mana hidden, every heal affordable: yes")
+    t:ok(not E.CanSpare(nil, true, 0.5), "mana hidden, a heal out of reach: no")
+    local buffs = { { spell = "Mark of the Wild", covered = false }, { spell = "Thorns", covered = false } }
+    local heal = { hot = "Rejuvenation", direct = "Regrowth" }
+    local s = E.FriendStep({ hurt = false, inCombat = false }, buffs, heal, true, true)
+    t:ok(s and s.spell == "Mark of the Wild" and s.kind == "buff", "a healthy friend: your first buff they lack")
+    buffs[1].covered = true
+    s = E.FriendStep({ hurt = false, inCombat = false }, buffs, heal, true, true)
+    t:eq(s and s.spell, "Thorns", "then the next")
+    buffs[2].covered = true
+    t:eq(E.FriendStep({ hurt = false, inCombat = false }, buffs, heal, true, true), nil, "all on, and they're healthy: nothing more")
+    s = E.FriendStep({ hurt = true, inCombat = false }, buffs, heal, true, true)
+    t:ok(s and s.spell == "Rejuvenation" and s.kind == "heal", "all on, and they're hurt: the key becomes a heal")
+    s = E.FriendStep({ hurt = true, inCombat = false }, buffs, { direct = "Regrowth" }, true, true)
+    t:eq(s and s.spell, "Regrowth", "the heal over time is on them: your quick heal")
+    buffs[1].covered, buffs[2].covered = false, false
+    s = E.FriendStep({ hurt = true, inCombat = true }, buffs, heal, true, true)
+    t:ok(s and s.kind == "heal" and s.why == "hurt in a fight", "hurt and in a fight: the heal before any buff")
+    s = E.FriendStep({ hurt = true, inCombat = false }, buffs, heal, true, true)
+    t:eq(s and s.kind, "buff", "hurt but not in a fight: the buffs first")
+    -- The game hides their health.
+    buffs[1].covered, buffs[2].covered = true, true
+    s = E.FriendStep({ hurt = nil, inCombat = true }, buffs, heal, true, true)
+    t:ok(s and s.kind == "heal" and s.why == "in a fight", "health hidden, in a fight: heal them")
+    s = E.FriendStep({ hurt = nil, inCombat = false }, buffs, heal, true, true)
+    t:ok(s and s.spell == "Rejuvenation" and s.why == "top up", "health hidden, no fight: one heal over time")
+    t:eq(E.FriendStep({ hurt = nil, inCombat = false }, buffs, { direct = "Regrowth" }, true, true), nil, "and once it's on them, nothing more")
+    -- Mana.
+    buffs[1].covered = false
+    t:eq(E.FriendStep({ hurt = false, inCombat = false }, buffs, heal, false, true), nil, "no mana to spare for buffs: none")
+    s = E.FriendStep({ hurt = true, inCombat = true }, buffs, heal, false, true)
+    t:eq(s and s.kind, "heal", "but a heal still, with a quarter left")
+    t:eq(E.FriendStep({ hurt = true, inCombat = true }, buffs, heal, false, false), nil, "nothing to spare at all: nothing")
+    t:eq(E.FriendStep(nil, buffs, heal, true, true), nil, "no friend: nothing")
+    t:ok(E.FriendReason({ spell = "Thorns", kind = "buff" }, "Bob"):find("Thorns for Bob", 1, true) ~= nil, "it says who and what")
+    t:ok(E.FriendReason({ spell = "Regrowth", kind = "heal", why = "in a fight" }, "Bob"):find("hides their health", 1, true) ~= nil,
+        "and that it can't see their health")
+    -- The engine's step: never in a fight of your own, never with an enemy targeted.
+    local def = E:Definition()
+    if def then
+        local ok, step = pcall(E.FriendTarget, E, { inCombat = true, hostile = false }, def)
+        t:ok(ok and step == nil, "in your own fight: nothing" .. (ok and "" or (": " .. tostring(step))))
+        ok, step = pcall(E.FriendTarget, E, { inCombat = false, hostile = true }, def)
+        t:ok(ok and step == nil, "an enemy targeted: nothing")
+        ok = pcall(E.FriendTarget, E, { inCombat = false, hostile = false }, def)
+        t:ok(ok, "out of a fight: runs, whatever you have targeted")
+        with(ns.db.rotation, "friendTarget", false, function()
+            local okO, stepO = pcall(E.FriendTarget, E, { inCombat = false, hostile = false }, def)
+            t:ok(okO and stepO == nil, "switched off in Flow Settings: nothing")
+        end)
+    end
+    E.ClearFriendCache()
+end)
+
+ns:Register("test", "druid: Nature's Grasp when a melee mob is hitting you", function(t)
+    local T = ns.tracker
+    T._NoteHit("Test Plainstrider", "test-guid-ng", 100)
+    t:ok(T:HitBy("test-guid-ng", nil, 3, 101), "it hit you a second ago: on you, in melee")
+    t:ok(T:HitBy(nil, "Test Plainstrider", 3, 102.5), "known by name too")
+    t:ok(not T:HitBy("test-guid-ng", nil, 3, 110), "ten seconds ago: not any more")
+    t:ok(not T:HitBy("someone-else", "Someone Else", 3, 101), "something that never hit you: no")
+    local rot = ns:Get("rotation", "DRUID")
+    t:ok(rot ~= nil, "the druid's rotation")
+    if not rot then return end
+    local grasp, roots
+    for i, rule in ipairs(rot.priority) do
+        if rule.spell == "Nature's Grasp" then grasp = i end
+        if rule.spell == "Entangling Roots" then roots = roots or i end
+    end
+    t:ok(grasp ~= nil, "Nature's Grasp is one of its rules")
+    t:ok(grasp and roots and grasp < roots, "ahead of Entangling Roots: instant, where Roots is pushed back under blows")
+    if grasp then
+        local okW, w = pcall(rot.priority[grasp].when, { inCombat = false, hostile = false, engine = ns.rotation })
+        t:ok(okW and not w, "not out of a fight")
+    end
+    local keys = rot.fightKeys(ns.rotation)
+    local has = false
+    for _, spell in ipairs(keys.alt or {}) do if spell == "Nature's Grasp" then has = true end end
+    -- (Only the caster's keys carry it: in a form the lists are the form's.)
+    if keys.ctrl and keys.ctrl[1] == "Entangling Roots" then
+        t:ok(has, "caster form: Alt + key holds Nature's Grasp when no potion does")
+    end
 end)

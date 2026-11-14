@@ -844,6 +844,26 @@ function X.CorpseGather(lines, red, has, kinds)
     return nil
 end
 
+-- Pure: is a corpse ready to gather from? It has to be empty: you opened it
+-- (opened), or the game says nothing on it is yours (hasLoot == false).
+-- And within reach: inRange false means the game says you're too far (nil:
+-- it won't say, which counts as near: the press itself is checked).
+function X.CorpseReady(info, opened, inRange)
+    if not (info and info.dead) or info.player then return false end
+    if not (opened or info.hasLoot == false) then return false end
+    return inRange ~= false
+end
+-- Is your target close enough to interact with (about 10 yards)? true, false,
+-- or nil when the game won't say.
+function X.TargetInReach()
+    if not CheckInteractDistance then return nil end
+    local ok, near = pcall(CheckInteractDistance, "target", 3)
+    if not ok then return nil end
+    near = A.Safe(near)
+    if near == nil then return nil end
+    return near and true or false
+end
+
 -- A unit's tooltip, as lines and which of them are red. nil: this client can't say.
 local function unitLines(unit)
     local T = C_TooltipInfo
@@ -868,8 +888,13 @@ local corpse = { guid = nil, at = 0 }
 ns:Register("action", "gather:corpse", { order = 0.2, get = function(ctx)
     if ns.db.actions.skin == false then return nil end
     local info = (ctx and ctx.lootTarget) or X.TargetLootInfo()
-    if not (info and info.dead) or info.player then return nil end
-    if X.ShouldLoot(info) then return nil end   -- (loot it first: the step before this one)
+    -- Emptied (you opened it, or the game says there's nothing on it for you)
+    -- and within reach: "should check if it is castable (in range and if it
+    -- was looted, else cannot skin)" (0.35.193).
+    local opened = info ~= nil and info.guid ~= nil and looted[info.guid] == true
+    local inRange = ctx and ctx.inRange
+    if inRange == nil and not (ctx and ctx.lootTarget) then inRange = X.TargetInReach() end
+    if not X.CorpseReady(info, opened, inRange) then return nil end
     local lines, red = ctx and ctx.corpseLines, ctx and ctx.corpseRed
     if not lines then
         local now = GetTime()
@@ -882,7 +907,7 @@ ns:Register("action", "gather:corpse", { order = 0.2, get = function(ctx)
     local k = X.CorpseGather(lines, red, (ctx and ctx.hasProf) or hasProf)
     if not k then return nil end
     return { type = "interact", icon = spellIcon(k.spell or k.prof), urgent = true,
-             label = k.verb .. " " .. (info.name or "it") .. " (walk up and press)" }
+             label = k.verb .. " " .. (info.name or "it") }
 end })
 
 -- A dead friend targeted, out of a fight: the key casts your resurrection on
@@ -929,6 +954,12 @@ if ns.settings and ns.settings.AddCheck then
         tip = "With a dead player targeted, out of a fight, your key casts your resurrection on them (Revive, Resurrection, Redemption, Ancestral Spirit). Not on someone who has released: a ghost can't be raised.",
         get = function() return ns.db.actions.res ~= false end,
         set = function(on) ns.db.actions.res = on and true or false end }
+    -- (The step itself is the engine's: E:FriendTarget.)
+    ns.settings:AddCheck{ group = "group", label = "Buff and heal a friendly player you target",
+        note = "(out of a fight, not in a city or inn)",
+        tip = "With a living friendly player targeted, in your group or not, your key casts your buffs for others on them (a druid's Mark of the Wild and Thorns), then a heal: first when they're hurt and in a fight. Where the game hides their health, Flow heals them while they're in a fight, and otherwise puts one heal over time on them. Only with mana to spare.",
+        get = function() return ns.db.rotation.friendTarget ~= false end,
+        set = function(on) ns.db.rotation.friendTarget = on and true or false end }
 end
 
 -------------------------------------------------------------------------------

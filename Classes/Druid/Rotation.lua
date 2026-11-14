@@ -86,7 +86,25 @@ local function meleeMob() return ns.MeleeMob(A.Safe(UnitPowerMax and UnitPowerMa
 local function targetOnYou()
     return A.Safe(UnitIsUnit("targettarget", "player")) == true
 end
+-- It has hit you (or swung at you) in the last few seconds: it's in melee.
+-- (The game won't measure the distance to an enemy in a fight.)
+local function hittingYou()
+    local T = ns.tracker
+    if not (T and T.HitBy) then return false end
+    return T:HitBy(A.Safe(UnitGUID("target")), A.Safe(UnitName("target")), 3)
+end
 local roots = {
+    -- A melee mob on you and hitting you: Nature's Grasp (instant: its next
+    -- hits may root it), then step back and cast. Entangling Roots below is
+    -- for one still on its way: under its blows the cast is pushed back.
+    -- Mana sense: only with enough left to cast after it.
+    { spell = "Nature's Grasp", kind = "buff", reason = "It's hitting you: Nature's Grasp may root it on its next hit",
+      when = function(c)
+          local E = c.engine
+          return c.inCombat and c.hostile and caster() and meleeMob() and targetOnYou() and hittingYou()
+              and missingOnTarget("Entangling Roots") and needBuff("Nature's Grasp", 0)
+              and E.CanSpare(E.ManaShare(), E.CantAfford(E:Definition()), 0.2)
+      end },
     { spell = "Entangling Roots", target = true, reason = "Root it before it reaches you, then cast",
       when = function(c)
           return c.hostile and caster() and meleeMob() and missingOnTarget("Entangling Roots")
@@ -198,8 +216,9 @@ ns:Register("rotation", "DRUID", {
     -- The easy button's queue (Queue.lua): what Ctrl + key and Alt + key cast
     -- in a fight, for the form you're in at the pull (the first you know).
     -- Caster: Entangling Roots beside Wrath, to hold a mob off you while you
-    -- cast (Moonfire until you can root); then Moonfire on Alt when no
-    -- healthstone or potion holds it (else War Stomp). Roots has Ctrl because
+    -- cast (Moonfire until you can root); on Alt, when no healthstone or
+    -- potion holds it, Nature's Grasp (for when it's on you anyway), else
+    -- Moonfire, else War Stomp. Roots has Ctrl because
     -- it's what Flow asks for most in a caster's fights: in one evening's
     -- fights it advised Roots 18 times and Moonfire once, and every one of
     -- those went uncast, being on the bar only (0.35.163).
@@ -209,7 +228,7 @@ ns:Register("rotation", "DRUID", {
     fightKeys = function()
         if inCat() then return { ctrl = { "Ferocious Bite", "Rip", "Rake" }, alt = {} } end
         if inBear() then return { ctrl = { "Swipe", "Demoralizing Roar" }, alt = { "Bash" } } end
-        return { ctrl = { "Entangling Roots", "Moonfire" }, alt = { "Moonfire", "War Stomp" } }
+        return { ctrl = { "Entangling Roots", "Moonfire" }, alt = { "Nature's Grasp", "Moonfire", "War Stomp" } }
     end,
 
     -- Default priority (first match wins).
