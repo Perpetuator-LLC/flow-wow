@@ -8384,3 +8384,27 @@ ns:Register("test", "click: the quest item sits on its Flow Tracker row", functi
     if ns.routeTracker and ns.routeTracker.Refresh then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
     t:ok(ns.routeTracker.ITEM_ROOM >= 16, "the row's text leaves room for it")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.186: the Flow Tracker's title fits (a lock and a number for the
+-- locked stops).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tracker: its title says the locked stops in a lock and a number", function(t)
+    local RT = ns.routeTracker
+    local title = RT.Title("1 here, 29 stops", false, 9)
+    t:ok(title:find("Flow Tracker", 1, true) ~= nil and title:find("1 here, 29 stops", 1, true) ~= nil, "its name and the count")
+    t:ok(title:find("LockButton", 1, true) ~= nil and title:find("9|r", 1, true) ~= nil, "a lock and the number")
+    t:ok(not title:find("blocked", 1, true), "not the word (it was cut to \"9...\")")
+    t:ok(not RT.Title("3 stops", false, 0):find("LockButton", 1, true), "nothing locked: no lock")
+    t:ok(RT.Title("3 stops", true, 0):find("updating route", 1, true) ~= nil, "while the route is worked out it says so")
+    t:ok(pcall(RT.Title, nil, false, nil), "nothing to count: still a title")
+    -- The header's tooltip opens (it explains the lock).
+    local f = _G.FlowTracker
+    local h = f and f.header
+    if h and h:GetScript("OnEnter") then
+        local ok, err = pcall(h:GetScript("OnEnter"), h)
+        GameTooltip:Hide()
+        t:ok(ok, "the header's tooltip runs" .. (ok and "" or (": " .. tostring(err))))
+    end
+end)

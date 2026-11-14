@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.186
+- The Flow Tracker's title showed its locked stops as "9...": "9 blocked" didn't fit beside
+  "1 here, 29 stops". It's now a small lock and the number, and the title's tooltip says
+  what the lock means.
+
 ## 0.35.185
 - **The quest's item on its Flow Tracker row: click to use it.** A quest that hands you
   something to use (a totem for a well, dust for a stone) shows that item's icon at the

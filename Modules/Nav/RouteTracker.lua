@@ -222,6 +222,11 @@ local function build()
         ns.Tip(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Flow Tracker", 1, 1, 1)
         GameTooltip:AddLine("Click: open or fold it. Right-click: its menu. Ctrl-drag: move it.", 0.8, 0.8, 0.8, true)
+        local locked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
+        if locked > 0 then
+            GameTooltip:AddLine(string.format("The lock: %d stop%s held back for now (no money for it yet, no known place...). The Flow Router lists them with the reason.",
+                locked, locked == 1 and " is" or "s are"), 1, 0.45, 0.45, true)
+        end
         GameTooltip:Show()
     end)
     h:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -389,6 +394,16 @@ local function layout(q)
 end
 
 RT.ITEM_ROOM = 18   -- room at a row's right end for its quest item
+
+-- The header's words. The locked stops are a lock and a number: "9 blocked"
+-- didn't fit beside "1 here, 29 stops" and was cut to "9..." (seen on
+-- screen, 0.35.186). The header's tooltip says what the lock means.
+--   count: "1 here, 29 stops"; busy: the route is being worked out; nBlocked: locked stops
+RT.LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
+function RT.Title(count, busy, nBlocked)
+    return string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or tostring(count or ""),
+        (nBlocked or 0) > 0 and string.format("  |T%s:12:12|t|cffff7070%d|r", RT.LOCK, nBlocked) or "")
+end
 function RT:Refresh()
     if not frame then return end
     -- (New to Flow: it comes in a little after the arrow, Reveal.lua.)
@@ -407,8 +422,7 @@ function RT:Refresh()
     local busy = ns.nav and ns.nav.Busy and ns.nav.Busy()
     local count = (RT.Here() and #plan > 0)
         and string.format("%d here, %d stops", #ns.nav.HereStops(plan, ns.nav:PlayerPos()), #plan) or (#plan .. " stops")
-    h.text:SetText(string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or count,
-        nBlocked > 0 and string.format("  |cffff7070%d blocked|r", nBlocked) or ""))
+    h.text:SetText(RT.Title(count, busy, nBlocked))
     if busy ~= h.spinning then
         h.spinning = busy
         h.icon:SetShown(not busy)
