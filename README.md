@@ -349,6 +349,10 @@ talk to Claude from inside the game and get updates by themselves:
 - **Debugging:** `/console scriptErrors 1`, `/flow rot why` and `/flow api`.
 - **Looking at the game:** `tools/look.ps1` saves a picture of the game's window (only that
   window, on your own machine) so an AI assistant can check how something looks while you play.
+- **Checking the route:** `/flow export` (and every diagnostics snapshot) writes your quests,
+  skills and the route as lines a script reads; `tools/route-check.ps1` plans the shortest
+  walk through the same stops by itself and says where Flow's order differs, what the
+  hearthstone would save and what has no stop at all.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
 - **`/reload` is enough, always (people and AI assistants: don't ask for a game restart).**
