@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.213
+- **`/flow meter`: the meters whenever you want them.** It shows Flow Meters and keeps them
+  shown, alone too; typed again, they go back to showing only in a group or at a training
+  dummy. The Flow menu (Flow windows) has the same switch.
+- **Auction house read:** Flow now says when it starts reading every listing ("about half a
+  minute"), and during a long read at most one line every 15 seconds with how far it is.
+  The read is one pass over the whole list, not page by page, and it worked in the game:
+  217,229 listings, prices for 6,006 items, in 36 seconds.
+
 ## 0.35.212
 - **Your hearthstone stays where your quests are.** In Orgrimmar for a dungeon, with every
   quest round the Crossroads, Flow asked to set your home in the city ("a city beats a

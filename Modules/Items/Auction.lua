@@ -206,6 +206,15 @@ local function keep(best)
     return n
 end
 
+-- Pure: a progress line for a long read, or nil: at most one every `every`
+-- seconds, none for a short list or right at the end ("can it print
+-- periodic progress reports? I don't want a lot of them", 0.35.213).
+AH.SAY_EVERY, AH.SAY_FROM = 15, 20000
+function AH.Progress(i, n, saidAt, now, every, from)
+    if not (i and n) or n < (from or AH.SAY_FROM) or i >= n then return nil end
+    if now - (saidAt or 0) < (every or AH.SAY_EVERY) then return nil end
+    return string.format("auction house: read %d of %d listings (%d%%)...", i, n, math.floor(i / n * 100))
+end
 -- Everything at once.
 local full = { busy = false, i = 0, n = 0, best = nil }
 local function readFull()
@@ -219,7 +228,12 @@ local function readFull()
         end
     end
     full.i = last + 1
-    if full.i < full.n then C_Timer.After(0, readFull) return end
+    if full.i < full.n then
+        local line = AH.Progress(full.i, full.n, full.saidAt, GetTime())
+        if line then full.saidAt = GetTime(); ns:Print(line) end
+        C_Timer.After(0, readFull)
+        return
+    end
     full.busy = false
     local kept = keep(full.best)
     ns.db.ah.lastFull = time()
@@ -231,6 +245,7 @@ ns:On("REPLICATE_ITEM_LIST_UPDATE", function()
     local ok, n = pcall(CA.GetNumReplicateItems)
     if not ok or type(n) ~= "number" or n <= 0 then return end
     full.busy, full.i, full.n, full.best = true, 0, n, {}
+    full.saidAt = GetTime()
     readFull()
 end)
 
@@ -314,6 +329,7 @@ function AH:ScanNew()
     if CA.ReplicateItems and CA.GetReplicateItemInfo and time() - (ns.db.ah.lastFull or 0) > AH.FULL_EVERY then
         local ok, err = pcall(CA.ReplicateItems)
         ns:Log("ah", "asked for the whole list: " .. (ok and "sent" or tostring(err)))
+        if ok then ns:Print("auction house: reading every listing for prices. It takes about half a minute; Flow says when it's done. Keep the window open.") end
     end
     queue = AH:WantedAll()
     AH.searched, AH.priced = 0, 0

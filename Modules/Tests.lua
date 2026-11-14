@@ -9840,12 +9840,12 @@ end)
 ns:Register("test", "click: Flow Meters in the Flow menu turns them on and off, and sets the rows", function(t)
     local M = ns.meters
     local items = M.MenuItems()
-    t:ok(#items == 4, "a tick and three row choices")
+    t:ok(#items == 5, "a tick, the always-shown switch and three row choices")
     local was, rows = ns.db.meters.off, ns.db.meters.rows
     local ok, err = pcall(items[1].func)
     t:ok(ok, "the tick runs" .. (ok and "" or (": " .. tostring(err))))
     t:eq(M.On(), was == true, "and flips them")
-    ok = pcall(items[3].func)
+    ok = pcall(items[4].func)
     t:ok(ok and M.RowCount() == 5, "five rows on a click")
     ns.db.meters.off, ns.db.meters.rows = was, rows
     pcall(M.Update)
@@ -9946,4 +9946,43 @@ ns:Register("test", "easy button: a druid's Bash and a paladin's Hammer of Justi
         local s = E:Interrupt(fight, "Healing Wave", false)
         t:eq(s and s.spell, "Bash", "in Bear Form with Bash ready, the target casting: Bash")
     end)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.213: /flow meter shows the meters any time; the auction read says
+-- how far it is, sparingly.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: /flow meter keeps them shown, alone too", function(t)
+    local M = ns.meters
+    local was, off = ns.db.meters.always, ns.db.meters.off
+    with(ns, "Print", function() end, function()
+        ns.db.meters.always, ns.db.meters.off = nil, nil
+        local ok, err = pcall(ns.commands.meter, "")
+        t:ok(ok, "/flow meter runs" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(ns.db.meters.always == true and M.Wanted(), "shown all the time now, whoever you're with")
+        local f = M._Frame()
+        t:ok(f ~= nil and f:IsShown(), "the meters are on screen")
+        pcall(ns.commands.meter, "")
+        t:ok(ns.db.meters.always == nil, "again: back to groups and training dummies")
+        ns.db.meters.off = true
+        M.SetAlways(true)
+        t:ok(M.On(), "asking for them turns them on if they were off")
+    end)
+    ns.db.meters.always, ns.db.meters.off = was, off
+    pcall(M.Update)
+    local found = false
+    for _, it in ipairs(M.MenuItems()) do
+        if it.text:find("always shown", 1, true) then found = true end
+    end
+    t:ok(found, "the Flow menu has the same switch")
+end)
+
+ns:Register("test", "auction: a long read says how far it is, but rarely", function(t)
+    local AH = ns.auction
+    t:eq(AH.Progress(100000, 217229, 0, 20), "auction house: read 100000 of 217229 listings (46%)...", "20 s since the last word: a line")
+    t:eq(AH.Progress(100000, 217229, 10, 20), nil, "10 s since the last word: quiet")
+    t:eq(AH.Progress(500, 3000, 0, 100), nil, "a short list: quiet")
+    t:eq(AH.Progress(217229, 217229, 0, 100), nil, "at the end: the finishing line says it")
+    t:eq(AH.Progress(nil, nil, 0, 100), nil, "nothing being read: quiet")
 end)

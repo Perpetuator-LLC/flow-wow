@@ -162,6 +162,7 @@ end
 -- When the meters show: in a group, or with a training dummy targeted.
 function M.Wanted()
     if not M.On() then return false end
+    if cfg().always then return true end   -- (/flow meter: shown whenever, alone too)
     if (IsInGroup and IsInGroup()) or (IsInRaid and IsInRaid()) then return true end
     return M.IsDummy(A.Safe(UnitName("target")))
 end
@@ -368,9 +369,24 @@ ns.commands.meters = function(arg)
     for i, l in ipairs(M.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
     print("  /flow meters on|off   /flow meters 3|5|10")
 end
+-- /flow meter: show them now and keep them shown (alone too); again: back
+-- to "in a group or at a dummy". ("How can I open the meter if I want to
+-- see it at any time?", 0.35.213)
+function M.SetAlways(on)
+    cfg().always = on and true or nil
+    if on then cfg().off = nil end
+    pcall(M.Update)
+end
+ns.commands.meter = function(arg)
+    arg = (arg or ""):lower()
+    if arg ~= "" then return ns.commands.meters(arg) end
+    M.SetAlways(not cfg().always)
+    ns:Print(cfg().always and "Flow Meters: shown all the time now (/flow meter again: only in a group or at a training dummy)."
+        or "Flow Meters: back to showing in a group or at a training dummy.")
+end
 ns:Register("help", "meters", { order = 33, title = "Flow Meters", lines = {
     "In a group (and at a training dummy): threat on your target and damage per second, the top two and you.",
-    "/flow meters on|off, /flow meters 3|5|10 (rows). Ctrl + drag moves them.",
+    "/flow meter: show them all the time (again: back to groups and dummies). /flow meters on|off, /flow meters 3|5|10 (rows). Ctrl + drag moves them.",
 } })
 
 -- The Flow menu's entries (Menu.lua puts them under Flow windows).
@@ -379,6 +395,10 @@ function M.MenuItems()
         tip = "Two small lists, shown in a party or raid and at training dummies: threat on your target, and damage per second. The top two and you.",
         refresh = function(it) it.checked = M.On() end,
         func = function() cfg().off = M.On() or nil; pcall(M.Update) end } }
+    items[#items + 1] = { text = "   Flow Meters: always shown (alone too)", stay = true, checked = cfg().always == true,
+        tip = "Off: the meters show in a party or raid and while a training dummy is your target. On: always. /flow meter does the same.",
+        refresh = function(it) it.checked = cfg().always == true end,
+        func = function() M.SetAlways(not cfg().always) end }
     for _, n in ipairs(M.ROWS) do
         items[#items + 1] = { text = string.format("   Flow Meters rows: %d%s", n, n == 3 and " (the top two and you)" or ""), stay = true,
             radio = true, checked = M.RowCount() == n,
