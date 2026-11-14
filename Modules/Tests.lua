@@ -10428,3 +10428,22 @@ ns:Register("test", "click: Flow Banker's search box and 'All my choices' button
     B.view, B.offset, B.filter, B.allRules = view, offset, filter, all
     if f then B:Fill(); if not was then f:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.222: "Regrowth on Bob" casts on Bob.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: a heal that says 'on <someone>' is cast on them", function(t)
+    local C = ns.cast
+    t:eq(C.UnitFor({ spell = "Regrowth", kind = "heal", unit = "target", target = "Bob" }), "target",
+        "a heal for the friend you've targeted: on them, not on you")
+    t:eq(C.UnitFor({ spell = "Rejuvenation", kind = "heal", unit = "party2", target = "Ann" }), "party2", "a heal for a party member: on them")
+    t:eq(C.UnitFor({ spell = "Regrowth", kind = "heal" }), "player", "a heal with nobody named: on you")
+    t:eq(C.UnitFor({ spell = "Healing potion", kind = "emergency" }), "player", "an emergency with nobody named: on you")
+    t:eq(C.UnitFor({ spell = "Regrowth", kind = "heal", unit = "player" }), "player", "a heal that names you: on you")
+    t:eq(C.UnitFor({ spell = "Mark of the Wild", kind = "buff", unit = "target", target = "Bob" }), "target", "a buff for your friendly target: on them")
+    t:eq(C.UnitFor({ spell = "Thorns", kind = "buff" }), "player", "your own buff: on you")
+    t:eq(C.UnitFor({ spell = "Wrath", kind = "damage" }), nil, "an attack: your target, as the game does it")
+    local kind, what, unit = C.SlotAttributes({ spell = "Regrowth", kind = "heal", unit = "target" })
+    t:ok(kind == "spell" and what == "Regrowth" and unit == "target", "and the same on a modifier press")
+end)

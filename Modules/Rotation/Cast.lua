@@ -22,14 +22,17 @@ C.KEY_FONT = 11   -- the bind above the icon (the queue's CTRL / SHIFT / ALT are
 function C._KeyText() return keyText end
 local macro, lockedSpell = nil, nil
 
--- Who the press casts on: heals and your own buffs on you (with a friend
--- targeted, a buff meant for you went on them), a group buff on its person
--- (s.unit), anything else on your target as usual. Ctrl + key casts a heal
--- or buff on your target instead (the queue, Queue.lua).
+-- Who the press casts on. A step that names its own person (s.unit: a group
+-- buff, a heal for the friend you've targeted) goes on them; any other heal
+-- and your own buffs go on you (with a friend targeted, a buff meant for you
+-- went on them); anything else on your target as usual.
+-- (Until 0.35.222 a heal went on you whatever the step said: the icon read
+-- "Regrowth on Bob" and the key healed you; only Ctrl + key reached Bob.
+-- "For it to decide self cast is a broken concept.")
 function C.UnitFor(s)
     if not s then return nil end
-    if s.kind == "heal" or s.kind == "emergency" then return "player" end
     if s.unit then return s.unit end
+    if s.kind == "heal" or s.kind == "emergency" then return "player" end
     if s.kind == "buff" then return "player" end
     return nil
 end

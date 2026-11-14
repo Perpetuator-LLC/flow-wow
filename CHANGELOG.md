@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.222
+- **"Regrowth on Bob" now heals Bob.** With a friendly player targeted, the easy button
+  showed a heal "on <their name>" but the key cast it on you; only Ctrl + key reached them.
+  A heal now goes on whoever the icon names. A heal that names nobody still goes on you.
+
 ## 0.35.221
 - **Flow Banker: search the auction prices.** A small box under the list: type any part of
   a name and the list narrows to the items that have it.
