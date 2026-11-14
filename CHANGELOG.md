@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.185
+- **The quest's item on its Flow Tracker row: click to use it.** A quest that hands you
+  something to use (a totem for a well, dust for a stone) shows that item's icon at the
+  right end of its row in the Flow Tracker. Click the icon and the item is used; hover it
+  for the item's tooltip. Flow takes the game's own "quest item" for the quest where the
+  client has one, else the item the quest data (Questie) says the quest gives you, when
+  it's in your bags and has a use. The icon can only be placed out of a fight (the game's
+  rule for anything that uses an item): one that should appear or go during a fight does so
+  when the fight ends. `/flow questitems` lists what Flow found.
+
 ## 0.35.184
 - **A lift is learned going down too.** Flow only learned a way between maps when you rode
   INTO a walled place. A druid who flew into Thunder Bluff and rode the lift down had taught

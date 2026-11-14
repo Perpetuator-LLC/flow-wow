@@ -388,12 +388,17 @@ local function layout(q)
     end
 end
 
+RT.ITEM_ROOM = 18   -- room at a row's right end for its quest item
 function RT:Refresh()
     if not frame then return end
     -- (New to Flow: it comes in a little after the arrow, Reveal.lua.)
     local enabled = ns.db.tracker.enabled ~= false and not (ns.reveal and not ns.reveal:Shown("tracker"))
     frame:SetShown(enabled)
-    if not enabled then return end
+    if not enabled then
+        -- (The quest items laid over its rows go with it: QuestItems.lua.)
+        if ns.questItems then pcall(ns.questItems.Layout, ns.questItems, frame.rows, false) end
+        return
+    end
     layout(questieFrame())
     local open = db().open == "flow"
     local plan = ns.nav and ns.nav.plan or {}
@@ -453,6 +458,14 @@ function RT:Refresh()
             shown = 1
         end
     end
+    -- The quest's own item at the right end of its row, clickable
+    -- (QuestItems.lua): the row's text makes room for it.
+    local items = {}
+    if ns.questItems then
+        local okI, res = pcall(ns.questItems.Layout, ns.questItems, frame.rows, open)
+        if okI and type(res) == "table" then items = res end
+    end
+    for i = 1, ROWS do frame.rows[i].open:SetPoint("RIGHT", items[i] and -(RT.ITEM_ROOM) or 0, 0) end
     -- "Nearby: Iron Deposit x3 +skill" under the stops (not part of the rail).
     local line, counts, drop
     if open and ns.nearby then line, counts, drop = ns.nearby.Now() end

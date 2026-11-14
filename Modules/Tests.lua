@@ -8309,3 +8309,78 @@ ns:Register("test", "waypoint: the Ctrl tooltip sits down and to the right of th
     t:ok(x and y, "no scale: still a spot")
     t:ok(W.TIP_DX >= 20 and W.TIP_DY >= 20, "far enough from the cursor to leave the click spot clear")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.185: the quest's own item on its Flow Tracker row, clickable.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest items: which item a quest has you use, and on which row", function(t)
+    local QI = ns.questItems
+    t:eq(QI.QuestOf("758:1"), 758, "an objective's stop: its quest")
+    t:eq(QI.QuestOf("6002:done"), 6002, "its turn-in too")
+    t:eq(QI.QuestOf("pickup:5926"), nil, "a quest you haven't accepted: none")
+    t:eq(QI.QuestOf("help:758:1"), nil, "a party member's: none")
+    t:eq(QI.QuestOf("train:class"), nil, "not a quest stop: none")
+    t:eq(QI.QuestOf(nil), nil, "no key: none")
+
+    local bags = { [15710] = 1, [4702] = 2 }
+    local has = function(id) return bags[id] or 0 end
+    local uses = { [15710] = true }
+    local usable = function(id) return uses[id] == true end
+    t:eq(QI.ItemOf(nil, { sourceItemId = 15710 }, has, usable), 15710, "the item the quest handed you, in your bags, with a use")
+    t:eq(QI.ItemOf(nil, { sourceItemId = 4702 }, has, usable), nil, "an item with no use (something to hand in): not a button")
+    t:eq(QI.ItemOf(nil, { sourceItemId = 999 }, has, usable), nil, "not in your bags: none")
+    t:eq(QI.ItemOf(nil, { sourceItemId = 0, requiredSourceItems = { 4702, 15710 } }, has, usable), 15710, "one the quest needs: the usable one")
+    t:eq(QI.ItemOf(15710, nil, has, usable), 15710, "the game's own quest item, where the client says: that one")
+    t:eq(QI.ItemOf(999, { sourceItemId = 15710 }, has, usable), 15710, "the game's isn't in your bags: the quest data's")
+    t:eq(QI.ItemOf(nil, nil, has, usable), nil, "no data: none")
+
+    local rows = { { key = "758:1", shown = true }, { key = "758:done", shown = true }, { key = "6002:1", shown = true },
+                   { key = "train:class", shown = true }, { key = "777:1", shown = false } }
+    local items = { [758] = 4702, [6002] = 15710, [777] = 1 }
+    local plan = QI.Plan(rows, function(q) return items[q] end, 8)
+    t:eq(#plan, 2, "one button an item: the same item isn't on two rows")
+    t:ok(plan[1].row == 1 and plan[1].item == 4702 and plan[1].quest == 758, "the first row of the quest carries it")
+    t:ok(plan[2].row == 3 and plan[2].item == 15710, "the next quest's on its own row")
+    t:eq(#QI.Plan(rows, function(q) return items[q] end, 1), 1, "never more buttons than there are")
+    t:eq(#QI.Plan(rows, function() return nil end, 8), 0, "no quest with an item: no buttons")
+    local ok, lines = pcall(QI.Lines)
+    t:ok(ok and type(lines) == "table" and #lines >= 1, "/flow questitems runs")
+end)
+
+ns:Register("test", "click: the quest item sits on its Flow Tracker row", function(t)
+    local QI = ns.questItems
+    if InCombatLockdown() then t:ok(true, "(in a fight: the buttons can't be placed now)") return end
+    -- Rows as the tracker's are (their place on screen, their stop's key).
+    local function row(key, bottom)
+        return { key = key, IsVisible = function() return true end, GetRight = function() return 500 end,
+                 GetBottom = function() return bottom end, GetHeight = function() return 16 end,
+                 GetEffectiveScale = function() return UIParent:GetEffectiveScale() end }
+    end
+    local rows = { row("758:1", 300), row("6002:1", 283), row("train:class", 266) }
+    local byRow
+    with(QI, "ItemFor", function(q) return q == 6002 and 15710 or nil end, function()
+        local ok, res = pcall(QI.Layout, QI, rows, true)
+        t:ok(ok, "laying them out runs" .. (ok and "" or (": " .. tostring(res))))
+        byRow = ok and res or {}
+        local b = _G.FlowQuestItem1
+        t:ok(b and b:IsShown(), "a button for the quest's item")
+        if b then
+            t:eq(b:GetAttribute("type"), "item", "a click uses an item")
+            t:eq(b:GetAttribute("item"), "item:15710", "that one")
+            t:near(b:GetWidth(), 16, 0.5, "as tall as the row")
+            local _, rel, _, x, y = b:GetPoint(1)
+            t:ok(rel == UIParent, "it belongs to the screen, not to the tracker (the tracker stays free to move in a fight)")
+            t:near(x or 0, 500 - 16, 0.5, "at the right end of its row")
+            t:near(y or 0, 283, 0.5, "on the second row")
+            t:ok(b:GetScript("OnEnter") ~= nil, "it has a tooltip")
+        end
+        t:ok(byRow[2] == 15710 and byRow[1] == nil and byRow[3] == nil, "the tracker is told which row to leave room on")
+        -- The tracker closed (or hidden): the button goes with it.
+        pcall(QI.Layout, QI, rows, false)
+        t:ok(not (b and b:IsShown()), "tracker closed: no button left on screen")
+    end)
+    -- Back to your real tracker.
+    if ns.routeTracker and ns.routeTracker.Refresh then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
+    t:ok(ns.routeTracker.ITEM_ROOM >= 16, "the row's text leaves room for it")
+end)

@@ -92,6 +92,7 @@ function D:Snapshot(reason, spread)
         { "clicks", function() if c.clicks then c.clicks("") end end },
         { "gates", function() if c.gates then c.gates("") end end },
         { "rides", function() if c.rides then c.rides("") end end },
+        { "quest items", function() if c.questitems then c.questitems("") end end },
         { "flow action", function() c.action("") end },
         { "perf", function() c.perf(spread and "quick" or "") end },   -- (at logout: the full figures, memory kept after clean-up too)
         { "tests", function()
