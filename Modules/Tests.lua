@@ -10248,3 +10248,18 @@ ns:Register("test", "click: Flow Banker's Auto-cleanup tick; cleanup only after 
     end
     if f and not was then f:Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.218: the druids' flyers in Moonglade aren't flight paths to learn.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "flight paths: Silva and Bunthen fly druids themselves, nothing to learn there", function(t)
+    local FP = ns.flightPaths
+    local list = { { name = "Silva Fil'naveth" }, { name = "Faustron" }, { name = "Bunthen Plainswind" }, {} }
+    local rides = { ["Silva Fil'naveth"] = true, ["Bunthen Plainswind"] = true }
+    local out = FP.NotRides(list, function(name) return rides[name] == true end)
+    t:ok(#out == 2 and out[1].name == "Faustron", "only the real flight master is left (and an entry with no name passes through)")
+    t:eq(#FP.NotRides(list, nil), 4, "nothing known about rides: the list as it was")
+    t:eq(#FP.NotRides(nil, nil), 0, "no list: none")
+    t:ok(ns:Get("ride", "Silva Fil'naveth") ~= nil and ns:Get("ride", "Bunthen Plainswind") ~= nil, "both are registered as rides")
+end)

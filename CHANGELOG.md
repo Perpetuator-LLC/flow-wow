@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.218
+- **No "Learn the flight path: Silva Fil'naveth".** She and Bunthen Plainswind fly druids out
+  of Moonglade themselves; there is no flight path to learn from them (and Silva only
+  flies Alliance druids). The quest data marks them as flight masters, so since 0.35.216
+  Flow offered them. They're left out now.
+
 ## 0.35.217
 - **WoW's quest tracker popping up in fights.** With "Show WoW's quest tracker" unticked,
   Flow hid the game's tracker each time it came up, but in a fight it had to wait until the

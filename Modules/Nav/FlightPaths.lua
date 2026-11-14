@@ -84,6 +84,19 @@ function FP.Goals(list, talked, known, here)
     return out
 end
 
+-- Pure: the list without the NPCs who carry you somewhere themselves (the
+-- "ride" registry, Rides.lua: Silva Fil'naveth and Bunthen Plainswind fly
+-- druids out of Moonglade). They have no flight path to learn: "I cannot
+-- learn the Silva flight path; can you stop telling people to learn it?"
+-- (0.35.218). The quest data flags them as flight masters all the same.
+function FP.NotRides(list, isRide)
+    local out = {}
+    for _, fm in ipairs(list or {}) do
+        if not (fm.name and isRide and isRide(fm.name)) then out[#out + 1] = fm end
+    end
+    return out
+end
+
 local cache = { at = 0, goals = nil }
 ns:Register("navGoal", "flightpath", {
     collect = function()
@@ -93,6 +106,8 @@ ns:Register("navGoal", "flightpath", {
         if not (S and S.All) then return nil end
         local ok, list = pcall(S.All, S, "flight", FP.MAX)
         if not ok then return nil end
+        -- (Without the druids' own flyers in Moonglade: FP.NotRides.)
+        list = FP.NotRides(list, function(name) return ns:Get("ride", name) ~= nil end)
         cache.at, cache.goals = now, FP.Goals(list, ns.db.flightTalked, ns.db.flights, ns.nav and ns.nav:PlayerPos() or nil)
         return cache.goals
     end,
