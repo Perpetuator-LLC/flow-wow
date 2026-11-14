@@ -8813,3 +8813,52 @@ ns:Register("test", "arrow: a trail is followed only while it heads toward the s
     t:ok(N.TrailHeadingOk(0, 0, 30, 0, 0, 0), "standing on the stop: nothing to compare")
     t:eq(N.TRAIL_HEADING, 60, "60 degrees at most")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.196: the export (your quests, skills and Flow's route as lines a
+-- script reads) for tools\route-check.ps1.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "export: your quests, skills and the route as lines a script can read", function(t)
+    local X = ns.export
+    t:eq(X.Clean(12), "12", "a whole number")
+    t:eq(X.Clean(12.345), "12.3", "a fraction: one decimal")
+    t:eq(X.Clean(true), "1", "yes")
+    t:eq(X.Clean(false), "0", "no")
+    t:eq(X.Clean(nil), "", "nothing")
+    t:eq(X.Clean("a|cffff0000b|r^c\nd"), "ab c d", "colour codes, the separator and line breaks are taken out of text")
+    local line = X.Line("goal", { { "key", "759:1" }, { "level", 10 }, { "gone", nil }, { "text", "Wildmane Totem: 5 -> 8" } })
+    t:eq(line, "E^goal^key=759:1^level=10^text=Wildmane Totem: 5 -> 8", "one record: its kind, then key=value fields; missing ones left out")
+    local r = X.Parse(line)
+    t:ok(r and r.kind == "goal" and r.key == "759:1" and r.level == "10" and r.text == "Wildmane Totem: 5 -> 8", "and it reads back")
+    t:eq(X.Parse("not a record"), nil, "another line: not a record")
+    -- The real thing, as it is now.
+    local ok, lines = pcall(X.Lines)
+    t:ok(ok and type(lines) == "table" and #lines >= 3, "the export builds" .. (ok and "" or (": " .. tostring(lines))))
+    if not (ok and type(lines) == "table") then return end
+    local first, last = X.Parse(lines[1]), X.Parse(lines[#lines])
+    t:ok(first and first.kind == "export" and first.v == tostring(X.VERSION), "it starts by saying its version")
+    t:ok(last and last.kind == "end" and tonumber(last.lines) == #lines, "and ends by saying how many lines there were")
+    local you, bad, kinds = nil, nil, {}
+    for _, l in ipairs(lines) do
+        local rec = X.Parse(l)
+        if not rec then bad = bad or l
+        else
+            kinds[rec.kind] = (kinds[rec.kind] or 0) + 1
+            if rec.kind == "you" then you = rec end
+        end
+        if l:find("|", 1, true) or l:find("\n", 1, true) then bad = bad or l end
+    end
+    t:eq(bad, nil, "every line is a record, with nothing the game's chat would read as a code")
+    t:ok(you and tonumber(you.level) == UnitLevel("player"), "it says who you are")
+    t:ok(kinds.opt == 1, "and how the route is set")
+    -- (A stop's own kind is the field "stop": "kind" is the record's.)
+    t:ok((kinds.goal or 0) + (kinds.plan or 0) >= 0, "stops and the route are records of their own")
+    local plan = ns.nav and ns.nav.plan or {}
+    t:eq(kinds.plan or 0, #plan, "one plan record for every stop on the route")
+    -- Flight masters on your continent, for "you pass one you haven't learned".
+    local S = ns.services
+    local okS, list = pcall(S.All, S, "flight", 5)
+    t:ok(okS and type(list) == "table" and #list <= 5, "the flight masters Flow can find, nearest first" .. (okS and "" or (": " .. tostring(list))))
+    t:ok(type(ns.commands.export) == "function", "/flow export")
+end)

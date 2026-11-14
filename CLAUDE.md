@@ -71,6 +71,24 @@ halves a whole-window picture.
   (`tools\read-diag.ps1`, after a `/reload`).
 - Checked on 2026-11-13: the game runs as a borderless window and the capture reads fine.
 
+## Checking the route against a plan of your own
+
+Every diagnostics snapshot carries an export (`Modules/Export.lua`, the `E^...` lines): the
+player's quests and objectives, professions, every stop Flow knows of (on the route, locked,
+hidden) with its place, the route in order, flight paths, nearby flight masters, and Flow
+Improvements. After the player reloads:
+
+    powershell -ExecutionPolicy Bypass -File tools\route-check.ps1
+
+It plans the shortest walk through Flow's own stops (keeping what must come first), prints
+both orders side by side with their straight-line yards, says what one use of the hearthstone
+would save, and lists what has no stop at all (a quest in the log, a flight master on the way,
+an improvement). Use it whenever the player asks whether the route is right, and before
+changing the planner: where Flow is longer, find the rule that made it so (a class quest
+first, the zone first, a hub's quests picked up before leaving) and decide whether the rule
+or the route is wrong. It doesn't weigh XP or know terrain; say so when you report.
+`-From file.txt` runs it on a file of export lines; `-Dump` prints the lines.
+
 ## "Watch Flow's in-game chat" (/si in game)
 
 When the player asks you to watch the in-game chat (docs/ASK-CLAUDE.md), or pastes the connect

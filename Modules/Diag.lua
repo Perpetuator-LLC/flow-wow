@@ -93,6 +93,8 @@ function D:Snapshot(reason, spread)
         { "gates", function() if c.gates then c.gates("") end end },
         { "rides", function() if c.rides then c.rides("") end end },
         { "quest items", function() if c.questitems then c.questitems("") end end },
+        -- (Your quests, skills and the route, for tools\route-check.ps1.)
+        { "export", function() if c.export then c.export("dump") end end },
         { "flow action", function() c.action("") end },
         { "perf", function() c.perf(spread and "quick" or "") end },   -- (at logout: the full figures, memory kept after clean-up too)
         { "tests", function()

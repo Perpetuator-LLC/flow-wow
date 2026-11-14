@@ -126,6 +126,50 @@ function S:Nearest(kind)
     return best
 end
 
+-- Every one of `kind` Flow can find on your continent, nearest first, at
+-- most `max`: { name, map, x, y, cont, wx, wy, yards, learned } (Export.lua:
+-- the flight masters on your way). The same three sources as S:Nearest.
+function S:All(kind, max)
+    local nav = ns.nav
+    local p = nav and nav:PlayerPos()
+    if not p then return {} end
+    local out, seen = {}, {}
+    local function consider(name, map, x, y, learned)
+        local cont, wx, wy = nav:ToWorld(map, x, y)
+        if cont ~= p.cont or not wx then return end
+        local key = name .. ":" .. math.floor(wx / 20) .. ":" .. math.floor(wy / 20)
+        if seen[key] then return end
+        seen[key] = true
+        out[#out + 1] = { name = name, map = map, x = x, y = y, cont = cont, wx = wx, wy = wy, learned = learned,
+                          yards = math.sqrt((wx - p.wx) ^ 2 + (wy - p.wy) ^ 2) }
+    end
+    for name, spot in pairs(ns.db.places or {}) do
+        if spot.map and ns.places.HasRole(spot, kind) then pcall(consider, name, spot.map, spot.x, spot.y, "you") end
+    end
+    local faction = UnitFactionGroup and UnitFactionGroup("player")
+    local sh = ns.places.Shared()
+    for name, s in pairs(sh.npcs) do
+        if s.roles[kind] and not (ns.db.places or {})[name] and ns.places.FriendlyTo(s.f, faction) then
+            pcall(consider, name, s.map, s.x, s.y, "shared")
+        end
+    end
+    for _, npc in ipairs(found[kind] or {}) do
+        if ns.places.FriendlyTo(npc.faction, faction) then
+            for areaId, list in pairs(npc.spawns) do
+                local map = ns.quests:UiMapForArea(areaId)
+                if map then
+                    for _, c in ipairs(list) do
+                        if c[1] and c[1] >= 0 then pcall(consider, npc.name, map, c[1] / 100, c[2] / 100) end
+                    end
+                end
+            end
+        end
+    end
+    table.sort(out, function(a, b) return a.yards < b.yards end)
+    for i = #out, (max or #out) + 1, -1 do out[i] = nil end
+    return out
+end
+
 local LABEL = { repair = "repair", vendor = "vendor", flight = "flight master", inn = "innkeeper",
                 bank = "banker", auction = "auctioneer", mail = "mailbox" }
 S.LABEL = LABEL

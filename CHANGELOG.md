@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.196
+- **A second opinion on the route.** `/flow export` (and every diagnostics snapshot) now
+  writes your quests and their objectives, your professions, every stop Flow knows of (on
+  the route, locked or hidden, with where it is and what it waits for), the route in order,
+  your flight paths, the flight masters around, and Flow Improvements, as lines a script
+  can read. `tools\route-check.ps1` reads them, plans the shortest walk through the same
+  stops by itself, and reports where Flow's order differs and by how many yards, what one
+  use of your hearthstone would save, and what isn't on the route at all: quests in your log
+  with no stop, flight paths you pass without learning, improvements with nowhere to go.
+  For developers and for Claude: see CLAUDE.md.
+
 ## 0.35.195
 - **The arrow no longer points the wrong way for a while and then flips.** Since 0.35.172
   the arrow follows trails you've walked by default, and a trail up to half again as long as
