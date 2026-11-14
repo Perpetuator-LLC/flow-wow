@@ -34,12 +34,15 @@ if not (A and E and BB) then return end
 local K = {}
 ns.careKeys = K
 
-K.SLOTS = { "shift", "ctrl", "alt", "more" }
+K.SLOTS = { "ctrl", "shift", "alt", "more" }   -- (the order of the icons, as beside Flow's own)
 K.MODS = { shift = { "SHIFT" }, ctrl = { "CTRL" }, alt = { "ALT" }, more = { "CTRL", "SHIFT" } }
 K.LABEL = { shift = "SHIFT", ctrl = "CTRL", alt = "ALT", more = "C+S" }
 K.NAME = { shift = "Shift", ctrl = "Ctrl", alt = "Alt", more = "Ctrl + Shift" }
 K.BUTTON = { shift = "careshift", ctrl = "carectrl", alt = "carealt", more = "caremore" }
-K.ICON = 26
+-- The icons' sizes, nearest the button first: the same as beside Flow's icon
+-- ("make the buff button look much like the easy button and its additional
+-- icons", 0.35.209).
+K.SIZES = { 36, 30, 25, 22 }
 
 local function cfg()
     ns.db.buffButton = ns.db.buffButton or {}
@@ -190,19 +193,21 @@ local function paint()
     local btn = button()
     if not btn then return end
     local n = 0
+    local prevIcon
     for _, slot in ipairs(K.SLOTS) do
         local ic = icons[slot]
         local s = K.Active() and slotStep[slot] or nil
         if s and not ic then
             ic = CreateFrame("Frame", nil, btn)
-            ic:SetSize(K.ICON, K.ICON)
+            ic.back = ic:CreateTexture(nil, "BACKGROUND", nil, -1)
+            ic.back:SetPoint("TOPLEFT", -1, 1); ic.back:SetPoint("BOTTOMRIGHT", 1, -1)
+            ic.back:SetColorTexture(0, 0, 0, 0.85)
             ic.tex = ic:CreateTexture(nil, "ARTWORK")
             ic.tex:SetAllPoints()
-            ic.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-            ic.label = ic:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            ic.label = ic:CreateFontString(nil, "OVERLAY")
             ic.label:SetPoint("BOTTOM", ic, "TOP", 0, 2)
-            ic.label:SetTextColor(0.5, 0.8, 1)
-            ic.label:SetText(K.LABEL[slot])
+            ic.label:SetTextColor(0.85, 0.85, 0.85)
             ic:EnableMouse(true)
             ic:SetScript("OnEnter", function(self)
                 ns.Tip(self, "ANCHOR_LEFT")
@@ -220,8 +225,15 @@ local function paint()
                 n = n + 1
                 ic.step = s
                 ic.tex:SetTexture(texOf(s) or "Interface\\Icons\\INV_Misc_QuestionMark")
+                -- (Out to the left, nearest first and biggest, bottoms level: as Flow's icon has them.)
+                local sz = K.SIZES[n] or K.SIZES[#K.SIZES]
+                ic:SetSize(sz, sz)
+                ic.label:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
+                ic.label:SetText(K.LABEL[slot])
                 ic:ClearAllPoints()
-                ic:SetPoint("RIGHT", btn, "LEFT", -6 - (n - 1) * (K.ICON + 6), 0)
+                if prevIcon then ic:SetPoint("BOTTOMRIGHT", prevIcon, "BOTTOMLEFT", -6, 0)
+                else ic:SetPoint("BOTTOMRIGHT", btn, "BOTTOMLEFT", -10, 0) end
+                prevIcon = ic
                 ic:Show()
             else
                 ic:Hide()

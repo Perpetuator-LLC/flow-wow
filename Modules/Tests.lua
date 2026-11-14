@@ -620,7 +620,7 @@ ns:Register("test", "rotation: heals early on Flow's hurt estimate (health is hi
         t:eq(E:EarlyHeal(fight, def, 5, far), nil, "early in a fight: attacks")
         t:eq(E:EarlyHeal(fight, def, 10, far).spell, "Rejuvenation", "hit for a while: HoT in the fight")
         t:eq(E:EarlyHeal(fight, def, 25, far).spell, "Healing Touch", "hit a lot: a heal that lands at once, not one over 12 s (0.35.163)")
-        t:ok(E:EarlyHeal(fight, def, 10, far).reason:find("Shift", 1, true) ~= nil, "says Shift + key casts it in a fight")
+        t:ok(E:EarlyHeal(fight, def, 10, far).reason:find(E.HealPress(), 1, true) ~= nil, "says which press casts it in a fight (" .. E.HealPress() .. ")")
     end) end) end)
     with(E, "Ready", function() return true end, function()
     with(ns.api, "SpellInfo", function(sp) return sp, nil, ms[sp] end, function()
@@ -9747,4 +9747,26 @@ ns:Register("test", "buff button: only when something is due", function(t)
     t:eq(BB.WhenIdle(false, true), "heal", "nothing due, an enemy targeted and the key heals: your heal, ready")
     t:eq(BB.WhenIdle(true, false), "next", "'always show my next buff' ticked: the buff that runs out first, as before")
     t:eq(BB.WhenIdle(true, true), "next", "ticked wins")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.209: the buff button looks like Flow's icon; a hidden corpse name is
+-- not an error.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buff button: the size and side icons of Flow's own", function(t)
+    local BB, K = ns.buffButton, ns.careKeys
+    t:eq(BB.SIZE, 52, "as big as Flow's icon")
+    t:ok(K.SIZES[1] == 36 and K.SIZES[2] == 30 and K.SIZES[3] == 25 and K.SIZES[4] == 22, "its side icons step down like Flow's")
+    t:ok(K.SLOTS[1] == "ctrl" and K.SLOTS[2] == "shift" and K.SLOTS[3] == "alt" and K.SLOTS[4] == "more", "in the same order: CTRL, SHIFT, ALT, C+S")
+    local b = _G.FlowBuffButton
+    if b then t:near(b:GetWidth(), 52, 0.5, "the button on screen is that size") end
+end)
+
+ns:Register("test", "drops: a corpse with no name to read is skipped, not an error", function(t)
+    local SP = ns.skillPlan
+    local ok, err = pcall(SP.RecordLoot, nil, nil, {})
+    t:ok(ok, "no name: nothing counted" .. (ok and "" or (": " .. tostring(err))))
+    ok, err = pcall(SP.RecordLoot, 12345, "x", {})
+    t:ok(ok, "a name that isn't text: nothing counted" .. (ok and "" or (": " .. tostring(err))))
 end)

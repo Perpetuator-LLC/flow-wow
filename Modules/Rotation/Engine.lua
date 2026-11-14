@@ -1108,6 +1108,14 @@ function E:GroupBuff(ctx, def, now)
         if s then break end
     end
     groupCache = { at = now, s = s }
+    -- For "is it buffing correctly in a group?": each new suggestion, once,
+    -- with how many are in the group (the log is in the diagnostics).
+    local what = s and (s.spell .. ">" .. tostring(s.target)) or (#units > 1 and "none" or nil)
+    if what and what ~= E.lastGroupLog then
+        E.lastGroupLog = what
+        ns:Log("group", s and string.format("group buff: %s on %s (%s), %d in the group", s.spell, tostring(s.target), tostring(s.unit), #units)
+            or string.format("group buffs: everyone covered (%d in the group)", #units))
+    end
     return s
 end
 function E.ClearGroupCache() groupCache = nil end

@@ -454,7 +454,10 @@ end
 -- material, and one "got" for each that was in the loot. Once per corpse.
 local lastCorpse
 function SP.RecordLoot(mob, guid, looted)
-    if not mob or (guid and guid == lastCorpse) then return end
+    -- (In a group the game hides a corpse's name and ID: comparing a hidden
+    -- value is an error, 0.35.209. Nothing to count then.)
+    mob, guid = A.Safe(mob), A.Safe(guid)
+    if type(mob) ~= "string" or (guid and guid == lastCorpse) then return end
     lastCorpse = guid
     ns.db.crafting.drops = ns.db.crafting.drops or {}
     local lower = mob:lower()

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.209
+- **The buff button looks like Flow's icon.** The same size (52), its key written above it
+  in the same letters, and its Ctrl, Shift, Alt and C+S icons out to the left in the same
+  stepped sizes and order. Its blue edge still tells the two apart.
+- **Fixed: an error when looting in a group.** There the game hides a corpse's name and ID,
+  and Flow's drop counting compared them anyway (seen in the diagnostics after a dungeon
+  group formed). It now skips such a corpse.
+- For checking group play: each party buff Flow suggests is written to the log once, with
+  how many are in the group.
+- The key that follows your form (0.35.205) is confirmed in the game: after shifting to
+  Bear Form in a fight the key cast Maul.
+
 ## 0.35.208
 - **The buff button only when something is due.** It used to be always there, showing the
   buff that runs out first. Now it shows up when a buff, a stone, a bandage or food is due;

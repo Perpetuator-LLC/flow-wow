@@ -440,9 +440,12 @@ local function fillTooltip(tt)
     end
 end
 
+-- The same size as Flow's icon (was 40: "make the buff button look much like
+-- the easy button", 0.35.209); its blue edge tells the two apart.
+BB.SIZE = 52
 local function build()
     btn = CreateFrame("Button", "FlowBuffButton", UIParent, "SecureActionButtonTemplate")
-    btn:SetSize(40, 40)
+    btn:SetSize(BB.SIZE, BB.SIZE)
     btn:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
     -- Where you left it, or (never moved) just left of the Flow button.
     local main = _G.FlowCastButton
@@ -456,7 +459,7 @@ local function build()
     end
     btn:RegisterForClicks("AnyUp", "AnyDown")
     local bg = btn:CreateTexture(nil, "BACKGROUND")
-    bg:SetPoint("TOPLEFT", -2, 2); bg:SetPoint("BOTTOMRIGHT", 2, -2)
+    bg:SetPoint("TOPLEFT", -3, 3); bg:SetPoint("BOTTOMRIGHT", 3, -3)
     bg:SetColorTexture(0.1, 0.6, 1, 0.9)   -- blue edge: the buff button
     tex = btn:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
@@ -465,8 +468,10 @@ local function build()
     label:SetPoint("TOP", btn, "BOTTOM", 0, -3)
     label:SetWidth(110)
     label:SetTextColor(0.5, 0.8, 1)
-    keyText = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    keyText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -2, -2)
+    -- Its key above it, as on Flow's icon (same font and size).
+    keyText = btn:CreateFontString(nil, "OVERLAY")
+    keyText:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
+    keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2)
     btn:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_LEFT")
         pcall(fillTooltip, GameTooltip)
