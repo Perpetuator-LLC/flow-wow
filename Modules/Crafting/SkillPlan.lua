@@ -822,8 +822,9 @@ function SP.RecipeDue(learn, rank, ahead)
 end
 
 -- "Buy Recipe: X" for a bought recipe you don't have (as far as Flow knows).
--- rank: your skill in the profession (nil: not looked at).
-local function recipeStop(prof, s, known, rank)
+-- rank: your skill in the profession (nil: not looked at). banked: how many
+-- are in your bank (nil: Flow looks).
+local function recipeStop(prof, s, known, rank, banked)
     if not s.recipeItem or (known and known[s.recipe]) then return nil end
     local name = itemName(s.recipeItem)
     watched[s.recipeItem] = true
@@ -833,6 +834,18 @@ local function recipeStop(prof, s, known, rank)
         return { key = "use:" .. s.recipeItem, kind = "craft", points = { playerPoint() }, anywhere = true,
                  icon = BAG_ICON, useItem = s.recipeItem,   -- in your bags: the arrow shows a bag
                  text = "Learn " .. s.recipe .. ": use the recipe in your bags" }
+    end
+    -- In your bank: you own it. ("I bought the recipe, Flow told me to put it
+    -- in the bank, and now Flow tells me to stop and buy it", 0.35.203.)
+    -- Nothing until you can learn it, then a stop at the bank to fetch it.
+    banked = banked or SP.BankCount(s.recipeItem)
+    if banked > 0 then
+        if not SP.RecipeDue(s.learn, rank, 0) then return nil end
+        local pts, names = SP.BankerPoints()
+        return { key = "bankget:" .. s.recipeItem, kind = "merchant", points = pts, npcs = names,
+                 text = "Bank: take out " .. name,
+                 details = { "It's in your bank and your skill is high enough to learn " .. s.recipe .. " now." },
+                 blockedBy = #pts == 0 and "Flow doesn't know where a bank is" or nil }
     end
     if s.quest then return questRecipeStop(s) end
     if not SP.RecipeDue(s.learn, rank) then return nil end   -- (too early to buy: it waits until you're nearly there)

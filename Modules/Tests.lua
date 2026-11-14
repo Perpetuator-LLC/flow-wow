@@ -9114,7 +9114,7 @@ ns:Register("test", "banker: what goes to the bank and what stays with you", fun
     end
     t:ok(B.Banks(row("Light Leather", 2318, "professionMaterial", "Trade Goods: Leather"), {}), "a profession material nothing uses now: to the bank")
     t:ok(B.Banks(row("Ruined Leather Scraps", 2934, "neverSell", "Trade Goods: Leather"), {}), "something you told Flow never to sell: to the bank")
-    t:ok(B.Banks(row("Recipe: Longjaw Mud Snapper", 6328, "notGear", "Recipe: Cooking"), {}), "a recipe waiting for skill: to the bank")
+    t:ok(not B.Banks(row("Recipe: Longjaw Mud Snapper", 6328, "notGear", "Recipe: Cooking"), {}), "a recipe: stays (a banked one was asked for again, 0.35.203)")
     t:ok(not B.Banks(row("Stringy Wolf Meat", 2672, "professionMaterial", "Trade Goods: Cooking"), { [2672] = true }), "a material a stop on your route uses: stays")
     t:ok(not B.Banks(row("Refreshing Spring Water", 159, "professionMaterial", "Consumable: Food & Drink"), {}), "water: stays, whatever it's also a material for")
     t:ok(not B.Banks(row("Linen Bandage", 1251, "professionMaterial", "Consumable: Bandages"), {}), "bandages: stay")
@@ -9267,4 +9267,101 @@ ns:Register("test", "auction: prices from the newer auction house's answers", fu
     end
     t:ok(not dup, "each item asked once")
     t:ok(type(AH.ScanNew) == "function", "the newer scan is there (it only runs at an open auction house)")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.203: a flight master with no path yet is tried again a level later; a
+-- banked recipe isn't bought again; Flow Banker's bank and price views.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "flight paths: no path yet waits one level, then they're offered again", function(t)
+    local FP = ns.flightPaths
+    t:ok(not FP.Waits(nil, 13), "no note: offered")
+    t:ok(FP.Waits({ level = 13 }, 13), "they had none at this level: not now")
+    t:ok(FP.Waits({ level = 13 }, 12), "nor at a lower one")
+    t:ok(not FP.Waits({ level = 13 }, 14), "a level later: offered again")
+    t:ok(not FP.Waits(true, 13), "a note from before Flow kept the level: offered once more")
+    local seikwa = { name = "Seikwa", map = 1412, x = 0.47, y = 0.58, cont = 1, wx = -2300, wy = -350 }
+    with(ns.db, "flightNone", {}, function()
+    with(ns.db, "flightTalked", {}, function()
+    with(ns, "Print", function() end, function()
+    with(ns.nav, "Collect", function() end, function()
+        FP.NoPath("Seikwa")
+        local rec = ns.db.flightNone.Seikwa
+        t:ok(type(rec) == "table" and rec.level == FP.Level(), "the note keeps your level")
+        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 0, "no stop at this level")
+        rec.level = FP.Level() - 1
+        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 1, "a level on: the stop is back")
+    end) end) end) end)
+    FP._Forget()
+end)
+
+ns:Register("test", "professions: a recipe in your bank isn't bought again", function(t)
+    local SP = ns.skillPlan
+    local step = { recipe = "Flow Test Stew", recipeItem = 999983, learn = 50, mats = {} }
+    with(SP, "BankerPoints", function() return { { map = 1413, x = 0.52, y = 0.30 } }, { "A Banker" } end, function()
+        t:eq(SP._recipeStop("Cooking", step, {}, 40, 1), nil, "banked, skill too low to learn it: nothing (and no buying)")
+        local r = SP._recipeStop("Cooking", step, {}, 50, 1)
+        t:eq(r and r.key, "bankget:999983", "banked and learnable: fetch it from the bank")
+        t:ok(r and r.text:find("take out", 1, true) ~= nil, "it says to take it out: " .. tostring(r and r.text))
+        local b = SP._recipeStop("Cooking", step, {}, 45, 0)
+        t:eq(b and b.key, "buy:999983", "not banked, nearly learnable: buy it, as before")
+        t:eq(SP._recipeStop("Cooking", step, { ["Flow Test Stew"] = true }, 50, 1), nil, "known: nothing")
+    end)
+end)
+
+ns:Register("test", "banker: what's in your bank and the last auction prices, away from both", function(t)
+    local B = ns.banker
+    t:eq(B.Ago(30), "just now", "seconds")
+    t:eq(B.Ago(1500), "25 min ago", "minutes")
+    t:eq(B.Ago(3 * 3600), "3 h ago", "hours")
+    t:eq(B.Ago(2 * 86400), "2 days ago", "days")
+    t:eq(B.Ago(nil), "some time ago", "unknown")
+    local names = { [2318] = "Light Leather", [2589] = "Linen Cloth" }
+    local rows = B.BankRows({ [2589] = 40, [2318] = 12, [765] = 3, [1] = 0 }, function(id) return names[id] end)
+    t:eq(#rows, 3, "one row per thing with a count")
+    t:eq(rows[1].name, "Light Leather", "by name")
+    t:eq(rows[2].name, "Linen Cloth", "by name (2)")
+    t:eq(rows[3].name, "item 765", "a name the game hasn't loaded: its number")
+    local pr = B.PriceRows({ [2589] = { price = 45, at = 100 }, [2318] = { price = 120, at = 90 }, [7] = { looks = {} } }, function(id) return names[id] end)
+    t:eq(#pr, 2, "only items with a price")
+    t:eq(pr[1].price, 120, "by name, with the price")
+    local first, last, below, off = B.Window(40, 0, 14)
+    t:ok(first == 1 and last == 14 and below == 26 and off == 0, "the top of a long list")
+    first, last, below, off = B.Window(40, 99, 14)
+    t:ok(first == 27 and last == 40 and below == 0 and off == 26, "scrolled past the end: the last page")
+    first, last, below = B.Window(3, 5, 14)
+    t:ok(first == 1 and last == 3 and below == 0, "a short list doesn't scroll")
+    for _, v in ipairs(B.VIEWS) do
+        local ok, note, lines = pcall(B.ViewLines, v.key)
+        t:ok(ok and type(note) == "string" and type(lines) == "table", "the '" .. v.label .. "' view builds" .. (ok and "" or (": " .. tostring(note))))
+    end
+    t:ok(type(ns.auction.Prices) == "function" and type(ns.auction:Prices()) == "table", "the auction prices can be listed")
+end)
+
+ns:Register("test", "click: the Flow Banker tab on your bags opens and closes it; its views switch", function(t)
+    local B = ns.banker
+    local def = ns:Get("gameButton", "bags")
+    t:ok(def and def.label == "Flow Banker", "a Flow Banker button is registered for the bags")
+    if not def or InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset = B.view, B.offset
+    if was then B._Frame():Hide() end
+    local ok, err = pcall(def.click)
+    t:ok(ok, "a click runs" .. (ok and "" or (": " .. tostring(err))))
+    local f = B._Frame()
+    t:ok(f and f:IsShown(), "the window is up")
+    t:ok(B.AtBank() or B.view == "bank", "away from a bank it opens on what's in your bank")
+    for _, v in ipairs(B.VIEWS) do
+        local tb = f and f.tabs[v.key]
+        local ok2, err2 = pcall(function() tb:GetScript("OnClick")(tb) end)
+        t:ok(ok2 and B.view == v.key, "the '" .. v.label .. "' word switches to it" .. (ok2 and "" or (": " .. tostring(err2))))
+        t:eq(f.go:IsShown(), v.key == "put", "Deposit only shows with the list to put away")
+    end
+    local ok3 = pcall(function() f:GetScript("OnMouseWheel")(f, -1) end)
+    t:ok(ok3, "the wheel scrolls")
+    pcall(def.click)
+    t:ok(not f:IsShown(), "a second click closes it")
+    B.view, B.offset = view, offset
+    if was then B:Fill(); f:Show() end
 end)

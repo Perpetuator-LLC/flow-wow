@@ -247,6 +247,11 @@ Flow for WoW is a separate project from Flow Engine.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
   auction house, keep), why and which rule said so, the vendor price and the last auction
   price. Saved with the diagnostics.
+- **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
+  later that no stop on your route uses) and deposits it at a click; the route adds a bank
+  stop when one is on your way. Away from a bank its "In your bank" view shows what was there
+  when you last opened it, and "Auction prices" what Flow last saw at the auction house. A
+  Flow Banker tab on your bags opens it (`/flow banker`).
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
   It never sells profession tools or materials you need. Green gear and better materials go

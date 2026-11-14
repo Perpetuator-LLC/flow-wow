@@ -28,11 +28,21 @@ FP.KEEP = 5      -- seconds the list is kept (stops are collected often)
 -- Pure: is this flight master's path one you have? talked: [name] = true for
 -- the ones whose map you've opened; known: your flight points ({ cont, wx,
 -- wy } each); fm: { name, cont, wx, wy }.
+function FP.Level() return UnitLevel and tonumber(UnitLevel("player")) or 0 end
+-- Pure: is this "no flight path here" note still holding the stop back? rec:
+-- { level = your level when they had none } (true: an older note, from before
+-- Flow kept the level: it no longer holds, so they are asked once more).
+function FP.Waits(rec, level)
+    if not rec then return false end
+    if type(rec) ~= "table" then return false end
+    return (level or 0) <= (rec.level or 0)
+end
 function FP.Learned(fm, talked, known, same)
     if talked and talked[fm.name] then return true end
     -- ("Seikwa did not have a flight path for me, though you suggested
-    -- learning it": you talked to them and no flight map came. Not again.)
-    if ns.db and ns.db.flightNone and ns.db.flightNone[fm.name] then return true end
+    -- learning it": you talked to them and no flight map came. Not again
+    -- at this level: FP.Waits.)
+    if ns.db and ns.db.flightNone and FP.Waits(ns.db.flightNone[fm.name], FP.Level()) then return true end
     same = same or FP.SAME
     for _, k in pairs(known or {}) do
         if k.cont == fm.cont and k.wx and fm.wx then
@@ -97,16 +107,26 @@ ns:On("TAXIMAP_OPENED", function()
     if who then FP.Talked(who) end
 end)
 -- You talked to someone Flow took for a flight master and no flight map
--- opened within a few seconds: they have no flight path for you. Their stop
--- goes, and isn't offered again (per character).
-ns:OnLoad(function(saved) saved.flightNone = saved.flightNone or {} end)
+-- opened within a few seconds: they have no flight path for you yet. Their
+-- stop goes until you've gained a level, then it's offered again ("Seikwa
+-- only becomes the flight master after some quests or events, so don't
+-- remove her entirely": Flow can't see which quest opens her, so it asks
+-- once per level; per character).
+ns:OnLoad(function(saved)
+    saved.flightNone = saved.flightNone or {}
+    -- Notes from before 0.35.203 were for good: give them a level of 0, so
+    -- they're asked about again.
+    for name, rec in pairs(saved.flightNone) do
+        if rec == true then saved.flightNone[name] = { level = 0 } end
+    end
+end)
 ns:PerCharacter("flightNone")
 FP.WAIT = 3
 function FP.NoPath(name)
     if type(name) ~= "string" or name == "" or ns.db.flightTalked[name] then return false end
-    ns.db.flightNone[name] = true
+    ns.db.flightNone[name] = { level = FP.Level(), at = time() }
     cache.goals = nil
-    ns:Print(name .. " has no flight path for you: Flow won't send you there for one again.")
+    ns:Print(name .. " has no flight path for you yet: Flow will try them again when you've gained a level.")
     if ns.nav and ns.nav.Collect then pcall(ns.nav.Collect, ns.nav) end
     return true
 end

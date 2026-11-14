@@ -66,6 +66,9 @@ function AH:Price(id)
     return e and e.price, e and e.at
 end
 
+-- Every price Flow has for this realm and faction: { [itemID] = { price, at } }.
+function AH:Prices() return store() end
+
 -- How many items Flow has a price for, on this realm and faction.
 function AH:Known()
     local n = 0

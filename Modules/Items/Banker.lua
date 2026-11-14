@@ -7,7 +7,7 @@
 --
 -- What goes to the bank: things Flow keeps for you but that nothing on your
 -- route uses now: profession materials, trade goods you told Flow never to
--- sell, recipes waiting for skill. What never goes: quest items, tools, your
+-- sell. What never goes: quest items, tools, recipes, your
 -- hearthstone, food, water, bandages, potions, scrolls and anything to
 -- equip; and any material a crafting stop on your route asks for (those you
 -- need now or soon).
@@ -18,6 +18,9 @@
 --     way you're going and there's enough to make it worth the stop
 --     (B.MIN_STACKS). Its own tick under Route includes.
 --   * /flow banker: the list, in chat (also in the diagnostics).
+--   * Away from a bank: the window's "In your bank" view lists what Flow saw
+--     there last time it was open, and "Auction prices" what Flow last saw at
+--     the auction house. A "Flow Banker" tab on your bags opens it (0.35.203).
 --
 -- Not built yet: fetching things back as a stop before the crafting that
 -- needs them (the profession plan already reads what's in your bank).
@@ -37,6 +40,9 @@ local function stays(kind)
     kind = kind or ""
     return kind:find("^Quest") ~= nil or kind:find("^Consumable") ~= nil or kind:find("^Weapon") ~= nil
         or kind:find("^Armor") ~= nil or kind:find("^Container") ~= nil or kind:find("^Key") ~= nil
+        -- (A recipe stays too: Flow only has you buy one when you can nearly
+        -- learn it, and a banked one read as "not bought" (0.35.203).)
+        or kind:find("^Recipe") ~= nil
 end
 
 -- Pure: bank this row of the inventory? row: D.InventoryRows' ({ id, name,
@@ -48,7 +54,7 @@ function B.Banks(row, needed)
     if stays(row.kind) then return false, "you carry it" end
     if B.LATER_RULES[row.rule or ""] then return true, "kept for later" end
     local kind = row.kind or ""
-    if kind:find("^Trade Goods") or kind:find("^Recipe") then return true, "kept for later" end
+    if kind:find("^Trade Goods") then return true, "kept for later" end
     return false, "you carry it"
 end
 
@@ -142,7 +148,7 @@ end
 -------------------------------------------------------------------------------
 local function build()
     local f = CreateFrame("Frame", "FlowBanker", UIParent)
-    f:SetSize(330, 74 + B.ROWS * 15)
+    f:SetSize(330, 96 + B.ROWS * 15)
     f:SetFrameStrata("DIALOG")
     f:SetPoint("LEFT", UIParent, "LEFT", 380, 60)
     f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -160,14 +166,28 @@ local function build()
     close:SetPoint("TOPRIGHT", 2, 2)
     close:SetScript("OnClick", function() f:Hide() end)   -- (our own: the game's handler can't close an add-on window in a fight)
     f.note = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.note:SetPoint("TOPLEFT", 10, -28)
-    f.note:SetPoint("TOPRIGHT", -10, -28)
+    -- The three views, as words under the title: the one showing is gold.
+    f.tabs = {}
+    for i, v in ipairs(B.VIEWS) do
+        local tb = CreateFrame("Button", nil, f)
+        tb:SetSize(100, 16)
+        tb:SetPoint("TOPLEFT", 8 + (i - 1) * 104, -27)
+        tb.text = tb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        tb.text:SetPoint("LEFT")
+        tb.text:SetText(v.label)
+        tb:SetScript("OnClick", function() B:Show(v.key) end)
+        f.tabs[v.key] = tb
+    end
+    f:EnableMouseWheel(true)
+    f:SetScript("OnMouseWheel", function(_, delta) B:Scroll(delta) end)
+    f.note:SetPoint("TOPLEFT", 10, -50)
+    f.note:SetPoint("TOPRIGHT", -10, -50)
     f.note:SetJustifyH("LEFT")
     f.rows = {}
     for i = 1, B.ROWS do
         local r = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r:SetPoint("TOPLEFT", 10, -46 - (i - 1) * 15)
-        r:SetPoint("TOPRIGHT", -10, -46 - (i - 1) * 15)
+        r:SetPoint("TOPLEFT", 10, -68 - (i - 1) * 15)
+        r:SetPoint("TOPRIGHT", -10, -68 - (i - 1) * 15)
         r:SetJustifyH("LEFT")
         r:SetWordWrap(false)
         f.rows[i] = r
@@ -181,32 +201,166 @@ local function build()
     return f
 end
 
+-- The window's views. "put": what to put away (the Deposit button). "bank":
+-- what Flow saw in your bank when it was last open, readable anywhere.
+-- "prices": what Flow last saw at the auction house.
+B.VIEWS = {
+    { key = "put", label = "To put away" },
+    { key = "bank", label = "In your bank" },
+    { key = "prices", label = "Auction prices" },
+}
+B.view, B.offset = "put", 0
+
+-- Pure: "just now", "25 min ago", "3 h ago", "2 days ago".
+function B.Ago(seconds)
+    seconds = tonumber(seconds)
+    if not seconds or seconds < 0 then return "some time ago" end
+    if seconds < 90 then return "just now" end
+    if seconds < 5400 then return math.floor(seconds / 60 + 0.5) .. " min ago" end
+    if seconds < 129600 then return math.floor(seconds / 3600 + 0.5) .. " h ago" end
+    return math.floor(seconds / 86400 + 0.5) .. " days ago"
+end
+
+local function nameOf(id)
+    local ok, name = pcall(function() return ns.api.ItemInfo and ns.api.ItemInfo(id) end)
+    if ok and type(name) == "string" and name ~= "" then return name end
+    -- (Not loaded yet: ask the game for it, the next fill has the name.)
+    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
+    return nil
+end
+
+-- Pure: the bank's rows, by name. items: { [itemID] = count }; name(id) ->
+-- its name or nil. -> { { id, name, count } }.
+function B.BankRows(items, name)
+    local out = {}
+    for id, c in pairs(items or {}) do
+        if type(id) == "number" and type(c) == "number" and c > 0 then
+            out[#out + 1] = { id = id, name = (name and name(id)) or ("item " .. id), count = c }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return out
+end
+
+-- Pure: the auction prices' rows, by name. prices: { [itemID] = { price, at } }.
+function B.PriceRows(prices, name)
+    local out = {}
+    for id, e in pairs(prices or {}) do
+        if type(id) == "number" and type(e) == "table" and tonumber(e.price) then
+            out[#out + 1] = { id = id, name = (name and name(id)) or ("item " .. id), price = e.price, at = e.at }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return out
+end
+
+-- Pure: the lines for a window of `rows` lines over `n` things, starting
+-- after `offset`: first and last index shown, and how many are below.
+function B.Window(n, offset, rows)
+    local maxOff = math.max(0, n - rows)
+    offset = math.max(0, math.min(offset or 0, maxOff))
+    local last = math.min(n, offset + rows)
+    return offset + 1, last, n - last, offset
+end
+
+-- What a view shows now: the line above the list, and its lines of text.
+function B.ViewLines(view)
+    local now = time()
+    if view == "bank" then
+        local bank = ns.db.bank or {}
+        local rows = B.BankRows(bank.items, nameOf)
+        local out = {}
+        for _, r in ipairs(rows) do out[#out + 1] = string.format("%d x %s", r.count, r.name) end
+        if not bank.seenAt then
+            return "Flow hasn't seen inside your bank yet. Open it once and Flow remembers what's there.", out
+        end
+        return string.format("%d thing(s) in your bank, as Flow saw it %s:", #rows, B.Ago(now - bank.seenAt)), out
+    elseif view == "prices" then
+        local AH = ns.auction
+        local prices = {}
+        if AH and AH.Prices then
+            local ok, p = pcall(AH.Prices, AH)
+            if ok and type(p) == "table" then prices = p end
+        end
+        local rows = B.PriceRows(prices, nameOf)
+        local out = {}
+        for _, r in ipairs(rows) do
+            out[#out + 1] = string.format("%s  |cffffd100%s|r each  |cff999999(%s)|r", r.name, AH.Money(r.price), B.Ago(now - (r.at or 0)))
+        end
+        if #rows == 0 then
+            return "No auction prices yet: Flow reads them when you open the auction house.", out
+        end
+        return string.format("The cheapest buyout Flow last saw, for %d item(s):", #rows), out
+    end
+    local list = B.List()
+    local out = {}
+    for _, r in ipairs(list) do
+        out[#out + 1] = string.format("%d x %s  |cff999999(%s)|r", r.count or 1, tostring(r.name), tostring(r.reason or ""))
+    end
+    if #list == 0 then return "Nothing to put away: what's in your bags you carry or need soon.", out end
+    return string.format("%d stack(s) Flow keeps for later and nothing on your route uses now:", B.Stacks(list)), out
+end
+
 function B:Fill()
     local f = B.frame
     if not f then return end
-    local list = B.List()
-    f.note:SetText(#list == 0 and "Nothing to put away: what's in your bags you carry or need soon."
-        or string.format("%d stack(s) Flow keeps for later and nothing on your route uses now:", B.Stacks(list)))
+    local note, lines = B.ViewLines(B.view)
+    f.note:SetText(note)
+    local first, last, below, offset = B.Window(#lines, B.offset, B.ROWS)
+    B.offset = offset
     for i = 1, B.ROWS do
-        local r = list[i]
-        if r and i == B.ROWS and #list > B.ROWS then
-            f.rows[i]:SetText(string.format("|cff999999... and %d more|r", #list - B.ROWS + 1))
-        elseif r then
-            f.rows[i]:SetText(string.format("%d x %s  |cff999999(%s)|r", r.count or 1, tostring(r.name), tostring(r.reason or "")))
-        else
-            f.rows[i]:SetText("")
+        local at = first + i - 1
+        local text = at <= last and lines[at] or ""
+        if i == B.ROWS and below > 0 then
+            text = string.format("|cff999999... and %d more (scroll)|r", below + 1)
         end
+        f.rows[i]:SetText(text)
     end
-    f.go:SetEnabled(bankOpen and #list > 0)
+    for key, tb in pairs(f.tabs) do
+        if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
+    end
+    f.go:SetShown(B.view == "put")
+    f.go:SetEnabled(bankOpen and #lines > 0)
     f.go:SetText(bankOpen and "Deposit" or "At a bank")
 end
 
-function B:Open()
+function B:Scroll(delta)
+    B.offset = math.max(0, (B.offset or 0) - (delta or 0) * 3)
+    B:Fill()
+end
+
+-- Opens the window on a view ("put" when none is named).
+function B:Show(view)
     B.frame = B.frame or build()
+    local known = false
+    for _, v in ipairs(B.VIEWS) do if v.key == view then known = true end end
+    B.view, B.offset = known and view or "put", 0
     B:Fill()
     B.frame:Show()
 end
+function B:Open() B:Show("put") end
+-- The tab on your bags: at a bank, what to put away; anywhere else, what's
+-- in your bank. A second click closes it.
+function B:Toggle()
+    if B.frame and B.frame:IsShown() then B.frame:Hide() return end
+    B:Show(bankOpen and "put" or "bank")
+end
 function B._Frame() return B.frame end
+
+ns:Register("gameButton", "bags", {
+    order = 50,
+    frames = { "ContainerFrameCombinedBags", "ContainerFrame1" },
+    label = "Flow Banker",
+    tip = "What's in your bank (as Flow last saw it), what to put away at the next bank, and the auction prices Flow last saw.",
+    isOpen = function() return B.frame and B.frame:IsShown() end,
+    click = function() B:Toggle() end,
+})
 
 ns:On("BANKFRAME_OPENED", function()
     bankOpen = true
@@ -216,7 +370,11 @@ ns:On("BANKFRAME_OPENED", function()
 end)
 ns:On("BANKFRAME_CLOSED", function()
     bankOpen = false
-    if B.frame and B.frame:IsShown() then B.frame:Hide() end
+    -- (The list of what to put away closes with the bank; a look at what's in
+    -- the bank or at prices stays.)
+    if B.frame and B.frame:IsShown() then
+        if B.view == "put" then B.frame:Hide() else B:Fill() end
+    end
 end)
 ns:OnLoad(function(saved) saved.banker = saved.banker or {} end)
 
@@ -276,10 +434,12 @@ ns.commands.banker = function(arg)
         return
     end
     if arg == "show" then B:Open() return end
+    if arg == "bank" or arg == "prices" then B:Show(arg) return end
     for i, l in ipairs(B.Lines()) do if i == 1 then ns:Print(l) else print("  " .. l) end end
-    print("  /flow banker show (the window)   /flow banker on|off")
+    print("  /flow banker show (the window)   /flow banker bank (what's in your bank)   /flow banker prices   /flow banker on|off")
 end
 ns:Register("help", "banker", { order = 58, title = "Flow Banker", lines = {
     "At a bank, Flow Banker lists what you won't need soon (materials kept for later that no stop on your route uses) and deposits it at a click.",
-    "/flow banker: the list. /flow banker show. /flow banker on|off.",
+    "Away from a bank, its \"In your bank\" view lists what was there when you last opened it, and \"Auction prices\" what Flow last saw at the auction house. The Flow Banker tab on your bags opens it.",
+    "/flow banker: the list. /flow banker show | bank | prices. /flow banker on|off.",
 } })

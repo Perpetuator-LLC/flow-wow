@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.203
+- **A recipe in your bank isn't bought again.** Flow Banker put a bought recipe in the bank,
+  and the route then asked to buy it once more. Recipes now stay in your bags, and one that is
+  already in the bank counts as yours: nothing happens until your skill can learn it, then
+  the route says "Bank: take out ...".
+- **Flow Banker anywhere.** Its window has three views now: "To put away" (as before), "In
+  your bank" (what Flow saw there the last time the bank was open, with how long ago) and
+  "Auction prices" (the cheapest buyout Flow last saw for each item). The mouse wheel
+  scrolls. A "Flow Banker" tab on your bags opens it; `/flow banker bank` and
+  `/flow banker prices` too.
+- **A flight master with no flight path for you yet is tried again later.** Flow dropped
+  such a stop for good; some only fly you after a quest or event. Flow can't see which, so
+  the stop now comes back each time you gain a level, until their flight map opens.
+
 ## 0.35.202
 - **Auction prices on WoW: Forever.** This client only has the newer auction house, which
   Flow couldn't read, so it knew no prices. Opening the auction house now starts two things:
