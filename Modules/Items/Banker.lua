@@ -157,6 +157,27 @@ local useItem = (C_Container and C_Container.UseContainerItem) or UseContainerIt
 
 function B.AtBank() return bankOpen end
 
+-- Auto-cleanup: after a deposit, the game's Clean Up on the bank, then on
+-- your bags. The tick is in the window's header (on).
+local function sortBank() return (C_Container and C_Container.SortBankBags) or _G.SortBankBags end
+local function sortBags() return (C_Container and C_Container.SortBags) or _G.SortBags end
+function B.AutoCleanup() return ns.db.banker.autoCleanup ~= false end
+function B.CanCleanup() return sortBank() ~= nil or sortBags() ~= nil end
+-- Pure: run it? moved: stacks just deposited.
+function B.ShouldCleanup(moved, on, canSort, atBank, inCombat)
+    return (moved or 0) > 0 and on ~= false and canSort and atBank and not inCombat
+end
+function B:Cleanup(moved)
+    if not B.ShouldCleanup(moved, B.AutoCleanup(), B.CanCleanup(), B.AtBank(), InCombatLockdown()) then return false end
+    local bank, bags = sortBank(), sortBags()
+    local ok, err = true, nil
+    if bank then ok, err = pcall(bank) end
+    -- (The bags a moment later: the game does one tidy-up at a time.)
+    if bags then C_Timer.After(1.5, function() if not InCombatLockdown() then pcall(bags) end end) end
+    ns:Log("bank", ok and string.format("cleaned up after putting %d stack(s) away", moved) or ("bank cleanup failed: " .. tostring(err)))
+    return true
+end
+
 -- Puts the listed items into the bank, one stack every B.STEP seconds.
 -- Stops when the bank closes or a fight starts.
 function B:Deposit()
@@ -175,7 +196,10 @@ function B:Deposit()
     end
     if #slots > 0 then
         ns:Print(string.format("Flow Banker: putting %d stack(s) in the bank.", #slots))
-        C_Timer.After(#slots * B.STEP + 0.5, function() if B.frame and B.frame:IsShown() then B:Fill() end end)
+        C_Timer.After(#slots * B.STEP + 0.5, function()
+            if B.frame and B.frame:IsShown() then B:Fill() end
+            B:Cleanup(#slots)
+        end)
     end
     return #slots
 end
@@ -192,6 +216,27 @@ local function build()
     f.bg:SetAllPoints()
     f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.94)
     f.head = ns.theme:TitleBar(f, "Flow Banker", "Interface\\Icons\\INV_Misc_Bag_10")
+    -- Auto-cleanup, as in the Flow Seller's header: after a deposit the game's
+    -- own tidy-up runs on the bank and your bags (0.35.217).
+    f.clean = CreateFrame("CheckButton", nil, f.head, "UICheckButtonTemplate")
+    f.clean:SetSize(20, 20)
+    f.clean:SetPoint("RIGHT", f.head, "RIGHT", -24, 0)
+    f.clean.label = f.head:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.clean.label:SetPoint("RIGHT", f.clean, "LEFT", 0, 0)
+    f.clean.label:SetText("Auto-cleanup")
+    f.clean:SetChecked(B.AutoCleanup())
+    f.clean:SetScript("OnClick", function(self)
+        ns.db.banker.autoCleanup = self:GetChecked() and true or false
+        ns:Print("clean up the bank and your bags after a deposit " .. (B.AutoCleanup() and "on" or "off"))
+    end)
+    f.clean:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Auto-cleanup", 1, 1, 1)
+        GameTooltip:AddLine(B.CanCleanup() and "After Deposit, Flow tidies your bank and your bags with the game's own Clean Up (the broom)."
+            or "This client has no Clean Up for the bank or bags, so there's nothing for Flow to run.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    f.clean:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:EnableMouse(true)
     -- Ctrl-drag moves it, like Flow's other windows; where you put it is kept.
     local p = ns.db.banker.point

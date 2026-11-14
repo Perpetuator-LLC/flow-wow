@@ -73,19 +73,51 @@ function RT.GameTrackerStep(want, shown, combat)
 end
 
 local gtHooked, gtAfterFight = {}, nil
+-- Each time the game's own tracker comes up, a line for the log (the first
+-- few a session) with everything that decides what Flow does about it, so a
+-- report of "the WoW tracker keeps popping up" can be traced: your setting,
+-- a fight or not, a dungeon or not, Questie's tracker, the frame's kind.
+RT.gameShows = 0
+function RT.GameTrackerLine(setting, combat, instance, questie, protected, name)
+    return string.format("the game's quest tracker (%s) came up: your setting %s, %s, %s, Questie's tracker %s, %s", tostring(name or "?"),
+        setting == false and "hide it" or "leave it to the game", combat and "in a fight" or "no fight",
+        instance and ("in " .. tostring(instance)) or "not in an instance",
+        questie == nil and "not loaded" or (questie and "on" or "off"), protected and "a protected frame" or "not protected")
+end
+function RT.NoteGameTracker(f)
+    RT.gameShows = RT.gameShows + 1
+    if RT.gameShows > 6 then return end
+    local inside, kind = false, nil
+    if IsInInstance then inside, kind = IsInInstance() end
+    ns:Log("tracker", RT.GameTrackerLine(db().gameTracker, InCombatLockdown() and true or false, inside and kind or nil,
+        RT.QuestieTrackerShown(), f.IsProtected and f:IsProtected() and true or false, f.GetName and f:GetName()))
+end
 function RT.ApplyGameTracker(f)
     f = f or gameTracker()
     if not f then return nil end
     local step = RT.GameTrackerStep(db().gameTracker, f:IsShown() and true or false, InCombatLockdown() and true or false)
-    if step == "wait" then gtAfterFight = "hide"
-    elseif step == "hide" then f:Hide() end
+    if step == "wait" then
+        -- In a fight it can't be hidden (a protected frame), but it can be made
+        -- see-through, which the game allows: "while I was running Ragefire
+        -- Chasm it was showing me the WoW quest tracker periodically ... super
+        -- annoying in a group" (0.35.217: it showed at every quest update in a
+        -- fight and stayed until the fight was over).
+        gtAfterFight = "hide"
+        if f.SetAlpha then pcall(f.SetAlpha, f, 0) end
+    elseif step == "hide" then
+        f:Hide()
+        if f.SetAlpha then pcall(f.SetAlpha, f, 1) end   -- (ready for when you want it back)
+    end
     return step
 end
 -- Hidden stays hidden: each time the game shows it again, it's hidden again.
 local function hookGameTracker(f)
     if not f or gtHooked[f] or not f.HookScript then return end
     gtHooked[f] = true
-    f:HookScript("OnShow", function(self) RT.ApplyGameTracker(self) end)
+    f:HookScript("OnShow", function(self)
+        pcall(RT.NoteGameTracker, self)
+        RT.ApplyGameTracker(self)
+    end)
 end
 function RT.SetGameTracker(show)
     db().gameTracker = show and true or false
@@ -97,6 +129,7 @@ function RT.SetGameTracker(show)
     elseif InCombatLockdown() then
         gtAfterFight = "show"
     else
+        if f.SetAlpha then pcall(f.SetAlpha, f, 1) end
         f:Show()   -- back to the game (and to Questie, which hides it while its own tracker is on)
     end
     return true
@@ -107,15 +140,17 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     local f = what and gameTracker()
     if not f then return end
     if what == "show" then
+        if f.SetAlpha then pcall(f.SetAlpha, f, 1) end
         if db().gameTracker ~= false then f:Show() end
     else
         RT.ApplyGameTracker(f)
+        if f.SetAlpha and not f:IsShown() then pcall(f.SetAlpha, f, 1) end
     end
 end)
 -- At login: hidden if that's your setting (now, and once more a little later
 -- for a tracker the game builds late).
 ns:On("PLAYER_ENTERING_WORLD", function()
-    if db().gameTracker ~= false then return end
+    -- (Watched whatever your setting, for the log; hidden only if you chose that.)
     local function hide()
         local f = gameTracker()
         hookGameTracker(f)

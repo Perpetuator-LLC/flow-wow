@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.217
+- **WoW's quest tracker popping up in fights.** With "Show WoW's quest tracker" unticked,
+  Flow hid the game's tracker each time it came up, but in a fight it had to wait until the
+  fight was over, so in a dungeon it kept appearing. In a fight Flow now makes it
+  see-through at once (the game allows that) and hides it after. Each time the game's
+  tracker comes up, Flow also writes down what decided it (your setting, a fight, a
+  dungeon, Questie's tracker), so a report of it can be traced. If yours is still set to
+  "leave it to the game", untick "Show WoW's quest tracker" in the Flow Tracker's
+  right-click menu.
+- **Leftover quest items.** Flow Improvements lists a quest item in your bags that no quest
+  in your log asks for (left from a dropped quest), to look at and destroy for the slot.
+  Flow never destroys anything. `/flow leftovers` lists them.
+- **Flow Banker: Auto-cleanup.** A tick in the window's header, as in the Flow Seller: after
+  Deposit, the game's Clean Up tidies your bank, then your bags.
+
 ## 0.35.216
 - **Fixed: Flow took stable masters for flight masters.** Xon'cha in Orgrimmar, Seikwa in
   Bloodhoof Village, Shoja'my in Razor Hill: each a stable master, each offered as "Learn

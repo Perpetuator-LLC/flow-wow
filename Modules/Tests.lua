@@ -10178,3 +10178,73 @@ ns:Register("test", "click: Flow Banker's 'to put away' grid changes a choice an
     B.view, B.offset = view, offset
     if f then B:Fill(); if not was then f:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.217: the game's tracker in a fight; leftover quest items; the bank's
+-- auto-cleanup.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tracker: the game's own tracker coming up is written down, with what decides it", function(t)
+    local RT = ns.routeTracker
+    local line = RT.GameTrackerLine(false, true, "party", true, true, "ObjectiveTrackerFrame")
+    t:ok(line:find("hide it", 1, true) and line:find("in a fight", 1, true) and line:find("in party", 1, true)
+        and line:find("Questie's tracker on", 1, true) and line:find("a protected frame", 1, true), "everything in one line: " .. line)
+    line = RT.GameTrackerLine(nil, false, nil, nil, false, nil)
+    t:ok(line:find("leave it to the game", 1, true) and line:find("no fight", 1, true) and line:find("not in an instance", 1, true)
+        and line:find("not loaded", 1, true), "and the other way round: " .. line)
+    t:eq(RT.GameTrackerStep(false, true, true), "wait", "hidden by your setting, in a fight: wait (and see-through meanwhile)")
+    t:eq(RT.GameTrackerStep(false, true, false), "hide", "no fight: hidden")
+    t:eq(RT.GameTrackerStep(nil, true, true), nil, "left to the game: Flow does nothing")
+    t:ok(type(RT.gameShows) == "number", "it counts how often it came up")
+end)
+
+ns:Register("test", "quests: a quest item no quest in your log asks for is flagged", function(t)
+    local L = ns.leftovers
+    local ids = L.AddQuest({}, { sourceItemId = 5080, requiredSourceItems = { 5081, 5082 }, ObjectiveData = {
+        { Type = "item", Id = 5087 }, { Type = "monster", Id = 3244 } } })
+    t:ok(ids[5080] and ids[5081] and ids[5082] and ids[5087] and not ids[3244], "what a quest gives you, needs and asks for")
+    t:ok(next(L.AddQuest({}, nil)) == nil, "no quest data: nothing")
+    local texts = { "bring the secure crate to wharfmaster dizzywig in ratchet.", "plainstrider menace" }
+    t:ok(L.Wanted({ id = 5087, name = "Plainstrider Beak" }, ids, texts), "an objective's item: wanted")
+    t:ok(L.Wanted({ id = 1, name = "Secure Crate" }, ids, texts), "named in an objective: wanted")
+    t:ok(not L.Wanted({ id = 2, name = "Cenarion Lunardust" }, ids, texts), "in no quest of yours: not wanted")
+    local rows = {
+        { id = 5087, name = "Plainstrider Beak", kind = "Quest", count = 4 },
+        { id = 2, name = "Cenarion Lunardust", kind = "Quest", count = 1 },
+        { id = 3, name = "Mysterious Letter", kind = "Quest", count = 1 },
+        { id = 4, name = "Light Leather", kind = "Trade Goods: Leather", count = 9 },
+    }
+    local left = L.Pick(rows, ids, texts, function(id) return id == 3 end)
+    t:ok(#left == 1 and left[1].name == "Cenarion Lunardust", "only the stray quest item; one that starts a quest is left alone, and so is everything that isn't a quest item")
+    local ok, list = pcall(L.Now)
+    t:ok(ok and type(list) == "table", "the check runs on your bags" .. (ok and "" or (": " .. tostring(list))))
+    t:ok(type(L.Lines()) == "table" and #L.Lines() >= 1, "/flow leftovers has something to say")
+    local adv = ns:Get("advisor", "leftovers")
+    t:ok(adv and pcall(adv.check), "Flow Improvements asks it")
+end)
+
+ns:Register("test", "click: Flow Banker's Auto-cleanup tick; cleanup only after a deposit at a bank", function(t)
+    local B = ns.banker
+    t:ok(B.ShouldCleanup(3, true, true, true, false), "three stacks put away at a bank: tidy up")
+    t:ok(not B.ShouldCleanup(0, true, true, true, false), "nothing put away: no")
+    t:ok(not B.ShouldCleanup(3, false, true, true, false), "unticked: no")
+    t:ok(not B.ShouldCleanup(3, true, true, false, false), "not at a bank: no")
+    t:ok(not B.ShouldCleanup(3, true, true, true, true), "in a fight: no")
+    t:ok(not B.ShouldCleanup(3, true, false, true, false), "a client with no Clean Up: no")
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    pcall(B.Show, B, B.view)
+    local f = B._Frame()
+    t:ok(f and f.clean ~= nil, "the tick is in the window's header")
+    if f and f.clean then
+        local before = ns.db.banker.autoCleanup
+        with(ns, "Print", function() end, function()
+            f.clean:SetChecked(false)
+            local ok, err = pcall(function() f.clean:GetScript("OnClick")(f.clean) end)
+            t:ok(ok and B.AutoCleanup() == false, "unticking turns it off" .. (ok and "" or (": " .. tostring(err))))
+        end)
+        ns.db.banker.autoCleanup = before
+        f.clean:SetChecked(B.AutoCleanup())
+    end
+    if f and not was then f:Hide() end
+end)
