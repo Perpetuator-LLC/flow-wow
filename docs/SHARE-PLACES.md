@@ -19,6 +19,15 @@ NPCs only:
 Plus where mailboxes are. **Nothing about you**: no character names, realm, account or play
 times.
 
+Since 0.35.220 the same command also lists the **game facts** your Flow has learned:
+- what class trainers teach: the class, the spell, its rank, the level it asks and its price;
+- spells Flow's own class lists expected that no trainer had (Cure Poison at 14, for one);
+- where a quest's objective was done, or the quest handed in, for quests the quest data has no
+  place for: the quest's number and a map spot.
+
+These are facts about the game, the same for every player. Again nothing about you. `/flow facts`
+shows what your Flow has learned.
+
 ## How
 
 1. In game: `/flow places share`, then `/reload`. The game saves the list when you reload.
@@ -27,8 +36,9 @@ times.
    - **with Claude:** ask your Claude session "share my Flow places". It follows CLAUDE.md: it runs
      the script and opens a pull request for you; or
    - **by hand:** in your Flow folder run
-     `powershell -ExecutionPolicy Bypass -File tools\share-places.ps1`, then commit
-     `Learned\Places.lua` on a branch and open a pull request (see CONTRIBUTING.md). Data-only pull
+     `powershell -ExecutionPolicy Bypass -File tools\share-places.ps1` and
+     `powershell -ExecutionPolicy Bypass -File tools\share-facts.ps1`, then commit
+     `Learned\Places.lua` and `Learned\Facts.lua` on a branch and open a pull request (see CONTRIBUTING.md). Data-only pull
      requests need no version bump or CHANGELOG entry.
    - **no Git?** Send your `WTF\Account\<name>\SavedVariables\Flow.lua` to the maintainer, who runs
      `tools\share-places.ps1 -From <that file>`. The script reads only the shared list from it.

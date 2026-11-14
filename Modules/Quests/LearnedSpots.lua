@@ -51,6 +51,8 @@ end
 function LS.Points(questID, index)
     local q = ns.db and ns.db.learnedSpots and ns.db.learnedSpots[questID]
     local list = q and q[index]
+    -- (None of your own: what players shared, that came with Flow. Facts.lua)
+    if (not list or #list == 0) and ns.facts and ns.facts.SharedSpots then return ns.facts.SharedSpots(questID, index) end
     if not list or #list == 0 then return nil end
     local out = {}
     for _, p in ipairs(list) do out[#out + 1] = { map = p.map, x = p.x, y = p.y } end

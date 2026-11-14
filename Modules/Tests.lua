@@ -10297,3 +10297,73 @@ ns:Register("test", "improvements: a spell your trainer, read at your level, doe
         t:ok(not said, pick .. " isn't on that trainer's list: no 'Get " .. pick .. "'")
     end) end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.220: what the game told Flow is kept, used and can be shared.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "facts: what trainers teach, and don't, is kept", function(t)
+    local F = ns.facts
+    local spells = {}
+    t:ok(F.NoteSpell(spells, "DRUID", "Wrath", "Rank 3", 14, 900), "a trainer's line is kept")
+    t:ok(not F.NoteSpell(spells, "DRUID", "Wrath", "Rank 3", 14, 900), "the same line again: nothing new")
+    t:ok(spells.DRUID["Wrath (Rank 3)"].level == 14 and spells.DRUID["Wrath (Rank 3)"].cost == 900, "with its rank, level and price")
+    F.NoteSpell(spells, "DRUID", "Wrath", "Rank 3", 14, 810)
+    t:eq(spells.DRUID["Wrath (Rank 3)"].cost, 810, "a lower price seen later (reputation): kept")
+    t:ok(F.NoteSpell(spells, "DRUID", "Bash", "", 14, 1000) and spells.DRUID.Bash ~= nil, "a spell with no rank text: by its name")
+    t:ok(not F.NoteSpell(spells, "DRUID", "", "", 1, 1) and not F.NoteSpell(spells, nil, "X", "", 1, 1), "no name or no class: nothing")
+    local lacks = {}
+    t:ok(F.NoteLack(lacks, "DRUID", "Cure Poison", 14), "a spell no trainer had at 14")
+    t:ok(not F.NoteLack(lacks, "DRUID", "Cure Poison", 13), "an older, lower reading adds nothing")
+    t:ok(F.NoteLack(lacks, "DRUID", "Cure Poison", 16) and lacks.DRUID["Cure Poison"] == 16, "still missing at 16: kept at 16")
+    -- Which of the class list's spells a trainer lacks.
+    local list = { { spell = "Bash", level = 14 }, { spell = "Cure Poison", level = 14 }, { spell = "Bear Form", level = 10, quest = true },
+                   { spell = "Rip", level = 20 }, { spell = "Moonfire", level = 4 }, { spell = "Teleport", level = 10, note = "from a quest" } }
+    local lacking = F.Lacking(list, { Bash = true }, { Moonfire = true }, 14)
+    t:ok(#lacking == 1 and lacking[1] == "Cure Poison",
+        "only what's due, not known, not a quest's, and not on the trainer's list")
+    -- Using it.
+    local own = { spells = spells, lacks = lacks }
+    local none = { spells = {}, lacks = {}, spots = {} }
+    t:ok(F.NotTaught("DRUID", "Cure Poison", 14, own, none), "Cure Poison: not taught up to your level")
+    t:ok(not F.NotTaught("DRUID", "Cure Poison", 18, own, none), "past the level it was last seen missing: unknown again")
+    t:ok(not F.NotTaught("DRUID", "Bash", 14, own, none), "a spell a trainer lists: taught")
+    t:ok(F.NotTaught("DRUID", "Cure Poison", 14, { spells = {}, lacks = {} }, { spells = {}, lacks = { DRUID = { ["Cure Poison"] = 14 } }, spots = {} }),
+        "another player's shared reading counts too")
+    lacks.DRUID.Bash = 14
+    t:ok(not F.NotTaught("DRUID", "Bash", 14, own, none), "seen at a trainer since: that beats an older 'lacks'")
+end)
+
+ns:Register("test", "facts: the share list holds game facts only, in a fixed form", function(t)
+    local F = ns.facts
+    local lines = F.ShareLines({ spells = { DRUID = { ["Wrath (Rank 3)"] = { name = "Wrath", rank = "Rank 3", level = 14, cost = 900 },
+                                                      Bash = { name = "Bash", level = 14, cost = 1000 },
+                                                      Bad = { name = "Bad|Name", level = 1, cost = 1 } } },
+                                 lacks = { DRUID = { ["Cure Poison"] = 14 } } },
+        { [76240] = { [1] = { { map = 1412, x = 0.41, y = 0.52 } }, done = { { map = 1412, x = 0.47, y = 0.58 } } } })
+    local has = {}
+    for _, l in ipairs(lines) do has[l] = true end
+    t:ok(has["S|DRUID|Wrath|Rank 3|14|900"] and has["S|DRUID|Bash||14|1000"], "trainer lines: class, spell, rank, level, price")
+    t:ok(has["L|DRUID|Cure Poison|14"], "a missing spell: class, spell, level")
+    t:ok(has["Q|76240|1|1412|0.4100|0.5200"] and has["Q|76240|done|1412|0.4700|0.5800"], "quest spots: quest, objective, map, place")
+    t:eq(#lines, 5, "a name that would break the form is left out")
+    t:eq(#F.ShareLines(nil, nil), 0, "nothing learned: nothing listed")
+    -- What came with Flow reads back, and a shared quest spot is used when you have none of your own.
+    local sh = F.Shared()
+    t:ok(type(sh.spells) == "table" and type(sh.lacks) == "table" and type(sh.spots) == "table", "the shared file loads")
+    t:ok(type(F.Lines()) == "table" and #F.Lines() >= 2, "/flow facts has something to say")
+    t:eq(ns.learnedSpots.Points(-5, 1), nil, "a quest nobody has a spot for: none")
+end)
+
+ns:Register("test", "facts: a trainer read keeps its lines and what it lacks", function(t)
+    local F = ns.facts
+    local _, class = UnitClass("player")
+    with(ns.db, "facts", { spells = {}, lacks = {} }, function()
+    with(ns, "Log", function() end, function()
+        local n = F.TrainerRead(class, { { name = "Flow Test Spell", sub = "Rank 2", level = 10, cost = 500 } }, UnitLevel("player"), ns.rotation:KnownSpells())
+        t:ok(n >= 1, "new facts are counted")
+        t:ok(ns.db.facts.spells[class] and ns.db.facts.spells[class]["Flow Test Spell (Rank 2)"] ~= nil, "the trainer's line is in your facts")
+        t:eq(F.TrainerRead(class, { { name = "Flow Test Spell", sub = "Rank 2", level = 10, cost = 500 } }, UnitLevel("player"), ns.rotation:KnownSpells()), 0,
+            "the same trainer again: nothing new")
+    end) end)
+end)

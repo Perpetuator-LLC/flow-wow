@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.220
+- **Flow keeps what the game tells it, and gets better from it.** Each time you open a class
+  trainer, Flow records what it really teaches (spell, rank, level, price) and which spells
+  Flow's own list expected that it doesn't have. Together with the quest spots it learns
+  where you do quests the data can't place, these correct Flow's built-in lists at once,
+  for all your characters: a spell no trainer has is no longer advised on any of them.
+  `/flow facts` shows what it has learned.
+- **Sharing them** is the same opt-in as the NPC spots: `/flow places share` now lists these
+  game facts too (a class, a spell, a level, a price, a quest number, a map spot: nothing
+  about you), and `tools\share-facts.ps1` merges them into `Learned\Facts.lua`, which comes
+  with Flow for every player once merged. Nothing leaves your computer by itself.
+  A quest spot another player shared is used when you have none of your own.
+
 ## 0.35.219
 - **No "Get Cure Poison" when your trainer doesn't teach it.** Flow's own class list has
   Cure Poison at level 14, and kept a trainer stop on the route for it after the Moonglade

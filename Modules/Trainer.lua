@@ -78,6 +78,11 @@ local function record()
     ns.db.trainer.npc = npc
     ns.db.trainer.services = list
     ns.db.trainer.seenAt = UnitLevel("player")
+    -- What this trainer really teaches (and doesn't), kept for good: Facts.lua.
+    if ns.facts and ns.facts.TrainerRead then
+        local _, class = UnitClass("player")
+        pcall(ns.facts.TrainerRead, class, list, UnitLevel("player"), ns.rotation and ns.rotation:KnownSpells() or nil)
+    end
 end
 
 -- A riding (or other) trainer saved as your class trainer before 0.35.90:

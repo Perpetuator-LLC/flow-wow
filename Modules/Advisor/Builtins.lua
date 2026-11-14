@@ -124,7 +124,9 @@ ns:Register("advisor", "trainer", {
                         ns.quests and ns.quests.ClassQuestKey),
                 }
             elseif s.level <= level and not known[s.spell] and not listed[s.spell] and not s.quest and not s.note
-                and T.TrainerLacks(s.spell, ns.db.trainer.services, ns.db.trainer.seenAt, level) then
+                and (T.TrainerLacks(s.spell, ns.db.trainer.services, ns.db.trainer.seenAt, level)
+                     -- (or any trainer, on any of your characters or a player who shared: Facts.lua)
+                     or (ns.facts and ns.facts.NotTaught and ns.facts.NotTaught(classToken(), s.spell, level))) then
                 -- (Said once in the log, so the class list can be put right.)
                 T.lacksLogged = T.lacksLogged or {}
                 if not T.lacksLogged[s.spell] then

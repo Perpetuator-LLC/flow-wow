@@ -250,7 +250,10 @@ function P:Share(on)
         return
     end
     local lines = P.ShareLines(ns.db.places, ns.db.mailboxes)
-    ns.db.share = { places = lines, at = date("%Y-%m-%d"), version = ns.Version and ns.Version() or "?" }
+    -- And the game facts Flow has learned (Facts.lua): what trainers teach, quest spots.
+    local facts = ns.facts and ns.facts.ShareLines and ns.facts.ShareLines(ns.db.facts, ns.db.learnedSpots) or {}
+    ns.db.share = { places = lines, facts = facts, at = date("%Y-%m-%d"), version = ns.Version and ns.Version() or "?" }
+    if #facts > 0 then ns:Print(string.format("and %d game fact(s): what class trainers teach, and where quests without a known place were done.", #facts)) end
     ns:Print(string.format("sharing %d spots (NPCs only: names, where, what they do; nothing about you). "
         .. "/reload to save the list, then send it to Flow: docs/SHARE-PLACES.md (or ask your Claude: \"share my Flow places\").", #lines))
 end

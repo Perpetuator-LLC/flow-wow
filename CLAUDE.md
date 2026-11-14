@@ -140,11 +140,20 @@ bankers, auctioneers, quest givers) and mailboxes. A player can share those with
 1. In game they type `/flow places share`, then `/reload` (the game saves the list on reload).
 2. Run `powershell -ExecutionPolicy Bypass -File tools\share-places.ps1` (`-DryRun` first if you
    like). It merges their list into `Learned\Places.lua` and says how many spots it added.
-3. On a clone that follows `main`: a branch, commit only `Learned\Places.lua`, and open a pull
+   Then `tools\share-facts.ps1` the same way: it merges the game facts their Flow learned (what
+   class trainers teach and don't, where unplaced quests were done: `Modules/Facts.lua`) into
+   `Learned\Facts.lua`. "No game facts shared" just means they have none yet.
+3. On a clone that follows `main`: a branch, commit only `Learned\Places.lua` and
+   `Learned\Facts.lua`, and open a pull
    request to Perpetuator-LLC/flow-wow (CONTRIBUTING.md). Data-only pull requests need **no version
    bump and no CHANGELOG entry**. On the maintainer's branch: commit it with the next version.
-4. Never put anything about the player in it: the script only writes NPC names, NPC IDs, where
-   they stand, their roles and the faction that used them. Don't hand-edit the file.
+4. Never put anything about the player in it: the scripts only write NPC names, NPC IDs, where
+   they stand, their roles and the faction that used them, and game facts (class, spell, rank,
+   level, price, quest number, map spot). Don't hand-edit the files.
+5. **When a player's report shows Flow's built-in data is wrong** (a spell a trainer doesn't
+   teach, an NPC with the wrong role, a quest with no place), don't only patch that one case:
+   make the game's answer something Flow records (`Modules/Facts.lua`, `Quests/LearnedSpots.lua`,
+   `Nav/Places.lua`) so it corrects itself for every player who shares.
 
 ## Blocked actions ("Flow has been blocked from an action only available to the Blizzard UI")
 
