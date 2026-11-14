@@ -251,6 +251,8 @@ Flow for WoW is a separate project from Flow Engine.
   (`/flow buffbutton on`, `/flow buffkey <key>`). In a fight that key is your quickest heal;
   Shift, Ctrl, Alt and Ctrl + Shift with it cast your heal over time, your other heal, your
   healthstone or potion, and your bandage (`/flow carekeys`).
+- **Flow Meters**: in a group and at training dummies, two small lists: threat on your
+  target and damage per second (the top two and you), from the game's own counts.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
   later that no stop on your route uses) and deposits it at a click; the route adds a bank
   stop when one is on your way. Away from a bank its "In your bank" view shows what was there

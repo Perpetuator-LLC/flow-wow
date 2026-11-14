@@ -751,6 +751,12 @@ local function drawSolo(c, mapID, plan, at, T)
             if x then pts[#pts + 1] = { j = j, x = x, y = y, s = s } end
         end
     end
+    -- The first stop has no stop before it: the way there starts at you
+    -- ("the top one doesn't show me to the first objective", 0.35.211).
+    if at == 1 and pts[1] and pts[1].j == 1 then
+        local px, py = toMap(ns.nav:PlayerPos(), mapID)
+        if px then legs[#legs + 1] = { px, py, pts[1].x, pts[1].y, color = T.route, alpha = FIRST_ALPHA } end
+    end
     for k = 1, #pts - 1 do
         legs[#legs + 1] = { pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, color = T.route, alpha = REST_ALPHA }
     end

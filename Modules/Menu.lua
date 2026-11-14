@@ -534,6 +534,8 @@ function Menu:RouteItemsRaw()
     window("Flow Improvements", ns.advisor and ns.advisor.TogglePanel and function() ns.advisor:TogglePanel() end)
     window("Flow Professions", ns.commands.professions and function() ns.commands.professions("") end)
     window("Flow Setup", ns.commands.setup, true)
+    window("Flow Banker", ns.banker and ns.banker.Toggle and function() ns.banker:Toggle() end)
+    for _, it in ipairs(safe(ns.meters and ns.meters.MenuItems)) do windows[#windows + 1] = it end
     section("Flow windows", windows)
     return items
 end

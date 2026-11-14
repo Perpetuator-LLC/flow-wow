@@ -1028,6 +1028,93 @@ local function currentDungeon()
     end
 end
 
+-------------------------------------------------------------------------------
+-- Walking in: which of this dungeon's quests you have, and which you don't
+-------------------------------------------------------------------------------
+-- "While I was in that dungeon there were some quests I missed: how can we
+-- prevent that? It would be great if it showed, when zoning in to an
+-- instance, the quests missing for that one." (0.35.211) Said once in chat
+-- when you enter (and kept in the log); /flow dungeon says it again.
+-- Bosses and where they stand aren't here yet: Flow has no dungeon maps.
+
+-- Pure: this dungeon's quests, split. ids: its quests; get(id) -> quest;
+-- inLog[id]; done(id); eligible(q) -> bool; level: yours.
+--   -> have (names in your log), missing ({ id, name, level, from })
+function D.EnterSplit(ids, get, inLog, done, eligible, level)
+    local have, missing = {}, {}
+    for _, id in ipairs(ids or {}) do
+        local q = get(id)
+        if q and q.name then
+            if inLog[id] then
+                have[#have + 1] = q.name
+            elseif not done(id) and eligible(q) and (not level or (q.requiredLevel or 0) <= level) then
+                missing[#missing + 1] = { id = id, name = q.name, level = q.level, from = q.from }
+            end
+        end
+    end
+    table.sort(have)
+    table.sort(missing, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    return have, missing
+end
+
+-- Pure: the lines to say. max: how many missing quests are named.
+function D.EnterLines(name, have, missing, max)
+    max = max or 6
+    local out = {}
+    if #have == 0 and #missing == 0 then return out end
+    out[1] = string.format("%s: %d of its quests in your log%s", name, #have, #have > 0 and (": " .. table.concat(have, ", ")) or "")
+    if #missing > 0 then
+        local names = {}
+        for i = 1, math.min(max, #missing) do
+            local m = missing[i]
+            names[i] = m.name .. (m.from and (" (" .. m.from .. ")") or "")
+        end
+        out[2] = string.format("Not in your log (%d): %s%s", #missing, table.concat(names, "; "),
+            #missing > max and string.format("; and %d more", #missing - max) or "")
+        out[3] = "Some may need an earlier quest first. Leave and pick them up, or ask your group to share them."
+    end
+    return out
+end
+
+function D.HereLines()
+    local here = currentDungeon()
+    local d = here and dungeons and dungeons[here]
+    if not d then return {}, nil end
+    local Q = ns.quests
+    local function get(id)
+        local q = quest(id)
+        if not q then return nil end
+        local giver = starterNPC(q)
+        return { name = q.name, level = q.level, requiredLevel = q.requiredLevel, raw = q, from = giver and giver.name or nil }
+    end
+    local have, missing = D.EnterSplit(d.ids, get, Q:LogIds(), function(id) return Q:IsCompleted(id) end,
+        function(q) local ok, yes = pcall(D.Eligible, q.raw); return ok and yes == true end, UnitLevel("player"))
+    return D.EnterLines(d.name, have, missing), here
+end
+
+local saidFor
+local function onEnter()
+    local ok, lines, here = pcall(D.HereLines)
+    if not ok then ns:Log("quests", "dungeon entry check failed: " .. tostring(lines)) return end
+    if not here then saidFor = nil return end
+    if here == saidFor then return end
+    saidFor = here
+    for i, l in ipairs(lines) do
+        if i == 1 then ns:Print(l) else print("  " .. l) end
+        ns:Log("quests", "dungeon entry: " .. l)
+    end
+end
+for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do
+    ns:On(ev, function() if C_Timer then C_Timer.After(4, onEnter) end end)
+end
+ns.commands.dungeon = function()
+    local ok, lines, here = pcall(D.HereLines)
+    if not ok then ns:Print("dungeon check failed: " .. tostring(lines)) return end
+    if not here then ns:Print("you're not in a dungeon Flow knows (it says this dungeon's quests when you walk in)") return end
+    if #lines == 0 then ns:Print("no quests of this dungeon for you that Flow knows of") return end
+    for i, l in ipairs(lines) do if i == 1 then ns:Print(l) else print("  " .. l) end end
+end
+
 local function questOf(key)
     return tonumber(key:match("^(%d+):") or key:match("^pickup:(%d+)$") or "")
 end

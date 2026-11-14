@@ -9796,3 +9796,81 @@ ns:Register("test", "map: with your own waypoint set, Flow's route stays off the
     ns.db.nav.mapWaypointOnly = was
     t:ok(pcall(M.Redraw, M), "the map draws")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.211: Flow Meters; the first stop's way from you; a dungeon's quests
+-- when you walk in.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: the top two and you; more rows on request", function(t)
+    local M = ns.meters
+    local function same(a, b)
+        if #a ~= #b then return false end
+        for i = 1, #a do if a[i] ~= b[i] then return false end end
+        return true
+    end
+    t:ok(same(M.Pick(5, 3, 4), { 1, 2, 4 }), "three rows, you're fourth: the top two and you")
+    t:ok(same(M.Pick(5, 3, 1), { 1, 2, 3 }), "you're on top: the third is added")
+    t:ok(same(M.Pick(5, 3, 2), { 1, 2, 3 }), "you're second: the third is added")
+    t:ok(same(M.Pick(5, 3, nil), { 1, 2, 3 }), "you're not on the list: the top three")
+    t:ok(same(M.Pick(2, 3, 2), { 1, 2 }), "only two in the fight: two rows")
+    t:ok(same(M.Pick(0, 3, nil), {}), "nobody: no rows")
+    t:ok(same(M.Pick(12, 5, 9), { 1, 2, 3, 4, 9 }), "five rows, you're ninth: you take the last row")
+    t:ok(same(M.Pick(12, 10, 3), { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }), "ten rows: the top ten")
+    t:eq(M.Short(950), "950", "a small number, whole")
+    t:eq(M.Short(1234), "1.2k", "thousands")
+    t:eq(M.Short(45600), "46k", "tens of thousands")
+    t:eq(M.Short(2300000), "2.3m", "millions")
+    t:eq(M.Short(nil), "", "no number: nothing")
+    local sorted = M.Sort({ { name = "a", value = 10 }, { name = "b", value = 30 }, { name = "c" }, { name = "d", value = 20 } })
+    t:ok(sorted[1].name == "b" and sorted[2].name == "d" and sorted[3].name == "a" and sorted[4].name == "c",
+        "sorted biggest first; one with no readable number goes last")
+    local hidden = M.Sort({ { name = "x" }, { name = "y" }, { name = "z" } })
+    t:ok(hidden[1].name == "x" and hidden[3].name == "z", "all hidden: the game's order is kept")
+    t:ok(M.IsDummy("Training Dummy") and M.IsDummy("Raider's Training Dummy") and not M.IsDummy("Kolkar Wrangler") and not M.IsDummy(nil),
+        "a training dummy by its name")
+    for _, fn in ipairs({ "ReadDamage", "ReadThreat", "Lines", "MenuItems", "Update" }) do
+        local ok, err = pcall(M[fn])
+        t:ok(ok, fn .. " runs here" .. (ok and "" or (": " .. tostring(err))))
+    end
+    local n = M.RowCount()
+    t:ok(n == 3 or n == 5 or n == 10, "three, five or ten rows")
+end)
+
+ns:Register("test", "click: Flow Meters in the Flow menu turns them on and off, and sets the rows", function(t)
+    local M = ns.meters
+    local items = M.MenuItems()
+    t:ok(#items == 4, "a tick and three row choices")
+    local was, rows = ns.db.meters.off, ns.db.meters.rows
+    local ok, err = pcall(items[1].func)
+    t:ok(ok, "the tick runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(M.On(), was == true, "and flips them")
+    ok = pcall(items[3].func)
+    t:ok(ok and M.RowCount() == 5, "five rows on a click")
+    ns.db.meters.off, ns.db.meters.rows = was, rows
+    pcall(M.Update)
+end)
+
+ns:Register("test", "dungeon: walking in, the quests you have and the ones you don't", function(t)
+    local D = ns.dungeons
+    local quests = {
+        [1] = { name = "Testing an Enemy's Strength", level = 15 },
+        [2] = { name = "Hidden Enemies", level = 16, from = "Thrall" },
+        [3] = { name = "Slaying the Beast", level = 16 },
+        [4] = { name = "For Another Class", level = 16, wrong = true },
+        [5] = { name = "Far Too High", level = 40, requiredLevel = 35 },
+    }
+    local have, missing = D.EnterSplit({ 1, 2, 3, 4, 5, 99 }, function(id) return quests[id] end, { [1] = true },
+        function(id) return id == 3 end, function(q) return not q.wrong end, 13)
+    t:ok(#have == 1 and have[1] == "Testing an Enemy's Strength", "the one in your log")
+    t:ok(#missing == 1 and missing[1].name == "Hidden Enemies", "the one you could have: not done, yours to take, not too high")
+    local lines = D.EnterLines("Ragefire Chasm", have, missing)
+    t:ok(lines[1]:find("Ragefire Chasm: 1 of its quests in your log", 1, true) ~= nil, "it says what you have: " .. tostring(lines[1]))
+    t:ok(lines[2]:find("Hidden Enemies (Thrall)", 1, true) ~= nil, "and what's missing, with who gives it: " .. tostring(lines[2]))
+    t:eq(#D.EnterLines("Ragefire Chasm", {}, {}), 0, "nothing of this dungeon for you: silent")
+    local many = {}
+    for i = 1, 9 do many[i] = { name = "Quest " .. i } end
+    t:ok(D.EnterLines("X", {}, many)[2]:find("and 3 more", 1, true) ~= nil, "a long list is cut short")
+    local ok, l = pcall(D.HereLines)
+    t:ok(ok and type(l) == "table", "the check runs where you stand" .. (ok and "" or (": " .. tostring(l))))
+end)

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.211
+- **Flow Meters: threat and DPS.** In a party or raid, and at a training dummy, two small
+  lists stacked on each other: threat on your target (percent of the tank's) and damage per
+  second in this fight, with the group's total. Three rows each by default: the top two and
+  you; if you're one of them, the third. Flow menu, Flow windows: on or off, and 3, 5 or 10
+  rows. Ctrl + drag moves them. The numbers are the game's own; in a fight the game may
+  hide some of them from add-ons, and then those rows show in the game's order instead of
+  being sorted (`/flow meters` says which). After each fight the numbers go into the log.
+  Not seen working in game yet.
+- **Walking into a dungeon:** Flow says which of that dungeon's quests are in your log and
+  which you could have but don't, with who gives them (`/flow dungeon` says it again).
+  Bosses and a dungeon map aren't part of this yet.
+- **Hovering your first stop** in the Flow Router or Flow Tracker now shows the way from
+  you to it; before, only the stop and the one after it showed.
+- Flow menu, Flow windows: Flow Banker is listed too.
+
 ## 0.35.210
 - **Your own waypoint: the map shows it alone.** While you have a waypoint of your own, the
   world map leaves out Flow's route, stops and areas, so it's clear where you're headed.

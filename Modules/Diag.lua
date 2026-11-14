@@ -95,6 +95,7 @@ function D:Snapshot(reason, spread)
         { "quest items", function() if c.questitems then c.questitems("") end end },
         { "banker", function() if c.banker then c.banker("") end end },
         { "second key", function() if c.carekeys then c.carekeys("") end end },
+        { "meters", function() if c.meters then c.meters("") end end },
         { "quest marks", function() if c.quest then c.quest("") end end },
         -- (Your quests, skills and the route, for tools\route-check.ps1.)
         { "export", function() if c.export then c.export("dump") end end },
