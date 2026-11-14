@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.219
+- **No "Get Cure Poison" when your trainer doesn't teach it.** Flow's own class list has
+  Cure Poison at level 14, and kept a trainer stop on the route for it after the Moonglade
+  trainer showed no such spell. A spell from Flow's list that your class trainer, read at
+  your current level, doesn't list at all is no longer advised, and no longer keeps the
+  trainer on your route. The log notes it, so the list can be corrected.
+
 ## 0.35.218
 - **No "Learn the flight path: Silva Fil'naveth".** She and Bunthen Plainswind fly druids out
   of Moonglade themselves; there is no flight path to learn from them (and Silva only

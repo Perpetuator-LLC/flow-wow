@@ -10263,3 +10263,37 @@ ns:Register("test", "flight paths: Silva and Bunthen fly druids themselves, noth
     t:eq(#FP.NotRides(nil, nil), 0, "no list: none")
     t:ok(ns:Get("ride", "Silva Fil'naveth") ~= nil and ns:Get("ride", "Bunthen Plainswind") ~= nil, "both are registered as rides")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.219: a spell your trainer doesn't list isn't advised.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "improvements: a spell your trainer, read at your level, doesn't list isn't advised", function(t)
+    local T = ns.trainerAdvice
+    local services = { { name = "Bash" }, { name = "Thorns" } }
+    t:ok(T.TrainerLacks("Cure Poison", services, 14, 14), "the trainer was read at 14 and has no Cure Poison: don't send you there for it")
+    t:ok(not T.TrainerLacks("Bash", services, 14, 14), "a spell it does list: advised as usual")
+    t:ok(not T.TrainerLacks("Cure Poison", services, 12, 14), "the trainer was last read two levels ago: it may list it now")
+    t:ok(not T.TrainerLacks("Cure Poison", {}, 14, 14), "nothing read at a trainer: Flow's own list stands")
+    t:ok(not T.TrainerLacks("Cure Poison", nil, nil, 14), "never been to a trainer: Flow's own list stands")
+    -- The advice itself, with a trainer read at this level that lacks the spell.
+    local _, class = UnitClass("player")
+    local spells = ns:Get("classSpells", class) or {}
+    local level = UnitLevel("player")
+    local known = ns.rotation:KnownSpells()
+    local pick
+    for _, s in ipairs(spells) do
+        if s.level <= level and not known[s.spell] and not s.quest and not s.note and not s.needs then pick = s.spell break end
+    end
+    if not pick then return end   -- (you know everything your level has: nothing to check)
+    with(ns.db, "trainer", { services = { { name = "Flow Test Spell", category = "used", level = 1, sub = "" } }, seenAt = level, npc = "A Trainer" }, function()
+    with(ns, "Log", function() end, function()
+        local ok, items = pcall(ns:Get("advisor", "trainer").check)
+        t:ok(ok, "the advice builds" .. (ok and "" or (": " .. tostring(items))))
+        local said = false
+        for _, it in ipairs(ok and items or {}) do
+            if it.text:find("Get " .. pick, 1, true) then said = true end
+        end
+        t:ok(not said, pick .. " isn't on that trainer's list: no 'Get " .. pick .. "'")
+    end) end)
+end)

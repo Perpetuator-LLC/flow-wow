@@ -36,6 +36,19 @@ end
 --   category, level: as your last visit showed it; seenAt: your level then.
 -- Red at the trainer although its level was within yours then: it needs
 -- something Flow has no data for ("something first: it was red").
+-- Pure: your class trainer, read at this level, doesn't list this spell at
+-- all: then Flow's own class list is wrong about it here, and "Get X (class
+-- trainer)" would send you back for nothing ("I hit the trainer in
+-- Moonglade and they don't have Cure Poison", 0.35.219). services: what the
+-- trainer listed ({ name } each); seenAt: your level at that visit.
+function T.TrainerLacks(spell, services, seenAt, level)
+    if not (spell and type(services) == "table" and #services > 0 and seenAt and level and seenAt >= level) then return false end
+    for _, s in ipairs(services) do
+        if s.name == spell then return false end
+    end
+    return true
+end
+
 function T.WaitsFor(needs, known, category, level, seenAt)
     if needs and not known[needs] then return needs end
     if needs then return nil end   -- (you have what it needs now)
@@ -110,6 +123,15 @@ ns:Register("advisor", "trainer", {
                     goalKey = T.PrereqKey(ns:Get("classSpells", classToken()), waitFor,
                         ns.quests and ns.quests.ClassQuestKey),
                 }
+            elseif s.level <= level and not known[s.spell] and not listed[s.spell] and not s.quest and not s.note
+                and T.TrainerLacks(s.spell, ns.db.trainer.services, ns.db.trainer.seenAt, level) then
+                -- (Said once in the log, so the class list can be put right.)
+                T.lacksLogged = T.lacksLogged or {}
+                if not T.lacksLogged[s.spell] then
+                    T.lacksLogged[s.spell] = true
+                    ns:Log("trainer", string.format("Flow's class list has %s at level %d, but %s (read at level %s) doesn't list it: not advised",
+                        s.spell, s.level, tostring(ns.db.trainer.npc), tostring(ns.db.trainer.seenAt)))
+                end
             elseif s.level <= level and not known[s.spell] and not listed[s.spell] then
                 -- A class quest teaches it: its link is the quest's stop on your route
                 -- ("Accept: Heeding the Call"), and the text says which quest.
