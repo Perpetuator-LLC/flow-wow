@@ -268,8 +268,9 @@ function C:FillTooltip(tt)
 end
 
 -- The corner label for advice the key can't do mid-fight.
-function C.AdviceLabel(adv, healSpell)
+function C.AdviceLabel(adv, healSpell, second)
     if adv and healSpell and adv.spell == healSpell then return "Shift+" end
+    if adv and second then return second end   -- (the second key casts it: "2nd:")
     return "bar:"
 end
 
@@ -301,7 +302,7 @@ local function refreshLabels()
     if adv and adv.spell and not E.adviceSlot then
         local _, tex = A.SpellInfo(adv.spell)
         lockIcon.tex:SetTexture(tex)
-        lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell()))
+        lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell(), ns.careKeys and ns.careKeys.PressFor and ns.careKeys.PressFor(adv)))
         lockIcon:Show()
     else
         lockIcon:Hide()
@@ -402,7 +403,7 @@ local pendingKey = false
 -- the fight on a second "button" of the same secure button ("heal") that
 -- only the Shift binding presses: clicking or Ctrl-dragging the icon is
 -- unchanged. Setting: "Shift + easy key heals you" (/flow settings).
-local healSpell
+local healSpell, anyHeal
 
 -- Your heal for it: the fastest to cast, of the heals you know that land at
 -- once (E.DirectHeal: a heal over time only when it's all you have). The
@@ -427,6 +428,8 @@ function C.HealKeyFor(key) return C.ModKey(key, "SHIFT") end
 function C.TargetKeyFor(key) return C.ModKey(key, "CTRL") end
 
 function C:HealSpell() return healSpell end
+-- Your quick heal, whichever key casts it (Shift + Flow's key, or the second key).
+function C:AnyHeal() return anyHeal end
 
 -------------------------------------------------------------------------------
 -- The queue's three modifier presses (Queue.lua decides what goes on them):
@@ -504,6 +507,9 @@ local function setHeal()
     if InCombatLockdown() or not btn then return end
     local spell = ns.db.cast.shiftHeal ~= false and C.HealFor(E:Definition(),
         function(s) return E:Knows(s) end, function(s) return select(3, A.SpellInfo(s)) end) or nil
+    -- Moved to the second key (CareKeys.lua): Shift + key is an attack's.
+    anyHeal = spell
+    if ns.careKeys and ns.careKeys.Moved and ns.careKeys.Moved() then spell = nil end
     if spell == healSpell then return end
     healSpell = spell
     -- (C:SetQueue puts it on Shift + key, with the other two.)
@@ -552,6 +558,8 @@ local function setEmergency()
     if InCombatLockdown() or not btn then return end
     local BI = ns.buffItems
     local item = C.EmergencyItemFor(ns.db.cast, ns.db.rotation, BI and BI.EmergencyCarry and BI.EmergencyCarry() or nil)
+    -- (On the second key when the heal and potion moved there: Alt + key is an attack's.)
+    if ns.careKeys and ns.careKeys.Moved and ns.careKeys.Moved() then item = nil end
     emergItem = item
     -- (C:SetQueue puts it on Alt + key; without one, Alt takes the queue's spell.)
 end
@@ -682,7 +690,14 @@ end)
 -- "The key follows your form in a fight" (Flow Settings, Your easy key)
 -- turns it off. /flow key test says what each form is given.
 
-local FORM_SNIPPET = [[
+-- The presses a change of form may swap: the key, and each modifier by the
+-- name its click has on the button (SLOT_BUTTON). Shift and Alt only when
+-- they hold attacks (the heal and potion moved to the second key,
+-- CareKeys.lua): a heal or a potion is left where it is.
+C.FORM_SLOTS = { "ctrl", "shift", "alt", "more" }
+local FORM_BUTTON = { ctrl = "ctrl", shift = "heal", alt = "emerg", more = "more" }
+local function formSnippet()
+    local parts = { [[
     if not PlayerInCombat() then return end
     local b = self:GetFrameRef("flowkey")
     if not b then return end
@@ -692,32 +707,47 @@ local FORM_SNIPPET = [[
         b:SetAttribute("spell", k)
         b:SetAttribute("unit", "target")
     end
-    local c = self:GetAttribute("ctrl-" .. newstate)
-    if c and c ~= "" then
-        b:SetAttribute("*type-ctrl", "spell")
-        b:SetAttribute("*spell-ctrl", c)
-        b:SetAttribute("*unit-ctrl", "target")
+    local v
+]] }
+    for _, slot in ipairs(C.FORM_SLOTS) do
+        local name = FORM_BUTTON[slot]
+        parts[#parts + 1] = string.format([[
+    v = self:GetAttribute("%s-" .. newstate)
+    if v and v ~= "" then
+        b:SetAttribute("*type-%s", "spell")
+        b:SetAttribute("*spell-%s", v)
+        b:SetAttribute("*unit-%s", "target")
     end
-]]
+]], slot, name, name, name)
+    end
+    return table.concat(parts)
+end
+C._FormSnippet = formSnippet   -- (tests)
 C.FORM_STATES = 8   -- form numbers the handler is given (0 = no form)
 
 -- Pure: the state driver's condition and each state's spells. forms: your
 -- forms in the game's order ({ name, index } each); keys: the class's
--- formKeys; knows(spell) -> bool. State 0 is no form.
-function C.FormPlan(forms, keys, knows)
-    local function pick(v)
-        if type(v) == "string" then return (not knows or knows(v)) and v or nil end
-        for _, spell in ipairs(v or {}) do
-            if not knows or knows(spell) then return spell end
-        end
-    end
+-- formKeys ({ key, ctrl, shift, alt, more }: a spell or a list, the first
+-- you know); knows(spell) -> bool; slots: the modifiers to fill (default:
+-- Ctrl and Ctrl + Shift only). No spell twice in one form. State 0 is no form.
+function C.FormPlan(forms, keys, knows, slots)
+    slots = slots or { "ctrl", "more" }
     local function entry(e)
         if not e then return nil end
-        local key = pick(e.key)
-        local ctrl = pick(e.ctrl)
-        if ctrl == key then ctrl = nil end
-        if not (key or ctrl) then return nil end
-        return { key = key, ctrl = ctrl }
+        local used, any = {}, false
+        local function pick(v)
+            if type(v) == "string" then v = { v } end
+            for _, spell in ipairs(v or {}) do
+                if not used[spell] and (not knows or knows(spell)) then
+                    used[spell] = true
+                    any = true
+                    return spell
+                end
+            end
+        end
+        local out = { key = pick(e.key) }
+        for _, slot in ipairs(slots) do out[slot] = pick(e[slot]) end
+        return any and out or nil
     end
     local cond, plan = {}, { [0] = entry(keys and keys.none) }
     for _, f in ipairs(forms or {}) do
@@ -728,6 +758,11 @@ function C.FormPlan(forms, keys, knows)
     end
     cond[#cond + 1] = "0"
     return table.concat(cond, "; "), plan
+end
+-- Which modifiers a change of form swaps right now.
+function C.FormSlots()
+    local moved = ns.careKeys and ns.careKeys.Moved and ns.careKeys.Moved()
+    return moved and C.FORM_SLOTS or { "ctrl", "more" }
 end
 
 local formHeader, formCond, formSwitched
@@ -754,13 +789,16 @@ function C.SetFormKeys()
         end
         formHeader = h
         h:SetFrameRef("flowkey", btn)
-        h:SetAttribute("_onstate-flowform", FORM_SNIPPET)
+        h:SetAttribute("_onstate-flowform", formSnippet())
     end
-    local cond, plan = C.FormPlan(A.StanceSpells(), keys, function(spell) return E:Knows(spell) end)
+    local slots = C.FormSlots()
+    local cond, plan = C.FormPlan(A.StanceSpells(), keys, function(spell) return E:Knows(spell) end, slots)
     for i = 0, C.FORM_STATES do
         local p = keys and plan[i]
         formHeader:SetAttribute("key-" .. i, p and p.key or "")
-        formHeader:SetAttribute("ctrl-" .. i, p and p.ctrl or "")
+        for _, slot in ipairs(C.FORM_SLOTS) do
+            formHeader:SetAttribute(slot .. "-" .. i, p and p[slot] or "")
+        end
     end
     if cond ~= formCond then
         if formCond and UnregisterStateDriver then UnregisterStateDriver(formHeader, "flowform") end
@@ -786,9 +824,11 @@ ns:On("UPDATE_SHAPESHIFT_FORM", function()
     local p = C.formPlan[formNow()]
     if not p then return end
     if p.key then lockedSpell = p.key end
-    if p.ctrl then slotView.ctrl = { spell = p.ctrl, kind = "damage", reason = "Your second spell in this form" } end
+    for _, slot in ipairs(C.FORM_SLOTS) do
+        if p[slot] then slotView[slot] = { spell = p[slot], kind = "damage", reason = "This form's spell for this press" } end
+    end
     formSwitched = true
-    ns:Log("rotation", string.format("form key: form %d in a fight, the key casts %s, Ctrl + key %s", formNow(), tostring(p.key), tostring(p.ctrl)))
+    ns:Log("rotation", string.format("form key: form %d in a fight, the key casts %s, Ctrl %s, Shift %s, Alt %s, C+S %s", formNow(), tostring(p.key), tostring(p.ctrl), tostring(p.shift), tostring(p.alt), tostring(p.more)))
 end)
 -- After the fight: what Flow remembers having set is stale (the handler
 -- changed it), so the next update writes the key and Ctrl again.
@@ -796,7 +836,7 @@ ns:On("PLAYER_REGEN_ENABLED", function()
     if formSwitched then
         formSwitched = false
         macro = nil
-        slotText.ctrl = nil
+        for _, slot in ipairs(C.FORM_SLOTS) do slotText[slot] = nil end
     end
     if C_Timer then C_Timer.After(0.3, function() pcall(C.SetFormKeys) end) end
 end)
@@ -813,7 +853,10 @@ function C.FormLines()
     for _, s in ipairs(A.StanceSpells()) do names[s.index] = s.name end
     for i = 0, C.FORM_STATES do
         local p = C.formPlan[i]
-        if p then out[#out + 1] = string.format("    %s: key %s, Ctrl + key %s", names[i] or ("form " .. i), tostring(p.key), tostring(p.ctrl)) end
+        if p then
+            out[#out + 1] = string.format("    %s: key %s, Ctrl %s, Shift %s, Alt %s, Ctrl + Shift %s", names[i] or ("form " .. i), tostring(p.key),
+                tostring(p.ctrl), tostring(p.shift or "(as at the pull)"), tostring(p.alt or "(as at the pull)"), tostring(p.more))
+        end
     end
     return out
 end

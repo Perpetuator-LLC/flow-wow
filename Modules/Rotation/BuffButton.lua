@@ -530,7 +530,8 @@ local function tick(_, dt)
         -- rotation wants that spell again.
         local held = btn:GetAttribute("spell")
         current = held and { spell = held, reason = live and live.reason } or nil
-        if current then paint(current, live and live.spell == held) end
+        -- (Bright too while Flow wants a heal and this key heals: CareKeys.lua.)
+        if current then paint(current, (live and live.spell == held) or (ns.careKeys and ns.careKeys.HealWanted and ns.careKeys.HealWanted())) end
         return
     end
     local ctx = actionCtx()
@@ -597,6 +598,16 @@ end)
 function BB.Set(on)
     cfg().enabled = on and true or false
     applyKey()
+end
+-- Its key, set from Flow Settings and the Flow menu (nil clears it). Giving
+-- it a key turns the button on: a key for a button that's off does nothing.
+function BB.Key() return cfg().key end
+function BB.SetKey(key)
+    if InCombatLockdown() then return false end
+    cfg().key = key
+    if key then cfg().enabled = true end
+    applyKey()
+    return true
 end
 
 -- Options > AddOns > Flow, under "Flow".

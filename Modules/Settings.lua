@@ -108,6 +108,9 @@ local function refresh()
     frame.clear:SetEnabled(ns.db.cast.key ~= nil)
     frame.key2Value:SetText(label(ns.db.cast.key2))
     frame.clear2:SetEnabled(ns.db.cast.key2 ~= nil)
+    local buffKey = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key() or nil
+    frame.key3Value:SetText(label(buffKey) .. ((buffKey and ns.buffButton and not ns.buffButton.On()) and "  |cff888888(buff button off)|r" or ""))
+    frame.clear3:SetEnabled(buffKey ~= nil)
     for _, c in ipairs(frame.checks or {}) do
         local ok, on = pcall(c.get)
         c:SetChecked(ok and on and true or false)
@@ -139,21 +142,67 @@ local function stopCapture(msg)
 end
 
 -- A key was pressed while capturing: check it, then set it or ask.
+-- Which of Flow's own keys already has this key: 1, 2 (the easy key's) or 3
+-- (the buff button's); nil: none. Pure: keys = { key1, key2, buffKey }.
+function S.FlowSlotOf(key, keys)
+    for slot = 1, 3 do
+        if key and keys[slot] == key then return slot end
+    end
+    return nil
+end
+S.SLOT_NAME = { "Flow's key", "Flow's second key", "the buff button's key" }
+-- Sets one of Flow's three keys (3: the buff button's).
+local function setSlotKey(key, slot)
+    if slot == 3 then
+        if ns.buffButton and ns.buffButton.SetKey then ns.buffButton.SetKey(key) end
+    else
+        ns.cast:SetKey(key, slot)
+    end
+end
+local function doneText(key, slot)
+    if slot == 3 then
+        return "|cff66ff66" .. label(key) .. " now presses the buff button; with Shift, Ctrl, Alt or Ctrl + Shift: your heals and potion.|r"
+    end
+    return "|cff66ff66" .. label(key) .. " now casts Flow's suggestion.|r"
+end
+-- The words for a key something else of the game's already uses. Pure.
+function S.ConflictText(keyLabel, what, movement)
+    return string.format("%s%s already does: |cffffd200%s|r. While Flow has the key it does only Flow's thing, never both.\n\"Use it anyway\" keeps your own binding for later; \"Use it and unbind\" takes it off that key for good.",
+        movement and "|cffff9933A movement key: not recommended.|r " or "", keyLabel, what)
+end
+-- Takes the game's own binding off a key, for good (saved with your
+-- bindings). -> what it did, in words, or nil (nothing was on it).
+function S.Unbind(key)
+    if InCombatLockdown() or not (key and SetBinding) then return nil end
+    local what, action = ns.cast:Conflict(key)
+    if not action then return nil end
+    SetBinding(key)
+    if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+    return what
+end
 local function choose(key)
     stopCapture()
+    -- One of Flow's own keys already: it moves (one key can't press two buttons).
+    local buffKey = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key() or nil
+    local mine = S.FlowSlotOf(key, { ns.db.cast.key, ns.db.cast.key2, buffKey })
+    local moved = ""
+    if mine and mine ~= frame.slot then
+        setSlotKey(nil, mine)
+        moved = "  |cffffd200(It was " .. S.SLOT_NAME[mine] .. ": moved.)|r"
+    end
     local what, action = ns.cast:Conflict(key)
+    if what and action and action:find("FlowBuffButton", 1, true) then what = nil end
     if not what then
-        ns.cast:SetKey(key, frame.slot)
-        frame.status:SetText("|cff66ff66" .. label(key) .. " now casts Flow's suggestion.|r")
+        setSlotKey(key, frame.slot)
+        frame.status:SetText(doneText(key, frame.slot) .. moved)
         refresh()
         return
     end
     frame.pendingKey = key
-    local warn = ns.cast:IsMovement(action) and "|cffff9933That's a movement key, so this isn't recommended.|r\n" or ""
-    frame.status:SetText(string.format(
-        "%s%s already does: |cffffd200%s|r.\nUse it for Flow anyway? Your own binding isn't changed; it comes back if you clear Flow's key.",
-        warn, label(key), what))
+    frame.pendingAction = action
+    frame.status:SetText(S.ConflictText(label(key), what, ns.cast:IsMovement(action)))
     frame.confirm:Show()
+    frame.unbind:Show()
     frame.another:Show()
 end
 
@@ -328,7 +377,19 @@ local function build(parent)
     set2:SetPoint("TOPLEFT", 250, y - 28)
     f.clear2 = button(f, "Clear", 80)
     f.clear2:SetPoint("LEFT", set2, "RIGHT", 8, 0)
-    y = y - 28
+    -- The buff button's own key (BuffButton.lua, CareKeys.lua): your second
+    -- key, for buffs out of a fight and heals and potions in one.
+    local name3 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    name3:SetPoint("TOPLEFT", 16, y - 60)
+    name3:SetText("Buff button's key:")
+    f.key3Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.key3Value:SetPoint("LEFT", name3, "RIGHT", 12, 0)
+    local set3 = button(f, "Set key", 90)
+    set3:SetPoint("TOPLEFT", 250, y - 56)
+    f.clear3 = button(f, "Clear", 80)
+    f.clear3:SetPoint("LEFT", set3, "RIGHT", 8, 0)
+    f.set3 = set3
+    y = y - 56
     local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     help:SetPoint("TOPLEFT", 16, y - 32)
     help:SetWidth(WIDTH - 40)
@@ -342,9 +403,11 @@ local function build(parent)
     f.status:SetJustifyH("LEFT")
     f.confirm = button(f, "Use it anyway", 120)
     f.confirm:SetPoint("TOPLEFT", 16, y - 96)
+    f.unbind = button(f, "Use it and unbind", 150)
+    f.unbind:SetPoint("LEFT", f.confirm, "RIGHT", 8, 0)
     f.another = button(f, "Pick another", 110)
-    f.another:SetPoint("LEFT", f.confirm, "RIGHT", 8, 0)
-    f.confirm:Hide(); f.another:Hide()
+    f.another:SetPoint("LEFT", f.unbind, "RIGHT", 8, 0)
+    f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
     y = y - 126
 
     -- Every other key: hover-to-bind mode (Modules/BindMode.lua), here so
@@ -643,10 +706,16 @@ local function build(parent)
     local function startCapture(slot)
         if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
         f.slot = slot
-        f.confirm:Hide(); f.another:Hide()
+        f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
         f.capturing = true
         cap:Show()
     end
+    f.set3:SetScript("OnClick", function() startCapture(3) end)
+    f.clear3:SetScript("OnClick", function()
+        setSlotKey(nil, 3)
+        f.status:SetText("The buff button's key cleared; that key does what it did before.")
+        refresh()
+    end)
     set:SetScript("OnClick", function() startCapture(1) end)
     set2:SetScript("OnClick", function() startCapture(2) end)
     f.clear:SetScript("OnClick", function()
@@ -660,13 +729,23 @@ local function build(parent)
         refresh()
     end)
     f.confirm:SetScript("OnClick", function()
-        ns.cast:SetKey(f.pendingKey, f.slot)
-        f.status:SetText("|cff66ff66" .. label(f.pendingKey) .. " now casts Flow's suggestion.|r")
-        f.confirm:Hide(); f.another:Hide()
+        setSlotKey(f.pendingKey, f.slot)
+        f.status:SetText(doneText(f.pendingKey, f.slot))
+        f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
+        refresh()
+    end)
+    -- Takes the key and removes the game's own binding from it, for good
+    -- ("allow me to clear the conflict too").
+    f.unbind:SetScript("OnClick", function()
+        if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
+        local was = S.Unbind(f.pendingKey)
+        setSlotKey(f.pendingKey, f.slot)
+        f.status:SetText(doneText(f.pendingKey, f.slot) .. (was and ("  |cffffd200" .. was .. " no longer has that key.|r") or ""))
+        f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
         refresh()
     end)
     f.another:SetScript("OnClick", function()
-        f.confirm:Hide(); f.another:Hide()
+        f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
         f.capturing = true
         cap:Show()
     end)

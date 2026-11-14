@@ -9607,3 +9607,105 @@ ns:Register("test", "second key: heals and potions on the buff key's modifiers",
         t:ok(okA, "setting the presses runs without error" .. (okA and "" or (": " .. tostring(err))))
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.207: the heal and potion move to the second key; every press follows
+-- your form; key conflicts can be cleared; the buff key in Flow Settings.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: with heals on the second key, Shift and Alt are attacks", function(t)
+    local Q = ns.queue
+    local def = { fightKeys = function() return { ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
+        alt = { "Nature's Grasp", "War Stomp" } } end }
+    local all = function() return true end
+    local ctrl, alt, shift = Q.FightSpells(def, all, "Wrath")
+    t:ok(ctrl == "Moonfire" and alt == "Nature's Grasp" and shift == "Entangling Roots", "Ctrl, Alt and Shift each get their own spell")
+    local wrath = { spell = "Wrath", kind = "damage" }
+    local slots = Q.Slots(wrath, { ctrlSpell = ctrl, altSpell = alt, shiftSpell = shift, keySpell = "Wrath", more = { "War Stomp" } })
+    t:eq(slots.shift and slots.shift.spell, "Entangling Roots", "no heal on Shift: the attack takes it")
+    t:eq(slots.alt and slots.alt.spell, "Nature's Grasp", "no potion on Alt: the attack takes it")
+    t:eq(slots.more and slots.more.spell, "War Stomp", "Ctrl + Shift: one more")
+    slots = Q.Slots(wrath, { heal = "Regrowth", ctrlSpell = ctrl, altSpell = alt, shiftSpell = shift, emergency = "item:858" })
+    t:eq(slots.shift.spell, "Regrowth", "a heal on Shift (no second key): it stays")
+    t:eq(slots.alt.item, "item:858", "and the potion stays on Alt")
+    -- A heal advised: Shift only when Shift heals.
+    t:eq(Q.AdviceSlot({ spell = "Healing Touch", kind = "heal" }, { key = wrath, shift = { spell = "Regrowth", kind = "heal" } }), "shift", "Shift heals: a heal advised is Shift")
+    t:eq(Q.AdviceSlot({ spell = "Healing Touch", kind = "heal" }, { key = wrath, shift = { spell = "Entangling Roots", kind = "damage" } }), nil,
+        "Shift is an attack: a heal advised isn't Shift's")
+    local K = ns.careKeys
+    t:eq(K.PressText("key", "E"), "E", "the second key itself")
+    t:eq(K.PressText("alt", "E"), "A-E", "Alt + the second key, short")
+    t:eq(K.PressText("more", "E", true), "Ctrl + Shift + E", "and in words")
+    local c = ns.db.buffButton or {}
+    with(c, "enabled", false, function()
+        t:ok(not K.Moved(), "buff button off: nothing moved, Flow's key keeps its heal")
+        t:eq(ns.rotation.HealPress(), "Shift + key", "and the words say Shift + key")
+        t:eq(K.PressFor({ spell = "Regrowth", kind = "heal" }), nil, "no second key to press")
+    end)
+    t:eq(ns.cast.AdviceLabel({ spell = "Regrowth" }, "Regrowth", nil), "Shift+", "advice label: Shift heals")
+    t:eq(ns.cast.AdviceLabel({ spell = "Regrowth" }, nil, "E:"), "E:", "advice label: the second key")
+    t:eq(ns.cast.AdviceLabel({ spell = "Moonfire" }, nil, nil), "bar:", "advice label: on your bar")
+end)
+
+ns:Register("test", "easy key: every press follows your form", function(t)
+    local C = ns.cast
+    local druid = ns:Get("rotation", "DRUID")
+    local keys = druid.formKeys(ns.rotation)
+    local forms = { { name = "Bear Form", index = 1 } }
+    local known = { Wrath = true, Moonfire = true, ["Entangling Roots"] = true, ["Nature's Grasp"] = true, ["War Stomp"] = true,
+                    Maul = true, ["Demoralizing Roar"] = true, Growl = true, Enrage = true }
+    local knows = function(s) return known[s] == true end
+    local _, plan = C.FormPlan(forms, keys, knows, C.FORM_SLOTS)
+    local c, b = plan[0], plan[1]
+    t:ok(c.key == "Wrath" and c.ctrl == "Moonfire" and c.shift == "Entangling Roots" and c.alt == "Nature's Grasp" and c.more == "War Stomp",
+        "caster: Wrath, Moonfire, Roots, Nature's Grasp, War Stomp: five presses, none twice")
+    t:ok(b.key == "Maul" and b.ctrl == "Demoralizing Roar" and b.shift == "Growl" and b.alt == "Enrage",
+        "bear at this level: Maul, Demoralizing Roar, Growl, Enrage")
+    t:eq(b.more, nil, "nothing left for Ctrl + Shift in bear: left as it was")
+    _, plan = C.FormPlan(forms, keys, knows)
+    t:ok(plan[1].shift == nil and plan[1].alt == nil, "heal and potion on Flow's key: Shift and Alt aren't swapped")
+    local snippet = C._FormSnippet()
+    for _, name in ipairs({ "ctrl", "heal", "emerg", "more" }) do
+        t:ok(snippet:find('"*spell-' .. name .. '"', 1, true) ~= nil, "the game's handler sets the '" .. name .. "' press")
+    end
+    t:ok(snippet:find("PlayerInCombat", 1, true) ~= nil, "only in a fight")
+end)
+
+ns:Register("test", "settings: one key for one Flow button; a conflict can be cleared", function(t)
+    local S = ns.settings
+    t:eq(S.FlowSlotOf("Q", { "BUTTON5", "Q", nil }), 2, "Q is Flow's second key")
+    t:eq(S.FlowSlotOf("E", { "BUTTON5", "Q", "E" }), 3, "E is the buff button's")
+    t:eq(S.FlowSlotOf("F", { "BUTTON5", "Q", "E" }), nil, "F is free of Flow")
+    t:eq(S.FlowSlotOf(nil, { "A" }), nil, "no key: none")
+    local text = S.ConflictText("E", "Interact With Target", false)
+    t:ok(text:find("never both", 1, true) ~= nil, "it says the key won't do both")
+    t:ok(text:find("Use it and unbind", 1, true) ~= nil, "and offers to take the other binding off")
+    t:ok(S.ConflictText("W", "Move Forward", true):find("movement key", 1, true) ~= nil, "a movement key is flagged")
+    t:ok(type(S.Unbind) == "function", "the unbind step is there (it runs only on your click)")
+    local f = S._Build and S._Build()
+    if f then
+        t:ok(f.key3Value ~= nil and f.clear3 ~= nil and f.set3 ~= nil, "Flow Settings has a row for the buff button's key")
+        t:ok(f.unbind ~= nil and not f.unbind:IsShown(), "the unbind button is hidden until a key in use is picked")
+    end
+    local BB = ns.buffButton
+    t:ok(type(BB.SetKey) == "function" and type(BB.Key) == "function", "the buff button's key can be set from the settings")
+end)
+
+ns:Register("test", "click: the Flow menu's Keys section toggles the buff button", function(t)
+    local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    t:ok(ok and type(items) == "table", "the menu builds")
+    local found, keys
+    for _, it in ipairs(ok and items or {}) do
+        if type(it.text) == "string" and it.text:find("^Buff button: a second key") then found = it end
+        if type(it.text) == "string" and it.text:find("^Set Flow's keys") then keys = it end
+    end
+    t:ok(found ~= nil, "the Keys section has the buff button's tick")
+    t:ok(keys ~= nil and type(keys.func) == "function", "and an entry to set both buttons' keys")
+    if not found or InCombatLockdown() then return end
+    local BB = ns.buffButton
+    local was = BB.On()
+    local okC, err = pcall(found.func)
+    t:ok(okC, "a click runs" .. (okC and "" or (": " .. tostring(err))))
+    t:eq(BB.On(), not was, "it flips the buff button")
+    BB.Set(was)
+end)

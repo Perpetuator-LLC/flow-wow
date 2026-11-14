@@ -743,7 +743,10 @@ local function readyToPress(id)
     if not itemReady(id) then return false end
     if not ns.ItemOnBar or ns.ItemOnBar(id) then return true end
     local C = ns.cast
-    return C ~= nil and C.EmergencyItem ~= nil and C:EmergencyItem() == "item:" .. id
+    if C ~= nil and C.EmergencyItem ~= nil and C:EmergencyItem() == "item:" .. id then return true end
+    -- (Or Alt + your second key: CareKeys.lua.)
+    local K = ns.careKeys
+    return K ~= nil and K.Holds ~= nil and K.Holds("item:" .. id)
 end
 
 -- The healthstone (else healing potion) you carry, usable right now or not:
@@ -763,6 +766,10 @@ function BI.EmergencyStep()
     local C = ns.cast
     local first = C and C.Keys and C:Keys()[1]
     local how = BI.EmergencyHow("item:" .. it.id, C and C.EmergencyItem and C:EmergencyItem(), first and C.ItemKeyFor and C.ItemKeyFor(first))
+    local K = ns.careKeys
+    if K and K.Holds and K.Holds("item:" .. it.id) and K.PressFor then
+        how = "press " .. (K.PressFor({ item = "item:" .. it.id }, true) or "Alt + your second key")
+    end
     return useStep(it, "emergency", it.kind == "healthstone" and "Healthstone!" or "Healing potion!",
         "Low health: use your " .. it.name .. " now (" .. how .. ")")
 end

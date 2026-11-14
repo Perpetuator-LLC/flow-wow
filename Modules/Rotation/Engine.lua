@@ -303,6 +303,14 @@ function E.DirectHeal(heals, hots, ok, castMs)
     return fastest(true) or fastest(false)
 end
 
+-- How you press your heal in a fight, in words: Shift + Flow's key, or the
+-- second key when your heals live there (CareKeys.lua).
+function E.HealPress()
+    local K = ns.careKeys
+    if K and K.Moved and K.Moved() then return "your second key" end
+    return "Shift + key"
+end
+
 -- Pure: is a lingering heal still on you? up: its buff shows; castAt: when
 -- you last cast it (nil: never); lasts: its seconds.
 function E.Lingers(up, castAt, lasts, now)
@@ -359,9 +367,9 @@ function E:EarlyHeal(ctx, def, hurt, now)
             local direct = E.DirectHeal(heals, def.hots, function(sp) return not lingering[sp] and self:Ready(sp) end,
                 function(sp) return select(3, A.SpellInfo(sp)) end)
             -- (Only the lingering heal to cast: again, then. Its first part lands at once.)
-            return heal(direct or fast or again, "You've been hit a lot: heal now (Shift + key)")
+            return heal(direct or fast or again, "You've been hit a lot: heal now (" .. E.HealPress() .. ")")
         end
-        if hurt >= H.inHot and hot then return heal(hot, "Hit for a while: " .. hot .. " now, before it's a problem (Shift + key)") end
+        if hurt >= H.inHot and hot then return heal(hot, "Hit for a while: " .. hot .. " now, before it's a problem (" .. E.HealPress() .. ")") end
         return nil
     end
     if hurt < H.outStart then return nil end
@@ -1207,7 +1215,7 @@ function E:FriendTarget(ctx, def, now)
             heal.hot = hot
         end
     end
-    local direct = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
+    local direct = ns.cast and ((ns.cast.AnyHeal and ns.cast:AnyHeal()) or (ns.cast.HealSpell and ns.cast:HealSpell()))
     if direct and self:Ready(direct, "target") then heal.direct = direct end
     local share, cant = E.ManaShare(), E.CantAfford(def)
     local pick = E.FriendStep(f, buffs, heal, E.CanSpare(share, cant, E.FRIEND_MANA), E.CanSpare(share, cant, E.FRIEND_HEAL_MANA))

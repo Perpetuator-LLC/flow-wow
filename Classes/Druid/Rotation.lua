@@ -231,20 +231,22 @@ ns:Register("rotation", "DRUID", {
         -- Moonfire should be cast, and instead Roots goes on my bar: I'll be
         -- casting Moonfire and Wrath a lot, Roots less often." The key opens
         -- with Roots by itself; in the fight Roots is on Ctrl + Shift.)
-        return { ctrl = { "Moonfire", "Entangling Roots" }, alt = { "Nature's Grasp", "War Stomp" },
-                 more = { "Entangling Roots", "Nature's Grasp" } }
+        -- (shift: only while your heal is on the second key, CareKeys.lua.)
+        return { ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
+                 alt = { "Nature's Grasp", "War Stomp" },
+                 more = { "Entangling Roots", "Nature's Grasp", "War Stomp" } }
     end,
 
     -- What the key and Ctrl + key cast in each form, for a change of form
     -- in the middle of a fight (Cast.lua: the key follows your form).
     formKeys = function()
-        return {
-            none = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" } },
-            ["Bear Form"] = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" } },
-            ["Dire Bear Form"] = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" } },
-            ["Cat Form"] = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" } },
-            ["Moonkin Form"] = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" } },
-        }
+        local caster = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
+                         alt = { "Nature's Grasp", "War Stomp" }, more = { "Entangling Roots", "Nature's Grasp", "War Stomp" } }
+        local bear = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" }, shift = { "Bash", "Growl", "Demoralizing Roar" },
+                       alt = { "Enrage", "Growl" }, more = { "Demoralizing Roar", "Growl", "Enrage" } }
+        local cat = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" }, shift = { "Rake", "Rip" },
+                      alt = { "Tiger's Fury", "Dash" }, more = { "Rip", "Prowl" } }
+        return { none = caster, ["Moonkin Form"] = caster, ["Bear Form"] = bear, ["Dire Bear Form"] = bear, ["Cat Form"] = cat }
     end,
 
     -- Default priority (first match wins).

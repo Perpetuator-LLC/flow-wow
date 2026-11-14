@@ -49,6 +49,12 @@ function K.Wanted() return cfg().care ~= false end
 -- On: the buff button is on, has a key, and this isn't switched off.
 function K.Active() return BB.On() and cfg().key ~= nil and K.Wanted() end
 
+-- The heal and the potion have left Flow's own key (0.35.207: "yes, move
+-- them"): Shift + Flow's key and Alt + Flow's key are attacks, and looking
+-- after yourself is this key's. Only while this key is active; "Flow's key
+-- keeps its heal and potion" in Flow Settings puts them back on both.
+function K.Moved() return K.Active() and cfg().keepOnMain ~= true end
+
 -- Pure: the key with a slot's modifiers, in the game's order.
 --   K.KeyFor("E", "more") -> "CTRL-SHIFT-E"; a key that already uses one: nil.
 function K.KeyFor(key, slot, modKey)
@@ -252,6 +258,43 @@ function K.Apply()
     return true
 end
 
+-- Does one of this key's presses cast this item or spell? -> the slot
+-- ("key", "shift", "ctrl", "alt", "more") or nil.
+function K.SlotOf(what)
+    if not (K.Active() and K.plan and what) then return nil end
+    for _, slot in ipairs({ "key", "shift", "ctrl", "alt", "more" }) do
+        local s = K.plan[slot]
+        if s and ((s.item and s.item == what) or (s.spell and s.spell == what)) then return slot end
+    end
+    return nil
+end
+function K.Holds(what) return K.SlotOf(what) ~= nil end
+-- Pure: the press in a few letters ("E", "S-E", "C-E", "A-E", "CS-E"), or in words.
+function K.PressText(slot, keyLabel, words)
+    if words then return (slot == "key" and "" or (K.NAME[slot] .. " + ")) .. keyLabel end
+    local short = { key = "", shift = "S-", ctrl = "C-", alt = "A-", more = "CS-" }
+    return (short[slot] or "") .. keyLabel
+end
+-- How to press what Flow advises, when this key casts it (a heal advised
+-- counts as the key itself: it heals you, if not with that very spell).
+function K.PressFor(advice, words)
+    if not (K.Active() and advice) then return nil end
+    local slot = K.SlotOf(advice.item or advice.spell)
+    if not slot and K.Moved() and (advice.kind == "heal" or advice.kind == "emergency") and advice.spell then slot = "key" end
+    if not slot then return nil end
+    local key = cfg().key
+    local label = (ns.cast and ns.cast.ShortKey and ns.cast.ShortKey(key, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end)) or key
+    return K.PressText(slot, label, words) .. (words and "" or ":")
+end
+-- Flow wants a heal right now (in a fight): the buff button lights up.
+function K.HealWanted()
+    if not K.Active() then return false end
+    for _, s in ipairs({ E.current, E.advice }) do
+        if s and (s.kind == "heal" or s.kind == "emergency") then return true end
+    end
+    return false
+end
+
 -- The key's own spell for a fight (BuffButton asks at the pull): your
 -- quickest heal, or nil (off, or no heal known: the buff button's own way).
 function K.FightKey()
@@ -303,6 +346,18 @@ ns:Register("help", "carekeys", { order = 31, title = "The second key: heals and
     "/flow carekeys: what each press is set to.",
 } })
 
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "Flow's key keeps its heal and potion too",
+        note = "(Shift and Alt + Flow's key)",
+        tip = "With heals and potions on the buff button's key, Shift + Flow's key and Alt + Flow's key become two more "
+            .. "attacks (a druid's Entangling Roots and Nature's Grasp). Tick this to keep your heal on Shift and your "
+            .. "potion on Alt of Flow's key as well.",
+        get = function() return cfg().keepOnMain == true end,
+        set = function(on) cfg().keepOnMain = on and true or nil end,
+    })
+end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",

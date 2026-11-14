@@ -482,6 +482,21 @@ function Menu:RouteItemsRaw()
     section("Arrow", safe(nav.ArrowMenuItems, nav))
 
     section("Keys", {
+        -- Both of Flow's buttons and their keys ("we should be able to toggle the
+        -- buff button on in the menu and bind both", 0.35.207).
+        { text = "Set Flow's keys: the easy key and the buff button's (Flow Settings)...", disabled = InCombatLockdown(),
+          tip = "Flow's key, a second key for it, and the buff button's own key. A key something else uses is shown, and can be taken off that.",
+          func = function() if ns.settings and ns.settings.Open then ns.settings:Open() end end },
+        { text = "Buff button: a second key for buffs, heals and potions", stay = true, disabled = InCombatLockdown(),
+          checked = ns.buffButton ~= nil and ns.buffButton.On(),
+          tip = "A blue button left of Flow's icon with its own key. Out of a fight: your next buff, bandage or food. In a fight: your heal; with Shift, Ctrl, Alt or Ctrl + Shift: your other heals, your potion, your bandage. Flow's own key then has Shift and Alt free for two more attacks.",
+          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.On() end,
+          func = function()
+              local BB = ns.buffButton
+              if not BB or InCombatLockdown() then return end
+              BB.Set(not BB.On())
+              if BB.On() and not BB.Key() then ns:Print("buff button on. It has no key yet: Flow menu, Keys, \"Set Flow's keys\" (or /flow buffkey <key>).") end
+          end },
         -- Hover-to-bind mode (also in Flow Settings and /flow bind).
         { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
           func = function() if ns.bind then ns.bind:Start() end end },

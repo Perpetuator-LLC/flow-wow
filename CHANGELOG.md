@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.207
+- **Heal and potion moved to the second key.** With the buff button on and a key of its own,
+  Shift + Flow's key and Alt + Flow's key are two more attacks instead of your heal and
+  potion. A caster druid's five presses: Wrath, Moonfire (Ctrl), Entangling Roots (Shift),
+  Nature's Grasp (Alt), War Stomp (Ctrl + Shift). A heal Flow advises in a fight lights the
+  buff button and names its key. "Flow's key keeps its heal and potion too" in Flow
+  Settings keeps them on both.
+- **Every press follows your form.** Change form in a fight and all of Flow's key changes
+  with it, not only the key and Ctrl: in Bear Form at this level Maul, Demoralizing Roar
+  (Ctrl), Growl (Shift), Enrage (Alt). `/flow key test` lists each form's presses.
+- **Keys in one place.** Flow Settings has a third row, "Buff button's key", beside Flow's
+  key and its second key. A key one of Flow's buttons already has moves to the one you set
+  it for. A key something of the game's uses: Flow says what, that the key will do only
+  Flow's thing while Flow has it (never both), and offers "Use it and unbind" to take the
+  other binding off that key for good.
+- **Flow menu, Keys:** "Set Flow's keys" opens that page, and a tick turns the buff button
+  on and off.
+- None of this has been seen working in game yet.
+
 ## 0.35.206
 - **A second key for heals and potions.** Flow already had a second button with its own key:
   the buff button (`/flow buffbutton on`, then `/flow buffkey <key>`). That key now has

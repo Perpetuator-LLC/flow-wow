@@ -74,7 +74,13 @@ function Q.FightSpells(def, knows, keySpell, engine)
     end
     local ctrl = first(keys and keys.ctrl or Q.Attacks(def))
     local alt = first(keys and keys.alt, ctrl)
-    return ctrl, alt
+    -- Shift, for when your heal lives on the second key (CareKeys.lua): the
+    -- class's shift list, never what Ctrl or Alt already cast.
+    local shift
+    for _, spell in ipairs(keys and keys.shift or {}) do
+        if spell ~= keySpell and spell ~= ctrl and spell ~= alt and knows(spell) then shift = spell break end
+    end
+    return ctrl, alt, shift
 end
 
 -- The four slots, from plain values (the tests pass their own).
@@ -105,6 +111,8 @@ function Q.Slots(main, o)
     end
     if not ctrl and o.ctrlSpell then ctrl = { spell = o.ctrlSpell, kind = "damage", reason = "Your second spell for the fight" } end
     if not alt and o.altSpell then alt = { spell = o.altSpell, kind = "damage", reason = "Your third spell for the fight" } end
+    -- (Only without a heal on Shift: it moved to the second key.)
+    if not shift and o.shiftSpell then shift = { spell = o.shiftSpell, kind = "damage", reason = "Your fourth spell for the fight" } end
     -- Ctrl + Shift: the first of the fight's other spells (o.more, in the
     -- class's order) that no other press already casts.
     local taken = {}
@@ -152,7 +160,7 @@ function Q.AdviceSlot(advice, slots)
         local s = slots[name]
         if s and ((s.item and s.item == advice.item) or (s.spell and s.spell == advice.spell)) then return name end
     end
-    if slots.shift and advice.spell and (advice.kind == "heal" or advice.kind == "emergency") then return "shift" end
+    if slots.shift and slots.shift.kind == "heal" and advice.spell and (advice.kind == "heal" or advice.kind == "emergency") then return "shift" end
     return nil
 end
 
@@ -196,7 +204,7 @@ function Q.Now(main, locked)
         local ok, spell = pcall(def.pullLock, nil, E)
         if ok then keySpell = spell end
     end
-    local ctrlSpell, altSpell = Q.FightSpells(def, function(spell) return E:Knows(spell) end, keySpell, E)
+    local ctrlSpell, altSpell, shiftSpell = Q.FightSpells(def, function(spell) return E:Knows(spell) end, keySpell, E)
     local options
     local ctx = E.lastCtx
     if not locked and not InCombatLockdown() and main and main.kind == "heal" and def and ctx then
@@ -210,7 +218,7 @@ function Q.Now(main, locked)
     return Q.Slots(main, {
         heal = C and C.HealSpell and C:HealSpell() or nil,
         emergency = C and C.EmergencyItem and C:EmergencyItem() or nil,
-        ctrlSpell = ctrlSpell, altSpell = altSpell, friend = friend, options = options,
+        ctrlSpell = ctrlSpell, altSpell = altSpell, shiftSpell = shiftSpell, friend = friend, options = options,
         keySpell = keySpell, more = Q.MoreList(def, function(spell) return E:Knows(spell) end, E),
     })
 end
