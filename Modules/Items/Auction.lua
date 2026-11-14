@@ -146,15 +146,182 @@ function AH:Wanted()
     return out
 end
 
-function AH:Scan()
-    if not classic() then
-        if not AH.saidNoApi then
-            AH.saidNoApi = true
-            ns:Print("Flow can't read this auction house yet (it uses the newer auction house). Logged for the diagnostics.")
-            ns:Log("ah", "no QueryAuctionItems; C_AuctionHouse: " .. tostring(C_AuctionHouse ~= nil))
+-------------------------------------------------------------------------------
+-- The newer auction house (C_AuctionHouse), 0.35.202. WoW: Forever has only
+-- this one, so Flow knew no prices at all. Two ways, both started when you
+-- open the auction house:
+--   * everything at once (ReplicateItems), where the client has it: the
+--     game allows it about once in 15 minutes; the list is read a few
+--     hundred a frame;
+--   * one search an item, for what's in your bags and on your watch list:
+--     slow (the game throttles searches), but it always works.
+-- Which calls this client has goes into the log the first time, so the
+-- diagnostics say what worked.
+-------------------------------------------------------------------------------
+local CA = C_AuctionHouse
+AH.STEP, AH.TIMEOUT, AH.CHUNK, AH.FULL_EVERY = 0.7, 4, 400, 900
+
+-- Pure: the price of one, from a search result row (a commodity's
+-- { unitPrice }, or an item's { buyoutAmount, quantity }); nil: no buyout.
+function AH.UnitFrom(row)
+    if type(row) ~= "table" then return nil end
+    if type(row.unitPrice) == "number" and row.unitPrice > 0 then return row.unitPrice end
+    local buyout, n = row.buyoutAmount, row.quantity or 1
+    if type(buyout) == "number" and buyout > 0 and type(n) == "number" and n > 0 then return buyout / n end
+    return nil
+end
+-- Pure: the cheapest per item from a full list. rows: { { id, count, buyout } }.
+function AH.Cheapest(rows, into)
+    into = into or {}
+    for _, r in ipairs(rows) do
+        if r.id and (r.buyout or 0) > 0 and (r.count or 0) > 0 then
+            local unit = r.buyout / r.count
+            if not into[r.id] or unit < into[r.id] then into[r.id] = unit end
+        end
+    end
+    return into
+end
+-- Which of the newer calls this client has, as text.
+function AH.NewCalls()
+    local out = {}
+    for _, name in ipairs({ "SendSearchQuery", "MakeItemKey", "GetCommoditySearchResultInfo", "GetItemSearchResultInfo",
+                            "GetNumItemSearchResults", "ReplicateItems", "GetNumReplicateItems", "GetReplicateItemInfo",
+                            "IsThrottledMessageSystemReady", "SendBrowseQuery" }) do
+        out[#out + 1] = name .. "=" .. ((CA and CA[name]) and "yes" or "no")
+    end
+    return table.concat(out, ", ")
+end
+
+local function keep(best)
+    local prices, now, n = store(), time(), 0
+    for id, unit in pairs(best) do
+        AH.Record(prices, id, unit, now)
+        alertIfCheap(id, unit)
+        n = n + 1
+    end
+    if n > 0 and ns.disposition and ns.disposition.Invalidate then ns.disposition:Invalidate() end
+    return n
+end
+
+-- Everything at once.
+local full = { busy = false, i = 0, n = 0, best = nil }
+local function readFull()
+    if not (open and full.busy) then full.busy = false return end
+    local last = math.min(full.n - 1, full.i + AH.CHUNK - 1)
+    for i = full.i, last do
+        local ok, _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, id = pcall(CA.GetReplicateItemInfo, i)
+        if ok and id and buyout and buyout > 0 and count and count > 0 then
+            local unit = buyout / count
+            if not full.best[id] or unit < full.best[id] then full.best[id] = unit end
+        end
+    end
+    full.i = last + 1
+    if full.i < full.n then C_Timer.After(0, readFull) return end
+    full.busy = false
+    local kept = keep(full.best)
+    ns.db.ah.lastFull = time()
+    ns:Print(string.format("auction house: read %d listings, prices for %d different items.", full.n, kept))
+    ns:Log("ah", string.format("full scan: %d listings, %d items", full.n, kept))
+end
+ns:On("REPLICATE_ITEM_LIST_UPDATE", function()
+    if full.busy or not (CA and CA.GetNumReplicateItems) then return end
+    local ok, n = pcall(CA.GetNumReplicateItems)
+    if not ok or type(n) ~= "number" or n <= 0 then return end
+    full.busy, full.i, full.n, full.best = true, 0, n, {}
+    readFull()
+end)
+
+-- One search an item.
+local one = { id = nil, at = 0, key = nil }
+local function nextSearch()
+    one.id = nil
+    if not open or #queue == 0 then
+        if open and AH.searched and AH.searched > 0 then
+            ns:Print(string.format("auction house: looked up %d item(s) from your bags, %d with a price.", AH.searched, AH.priced or 0))
+            ns:Log("ah", string.format("searches: %d asked, %d priced", AH.searched, AH.priced or 0))
+            AH.searched = nil
         end
         return
     end
+    if CA.IsThrottledMessageSystemReady and not CA.IsThrottledMessageSystemReady() then C_Timer.After(0.3, nextSearch) return end
+    local item = table.remove(queue, 1)
+    local okK, key = pcall(CA.MakeItemKey, item.id)
+    if not okK or not key then C_Timer.After(0, nextSearch) return end
+    one.id, one.at, one.key = item.id, GetTime(), key
+    AH.searched = (AH.searched or 0) + 1
+    local ok, err = pcall(CA.SendSearchQuery, key, {}, false)
+    if not ok then ns:Log("ah", "search failed: " .. tostring(err)); one.id = nil end
+    -- (No answer: on to the next.)
+    local asked = one.at
+    C_Timer.After(AH.TIMEOUT, function() if one.id == item.id and one.at == asked then nextSearch() end end)
+end
+local function answered(row)
+    if not one.id then return end
+    local unit = AH.UnitFrom(row)
+    if unit then
+        keep({ [one.id] = unit })
+        AH.priced = (AH.priced or 0) + 1
+    end
+    one.id = nil
+    C_Timer.After(AH.STEP, nextSearch)
+end
+ns:On("COMMODITY_SEARCH_RESULTS_UPDATED", function(itemID)
+    if not (one.id and CA and CA.GetCommoditySearchResultInfo) then return end
+    local ok, row = pcall(CA.GetCommoditySearchResultInfo, itemID or one.id, 1)
+    answered(ok and row or nil)
+end)
+ns:On("ITEM_SEARCH_RESULTS_UPDATED", function(itemKey)
+    if not (one.id and CA and CA.GetItemSearchResultInfo) then return end
+    local ok, row = pcall(CA.GetItemSearchResultInfo, itemKey or one.key, 1)
+    answered(ok and row or nil)
+end)
+
+-- Everything in your bags that could be sold there (not soulbound, not
+-- junk), and your watch list: what Flow asks the price of.
+function AH:WantedAll()
+    local out, seen = {}, {}
+    local D = ns.disposition
+    if D and D.EachBagItem then
+        D:EachBagItem(function(bag, slot, link)
+            local id = tonumber(link:match("item:(%d+)"))
+            local okB, bound = pcall(D.IsBound, D, bag, slot)
+            if id and not seen[id] and not (okB and bound) then
+                seen[id] = true
+                out[#out + 1] = { id = id, name = link:match("%[(.-)%]") }
+            end
+        end)
+    end
+    for id, w in pairs(ns.db.ah.watch) do
+        if not seen[id] then seen[id] = true; out[#out + 1] = { id = id, name = w.name } end
+    end
+    return out
+end
+
+function AH:ScanNew()
+    if not (CA and CA.SendSearchQuery and CA.MakeItemKey) then
+        if not AH.saidNoApi then
+            AH.saidNoApi = true
+            ns:Print("Flow can't read this auction house (neither the classic calls nor the newer ones are here). Logged for the diagnostics.")
+        end
+        ns:Log("ah", "no usable auction calls: " .. AH.NewCalls())
+        return
+    end
+    if not AH.loggedCalls then AH.loggedCalls = true; ns:Log("ah", "newer auction house: " .. AH.NewCalls()) end
+    -- Everything at once, where the client has it and enough time has passed.
+    if CA.ReplicateItems and CA.GetReplicateItemInfo and time() - (ns.db.ah.lastFull or 0) > AH.FULL_EVERY then
+        local ok, err = pcall(CA.ReplicateItems)
+        ns:Log("ah", "asked for the whole list: " .. (ok and "sent" or tostring(err)))
+    end
+    queue = AH:WantedAll()
+    AH.searched, AH.priced = 0, 0
+    if #queue > 0 then
+        ns:Print(string.format("auction house: looking up prices for %d item(s) from your bags...", #queue))
+        nextSearch()
+    end
+end
+
+function AH:Scan()
+    if not classic() then return AH:ScanNew() end
     queue = AH:Wanted()
     if #queue > 0 then
         ns:Print(string.format("checking auction house prices for %d item(s)...", #queue))

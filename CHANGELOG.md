@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.202
+- **Auction prices on WoW: Forever.** This client only has the newer auction house, which
+  Flow couldn't read, so it knew no prices. Opening the auction house now starts two things:
+  a read of the whole list where the client allows it (about once in 15 minutes), and a
+  price lookup for each tradeable item in your bags and on your watch list, one search at a
+  time. Flow says in chat how many it priced; the prices feed "auction or vendor" in the
+  Flow Seller and bag icons. Which auction calls the client has is logged for the
+  diagnostics. Not seen working in game yet when this was written.
+
 ## 0.35.201
 - **Flow no longer asks you to sit by every campfire.** The camp-buff step is off unless you
   tick "Sit by a campfire for the camp buffs" in Flow Settings (Your easy key).

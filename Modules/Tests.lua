@@ -9235,3 +9235,36 @@ ns:Register("test", "route: kinds added later follow the older routes; the map l
     t:ok(B._Frame():IsMovable() and B._Frame():GetScript("OnDragStart") ~= nil, "Flow Banker can be dragged (with Ctrl)")
     if not shown then B._Frame():Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.202: prices from the newer auction house.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "auction: prices from the newer auction house's answers", function(t)
+    local AH = ns.auction
+    t:eq(AH.UnitFrom({ unitPrice = 45 }), 45, "a stackable thing: its price each")
+    t:eq(AH.UnitFrom({ buyoutAmount = 500, quantity = 1 }), 500, "a single item: its buyout")
+    t:eq(AH.UnitFrom({ buyoutAmount = 500, quantity = 5 }), 100, "a stack with a buyout: each")
+    t:eq(AH.UnitFrom({ bidAmount = 300 }), nil, "bid only, no buyout: no price")
+    t:eq(AH.UnitFrom({ buyoutAmount = 0 }), nil, "no buyout: no price")
+    t:eq(AH.UnitFrom(nil), nil, "no listing: no price")
+    local best = AH.Cheapest({
+        { id = 2318, count = 20, buyout = 400 }, { id = 2318, count = 10, buyout = 150 },
+        { id = 765, count = 5, buyout = 0 }, { id = 2447, count = 0, buyout = 100 }, { id = 2589, count = 2, buyout = 30 },
+    })
+    t:eq(best[2318], 15, "the cheapest each, of two listings")
+    t:eq(best[765], nil, "a listing with no buyout doesn't count")
+    t:eq(best[2447], nil, "nor one with nothing in it")
+    t:eq(best[2589], 15, "another item")
+    local calls = AH.NewCalls()
+    t:ok(type(calls) == "string" and calls:find("SendSearchQuery=", 1, true) ~= nil, "it can say which calls this client has: " .. calls)
+    local ok, list = pcall(AH.WantedAll, AH)
+    t:ok(ok and type(list) == "table", "the list of what to ask about builds" .. (ok and "" or (": " .. tostring(list))))
+    local seen, dup = {}, false
+    for _, it in ipairs(ok and list or {}) do
+        if seen[it.id] then dup = true end
+        seen[it.id] = true
+    end
+    t:ok(not dup, "each item asked once")
+    t:ok(type(AH.ScanNew) == "function", "the newer scan is there (it only runs at an open auction house)")
+end)
