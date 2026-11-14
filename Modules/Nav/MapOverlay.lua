@@ -1490,6 +1490,7 @@ local function buildList()
         r.leg = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         r.leg:SetPoint("RIGHT", 0, 0)
         r.leg:SetJustifyH("RIGHT")
+        r.leg:SetWordWrap(false)   -- (a long reason is cut with "...", never spilled out of the Router)
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         r.text:SetPoint("LEFT", r.go, "RIGHT", 5, 0)
         r.text:SetPoint("RIGHT", r.leg, "LEFT", -6, 0)
@@ -1541,6 +1542,13 @@ local function buildList()
     end
     return f
 end
+
+-- A locked stop's reason in the Router's list: as wide as its words, never
+-- wider than its column (the stop's name gets the rest of the 300).
+M.REASON_W = 130
+function M.ReasonWidth(textWidth) return math.min((textWidth or 0) + 2, M.REASON_W) end
+-- (Tests) the rows of the Router's list, once it's built.
+function M._ListRows() return list and list.rows end
 
 local function updateList()
     list = list or buildList()
@@ -1634,6 +1642,7 @@ local function updateList()
             r.go:Paint(r.go:IsMouseOver())
             r.go:Show()
             r.text:SetText(ns.nav:FormatStop(e.i, s.goal, labels[e.i]))
+            r.leg:SetWidth(0)
             r.leg:SetText(string.format("+%d yd", s.leg or 0))
             r:Show()
         elseif e and i <= fit and e.blocked then
@@ -1642,13 +1651,17 @@ local function updateList()
             r.go:Hide()
             local text, why = ns.nav:FormatBlocked(b)
             r.text:SetText(text)
+            -- (Never wider than the row has room for: the rest is in its tooltip.)
+            r.leg:SetWidth(0)
             r.leg:SetText(why)
+            r.leg:SetWidth(M.ReasonWidth(r.leg.GetUnboundedStringWidth and r.leg:GetUnboundedStringWidth() or r.leg:GetStringWidth()))
             r:Show()
         elseif e and i <= fit and e.away then
             local g = e.away.goal
             r.key, r.isHidden, r.blocked, r.goal = g.key, false, nil, g
             r.go:Hide()
             r.text:SetText("|cff9a9a9a" .. (g.text or g.title or "?") .. "|r")
+            r.leg:SetWidth(0)
             r.leg:SetText("|cffffd200" .. (ns.dungeons.CONTINENTS[e.away.cont] or "other continent") .. "|r")
             r:Show()
         elseif e and i <= fit and e.hidden then
@@ -1656,6 +1669,7 @@ local function updateList()
             r.key, r.isHidden, r.blocked, r.goal = h.key, true, nil, h
             r.go:Hide()
             r.text:SetText("|cff777777(hidden) " .. (h.text or h.title or "?") .. "|r")
+            r.leg:SetWidth(0)
             r.leg:SetText("|cff777777click to show|r")
             r:Show()
         else

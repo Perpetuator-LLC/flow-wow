@@ -428,6 +428,7 @@ function N:Collect(gathered)
             end
             deferred[g.key] = { text = g.title or g.text, cost = g.cost, since = deferred[g.key] and deferred[g.key].since or time() }
             g.blockedBy = string.format("needs %s (you have %s)", N:Coin(g.cost), N:Coin(money))
+            g.blockedShort = "needs " .. N:Coin(g.cost)
             g.blockIcon = "Interface\\MoneyFrame\\UI-GoldIcon"
         elseif deferred[g.key] then
             ns:Print((g.title or g.text or g.key) .. ": you have the money now, back on the route.")
@@ -1476,9 +1477,43 @@ end
 --           sky blue = your waypoint, bluish green = the rest of the route
 -- A blocked stop for lists: lock (or coin) icon, greyed text, and the reason.
 local LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
+-- A few words for a locked stop's row: its own short form (blockedShort),
+-- else its reason cut to size. The whole reason is in the stop's tooltip and
+-- on its card. (The Flow Router's rows are 300 wide: "Flow doesn't know
+-- where: Questie has no spot for Fish Chunks. Your quest log says how." ran
+-- out of the Router and over the quest log beside it.)
+N.BLOCKED_MAX = 26
+N.NO_SPOT = "no known spot"   -- (a quest stop neither the quest data nor the game's marker places)
+-- Reasons that start the same way, in two or three words.
+local SHORT_REASONS = {
+    { "^Flow doesn't know who sells", "no known seller" },
+    { "^Flow doesn't know where .- comes from", "no known source" },
+    { "^Flow doesn't know where", N.NO_SPOT },
+    { "^Flow needs Questie", "needs Questie" },
+}
+function N.ShortBlocked(goal, max)
+    max = max or N.BLOCKED_MAX
+    local s = goal.blockedShort
+    if not s then
+        s = goal.blockedBy or "blocked"
+        for _, r in ipairs(SHORT_REASONS) do
+            if s:find(r[1]) then return r[2] end
+        end
+        -- "(you have 6c)", "(sold by Seller A or Seller B)": asides, kept for the tooltip.
+        s = (s:gsub("%s*%b()", ""))
+        s = s:match("^(.-)%.%s") or s   -- its first sentence
+    end
+    -- (Never cut through a colour or texture code: the row's own width does that.)
+    if #s > max and not s:find("|", 1, true) then
+        local cut = s:sub(1, max - 3)
+        cut = cut:match("^(.*%S)%s+%S*$") or cut   -- (at a word, not through one)
+        s = cut .. "..."
+    end
+    return s
+end
 function N:FormatBlocked(goal)
     return string.format("|T%s:12:12|t |cff9a9a9a%s|r", goal.blockIcon or LOCK, goal.text or goal.title or "?"),
-           "|cffff7070" .. (goal.blockedBy or "blocked") .. "|r"
+           "|cffff7070" .. N.ShortBlocked(goal) .. "|r"
 end
 
 -- The NPC names of the next `n` stops after the current one (currentKey), for

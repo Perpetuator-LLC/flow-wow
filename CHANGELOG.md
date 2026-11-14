@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.177
+- **Flow's right-click menus fold.** The menu on a stop, the arrow, the Flow Tracker and the
+  rest used to be one long list. Now the part about the thing you clicked is open as before,
+  and each section after it (Order, Route includes, Arrow, ...) is one row that says what
+  it's set to ("Order  Shortest path", "Route includes  4 of 6"). Point at the row, or click
+  it, and its entries pop out beside the menu. Ticks you set in a pop-out keep it open.
+- **The easy button suggests a drink again.** It never did, with water in the bags. Two
+  things could cause that and the saved data can't say which, so both are covered: where the
+  game hides your mana (as it hides your health here) Flow now counts you as low when one of
+  your heals is out of reach, and a drink is recognised by any "restores ... mana" wording
+  (a fraction in the number was enough to miss it) or by its use being the Drink spell.
+  `/flow rot why` has a new "Drink:" line that says which it was: your mana as the game
+  reports it, whether a heal is out of reach, and which drink Flow would take.
+- **Locked stops say why in a few words.** "Flow doesn't know where: Questie has no spot for
+  Fish Chunks. Your quest log says how." ran out of the Flow Router and across the quest log
+  beside it, once for every such quest. The row now says "no known spot" (or "no known
+  seller", "needs a Mining Pick", ...), the reason's column can't grow past its share of the Router,
+  and the whole sentence is in the stop's tooltip and in chat when you click the row.
+  These stops are quests with no place on the world map that Flow can read: a dungeon
+  (Ragefire Chasm), a battleground, something you craft, or one of WoW: Forever's own quests.
+
 ## 0.35.176
 - **The next profession tier waits until you can pay for it.** Third and, this time, checked
   answer to "Journeyman Skinning ... I don't have it, but it is taking me there". Flow read

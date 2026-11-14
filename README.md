@@ -179,7 +179,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **Lite mode**: in dungeons, raids and boss fights Flow eases off route planning and map
   updates so it never adds lag; the rotation and the Flow key run as normal.
 - **Arrow menu**: right-click the arrow for route (quests only, optimal with or without
-  professions), order, unhide all, and party options.
+  professions), order, unhide all, and party options. Every Flow right-click menu shows the
+  thing you clicked open and folds its other sections into one row each ("Order  Shortest
+  path"): point at a row or click it and its entries pop out beside the menu.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
 - **Your own waypoint**: `/flow way repair` or `vendor` (or right-click the arrow) for the nearest one; Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest

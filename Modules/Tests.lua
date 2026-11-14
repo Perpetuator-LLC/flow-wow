@@ -5961,7 +5961,15 @@ ns:Register("test", "easy button: drink when low on mana; Well Fed food first wh
             t:eq(E:DrinkStep(out), nil, "80% mana: no")
         end)
         with(E, "ManaShare", function() return nil end, function()
-            t:eq(E:DrinkStep(out), nil, "no mana (or hidden): no")
+            -- (0.35.177) No mana reading (the game hides it): go by whether
+            -- one of your heals is out of reach.
+            with(E, "CantAfford", function() return false end, function()
+                t:eq(E:DrinkStep(out), nil, "mana hidden, every heal affordable: no")
+            end)
+            with(E, "CantAfford", function() return true end, function()
+                local s = E:DrinkStep(out)
+                t:eq(s and s.label, "Drink: Water", "mana hidden, a heal out of reach: drink")
+            end)
         end)
     end)
     with(ns.db.rotation, "recoverDrink", false, function()
@@ -7197,6 +7205,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     g = byKey(goals)["76160:1"]
     t:ok(g ~= nil, "an objective Flow can't place is still a stop on the list")
     t:ok(g and g.blockedBy and g.blockedBy:find("Questie has no spot for Pine Salve", 1, true) ~= nil, "with the reason: " .. tostring(g and g.blockedBy))
+    t:eq(g and g.blockedShort, ns.nav.NO_SPOT, "and a few words of it for its row (0.35.177)")
     t:ok(g and g.text:find("Stalk With The Earthmother", 1, true) ~= nil, "and the quest's name")
     -- ...or placed where the game itself marks the quest.
     goals = {}
@@ -7218,6 +7227,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = none })
     g = byKey(goals)["5722:done"]
     t:ok(g and g.blockedBy and g.blockedBy:find("Maur Grimtotem", 1, true) ~= nil, "nowhere known to hand it in: listed, with who to")
+    t:eq(g and g.blockedShort, ns.nav.NO_SPOT, "its row says it in a few words")
     goals = {}
     ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = marker })
     g = byKey(goals)["5722:done"]
@@ -7501,4 +7511,184 @@ ns:Register("test", "bags: leaner rules (no auction price: vendor; ammo you can'
     t:eq(D.ReagentOfOthers("Maple Seed", "DRUID", classesOf), false, "a druid's own reagent: stays")
     t:eq(D.ReagentOfOthers("Linen Cloth", "DRUID", classesOf), nil, "not a spell reagent: not this rule's business")
     t:ok(ns:Get("disposition", "ammoNotYours") and ns:Get("disposition", "otherClassReagent"), "both rules are registered")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.177: folded menu sections, the drink step without a mana reading,
+-- short lock reasons.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "menu: sections after the first fold into one row each", function(t)
+    local M = ns.menu
+    local items = {
+        { title = true, text = "This stop" },
+        { text = "Open it" }, { text = "Hide this stop" },
+        { sep = true },
+        { title = true, text = "Order" },
+        { text = "Most XP", radio = true, checked = false },
+        { text = "Shortest path", radio = true, checked = true },
+        { sep = true },
+        { title = true, text = "Route includes" },
+        { text = "Quests", checked = true }, { text = "Professions", checked = false }, { text = "Gear", checked = true },
+        { sep = true },
+        { text = "Flow Settings" },
+        { title = true, text = "Nothing in it" },
+    }
+    local shown = M.Fold(items)
+    t:eq(#shown, 7, "the stop's own entries, a line, and one row per later section")
+    t:ok(shown[1].title and shown[2].text == "Open it" and shown[3].text == "Hide this stop", "the first section stays open")
+    t:ok(shown[4].sep, "a line under it")
+    t:ok(shown[5].section and shown[5].text == "Order" and #shown[5].sub == 2, "Order: one row, two entries inside")
+    t:ok(shown[6].section and shown[6].text == "Route includes" and #shown[6].sub == 3, "Route includes: one row")
+    t:ok(shown[7].section and shown[7].text == "More" and shown[7].sub[1].text == "Flow Settings", "entries with no title: under More")
+    t:eq(M.SectionState(shown[5].sub), "Shortest path", "a choice: what it's set to")
+    t:eq(M.SectionState(shown[6].sub), "2 of 3", "ticks: how many are on")
+    t:eq(M.SectionState(shown[7].sub), nil, "plain entries: nothing to say")
+    t:ok(shown[5].sub[2] == items[7], "the entries are the menu's own (a tick set in the pop-out is the menu's)")
+    local plain = M.Fold({ { text = "A" }, { text = "B" } })
+    t:ok(#plain == 2 and not plain[1].section and not plain[2].section, "a menu with no sections: as it is")
+    local two = M.Fold({ { title = true, text = "One" }, { text = "a" }, { title = true, text = "Two" }, { text = "b" } })
+    t:ok(#two == 4 and two[3].sep and two[4].section and two[4].text == "Two", "a second title with no line before it folds too")
+    -- The real menus: every one of them folds without losing an entry.
+    local ok, route = pcall(M.RouteItems, M)
+    if ok and type(route) == "table" then
+        local n = 0
+        for _, it in ipairs(M.Fold(route)) do
+            if it.section then n = n + #it.sub elseif not (it.sep or it.title) then n = n + 1 end
+        end
+        local want = 0
+        for _, it in ipairs(route) do if not (it.sep or it.title) then want = want + 1 end end
+        t:eq(n, want, "the route menu: every entry is still there, open or in a pop-out")
+    end
+end)
+
+ns:Register("test", "click: a folded menu section pops out when pointed at or clicked", function(t)
+    local M = ns.menu
+    local ran, ticked = 0, false
+    local tick = { text = "A tick", checked = false, stay = true }
+    tick.func = function() ticked = not ticked end
+    tick.refresh = function(it) it.checked = ticked end
+    local items = {
+        { title = true, text = "Test menu" },
+        { text = "Plain entry", func = function() ran = ran + 1 end },
+        { sep = true },
+        { title = true, text = "Folded" },
+        tick,
+        { text = "Closes the menu", func = function() ran = ran + 10 end },
+    }
+    closeMenu()
+    local ok, err = pcall(M.Open, M, items)
+    t:ok(ok, "the menu opens" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(menuShown(), "on screen")
+    t:ok(M.items == items or #M.items >= #items, "every entry is still in the menu's list")
+    local rows, flyRows = M._Rows()
+    local function find(list, want)
+        for _, r in ipairs(list) do
+            if r:IsShown() and r.item and want(r.item) then return r end
+        end
+    end
+    local sectionRow = find(rows, function(it) return it.section and it.text == "Folded" end)
+    local plainRow = find(rows, function(it) return it.text == "Plain entry" end)
+    t:ok(sectionRow ~= nil and plainRow ~= nil, "the later section is one row, under the open one")
+    t:eq(find(rows, function(it) return it == tick end), nil, "its entries aren't in the menu itself")
+    local fly = _G.FlowMenuSection
+    t:ok(fly and not fly:IsShown(), "they're put away until you point at it")
+    if not (sectionRow and plainRow and fly) then closeMenu() return end
+
+    local okE, errE = pcall(sectionRow:GetScript("OnEnter"), sectionRow)
+    t:ok(okE, "pointing at it runs" .. (okE and "" or (": " .. tostring(errE))))
+    t:ok(fly:IsShown(), "pointing at it pops its entries out")
+    -- The click that follows the pointing must not shut it again.
+    local okC, errC = pcall(sectionRow:GetScript("OnClick"), sectionRow, "LeftButton")
+    t:ok(okC, "clicking it runs" .. (okC and "" or (": " .. tostring(errC))))
+    t:ok(fly:IsShown() and menuShown(), "a click on it leaves the pop-out open")
+
+    local tickRow = find(flyRows, function(it) return it == tick end)
+    t:ok(tickRow ~= nil, "the tick is in the pop-out")
+    if tickRow then
+        pcall(tickRow:GetScript("OnClick"), tickRow, "LeftButton")
+        t:ok(ticked and tick.checked, "a tick in the pop-out is set")
+        t:ok(menuShown() and fly:IsShown(), "and the menu and the pop-out stay up for the next one")
+    end
+
+    -- Pointing at a row of the menu itself puts the pop-out away; a click on
+    -- the section opens it again.
+    pcall(plainRow:GetScript("OnEnter"), plainRow)
+    t:ok(not fly:IsShown(), "pointing at another row puts it away")
+    pcall(sectionRow:GetScript("OnClick"), sectionRow, "LeftButton")
+    t:ok(fly:IsShown(), "a click on the section opens it")
+
+    local closeRow = find(flyRows, function(it) return it.text == "Closes the menu" end)
+    t:ok(closeRow ~= nil, "the other entry is in the pop-out")
+    if closeRow then
+        pcall(closeRow:GetScript("OnClick"), closeRow, "LeftButton")
+        t:eq(ran, 10, "an entry in the pop-out runs")
+        t:ok(not menuShown() and not fly:IsShown(), "and closes the menu with its pop-out")
+    end
+    closeMenu()
+end)
+
+ns:Register("test", "drink: low on mana where the game hides it; water by any wording", function(t)
+    local E, BI = ns.rotation, ns.buffItems
+    t:ok(E.ManaLow(0.2, false), "20% shown: low")
+    t:ok(not E.ManaLow(0.9, true), "90% shown: not low, whatever else")
+    t:ok(E.ManaLow(nil, true), "hidden, a heal out of reach: low")
+    t:ok(not E.ManaLow(nil, false), "hidden, heals affordable: not low")
+    t:ok(not E.ManaLow(nil, nil), "hidden, nothing known: not low")
+    t:eq(BI.HealKind("Refreshing Spring Water", 0, 5, { "Use: Restores 151.2 mana over 18 sec. Must remain seated while drinking." }),
+        "drink", "a fraction in the number")
+    t:eq(BI.HealKind("Odd Water", 0, 5, { "Use: Restores 4% of your mana per second for 20 sec." }), "drink", "a share of your mana")
+    t:eq(BI.HealKind("Unworded Water", 0, 5, { "Use: Refreshes you." }, "Drink"), "drink", "its use is the Drink spell")
+    t:eq(BI.HealKind("Tough Jerky", 0, 5, { "Use: Restores 61 health over 18 sec." }, "Food"), "food", "food stays food")
+    t:eq(BI.HealKind("Linen Cloth", 7, 5, { "Restores nothing." }, "Drink"), nil, "not a consumable: nothing")
+    local ok, line = pcall(E.DrinkWhy, E, { hostile = false })
+    t:ok(ok and type(line) == "string" and line:find("^Drink: ") ~= nil, "/flow rot why says where drinking stands: " .. tostring(line))
+end)
+
+ns:Register("test", "blocked stops: a few words in the row, the whole reason in the tooltip", function(t)
+    local N = ns.nav
+    local long = "Flow doesn't know where: Questie has no spot for Fish Chunks. Your quest log says how."
+    t:eq(N.ShortBlocked({ blockedBy = long, blockedShort = N.NO_SPOT }), "no known spot", "a stop's own short form")
+    t:eq(N.ShortBlocked({ blockedBy = long }), "no known spot", "without one: from how the reason starts")
+    t:eq(N.ShortBlocked({ blockedBy = "Flow doesn't know who sells Fishing Pole" }), "no known seller", "nobody known to sell it")
+    t:eq(N.ShortBlocked({ blockedBy = "Flow doesn't know where Wool Cloth comes from (Auction House?)" }), "no known source", "no known source")
+    t:eq(N.ShortBlocked({ blockedBy = "needs 16c (you have 6c)" }), "needs 16c", "an aside in brackets is left for the tooltip")
+    t:eq(N.ShortBlocked({ blockedBy = "needs a Fishing Pole first (sold by Seller A or Seller B)" }), "needs a Fishing Pole first", "the same")
+    t:eq(N.ShortBlocked({ blockedBy = "no known Fishing spot on this map" }), "no known Fishing spot...", "a long one is cut at a word")
+    t:eq(N.ShortBlocked({ blockedBy = "Needs this. And then that." }), "Needs this", "the first sentence")
+    local coded = "needs |cffffd200a very long thing with a colour code in it|r first"
+    t:eq(N.ShortBlocked({ blockedBy = coded }), coded, "never cut through a colour code (the row's width does that)")
+    t:eq(N.ShortBlocked({}), "blocked", "no reason given")
+    for _, s in ipairs({ long, "no known Fishing spot on this map", "needs a Fishing Pole first (sold by Seller A or Seller B)" }) do
+        t:ok(#N.ShortBlocked({ blockedBy = s }) <= N.BLOCKED_MAX, "never longer than a row has room for: " .. s)
+    end
+    local text, why = N:FormatBlocked({ text = "Stalk With The Earthmother: 0/1 Fish Chunks", blockedBy = long, blockedShort = N.NO_SPOT })
+    t:ok(text:find("Fish Chunks", 1, true) ~= nil, "the row: what the stop is")
+    t:ok(why:find("no known spot", 1, true) ~= nil and not why:find("Questie", 1, true), "and a few words of why")
+    -- The tooltip keeps the whole sentence.
+    local tt = _G.FlowTestTooltip or CreateFrame("GameTooltip", "FlowTestTooltip", UIParent, "GameTooltipTemplate")
+    tt:SetOwner(UIParent, "ANCHOR_NONE")
+    local goal = { key = "t:short", text = "Fish Chunks", points = {}, blockedBy = long, blockedShort = N.NO_SPOT }
+    local ok = pcall(N.FillTooltip, N, tt, goal, goal)
+    local whole = false
+    for i = 1, tt:NumLines() do
+        local fs = _G["FlowTestTooltipTextLeft" .. i]
+        local s = fs and fs:GetText()
+        if s and s:find("Your quest log says how", 1, true) then whole = true end
+    end
+    tt:Hide()
+    t:ok(ok and whole, "its tooltip says all of it")
+end)
+
+ns:Register("test", "router: a locked stop's reason stays inside the Flow Router", function(t)
+    local M = ns.mapOverlay
+    t:eq(M.ReasonWidth(40), 42, "a short reason: as wide as its words")
+    t:eq(M.ReasonWidth(900), M.REASON_W, "a long one: never wider than its column")
+    t:eq(M.ReasonWidth(nil), 2, "no words: no room taken")
+    t:ok(M.REASON_W <= 150, "the column leaves at least half of the Router's 300 to the stop's name")
+    local rows = M._ListRows()
+    local r = rows and rows[1]
+    if not (r and r.leg) then t:ok(true, "(the Flow Router isn't built yet)") return end
+    local wraps = r.leg.CanWordWrap or r.leg.GetWordWrap
+    if wraps then t:ok(not wraps(r.leg), "the reason is one line: a long one is cut with \"...\", not spilled") end
 end)

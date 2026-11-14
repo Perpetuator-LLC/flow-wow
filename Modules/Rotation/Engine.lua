@@ -438,12 +438,45 @@ local function isDrinking(n) return DRINKING[n] == true end
 function E.Drinking()
     return (A.Buff("player", isDrinking)) and true or false
 end
+-- The game may hide your mana as it hides your health (then ManaShare is
+-- nil, and the drink step used to give up: "the easy button never suggests
+-- to drink water"). What it still says is whether you can afford a spell:
+-- when one of your heals is "usable, but no mana", you're low.
+--   def: your rotation (def.heals). -> true / false
+function E.CantAfford(def)
+    for _, spell in ipairs(def and def.heals or {}) do
+        if known[spell] then
+            local _, noMana = A.Usable(spell)
+            if noMana == true then return true end
+        end
+    end
+    return false
+end
+-- Pure: low on mana? share: your mana's share where the game shows it
+-- (nil: hidden); cantAfford: a heal of yours is out of reach.
+function E.ManaLow(share, cantAfford, pct)
+    if share ~= nil then return share <= (pct or E.DRINK_PCT) end
+    return cantAfford == true
+end
+-- Why the drink step would or wouldn't fire now, in words (/flow rot why).
+function E:DrinkWhy(ctx)
+    local r = ns.db.rotation
+    local share = E.ManaShare()
+    local BI = ns.buffItems
+    local drink = BI and BI.DrinkItem and BI.DrinkItem()
+    local cant = E.CantAfford(self:Definition())
+    return string.format("Drink: %s; your mana %s; a heal out of reach %s; in your bags %s; %s",
+        r.recoverDrink == false and "turned off (right-click the Flow key)" or "on",
+        share and string.format("%d%% (drinks at %d%% or less)", share * 100 + 0.5, E.DRINK_PCT * 100) or "hidden by the game",
+        cant and "yes" or "no", drink or "nothing Flow takes for a drink",
+        (ctx and ctx.hostile) and "an enemy is targeted (no drinking then)" or "no enemy targeted")
+end
 function E:DrinkStep(ctx)
     local r = ns.db.rotation
     if ctx.inCombat or ctx.hostile or ctx.casting or r.recoverDrink == false then return nil end
     if UnitIsDeadOrGhost("player") or E.Mounted() or E.Drinking() then return nil end
     local share = E.ManaShare()
-    if not share or share > E.DRINK_PCT then return nil end
+    if not E.ManaLow(share, share == nil and E.CantAfford(self:Definition())) then return nil end
     local BI = ns.buffItems
     local s = BI and BI.DrinkStep and BI.DrinkStep()
     if s then s.fightType = ctx.fightType end
@@ -1068,6 +1101,10 @@ function E:Explain()
     local H = E.HURT
     out[#out + 1] = string.format("Hurt estimate: %.0f s of hits (heals out of a fight at %d+, big heal at %d+; in a fight HoT at %d+, heal at %d+); an enemy on you now: %s",
         E.hurt, H.outStart, H.outBig, H.inHot, H.inHeal, tostring(E.BeingHit()))
+    do
+        local okD, drink = pcall(self.DrinkWhy, self, ctx)
+        out[#out + 1] = okD and drink or ("Drink: " .. tostring(drink))
+    end
     local hl = E._health or {}
     out[#out + 1] = string.format("Full-health check: your health changed %d time(s) out of a fight this session, and cleared the estimate %d time(s). Auto attack at the pull: %s; swinging now: %s",
         hl.out or 0, hl.cleared or 0, E.AutoAttackOn() and "on" or "off", tostring(A.Swinging()))

@@ -1,7 +1,10 @@
 -- A small context menu in Flow's own style (dark panel, accent edge).
 --   ns.menu:Open(items)   at the cursor
 -- items: { text, func, checked = bool|nil, radio = bool, disabled = bool,
---          title = bool, sep = true }
+--          title = bool, sep = true, stay = bool, tip = "...", refresh = fn }
+-- The first section (the thing you clicked) is shown open; every later
+-- section is one row, and its entries pop out beside the menu when you
+-- point at the row or click it (Menu.Fold).
 -- Closes on a click outside it, on Escape, or after choosing an entry.
 
 local _, ns = ...
@@ -9,8 +12,28 @@ local Menu = {}
 ns.menu = Menu
 
 local ROW_H, PAD, W = 18, 6, 230
-local frame, catcher
-local rows = {}
+local frame, catcher, fly
+local rows, flyRows = {}, {}
+local ARROW = "Interface\\ChatFrame\\ChatFrameExpandArrow"
+
+-- One panel in Flow's menu look: the menu itself, or the pop-out beside it.
+local function panel(name)
+    local f = CreateFrame("Frame", name, UIParent)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetWidth(W)
+    f:EnableMouse(true)
+    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
+    f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.97)
+    local o = ns.theme.arrow
+    f.accent = f:CreateTexture(nil, "BORDER")
+    f.accent:SetPoint("TOPLEFT"); f.accent:SetPoint("BOTTOMLEFT")
+    f.accent:SetWidth(3)
+    f.accent:SetColorTexture(o[1], o[2], o[3], 1)
+    f:SetClampedToScreen(true)
+    f:Hide()
+    return f
+end
 
 local function build()
     catcher = CreateFrame("Button", nil, UIParent)
@@ -26,28 +49,19 @@ local function build()
     end)
     catcher:Hide()
 
-    frame = CreateFrame("Frame", "FlowMenu", UIParent)
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    frame = panel("FlowMenu")
     frame:SetFrameLevel(catcher:GetFrameLevel() + 10)
-    frame:SetWidth(W)
-    frame:EnableMouse(true)
-    frame.bg = frame:CreateTexture(nil, "BACKGROUND")
-    frame.bg:SetAllPoints()
-    frame.bg:SetColorTexture(0.05, 0.05, 0.08, 0.97)
-    local o = ns.theme.arrow
-    frame.accent = frame:CreateTexture(nil, "BORDER")
-    frame.accent:SetPoint("TOPLEFT"); frame.accent:SetPoint("BOTTOMLEFT")
-    frame.accent:SetWidth(3)
-    frame.accent:SetColorTexture(o[1], o[2], o[3], 1)
-    frame:SetScript("OnHide", function() catcher:Hide() end)
+    -- The pop-out for a folded section, beside the menu.
+    fly = panel("FlowMenuSection")
+    fly:SetFrameLevel(catcher:GetFrameLevel() + 30)
+    frame:SetScript("OnHide", function() catcher:Hide(); fly:Hide(); Menu.openSection = nil end)
     tinsert(UISpecialFrames, "FlowMenu")  -- Escape closes it
-    frame:Hide()
 end
 
-local function row(i)
-    local r = rows[i]
+local function row(parent, list, i)
+    local r = list[i]
     if r then return r end
-    r = CreateFrame("Button", nil, frame)
+    r = CreateFrame("Button", nil, parent)
     r:SetHeight(ROW_H)
     r.hl = r:CreateTexture(nil, "HIGHLIGHT")
     r.hl:SetAllPoints()
@@ -57,14 +71,20 @@ local function row(i)
     r.mark:SetWidth(14)
     r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.text:SetPoint("LEFT", 24, 0)
-    r.text:SetPoint("RIGHT", -6, 0)
+    r.text:SetPoint("RIGHT", -18, 0)
     r.text:SetJustifyH("LEFT")
     r.text:SetWordWrap(false)
+    -- A folded section's row: an arrow at its right edge.
+    r.arrow = r:CreateTexture(nil, "OVERLAY")
+    r.arrow:SetSize(12, 12)
+    r.arrow:SetPoint("RIGHT", -4, 0)
+    r.arrow:SetTexture(ARROW)
+    r.arrow:Hide()
     r.line = r:CreateTexture(nil, "ARTWORK")
     r.line:SetPoint("LEFT", 8, 0); r.line:SetPoint("RIGHT", -8, 0)
     r.line:SetHeight(1)
     r.line:SetColorTexture(1, 1, 1, 0.15)
-    rows[i] = r
+    list[i] = r
     return r
 end
 
@@ -90,13 +110,103 @@ function Menu.HiddenWindowItems()
     return out
 end
 
--- Draws `items` into the menu's rows (no positioning: Open does that once).
-local function layout(items)
+-------------------------------------------------------------------------------
+-- Folded sections (0.35.177): "collapse each of the sections of the Flow
+-- context menu, so that their options pop out if hovered over or clicked".
+-- A menu is a flat list: a title, its entries, a separator, the next title...
+-- The first section is the thing you clicked (a stop, the arrow, the
+-- tracker) and stays open: its entries are one click away, as before. Every
+-- later section is one row, "Order   Shortest path  >", and its entries pop
+-- out beside the menu when you point at the row or click it.
+-------------------------------------------------------------------------------
+
+-- What a folded section is set to, for its row: the ticked radio's text
+-- ("Shortest path"), or how many ticks are on ("4 of 6"). nil: nothing to say.
+function Menu.SectionState(sub)
+    local ticks, on = 0, 0
+    for _, it in ipairs(sub) do
+        if it.radio and it.checked then return it.text end
+        if it.checked ~= nil and not it.radio then
+            ticks = ticks + 1
+            if it.checked then on = on + 1 end
+        end
+    end
+    if ticks > 1 then return string.format("%d of %d", on, ticks) end
+    return nil
+end
+
+-- Pure: the rows the menu shows, from the flat list.
+--   the first section (up to its separator, or the next title): as it is
+--   each later title: one row { section = true, text, sub = { its entries } }
+--   entries after a separator with no title of their own: under "More"
+function Menu.Fold(items)
+    local out, i, n = {}, 1, #items
+    local titled = false
+    while i <= n do
+        local it = items[i]
+        if it.sep or (it.title and titled) then break end
+        if it.title then titled = true end
+        out[#out + 1] = it
+        i = i + 1
+    end
+    local rest, section = {}, nil
+    while i <= n do
+        local it = items[i]
+        if it.title then
+            section = { section = true, text = it.text, sub = {} }
+            rest[#rest + 1] = section
+        elseif it.sep then
+            section = nil
+        else
+            if not section then
+                section = { section = true, text = "More", sub = {} }
+                rest[#rest + 1] = section
+            end
+            section.sub[#section.sub + 1] = it
+        end
+        i = i + 1
+    end
+    local shown = 0
+    for _, s in ipairs(rest) do
+        if #s.sub > 0 then
+            if shown == 0 and #out > 0 then out[#out + 1] = { sep = true } end
+            out[#out + 1] = s
+            shown = shown + 1
+        end
+    end
+    return out
+end
+
+local layout   -- (declared here: a section's row opens the pop-out, which is laid out the same way)
+
+-- Opens a section's pop-out beside its row. (A click never closes it: you
+-- point at the row, it opens, and the click that follows would shut it
+-- again. Pointing at another row, or a click outside, puts it away.)
+function Menu.ShowSection(section, anchor)
+    if not (fly and section and section.sub) then return end
+    Menu.openSection = section
+    layout(fly, flyRows, section.sub)
+    fly:ClearAllPoints()
+    -- Beside the menu, level with the row: to the right, or to the left
+    -- where the screen ends.
+    local right = frame:GetRight() or 0
+    local room = (UIParent:GetRight() or 0) - right
+    if room >= W + 4 then fly:SetPoint("TOPLEFT", anchor or frame, "TOPRIGHT", 2, PAD)
+    else fly:SetPoint("TOPRIGHT", anchor or frame, "TOPLEFT", -2, PAD) end
+    fly:Show()
+end
+function Menu.HideSection()
+    if fly then fly:Hide() end
+    Menu.openSection = nil
+end
+
+-- Draws `items` into a panel's rows (no positioning: Open does that once).
+layout = function(f, list, items)
     local y = -PAD
     local n = 0
     for i, it in ipairs(items) do
         n = i
-        local r = row(i)
+        local r = row(f, list, i)
         r:ClearAllPoints()
         r:SetPoint("TOPLEFT", 3, y)
         r:SetPoint("TOPRIGHT", 0, y)
@@ -105,9 +215,13 @@ local function layout(items)
         r.line:SetShown(it.sep == true)
         r.text:SetShown(not it.sep)
         r.mark:SetShown(not it.sep)
+        r.arrow:SetShown(it.section == true)
         r.hl:SetShown(not (it.sep or it.title or it.disabled))
         if not it.sep then
-            if it.title then
+            if it.section then
+                local state = Menu.SectionState(it.sub)
+                r.text:SetText("|cffffd200" .. (it.text or "") .. "|r" .. (state and ("  |cff999999" .. state .. "|r") or ""))
+            elseif it.title then
                 r.text:SetText("|cffffd200" .. (it.text or "") .. "|r")
             elseif it.disabled then
                 r.text:SetText("|cff777777" .. (it.text or "") .. "|r")
@@ -119,9 +233,18 @@ local function layout(items)
             if it.checked then mark = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14|t" end
             r.mark:SetText(mark)
         end
-        r:SetScript("OnClick", function() Menu.Click(it) end)
-        -- `tip`: a line or two about the entry, beside the menu.
+        r.item = it
+        r:SetScript("OnClick", function(self)
+            if it.section then Menu.ShowSection(it, self) else Menu.Click(it) end
+        end)
+        -- Pointing at a section's row pops it out; pointing at any other row
+        -- of the menu itself puts the pop-out away. `tip`: a line or two
+        -- about the entry, beside the menu.
         r:SetScript("OnEnter", function(self)
+            if f == frame then
+                if it.section then Menu.ShowSection(it, self)
+                elseif not it.sep then Menu.HideSection() end
+            end
             if not it.tip then return end
             ns.Tip(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(it.tip, 1, 1, 1, true)
@@ -131,8 +254,8 @@ local function layout(items)
         r:Show()
         y = y - h
     end
-    for i = n + 1, #rows do rows[i]:Hide() end
-    frame:SetHeight(-y + PAD)
+    for i = n + 1, #list do list[i]:Hide() end
+    f:SetHeight(-y + PAD)
 end
 
 -- A click on an entry. `stay` entries (ticks you set several of, like what
@@ -140,7 +263,7 @@ end
 -- function brings its own tick, text and disabled up to date, and the menu
 -- is drawn again where it is.
 function Menu.Click(it)
-    if it.sep or it.title or it.disabled then return end
+    if it.sep or it.title or it.disabled or it.section then return end
     if not it.stay then Menu:Close() end
     if it.func then
         local ok, err = pcall(it.func)
@@ -152,7 +275,12 @@ function Menu:Redraw()
     for _, it in ipairs(self.items or {}) do
         if it.refresh then pcall(it.refresh, it) end
     end
-    if frame and self.items then layout(self.items) end
+    if not (frame and self.items) then return end
+    -- The same rows again (the fold is kept: the open pop-out shows the same
+    -- section's entries, brought up to date).
+    layout(frame, rows, self.shown or self.items)
+    local open = Menu.openSection
+    if open and fly and fly:IsShown() then layout(fly, flyRows, open.sub) end
 end
 
 function Menu:Open(items)
@@ -165,18 +293,21 @@ function Menu:Open(items)
         for _, it in ipairs(hidden) do all[#all + 1] = it end
         items = all
     end
-    self.items = items   -- the menu on screen (tests read its entries)
+    self.items = items              -- every entry, flat (tests read them)
+    self.shown = Menu.Fold(items)   -- the rows on screen: later sections folded
     GameTooltip:Hide()
     if not frame then build() end
-    layout(items)
+    Menu.HideSection()
+    layout(frame, rows, self.shown)
     local scale = UIParent:GetEffectiveScale()
     local x, cy = GetCursorPosition()
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / scale + 4, cy / scale - 4)
-    frame:SetClampedToScreen(true)
     catcher:Show()
     frame:Show()
 end
+-- (Tests) the rows of the menu and of its pop-out.
+function Menu._Rows() return rows, flyRows end
 
 -- "Route includes": one tick per kind of stop (Nav.lua N.Kinds; Goals.lua
 -- registers Flow's), all or none in one click, and under Professions whether

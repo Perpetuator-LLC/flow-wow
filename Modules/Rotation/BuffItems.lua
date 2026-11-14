@@ -624,7 +624,7 @@ local BANDAGE_DEBUFF = 60
 -- Healing and Well Fed are separate things a food can do: the second return
 -- is true for food that also makes you Well Fed (eaten to heal only when
 -- there's no plain food, and only if you allow it).
-function BI.HealKind(name, classID, subID, lines)
+function BI.HealKind(name, classID, subID, lines, spell)
     name = name or ""
     if name:find("Healthstone") then return "healthstone" end
     if name:find("Healing Potion") or (classID == 0 and subID == POTION_SUB and name:find("Healing")) then return "potion" end
@@ -634,10 +634,12 @@ function BI.HealKind(name, classID, subID, lines)
         for _, l in ipairs(lines) do
             local low = type(l) == "string" and l:lower() or ""
             if low:find("health", 1, true) then return "food", BI.IsBuffFood(lines) and true or false end
-            if low:find("restores %d+ mana") then mana = true end
+            -- ("Restores 151 mana over 21 sec.", "Restores 4% of your mana per second": any wording.)
+            if low:find("mana", 1, true) and (low:find("restore", 1, true) or low:find("regenerat", 1, true)) then mana = true end
         end
-        -- Water and the like ("Restores 151 mana over 21 sec."): drink.
-        if mana then return "drink", false end
+        -- Water and the like: drink. (spell: what using it casts; "Drink" says so too,
+        -- where the tooltip is worded some other way.)
+        if mana or spell == "Drink" then return "drink", false end
     end
     return nil
 end
@@ -666,7 +668,12 @@ local function healItems()
             lines = tipLines(id)
             if lines == nil then complete = false end
         end
-        local kind, buff = BI.HealKind(name, classID, subID, lines)
+        local spell
+        if subID == FOOD_SUB then
+            local okS, s = pcall((C_Item and C_Item.GetItemSpell) or GetItemSpell or function() end, id)
+            spell = okS and type(s) == "string" and s or nil
+        end
+        local kind, buff = BI.HealKind(name, classID, subID, lines, spell)
         if kind then out[#out + 1] = { id = id, kind = kind, name = name, rank = rankOf(id), buff = buff or nil } end
     end)
     if complete then healCache = out end
@@ -836,6 +843,12 @@ function BI.FoodStep(buffFood, preferBuff)
         .. (it.buff and preferBuff and " (and Well Fed for the fights ahead)" or ""))
     s.wellFed = it.buff and true or nil   -- (the button counts down to Well Fed: Engine.lua)
     return s
+end
+
+-- The drink Flow would use (its name), or nil: for /flow rot why.
+function BI.DrinkItem()
+    local it = BI.PickKind(healItems(), "drink", false, nil)
+    return it and it.name or nil
 end
 
 -- Out of mana after a fight: your best drink (water and the like).

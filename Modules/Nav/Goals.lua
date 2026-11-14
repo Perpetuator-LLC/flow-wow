@@ -130,6 +130,7 @@ local function questGoals(db, q, goals, opts)
                             wp and "Flow's quest data doesn't have this quest: the arrow goes to the game's own marker for it."
                                 or "Flow's quest data doesn't have this quest." },
                 blockedBy = (not wp) and "Flow doesn't know where: its quest data doesn't have this quest (a WoW: Forever one?). Your quest log says how." or nil,
+                blockedShort = (not wp) and ns.nav.NO_SPOT or nil,
             }
         end
         return
@@ -168,6 +169,7 @@ local function questGoals(db, q, goals, opts)
                 table.insert(turnIn.details, "Flow's quest data has no place for it: the arrow goes to the game's own marker.")
             else
                 turnIn.blockedBy = "Flow doesn't know where it's handed in" .. (who and (" (" .. who .. ")") or "") .. ". Your quest log says who to."
+                turnIn.blockedShort = ns.nav.NO_SPOT
             end
         end
     end
@@ -277,6 +279,7 @@ local function questGoals(db, q, goals, opts)
                         text = (title and (title .. ": ") or "") .. (ns.ProgressText(m.text) or "an objective"),
                         details = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(m.text) or "?") },
                         blockedBy = "Flow doesn't know where: " .. m.why .. ". Your quest log says how.",
+                        blockedShort = ns.nav.NO_SPOT,
                     }
                 end
             end
@@ -363,6 +366,7 @@ local function addClassQuests(goals, steps, points)
                     text = "Accept: " .. (q.name or "your class quest") .. " (" .. e.spell .. ")",
                     details = { why, string.format("Level %d quest from %s.", q.level or 0, who or "its giver") },
                     blockedBy = #pts == 0 and ("Flow doesn't know where " .. (who or "its giver") .. " stands") or nil,
+                    blockedShort = #pts == 0 and ns.nav.NO_SPOT or nil,
                 }
             end
         end
