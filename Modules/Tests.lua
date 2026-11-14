@@ -6038,12 +6038,16 @@ ns:Register("test", "tracker: Flow's and Questie's trackers open on their own; t
         local onClick = h:GetScript("OnClick")
         t:ok(pcall(onClick, h, "LeftButton"), "click: the header opens it")
         t:eq(ns.db.tracker.open, "flow", "open after a click")
-        local held
-        for i = 1, h.text:GetNumPoints() do
-            local _, rel = h.text:GetPoint(i)
-            if rel == h.pm then held = true end
+        -- (0.35.189: the title stops at the locked count, which stops at the +/- button.)
+        local function heldBy(text, frame)
+            for i = 1, text:GetNumPoints() do
+                local _, rel = text:GetPoint(i)
+                if rel == frame then return true end
+            end
+            return false
         end
-        t:ok(held, "the title stops at the +/- button (the blocked count never covers it)")
+        t:ok(h.locked ~= nil and heldBy(h.locked, h.pm), "the locked count stops at the +/- button")
+        t:ok(h.locked ~= nil and heldBy(h.text, h.locked), "and the title stops at the locked count (neither covers the button)")
     else
         t:ok(true, "(tracker not built yet)")
     end
@@ -8585,4 +8589,16 @@ ns:Register("test", "easy button: raise a dead friend you target", function(t)
         local ok, step = pcall(action.get, { resTarget = friend, resSpell = "Revive" })
         t:ok(ok and step == nil, "switched off in Flow Settings: nothing")
     end)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.192: a modifier press counts as reaching the button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "cast key: a modifier press isn't logged as a missed click", function(t)
+    local C = ns.cast
+    t:ok(C.Missed(3, 3), "the key went down and nothing reached the button: missed")
+    t:ok(not C.Missed(4, 3), "a click reached it (the key's own, or Ctrl / Shift / Alt + key): not missed")
+    t:ok(C.Missed(nil, nil), "no fight's count yet and no click: missed")
+    t:ok(not C.Missed(1, nil), "the first click of the fight: not missed")
 end)

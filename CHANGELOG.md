@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.192
+- Fixed a self-test that 0.35.189 broke (the Flow Tracker's title now stops at the locked
+  count, which stops at the +/- button: the test still looked for the old arrangement).
+- The log no longer says "the button did NOT get the click" after Ctrl, Shift or Alt + your
+  key: those presses do reach the button (the line above it said what they cast), they just
+  weren't counted.
+
 ## 0.35.191
 - **The easy button skins.** After you've looted a kill, with its corpse still targeted, the
   key skins it: when the game writes "Skinnable" on the corpse and you have Skinning with

@@ -758,6 +758,8 @@ ns:OnLoad(function()
                 if fight then
                     fight.mods = fight.mods or {}
                     fight.mods[mod] = (fight.mods[mod] or 0) + 1
+                    -- (It reached the button: the key check below must not say it didn't.)
+                    fight.reached = (fight.reached or 0) + 1
                 end
                 if mod == "shift" and E.NoteShiftPress then E.NoteShiftPress() end   -- (death reports)
             end
@@ -785,6 +787,7 @@ ns:OnLoad(function()
         end
         if fight then
             fight.clicks = fight.clicks + 1
+            fight.reached = (fight.reached or 0) + 1
             if down then fight.downs = fight.downs + 1 end
             if fight.clicks == 1 then
                 ns:Log("cast", string.format("first press in fight: %s down=%s macro %q", tostring(button), tostring(down), tostring(macro)))
@@ -863,6 +866,13 @@ ns:On("PLAYER_REGEN_DISABLED", function() C:EndMove() end)
 local spy = CreateFrame("Frame", nil, UIParent)
 local spyLogged = 0
 local clicksAtPress = 0
+-- Pure: did a key press fail to reach the button? reached: clicks the button
+-- has had this fight (the main one and the modifier ones); before: that
+-- count when the key went down.
+function C.Missed(reached, before)
+    return (reached or 0) == (before or 0)
+end
+
 -- Only when keys can be passed on: a keyboard frame that can't would eat every key.
 if spy.SetPropagateKeyboardInput then
     spy:SetPropagateKeyboardInput(true)
@@ -875,7 +885,10 @@ spy:SetScript("OnKeyDown", function(_, key)
     end
     if not mine then return end
     if E.NoteKeyPress then E.NoteKeyPress() end   -- (the pull's Start Attack press is counted: Engine EngageStep)
-    clicksAtPress = fight and fight.clicks or 0
+    -- (Every click that reached the button, the modifier ones too: after
+    -- Ctrl + key the log said "the button did NOT get the click" right under
+    -- "ctrl + key pressed: Entangling Roots", which the button itself wrote.)
+    clicksAtPress = fight and (fight.reached or 0) or 0
     if fight then fight.keys = (fight.keys or 0) + 1 end
     if spyLogged < 6 then
         spyLogged = spyLogged + 1
@@ -884,7 +897,7 @@ spy:SetScript("OnKeyDown", function(_, key)
             tostring(key), tostring(GetBindingAction(mine, true)), btn and (btn:IsShown() and "shown" or "hidden") or "missing",
             focus and (focus:GetName() or "a text box") or "none"))
         C_Timer.After(0.3, function()
-            if fight and fight.clicks == clicksAtPress then ns:Log("cast", "  ...and the button did NOT get the click") end
+            if fight and C.Missed(fight.reached, clicksAtPress) then ns:Log("cast", "  ...and the button did NOT get the click") end
         end)
     end
 end)
