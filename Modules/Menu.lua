@@ -439,7 +439,7 @@ function Menu:RouteItemsRaw()
         tip = "While you have a waypoint of your own, the world map leaves out Flow's route, stops and areas and shows the waypoint alone. Clear the waypoint and the route is back. Pointing at a stop in the Flow Router or Flow Tracker still shows that stop.",
         refresh = function(it) it.checked = ns.db.nav.mapWaypointOnly ~= false end,
         func = function()
-            ns.db.nav.mapWaypointOnly = not (ns.db.nav.mapWaypointOnly ~= false)
+            ns.db.nav.mapWaypointOnly = (ns.db.nav.mapWaypointOnly == false)
             if ns.mapOverlay and ns.mapOverlay.Redraw then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
         end }
     way[#way + 1] = { text = following and ("Clear your waypoint (stop following " .. following .. ")") or "Clear your waypoint",

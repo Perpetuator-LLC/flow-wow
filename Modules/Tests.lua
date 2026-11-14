@@ -9792,7 +9792,7 @@ ns:Register("test", "map: with your own waypoint set, Flow's route stays off the
     local was = ns.db.nav.mapWaypointOnly
     local okC, err = pcall(tick.func)
     t:ok(okC, "a click runs" .. (okC and "" or (": " .. tostring(err))))
-    t:eq(ns.db.nav.mapWaypointOnly ~= false, not (was ~= false), "and flips it")
+    t:eq(ns.db.nav.mapWaypointOnly ~= false, was == false, "and flips it")
     ns.db.nav.mapWaypointOnly = was
     t:ok(pcall(M.Redraw, M), "the map draws")
 end)
