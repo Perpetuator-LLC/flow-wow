@@ -740,8 +740,15 @@ ns:Register("test", "bags: sell decisions", function(t)
     ns.db.sell.never[999105] = nil
     v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
     t:eq(v and v.action, "sell", "material nobody of yours uses: sell")
-    v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
-    t:eq(v and v.action, "ah", "better material: auction house")
+    with(ns.db.sell, "vendorUnpriced", false, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
+        t:eq(v and v.action, "ah", "better material, held for the auction house (the old way, by the setting)")
+    end)
+    with(ns.db.sell, "vendorUnpriced", nil, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
+        t:eq(v and v.action, "sell", "better material with no auction price known: to a vendor")
+        t:ok(v and v.ahCandidate, "and still one whose price the auction scan looks up")
+    end)
 end)
 
 ns:Register("test", "gear: weapon speed tips the balance", function(t)
@@ -7432,4 +7439,66 @@ ns:Register("test", "route: a class quest in your log comes first, and a travel 
     t:near(ns.planner._Far(b, a, { port = port }), 9000, 1e-6, "the way back is on foot (the spell goes one way)")
     t:ok(pcall(TS.PlanPort), "your own travel spells read without error")
     t:ok(pcall(TS.Hint, a, b), "and the panel's line")
+end)
+
+ns:Register("test", "professions: the next tier waits until you can pay for it", function(t)
+    -- "journeyman skinning ... I don't have it, but it is taking me there":
+    -- Skinning was 58 (enough), the price 5 silver, the purse 2s 30c. The
+    -- stop had no price, so the route went to the trainer anyway.
+    local SP = ns.skillPlan
+    t:eq(SP.TierCost("Skinning", 75, nil), 500, "Journeyman: 5 silver (read at a WoW: Forever trainer)")
+    t:eq(SP.TierCost("Skinning", 75, { Herbalism = { cap = 75, cost = 450 } }), 450, "what another profession's trainer charged for the same tier")
+    t:eq(SP.TierCost("Skinning", 75, { Skinning = { cap = 75, cost = 475 }, Herbalism = { cap = 75, cost = 450 } }), 475,
+        "its own trainer's price first")
+    t:eq(SP.TierCost("Skinning", 150, { Herbalism = { cap = 75, cost = 450 } }), nil, "a tier nobody has priced yet: nothing to wait for")
+    t:eq(SP.TierCost("Skinning", 150, { Mining = { cap = 150, cost = 50000 } }), 50000, "Expert, once a trainer has shown its price")
+    -- The trainer's own line on WoW: Forever (2026-11-13): skill 50, no level, 5 silver.
+    local seen = { cap = 75, category = "unavailable", level = 0, skill = 50, cost = 500, atLevel = 12, atRank = 23 }
+    t:ok(not SP.Tier("Herbalism", 23, 75, 12, seen).ready, "Herbalism 23: not yet")
+    t:ok(SP.Tier("Herbalism", 50, 75, 12, seen).ready, "at 50 it is, at level 12 (no level asked, as in classic)")
+end)
+
+ns:Register("test", "bags: leaner rules (no auction price: vendor; ammo you can't shoot; other classes' reagents)", function(t)
+    -- "I want to keep my bags as empty as possible ... before we get there on
+    -- items just vendor them"
+    local D = ns.disposition
+    local money = function(c) return c .. "c" end
+    -- The auction house only on a price that's worth it.
+    t:eq(D.WorthAuction(nil, 100), false, "no price seen: not worth it")
+    t:eq(D.WorthAuction(220, 100), false, "2.2x the vendor before the cut and the fee: not enough")
+    t:eq(D.WorthAuction(400, 100), true, "4x the vendor: worth listing")
+    t:eq(D.WorthAuction(30, 5), false, "a few copper more: not worth a trip")
+    local v = D.AuctionOrVendor(nil, 100, "a gem", true, money)
+    t:ok(v.action == "sell" and v.reason:find("no auction price known", 1, true) ~= nil and v.ahCandidate, "no price known: to a vendor (and still looked up at an auction house)")
+    v = D.AuctionOrVendor(nil, 100, "a gem", false, money)
+    t:eq(v.action, "ah", "the setting off: held for the auction house, as before")
+    v = D.AuctionOrVendor(400, 100, "a gem", true, money)
+    t:ok(v.action == "ah" and v.reason:find("400c", 1, true) ~= nil, "a good price seen: the auction house, with the price")
+    v = D.AuctionOrVendor(150, 100, "a gem", true, money)
+    t:ok(v.action == "sell" and v.reason:find("wouldn't pay enough", 1, true) ~= nil, "a poor price seen: the vendor")
+    with(ns.db.sell, "vendorUnpriced", nil, function() t:eq(D.VendorUnpriced(), true, "to a vendor unless you turn it off") end)
+    with(ns.db.sell, "vendorUnpriced", false, function() t:eq(D.VendorUnpriced(), false, "turned off: held") end)
+    -- Rare gear is never vendored unseen.
+    local rule = function(k, item) return ns:Get("disposition", k).check(item) end
+    with(ns.api, "Skill", function() return nil end, function()
+        v = rule("unneededGear", { quality = 3, bound = false, sellPrice = 500 })
+        t:eq(v and v.action, "ah", "a tradeable blue with no price known: checked at the auction house first")
+        with(ns.db.sell, "vendorUnpriced", nil, function()
+            v = rule("unneededGear", { quality = 2, bound = false, sellPrice = 309 })
+            t:eq(v and v.action, "sell", "a tradeable green with no price known: to a vendor")
+        end)
+        v = rule("unneededGear", { quality = 2, bound = true, sellPrice = 309 })
+        t:eq(v and v.action, "sell", "a soulbound green: to a vendor, as ever")
+    end)
+    -- Ammunition.
+    t:eq(D.AmmoIsUseless(6, "DRUID"), true, "bullets in a druid's bags: no use")
+    t:eq(D.AmmoIsUseless(6, "HUNTER"), false, "a hunter's: kept")
+    t:eq(D.AmmoIsUseless(7, "DRUID"), false, "not ammunition: another rule's business")
+    -- Spell reagents.
+    local classesOf = function(n) return ns:Get("classReagent", n) end
+    t:eq(D.ReagentOfOthers("Light Feather", "DRUID", classesOf), true, "Light Feather (a mage's and a priest's) on a druid: goes")
+    t:eq(D.ReagentOfOthers("Light Feather", "MAGE", classesOf), false, "on a mage: stays")
+    t:eq(D.ReagentOfOthers("Maple Seed", "DRUID", classesOf), false, "a druid's own reagent: stays")
+    t:eq(D.ReagentOfOthers("Linen Cloth", "DRUID", classesOf), nil, "not a spell reagent: not this rule's business")
+    t:ok(ns:Get("disposition", "ammoNotYours") and ns:Get("disposition", "otherClassReagent"), "both rules are registered")
 end)

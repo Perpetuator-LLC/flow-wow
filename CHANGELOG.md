@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.176
+- **The next profession tier waits until you can pay for it.** Third and, this time, checked
+  answer to "Journeyman Skinning ... I don't have it, but it is taking me there". Flow read
+  the trainer's own line today: Journeyman asks for skill 50 and no level, and costs 5 silver.
+  The skill was there (58); the 5 silver wasn't (2s 30c); and the stop had no price, so the
+  route sent you to a trainer you couldn't pay. The stop now carries the tier's price (what
+  that trainer, or any profession's trainer, charged for it; 5 silver for Journeyman until
+  seen), and the route skips it until you have the money, as it does for your class trainer.
+  0.35.173 blamed the profession list and 0.35.174 a level rule; both were wrong.
+- **Leaner bags**, from going through a druid's 40 slots:
+  - **No auction price known: to a vendor.** Green gear and better materials you have no use
+    for used to be held with the auction house mark. They go there now only on a price Flow
+    has seen that beats the vendor after the house's cut and the listing fee (a listing that
+    doesn't sell costs the fee); with no price known they're sold to a vendor. Rare (blue)
+    tradeable gear is still never vendored unseen. "Sell what has no auction price" in Flow
+    Settings (Loot and selling) turns this off.
+  - **Ammunition your class can't shoot** (bullets in a druid's bags) is sold.
+  - **Spell reagents of other classes** (a Light Feather is a mage's and a priest's) are sold.
+
 ## 0.35.175
 - **Bear Form: the class quest in your log comes first.** "Moonglade" was in the log, but
   its stop is at the far end of Kalimdor, so the route left it for last and the Flow Tracker
@@ -33,12 +52,10 @@
   rewards: per spec, a green arrow up (better than what that spec wears), a red one down, or
   a dash. When something for sale is better for the spec you level as, Flow says so once in
   chat with the price.
-- **Journeyman Skinning: the trainer's word decides.** 0.35.173's explanation was wrong. Your
-  Skinning read fine (58 of 75); Flow kept the trainer on the route because classic's rule
-  says Journeyman is yours at skill 50 and level 10, and WoW: Forever asks for more. Flow now
-  reads what the trainer itself says about the next tier each time you open one (the level
-  and skill it asks for, the price, whether you can learn it) and goes by that: off the route
-  until you qualify, and until you can pay. Open the Skinning trainer once so it can read it.
+- **Profession tiers: the trainer's word decides.** Flow now reads what a profession trainer
+  says about the next tier each time you open one (the level and skill it asks for, the
+  price, whether you can learn it) and goes by that. (This entry first said WoW: Forever asks
+  for more than classic's skill 50 for Journeyman. It doesn't: see 0.35.176.)
 - **Click bindings: a false alarm fixed.** 0.35.171's check expected the buttons under other
   names and called a working left and right click dead (also in Flow Improvements). Your
   click bindings are the game's defaults; that wasn't why party frames ignored clicks.

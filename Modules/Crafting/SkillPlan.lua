@@ -579,11 +579,19 @@ local TIER_BOOK = { Cooking = 16072, ["First Aid"] = 16084, Fishing = 16083 }
 -- Clamlette Surprise; Triage (Horde, Alliance); Nat Pagle, Angler Extreme.
 local TIER_QUEST = { Cooking = { 6610 }, ["First Aid"] = { 6622, 6624 }, Fishing = { 6607 } }
 --
--- Those numbers are classic's. WoW: Forever has its own ("Journeyman Skinning
--- needs level 50 and I don't have it, but it is taking me there", at Skinning
--- 58 and level 12), so what the trainer itself says wins: each time you open
--- a profession trainer, Flow reads what the next tier asks for (Trainer.lua,
--- kept per character in ns.db.prof.tierSeen) and goes by that from then on.
+-- What the trainer itself says wins over those numbers: each time you open a
+-- profession trainer, Flow reads what the next tier asks for and what it
+-- costs (Trainer.lua, kept per character in ns.db.prof.tierSeen) and goes by
+-- that from then on. Read on WoW: Forever on 2026-11-13: "Journeyman
+-- Herbalism: asks for Herbalism 50; costs 500" (5 silver), no level asked:
+-- classic's skill rule holds here.
+--
+-- A tier has a PRICE, and that was the trouble behind "Journeyman Skinning
+-- ... I don't have it, but it is taking me there": the skill was there (58),
+-- the 5 silver wasn't (2s 30c), and Flow sent the route to the trainer
+-- anyway. The stop now carries the price (SP.TierCost), so the route waits
+-- until you can pay, as it does for your class trainer. (0.35.173 blamed the
+-- profession list and 0.35.174 a level rule; both were wrong.)
 --   seen: { cap, level, skill, cost, category, atLevel, atRank } as read at
 --         the trainer for this cap, or nil / false (never looked).
 --   -> { name, cap, level, skill, cost, how = "trainer" | "book" | "quest", book, quests, ready, wait } or nil
@@ -591,6 +599,20 @@ function SP.TierName(max) return max and TIER_NAME[max] or nil end
 function SP.TierSeen(prof, max)
     local s = ns.db and ns.db.prof and ns.db.prof.tierSeen and ns.db.prof.tierSeen[prof]
     return (s and s.cap == max) and s or nil
+end
+-- What a trainer charges for the tier after this cap, in copper: what this
+-- profession's trainer said, else what any profession's trainer said for the
+-- same tier (they charge alike), else the one price Flow has seen for itself
+-- (Journeyman, 5 silver). nil: not known, so nothing to wait for.
+--   seenAll: ns.db.prof.tierSeen ({ [profession] = { cap, cost } })
+SP.TIER_COST = { [75] = 500 }
+function SP.TierCost(prof, max, seenAll)
+    local mine = seenAll and seenAll[prof]
+    if mine and mine.cap == max and (mine.cost or 0) > 0 then return mine.cost end
+    for _, s in pairs(seenAll or {}) do
+        if s.cap == max and (s.cost or 0) > 0 then return s.cost end
+    end
+    return SP.TIER_COST[max]
 end
 function SP.Tier(prof, rank, max, level, seen)
     if not (rank and max and max > 0 and max < 300) then return nil end
@@ -638,8 +660,10 @@ function SP.TierGoal(prof, level, optional)
     if not (tier and tier.ready) then return nil, tier end
     local key, title = "train:" .. prof, tier.name .. " " .. prof
     local why = string.format("%s %d of %d: %s raises the cap to %d.", prof, rank, max, title, max + 75)
-    -- (cost: what the trainer asked when you last looked; the route waits until you can pay.)
-    local base = { key = key, title = title, optional = optional, weight = optional and 1.4 or 1.0, cost = tier.cost }
+    -- (cost: what a trainer charges for this tier; the route waits until you can pay.
+    -- A book or a quest has its own price or none.)
+    local cost = tier.how == "trainer" and SP.TierCost(prof, max, ns.db and ns.db.prof and ns.db.prof.tierSeen) or nil
+    local base = { key = key, title = title, optional = optional, weight = optional and 1.4 or 1.0, cost = cost }
     local function goal(g)
         for k, v in pairs(base) do if g[k] == nil then g[k] = v end end
         return g

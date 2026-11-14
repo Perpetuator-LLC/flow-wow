@@ -316,13 +316,125 @@ reg("professionMaterial", 25, function(i)
     return { action = "keep", icon = PROF_ICON[order[1]], reason = table.concat(parts, "; ") }
 end)
 
+
+-------------------------------------------------------------------------------
+-- Leaner bags (0.35.176): "I want to keep my bags as empty as possible, just
+-- what I need to quest and handle current professions, the rest can go."
+-- Three rules that came out of going through one druid's 40 slots:
+--   * the auction house only on a price Flow has seen, that beats the vendor
+--     after the house's cut and the listing fee; without one, the vendor
+--   * ammunition a class can't shoot
+--   * spell reagents that belong to other classes
+-------------------------------------------------------------------------------
+
+-- Is the auction house worth it? Only on a price Flow has seen (ahPrice, per
+-- item), and only when what's left after the house's cut and the listing fee
+-- is at least twice the vendor's price and a silver more. "If it fails on
+-- the AH the listing fee can eat the profit: before we know, just vendor."
+--   The cut is 5%. The fee (lost when it doesn't sell) is taken as 30% of
+--   the vendor price, classic's rate for a day's listing; not checked on
+--   WoW: Forever, where Flow can't read auction prices yet anyway.
+D.AH_CUT, D.AH_FEE = 0.05, 0.30
+function D.WorthAuction(ahPrice, vendorPrice)
+    if type(ahPrice) ~= "number" or ahPrice <= 0 then return false end
+    vendorPrice = vendorPrice or 0
+    local net = ahPrice * (1 - D.AH_CUT) - vendorPrice * D.AH_FEE
+    return net >= vendorPrice * 2 and net - vendorPrice >= 100
+end
+
+-- With no price known: the vendor (the default), or hold it for the auction
+-- house as Flow used to ("Sell what has no auction price", Flow Settings).
+function D.VendorUnpriced() return not (ns.db.sell and ns.db.sell.vendorUnpriced == false) end
+
+-- The verdict for something tradeable that could go to the auction house:
+-- there on a price that's worth it, else to the vendor (or held, by the
+-- setting). what: "crafting material none of your professions use"...
+--   -> verdict. ahCandidate marks what the price scan should look up.
+function D.AuctionOrVendor(ahPrice, vendorPrice, what, vendorUnpriced, money)
+    if D.WorthAuction(ahPrice, vendorPrice) then
+        return { action = "ah", ahCandidate = true,
+                 reason = string.format("%s; about %s each at the auction house", what, (money or tostring)(math.floor(ahPrice))) }
+    end
+    if ahPrice then
+        return { action = "sell", ahCandidate = true,
+                 reason = what .. "; the auction house wouldn't pay enough more than a vendor" }
+    end
+    if vendorUnpriced then
+        return { action = "sell", ahCandidate = true,
+                 reason = what .. "; no auction price known, so to a vendor" }
+    end
+    return { action = "ah", ahCandidate = true, reason = what .. "; check the auction house before vendoring" }
+end
+
+local function auctionOrVendor(i, what)
+    return D.AuctionOrVendor(D:AuctionPrice(i.link), i.sellPrice, what, D.VendorUnpriced(),
+        ns.auction and ns.auction.Money or nil)
+end
+
+-- Ammunition (arrows, bullets) for a class that can't shoot it.
+D.SHOOTS = { HUNTER = true, WARRIOR = true, ROGUE = true }
+function D.AmmoIsUseless(classID, class) return classID == 6 and not D.SHOOTS[class or ""] end
+reg("ammoNotYours", 23, function(i)
+    local _, class = UnitClass("player")
+    if D.AmmoIsUseless(i.classID, class) and i.sellPrice > 0 then
+        return { action = "sell", reason = "ammunition your class can't shoot" }
+    end
+end)
+
+-- Spell reagents, by the classes whose spells use them (by name: Forever's
+-- item numbers can differ). Add more: ns:Register("classReagent", name, { CLASS = true }).
+for name, classes in pairs({
+    ["Light Feather"] = { MAGE = true, PRIEST = true },           -- Slow Fall, Levitate
+    ["Rune of Teleportation"] = { MAGE = true },
+    ["Rune of Portals"] = { MAGE = true },
+    ["Arcane Powder"] = { MAGE = true },
+    ["Holy Candle"] = { PRIEST = true },
+    ["Sacred Candle"] = { PRIEST = true },
+    ["Ankh"] = { SHAMAN = true },
+    ["Symbol of Divinity"] = { PALADIN = true },
+    ["Flash Powder"] = { ROGUE = true },
+    ["Maple Seed"] = { DRUID = true }, ["Stranglethorn Seed"] = { DRUID = true }, ["Ashwood Seed"] = { DRUID = true },
+    ["Hornbeam Seed"] = { DRUID = true }, ["Ironwood Seed"] = { DRUID = true },
+    ["Wild Berries"] = { DRUID = true }, ["Wild Thornroot"] = { DRUID = true },
+}) do ns:Register("classReagent", name, classes) end
+
+-- Pure: is it a spell reagent of other classes only? (nil: not a reagent Flow knows.)
+function D.ReagentOfOthers(name, class, classesOf)
+    local classes = classesOf(name)
+    if not classes then return nil end
+    return not classes[class or ""]
+end
+-- (After the profession rules, so a reagent one of your recipes uses stays.)
+reg("otherClassReagent", 26, function(i)
+    local _, class = UnitClass("player")
+    if i.sellPrice > 0 and D.ReagentOfOthers(i.name, class, function(n) return ns:Get("classReagent", n) end) then
+        return { action = "sell", reason = "a spell reagent for other classes" }
+    end
+end)
+
+-- Flow Settings, "Loot and selling".
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "loot",
+        label = "Sell what has no auction price",
+        note = "(off: hold green items for the auction house)",
+        tip = "Green gear and better materials you have no use for go to the auction house only when Flow has seen a "
+            .. "price there that beats the vendor after the house's cut and the listing fee (a listing that doesn't "
+            .. "sell costs you the fee). With no price known they're sold to a vendor. Off: they're held with the "
+            .. "auction house mark until you've looked, as Flow used to do.",
+        get = function() return D.VendorUnpriced() end,
+        set = function(on) ns.db.sell.vendorUnpriced = on and true or false; D:Invalidate() end,
+    })
+end
+
 -- Crafting materials (trade goods) that none of your professions, learned
--- or planned, use: sell the plain ones, auction the better ones. Quest and
--- class-quest needs were checked before this.
+-- or planned, use: sell the plain ones; the better ones go to the auction
+-- house on a price that's worth it, else to the vendor too (auctionOrVendor).
+-- Quest and class-quest needs were checked before this.
 reg("unusedMaterial", 27, function(i)
     if i.classID ~= 7 or i.sellPrice <= 0 then return nil end
     if (i.quality or 1) >= 2 then
-        return { action = "ah", reason = "crafting material none of your professions use (worth more at the auction house)" }
+        return auctionOrVendor(i, "crafting material none of your professions use")
     end
     return { action = "sell", reason = "crafting material none of your professions use" }
 end)
@@ -440,18 +552,13 @@ reg("unneededGear", 50, function(i)
     if ns.api.Skill("Enchanting") and i.quality >= 2 then
         return { action = "de", reason = "you can disenchant it" }
     end
+    if i.bound == false and i.quality >= 3 and not D:AuctionPrice(i.link) then
+        -- Rare or better, tradeable, and no price known: never to a vendor
+        -- unseen (a blue drop can be worth far more than its vendor price).
+        return { action = "ah", ahCandidate = true, reason = "tradeable rare gear: check the auction house before vendoring" }
+    end
     if i.bound == false and i.quality >= 2 then
-        local ah = D:AuctionPrice(i.link)
-        if ah then
-            -- AH takes a 5% cut; only worth it if clearly more than the vendor.
-            if ah * 0.95 > i.sellPrice * 1.5 + 5000 then
-                return { action = "ah", reason = string.format("sells for about %s on the AH",
-                    GetCoinTextureString and GetCoinTextureString(math.floor(ah)) or ah) }
-            end
-        else
-            return { action = "ah", reason = "tradeable " .. (i.quality >= 3 and "rare" or "uncommon")
-                .. " gear: check the AH before vendoring" }
-        end
+        return auctionOrVendor(i, "tradeable gear that's no better than yours for any role")
     end
     return { action = "sell", reason = "not better than your gear for any role" }
 end)

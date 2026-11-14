@@ -225,7 +225,10 @@ Flow for WoW is a separate project from Flow Engine.
   price. Saved with the diagnostics.
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
-  It never sells profession tools or materials you need. Buy any item back with one click, and
+  It never sells profession tools or materials you need. Green gear and better materials go
+  to the auction house only on a price Flow has seen that beats the vendor after the cut and
+  the listing fee; with none known they're vendored (rare gear is always held). Ammunition
+  your class can't shoot and other classes' spell reagents are sold too. Buy any item back with one click, and
   Flow then never sells it again. Auto-sell has its own switch on the drawer and in Options.
   With full bags a "sell at a merchant" stop goes on the route.
 - **Skill books**: tells you to hold "+N skill" items until the last points before a cap.

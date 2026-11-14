@@ -135,12 +135,18 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   ("Can't measure restricted regions").
 - Item IDs can differ from classic: match tools and materials by ID **or** name.
 - Talents use `C_ClassTalents` / `C_Traits`, not the classic talent API.
-- **Profession tiers don't follow classic's numbers.** Classic teaches Journeyman at skill 50
-  and level 10; a Forever trainer refused it at Skinning 58 and level 12. Don't trust numbers
-  from memory for what a trainer will teach: Flow reads the trainer's own list when it's open
-  (`TR.ReadTier`, kept in `ns.db.prof.tierSeen`), and `SP.Tier(..., SP.TierSeen(prof, max))`
-  goes by that. The same goes for any "you can learn X now" rule: read it where the game
-  shows it.
+- **What a trainer teaches, and for how much, is read from the trainer.** Flow reads the next
+  profession tier's line whenever a profession trainer is open (`TR.ReadTier`, kept in
+  `ns.db.prof.tierSeen`), and `SP.Tier(..., SP.TierSeen(prof, max))` and `SP.TierCost` go by
+  that. Read on Forever (2026-11-13): Journeyman asks for skill 50, no level, 5 silver, as in
+  classic. A stop at a trainer must carry its price (`goal.cost`), or the route sends a
+  player who can't pay.
+- **Don't explain a player's report from memory of how the game works: get the game to say.**
+  "Journeyman Skinning needs 50 and I don't have it, but it's taking me there" was blamed on
+  the profession list (0.35.173), then on a level rule (0.35.174); it was the 5 silver
+  (0.35.176). Each guess shipped as a fix and a paragraph of wrong documentation. When a
+  report has more than one reading, add the line to the diagnostics that tells them apart
+  and wait for it, and say in the reply that the cause isn't known yet.
 - Read professions through `ns.api.Professions()` / `ns.api.Skill(name)`: they merge the
   profession slots, the trade skill lines and the profession's own spell (`/flow skills`
   shows each). `ns.api.Skill` returns `0, 0, true` for a profession you have whose skill the

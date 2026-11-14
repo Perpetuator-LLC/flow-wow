@@ -134,7 +134,7 @@ function AH:Wanted()
         D:EachBagItem(function(bag, slot, link)
             local ok, v = pcall(D.Decide, D, bag, slot, link)
             local id = tonumber(link:match("item:(%d+)"))
-            if ok and v and v.action == "ah" and id and not seen[id] then
+            if ok and v and (v.action == "ah" or v.ahCandidate) and id and not seen[id] then
                 seen[id] = true
                 out[#out + 1] = { id = id, name = link:match("%[(.-)%]") }
             end
