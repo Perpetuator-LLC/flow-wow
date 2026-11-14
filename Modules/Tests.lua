@@ -8506,3 +8506,83 @@ ns:Register("test", "game buttons: a tab on top of the window, on every talent f
         t:eq(b:GetNumPoints(), 1, "and nowhere else")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.191: the Flow key skins a looted corpse (and gathers from one), and
+-- raises a dead friend.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy button: skin a looted corpse", function(t)
+    local X = ns.actions
+    local yes, no = function() return true end, function() return false end
+    local kinds = { { text = "Skinnable", prof = "Skinning", verb = "Skin" },
+                    { text = "Requires Herbalism", prof = "Herbalism", verb = "Gather herbs from" } }
+    local k = X.CorpseGather({ "Plainstrider", "Level 7 Beast", "Skinnable" }, { false, false, false }, yes, kinds)
+    t:eq(k and k.prof, "Skinning", "a looted beast the game calls Skinnable, and you skin: skin it")
+    t:eq(X.CorpseGather({ "Plainstrider", "Skinnable" }, { false, true }, yes, kinds), nil, "Skinnable in red (your skill is too low): no")
+    t:eq(X.CorpseGather({ "Plainstrider", "Skinnable" }, nil, no, kinds), nil, "you don't have Skinning: no")
+    t:eq(X.CorpseGather({ "Plainstrider", "Level 7 Beast" }, nil, yes, kinds), nil, "nothing to gather from it: no")
+    k = X.CorpseGather({ "Lasher", "Requires Herbalism" }, nil, yes, kinds)
+    t:eq(k and k.prof, "Herbalism", "a corpse herbalists gather from: that")
+    t:eq(X.CorpseGather(nil, nil, yes, kinds), nil, "no tooltip to read: no")
+    t:ok(#X.CORPSE_LINES == 4 and X.CORPSE_LINES[1].prof == "Skinning", "skinning, herbs, ore and salvage are all read")
+
+    local action = ns:Get("action", "gather:corpse")
+    t:ok(action and type(action.get) == "function", "it's one of the Flow key's actions")
+    if not action then return end
+    local line = { "Plainstrider", X.CORPSE_LINES[1].text }
+    local corpse = { dead = true, player = false, guid = "test-skin", name = "Plainstrider", hasLoot = false }
+    with(ns.db.actions, "skin", nil, function()
+        local ok, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, corpseRed = { false, false }, hasProf = yes })
+        t:ok(ok and step and step.type == "interact", "a looted, skinnable corpse targeted: the key is Interact" .. (ok and "" or (": " .. tostring(step))))
+        t:ok(ok and step and step.label:find("^Skin Plainstrider") ~= nil, "and says so")
+        ok, step = pcall(action.get, { lootTarget = { dead = true, player = false, guid = "test-skin-2", name = "X", hasLoot = true },
+            corpseLines = line, hasProf = yes })
+        t:ok(ok and step == nil, "loot still on it: looting comes first")
+        ok, step = pcall(action.get, { lootTarget = { dead = false, player = false, guid = "g", name = "X" }, corpseLines = line, hasProf = yes })
+        t:ok(ok and step == nil, "a living target: nothing")
+        ok, step = pcall(action.get, { lootTarget = { dead = true, player = true, guid = "g", name = "X" }, corpseLines = line, hasProf = yes })
+        t:ok(ok and step == nil, "a dead player: nothing to skin")
+        ok, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, hasProf = no })
+        t:ok(ok and step == nil, "no Skinning: nothing")
+        ok, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, corpseRed = { false, true }, hasProf = yes })
+        t:ok(ok and step == nil, "your skill is too low for it: nothing")
+    end)
+    with(ns.db.actions, "skin", false, function()
+        local ok, step = pcall(action.get, { lootTarget = corpse, corpseLines = line, hasProf = yes })
+        t:ok(ok and step == nil, "switched off in Flow Settings: nothing")
+    end)
+end)
+
+ns:Register("test", "easy button: raise a dead friend you target", function(t)
+    local X = ns.actions
+    t:ok(X.ShouldRes({ dead = true, player = true, friend = true, ghost = false }, "Revive"), "a dead friend, still at their body: raise them")
+    t:ok(not X.ShouldRes({ dead = true, player = true, friend = true, ghost = true }, "Revive"), "they've released (a ghost): nothing to cast on")
+    t:ok(not X.ShouldRes({ dead = true, player = true, friend = false }, "Revive"), "not a friend: no")
+    t:ok(not X.ShouldRes({ dead = true, player = false, friend = true }, "Revive"), "a dead NPC: no")
+    t:ok(not X.ShouldRes({ dead = false, player = true, friend = true }, "Revive"), "alive: no")
+    t:ok(not X.ShouldRes({ dead = true, player = true, friend = true }, nil), "you have no resurrection: no")
+    t:ok(not X.ShouldRes(nil, "Revive"), "no target: no")
+    t:eq(X.ResSpell("DRUID", function(s) return s == "Revive" end), "Revive", "a druid's is Revive")
+    t:eq(X.ResSpell("PALADIN", function() return true end), "Redemption", "a paladin's Redemption")
+    t:eq(X.ResSpell("PRIEST", function() return false end), nil, "not learned yet: none")
+    t:eq(X.ResSpell("WARRIOR", function() return true end), nil, "a class with none: none")
+    local action = ns:Get("action", "res:target")
+    t:ok(action and type(action.get) == "function", "it's one of the Flow key's actions")
+    if not action then return end
+    local friend = { dead = true, player = true, friend = true, ghost = false, name = "Bob" }
+    with(ns.db.actions, "res", nil, function()
+        local ok, step = pcall(action.get, { resTarget = friend, resSpell = "Revive" })
+        t:ok(ok and step and step.type == "spell" and step.spell == "Revive" and step.unit == "target",
+            "the key casts it on your target" .. (ok and "" or (": " .. tostring(step))))
+        t:ok(ok and step and step.label:find("Bob", 1, true) ~= nil, "and names them")
+        ok, step = pcall(action.get, { resTarget = { dead = true, player = true, friend = true, ghost = true, name = "Bob" }, resSpell = "Revive" })
+        t:ok(ok and step == nil, "a ghost: nothing")
+        ok, step = pcall(action.get, { resTarget = { dead = false, player = true, friend = true, name = "Bob" }, resSpell = "Revive" })
+        t:ok(ok and step == nil, "alive: nothing")
+    end)
+    with(ns.db.actions, "res", false, function()
+        local ok, step = pcall(action.get, { resTarget = friend, resSpell = "Revive" })
+        t:ok(ok and step == nil, "switched off in Flow Settings: nothing")
+    end)
+end)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.191
+- **The easy button skins.** After you've looted a kill, with its corpse still targeted, the
+  key skins it: when the game writes "Skinnable" on the corpse and you have Skinning with
+  the skill for it (red means too low: then it isn't offered). Loot first, then skin, one
+  press each, walking up as for looting. The same is read for corpses that Herbalism,
+  Mining or Engineering gather from, on game versions that have those. "The Flow key skins
+  a looted corpse" in Flow Settings (Loot and selling) turns it off.
+- **The easy button raises a dead friend.** With a dead player targeted, out of a fight,
+  the key casts your resurrection on them (a druid's Revive, Resurrection, Redemption,
+  Ancestral Spirit). Not on someone who has released. A tick in Flow Settings (In a group)
+  turns it off.
+
 ## 0.35.190
 - **A Flow Talents tab on the game's talent window.** Flow already put a small button in
   that window's title bar, and the game reported it there, but it wasn't being seen. It's

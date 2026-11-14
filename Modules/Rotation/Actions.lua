@@ -813,6 +813,125 @@ ns:Register("action", "loot:corpse", { order = 0, get = function(ctx)
 end })
 
 -------------------------------------------------------------------------------
+-- A corpse you can gather from, and a dead friend (0.35.191: "add professions
+-- like skinning to target if dead and skinnable etc").
+--
+-- Skinning: once a corpse is looted the game writes "Skinnable" on its
+-- tooltip (in red when your skill is too low for it). Later game versions
+-- write "Requires Herbalism / Mining / Engineering" the same way for corpses
+-- those professions gather from: all four are read, in the game's own words.
+-- With the corpse targeted the key is the game's Interact, as for looting:
+-- loot first, then skin, one press each.
+-------------------------------------------------------------------------------
+X.CORPSE_LINES = {
+    { text = UNIT_SKINNABLE_LEATHER or "Skinnable", prof = "Skinning", verb = "Skin" },
+    { text = UNIT_SKINNABLE_HERB or "Requires Herbalism", prof = "Herbalism", spell = "Herb Gathering", verb = "Gather herbs from" },
+    { text = UNIT_SKINNABLE_ROCK or "Requires Mining", prof = "Mining", verb = "Mine" },
+    { text = UNIT_SKINNABLE_BOLTS or "Requires Engineering", prof = "Engineering", verb = "Salvage" },
+}
+-- Pure: what a corpse's tooltip offers you: one of X.CORPSE_LINES, or nil
+-- (nothing to gather, not your profession, or your skill is too low: red).
+--   lines: its tooltip's lines; red[i]: that line is red; has(prof) -> you have it
+function X.CorpseGather(lines, red, has, kinds)
+    for i, text in ipairs(lines or {}) do
+        for _, k in ipairs(kinds or X.CORPSE_LINES) do
+            if text == k.text then
+                if red and red[i] then return nil end
+                return has(k.prof) and k or nil
+            end
+        end
+    end
+    return nil
+end
+
+-- A unit's tooltip, as lines and which of them are red. nil: this client can't say.
+local function unitLines(unit)
+    local T = C_TooltipInfo
+    if not (T and T.GetUnit) then return nil end
+    local ok, data = pcall(T.GetUnit, unit)
+    if not (ok and data and data.lines) then return nil end
+    local out, red = {}, {}
+    for i, l in ipairs(data.lines) do
+        out[i] = A.Safe(l.leftText) or ""
+        local c = l.leftColor
+        red[i] = type(c) == "table" and (c.r or 0) > 0.9 and (c.g or 1) < 0.25 and (c.b or 1) < 0.25 or false
+    end
+    return out, red
+end
+local function hasProf(prof)
+    local rank, _, unsure = A.Skill(prof)
+    return (rank or 0) > 0 or unsure == true
+end
+-- (The corpse's tooltip is read at most twice a second: the key asks ten times.)
+local corpse = { guid = nil, at = 0 }
+-- ctx.lootTarget, ctx.corpseLines, ctx.corpseRed, ctx.hasProf: as the tests describe them (else the game's).
+ns:Register("action", "gather:corpse", { order = 0.2, get = function(ctx)
+    if ns.db.actions.skin == false then return nil end
+    local info = (ctx and ctx.lootTarget) or X.TargetLootInfo()
+    if not (info and info.dead) or info.player then return nil end
+    if X.ShouldLoot(info) then return nil end   -- (loot it first: the step before this one)
+    local lines, red = ctx and ctx.corpseLines, ctx and ctx.corpseRed
+    if not lines then
+        local now = GetTime()
+        if corpse.guid ~= info.guid or now - corpse.at > 0.5 then
+            corpse.guid, corpse.at = info.guid, now
+            corpse.lines, corpse.red = unitLines("target")
+        end
+        lines, red = corpse.lines, corpse.red
+    end
+    local k = X.CorpseGather(lines, red, (ctx and ctx.hasProf) or hasProf)
+    if not k then return nil end
+    return { type = "interact", icon = spellIcon(k.spell or k.prof), urgent = true,
+             label = k.verb .. " " .. (info.name or "it") .. " (walk up and press)" }
+end })
+
+-- A dead friend targeted, out of a fight: the key casts your resurrection on
+-- them. (A ghost has released: there's nothing to cast on.)
+X.RES_SPELLS = { DRUID = { "Revive" }, PRIEST = { "Resurrection" }, PALADIN = { "Redemption" }, SHAMAN = { "Ancestral Spirit" } }
+-- Pure: t = { dead, ghost, player, friend } about your target; spell: your resurrection (nil: none)
+function X.ShouldRes(t, spell)
+    if not (t and spell) then return false end
+    return t.dead == true and t.player == true and t.friend == true and not t.ghost
+end
+function X.ResSpell(class, knowsFn)
+    for _, s in ipairs(X.RES_SPELLS[class] or {}) do
+        if knowsFn(s) then return s end
+    end
+    return nil
+end
+-- ctx.resTarget, ctx.resSpell: as the tests describe them (else the game's).
+ns:Register("action", "res:target", { order = 0.3, get = function(ctx)
+    if ns.db.actions.res == false then return nil end
+    local t = ctx and ctx.resTarget
+    if not t then
+        if not UnitExists("target") then return nil end
+        t = { dead = A.Safe(UnitIsDead("target")) and true or false,
+              ghost = UnitIsGhost and A.Safe(UnitIsGhost("target")) and true or false,
+              player = UnitIsPlayer("target") and true or false,
+              friend = UnitIsFriend and UnitIsFriend("player", "target") and true or false,
+              name = A.Safe(UnitName("target")) }
+    end
+    if not (t.dead and t.player) then return nil end
+    local spell = (ctx and ctx.resSpell) or X.ResSpell(select(2, UnitClass("player")), knows)
+    if not X.ShouldRes(t, spell) then return nil end
+    return { type = "spell", spell = spell, unit = "target", icon = spellIcon(spell), urgent = true,
+             label = spell .. ": " .. (t.name or "your friend") }
+end })
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck{ group = "loot", label = "The Flow key skins a looted corpse",
+        note = "(and gathers from one, where a profession can)",
+        tip = "After you've looted a kill, with its corpse still targeted: when the game says it's skinnable and you have Skinning (and the skill for it), the key skins it. The same for corpses Herbalism, Mining or Engineering gather from, on game versions that have those.",
+        get = function() return ns.db.actions.skin ~= false end,
+        set = function(on) ns.db.actions.skin = on and true or false end }
+    ns.settings:AddCheck{ group = "group", label = "The Flow key resurrects a dead friend you target",
+        note = "(out of a fight)",
+        tip = "With a dead player targeted, out of a fight, your key casts your resurrection on them (Revive, Resurrection, Redemption, Ancestral Spirit). Not on someone who has released: a ghost can't be raised.",
+        get = function() return ns.db.actions.res ~= false end,
+        set = function(on) ns.db.actions.res = on and true or false end }
+end
+
+-------------------------------------------------------------------------------
 -- Quest NPCs to heal ("Injured Deathguard healed: 0/5", Yang couldn't find
 -- them): around such a stop the key targets the next one you can see (its
 -- nameplate), then casts your heal on it, and again until the objective is
