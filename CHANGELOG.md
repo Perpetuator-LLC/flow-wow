@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.224
+- **Your Flow key casts the teleport or hearthstone.** When the arrow shows a travel spell
+  or your hearthstone as the way to your next stop, the Flow key casts it: out of a fight,
+  with no enemy targeted, and only when the key has nothing else to do (loot, quest items
+  and the rest come first). Both are ten-second casts, so moving cancels one you didn't
+  mean.
+- **And the Flow Tracker has a button for it** on that stop's row, like a quest's item.
+- "Walk there instead" (Flow menu, Arrow) takes it off the arrow, the key and the tracker
+  for that stop. "The Flow key casts your teleport or hearthstone" in Flow Settings
+  (Finding your way) turns the key and the button off.
+- Not seen in game yet.
+
 ## 0.35.223
 - **The arrow shows the teleport or the hearthstone.** When your next stop is a cast away
   (Teleport: Moonglade) or clearly quicker by hearthstone, that spell's or the stone's icon

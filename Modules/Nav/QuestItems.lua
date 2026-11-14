@@ -117,6 +117,36 @@ function QI.ItemFor(questID)
 end
 function QI._Forget() cache = {} end   -- (tests)
 
+-- Pure: the plan with the travel step on its stop's row. rows: { key,
+-- shown }; act: N.travelAct ({ kind = "spell", spell } or { kind = "hearth" });
+-- key: the stop it takes you to. A row that already has a quest item keeps
+-- that (one button a row).
+function QI.WithTravel(plan, rows, act, key)
+    if not (act and key) then return plan end
+    for i, r in ipairs(rows or {}) do
+        if r.key == key and r.shown then
+            for _, w in ipairs(plan) do if w.row == i then return plan end end
+            local out = {}
+            for _, w in ipairs(plan) do out[#out + 1] = w end
+            out[#out + 1] = { row = i, travel = act }
+            return out
+        end
+    end
+    return plan
+end
+-- Pure: what a button does for a plan entry: the attribute's kind ("item"
+-- or "spell"), its value, and the icon (nil: the item's own).
+QI.HEARTHSTONE = 6948
+function QI.ButtonFor(w, spellIcon, itemIconOf)
+    spellIcon = spellIcon or function(spell) return select(2, ns.api.SpellInfo(spell)) end
+    itemIconOf = itemIconOf or function(id) return ns.api.ItemIcon and ns.api.ItemIcon(id) or nil end
+    if w.travel then
+        if w.travel.kind == "spell" then return "spell", w.travel.spell, spellIcon(w.travel.spell) end
+        return "item", "item:" .. QI.HEARTHSTONE, itemIconOf(QI.HEARTHSTONE)
+    end
+    return "item", "item:" .. w.item, itemIconOf(w.item)
+end
+
 local buttons = {}
 local shown = {}       -- what's on screen now (a QI.Plan list)
 local wanted, rowsOf   -- what the tracker last asked for, and its row frames
@@ -133,6 +163,13 @@ local function build(i)
     b.hl:SetAllPoints()
     b.hl:SetColorTexture(1, 1, 1, 0.3)
     b:SetScript("OnEnter", function(self)
+        if self.travel then
+            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            GameTooltip:AddLine(self.travel.text, 1, 0.82, 0)
+            GameTooltip:AddLine("It takes you to this stop. Click to cast it (or press your Flow key).", 1, 1, 1, true)
+            GameTooltip:Show()
+            return
+        end
         if not self.item then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.item) end
@@ -157,10 +194,14 @@ local function apply(plan)
             b:ClearAllPoints()
             b:SetSize(h * s, h * s)
             b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (right - h) * s, bottom * s)
-            b:SetAttribute("type", "item")
-            b:SetAttribute("item", "item:" .. w.item)
-            b.item = w.item
-            b.icon:SetTexture(ns.api.ItemIcon and ns.api.ItemIcon(w.item) or "Interface\\Icons\\INV_Misc_QuestionMark")
+            local kind, what, icon = QI.ButtonFor(w)
+            b:SetAttribute("spell", nil)
+            b:SetAttribute("item", nil)
+            b:SetAttribute("type", kind)
+            b:SetAttribute(kind, what)
+            if kind == "spell" then b:SetAttribute("unit", "player") else b:SetAttribute("unit", nil) end
+            b.item, b.travel = w.item, w.travel
+            b.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
             b:Show()
         else
             b:Hide()
@@ -182,13 +223,19 @@ function QI:Layout(rows, visible)
         list[i] = { key = r.key, shown = visible and r:IsVisible() and true or false }
     end
     wanted = QI.Plan(list, QI.ItemFor, QI.MAX)
+    -- And the teleport or hearthstone that takes you to a stop, on that
+    -- stop's row (Nav/TravelIcon.lua), the same way.
+    local N = ns.nav
+    if N and N.TravelOnTracker and N.TravelOnTracker() then
+        wanted = QI.WithTravel(wanted, list, N.travelAct, N.travelKey)
+    end
     local byRow = {}
-    for _, w in ipairs(wanted) do byRow[w.row] = w.item end
+    for _, w in ipairs(wanted) do byRow[w.row] = w.item or true end
     if InCombatLockdown() then
         QI.pending = true   -- (brought up to date when the fight ends)
         -- What's on screen is what you can click: the rows keep room for those.
         local now = {}
-        for _, w in ipairs(shown) do now[w.row] = w.item end
+        for _, w in ipairs(shown) do now[w.row] = w.item or true end
         return now
     end
     QI.pending = nil

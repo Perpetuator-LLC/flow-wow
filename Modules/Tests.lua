@@ -10497,3 +10497,47 @@ ns:Register("test", "click: 'Walk there instead' in the Flow menu drops the trav
     end
     N.travelAct, N.travelKey, N.travelSkip = act, key, skip
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.224: the teleport or hearthstone on your Flow key and the tracker.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: it casts the teleport or hearthstone to your next stop, when nothing else is on", function(t)
+    local N = ns.nav
+    local port = { kind = "spell", spell = "Teleport: Moonglade", text = "Cast Teleport: Moonglade" }
+    local stone = { kind = "hearth", text = "Use your hearthstone (The Crossroads)" }
+    t:ok(N.TravelOnKey(port, "5723:1", "5723:1", false, false, true, 1), "the stop the arrow leads to is a cast away: the key takes it")
+    t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", true, false, true, 1), "an enemy targeted: the fight comes first")
+    t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", false, true, true, 1), "in a fight: no")
+    t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", false, false, false, 1), "switched off: no")
+    t:ok(not N.TravelOnKey(port, "844:done", "5723:1", false, false, true, 1), "the travel step is for another stop: no")
+    t:ok(not N.TravelOnKey(nil, "5723:1", "5723:1", false, false, true, 1), "nothing to cast: no")
+    t:ok(N.TravelOnKey(stone, "a", "a", false, false, true, 1), "the hearthstone, with one in your bags: yes")
+    t:ok(not N.TravelOnKey(stone, "a", "a", false, false, true, 0), "no hearthstone in your bags: no")
+    local action = ns:Get("action", "travel:go")
+    t:ok(action and type(action.get) == "function", "it's one of the key's actions")
+    local was, key = N.travelAct, N.travelKey
+    N.travelAct, N.travelKey = nil, nil
+    local ok, s = pcall(action.get, { goal = { key = "x" } })
+    t:ok(ok and s == nil, "no travel step right now: the key does nothing of it" .. (ok and "" or (": " .. tostring(s))))
+    N.travelAct, N.travelKey = was, key
+end)
+
+ns:Register("test", "tracker: the teleport or hearthstone is a button on its stop's row", function(t)
+    local QI = ns.questItems
+    local port = { kind = "spell", spell = "Teleport: Moonglade", text = "Cast Teleport: Moonglade" }
+    local rows = { { key = "844:done", shown = true }, { key = "5723:1", shown = true }, { key = "870:1", shown = false } }
+    local plan = QI.WithTravel({ { row = 1, item = 5087 } }, rows, port, "5723:1")
+    t:ok(#plan == 2 and plan[2].row == 2 and plan[2].travel == port, "on the row of the stop it takes you to, beside the quest items")
+    plan = QI.WithTravel({ { row = 2, item = 5087 } }, rows, port, "5723:1")
+    t:eq(#plan, 1, "a row with a quest item keeps that: one button a row")
+    t:eq(#QI.WithTravel({}, rows, port, "870:1"), 0, "its row isn't showing: no button")
+    t:eq(#QI.WithTravel({}, rows, nil, "5723:1"), 0, "no travel step: nothing added")
+    local kind, what, icon = QI.ButtonFor({ row = 2, travel = port }, function() return "spellicon" end, function() return "itemicon" end)
+    t:ok(kind == "spell" and what == "Teleport: Moonglade" and icon == "spellicon", "a spell: cast by name")
+    kind, what, icon = QI.ButtonFor({ row = 2, travel = { kind = "hearth" } }, function() return "spellicon" end, function() return "itemicon" end)
+    t:ok(kind == "item" and what == "item:6948" and icon == "itemicon", "the hearthstone: used as an item")
+    kind, what = QI.ButtonFor({ row = 1, item = 5087 }, function() end, function() end)
+    t:ok(kind == "item" and what == "item:5087", "a quest item: as before")
+    t:ok(type(ns.nav.TravelOnTracker()) == "boolean", "the tracker can ask whether there's one")
+end)
