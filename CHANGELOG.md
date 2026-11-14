@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.223
+- **The arrow shows the teleport or the hearthstone.** When your next stop is a cast away
+  (Teleport: Moonglade) or clearly quicker by hearthstone, that spell's or the stone's icon
+  stands where the arrow was, so it's plain what to do; the arrow, half its size, sits
+  beside it and still points the way on foot.
+- **Walk there instead.** Flow menu, Arrow: "Walk there instead" drops the icon for that
+  stop and the arrow is the arrow again; the same place brings it back.
+- Not seen in game yet.
+
 ## 0.35.222
 - **"Regrowth on Bob" now heals Bob.** With a friendly player targeted, the easy button
   showed a heal "on <their name>" but the key cast it on you; only Ctrl + key reached them.

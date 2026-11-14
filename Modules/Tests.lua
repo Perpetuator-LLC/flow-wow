@@ -10447,3 +10447,53 @@ ns:Register("test", "easy key: a heal that says 'on <someone>' is cast on them",
     local kind, what, unit = C.SlotAttributes({ spell = "Regrowth", kind = "heal", unit = "target" })
     t:ok(kind == "spell" and what == "Regrowth" and unit == "target", "and the same on a modifier press")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.223: a travel spell or the hearthstone in the arrow's place.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "arrow: a stop a cast or a hearthstone away shows that instead of the arrow", function(t)
+    local N = ns.nav
+    local a = N.TravelAction("Teleport: Moonglade", nil, nil, false)
+    t:ok(a and a.kind == "spell" and a.text == "Cast Teleport: Moonglade", "a stop a cast away: the spell")
+    a = N.TravelAction(nil, 240, "The Crossroads", false)
+    t:ok(a and a.kind == "hearth" and a.text == "Use your hearthstone (The Crossroads)", "clearly quicker by hearthstone: the stone, and where it's set")
+    a = N.TravelAction("Teleport: Moonglade", 240, "The Crossroads", false)
+    t:eq(a.kind, "spell", "both: the spell that lands you there")
+    t:eq(N.TravelAction(nil, nil, nil, false), nil, "neither: the arrow as usual")
+    t:eq(N.TravelAction("Teleport: Moonglade", 240, "X", true), nil, "you chose to walk to this stop: the arrow as usual")
+    t:ok(N.TRAVEL_ARROW_SCALE < 1, "the arrow stays, smaller")
+end)
+
+ns:Register("test", "click: 'Walk there instead' in the Flow menu drops the travel icon for that stop", function(t)
+    local N = ns.nav
+    local act, key, skip = N.travelAct, N.travelKey, N.travelSkip
+    N.travelSkip = {}
+    N.travelAct, N.travelKey = { kind = "spell", spell = "Teleport: Moonglade", text = "Cast Teleport: Moonglade" }, "flowtest:1"
+    local items = N.TravelMenuItems()
+    t:ok(#items == 1 and items[1].text:find("Walk there instead", 1, true) ~= nil, "the menu offers walking: " .. tostring(items[1] and items[1].text))
+    local ok, err = pcall(items[1].func)
+    t:ok(ok and N.travelSkip["flowtest:1"] == true, "a click remembers it for that stop" .. (ok and "" or (": " .. tostring(err))))
+    items = N.TravelMenuItems()
+    t:ok(#items == 1 and items[1].text:find("again", 1, true) ~= nil, "then the menu offers it back")
+    pcall(items[1].func)
+    t:eq(N.travelSkip["flowtest:1"], nil, "and that brings it back")
+    N.travelAct, N.travelKey = nil, nil
+    t:eq(#N.TravelMenuItems(), 0, "no stop like that: no entry")
+    -- On the real arrow, with a stop that's a cast away: the icon shows and goes again.
+    local frame = N.arrowFrame
+    if frame and frame.arrow and not InCombatLockdown() then
+        local port = N.port
+        N.port = "Teleport: Moonglade"
+        local okS, shown = pcall(N.ShowTravel, frame, "flowtest:2", nil, 100)
+        t:ok(okS and shown and frame.travel and frame.travel:IsShown(), "the icon stands where the arrow was" .. (okS and "" or (": " .. tostring(shown))))
+        t:near(frame.arrow:GetScale(), N.TRAVEL_ARROW_SCALE, 0.01, "the arrow is small beside it")
+        N.port = nil
+        N.travelSkip["flowtest:2"] = true
+        pcall(N.ShowTravel, frame, "flowtest:2", nil, 100)
+        t:ok(not frame.travel:IsShown(), "no cast needed any more: the icon goes")
+        t:near(frame.arrow:GetScale(), 1, 0.01, "and the arrow is its own size again")
+        N.port = port
+    end
+    N.travelAct, N.travelKey, N.travelSkip = act, key, skip
+end)

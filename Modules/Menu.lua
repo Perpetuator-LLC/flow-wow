@@ -487,7 +487,10 @@ function Menu:RouteItemsRaw()
     section("Stops on the map", stops)
 
     -- The arrow's look (Nav.lua).
-    section("Arrow", safe(nav.ArrowMenuItems, nav))
+    -- (First: walking to a stop Flow would have you teleport or hearth to.)
+    local arrowItems = safe(nav.TravelMenuItems)
+    for _, it in ipairs(safe(nav.ArrowMenuItems, nav)) do arrowItems[#arrowItems + 1] = it end
+    section("Arrow", arrowItems)
 
     section("Keys", {
         -- Both of Flow's buttons and their keys ("we should be able to toggle the

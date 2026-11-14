@@ -3853,6 +3853,9 @@ local function update()
         frame.text:SetText(flyTitle)
         frame.sub:SetText(flySub)
     end
+    -- A stop that's a cast or a hearthstone away: that icon in the arrow's
+    -- place, the arrow small beside it (TravelIcon.lua).
+    if N.ShowTravel then pcall(N.ShowTravel, frame, g.key, choice.point, choice.d) end
     -- Right on the spot (on a spawn spot, or at the stop itself): the pillars
     -- run a wave.
     if frame.arrow.SetWave then
