@@ -108,8 +108,8 @@ local function buildIcon(cfg)
     -- down, red out of range; the one Flow advises pulses gold, the one
     -- whose modifier you hold is ringed green.
     f.deck = {}
-    local SIZES = { 36, 30, 25 }
-    local MODS = { "CTRL", "SHIFT", "ALT" }
+    local SIZES = { 36, 30, 25, 22 }
+    local MODS = { "CTRL", "SHIFT", "ALT", "C+S" }   -- (C+S: Ctrl and Shift together, Queue.lua "more")
     local prev
     for i, sz in ipairs(SIZES) do
         local d = CreateFrame("Frame", nil, f)
@@ -147,9 +147,10 @@ local function buildIcon(cfg)
             local item = e.item and tonumber(tostring(e.item):match("(%d+)"))
             if id and GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(id); GameTooltip:AddLine(" ")
             elseif item and GameTooltip.SetItemByID then GameTooltip:SetItemByID(item); GameTooltip:AddLine(" ") end
-            GameTooltip:AddLine(string.format("%s + your key: %s", MODS[i], tostring(e.spell or e.label or "your item")), 1, 0.82, 0)
+            local held = (i == 4) and "CTRL + SHIFT" or MODS[i]
+            GameTooltip:AddLine(string.format("%s + your key: %s", held, tostring(e.spell or e.label or "your item")), 1, 0.82, 0)
             if e.reason then GameTooltip:AddLine(e.reason, 1, 1, 1, true) end
-            GameTooltip:AddLine("Hold " .. MODS[i] .. ": the big icon shows it. In a fight it's set at the pull.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Hold " .. held .. ": the big icon shows it. In a fight it's set at the pull.", 0.7, 0.7, 0.7, true)
             GameTooltip:Show()
         end)
         d:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -654,7 +655,7 @@ local function tick()
     -- holds another spell (ns.ShiftCue).
     local healSpell = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
     local cue = ns.ShiftCue(advice, healSpell, swapped ~= nil, inCombat)
-    local tag = (swapped and (Q.LABEL[swapped] .. "+")) or (cue == "press" and "Heal: SHIFT+") or nil
+    local tag = (swapped and (Q.NAME[swapped]:gsub(" ", "") .. "+")) or (cue == "press" and "Heal: SHIFT+") or nil
     if tag ~= icon.shiftTag.cue then
         icon.shiftTag.cue = tag
         icon.shiftTag:SetShown(tag ~= nil)

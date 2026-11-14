@@ -9,6 +9,9 @@ local _, ns = ...
 -- Sizes a button can take with Ctrl + mouse wheel: half to double size, in
 -- steps of a tenth. ClampScale rounds to the nearest 5 % and keeps it in range.
 ns.SCALE_MIN, ns.SCALE_MAX, ns.SCALE_STEP = 0.5, 2, 0.1
+-- The "drag to move" note: this far under the button (clear of the line of
+-- text the button has under it), and this faint.
+ns.MOVE_NOTE_DROP, ns.MOVE_NOTE_ALPHA = 20, 0.6
 function ns.ClampScale(s)
     s = tonumber(s) or 1
     s = math.floor(s * 20 + 0.5) / 20
@@ -45,20 +48,25 @@ function ns:MoveHandle(target, opts)
         if i <= 2 then t:SetHeight(2) else t:SetWidth(2) end
         h.edge[i] = t
     end
-    -- The label sits ABOVE the button (under it is the button's own text,
-    -- which it would cover), on a small dark tab so it reads.
-    h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    h.text:SetPoint("BOTTOM", h, "TOP", 0, 4)
+    -- The note sits BELOW the button and its own line of text, small and
+    -- faint (0.35.194). It used to sit above, bright, on a dark tab: Ctrl is
+    -- also a cast modifier, so every Ctrl + key flashed it over the key's
+    -- bind and the modifier names.
+    h.text = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    h.text:SetPoint("TOP", h, "BOTTOM", 0, -(ns.MOVE_NOTE_DROP))
+    h.text:SetAlpha(ns.MOVE_NOTE_ALPHA)
     h.tab = h:CreateTexture(nil, "BACKGROUND")
     h.tab:SetPoint("TOPLEFT", h.text, "TOPLEFT", -4, 2)
     h.tab:SetPoint("BOTTOMRIGHT", h.text, "BOTTOMRIGHT", 4, -2)
-    h.tab:SetColorTexture(0, 0, 0, 0.6)
+    h.tab:SetColorTexture(0, 0, 0, 0.3)
 
     -- Hover: it lights up, so it's clear you can grab it.
     function h:Paint(hot)
         self.bg:SetColorTexture(o[1], o[2], o[3], hot and 0.35 or 0.12)
         for _, t in ipairs(self.edge) do t:SetColorTexture(o[1], o[2], o[3], hot and 1 or 0.7) end
-        self.text:SetTextColor(hot and 1 or o[1], hot and 1 or o[2], hot and 1 or o[3])
+        -- (Faint until the mouse is over the handle: then it's what you're doing.)
+        self.text:SetTextColor(hot and 1 or 0.7, hot and 1 or 0.7, hot and 1 or 0.7)
+        self.text:SetAlpha(hot and 1 or ns.MOVE_NOTE_ALPHA)
     end
     function h:Label()
         self.text:SetText(string.format("drag to move · wheel to resize (%d%%)", math.floor(target:GetScale() * 100 + 0.5)))

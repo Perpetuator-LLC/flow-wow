@@ -431,7 +431,21 @@ function C:HealSpell() return healSpell end
 -- until 0.35.162), Shift + key fell through to the key's own spell: it cast
 -- Wrath, not your heal.
 -------------------------------------------------------------------------------
-local SLOT_BUTTON = { ctrl = "ctrl", shift = "heal", alt = "emerg" }
+local SLOT_BUTTON = { ctrl = "ctrl", shift = "heal", alt = "emerg", more = "more" }
+-- The modifiers each slot is pressed with ("more": Ctrl and Shift together).
+local SLOT_MODS = { ctrl = { "CTRL" }, shift = { "SHIFT" }, alt = { "ALT" }, more = { "CTRL", "SHIFT" } }
+C.SLOTS = { "ctrl", "shift", "alt", "more" }
+-- Your key with a slot's modifiers added ("Q", "more" -> "CTRL-SHIFT-Q");
+-- nil when the key already uses one of them.
+function C.SlotKey(key, slot)
+    local k = key
+    for _, mod in ipairs(SLOT_MODS[slot] or {}) do
+        if not k then return nil end
+        k = C.ModKey(k, mod)
+    end
+    if not SLOT_MODS[slot] then return nil end
+    return k
+end
 local SLOT_ATTRS = { "type", "spell", "item", "unit" }
 local slotText = {}   -- [slot] = what it's set to, as text (to skip repeats)
 local slotView = {}   -- [slot] = the step it casts (C:Slots, for the icons)
@@ -492,7 +506,7 @@ C._setHeal = setHeal
 function C:SetQueue(q)
     if InCombatLockdown() or not btn then return end
     local changed = false
-    for _, slot in ipairs({ "ctrl", "shift", "alt" }) do
+    for _, slot in ipairs(C.SLOTS) do
         if setSlot(slot, q and q[slot] or nil) then changed = true end
     end
     if changed then self:ApplyKey() end
@@ -556,8 +570,8 @@ function C:ApplyKey()
         if keyCommand then SetOverrideBinding(owner, true, key, keyCommand)
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
         -- The queue: a modifier is bound while its slot has something on it.
-        for slot, mod in pairs({ ctrl = "CTRL", shift = "SHIFT", alt = "ALT" }) do
-            local modKey = slotText[slot] and C.ModKey(key, mod)
+        for _, slot in ipairs(C.SLOTS) do
+            local modKey = slotText[slot] and C.SlotKey(key, slot)
             if modKey then SetOverrideBindingClick(owner, true, modKey, "FlowCastButton", SLOT_BUTTON[slot]) end
         end
     end
@@ -692,9 +706,9 @@ function C:Test()
     end
     local first = keys[1]
     -- The queue: what each modifier + key casts, and what the game has it bound to.
-    for _, e in ipairs({ { "ctrl", "CTRL" }, { "shift", "SHIFT" }, { "alt", "ALT" } }) do
+    for _, e in ipairs({ { "ctrl" }, { "shift" }, { "alt" }, { "more" } }) do
         local s = slotView[e[1]]
-        local modKey = first and C.ModKey(first, e[2])
+        local modKey = first and C.SlotKey(first, e[1])
         print(string.format("  %s + key: %s", e[1], (s and modKey)
             and string.format("%s casts %s on %s (set as %s; bound to %s)", modKey, tostring(s.spell or s.item),
                 tostring(select(3, C.SlotAttributes(s)) or "its own target"), tostring(slotText[e[1]]), tostring(GetBindingAction(modKey, true)))
@@ -749,7 +763,8 @@ ns:OnLoad(function()
         -- A modifier press (the queue: "ctrl", "heal" = Shift, "emerg" = Alt):
         -- each one logged with what it casts and counted for the fight, so
         -- the diagnostics show whether Ctrl, Shift and Alt + key get used.
-        local mod = (button == "ctrl" and "ctrl") or (button == "heal" and "shift") or (button == "emerg" and "alt") or nil
+        local mod = (button == "ctrl" and "ctrl") or (button == "heal" and "shift") or (button == "emerg" and "alt")
+            or (button == "more" and "more") or nil
         if mod then
             if down ~= false then
                 local step = slotView[mod]

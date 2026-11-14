@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.194
+- **The suggested spell on a modifier of its own: Ctrl + Shift + your key.** When Flow
+  advised something your key couldn't cast mid-fight, it was a little icon in the corner
+  of the big one, to find and press on your action bar. There is now a fourth small icon
+  in the row left of the big one, marked **C+S**: Ctrl and Shift together, plus your key,
+  cast it. It holds the fight's next most likely spell that no other press already casts
+  (for a druid caster with a potion on Alt: Nature's Grasp; without one, Moonfire), and it
+  pulses when that's what Flow advises, so you can see which keys to hold. Like the other
+  three it's set before the pull and stays for the fight; something on none of the presses
+  still shows in the corner and glows on your bar. Hold Ctrl + Shift out of a fight to see
+  it on the big icon.
+- The "drag to move, wheel to resize" note that shows while you hold Ctrl is now below
+  the button and its text, small and faint (it brightens when the mouse is on the handle).
+  It used to flash above the button, over the key's name, at every Ctrl + key.
+
 ## 0.35.193
 - **A friendly player targeted: your buffs, then a heal.** Out of a fight of your own, with
   a living friendly player targeted (in your group or not), your key casts your buffs for

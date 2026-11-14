@@ -4522,7 +4522,9 @@ ns:Register("test", "queue: four things on one key (Ctrl, Shift, Alt)", function
     t:eq(Q.HeldMod(true, false, false), "ctrl", "Ctrl")
     t:eq(Q.HeldMod(false, true, false), "shift", "Shift")
     t:eq(Q.HeldMod(false, false, true), "alt", "Alt")
-    t:eq(Q.HeldMod(true, true, false), nil, "two at once: none")
+    t:eq(Q.HeldMod(true, true, false), "more", "Ctrl and Shift together: the fifth press (0.35.194)")
+    t:eq(Q.HeldMod(true, false, true), nil, "any other two: none")
+    t:eq(Q.HeldMod(true, true, true), nil, "all three: none")
     t:eq(Q.HeldMod(false, false, false), nil, "none")
     -- Holding one: the big icon becomes its spell.
     local v, m = Q.ModView(wrath, slots, "ctrl", true)
@@ -8721,5 +8723,76 @@ ns:Register("test", "druid: Nature's Grasp when a melee mob is hitting you", fun
     -- (Only the caster's keys carry it: in a form the lists are the form's.)
     if keys.ctrl and keys.ctrl[1] == "Entangling Roots" then
         t:ok(has, "caster form: Alt + key holds Nature's Grasp when no potion does")
+    end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.194: the suggested spell on a modifier of its own (Ctrl + Shift); the
+-- move note below the button, faint.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "queue: a fifth press, Ctrl + Shift, for another spell of the fight", function(t)
+    local Q, C = ns.queue, ns.cast
+    t:eq(#Q.ORDER, 4, "four modifier presses beside the key's own")
+    t:eq(Q.ORDER[4], "more", "the last is Ctrl + Shift")
+    t:eq(Q.LABEL.more, "C+S", "written C+S above its icon")
+    t:eq(Q.NAME.more, "CTRL + SHIFT", "and in full in a sentence")
+    -- Which spell goes on it: the first of the fight's others that no other press casts.
+    local wrath = { spell = "Wrath", kind = "damage" }
+    local slots = Q.Slots(wrath, { heal = "Regrowth", emergency = "item:118", ctrlSpell = "Entangling Roots",
+        keySpell = "Wrath", more = { "Nature's Grasp", "Moonfire", "War Stomp", "Entangling Roots" } })
+    t:eq(slots.ctrl and slots.ctrl.spell, "Entangling Roots", "Ctrl as before")
+    t:eq(slots.alt and slots.alt.item, "item:118", "Alt holds the potion")
+    t:eq(slots.more and slots.more.spell, "Nature's Grasp", "so Ctrl + Shift gets Nature's Grasp")
+    slots = Q.Slots(wrath, { heal = "Regrowth", ctrlSpell = "Entangling Roots", altSpell = "Nature's Grasp",
+        keySpell = "Wrath", more = { "Nature's Grasp", "Moonfire", "War Stomp" } })
+    t:eq(slots.alt and slots.alt.spell, "Nature's Grasp", "no potion: Alt takes Nature's Grasp")
+    t:eq(slots.more and slots.more.spell, "Moonfire", "and Ctrl + Shift the next one, Moonfire")
+    slots = Q.Slots(wrath, { keySpell = "Wrath", more = { "Wrath" } })
+    t:eq(slots.more, nil, "nothing the key doesn't cast already: empty")
+    t:eq(Q.Slots(wrath, {}).more, nil, "a class with no other spells: empty")
+    -- The list for it: the ones you know, the class's order, nothing twice.
+    local def = { fightKeys = function() return { ctrl = { "Entangling Roots", "Moonfire" }, alt = { "Nature's Grasp", "Moonfire", "War Stomp" } } end }
+    local list = Q.MoreList(def, function(s) return s ~= "War Stomp" end, nil)
+    t:eq(table.concat(list, ", "), "Nature's Grasp, Moonfire, Entangling Roots", "Alt's list, then Ctrl's; only what you know; nothing twice")
+    def = { fightKeys = function() return { ctrl = { "A" }, alt = { "B" }, more = { "Z" } } end }
+    t:eq(Q.MoreList(def, function() return true end, nil)[1], "Z", "a class may name its own")
+    -- Flow advises it: that slot is the one to press.
+    local live = { key = wrath, ctrl = { spell = "Entangling Roots" }, shift = { spell = "Regrowth", kind = "heal" },
+                   alt = { item = "item:118" }, more = { spell = "Nature's Grasp" } }
+    t:eq(Q.AdviceSlot({ spell = "Nature's Grasp", kind = "buff" }, live), "more", "Nature's Grasp advised: Ctrl + Shift lights up")
+    t:eq(Q.AdviceSlot({ spell = "Moonfire" }, live), nil, "something on no press: still your bar (the corner icon)")
+    -- Holding Ctrl + Shift: the big icon shows it.
+    local view, swapped = Q.ModView(wrath, live, "more", true)
+    t:ok(swapped == "more" and view.spell == "Nature's Grasp", "held: the big icon becomes it")
+    t:ok(view.label:find("CTRL + SHIFT + key", 1, true) ~= nil, "and says which keys: " .. tostring(view.label))
+    -- The key itself.
+    t:eq(C.SlotKey("Q", "more"), "CTRL-SHIFT-Q", "Q: Ctrl + Shift + Q")
+    t:eq(C.SlotKey("BUTTON5", "ctrl"), "CTRL-BUTTON5", "Ctrl as before")
+    t:eq(C.SlotKey("BUTTON5", "alt"), "ALT-BUTTON5", "Alt as before")
+    t:eq(C.SlotKey("SHIFT-E", "more"), nil, "a key that already uses Shift: no such press")
+    t:eq(C.SlotKey("Q", "nope"), nil, "not a slot: nothing")
+    t:eq(#C.SLOTS, 4, "the button has the four")
+    -- On the screen: a fourth, smallest icon in the row.
+    local icon = ns.rotation.icon
+    if icon and icon.deck then
+        t:eq(#icon.deck, 4, "four icons run out to the left")
+        t:ok(icon.deck[4]:GetWidth() < icon.deck[3]:GetWidth(), "each smaller than the last")
+        t:eq(icon.deck[4].mod:GetText(), "C+S", "its name above it")
+    end
+end)
+
+ns:Register("test", "move handle: its note sits below the button, faint", function(t)
+    t:ok(ns.MOVE_NOTE_DROP >= 16, "far enough down to clear the button's own line of text")
+    t:ok(ns.MOVE_NOTE_ALPHA < 1, "faint")
+    local h = ns.cast and ns.cast.handle
+    if not (h and h.text) then t:ok(true, "(the Flow key isn't built yet)") return end
+    local p, rel, rp, _, y = h.text:GetPoint(1)
+    t:ok(p == "TOP" and rel == h and rp == "BOTTOM", "its top hangs from the button's bottom edge")
+    t:ok((y or 0) < 0, "below it")
+    t:eq(h.text:GetNumPoints(), 1, "and nowhere above it any more")
+    if not h:IsMouseOver() then
+        h:Paint(false)
+        t:near(h.text:GetAlpha(), ns.MOVE_NOTE_ALPHA, 0.01, "faint until the mouse is on the handle")
     end
 end)

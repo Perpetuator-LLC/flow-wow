@@ -26,8 +26,10 @@ Flow for WoW is a separate project from Flow Engine.
   three things your key casts with a modifier held, the modifier written above each: **CTRL**
   your second attack (Moonfire beside Wrath; between fights the next way to heal up, or the
   shown heal or buff on your friendly target), **SHIFT** your quickest heal on you, **ALT** your
-  healthstone or healing potion (without one, the spell that holds or stops your target). Hold
-  a modifier and the big icon becomes that spell. In a fight all four are set at the pull;
+  healthstone or healing potion (without one, the spell that holds or stops your target), and
+  **C+S** (Ctrl and Shift together) another spell Flow may ask for in the fight, so its
+  advice is on a key and not only on your bar. Hold
+  a modifier and the big icon becomes that spell. In a fight they are all set at the pull;
   the one Flow advises pulses gold. A class says what its fights use (`fightKeys`).
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.

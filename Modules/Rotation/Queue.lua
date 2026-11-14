@@ -7,6 +7,9 @@
 --   SHIFT  your quickest heal, on you
 --   ALT    your healthstone or healing potion; without one, the spell that
 --          holds or stops your target (Entangling Roots)
+--   C+S    (Ctrl and Shift together) another spell Flow may advise in the
+--          fight that none of the above casts (Nature's Grasp): its advice
+--          pulses on a slot you can press, not only on your action bar
 -- Hold a modifier and the big icon becomes that spell. In a fight the game
 -- lets no add-on change what a key casts, so all four are set before the
 -- pull and stay for the fight; Flow lights the one to press now.
@@ -28,8 +31,15 @@ local E = ns.rotation
 local Q = {}
 ns.queue = Q
 
-Q.ORDER = { "ctrl", "shift", "alt" }                          -- slots 2, 3, 4
-Q.LABEL = { ctrl = "CTRL", shift = "SHIFT", alt = "ALT" }     -- written above them
+-- "more" (0.35.194): Ctrl + Shift + key, for another spell Flow may advise in
+-- the fight. The advice the key can't cast used to be a little icon in the
+-- corner of the big one, to press from your action bar: "can the little icon
+-- be in a modifier spot, so the user connects it with the modifier and hits
+-- it to cast?" In a fight no slot can change, so the likeliest advice gets
+-- a slot before the pull; when Flow advises it, that slot pulses.
+Q.ORDER = { "ctrl", "shift", "alt", "more" }                              -- slots 2, 3, 4, 5
+Q.LABEL = { ctrl = "CTRL", shift = "SHIFT", alt = "ALT", more = "C+S" }   -- written above them
+Q.NAME = { ctrl = "CTRL", shift = "SHIFT", alt = "ALT", more = "CTRL + SHIFT" }   -- in a sentence
 
 local function helpful(s) return s and s.spell and (s.kind == "buff" or s.kind == "heal" or s.kind == "emergency") end
 
@@ -95,7 +105,42 @@ function Q.Slots(main, o)
     end
     if not ctrl and o.ctrlSpell then ctrl = { spell = o.ctrlSpell, kind = "damage", reason = "Your second spell for the fight" } end
     if not alt and o.altSpell then alt = { spell = o.altSpell, kind = "damage", reason = "Your third spell for the fight" } end
-    return { key = main, ctrl = ctrl, shift = shift, alt = alt }
+    -- Ctrl + Shift: the first of the fight's other spells (o.more, in the
+    -- class's order) that no other press already casts.
+    local taken = {}
+    if o.keySpell then taken[o.keySpell] = true end
+    for _, s in pairs({ main = main, ctrl = ctrl, shift = shift, alt = alt }) do
+        if s.spell then taken[s.spell] = true end
+    end
+    local more
+    for _, spell in ipairs(o.more or {}) do
+        if not taken[spell] then
+            more = { spell = spell, kind = "damage", reason = "Another spell Flow may ask for in this fight" }
+            break
+        end
+    end
+    return { key = main, ctrl = ctrl, shift = shift, alt = alt, more = more }
+end
+
+-- The fight's other spells, for Ctrl + Shift: the ones you know, in the
+-- class's order (fightKeys().more, else its Alt list, then its Ctrl list,
+-- then its attacks).
+function Q.MoreList(def, knows, engine)
+    local keys = def and def.fightKeys and def.fightKeys(engine) or nil
+    local out, seen = {}, {}
+    local function add(list)
+        for _, spell in ipairs(list or {}) do
+            if not seen[spell] and knows(spell) then
+                seen[spell] = true
+                out[#out + 1] = spell
+            end
+        end
+    end
+    if keys and keys.more then add(keys.more) end
+    add(keys and keys.alt)
+    add(keys and keys.ctrl)
+    add(Q.Attacks(def))
+    return out
 end
 
 -- Which press does what Flow advises: "key", "ctrl", "shift", "alt", or nil
@@ -103,7 +148,7 @@ end
 -- Shift + key heals you, if not with that very spell.
 function Q.AdviceSlot(advice, slots)
     if not (advice and slots) then return nil end
-    for _, name in ipairs({ "key", "ctrl", "shift", "alt" }) do
+    for _, name in ipairs({ "key", "ctrl", "shift", "alt", "more" }) do
         local s = slots[name]
         if s and ((s.item and s.item == advice.item) or (s.spell and s.spell == advice.spell)) then return name end
     end
@@ -111,9 +156,10 @@ function Q.AdviceSlot(advice, slots)
     return nil
 end
 
--- The one modifier held ("ctrl", "shift", "alt"), or nil: none, or several
--- (Ctrl + Shift + key is no slot).
+-- The slot whose modifiers are held: "ctrl", "shift", "alt", or "more" for
+-- Ctrl + Shift together; nil for none, or any other combination.
 function Q.HeldMod(ctrl, shift, alt)
+    if ctrl and shift and not alt then return "more" end
     local n = (ctrl and 1 or 0) + (shift and 1 or 0) + (alt and 1 or 0)
     if n ~= 1 then return nil end
     return (ctrl and "ctrl") or (shift and "shift") or "alt"
@@ -127,7 +173,7 @@ function Q.ModView(view, slots, mod, inCombat)
     if not (step and (view or inCombat)) then return view, nil end
     local out = { kind = step.kind, mod = mod }
     for k, v in pairs(step) do out[k] = v end
-    out.label = Q.LABEL[mod] .. " + key: " .. tostring(step.spell or step.label or "your item")
+    out.label = Q.NAME[mod] .. " + key: " .. tostring(step.spell or step.label or "your item")
     return out, mod
 end
 
@@ -165,5 +211,6 @@ function Q.Now(main, locked)
         heal = C and C.HealSpell and C:HealSpell() or nil,
         emergency = C and C.EmergencyItem and C:EmergencyItem() or nil,
         ctrlSpell = ctrlSpell, altSpell = altSpell, friend = friend, options = options,
+        keySpell = keySpell, more = Q.MoreList(def, function(spell) return E:Knows(spell) end, E),
     })
 end
