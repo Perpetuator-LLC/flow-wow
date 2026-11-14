@@ -360,7 +360,7 @@ function Menu:RouteItemsRaw()
     -- nearest of these first (your waypoint; the route carries on after).
     for _, it in ipairs({
         { sep = true },
-        { title = true, text = "Go to the nearest (your waypoint)" },
+        { title = true, text = "Go to the nearest..." },
         { text = "Repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
         { text = "Vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
         { text = "Flight master", func = function() if ns.services then ns.services:GoTo("flight") end end },
@@ -371,8 +371,9 @@ function Menu:RouteItemsRaw()
     for _, it in ipairs({
         { sep = true },
         { title = true, text = "Order" },
-        { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
+        -- (The default first.)
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
+        { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
         -- On while you've picked the next stop yourself (a ^ / Go here next);
         -- the two above put you back on an optimised route.
         { text = sort == "custom" and ns.theme:ModeText("custom", "Custom route (your pick)")

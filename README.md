@@ -333,6 +333,8 @@ talk to Claude from inside the game and get updates by themselves:
 - **Lint:** `tools/lint.ps1` checks the Lua before you `/reload` (luacheck with
   `.luacheckrc`, plus texture paths): missing `local`s, typos, values never used.
 - **Debugging:** `/console scriptErrors 1`, `/flow rot why` and `/flow api`.
+- **Looking at the game:** `tools/look.ps1` saves a picture of the game's window (only that
+  window, on your own machine) so an AI assistant can check how something looks while you play.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
 - **`/reload` is enough, always (people and AI assistants: don't ask for a game restart).**

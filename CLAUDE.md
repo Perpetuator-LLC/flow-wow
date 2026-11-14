@@ -27,7 +27,7 @@ registry first, or add one.
 | `Modules/Gear/`, `Modules/Items/` | Gear scores per role, bag icons, selling, keep reasons. |
 | `Modules/Advisor/` | The advice list. |
 | `Modules/Tests.lua` | Self-tests. |
-| `tools/` | PowerShell: read the in-game diagnostics, analyse combat logs, package a release, render the CurseForge graphics. |
+| `tools/` | PowerShell: read the in-game diagnostics, look at the game's window, analyse combat logs, package a release, render the CurseForge graphics. |
 
 ## Testing: there is no Lua interpreter, tests run in the game
 
@@ -49,6 +49,27 @@ registry first, or add one.
   `Modules/Nav/RouterDock.lua` was added while the game ran and loaded at the next `/reload`
   (the game client hadn't been restarted). The self-test "core: a file added while the game
   runs loads on /reload" fails if that ever stops being true; only then say "restart".
+
+## Looking at the game while it runs
+
+The saved data only changes on `/reload`, and an add-on can't be asked anything from outside
+the game (no sockets, no files: WoW's Lua can't host a service). To see how something looks
+right now, take a picture of the game's window and read it:
+
+    powershell -ExecutionPolicy Bypass -File tools\look.ps1
+    powershell -ExecutionPolicy Bypass -File tools\look.ps1 -Crop "0.40,0.00,0.20,0.15"
+
+It prints `LOOK <path> <width>x<height>`; open that file with the Read tool. `-Crop` (left, top,
+width, height as shares of the window) gives a close look at one part at full size: use it for
+small things (the arrow, a menu), which a whole 4K window shrinks too far to judge. `-Scale 0.5`
+halves a whole-window picture.
+
+- Only when the player asks you to look, or asked for a visual fix you can check this way.
+  It's their screen: a window lying over the game (this app included) is in the picture too.
+  The picture stays in `%TEMP%\flow-look`; don't copy it into the repo.
+- It shows what's on screen, nothing more. What Flow is thinking is still in the diagnostics
+  (`tools\read-diag.ps1`, after a `/reload`).
+- Checked on 2026-11-13: the game runs as a borderless window and the capture reads fine.
 
 ## "Watch Flow's in-game chat" (/si in game)
 

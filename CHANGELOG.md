@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.179
+- **No crack in the beam.** Standing on a waypoint, the light through the ring is one picture
+  drawn upright and again mirrored below it, and a thin dark line showed where the two met
+  (the picture has a see-through row round its edge). Both now end on the picture's
+  brightest row, so they meet with nothing between.
+- **The easy button's key is written above it**, the way CTRL, SHIFT and ALT are above the
+  smaller icons beside it. It used to sit in the corner of the icon, over the spell's picture.
+- **"Waypoint".** Holding Ctrl over the world map turns the cursor into the map pin (a click
+  sets your waypoint): that stays as it is, and the first two times a tooltip at the cursor
+  says "Waypoint".
+- **Menus:** the "Go to the nearest (your waypoint)" section is now "Go to the nearest...",
+  and "Shortest path" (the default) is listed above "Most XP first", in the menus and in the
+  Flow Router.
+- For developers: `tools\look.ps1` saves a picture of the game's window (only that window),
+  so Claude can check how something looks while you play. See CLAUDE.md.
+
 ## 0.35.178
 - **The way back from Moonglade.** "How do I get back now? Where do I go from Moonglade?"
   Flow knew the way in (Teleport: Moonglade) and no way out, so the arrow pointed across all

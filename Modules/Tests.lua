@@ -7830,3 +7830,97 @@ ns:Register("test", "hearthstone: a city beats a village; home first, then a far
     local okC, res = pcall(provider.collect)
     t:ok(okC and (res == nil or type(res) == "table"), "the stop's source runs" .. (okC and "" or (": " .. tostring(res))))
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.179: the beam's seam, the key's bind above the icon, the "Waypoint"
+-- hint, "Go to the nearest...", Shortest path first.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "modern arrow: the beam and its mirror meet with no crack", function(t)
+    local N = ns.nav
+    local l, r, top, bottom = N.BeamCoords(false)
+    t:ok(l == 0 and r == 1 and top == 0, "the upright beam: the whole picture across, from its top")
+    t:ok(bottom < 1 and bottom > 0.97, "stopping short of the see-through row at its bottom edge: " .. tostring(bottom))
+    t:near(bottom, 1 - 1.5 / 128, 0.0001, "at the middle of the brightest row (one and a half rows in)")
+    local l2, r2, top2, bottom2 = N.BeamCoords(true)
+    t:ok(l2 == 0 and r2 == 1 and bottom2 == 0, "the mirrored beam: the same picture upside down")
+    t:eq(top2, bottom, "starting at the same bright row: bright meets bright")
+    -- On a real arrow: both carry those coordinates, and both hang on the ring's middle.
+    local a = N:MakeArrowModern(UIParent)
+    local function vEdge(tex, upper)   -- the picture's v at the texture's top or bottom edge
+        local _, uly, _, lly = tex:GetTexCoord()
+        return upper and uly or lly
+    end
+    t:near(vEdge(a.beam, false), bottom, 0.0001, "the beam's lower edge is the bright row")
+    t:near(vEdge(a.beamDown, true), bottom, 0.0001, "and so is the mirrored beam's upper edge")
+    local p1, rel1, rp1, x1, y1 = a.beam:GetPoint(1)
+    local p2, rel2, rp2, x2, y2 = a.beamDown:GetPoint(1)
+    t:ok(p1 == "BOTTOM" and p2 == "TOP" and rel1 == rel2 and rp1 == rp2, "one's bottom and the other's top are on the same spot")
+    t:ok(math.abs((x1 or 0) - (x2 or 0)) < 0.01 and math.abs((y1 or 0) - (y2 or 0)) < 0.01, "with no offset between them")
+    a:Hide()
+end)
+
+ns:Register("test", "easy button: its key bind is written above the icon", function(t)
+    local C, E = ns.cast, ns.rotation
+    local key = C._KeyText()
+    if not (key and E.icon) then t:ok(true, "(the Flow key isn't built yet)") return end
+    local point, rel, relPoint, x, y = key:GetPoint(1)
+    t:eq(point, "BOTTOM", "its bottom edge...")
+    t:ok(rel == E.icon and relPoint == "TOP", "...on the icon's top edge, like CTRL / SHIFT / ALT above the queue")
+    t:ok((x or 0) == 0 and (y or 0) > 0, "centred, a little above")
+    t:eq(key:GetNumPoints(), 1, "and nowhere else (not in the icon's corner)")
+    local _, size = key:GetFont()
+    t:near(size or 0, C.KEY_FONT, 0.6, "in the queue labels' kind of lettering")
+end)
+
+ns:Register("test", "waypoint: Ctrl over the map says \"Waypoint\" the first two times", function(t)
+    local W = ns.waypoint
+    local db = {}
+    t:eq(W.CtrlTip("LSHIFT", 1, true, db), nil, "not Ctrl: nothing")
+    t:eq(W.CtrlTip("LCTRL", 1, false, db), "hide", "Ctrl, but not over the map: no tooltip")
+    t:eq(db.wayTips, nil, "and it doesn't count")
+    t:eq(W.CtrlTip("LCTRL", 1, true, db), "show", "the first time over the map: shown")
+    t:eq(W.CtrlTip("LCTRL", 0, true, db), "hide", "Ctrl let go: put away")
+    t:eq(W.CtrlTip("RCTRL", 1, true, db), "show", "the second time (either Ctrl): shown")
+    t:eq(db.wayTips, 2, "counted twice")
+    t:eq(W.CtrlTip("LCTRL", 1, true, db), "hide", "the third time: not again")
+    t:eq(db.wayTips, 2, "and the count stays")
+    t:eq(W.TIP_TIMES, 2, "two times")
+    -- The event itself, as the game sends it: runs, and shows or hides nothing it shouldn't.
+    with(ns.db.nav, "wayTips", W.TIP_TIMES, function()
+        local ok, act = pcall(W.OnModifier, "LCTRL", 1)
+        t:ok(ok, "Ctrl pressed: runs" .. (ok and "" or (": " .. tostring(act))))
+        t:ok(act == nil or act == "hide", "already shown twice: no tooltip")
+        t:ok(pcall(W.OnModifier, "LCTRL", 0), "Ctrl let go: runs")
+        t:ok(pcall(W.OnModifier, "LALT", 1), "another key: runs")
+    end)
+end)
+
+ns:Register("test", "route menu: Go to the nearest..., and Shortest path above Most XP first", function(t)
+    local ok, items = pcall(ns.menu.RouteItems, ns.menu)
+    t:ok(ok and type(items) == "table", "the route menu builds")
+    if not (ok and type(items) == "table") then return end
+    local nearest, old, shortest, xp
+    for i, it in ipairs(items) do
+        local text = it.text or ""
+        if it.title and text == "Go to the nearest..." then nearest = i end
+        if it.title and text:find("your waypoint", 1, true) then old = i end
+        if text:find("Shortest path", 1, true) then shortest = shortest or i end
+        if text:find("Most XP first", 1, true) then xp = xp or i end
+    end
+    t:ok(nearest ~= nil, "its section is called \"Go to the nearest...\"")
+    t:eq(old, nil, "with no \"(your waypoint)\" after it")
+    t:ok(shortest and xp and shortest < xp, "Shortest path (the default) comes above Most XP first")
+    -- Folded, the section's row reads the same.
+    local row
+    for _, it in ipairs(ns.menu.Fold(items)) do
+        if it.section and it.text == "Go to the nearest..." then row = it end
+    end
+    t:ok(row and #row.sub >= 5, "folded: one row, the places inside")
+    -- The Flow Router's row of route states: the default first too.
+    local f = _G.FlowMapRoute and _G.FlowMapRoute.sorts
+    if f and f[1] and f[2] then
+        t:eq(f[1].mode, "distance", "Flow Router: Shortest first")
+        t:eq(f[2].mode, "xp", "then Most XP")
+    end
+end)

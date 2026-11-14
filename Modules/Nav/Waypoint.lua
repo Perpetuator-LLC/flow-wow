@@ -77,6 +77,42 @@ end
 ns:On("PLAYER_LOGIN", function() pcall(hookMap) end)
 ns:On("USER_WAYPOINT_UPDATED", function() W.Changed() end)
 
+-- Ctrl held over the world map turns the cursor into the game's map pin (a
+-- click then sets your waypoint). The first two times, a tooltip at the
+-- cursor says what the pin is: "Waypoint". After that you know.
+--   key, down: as MODIFIER_STATE_CHANGED gives them ("LCTRL", 1)
+--   over: the mouse is over the open world map
+--   db: where the count is kept (ns.db.nav)
+-- -> "show" (and counts it), "hide", or nil (not Ctrl: nothing to do)
+W.TIP_TIMES = 2
+function W.CtrlTip(key, down, over, db)
+    if key ~= "LCTRL" and key ~= "RCTRL" then return nil end
+    if (down == 1 or down == true) and over and (db.wayTips or 0) < W.TIP_TIMES then
+        db.wayTips = (db.wayTips or 0) + 1
+        return "show"
+    end
+    return "hide"
+end
+
+local tipUp
+function W.OnModifier(key, down)
+    local sc = WorldMapFrame and WorldMapFrame.ScrollContainer
+    if not (sc and ns.db and ns.db.nav) then return end
+    local over = WorldMapFrame:IsShown() and sc:IsMouseOver() and true or false
+    local act = W.CtrlTip(key, down, over, ns.db.nav)
+    if act == "show" then
+        tipUp = true
+        GameTooltip:SetOwner(sc, "ANCHOR_CURSOR")
+        GameTooltip:SetText("Waypoint")
+        GameTooltip:Show()
+    elseif act == "hide" and tipUp then
+        tipUp = nil
+        if GameTooltip:IsOwned(sc) then GameTooltip:Hide() end
+    end
+    return act
+end
+ns:On("MODIFIER_STATE_CHANGED", function(key, down) W.OnModifier(key, down) end)
+
 -------------------------------------------------------------------------------
 -- Coordinates as people paste them. All of these work:
 --   45.2 63.1                    (your current zone)

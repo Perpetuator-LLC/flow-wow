@@ -1127,6 +1127,20 @@ end
 -- arrow, flattened by the same camera tilt as the pictures.
 local HALO_W, HALO_H, HALO_Y = 58, 42, -4
 
+-- The beam of light through the ring is one picture drawn twice: upright
+-- above the ring's middle, mirrored below it. The picture (32 x 128) has a
+-- see-through row round its edge, so where the two met there was a thin dark
+-- line: "a slight crack between the centre up and down graphic" (0.35.179).
+-- Both now stop at the middle of the picture's brightest row (one and a half
+-- rows in from its bottom edge): bright meets bright, nothing between.
+--   down: the mirrored one. -> left, right, top, bottom
+N.BEAM_ROWS, N.BEAM_TRIM = 128, 1.5
+function N.BeamCoords(down)
+    local edge = 1 - N.BEAM_TRIM / N.BEAM_ROWS
+    if down then return 0, 1, edge, 0 end
+    return 0, 1, 0, edge
+end
+
 function N:MakeArrowModern(parent)
     local a = CreateFrame("Frame", nil, parent)
     a:SetSize(64, 64)
@@ -1156,11 +1170,12 @@ function N:MakeArrowModern(parent)
     a.ripple = tex("ArrowRing", "BACKGROUND", 4, "ADD")
     a.ripple:SetPoint("CENTER", a, "CENTER", 0, HALO_Y)
     a.beam = tex("ArrowBeam", "ARTWORK", 3, "ADD")
+    a.beam:SetTexCoord(N.BeamCoords(false))
     a.beam:SetPoint("BOTTOM", a, "CENTER", 0, HALO_Y)
     -- The same beam mirrored below the ring: it fades downward just as it
     -- fades upward, so the light runs through the ring both ways.
     a.beamDown = tex("ArrowBeam", "ARTWORK", 3, "ADD")
-    a.beamDown:SetTexCoord(0, 1, 1, 0)
+    a.beamDown:SetTexCoord(N.BeamCoords(true))
     a.beamDown:SetPoint("TOP", a, "CENTER", 0, HALO_Y)
     -- The stop's own icon (craft here, use from your bags) bouncing in the
     -- ring: round, on a dark disc.

@@ -17,6 +17,9 @@ local C = {}
 ns.cast = C
 
 local btn, keyText, lockIcon
+C.KEY_FONT = 11   -- the bind above the icon (the queue's CTRL / SHIFT / ALT are 8 to 10)
+-- (Tests) the bind's text above the icon.
+function C._KeyText() return keyText end
 local macro, lockedSpell = nil, nil
 
 -- Who the press casts on: heals and your own buffs on you (with a friend
@@ -354,8 +357,13 @@ local function build(cfg)
         icon:ClearAllPoints()
         icon:SetPoint("CENTER", btn, "CENTER")
         icon:SetScale(btn:GetScale())
-        keyText = icon:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-        keyText:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -2, -2)
+        -- The key's bind is written above the icon, the way CTRL, SHIFT and ALT
+        -- are above the queue's icons beside it (it used to sit in the icon's
+        -- corner, over the spell's picture).
+        keyText = icon:CreateFontString(nil, "OVERLAY")
+        keyText:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
+        keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2)
+        keyText:SetTextColor(0.85, 0.85, 0.85)
         lockIcon = CreateFrame("Frame", nil, icon)
         lockIcon:SetSize(22, 22)
         lockIcon:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 8, -8)
