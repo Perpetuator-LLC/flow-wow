@@ -150,6 +150,11 @@ local function build()
     f.bg:SetColorTexture(0.05, 0.05, 0.08, 0.94)
     f.head = ns.theme:TitleBar(f, "Flow Banker", "Interface\\Icons\\INV_Misc_Bag_10")
     f:EnableMouse(true)
+    -- Ctrl-drag moves it, like Flow's other windows; where you put it is kept.
+    local p = ns.db.banker.point
+    if p then f:ClearAllPoints(); f:SetPoint(p[1], UIParent, p[2], p[3], p[4]) end
+    ns:MakeMovable(f, setmetatable({}, { __newindex = function(_, key, v)
+        if key == "point" then ns.db.banker.point = v end end }), true)
     tinsert(UISpecialFrames, "FlowBanker")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)

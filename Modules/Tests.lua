@@ -6409,7 +6409,7 @@ ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     local N = ns.nav
     local keys = {}
     for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
-    t:eq(table.concat(keys, ","), "quests,newQuests,lowQuests,training,professions,town", "the kinds, in menu order")
+    t:ok(table.concat(keys, ","):find("^quests,newQuests,lowQuests,training,professions,town") ~= nil, "the kinds, in menu order (later ones, the bank and flight paths, after them)")
     -- Which kind a stop is (you're level 20 here).
     t:eq(N.KindOf({ key = "748:2", provider = "questie" }, 20), "quests", "a quest objective: current quests")
     t:eq(N.KindOf({ key = "748:done" }, 20), "quests", "its turn-in too")
@@ -6434,7 +6434,9 @@ ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     t:eq(table.concat(got, ","), "748:2,pickup:6,run:WC", "current + low-level quests ticked; the dungeon run stays")
     t:eq(list[4].routeKind, "professions", "each stop is tagged with its kind")
     -- The Router's "Route: ..." line.
-    local function sum(set) return N.KindsSummary(function(k) return set[k] == true end) end
+    -- (Kinds added since, the bank and flight paths, count as ticked here.)
+    local base = { quests = true, newQuests = true, lowQuests = true, training = true, professions = true, town = true }
+    local function sum(set) return N.KindsSummary(function(k) if base[k] then return set[k] == true end return set.quests ~= nil and (set.newQuests == true) end) end
     t:eq(sum({ quests = true, lowQuests = true, newQuests = true, training = true, professions = true, town = true }), "everything", "all ticked")
     t:eq(sum({ quests = true }), "current quests", "one ticked: named")
     t:eq(sum({ quests = true, newQuests = true, training = true, professions = true, town = true }), "all but low-level quests", "one off: named")
@@ -9166,4 +9168,70 @@ ns:Register("test", "click: Flow Banker opens, lists, and deposits only at a ban
     end
     if not was then f:Hide() end
     t:ok(type(ns.commands.banker) == "function", "/flow banker")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.201: no sitting by fires unless asked; not-a-flight-master; the map
+-- lights a stop pointed at in the Flow Tracker; Flow Banker moves.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "camp: Flow asks you to sit by a fire only when you've ticked it", function(t)
+    local action = ns:Get("action", "buff:camp")
+    t:ok(action and type(action.get) == "function", "the campfire step is there")
+    if not action then return end
+    with(ns.db.rotation, "campSit", nil, function()
+        local ok, step = pcall(action.get, {})
+        t:ok(ok and step == nil, "not ticked (the default): never" .. (ok and "" or (": " .. tostring(step))))
+    end)
+    with(ns.db.rotation, "campSit", true, function()
+        t:ok(pcall(action.get, {}), "ticked: the step runs as before")
+    end)
+end)
+
+ns:Register("test", "flight paths: someone with no flight path for you isn't offered again", function(t)
+    local FP = ns.flightPaths
+    local seikwa = { name = "Seikwa", map = 1412, x = 0.47, y = 0.58, cont = 1, wx = -2300, wy = -350 }
+    with(ns.db, "flightNone", {}, function()
+    with(ns.db, "flightTalked", {}, function()
+    with(ns, "Print", function() end, function()
+    with(ns.nav, "Collect", function() end, function()
+        t:ok(not FP.Learned(seikwa, ns.db.flightTalked, {}), "taken for a flight master: a stop")
+        t:ok(FP.NoPath("Seikwa"), "you talked to them and no flight map came")
+        t:ok(FP.Learned(seikwa, ns.db.flightTalked, {}), "no stop for them again")
+        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 0, "and none on the route")
+        ns.db.flightTalked.Kelsuwa = true
+        t:ok(not FP.NoPath("Kelsuwa"), "one whose flight map did open: not marked")
+        t:ok(not FP.NoPath(""), "no name: nothing")
+    end) end) end) end)
+    FP._Forget()
+end)
+
+ns:Register("test", "route: kinds added later follow the older routes; the map lights a tracker row's stop", function(t)
+    local N, M = ns.nav, ns.mapOverlay
+    local q = N.ModeKinds("quests", true)
+    t:ok(q.quests and q.banker == false and q.flightpaths == false, "quests only: no bank or flight path stops either")
+    local o = N.ModeKinds("optimal", true)
+    t:ok(o.banker == true and o.flightpaths == true and not o.lowQuests, "optimal: with them")
+    local was = M._HoverKey()
+    M.Hover("test:hover")
+    t:eq(M._HoverKey(), "test:hover", "pointing at a row: its stop is the one the map lights")
+    M.Hover(nil)
+    t:eq(M._HoverKey(), nil, "pointing away: none")
+    M.Hover(was)
+    -- The Flow Tracker's rows do it.
+    local f = _G.FlowTracker
+    local r = f and f.rows and f.rows[1]
+    if r and r.goal and r.key and r:GetScript("OnEnter") then
+        pcall(r:GetScript("OnEnter"), r)
+        t:eq(M._HoverKey(), r.key, "a tracker row under the mouse: lit on the map")
+        pcall(r:GetScript("OnLeave"), r)
+        t:eq(M._HoverKey(), nil, "the mouse leaves: no longer")
+    end
+    GameTooltip:Hide()
+    -- Flow Banker moves with Ctrl-drag.
+    local B = ns.banker
+    local shown = B._Frame() and B._Frame():IsShown()
+    B:Open()
+    t:ok(B._Frame():IsMovable() and B._Frame():GetScript("OnDragStart") ~= nil, "Flow Banker can be dragged (with Ctrl)")
+    if not shown then B._Frame():Hide() end
 end)

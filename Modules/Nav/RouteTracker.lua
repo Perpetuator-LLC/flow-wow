@@ -298,6 +298,7 @@ local function build()
             if not self.goal then return end
             -- Its area lights up on the minimap (hover colour), next to the current stop's.
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
+            if ns.mapOverlay and ns.mapOverlay.Hover then ns.mapOverlay.Hover(self.key) end   -- (and on the map, when it's open)
             local g = self.goal
             if button == "RightButton" then
                 local items = {
@@ -330,6 +331,7 @@ local function build()
         r:SetScript("OnLeave", function(self)
             GameTooltip:Hide(); self.open:Hide(); ns.nav:ClickCursor(false)
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, nil) end
+            if ns.mapOverlay and ns.mapOverlay.Hover then ns.mapOverlay.Hover(nil) end
         end)
         f.rows[i] = r
     end

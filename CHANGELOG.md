@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.201
+- **Flow no longer asks you to sit by every campfire.** The camp-buff step is off unless you
+  tick "Sit by a campfire for the camp buffs" in Flow Settings (Your easy key).
+- **Someone with no flight path for you isn't a flight path stop.** Flow took Seikwa for a
+  flight master and sent you there. When you talk to such an NPC and no flight map opens,
+  Flow says so, drops the stop and doesn't offer it again.
+- **Point at a row of the Flow Tracker with the map open** and its stop lights up on the
+  map, as it does from the Flow Router.
+- **Flow Banker moves with Ctrl-drag**, and stays where you put it.
+- Fixed two self-tests that the new bank and flight path kinds broke; "quests only" routes
+  leave those two kinds out.
+
 ## 0.35.200
 - **Flow Banker.** At a bank, a Flow Banker window lists what you won't need soon: profession
   materials, trade goods you told Flow never to sell and recipes waiting for skill, when no

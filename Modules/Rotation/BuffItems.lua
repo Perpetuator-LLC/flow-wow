@@ -562,6 +562,9 @@ end })
 -- buff items: eating sits you down too, and an elixir would stand you up).
 -- The key is bound to the game's Sit/Stand while sitting is the step.
 ns:Register("action", "buff:camp", { order = 2.6, get = function(ctx)
+    -- Off unless ticked (0.35.201): "it is kind of annoying constantly being
+    -- told to sit next to a fire, the buff isn't worth it".
+    if ns.db.rotation.campSit ~= true then return nil end
     if UnitIsDeadOrGhost("player") or UnitAffectingCombat("player") then return nil end
     if (ctx and ctx.fishing) or (IsMounted and IsMounted()) then return nil end
     if not A.Buff("player", CAMP_NEARBY) then return nil end

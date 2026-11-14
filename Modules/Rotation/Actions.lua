@@ -960,6 +960,12 @@ if ns.settings and ns.settings.AddCheck then
         tip = "When you'll sit to drink anyway (low on mana, or a few spells cast and a drink in your bags), food comes before the bandage and the drink is offered the moment you're eating. When no drink is needed and a bandage covers what you're missing, the bandage comes first. Otherwise your own recovery order (right-click the Flow key).",
         get = function() return ns.db.rotation.recoverSmart ~= false end,
         set = function(on) ns.db.rotation.recoverSmart = on and true or false end }
+    -- (BuffItems.lua "buff:camp": off unless ticked.)
+    ns.settings:AddCheck{ group = "key", label = "Sit by a campfire for the camp buffs",
+        note = "(off: Flow never asks you to sit by a fire)",
+        tip = "By a WoW: Forever campfire the key places your camp objects and sits you down for a minute for the camp buffs. Off by default: being told to sit at every fire was more bother than the buff is worth.",
+        get = function() return ns.db.rotation.campSit == true end,
+        set = function(on) ns.db.rotation.campSit = on and true or nil end }
     -- (The step itself is the engine's: E:FriendTarget.)
     ns.settings:AddCheck{ group = "group", label = "Buff and heal a friendly player you target",
         note = "(out of a fight, not in a city or inn)",

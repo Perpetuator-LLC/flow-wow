@@ -654,7 +654,7 @@ end
 -- (everything, low-level quests too), else "optimal" (everything at your
 -- level). Professions stay as you had them.
 function N.ModeKinds(mode, professions)
-    return {
+    local kinds = {
         quests = true,
         newQuests = mode ~= "quests",
         lowQuests = mode == "complete",
@@ -662,6 +662,11 @@ function N.ModeKinds(mode, professions)
         professions = mode ~= "quests" and professions ~= false,
         town = mode ~= "quests",
     }
+    -- (Kinds added since: the bank, flight paths. On, except on "quests only".)
+    for _, k in ipairs(N.Kinds()) do
+        if kinds[k.key] == nil then kinds[k.key] = mode ~= "quests" end
+    end
+    return kinds
 end
 function N:SetMode(mode)
     mode = (mode == "quests" or mode == "complete") and mode or "optimal"

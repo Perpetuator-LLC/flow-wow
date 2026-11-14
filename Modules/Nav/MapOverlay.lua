@@ -1679,6 +1679,16 @@ local function updateList()
 end
 M._updateList = function() updateList() end   -- (tests)
 
+-- Pointing at a stop somewhere else (a row of the Flow Tracker): the map,
+-- when it's open, lights that stop the way pointing at it in the Flow Router
+-- does. nil: none.
+function M.Hover(key)
+    if hoverKey == key then return end
+    hoverKey = key
+    if WorldMapFrame and WorldMapFrame:IsShown() then pcall(M.Redraw, M) end
+end
+function M._HoverKey() return hoverKey end
+
 -- The stop you point at: under the mouse, opened from the tracker, or previewed.
 local function pointedKey()
     return hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey or nil

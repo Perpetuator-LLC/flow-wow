@@ -30,6 +30,9 @@ FP.KEEP = 5      -- seconds the list is kept (stops are collected often)
 -- wy } each); fm: { name, cont, wx, wy }.
 function FP.Learned(fm, talked, known, same)
     if talked and talked[fm.name] then return true end
+    -- ("Seikwa did not have a flight path for me, though you suggested
+    -- learning it": you talked to them and no flight map came. Not again.)
+    if ns.db and ns.db.flightNone and ns.db.flightNone[fm.name] then return true end
     same = same or FP.SAME
     for _, k in pairs(known or {}) do
         if k.cont == fm.cont and k.wx and fm.wx then
@@ -93,4 +96,32 @@ ns:On("TAXIMAP_OPENED", function()
     who = ns.api.Safe(who)
     if who then FP.Talked(who) end
 end)
+-- You talked to someone Flow took for a flight master and no flight map
+-- opened within a few seconds: they have no flight path for you. Their stop
+-- goes, and isn't offered again (per character).
+ns:OnLoad(function(saved) saved.flightNone = saved.flightNone or {} end)
+ns:PerCharacter("flightNone")
+FP.WAIT = 3
+function FP.NoPath(name)
+    if type(name) ~= "string" or name == "" or ns.db.flightTalked[name] then return false end
+    ns.db.flightNone[name] = true
+    cache.goals = nil
+    ns:Print(name .. " has no flight path for you: Flow won't send you there for one again.")
+    if ns.nav and ns.nav.Collect then pcall(ns.nav.Collect, ns.nav) end
+    return true
+end
+local function talkedTo()
+    local who = ns.api.Safe(UnitName and UnitName("npc"))
+    if not who or not cache.goals then return end
+    local mine = false
+    for _, g in ipairs(cache.goals) do if g.key == "flightpath:" .. who then mine = true end end
+    if not mine then return end
+    C_Timer.After(FP.WAIT, function()
+        if not ns.db.flightTalked[who] then FP.NoPath(who) end
+    end)
+end
+ns:On("GOSSIP_SHOW", talkedTo)
+ns:On("MERCHANT_SHOW", talkedTo)
+ns:On("QUEST_GREETING", talkedTo)
+
 function FP._Forget() cache.goals = nil end   -- (tests)
