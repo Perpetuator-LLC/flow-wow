@@ -72,6 +72,61 @@ function Adv:Shown()
     return shown, hidden
 end
 
+-------------------------------------------------------------------------------
+-- The button's tooltip. Each numbered way to improve stays on ONE line: the
+-- tooltip used to be as wide as its last line ("Click to open the list...")
+-- and every longer entry wrapped under its number. Now an entry may make the
+-- tooltip up to twice that wide ("allow the width to go to 2 times its
+-- current", 0.35.180); one longer still is cut with "..." (the list itself,
+-- a click away, has it whole).
+-------------------------------------------------------------------------------
+Adv.TIP_FOOT = "Click to open the list. Ctrl-drag to move."
+Adv.TIP_WIDER = 2
+Adv.TIP_MAX = 10   -- entries listed
+
+-- Pure: `text` as it is when it fits `max`, else cut to fit and ended with
+-- "...". measure(text) -> its width. (A cut line loses its colours: cutting
+-- through a colour code would break the rest of the tooltip.)
+function Adv.FitLine(text, max, measure)
+    if measure(text) <= max then return text end
+    local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    if measure(plain) <= max then return plain end
+    local lo, hi = 0, #plain
+    while lo < hi do
+        local mid = math.floor((lo + hi + 1) / 2)
+        if measure(plain:sub(1, mid) .. "...") <= max then lo = mid else hi = mid - 1 end
+    end
+    return (plain:sub(1, lo):gsub("%s+$", "")) .. "..."
+end
+
+-- Pure: the tooltip's lines: { { text, r, g, b } }.
+--   measure(text) -> its width in the tooltip's lettering (nil: don't fit anything)
+function Adv.TipLines(shown, hidden, measure)
+    local out = { { text = "Flow Improvements", r = 1, g = 0.82, b = 0 } }
+    local max = measure and (measure(Adv.TIP_FOOT) * Adv.TIP_WIDER) or nil
+    for i = 1, math.min(Adv.TIP_MAX, #shown) do
+        local text = i .. ". " .. line(shown[i])
+        if max then text = Adv.FitLine(text, max, measure) end
+        out[#out + 1] = { text = text, r = 1, g = 1, b = 1 }
+    end
+    if #hidden > 0 then out[#out + 1] = { text = string.format("(%d hidden)", #hidden), r = 0.6, g = 0.6, b = 0.6 } end
+    out[#out + 1] = { text = Adv.TIP_FOOT, r = 0.6, g = 0.6, b = 0.6 }
+    return out
+end
+
+-- How wide a line is in the tooltip's lettering (a hidden line of the same font).
+local ruler
+function Adv.TipMeasure()
+    if not ruler then
+        ruler = UIParent:CreateFontString(nil, "ARTWORK", "GameTooltipText")
+        ruler:Hide()
+    end
+    return function(text)
+        ruler:SetText(text)
+        return (ruler.GetUnboundedStringWidth and ruler:GetUnboundedStringWidth()) or ruler:GetStringWidth() or 0
+    end
+end
+
 function Adv:Print(limit)
     local shown, hidden = self:Shown()
     local more = #hidden > 0 and string.format(" |cff888888(%d hidden)|r", #hidden) or ""
@@ -152,13 +207,10 @@ local function buildButton()
     b:SetScript("OnClick", function() Adv:TogglePanel() end)
     b:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Flow Improvements")
         local shown, hidden = Adv:Shown()
-        for i = 1, math.min(10, #shown) do
-            GameTooltip:AddLine(i .. ". " .. line(shown[i]), 1, 1, 1, true)
+        for _, l in ipairs(Adv.TipLines(shown, hidden, Adv.TipMeasure())) do
+            GameTooltip:AddLine(l.text, l.r, l.g, l.b, false)
         end
-        if #hidden > 0 then GameTooltip:AddLine(string.format("(%d hidden)", #hidden), 0.6, 0.6, 0.6) end
-        GameTooltip:AddLine("Click to open the list. Ctrl-drag to move.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -436,6 +488,24 @@ function Adv:FillPanel()
         panel.rows[1].link:Hide()
         panel.rows[1]:Show()
     end
+    -- As wide as its longest row needs, up to twice its usual width: every
+    -- row stays one line, and fewer of them end in "...".
+    local need = 0
+    for i = 1, ROWS do
+        local r = panel.rows[i]
+        if r:IsShown() and r.text.GetUnboundedStringWidth then
+            need = math.max(need, r.text:GetUnboundedStringWidth() or 0)
+        end
+    end
+    local width = Adv.PanelWidth(need)
+    panel:SetWidth(width)
+    for i = 1, ROWS do panel.rows[i]:SetWidth(width - Adv.PANEL_PAD) end
+end
+
+-- Pure: the list's width for its longest row's text.
+Adv.PANEL_W, Adv.PANEL_PAD, Adv.PANEL_ROOM = 440, 24, 48   -- usual width; the rows' side margins; margins + the link button
+function Adv.PanelWidth(textWidth)
+    return math.min(Adv.PANEL_W * 2, math.max(Adv.PANEL_W, math.ceil((textWidth or 0) + Adv.PANEL_ROOM)))
 end
 
 function Adv:TogglePanel()

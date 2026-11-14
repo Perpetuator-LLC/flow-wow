@@ -50,6 +50,19 @@ function R.Fits(a, b, rides, zoneOf, class, faction)
     return nil
 end
 
+-- Pure: the ride that leaves from the zone `map` is in, for you, or nil
+-- (wherever it's going: for "which flight am I on?").
+function R.From(map, rides, zoneOf, class, faction)
+    if not map then return nil end
+    local z = zoneOf(map)
+    for _, r in ipairs(rides) do
+        if zoneOf(r.from) == z and (not r.class or r.class == class) and (not r.faction or r.faction == faction) then
+            return r
+        end
+    end
+    return nil
+end
+
 local function zoneOf(map)
     local N = ns.nav
     return (N and N.ZoneOf and N.ZoneOf(map)) or map
@@ -73,6 +86,12 @@ function R.List() return all() end
 local function me()
     local _, class = UnitClass("player")
     return class, UnitFactionGroup and UnitFactionGroup("player") or nil
+end
+
+-- The ride that leaves from where you are (spot a), or nil.
+function R.Here(a)
+    local class, faction = me()
+    return R.From(a and a.map, all(), zoneOf, class, faction)
 end
 
 -- A map spot as the route's points are: { map, x, y, cont, wx, wy }, or nil.

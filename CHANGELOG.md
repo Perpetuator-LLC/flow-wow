@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.180
+- **On a flight, the arrow tells you about the flight.** You can't steer in the air, so its
+  two lines become "Flying to Thunder Bluff" and "landing in ~2m 10s, then: Train 1 spell(s)
+  at your class trainer". It did some of this for flights taken from a flight map, but a
+  flight that starts with a word to someone (the druids' ride out of Moonglade) wasn't seen
+  as a flight at all: the arrow showed the walking time (11 minutes, in the air). Flow now
+  notices any flight, takes where it lands from the ride you were standing by, times it the
+  first time and counts down from then on. A /reload in the air keeps the flight.
+- **Flow Improvements: one line an entry.** In the button's tooltip a long entry wrapped
+  under its number. Each numbered entry now stays on one line, the tooltip may grow to
+  twice its usual width for it, and one longer still ends in "..." (the list has it whole).
+  The list itself also widens for its longest row, up to twice its usual width.
+
 ## 0.35.179
 - **No crack in the beam.** Standing on a waypoint, the light through the ring is one picture
   drawn upright and again mirrored below it, and a thin dark line showed where the two met

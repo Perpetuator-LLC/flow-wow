@@ -1969,13 +1969,54 @@ if hooksecurefunc and TakeTaxiNode then
         local to = TaxiNodeName and TaxiNodeName(i)
         if to and taxiHere and to ~= taxiHere then
             N.taxiTrip = { from = taxiHere, to = to, start = GetTime() }
+            if ns.db and ns.db.nav then ns.db.nav.taxiTrip = N.taxiTrip end
         end
     end)
 end
 
+-- A flight that didn't start at a flight map (a druid's ride out of
+-- Moonglade starts with a word to Bunthen Plainswind): all Flow sees is that
+-- you're on one. Where it lands comes from the ride you were standing by
+-- (Rides.lua); how long it takes is learned the first time it's flown whole.
+-- The trip is kept through a /reload (GetTime carries on), so reloading in
+-- the air doesn't lose it. Called on every arrow update.
+--   onTaxi: are you on a flight now; now: GetTime();
+--   rideHere() -> the ride of the zone you're in, or nil; saved: ns.db.nav
+N.TAXI_MAX = 1200   -- no flight is longer: an older saved trip is stale
+local groundSeen = false
+function N.NoteTaxi(onTaxi, now, rideHere, saved)
+    if not onTaxi then
+        groundSeen = true
+        if saved and saved.taxiTrip and not N.taxiTrip then saved.taxiTrip = nil end
+        return nil
+    end
+    if N.taxiTrip then return N.taxiTrip end
+    local kept = saved and saved.taxiTrip
+    if type(kept) == "table" and type(kept.start) == "number" and kept.start <= now and now - kept.start < N.TAXI_MAX then
+        N.taxiTrip = kept
+        return kept
+    end
+    local r = rideHere and rideHere() or nil
+    -- (partial: first seen in the air, after a login: its time isn't the flight's)
+    N.taxiTrip = { from = r and r.name or "?", to = r and r.toName or nil, start = now, partial = not groundSeen or nil }
+    if saved then saved.taxiTrip = N.taxiTrip end
+    return N.taxiTrip
+end
+function N._TaxiReset(seen) N.taxiTrip, groundSeen = nil, seen and true or false end   -- (tests)
+
+-- On a flight you can't steer, so the arrow's two lines are the flight's.
+--   to: where it lands (nil: Flow doesn't know); left: seconds to landing
+--   (nil: not learned yet); nextText: your next stop
+function N.FlightWords(to, left, nextText)
+    local title = to and ("Flying to " .. to) or "On a flight"
+    local sub = left and ("landing in " .. N.FormatSeconds(left)) or "landing time not known yet"
+    if nextText and nextText ~= "" then sub = sub .. ", then: " .. nextText end
+    return title, sub
+end
+
 -- Landed: remember how long it took, and learn how fast flights go.
 function N.Landed(trip, elapsed)
-    if not (trip and elapsed and elapsed > 5) then return end
+    if not (trip and trip.to and not trip.partial and elapsed and elapsed > 5) then return end
     ns.db.flightTimes[trip.from .. ">" .. trip.to] = math.floor(elapsed + 0.5)
     local a, b = ns.db.flights[trip.from], ns.db.flights[trip.to]
     if a and b and a.cont == b.cont and elapsed > N.FLIGHT_OVERHEAD then
@@ -1989,14 +2030,24 @@ ns:On("PLAYER_CONTROL_GAINED", function()
     local trip = N.taxiTrip
     if trip and not (UnitOnTaxi and UnitOnTaxi("player")) then
         N.taxiTrip = nil
+        if ns.db and ns.db.nav then ns.db.nav.taxiTrip = nil end
         N.Landed(trip, GetTime() - trip.start)
     end
 end)
+
+-- The arrow's words while you're on a flight (title, sub), or nil on the ground.
+function N.FlightNow(nextText)
+    local trip = N.taxiTrip
+    if not (trip and UnitOnTaxi and UnitOnTaxi("player")) then return nil end
+    local left = N.TaxiLeft()
+    return N.FlightWords(trip.to, left, nextText)
+end
 
 -- On a flight: seconds until you land, and where.
 function N.TaxiLeft()
     local trip = N.taxiTrip
     if not (trip and UnitOnTaxi and UnitOnTaxi("player")) then return nil end
+    if not trip.to then return nil end
     local total = N.FlightSeconds(trip.from, trip.to)
     if not total then return nil, trip.to end
     return math.max(1, total - (GetTime() - trip.start)), trip.to
@@ -3618,6 +3669,10 @@ local function update()
         -- (Gates.lua: where you cross from one map into another on foot.)
         if ns.gates then ns.gates.Track(p, (UnitOnTaxi and UnitOnTaxi("player")) or (IsFlying and IsFlying()) or false) end
     end
+    -- On a flight, however it started (a flight map, or a word to someone who
+    -- carries you): N.taxiTrip, for the arrow's words below.
+    N.NoteTaxi((UnitOnTaxi and UnitOnTaxi("player")) and true or false, GetTime(),
+        function() return ns.rides and ns.rides.Here(p) or nil end, ns.db.nav)
 
     -- Dead: the arrow turns red and points back to your corpse.
     if UnitIsDeadOrGhost("player") and N:ShowCorpse(p) then
@@ -3738,6 +3793,13 @@ local function update()
                 or (how == "gate" and N.GateText(N.via, length)) or "")
             .. (N.port and (": cast " .. N.port) or ""))
         frame.arrow:SetArrived(false)
+    end
+    -- On a flight you can't steer: the arrow's two lines are the flight's
+    -- (where to, landing in how long, and what comes after).
+    local flyTitle, flySub = N.FlightNow(g.text or g.title)
+    if flyTitle then
+        frame.text:SetText(flyTitle)
+        frame.sub:SetText(flySub)
     end
     -- Right on the spot (on a spawn spot, or at the stop itself): the pillars
     -- run a wave.

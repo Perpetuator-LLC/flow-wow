@@ -111,6 +111,7 @@ Flow for WoW is a separate project from Flow Engine.
   And the way back is a person: in Moonglade a druid's arrow leads to Bunthen Plainswind
   (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
   to. `/flow rides`.
+  On any flight the arrow says where you're flying, when you land and what comes after.
 - **Hearthstone**: in a town with an inn, when your stone is set somewhere else, the route
   gets a "Set hearthstone" stop (Horde and Alliance towns and cities). A city beats a
   village (in Thunder Bluff with your home in Bloodhoof Village, you're told to set it

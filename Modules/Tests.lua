@@ -7924,3 +7924,132 @@ ns:Register("test", "route menu: Go to the nearest..., and Shortest path above M
         t:eq(f[2].mode, "xp", "then Most XP")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.180: the arrow's words on a flight; Flow Improvements stays one line
+-- an entry, up to twice as wide.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "flights: the arrow says where you're flying and when you land", function(t)
+    local N, R = ns.nav, ns.rides
+    local title, sub = N.FlightWords("Thunder Bluff", 130, "Train 1 spell(s) at your class trainer")
+    t:eq(title, "Flying to Thunder Bluff", "where to")
+    t:eq(sub, "landing in ~2m 10s, then: Train 1 spell(s) at your class trainer", "when you land, and what comes after")
+    sub = select(2, N.FlightWords("Thunder Bluff", nil, "Next"))
+    t:eq(sub, "landing time not known yet, then: Next", "a flight not timed yet says so")
+    title, sub = N.FlightWords(nil, nil, nil)
+    t:ok(title == "On a flight" and sub == "landing time not known yet", "a flight Flow knows nothing of: still says it's one")
+
+    -- The ride that leaves from where you are, whatever the stop.
+    local rides = { { name = "Bunthen Plainswind", from = 1450, toName = "Thunder Bluff", class = "DRUID", faction = "Horde" } }
+    local same = function(m) return m end
+    local r = R.From(1450, rides, same, "DRUID", "Horde")
+    t:eq(r and r.name, "Bunthen Plainswind", "in Moonglade, a Horde druid: Bunthen's flight")
+    t:eq(R.From(1412, rides, same, "DRUID", "Horde"), nil, "somewhere else: none")
+    t:eq(R.From(1450, rides, same, "MAGE", "Horde"), nil, "not a druid: none")
+    t:eq(R.From(nil, rides, same, "DRUID", "Horde"), nil, "no map: none")
+
+    -- Noticing a flight that started with a word, not a flight map.
+    local keep, saved = N.taxiTrip, {}
+    local bunthen = function() return rides[1] end
+    N._TaxiReset(false)
+    t:eq(N.NoteTaxi(false, 100, bunthen, saved), nil, "on the ground: no trip")
+    local trip = N.NoteTaxi(true, 110, bunthen, saved)
+    t:ok(trip and trip.to == "Thunder Bluff" and trip.from == "Bunthen Plainswind" and trip.start == 110, "taking off beside Bunthen: a trip to Thunder Bluff")
+    t:ok(trip and not trip.partial, "seen from the ground up: its time counts")
+    t:ok(saved.taxiTrip == trip, "kept for a /reload in the air")
+    t:ok(N.NoteTaxi(true, 150, function() return nil end, saved) == trip, "still flying: the same trip")
+    -- A /reload in the air: the trip comes back with its start.
+    N._TaxiReset(false)
+    local back = N.NoteTaxi(true, 200, function() return nil end, saved)
+    t:ok(back == trip and back.start == 110, "after a /reload: the same trip, the same take-off time")
+    -- First seen in the air with nothing saved (a login): a flight, but not one to time.
+    N._TaxiReset(false)
+    local blind = N.NoteTaxi(true, 300, function() return nil end, {})
+    t:ok(blind and blind.to == nil and blind.partial, "first seen in the air: a flight of unknown end, not timed")
+    -- A saved trip too old to be this flight is dropped.
+    N._TaxiReset(false)
+    local stale = { taxiTrip = { from = "A", to = "B", start = 10 } }
+    local fresh = N.NoteTaxi(true, 10 + N.TAXI_MAX + 1, function() return nil end, stale)
+    t:ok(fresh ~= nil and fresh.to == nil, "an old saved trip isn't this flight")
+    -- Landing learns the time of a whole flight only.
+    local times = ns.db.flightTimes
+    ns.db.flightTimes = {}
+    N.Landed({ from = "Bunthen Plainswind", to = "Thunder Bluff", start = 0 }, 412)
+    t:eq(ns.db.flightTimes["Bunthen Plainswind>Thunder Bluff"], 412, "landed: the ride's time is remembered")
+    t:eq(N.FlightSeconds("Bunthen Plainswind", "Thunder Bluff"), 412, "and known next time")
+    N.Landed({ from = "?", start = 0, partial = true }, 300)
+    N.Landed({ from = "X", to = "Y", start = 0, partial = true }, 300)
+    t:eq(ns.db.flightTimes["X>Y"], nil, "a flight seen only in part: not learned")
+    ns.db.flightTimes = times
+    N._TaxiReset(true)
+    N.taxiTrip = keep
+    t:ok(pcall(N.FlightNow, "Next"), "the arrow's question runs")
+    t:ok(pcall(N.TaxiLeft), "and the time left")
+end)
+
+ns:Register("test", "improvements: each numbered entry stays one line, up to twice as wide", function(t)
+    local Adv = ns.advisor
+    local measure = function(s) return #s * 6 end   -- (six a letter)
+    t:eq(Adv.FitLine("short", 100, measure), "short", "a line that fits: as it is")
+    local long = string.rep("word ", 40)
+    local cut = Adv.FitLine(long, 300, measure)
+    t:ok(cut:sub(-3) == "..." and measure(cut) <= 300, "one that doesn't: cut to fit, ending in ...")
+    t:ok(not cut:find("\n", 1, true), "still one line")
+    local coloured = "|cff888888" .. long .. "|r"
+    cut = Adv.FitLine(coloured, 300, measure)
+    t:ok(not cut:find("|", 1, true) and measure(cut) <= 300, "a coloured line is cut without breaking a colour code")
+    t:eq(Adv.FitLine("|cff888888fits|r", 100, measure), "|cff888888fits|r", "a coloured line that fits keeps its colour")
+
+    local shown = {
+        { text = "Train Revive at your class trainer", improves = { "Stronger rank" } },
+        { text = string.rep("a very long way to improve ", 8) },
+    }
+    local lines = Adv.TipLines(shown, { {} }, measure)
+    t:eq(#lines, 5, "title, two entries, the hidden count, the foot")
+    t:eq(lines[1].text, "Flow Improvements", "its title")
+    t:ok(lines[2].text:find("^1%. Train Revive") ~= nil, "numbered")
+    t:ok(lines[2].text:find("improves Stronger rank", 1, true) ~= nil, "a short one whole, with what it improves")
+    local max = measure(Adv.TIP_FOOT) * Adv.TIP_WIDER
+    t:ok(lines[3].text:find("^2%. ") ~= nil and measure(lines[3].text) <= max, "a long one: one line, no wider than twice the tooltip's usual width")
+    t:ok(lines[3].text:sub(-3) == "...", "cut with ...")
+    t:eq(lines[4].text, "(1 hidden)", "the hidden count")
+    t:eq(lines[5].text, Adv.TIP_FOOT, "the foot")
+    t:eq(Adv.TIP_WIDER, 2, "twice")
+    local many = {}
+    for i = 1, 15 do many[i] = { text = "Entry " .. i } end
+    t:eq(#Adv.TipLines(many, {}, measure), 1 + Adv.TIP_MAX + 1, "ten entries at most")
+    local okM, ruler = pcall(Adv.TipMeasure)
+    t:ok(okM and type(ruler) == "function" and (ruler("abc") or 0) >= 0, "the tooltip's own ruler works")
+
+    -- The list (the panel): as wide as its longest row, between its usual width and twice that.
+    t:eq(Adv.PanelWidth(0), Adv.PANEL_W, "short rows: its usual width")
+    t:eq(Adv.PanelWidth(500), 500 + Adv.PANEL_ROOM, "a longer row: room for it")
+    t:eq(Adv.PanelWidth(5000), Adv.PANEL_W * 2, "never more than twice as wide")
+    t:eq(Adv.PanelWidth(nil), Adv.PANEL_W, "nothing to measure: its usual width")
+end)
+
+ns:Register("test", "click: pointing at the Flow Improvements button lists one line an entry", function(t)
+    local Adv = ns.advisor
+    local b = _G.FlowAdviceButton
+    if not (b and b:GetScript("OnEnter")) then t:ok(true, "(the Flow Improvements button isn't built yet)") return end
+    local shown = { { text = string.rep("a very long way to improve ", 8) }, { text = "A short one" } }
+    with(Adv, "Shown", function() return shown, {} end, function()
+        local ok, err = pcall(b:GetScript("OnEnter"), b)
+        t:ok(ok, "pointing at it runs" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(GameTooltip:IsShown(), "the tooltip is up")
+        t:eq(GameTooltip:NumLines(), 4, "title, two entries, the foot")
+        local l2, l3 = _G.GameTooltipTextLeft2, _G.GameTooltipTextLeft3
+        local long, short = l2 and l2:GetText() or "", l3 and l3:GetText() or ""
+        t:ok(long:find("^1%. ") ~= nil and long:sub(-3) == "...", "the long entry: numbered, cut with ... to stay on one line")
+        t:eq(short, "2. A short one", "the short one whole")
+        local measure = Adv.TipMeasure()
+        local foot = measure(Adv.TIP_FOOT)
+        if foot > 0 then
+            t:ok(measure(long) <= foot * Adv.TIP_WIDER + 0.5, "no wider than twice the tooltip's usual width")
+        end
+        if l2 and l2.GetNumLines then t:eq(l2:GetNumLines(), 1, "and it really is one line") end
+        pcall(b:GetScript("OnLeave"), b)
+        t:ok(not GameTooltip:IsShown(), "put away again")
+    end)
+end)
