@@ -55,13 +55,25 @@ end
 
 -- Pure: the stops for a list of flight masters (S:All: { name, map, x, y,
 -- cont, wx, wy }): one for each not learned, a name once.
-function FP.Goals(list, talked, known)
+-- here: where you are ({ map, cont, wx, wy }); a flight master on your map
+-- within FP.HERE yards is a stop in its own right, not only "when it's on
+-- the way": "I'm in Orgrimmar and it isn't telling me to learn the flight
+-- path while I'm here, and I think it should" (0.35.212; it stood 440 yd
+-- off, past the 250 yd an optional stop may add).
+FP.HERE = 800
+function FP.IsHere(fm, here, reach)
+    if not (here and fm.map and fm.map == here.map and fm.cont == here.cont and fm.wx and here.wx) then return false end
+    local dx, dy = fm.wx - here.wx, fm.wy - here.wy
+    return dx * dx + dy * dy <= (reach or FP.HERE) ^ 2
+end
+function FP.Goals(list, talked, known, here)
     local out, seen = {}, {}
     for _, fm in ipairs(list or {}) do
         if fm.name and not seen[fm.name] and not FP.Learned(fm, talked, known) then
             seen[fm.name] = true
+            local close = FP.IsHere(fm, here)
             out[#out + 1] = {
-                key = "flightpath:" .. fm.name, kind = "flight", optional = true, weight = 1,
+                key = "flightpath:" .. fm.name, kind = "flight", optional = (not close) or nil, weight = close and 0.8 or 1,
                 npcs = { fm.name }, points = { { map = fm.map, x = fm.x, y = fm.y } },
                 title = "Flight path", text = "Learn the flight path: " .. fm.name,
                 details = { "You don't have this flight path yet. Talk to " .. fm.name .. " once: it's free, and later trips through here are shorter for it.",
@@ -81,7 +93,7 @@ ns:Register("navGoal", "flightpath", {
         if not (S and S.All) then return nil end
         local ok, list = pcall(S.All, S, "flight", FP.MAX)
         if not ok then return nil end
-        cache.at, cache.goals = now, FP.Goals(list, ns.db.flightTalked, ns.db.flights)
+        cache.at, cache.goals = now, FP.Goals(list, ns.db.flightTalked, ns.db.flights, ns.nav and ns.nav:PlayerPos() or nil)
         return cache.goals
     end,
 })

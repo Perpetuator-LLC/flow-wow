@@ -725,6 +725,8 @@ E.BREAKERS = {
 -- (War Stomp: 8 yards), so it needs the target close, not in spell range.
 -- Classes add theirs: table.insert(ns.rotation.INTERRUPTS, { spell = ... }).
 E.INTERRUPTS = {
+    { spell = "Bash" },                     -- druid, Bear Form: a stun in melee reach (0.35.212)
+    { spell = "Hammer of Justice" },        -- paladin: a stun at 10 yd
     { spell = "War Stomp", near = true },   -- tauren: stuns everything within 8 yd for 2 s
 }
 -- What the target is casting or channelling (nil: nothing, or the game hides it).
@@ -1109,8 +1111,11 @@ function E:GroupBuff(ctx, def, now)
     end
     groupCache = { at = now, s = s }
     -- For "is it buffing correctly in a group?": each new suggestion, once,
-    -- with how many are in the group (the log is in the diagnostics).
-    local what = s and (s.spell .. ">" .. tostring(s.target)) or (#units > 1 and "none" or nil)
+    -- with how many are in the group (the log is in the diagnostics). Only in
+    -- a real group: the self-tests run this with made-up members.
+    local grouped = (IsInGroup and IsInGroup()) and true or false
+    local what
+    if grouped then what = s and (s.spell .. ">" .. tostring(s.target)) or (#units > 1 and "none" or nil) end
     if what and what ~= E.lastGroupLog then
         E.lastGroupLog = what
         ns:Log("group", s and string.format("group buff: %s on %s (%s), %d in the group", s.spell, tostring(s.target), tostring(s.unit), #units)

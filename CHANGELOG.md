@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.212
+- **Your hearthstone stays where your quests are.** In Orgrimmar for a dungeon, with every
+  quest round the Crossroads, Flow asked to set your home in the city ("a city beats a
+  village"). It now counts where your quests' stops are: with more of them nearer your home
+  than the inn you're standing by, your home stays.
+- **The flight path of the town you're in.** A flight master you don't have yet, on the map
+  you're on and within 800 yards, is now a stop for its own sake. Before, it only joined
+  the route when it lay within 250 yards of the way you were going anyway, so in Orgrimmar
+  (440 yards off) it was left out.
+- **Need or Greed on loot rolls.** When a roll comes up, Flow writes on the roll window
+  whether the item is an upgrade for you ("upgrade +2.1: Need") or not ("not an upgrade:
+  Greed"), by the same scores as the icons in your bags, and says an upgrade in chat too.
+  It never rolls for you. "Roll hints" in Flow Settings (In a group) turns it off;
+  `/flow roll <item>` asks about any item. Not seen in game yet.
+- **Stopping a cast:** a druid's Bash (Bear Form) and a paladin's Hammer of Justice join
+  War Stomp as the spells Flow asks for when your target starts casting.
+- The log's group-buff lines no longer include the self-tests' made-up party.
+
 ## 0.35.211
 - **Flow Meters: threat and DPS.** In a party or raid, and at a training dummy, two small
   lists stacked on each other: threat on your target (percent of the tank's) and damage per

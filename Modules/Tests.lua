@@ -9874,3 +9874,76 @@ ns:Register("test", "dungeon: walking in, the quests you have and the ones you d
     local ok, l = pcall(D.HereLines)
     t:ok(ok and type(l) == "table", "the check runs where you stand" .. (ok and "" or (": " .. tostring(l))))
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.212: your home stays where your quests are; the flight path of the
+-- town you're in; Need or Greed on loot rolls; Bash stops a cast.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "hearthstone: your home stays where your quests are, city or not", function(t)
+    local H = ns.hearth
+    local org = { name = "Innkeeper Gryshka", zone = "Orgrimmar", town = "Orgrimmar", city = true }
+    local xr = { name = "Innkeeper Boorand Plainswind", zone = "The Barrens", town = "The Crossroads" }
+    t:ok(H.Offer(org, xr, 3000), "no word on your quests: a city is offered, as before")
+    t:ok(not H.Offer(org, xr, 3000, { here = 1, home = 9 }), "nine stops round the Crossroads, one by Orgrimmar: keep the Crossroads")
+    t:ok(H.Offer(org, xr, 3000, { here = 6, home = 2 }), "most of your stops by the city now: offered")
+    t:ok(H.Offer(org, xr, 3000, { here = 0, home = 0 }), "no quest stops either way: as before")
+    t:ok(not H.Offer(xr, xr, 0, { here = 5, home = 0 }), "bound here already: no")
+    -- Counting: quest stops only, each to the nearer inn.
+    local goals = {
+        { key = "869:1", points = { { x = 10 } } }, { key = "844:done", points = { { x = 12 } } },
+        { key = "5723:2", points = { { x = 95 } } }, { key = "pickup:812", points = { { x = 99 } } },
+        { key = "train:class", points = { { x = 99 } } }, { key = "870:1", points = {} },
+    }
+    local inns = { here = 100, home = 0 }
+    local n = H.Nearer(goals, "here", "home", function(inn, pt) return math.abs(inns[inn] - pt.x) end)
+    t:ok(n.home == 2 and n.here == 1, "two quest stops by your home, one by this inn; pickups and errands don't count")
+    n = H.Nearer(goals, "here", "home", function() return nil end)
+    t:ok(n.home == 0 and n.here == 0, "distances unknown: counted for neither")
+end)
+
+ns:Register("test", "flight paths: the one in the town you're in is a stop of its own", function(t)
+    local FP = ns.flightPaths
+    local here = { map = 1454, cont = 1, wx = 1700, wy = -4400 }
+    local near = { name = "Flow Test Wind Rider", map = 1454, x = 0.7, y = 0.15, cont = 1, wx = 2133, wy = -4667 }
+    local far = { name = "Flow Test Far Rider", map = 1411, x = 0.5, y = 0.4, cont = 1, wx = 333, wy = -4711 }
+    t:ok(FP.IsHere(near, here), "510 yards off on your map: here")
+    t:ok(not FP.IsHere(far, here), "another map: not here")
+    t:ok(not FP.IsHere(near, nil), "where you are isn't known: no")
+    t:ok(not FP.IsHere(near, here, 300), "past the reach: no")
+    local goals = FP.Goals({ near, far }, {}, {}, here)
+    t:eq(#goals, 2, "both are stops")
+    t:ok(goals[1].optional == nil and goals[2].optional == true, "the one here is on the route for itself; the far one only when it's on the way")
+    goals = FP.Goals({ near }, {}, {})
+    t:eq(goals[1].optional, true, "without where you are: as before")
+end)
+
+ns:Register("test", "loot rolls: Need on an upgrade, Greed on the rest", function(t)
+    local R = ns.rollHint
+    local v = R.Verdict({ canUse = true, diffs = { dps = 2.14 } }, "dps")
+    t:ok(v.roll == "need" and v.text == "upgrade +2.1: Need", "an upgrade you can wear: Need, with how much")
+    v = R.Verdict({ canUse = true, diffs = { dps = 0.2 } }, "dps")
+    t:ok(v.roll == "greed" and v.text == "not an upgrade: Greed", "under half a point: not an upgrade")
+    v = R.Verdict({ canUse = true, diffs = { dps = -3 } }, "dps")
+    t:eq(v.roll, "greed", "worse than what you wear: Greed")
+    v = R.Verdict({ canUse = false }, "dps")
+    t:ok(v.roll == "greed" and v.text:find("can't wear", 1, true) ~= nil, "something you can't wear: Greed, and it says why")
+    t:eq(R.Verdict(nil, "dps"), nil, "not gear: no verdict")
+    t:eq(R.Verdict({ canUse = true, diffs = { tank = 5 } }, "dps").roll, "greed", "an upgrade for another role only: Greed")
+    t:ok(R.For(nil) == nil, "no item: nothing")
+    t:ok(pcall(ns.commands.roll, ""), "/flow roll with nothing says how to use it")
+end)
+
+ns:Register("test", "easy button: a druid's Bash and a paladin's Hammer of Justice stop a cast", function(t)
+    local E = ns.rotation
+    local has = {}
+    for _, r in ipairs(E.INTERRUPTS) do has[r.spell] = r end
+    t:ok(has.Bash and not has.Bash.near, "Bash is one, at its own reach")
+    t:ok(has["Hammer of Justice"] ~= nil, "Hammer of Justice is one")
+    t:ok(has["War Stomp"] and has["War Stomp"].near, "War Stomp still is, close by only")
+    local fight = { inCombat = true, hostile = true, fightType = "normal" }
+    with(E, "Ready", function(_, spell) return spell == "Bash" end, function()
+        local s = E:Interrupt(fight, "Healing Wave", false)
+        t:eq(s and s.spell, "Bash", "in Bear Form with Bash ready, the target casting: Bash")
+    end)
+end)

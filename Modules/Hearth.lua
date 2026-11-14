@@ -109,13 +109,43 @@ end
 -- Pure: offer "Set hearthstone" at the inn `here`? home: the inn you're
 -- bound to (nil: not one Flow knows); yards: between the two (nil: unknown).
 H.CITY_REACH = 1500   -- a city home this close to a village's inn: keep the city
-function H.Offer(here, home, yards)
+-- work: { here = n, home = n }: how many of your quests' stops (objectives
+-- and turn-ins in your log) are nearer this inn, and nearer your home. With
+-- more of them round your home, it stays: "I'm questing in the Crossroads
+-- and just came to Orgrimmar for a dungeon; it tells me to set my hearth
+-- here and I don't think I should" (0.35.212). A city doesn't beat that.
+function H.Offer(here, home, yards, work)
     if not here then return false end
     if not home then return true end                       -- as before: your home isn't a known inn
     if home == here or home.zone == here.zone then return false end   -- bound in this zone already
+    if work and (work.home or 0) > (work.here or 0) then return false end   -- your quests are round your home
     if here.city and not home.city then return true end    -- a city beats a village
     if home.city and not here.city and (not yards or yards <= H.CITY_REACH) then return false end
     return true                                            -- another zone's inn, your home far away
+end
+
+-- Pure: of these stops, how many are nearer each inn. dist(inn, point) ->
+-- yards or nil (can't tell: counted for neither).
+function H.Nearer(goals, here, home, dist)
+    local out = { here = 0, home = 0 }
+    for _, g in ipairs(goals or {}) do
+        local pt = type(g.key) == "string" and g.key:find("^%d+:") and g.points and g.points[1]
+        if pt then
+            local a, b = dist(here, pt), dist(home, pt)
+            if a and b then
+                if a < b then out.here = out.here + 1 elseif b < a then out.home = out.home + 1 end
+            end
+        end
+    end
+    return out
+end
+-- Your quests' stops right now (the route's and the ones not on this plan).
+function H.Work(here, home)
+    local N = ns.nav
+    if not (N and N.Goals) then return nil end
+    local ok, goals = pcall(N.Goals, N)
+    if not ok or type(goals) ~= "table" then return nil end
+    return H.Nearer(goals, here, home, function(inn, pt) return H.Between(inn, pt) end)
 end
 
 -- A stop that's a travel spell away waits for the "Set hearthstone" stop,
@@ -268,7 +298,7 @@ ns:Register("navGoal", "hearth", {
         end
         if not here or H:BoundTo(here, bind) then return nil end
         local _, home = H:Home(bind)
-        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil) then return nil end
+        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil, home and H.Work(here, home) or nil) then return nil end
         return { {
             key = "hearth:" .. hereKey, weight = 1.1, points = herePts,
             title = "Set hearthstone",
