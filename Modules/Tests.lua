@@ -9770,3 +9770,29 @@ ns:Register("test", "drops: a corpse with no name to read is skipped, not an err
     ok, err = pcall(SP.RecordLoot, 12345, "x", {})
     t:ok(ok, "a name that isn't text: nothing counted" .. (ok and "" or (": " .. tostring(err))))
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.210: your own waypoint set: the map shows it alone.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map: with your own waypoint set, Flow's route stays off the map", function(t)
+    local M = ns.mapOverlay
+    t:ok(M.WaypointOnly(true, true, false), "a waypoint of yours: only it")
+    t:ok(not M.WaypointOnly(false, true, false), "no waypoint: the route as usual")
+    t:ok(not M.WaypointOnly(true, false, false), "switched off in the menu: the route as usual")
+    t:ok(not M.WaypointOnly(true, true, true), "pointing at a stop in a list: that stop shows")
+    -- The menu's tick flips the setting and the map draws either way.
+    local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    local tick
+    for _, it in ipairs(ok and items or {}) do
+        if type(it.text) == "string" and it.text:find("^On the map, show only my waypoint") then tick = it end
+    end
+    t:ok(tick ~= nil, "the Flow menu has the tick, under Your waypoint")
+    if not tick then return end
+    local was = ns.db.nav.mapWaypointOnly
+    local okC, err = pcall(tick.func)
+    t:ok(okC, "a click runs" .. (okC and "" or (": " .. tostring(err))))
+    t:eq(ns.db.nav.mapWaypointOnly ~= false, not (was ~= false), "and flips it")
+    ns.db.nav.mapWaypointOnly = was
+    t:ok(pcall(M.Redraw, M), "the map draws")
+end)

@@ -714,6 +714,12 @@ local function declutter()
     end
 end
 
+-- Pure: does the map show only your own waypoint? has: one is set; on: the
+-- setting; pointing: you point at a stop (in a list, on the tracker, a preview).
+function M.WaypointOnly(has, on, pointing)
+    return (has and on and not pointing) and true or false
+end
+
 -- One stop alone ("as I hover over the waypoints in the Flow Router, hide
 -- all the other things and routes and show just that one objective; leave
 -- the previous and the next, without their area, a little muted, so I see
@@ -1914,12 +1920,18 @@ local function fullDraw()
         if plan[1] and plan[1].goal.key ~= pointed then order[#order + 1] = 1 end
         for i, s in ipairs(plan) do if s.goal.key == pointed then order[#order + 1] = i end end
         local soloAt = M.SoloAt(plan, hoverSolo and not previewKey and hoverKey or nil)
+        -- Your own waypoint is set: the map shows it alone, without Flow's route
+        -- ("it gets super confusing ... should we hide Flow's objectives when
+        -- one is selected? we are showing so much", 0.35.210). Pointing at a
+        -- stop in a list still shows that stop.
+        local wayOnly = M.WaypointOnly(ns.waypoint ~= nil and ns.waypoint:Get() ~= nil, ns.db.nav.mapWaypointOnly ~= false,
+            pointed ~= nil)
         for _, i in ipairs(order) do
             local g = plan[i].goal
             -- Only the patch the route goes to; the stop you point at shows
             -- every place its mobs live. Past your Stops on the map limit,
             -- only the stop you point at.
-            if M.FollowsYou(plan[i]) then   -- (follows you: nowhere to draw)
+            if M.FollowsYou(plan[i]) or wayOnly then   -- (follows you: nowhere to draw; or only your waypoint shows)
             elseif soloAt and i ~= soloAt then   -- (one stop alone: only its area)
             elseif g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
             elseif ns.nav:StopVisible(i, false) then
@@ -1928,7 +1940,10 @@ local function fullDraw()
                 drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point, i == 1)
             end
         end
-        if previewKey then
+        if wayOnly then
+            drawWaypoint(c, mapID)
+            if profPin then profPin:Hide() end
+        elseif previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the
             -- stops as points (kept where they are so the one under the mouse
             -- doesn't jump).
@@ -1939,7 +1954,8 @@ local function fullDraw()
         else
             drawRoute(c, mapID, ns.nav.plan, T.route, true)
         end
-        if soloAt then
+        if wayOnly then   -- (drawn above)
+        elseif soloAt then
             if wpPin then wpPin:Hide() end
             if profPin then profPin:Hide() end
         else

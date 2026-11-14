@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.210
+- **Your own waypoint: the map shows it alone.** While you have a waypoint of your own, the
+  world map leaves out Flow's route, stops and areas, so it's clear where you're headed.
+  Clear the waypoint and the route is back. Pointing at a stop in the Flow Router or Flow
+  Tracker still shows that stop. Flow menu, Your waypoint, "On the map, show only my
+  waypoint while one is set" turns it off.
+
 ## 0.35.209
 - **The buff button looks like Flow's icon.** The same size (52), its key written above it
   in the same letters, and its Ctrl, Shift, Alt and C+S icons out to the left in the same
