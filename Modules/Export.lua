@@ -91,7 +91,7 @@ local function spot(fields, pt)
     fields[#fields + 1] = { "wy", wy }
 end
 
-local function bagsFree()
+function X.BagsFree()
     local free = 0
     local get = (C_Container and C_Container.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
     if not get then return nil end
@@ -115,7 +115,7 @@ function X.Lines()
     local you = {
         { "name", UnitName("player") }, { "class", class }, { "faction", UnitFactionGroup and UnitFactionGroup("player") },
         { "level", UnitLevel("player") }, { "xp", A.Safe(UnitXP and UnitXP("player")) }, { "xpmax", A.Safe(UnitXPMax and UnitXPMax("player")) },
-        { "money", GetMoney and GetMoney() }, { "bagsfree", bagsFree() }, { "speed", N and N.TravelSpeed and N.TravelSpeed() },
+        { "money", GetMoney and GetMoney() }, { "bagsfree", X.BagsFree() }, { "speed", N and N.TravelSpeed and N.TravelSpeed() },
         { "zone", GetZoneText and GetZoneText() }, { "hearth", GetBindLocation and GetBindLocation() },
     }
     local H = ns.hearth

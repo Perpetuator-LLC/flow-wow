@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.200
+- **Flow Banker.** At a bank, a Flow Banker window lists what you won't need soon: profession
+  materials, trade goods you told Flow never to sell and recipes waiting for skill, when no
+  stop on your route uses them. "Deposit" puts them in, a stack at a time; nothing moves
+  until you click. Quest items, tools, food, water, bandages, potions and gear always stay
+  with you. With four or more stacks to put away (or two with your bags nearly full), the
+  route gets "Bank: put N stacks away" when a banker is close to the way you're going (its
+  own tick under Route includes). `/flow banker` lists them; `/flow banker on|off`.
+  Not built yet: fetching things back as a stop before the crafting that needs them.
+
 ## 0.35.199
 - **Before you leave a zone, Flow says what's still to train or level there.** When your
   next stop is in another zone, chat lists, once, what Flow Improvements still has about

@@ -9100,3 +9100,70 @@ ns:Register("test", "easy button: the held-modifier tag is on the key bind's lin
     local _, size = icon.shiftTag:GetFont()
     t:near(size or 0, C.KEY_FONT, 0.6, "in the same size of lettering")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.200: Flow Banker.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: what goes to the bank and what stays with you", function(t)
+    local B = ns.banker
+    local function row(name, id, rule, kind, action, stacks)
+        return { name = name, id = id, rule = rule, kind = kind, action = action or "keep", stacks = stacks or 1, count = 10, reason = "x" }
+    end
+    t:ok(B.Banks(row("Light Leather", 2318, "professionMaterial", "Trade Goods: Leather"), {}), "a profession material nothing uses now: to the bank")
+    t:ok(B.Banks(row("Ruined Leather Scraps", 2934, "neverSell", "Trade Goods: Leather"), {}), "something you told Flow never to sell: to the bank")
+    t:ok(B.Banks(row("Recipe: Longjaw Mud Snapper", 6328, "notGear", "Recipe: Cooking"), {}), "a recipe waiting for skill: to the bank")
+    t:ok(not B.Banks(row("Stringy Wolf Meat", 2672, "professionMaterial", "Trade Goods: Cooking"), { [2672] = true }), "a material a stop on your route uses: stays")
+    t:ok(not B.Banks(row("Refreshing Spring Water", 159, "professionMaterial", "Consumable: Food & Drink"), {}), "water: stays, whatever it's also a material for")
+    t:ok(not B.Banks(row("Linen Bandage", 1251, "professionMaterial", "Consumable: Bandages"), {}), "bandages: stay")
+    t:ok(not B.Banks(row("Cenarion Lunardust", 15710, "unsellable", "Quest"), {}), "a quest item: stays")
+    t:ok(not B.Banks(row("Skinning Knife", 7005, "professionTool", "Weapon: Miscellaneous"), {}), "a tool: stays")
+    t:ok(not B.Banks(row("Hearthstone", 6948, "unsellable", "Miscellaneous: Junk"), {}), "your hearthstone: stays")
+    t:ok(not B.Banks(row("Fractured Canine", 3299, "junk", "Miscellaneous: Junk", "sell"), {}), "junk to sell: not the bank's business")
+    t:ok(not B.Banks(nil, {}), "nothing: no")
+    local list = B.Pick({
+        row("Peacebloom", 2447, "professionMaterial", "Trade Goods: Herb", "keep", 2),
+        row("Ruined Leather Scraps", 2934, "neverSell", "Trade Goods: Leather", "keep", 4),
+        row("Tough Jerky", 117, "notGear", "Consumable: Food & Drink"),
+        row("Stringy Wolf Meat", 2672, "professionMaterial", "Trade Goods: Cooking"),
+    }, { [2672] = true })
+    t:eq(#list, 2, "two of the four go")
+    t:eq(list[1].name, "Ruined Leather Scraps", "what takes the most room first")
+    t:eq(B.Stacks(list), 6, "six stacks in all")
+    -- What the route's stops need.
+    local need = B.NeededBy({ { reagents = { [2672] = 6 } }, { reagents = { { id = 765 } } }, { useItem = 6328 }, {} })
+    t:ok(need[2672] and need[765] and need[6328], "a stop's materials, either way they're written, and an item it uses")
+    t:eq(need[2318], nil, "nothing else")
+    -- A stop on the route: only when it's worth it.
+    t:ok(B.WorthAStop(4, 10), "four stacks: worth a stop")
+    t:ok(not B.WorthAStop(2, 10), "two, with room in your bags: not yet")
+    t:ok(B.WorthAStop(2, 1), "two, and your bags nearly full: yes")
+    t:ok(not B.WorthAStop(0, 0), "nothing to put away: never")
+    local kind = ns:Get("routeKind", "banker")
+    t:ok(kind and kind.match({ provider = "banker" }), "its own kind on the route to untick")
+    local ok, res = pcall(ns:Get("navGoal", "banker").collect)
+    t:ok(ok and (res == nil or type(res) == "table"), "the stop's source runs" .. (ok and "" or (": " .. tostring(res))))
+    local okL, lines = pcall(B.Lines)
+    t:ok(okL and type(lines) == "table" and #lines >= 1, "/flow banker lists them" .. (okL and "" or (": " .. tostring(lines))))
+end)
+
+ns:Register("test", "click: Flow Banker opens, lists, and deposits only at a bank", function(t)
+    local B = ns.banker
+    local was = B._Frame() and B._Frame():IsShown()
+    local ok, err = pcall(B.Open, B)
+    t:ok(ok, "the window opens" .. (ok and "" or (": " .. tostring(err))))
+    local f = B._Frame()
+    t:ok(f and f:IsShown() and _G.FlowBanker == f, "Flow Banker is on screen")
+    if not f then return end
+    t:ok(f.head ~= nil, "with Flow's title bar")
+    if not B.AtBank() then
+        t:eq(f.go:GetText(), "At a bank", "away from a bank its button says where it works")
+        t:ok(not f.go:IsEnabled(), "and can't be pressed")
+        t:eq(B:Deposit(), 0, "nothing moves away from a bank")
+        -- (Only away from a bank: at one, the click would really move your things.)
+        local okC = pcall(f.go:GetScript("OnClick"), f.go)
+        t:ok(okC, "the button's click runs")
+    end
+    if not was then f:Hide() end
+    t:ok(type(ns.commands.banker) == "function", "/flow banker")
+end)
