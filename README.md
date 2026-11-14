@@ -16,13 +16,13 @@ Flow for WoW is a separate project from Flow Engine.
   stance bar button glows. The border colour says why: green attack, light blue buff, gold heal,
   fast gold pulse heal now. A big cooldown timer sits on the icon (and, when it suggests
   re-casting a buff, the buff's last 30 seconds in light blue), and a crossed-swords badge on
-  its left shows auto attack is on.
+  its right shows auto attack is on.
 - **Auto attack at the pull**: with a new enemy targeted and no fight yet, the first press of
   your key turns auto attack on (the game's own Start Attack: on, never off), and your opener
   comes with the next press. WoW: Forever doesn't start it when you cast, and the key can't
   change once the fight is on. A switch in the settings; one enemy can be left out
   (`noAutoAttack`).
-- **The queue: four things on one key.** Right of the icon, each a little smaller, sit the
+- **The queue: four things on one key.** Left of the icon, each a little smaller, sit the
   three things your key casts with a modifier held, the modifier written above each: **CTRL**
   your second attack (Moonfire beside Wrath; between fights the next way to heal up, or the
   shown heal or buff on your friendly target), **SHIFT** your quickest heal on you, **ALT** your

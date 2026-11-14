@@ -8447,3 +8447,29 @@ ns:Register("test", "easy button: the quest's item at its stop", function(t)
         end
     end) end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.188: the easy button's modifier icons run out to its left; auto
+-- attack sits on its right.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy button: modifier icons to its left, auto attack on its right", function(t)
+    local icon = ns.rotation.icon
+    if not (icon and icon.deck and icon.deck[1] and icon.swing and icon.shiftTag) then
+        t:ok(true, "(the easy button isn't built yet)")
+        return
+    end
+    local p, rel, rp, x = icon.deck[1]:GetPoint(1)
+    t:ok(p == "BOTTOMRIGHT" and rel == icon and rp == "BOTTOMLEFT" and (x or 0) < 0, "the first (CTRL) hangs off the icon's left edge")
+    for i = 2, #icon.deck do
+        local p2, rel2, rp2, x2 = icon.deck[i]:GetPoint(1)
+        t:ok(p2 == "BOTTOMRIGHT" and rel2 == icon.deck[i - 1] and rp2 == "BOTTOMLEFT" and (x2 or 0) < 0,
+            "the next one further left (" .. i .. ")")
+    end
+    t:eq(icon.deck[1]:GetNumPoints(), 1, "one anchor each (not still tied to the right side)")
+    local sp, srel, srp, sx = icon.swing:GetPoint(1)
+    t:ok(sp == "LEFT" and srel == icon and srp == "RIGHT" and (sx or 0) > 0, "the crossed swords are on its right")
+    t:eq(icon.swing:GetNumPoints(), 1, "and only there")
+    local tp, trel, trp = icon.shiftTag:GetPoint(1)
+    t:ok(tp == "BOTTOMLEFT" and trel == icon and trp == "TOPRIGHT", "the SHIFT+ tag is above its right corner, clear of both")
+end)

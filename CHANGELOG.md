@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.188
+- **The easy button's modifier icons run out to the left.** The CTRL, SHIFT and ALT icons
+  used to run off to the right of the big icon; they now run to its left, CTRL nearest. The
+  crossed swords for auto attack moved from the left to the right of the big icon, and the
+  "SHIFT+" tag you see while holding a modifier sits above the icon's right corner, clear
+  of both.
+
 ## 0.35.187
 - **The easy button uses the quest's item.** Standing at a quest's stop, out of a fight and
   with no enemy targeted, your Flow key uses the item the quest gave you (the totem at the

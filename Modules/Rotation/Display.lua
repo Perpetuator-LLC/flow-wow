@@ -82,11 +82,11 @@ local function buildIcon(cfg)
     f.timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
     f.timer:SetPoint("CENTER", 0, 0)
     f.timer:SetTextColor(1, 0.95, 0.7)
-    -- Auto attack on: a crossed-swords badge on the LEFT of the button (the
-    -- "active" side; on deck is on the right), gently pulsing while swinging.
+    -- Auto attack on: a crossed-swords badge on the RIGHT of the button (the
+    -- queue has the left side since 0.35.188), gently pulsing while swinging.
     f.swing = CreateFrame("Frame", nil, f.timerLayer)
-    f.swing:SetSize(24, 24)   -- the "active" side: left of the button
-    f.swing:SetPoint("RIGHT", f, "LEFT", -8, 0)
+    f.swing:SetSize(24, 24)
+    f.swing:SetPoint("LEFT", f, "RIGHT", 8, 0)
     f.swing.back = f.swing:CreateTexture(nil, "BACKGROUND")
     f.swing.back:SetPoint("TOPLEFT", -1, 1); f.swing.back:SetPoint("BOTTOMRIGHT", 1, -1)
     f.swing.back:SetColorTexture(0, 0, 0, 0.85)
@@ -101,7 +101,8 @@ local function buildIcon(cfg)
     fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
     f.swing.pulse = pulse
     f.swing:Hide()
-    -- The queue (right of the button): what your key casts with Ctrl, Shift
+    -- The queue (left of the button since 0.35.188; it ran off to the right
+    -- before): what your key casts with Ctrl, Shift
     -- and Alt held (Queue.lua; Cast.lua has them set), each a little smaller
     -- than the last, its modifier written above it. Greyed while cooling
     -- down, red out of range; the one Flow advises pulses gold, the one
@@ -113,7 +114,8 @@ local function buildIcon(cfg)
     for i, sz in ipairs(SIZES) do
         local d = CreateFrame("Frame", nil, f)
         d:SetSize(sz, sz)
-        if prev then d:SetPoint("BOTTOMLEFT", prev, "BOTTOMRIGHT", 6, 0) else d:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 10, 0) end
+        -- (Out to the LEFT of the big icon, nearest first: CTRL, then SHIFT, then ALT.)
+        if prev then d:SetPoint("BOTTOMRIGHT", prev, "BOTTOMLEFT", -6, 0) else d:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -10, 0) end
         d.ring = d:CreateTexture(nil, "BACKGROUND", nil, -2)
         d.ring:SetPoint("TOPLEFT", -3, 3); d.ring:SetPoint("BOTTOMRIGHT", 3, -3)
         d.ring:SetColorTexture(1, 0.82, 0.1, 1)
@@ -170,7 +172,9 @@ local function buildIcon(cfg)
     -- "SHIFT+" beside the icon while you hold Shift: the icon then shows
     -- what Shift + your key casts (your heal), pulsing so it's noticed.
     f.shiftTag = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.shiftTag:SetPoint("RIGHT", f, "LEFT", -6, 0)
+    -- (Above the icon's right corner: the queue is on its left, the
+    -- crossed swords on its right, the key's bind above its middle.)
+    f.shiftTag:SetPoint("BOTTOMLEFT", f, "TOPRIGHT", 4, 2)
     f.shiftTag:SetText("SHIFT+")
     f.shiftTag:SetTextColor(0.4, 1, 0.4)
     f.shiftTag.pulse = f.shiftTag:CreateAnimationGroup()
