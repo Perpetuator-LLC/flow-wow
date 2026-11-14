@@ -16,6 +16,21 @@ end
 
 local T = {}
 ns.trainerAdvice = T
+-- Pure: the route stop where you get a spell that another one waits for: its
+-- class quest's stop, else your class trainer's. nil: Flow can't say (a
+-- spell with a note of its own: a talent, a book).
+--   spells: your class's list ({ spell, quest, note });
+--   questKeyOf(spell) -> the key of that quest's stop on your route
+function T.PrereqKey(spells, name, questKeyOf)
+    for _, s in ipairs(spells or {}) do
+        if s.spell == name then
+            if s.quest then return questKeyOf and (questKeyOf(name)) or nil end
+            if not s.note then return "train:class" end
+            return nil
+        end
+    end
+    return nil
+end
 -- What a spell at the trainer waits for, or nil when you can train it:
 --   needs: the spell it needs first (class data, "Bear Form"); known: your spells;
 --   category, level: as your last visit showed it; seenAt: your level then.
@@ -90,6 +105,10 @@ ns:Register("advisor", "trainer", {
                     text = string.format("%s: after %s", s.spell, waitFor),
                     improves = s.improves,
                     waitsFor = waitFor,
+                    -- Its link: where you get what it waits for (Maul waits for
+                    -- Bear Form: the Bear Form quest's stop).
+                    goalKey = T.PrereqKey(ns:Get("classSpells", classToken()), waitFor,
+                        ns.quests and ns.quests.ClassQuestKey),
                 }
             elseif s.level <= level and not known[s.spell] and not listed[s.spell] then
                 -- A class quest teaches it: its link is the quest's stop on your route

@@ -291,22 +291,38 @@ ns.commands.advice = function(arg)
 end
 
 -------------------------------------------------------------------------------
--- Advice panel (click the ! button):
---   * click a row: it's hidden (under "Hidden" at the bottom, collapsed);
---     click "Hidden (N)" to open that list, click a row there to bring it back
---   * the link button on the right of a row opens what it's about: the stop on
---     your route (its card: go here next...), the spell (place it or bind a
---     key), the item, the profession picker, the talent plan
+-- Advice panel (click the ! button). Each row has two icons on its right:
+--   * the link icon (and a click on the row) opens what it's about: the stop
+--     (its card: where it is, go here next, point the arrow here), the spell
+--     (place it or bind a key), the item, the profession picker, the talent
+--     plan. A stop is found on the route, among the locked ones (a trainer
+--     you can't pay yet) and among those you hid, so training always leads to
+--     your trainer and a class quest to its giver.
+--   * the hide icon puts the row under "Hidden" at the bottom (collapsed);
+--     click "Hidden (N)" to open that list; a row there (or its plus) comes back
 -------------------------------------------------------------------------------
 
 local panel
 local ROWS = 16
 
-local function goalFor(key)
-    if not (key and ns.nav) then return nil end
-    for _, g in ipairs(ns.nav:Goals()) do
-        if g.key == key and g.points and #g.points > 0 then return g end
+-- Pure: the stop with this key, wherever it is: on the route, locked (no
+-- money for the trainer yet, no known place), or hidden by you. A locked or
+-- hidden stop still has a card to open, and still says where to go.
+--   ...: the lists to look in, in order (route stops, locked stops, hidden
+--        stops); one that isn't there is skipped
+function Adv.FindGoal(key, ...)
+    if not key then return nil end
+    for i = 1, select("#", ...) do
+        for _, g in ipairs((select(i, ...)) or {}) do
+            if g.key == key then return g end
+        end
     end
+    return nil
+end
+local function goalFor(key)
+    local N = ns.nav
+    if not (key and N) then return nil end
+    return Adv.FindGoal(key, N:Goals(), N.blockedGoals, N.hiddenGoals)
 end
 
 -- What a row's link opens: kind ("open", "goal", "spell", "item") and a label,
@@ -327,7 +343,12 @@ function Adv.Open(item, anchor)
         local ok, err = pcall(fn)
         if not ok then ns:Print("couldn't open it: " .. tostring(err)) end
     elseif kind == "goal" then
-        ns.nav:OpenStop(goalFor(item.goalKey), anchor)
+        local g = goalFor(item.goalKey)
+        if g and g.points and #g.points > 0 then
+            ns.nav:OpenStop(g, anchor)   -- its card: where it is, go here next, point the arrow here
+        elseif g then
+            ns:Print((g.text or g.title or "that stop") .. ": " .. (g.blockedBy or "Flow doesn't know where it is yet"))
+        end
     elseif kind == "spell" then
         if ns.newSpell and ns.newSpell.Offer then ns.newSpell:Offer(item.spell) end
     elseif kind == "item" then
@@ -375,6 +396,20 @@ local function linkButton(parent)
     return b
 end
 
+-- The hide button: a crossed circle; under Hidden it's a plus (bring it back).
+local HIDE_ICON, SHOW_ICON = "Interface\\Buttons\\UI-GroupLoot-Pass-Up", "Interface\\Buttons\\UI-PlusButton-Up"
+local function hideButton(parent)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(16, 16)
+    b:SetPoint("RIGHT", -2, 0)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b.tex:SetTexture(HIDE_ICON)
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.25)
+    return b
+end
+
 local function buildPanel()
     local f = CreateFrame("Frame", "FlowAdvicePanel", UIParent)
     f:SetSize(440, 46 + ROWS * 20)
@@ -407,11 +442,28 @@ local function buildPanel()
         r.hl:SetColorTexture(1, 1, 1, 0.08)
         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         r.text:SetPoint("LEFT", 2, 0)
-        r.text:SetPoint("RIGHT", -22, 0)
+        r.text:SetPoint("RIGHT", -40, 0)
         r.text:SetJustifyH("LEFT")
         r.text:SetWordWrap(false)
         r.link = linkButton(r)
+        r.link:ClearAllPoints()
+        r.link:SetPoint("RIGHT", -20, 0)
         r.link:SetScript("OnClick", function(self) Adv.Open(r.row.item, self) end)
+        -- Hide it (or, under Hidden, bring it back): an icon of its own, so a
+        -- click on the row can open what it's about.
+        r.hide = hideButton(r)
+        r.hide:SetScript("OnClick", function()
+            local row = r.row
+            if not (row and row.item) then return end
+            GameTooltip:Hide()
+            if row.kind == "hidden" then Adv:Unhide(row.item) else Adv:Hide(row.item) end
+        end)
+        r.hide:SetScript("OnEnter", function(self)
+            ns.Tip(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(r.row and r.row.kind == "hidden" and "Bring it back." or "Hide it (it goes under Hidden at the bottom).", 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        r.hide:SetScript("OnLeave", function() GameTooltip:Hide() end)
         r.link:SetScript("OnEnter", function(self)
             local _, label = Adv.LinkOf(r.row.item, goalFor)
             ns.Tip(self, "ANCHOR_RIGHT")
@@ -431,7 +483,12 @@ local function buildPanel()
             else
                 GameTooltip:AddLine(row.item.text, 1, 1, 1, true)
                 if row.item.improves then GameTooltip:AddLine("Improves: " .. table.concat(row.item.improves, ", "), 0.7, 0.7, 0.7) end
-                GameTooltip:AddLine(row.kind == "hidden" and "Click to bring it back." or "Click to hide it (it goes under Hidden at the bottom).", 1, 0.65, 0)
+                local _, opens = Adv.LinkOf(row.item, goalFor)
+                if row.kind == "hidden" then
+                    GameTooltip:AddLine("Click to bring it back.", 1, 0.65, 0)
+                elseif opens then
+                    GameTooltip:AddLine("Click to open " .. tostring(opens) .. ".", 1, 0.65, 0, true)
+                end
             end
             GameTooltip:Show()
         end)
@@ -443,8 +500,8 @@ local function buildPanel()
                 Adv:FillPanel()
             elseif row.kind == "hidden" then
                 Adv:Unhide(row.item)
-            else
-                Adv:Hide(row.item)
+            elseif Adv.LinkOf(row.item, goalFor) then
+                Adv.Open(row.item, self)   -- (hiding is the row's own icon now)
             end
         end)
         f.rows[i] = r
@@ -476,6 +533,8 @@ function Adv:FillPanel()
             end
             r.text:SetText(label)
             r.link:SetShown(row.kind ~= "header" and Adv.LinkOf(row.item, goalFor) ~= nil)
+            r.hide:SetShown(row.kind ~= "header")
+            r.hide.tex:SetTexture(row.kind == "hidden" and SHOW_ICON or HIDE_ICON)
             r:Show()
         else
             r:Hide()
@@ -486,6 +545,7 @@ function Adv:FillPanel()
         panel.rows[1].row = { kind = "header", count = 0 }
         panel.rows[1].text:SetText("|cff888888Nothing to improve right now.|r")
         panel.rows[1].link:Hide()
+        panel.rows[1].hide:Hide()
         panel.rows[1]:Show()
     end
     -- As wide as its longest row needs, up to twice its usual width: every
@@ -503,7 +563,7 @@ function Adv:FillPanel()
 end
 
 -- Pure: the list's width for its longest row's text.
-Adv.PANEL_W, Adv.PANEL_PAD, Adv.PANEL_ROOM = 440, 24, 48   -- usual width; the rows' side margins; margins + the link button
+Adv.PANEL_W, Adv.PANEL_PAD, Adv.PANEL_ROOM = 440, 24, 66   -- usual width; the rows' side margins; margins + the two icons
 function Adv.PanelWidth(textWidth)
     return math.min(Adv.PANEL_W * 2, math.max(Adv.PANEL_W, math.ceil((textWidth or 0) + Adv.PANEL_ROOM)))
 end

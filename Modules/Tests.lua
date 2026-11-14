@@ -4331,8 +4331,13 @@ ns:Register("test", "improvements: click hides, Hidden lists them, links open th
         Adv:Refresh()   -- (the list from the fake advice, even if it was already open)
         local first = panel.rows[1]
         t:eq(first.row and first.row.item and first.row.item.text, "Fake advice one", "the list shows the advice")
+        -- (0.35.183) A click on the row opens what it's about; hiding is the row's own icon.
         pcall(first:GetScript("OnClick"), first)
-        t:ok(Adv:IsHidden(fake[1]), "click: hidden")
+        t:ok(not Adv:IsHidden(fake[1]), "a click on a row with nothing to open: nothing happens")
+        t:ok(first.hide and first.hide:IsShown(), "each row has a hide icon")
+        t:ok(not first.link:IsShown(), "and a link icon only when there's something to open")
+        pcall(first.hide:GetScript("OnClick"), first.hide)
+        t:ok(Adv:IsHidden(fake[1]), "the hide icon: hidden")
         local header = panel.rows[2]
         t:eq(header.row and header.row.kind, "header", "Hidden (1) under the rest")
         pcall(header:GetScript("OnClick"), header)
@@ -8192,4 +8197,61 @@ ns:Register("test", "gates: a flight path is a way too", function(t)
         "flight paths, by name: " .. lines[1])
     t:eq(#lines, 2, "and the ride that's yours, not the other faction's")
     t:ok(lines[2]:find("Bunthen Plainswind", 1, true) ~= nil, "Bunthen Plainswind's")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.183: Flow Improvements rows: a link icon and a hide icon; the link
+-- opens the stop (trainer, quest giver) even when it's locked or hidden.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: an improvement's row and its link icon open what it's about", function(t)
+    local Adv = ns.advisor
+    local opened = 0
+    local fake = { { text = "Fake linked advice", source = "test", importance = 50, openLabel = "the fake thing",
+                     onClick = function() opened = opened + 1 end } }
+    with(ns.db.advisor, "hidden", {}, function()
+    with(Adv, "Collect", function() return fake end, function()
+        local panel = _G.FlowAdvicePanel
+        if not (panel and panel:IsShown()) then Adv:TogglePanel() end
+        panel = _G.FlowAdvicePanel
+        Adv:Refresh()
+        local row = panel.rows[1]
+        t:eq(row.row and row.row.item and row.row.item.text, "Fake linked advice", "listed")
+        t:ok(row.link:IsShown() and row.hide:IsShown(), "a link icon and a hide icon")
+        pcall(row.link:GetScript("OnClick"), row.link)
+        t:eq(opened, 1, "the link icon opens it")
+        pcall(row:GetScript("OnClick"), row)
+        t:eq(opened, 2, "so does a click on the row")
+        t:ok(not Adv:IsHidden(fake[1]), "and neither hides it")
+        local okE, errE = pcall(row.hide:GetScript("OnEnter"), row.hide)
+        GameTooltip:Hide()
+        t:ok(okE, "the hide icon's tooltip runs" .. (okE and "" or (": " .. tostring(errE))))
+        local okR, errR = pcall(row:GetScript("OnEnter"), row)
+        GameTooltip:Hide()
+        t:ok(okR, "the row's tooltip runs" .. (okR and "" or (": " .. tostring(errR))))
+        panel:Hide()
+    end) end)
+    Adv:Refresh()
+
+    -- The stop an improvement is about is found wherever it is.
+    local route, locked, hid = { { key = "a" } }, { { key = "train:class", blockedBy = "needs 8s" } }, { { key = "h" } }
+    t:eq(Adv.FindGoal("a", route, locked, hid), route[1], "on the route")
+    t:eq(Adv.FindGoal("train:class", route, locked, hid), locked[1], "locked (no money for the trainer yet): still found")
+    t:eq(Adv.FindGoal("h", route, locked, hid), hid[1], "hidden by you: still found")
+    t:eq(Adv.FindGoal("zzz", route, locked, hid), nil, "not a stop at all: nothing")
+    t:eq(Adv.FindGoal(nil, route), nil, "no key: nothing")
+    t:eq(Adv.FindGoal("h", route, nil, hid), hid[1], "a list that isn't there is skipped")
+    local goalOf = function(k) return Adv.FindGoal(k, route, locked, hid) end
+    t:eq((Adv.LinkOf({ text = "Train Revive at your class trainer", goalKey = "train:class" }, goalOf)), "goal",
+        "training you can't pay for yet still links to your trainer")
+
+    -- A spell that waits for another links to where that one comes from.
+    local T = ns.trainerAdvice
+    local spells = { { spell = "Bear Form", quest = true }, { spell = "Maul" }, { spell = "Swiftmend", note = "a talent" } }
+    local questKey = function(name) return "pickup:5926", name end
+    t:eq(T.PrereqKey(spells, "Bear Form", questKey), "pickup:5926", "waits for a quest's spell: that quest's stop (its giver)")
+    t:eq(T.PrereqKey(spells, "Maul", questKey), "train:class", "waits for a trainer's spell: your class trainer")
+    t:eq(T.PrereqKey(spells, "Swiftmend", questKey), nil, "waits for a talent: no stop to send you to")
+    t:eq(T.PrereqKey(spells, "Unheard Of", questKey), nil, "not in your class's list: nothing")
+    t:eq(T.PrereqKey(spells, "Bear Form", nil), nil, "no quest lookup: nothing")
 end)

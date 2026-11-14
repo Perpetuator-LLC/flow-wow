@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.183
+- **Flow Improvements: a link icon and a hide icon on every row.** The link icon, or a click
+  on the row, opens what the improvement is about: for a stop, its card (where it is, "Go
+  here next", "Point the arrow here"). The hide icon puts the row under Hidden; a click on
+  the row no longer hides it.
+- **Improvements lead you there.** Training leads to your class trainer even while the route
+  has that stop locked (not enough money yet) or you've hidden it; a class quest leads to
+  its giver, or to its next step when it's in your log. And a spell that waits for another
+  ("Maul: after Bear Form") now links to where that other one comes from: the Bear Form
+  quest's stop. A stop with no known place says why in chat.
+
 ## 0.35.182
 - **The Flow menu, tidied.** Every Flow menu (the arrow's, the Flow Tracker's, a stop's, the
   Flow Router's Route button) now has the same sections in the same order, each one a row
