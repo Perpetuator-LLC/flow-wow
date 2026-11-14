@@ -8408,3 +8408,42 @@ ns:Register("test", "tracker: its title says the locked stops in a lock and a nu
         t:ok(ok, "the header's tooltip runs" .. (ok and "" or (": " .. tostring(err))))
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.187: the Flow key uses the quest's item at its stop.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy button: the quest's item at its stop", function(t)
+    local X = ns.actions
+    t:ok(X.QuestItemNow("6002:1", true, 15710, 1, false, false, nil), "at the stop, the item in your bags, nothing targeted: use it")
+    t:ok(not X.QuestItemNow("6002:1", false, 15710, 1, false, false, nil), "not at the stop yet: no")
+    t:ok(not X.QuestItemNow("6002:1", true, nil, 0, false, false, nil), "the quest has no item to use: no")
+    t:ok(not X.QuestItemNow("6002:1", true, 15710, 0, false, false, nil), "it isn't in your bags (used up): no")
+    t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, true, false, nil), "an enemy is targeted: the key is for the fight")
+    t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, false, true, nil), "mounted: no")
+    t:ok(not X.QuestItemNow("6002:done", true, 15710, 1, false, false, nil), "at the quest's turn-in: nothing to use there")
+    t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, false, false, false), "switched off in Flow Settings: no")
+    t:ok(not X.QuestItemNow(nil, true, 15710, 1, false, false, nil), "no stop: no")
+    local action = ns:Get("action", "quest:item")
+    t:ok(action and type(action.get) == "function", "it's one of the Flow key's actions")
+    if not action then return end
+    -- The action itself: a step that uses the item, at the stop only.
+    local QI = ns.questItems
+    with(QI, "ItemFor", function(q) return q == 6002 and 15710 or nil end, function()
+    with(ns.db.actions, "questItem", nil, function()
+        local ok, step = pcall(action.get, { goal = { key = "6002:1", text = "Body and Heart" }, at = false })
+        t:ok(ok and step == nil, "away from the stop: nothing" .. (ok and "" or (": " .. tostring(step))))
+        ok, step = pcall(action.get, { goal = { key = "train:class" }, at = true })
+        t:ok(ok and step == nil, "a stop that isn't a quest's: nothing")
+        ok, step = pcall(action.get, { goal = nil, at = true })
+        t:ok(ok and step == nil, "no stop: nothing")
+        ok, step = pcall(action.get, { goal = { key = "6002:1", text = "Body and Heart" }, at = true })
+        t:ok(ok, "at the stop: runs" .. (ok and "" or (": " .. tostring(step))))
+        -- (Whether it offers the item now depends on your bags and your target: both are yours, not the test's.)
+        if ok and step then
+            t:eq(step.type, "item", "a step that uses an item")
+            t:eq(step.item, "item:15710", "the quest's")
+            t:ok(type(step.label) == "string" and step.label:find("^Use ") ~= nil, "it says what it uses")
+        end
+    end) end)
+end)

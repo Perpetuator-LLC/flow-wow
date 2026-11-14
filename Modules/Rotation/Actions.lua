@@ -703,6 +703,36 @@ local function enemyTargeted()
     return UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target")
 end
 
+-- The quest's own item (QuestItems.lua: the one on its Flow Tracker row), at
+-- the stop where it's used: the key uses it ("can that become part of the
+-- easy button to cast the quest item too?", 0.35.187). Pure:
+--   key: the stop's key; at: you're standing at it; item: the quest's item
+--   (nil: none); have: how many are in your bags; enemy: a living enemy is
+--   targeted (then the key is for the fight); mounted; on: the setting
+-- Not at the quest's turn-in ("758:done"): nothing is used there.
+function X.QuestItemNow(key, at, item, have, enemy, mounted, on)
+    if on == false or not (at and item) or (have or 0) <= 0 or enemy or mounted then return false end
+    if type(key) ~= "string" or key:find(":done$") then return false end
+    return true
+end
+ns:Register("action", "quest:item", { order = 43, get = function(ctx)
+    local g, QI = ctx.goal, ns.questItems
+    if not (g and QI and ctx.at) then return nil end
+    local quest = QI.QuestOf(g.key)
+    local item = quest and QI.ItemFor(quest) or nil
+    if not X.QuestItemNow(g.key, ctx.at, item, item and count(item) or 0, enemyTargeted() and true or false,
+        (IsMounted and IsMounted()) and true or false, ns.db.actions.questItem) then return nil end
+    local name = (A.ItemInfo and A.ItemInfo(item)) or "your quest item"
+    return { type = "item", item = "item:" .. item, icon = itemIcon(item), label = "Use " .. name }
+end })
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck{ group = "quests", label = "The Flow key uses a quest's item at its stop",
+        note = "(the totem at the well, the dust at the stone)",
+        tip = "Standing at a quest's stop, out of a fight and with no enemy targeted, your Flow key uses the item the quest gave you. The same item is on the quest's row in the Flow Tracker: click it there any time.",
+        get = function() return ns.db.actions.questItem ~= false end,
+        set = function(on) ns.db.actions.questItem = on and true or false end }
+end
+
 -- The next press that puts your weapons back (main hand, then off hand), or
 -- nil when they're on. `urgent`: before anything else, rotation included.
 -- No note of what you had (you put the pole on yourself): your best weapon

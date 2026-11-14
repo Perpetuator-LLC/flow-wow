@@ -182,7 +182,8 @@ Flow for WoW is a separate project from Flow Engine.
   order). It and Questie's tracker open and fold on their own: either or both. Click a row for
   its stop card; hover it to see its area on the minimap; Ctrl-drag the header to move it.
   A quest that gives you an item to use shows it at the right end of its row: click the icon
-  to use it (it's placed out of a fight; `/flow questitems`).
+  to use it (it's placed out of a fight; `/flow questitems`). Standing at that quest's stop,
+  your Flow key uses the item too.
   Its right-click menu (and Flow Settings) shows or hides the other two quest lists: Questie's
   tracker and WoW's own (which comes back at a /reload once Questie's is off).
 - **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and

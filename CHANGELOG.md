@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.187
+- **The easy button uses the quest's item.** Standing at a quest's stop, out of a fight and
+  with no enemy targeted, your Flow key uses the item the quest gave you (the totem at the
+  well, the dust at the stone): the same item that sits on the quest's row in the Flow
+  Tracker. Not at the quest's turn-in, not while mounted, and with an enemy targeted the key
+  stays with the fight (click the icon in the Flow Tracker for an item you use on an enemy).
+  "The Flow key uses a quest's item at its stop" in Flow Settings (Quests) turns it off.
+
 ## 0.35.186
 - The Flow Tracker's title showed its locked stops as "9...": "9 blocked" didn't fit beside
   "1 here, 29 stops". It's now a small lock and the number, and the title's tooltip says
