@@ -24,13 +24,30 @@ local function count(t)
     return n
 end
 
+-- The quest database, in two or three words. The intro plays in the first
+-- seconds after a login or /reload, while Questie is still starting up: it
+-- said "no quest database" with Questie installed (seen on screen,
+-- 0.35.181), which reads as if something were missing.
+--   linked: Flow can read it now; installed: the add-on is loaded
+function I.QuestWords(linked, installed)
+    if linked then return "Questie linked" end
+    if installed then return "Questie starting up" end
+    return "no quest database"
+end
+function I.QuestieInstalled()
+    local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    if not loaded then return false end
+    local ok, yes = pcall(loaded, "Questie")
+    return ok and yes and true or false
+end
+
 -- One short status line about what Flow has to work with.
 function I.Status()
     local bits = {}
     local spells = ns.rotation and count(ns.rotation:KnownSpells()) or 0
     bits[#bits + 1] = spells .. " spells"
     local src = ns.quests and ns.quests:Source()
-    bits[#bits + 1] = src and src.label == "Questie" and "Questie linked" or "no quest database"
+    bits[#bits + 1] = I.QuestWords(src and src.label == "Questie", I.QuestieInstalled())
     local plan = ns.nav and ns.nav.plan
     if plan and #plan > 0 then bits[#bits + 1] = #plan .. " stops planned" end
     return table.concat(bits, "  ·  ")

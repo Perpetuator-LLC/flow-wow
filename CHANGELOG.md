@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.181
+- The intro on the arrow after a login or /reload said "no quest database" while Questie was
+  installed and still starting up. It now says "Questie starting up" then, "Questie linked"
+  once Flow can read it, and "no quest database" only when there is none.
+
 ## 0.35.180
 - **On a flight, the arrow tells you about the flight.** You can't steer in the air, so its
   two lines become "Flying to Thunder Bluff" and "landing in ~2m 10s, then: Train 1 spell(s)

@@ -8053,3 +8053,20 @@ ns:Register("test", "click: pointing at the Flow Improvements button lists one l
         t:ok(not GameTooltip:IsShown(), "put away again")
     end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.181: the login intro doesn't say "no quest database" while Questie
+-- is still starting up.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "intro: Questie still starting up isn't \"no quest database\"", function(t)
+    local I = ns.intro
+    t:eq(I.QuestWords(true, true), "Questie linked", "readable now: linked")
+    t:eq(I.QuestWords(false, true), "Questie starting up", "installed but not ready yet: says so")
+    t:eq(I.QuestWords(nil, false), "no quest database", "not installed: none")
+    local ok, yes = pcall(I.QuestieInstalled)
+    t:ok(ok and type(yes) == "boolean", "asking the game whether Questie is loaded works")
+    local okS, line = pcall(I.Status)
+    t:ok(okS and type(line) == "string" and line:find("spells", 1, true) ~= nil, "the status line builds: " .. tostring(line))
+    if okS and ok and yes then t:ok(not line:find("no quest database", 1, true), "with Questie loaded it never says there's none") end
+end)
