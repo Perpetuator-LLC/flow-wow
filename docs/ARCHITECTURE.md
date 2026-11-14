@@ -4,6 +4,20 @@ Flow for WoW, not Flow Engine. The design rule is **open for extension, closed f
 new classes, specs, fight types, metrics, advisors and gear considerations are added by
 *registering* them from new files. The core and feature modules don't change.
 
+## Words
+
+Three words, each with one meaning, in the code's comments and in everything a player reads:
+
+| Word | Means | Example |
+|---|---|---|
+| **stop** | One place on your route where you do one thing. Flow's own word, and the one to use for anything Flow plans, lists, counts or draws. | "Turn in: Plainstrider Menace", "Learn the flight path: Devrak", "Train 5 spells" |
+| **objective** | The game's word: one line of a quest. Only ever said of a quest. An unfinished objective becomes a stop; so do turn-ins, pickups, trainers and vendors, which are not objectives. | "0/7 Plainstrider Beak" |
+| **waypoint** | A spot you set yourself. The arrow goes there first, and it isn't part of the planned route. | Ctrl + click on the map, `/flow way 52 30` |
+
+So: "Stops on the map", "Next stop only", "All stops in this area", "30 stops"; never "objectives"
+for those. In code a stop is a *goal* (`navGoal` providers return goals; the planner puts them in
+order): "goal" stays out of player-facing text.
+
 ## Registries
 
 `Core.lua` provides three calls:

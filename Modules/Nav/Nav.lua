@@ -1660,16 +1660,17 @@ function N:StopsShown()
     if n and n >= 1 then return math.floor(n) end
     return nil
 end
--- "All objectives in this area", the first choice of Stops on the map (per
--- character, on unless you pick a number): the map and the Flow Tracker show
--- the stops around you and your waypoint (N.HereStops) instead of your next
--- N. (0.35.108-0.35.115 had it as the Flow Tracker's own switch,
--- ns.db.tracker.here: turned off there, it stays off.)
-N.AREA_LABEL = "All objectives in this area"
+-- "All stops in this area", the last choice of Stops on the map (per
+-- character): the map and the Flow Tracker show the stops around you and
+-- around your next stop (N.HereStops: within N.HERE_YARDS) instead of your
+-- next N. Somewhere with nothing else nearby that is just your next stop.
+-- Off unless you choose it (0.35.225: "make 'next stop only' the default";
+-- until then it was on unless you had picked a number). Called "All
+-- objectives in this area" before: a stop is Flow's word, an objective is a
+-- line of a quest (docs/ARCHITECTURE.md, "Words").
+N.AREA_LABEL = "All stops in this area"
 function N:AreaMode()
-    local a = ns.db.nav.stopsArea
-    if a ~= nil then return a == true end
-    return not (ns.db.tracker and ns.db.tracker.here == false)
+    return ns.db.nav.stopsArea == true
 end
 local function stopsChanged()
     if ns.mapOverlay and WorldMapFrame and WorldMapFrame:IsShown() then pcall(ns.mapOverlay.Redraw, ns.mapOverlay) end
@@ -4087,7 +4088,7 @@ ns.commands.nav = function(arg)
             ns.xpValue:SetMode(key)
             ns:Print("route optimises for: " .. (select(2, ns.xpValue:Objective()).label or key))
         else
-            ns:Print("route objectives (now: " .. (ns.xpValue:Objective()) .. "):")
+            ns:Print("route orders (now: " .. (ns.xpValue:Objective()) .. "):")
             for _, o in ipairs(ns.xpValue:List()) do print("  " .. o.key .. " - " .. o.label) end
             print("  /flow nav sort <key>")
         end

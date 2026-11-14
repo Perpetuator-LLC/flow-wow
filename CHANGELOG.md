@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.225
+- **"Next stop only" is the default** for Stops on the map (the map and the Flow Tracker). It
+  was "All objectives in this area" unless you had picked a number. If you never chose, you
+  now get the next stop only; a choice you made is kept.
+- **The area choice is last in the list and is called "All stops in this area".** What it
+  shows hasn't changed: your next stop, plus the stops near you and near it. Where nothing
+  else is nearby (a city, Moonglade) that is just your next stop, which is why it could
+  look the same as "Next stop only".
+- **One word for one thing.** A *stop* is one place on your route where you do one thing; an
+  *objective* is a line of a quest, as the game writes it; a *waypoint* is a spot you set
+  yourself. Flow's menus and settings now say "stops" where they meant stops. `/flow help`
+  has the three definitions.
+
 ## 0.35.224
 - **Your Flow key casts the teleport or hearthstone.** When the arrow shows a travel spell
   or your hearthstone as the way to your next stop, the Flow key casts it: out of a fight,

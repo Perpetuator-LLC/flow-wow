@@ -236,6 +236,10 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 
 ## Style
 
+- **Stop, objective, waypoint** each mean one thing (docs/ARCHITECTURE.md, "Words"): a *stop* is
+  one place on the route where you do one thing (Flow's word, for everything Flow plans or
+  shows); an *objective* is a line of a quest (the game's word, only for quests); a *waypoint*
+  is a spot the player set themself. Never "objectives" for stops.
 - Comments explain *why* and what the player sees, in plain English.
 - Player-facing text is short, plain and specific ("Loot Stringy Wolf Meat 9/66"), never
   jargon.

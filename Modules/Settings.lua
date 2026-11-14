@@ -564,10 +564,10 @@ local function build(parent)
             "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",
             function() return ns.db.nav.zoneFirst ~= false end,
             function(on) ns.db.nav.zoneFirst = on; if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end end)
-        -- 0 = all (nil can't sit in the options list); "area" = all objectives in this area.
+        -- 0 = all (nil can't sit in the options list); "area" = all stops in this area.
         f.stopsRow, y = choices(f, y, "Stops on the map",
-            "Which stops the world map and the Flow Tracker show. Area: every objective around you and your waypoint (they drop off as you finish them). Or your next 1, 3, 5, 10 or all of them. The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
-            { { "Area", "area", 48 }, { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 } },
+            "Which stops the world map and the Flow Tracker show: your next 1 (the usual), 3, 5, 10, or all of them. Area: every stop around you and around your next stop (they drop off as you finish them). The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
+            { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 }, { "Area", "area", 48 } },
             function() return ns.nav:AreaMode() and "area" or ns.nav:StopsShown() or 0 end,
             function(v) if v == "area" then ns.nav:SetArea(true) else ns.nav:SetStopsShown(v) end end)
         _, y = check(f, y, "Show the route on the world map", nil, nil,

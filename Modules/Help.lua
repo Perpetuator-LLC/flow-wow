@@ -77,3 +77,10 @@ ns.commands.help = function()
         for _, l in ipairs(t.lines) do print("   " .. l) end
     end
 end
+
+-- The three words Flow uses for places (docs/ARCHITECTURE.md, "Words").
+ns:Register("help", "words", { order = 4, title = "Stops, objectives, waypoints", lines = {
+    "A stop: one place on your route where you do one thing (an objective, a turn-in, a quest to pick up, a trainer, a vendor).",
+    "An objective: one line of a quest, as the game writes it (\"0/7 Plainstrider Beak\"). Each unfinished one is a stop.",
+    "A waypoint: a spot you set yourself (Ctrl + click the map, /flow way). The arrow goes there first; it's not part of the route.",
+} })

@@ -477,13 +477,16 @@ function Menu:RouteItemsRaw()
     -- Which stops the map and the Flow Tracker show (the Flow Router always
     -- lists them all): everything in this area, or your next N.
     local shown, area = nav:StopsShown(), nav:AreaMode()
-    local stops = { { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end } }
+    -- (Next stop only first: the default. The area choice last, 0.35.225.)
+    local stops = {}
     for _, n in ipairs(nav.STOP_CHOICES) do
         stops[#stops + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = not area and shown == n,
             func = function() nav:SetStopsShown(n) end }
     end
     stops[#stops + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
         radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
+    stops[#stops + 1] = { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end,
+        tip = "The stops around you and around your next stop, instead of a fixed number. Where nothing else is nearby, that's just your next stop." }
     section("Stops on the map", stops)
 
     -- The arrow's look (Nav.lua).

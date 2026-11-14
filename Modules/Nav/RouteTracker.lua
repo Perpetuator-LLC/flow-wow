@@ -167,7 +167,7 @@ function RT:Open(which)
     self:Refresh()
 end
 
--- "All objectives in this area" (Stops on the map, on by default): the
+-- "All stops in this area" (Stops on the map; off unless chosen): the
 -- tracker lists every stop around you and your waypoint, like the map; else
 -- your next N stops. One setting for both (Nav.lua N:AreaMode).
 function RT.Here() return ns.nav:AreaMode() end

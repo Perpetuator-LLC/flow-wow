@@ -3058,7 +3058,7 @@ ns:Register("test", "click: Stops on the map in the menu and on the settings pag
         for _, it in ipairs(ns.menu:RouteItems()) do
             if it.text == ns.nav.AREA_LABEL then area = it end
             if it.text == "Next stop only" then next1 = it end
-            if it.text and it.text:find("^All stops") then all = it end
+            if it.text and it.text:find("^All stops %(") then all = it end
         end
         t:ok(area and next1 and all, "the menu has the area, Next stop only and All stops")
         if next1 then pcall(next1.func) end
@@ -5009,12 +5009,13 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
     t:eq(QM.RouteRank("Rattlecage Soldier"), "next", "a later stop's: the small mark")
     QM.SetRouteTarget(nil, nil, nil)
     N.lastTargetKey = nil   -- (the route sends its real marks again on its next update)
-    -- On by default; it's the first choice of Stops on the map (Yang: one
-    -- menu, not a switch of the tracker's own), in the title's menu too.
+    -- Off by default since 0.35.225 (Next stop only is); it's the last choice
+    -- of Stops on the map (Yang: one menu, not a switch of the tracker's
+    -- own), in the title's menu too.
     with(ns.db.tracker, "here", nil, function()
     with(ns.db.nav, "stopsArea", nil, function()
     with(ns.db.nav, "stopsShown", nil, function()
-        t:ok(RT.Here(), "all objectives in this area: on by default")
+        t:ok(not RT.Here(), "next stop only is the default, not the area")
         local items = RT.MenuItems()
         t:eq(items[1].text, "Flow Tracker", "right-click the title: the tracker's menu")
         local area, next1
@@ -5023,7 +5024,15 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
             if it.text == "Next stop only" then next1 = it end
         end
         t:ok(area and next1, "Stops on the map is in it, with " .. N.AREA_LABEL)
-        t:ok(area and area.checked and not (next1 and next1.checked), "the area choice ticked")
+        t:ok(next1 and next1.checked and not (area and area.checked), "Next stop only ticked")
+        t:eq(N.AREA_LABEL, "All stops in this area", "the area choice is worded in stops")
+        local last
+        for _, it in ipairs(items) do
+            if it.text == N.AREA_LABEL or it.text == "Next stop only" or (it.text and it.text:find("^Next %d+ stops")) or (it.text and it.text:find("^All stops %(")) then last = it end
+        end
+        t:ok(last == area, "and it's the last of the choices")
+        if area then area.func() end
+        t:ok(RT.Here(), "the area: the tracker and the map show the stops around you")
         if next1 then next1.func() end
         t:ok(not RT.Here(), "Next stop only: the tracker and the map show the next stop")
         t:eq(N:StopsShownLabel(), "Next stop only", "and say so")
@@ -5036,6 +5045,9 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
     with(ns.db.nav, "stopsArea", nil, function()
         with(ns.db.tracker, "here", false, function()
             t:ok(not N:AreaMode(), "turned off with the old tracker switch: stays off")
+        end)
+        with(ns.db.tracker, "here", nil, function()
+            t:ok(not N:AreaMode(), "never chosen: off (next stop only)")
         end)
     end)
     local f = _G.FlowTracker
@@ -10540,4 +10552,45 @@ ns:Register("test", "tracker: the teleport or hearthstone is a button on its sto
     kind, what = QI.ButtonFor({ row = 1, item = 5087 }, function() end, function() end)
     t:ok(kind == "item" and what == "item:5087", "a quest item: as before")
     t:ok(type(ns.nav.TravelOnTracker()) == "boolean", "the tracker can ask whether there's one")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.225: next stop only is the default; the area choice is last and is
+-- worded in stops; what the area shows is unchanged.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "stops on the map: next stop only by default; the area choice still means the stops around you", function(t)
+    local N = ns.nav
+    with(ns.db.nav, "stopsArea", nil, function()
+    with(ns.db.nav, "stopsShown", nil, function()
+        t:ok(not N:AreaMode(), "nothing chosen: not the area")
+        t:eq(N:StopsShown(), 1, "nothing chosen: one stop")
+        t:eq(N:StopsShownLabel(), "Next stop only", "which the menu calls Next stop only")
+        t:ok(N:StopVisible(1, false) and not N:StopVisible(2, false), "the map and tracker show the first stop, not the second")
+        t:ok(N:StopVisible(2, true), "a stop you point at always shows")
+    end) end)
+    -- The area rule itself (N.IsHere): the next stop, and the stops near you or near it.
+    local plan = {
+        { point = { cont = 1, wx = 0, wy = 0 }, goal = { key = "a", points = {} } },
+        { point = { cont = 1, wx = 60, wy = 0 }, goal = { key = "b", points = {} } },
+        { point = { cont = 1, wx = 5000, wy = 0 }, goal = { key = "c", points = {} } },
+    }
+    local here = N.HereStops(plan, { cont = 1, wx = 10, wy = 0 }, 150)
+    t:ok(#here == 2 and here[1] == 1 and here[2] == 2, "the next stop and the one 60 yards on are 'in this area'; the one 5,000 yards off isn't")
+    here = N.HereStops({ plan[1], plan[3] }, { cont = 1, wx = 10, wy = 0 }, 150)
+    t:eq(#here, 1, "nothing else nearby: the area is just your next stop (it then looks like Next stop only)")
+    t:eq(N.AREA_LABEL, "All stops in this area", "worded in stops, not objectives")
+    local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    local order = {}
+    for _, it in ipairs(ok and items or {}) do
+        if it.text == "Next stop only" then order[#order + 1] = "next" end
+        if it.text == N.AREA_LABEL then order[#order + 1] = "area" end
+        if type(it.text) == "string" and it.text:find("^All stops %(") then order[#order + 1] = "all" end
+    end
+    t:eq(table.concat(order, ","), "next,all,area", "in the menu: Next stop only first, the area choice last")
+    local found = false
+    for _, topic in ns:Each("help") do
+        if topic.title == "Stops, objectives, waypoints" then found = true end
+    end
+    t:ok(found, "/flow help says what a stop, an objective and a waypoint are")
 end)
