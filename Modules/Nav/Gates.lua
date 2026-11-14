@@ -317,6 +317,49 @@ end
 -- /flow gates
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-- Ways by air (0.35.182: "flow gates should include flight paths"). A
+-- flight path is a way between maps like a lift is: you came into Thunder
+-- Bluff by air, and Flow said it knew no way in or out.
+--   * /flow gates lists the flight masters Flow knows and the people who
+--     carry you (Rides.lua), beside the ways on foot.
+--   * A walled place with no way known on foot: when flying from a flight
+--     master you know gets you nearer the stop, that flight master is the
+--     gate. The arrow leads there and says where to fly.
+-------------------------------------------------------------------------------
+
+-- Pure: a way that was "unknown" (no gate on foot), by air.
+--   via: { points = {}, unknown = true, from, to } from G.Via
+--   air: { from = "Thunder Bluff", to = "Crossroads" } (Nav's AirRoute), or nil
+--   node: where the `from` flight master stands { cont, wx, wy }; yards: from you to it
+-- -> via, now { points = { node }, yards, air = air } (no longer unknown); or via as it was
+function G.WithAir(via, air, node, yards)
+    if not (via and via.unknown and air and air.from and air.to and node and node.wx) then return via end
+    via.points = { { cont = node.cont, wx = node.wx, wy = node.wy } }
+    via.yards = yards or 0
+    via.air = { from = air.from, to = air.to }
+    via.unknown = nil
+    return via
+end
+
+-- Pure: the lines about ways by air for /flow gates.
+--   flights: { [name] = spot } (ns.db.flights); rides: { { name, how, mine } }
+function G.AirLines(flights, rides)
+    local names = {}
+    for name in pairs(flights or {}) do names[#names + 1] = name end
+    table.sort(names)
+    local out = {}
+    if #names == 0 then
+        out[1] = "flight paths: none known yet. Talk to a flight master: Flow learns every flight path on their map."
+    else
+        out[1] = string.format("flight paths: %d known (a way in and out of a walled place too): %s", #names, table.concat(names, "; "))
+    end
+    for _, r in ipairs(rides or {}) do
+        if r.mine then out[#out + 1] = string.format("ride: %s (%s)", r.name, r.how or "a ride") end
+    end
+    return out
+end
+
 function G.Lines()
     local out = {}
     for _, g in ipairs(store()) do
@@ -336,6 +379,17 @@ ns.commands.gates = function(arg)
     local lines = G.Lines()
     ns:Print(string.format("ways between maps Flow has learned from your walking: %d (it learns one each time you walk or ride from one map into another)", #lines))
     for _, l in ipairs(lines) do print("  " .. l) end
+    -- Ways by air: the flight masters you know, and the people who carry you.
+    local rides = {}
+    if ns.rides then
+        local _, class = UnitClass("player")
+        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        for _, r in ipairs(ns.rides.List()) do
+            rides[#rides + 1] = { name = r.name, how = r.how,
+                mine = (not r.class or r.class == class) and (not r.faction or r.faction == faction) }
+        end
+    end
+    for _, l in ipairs(G.AirLines(ns.db.flights, rides)) do print("  " .. l) end
     local p = ns.nav and ns.nav:PlayerPos()
     if p then
         local r = G.Region(p.map)

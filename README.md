@@ -106,7 +106,9 @@ Flow for WoW is a separate project from Flow Engine.
   lift (up Thunder Bluff, through a pass into the next zone). A stop in another part of the
   map goes by the way you've used: the arrow leads to the lift, the route counts the ride (so
   stops on the bluff are done together), and the map's dotted path bends through it. Capital
-  cities are walled: where Flow knows no way in yet, it says so. `/flow gates`. A druid's
+  cities are walled: where Flow knows no way in yet, it says so. `/flow gates`. Flight paths
+  count as ways too (`/flow gates` lists them): with no way known on foot, the arrow leads to
+  the flight master and says where to fly. A druid's
   Teleport: Moonglade counts as travel too: a stop in Moonglade is one cast away.
   And the way back is a person: in Moonglade a druid's arrow leads to Bunthen Plainswind
   (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
@@ -187,10 +189,11 @@ Flow for WoW is a separate project from Flow Engine.
   the whole route.
 - **Lite mode**: in dungeons, raids and boss fights Flow eases off route planning and map
   updates so it never adds lag; the rotation and the Flow key run as normal.
-- **Arrow menu**: right-click the arrow for route (quests only, optimal with or without
-  professions), order, unhide all, and party options. Every Flow right-click menu shows the
-  thing you clicked open and folds its other sections into one row each ("Order  Shortest
-  path"): point at a row or click it and its entries pop out beside the menu.
+- **The Flow menu**: right-click the arrow, the Flow Tracker or a stop. The thing you clicked
+  is shown open; under it the same sections everywhere, in one order, each a row that pops
+  out when you point at it or click it ("Order  Shortest path"): Order, Route includes, Go to
+  the nearest..., Your waypoint, Dungeons, Party, Stops on the map, Arrow, Keys, Extras
+  (NPCs read aloud: text-to-speech), Flow windows.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
 - **Your own waypoint**: `/flow way repair` or `vendor` (or right-click the arrow) for the nearest one; Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest

@@ -13,11 +13,24 @@ local B = {}
 ns.bonus = B
 
 B.EXTRAS = {
-    { key = "spoken", label = "Spoken: NPCs read their words aloud", why = "When you talk to an NPC, the game's text-to-speech voice reads what they say (a man's or a woman's voice to match them). It stops when you close the window." },
+    { key = "spoken", label = "Spoken (text-to-speech): NPCs read their words aloud", why = "When you talk to an NPC, the game's text-to-speech voice reads what they say (a man's or a woman's voice to match them). It stops when you close the window." },
 }
 
 function B:On() return ns.db.bonus.enabled == true end
 function B:Extra(key) return self:On() and ns.db.bonus[key] ~= false end
+
+-- The Spoken extra on or off in one go (the Flow menu's tick): on turns
+-- Bonus mode on with it; off stops the voice at once.
+function B:SetSpoken(on)
+    if on then
+        ns.db.bonus.enabled = true
+        ns.db.bonus.spoken = true
+    else
+        ns.db.bonus.spoken = false
+        B.Stop()
+    end
+    ns:Print("NPCs reading aloud (text-to-speech): " .. (on and "on" or "off"))
+end
 
 function B:Set(on)
     ns.db.bonus.enabled = on and true or false

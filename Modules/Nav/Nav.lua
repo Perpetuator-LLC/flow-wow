@@ -2846,6 +2846,16 @@ local function steer(p, choice)
     -- The stop is in another region: by a gate you've used, never straight
     -- through the cliff. The gate is where to walk to until you're through.
     local via = ns.gates and ns.gates.Via(p, pt) or nil
+    -- A walled place with no way known on foot: a flight path is a way too.
+    -- When flying from a flight master you know gets you nearer, the arrow
+    -- leads to that flight master.
+    if via and via.unknown then
+        local air = N.AirRoute(p, pt, direct)
+        local node = air and ns.db.flights and ns.db.flights[air.from]
+        if node and node.cont == p.cont then
+            via = ns.gates.WithAir(via, air, node, dist(p.wx, p.wy, node.wx, node.wy))
+        end
+    end
     N.via = via
     local gate = via and via.points[1]
     if gate then
@@ -2915,6 +2925,9 @@ end
 function N.GateText(via, yards)
     local gate = via and via.points and via.points[1]
     if not gate then return "" end
+    if via.air then
+        return string.format(" (to the flight master: fly %s to %s, %d yd)", via.air.from, via.air.to, yards or via.yards or 0)
+    end
     local G = ns.gates
     local into = (G and via.to and G.Name(via.to)) or nil
     return string.format(" (by the way %s, %d yd)", into and ("into " .. into) or "through", yards or via.yards or 0)
@@ -2928,6 +2941,10 @@ function N.HowText(how, via, ride)
     if how == "path" then return "Following a trail you've walked before." end
     if how == "entrance" then return "It's inside: the arrow takes you to the entrance first." end
     if how == "gate" then
+        if via and via.air then
+            return string.format("Flow knows no way there on foot yet, but a flight path is a way too: the arrow takes you to the flight master. Fly %s to %s.",
+                via.air.from, via.air.to)
+        end
         return "It's in another part of the map you can't walk straight into: the arrow takes you to the way in you've used before (a lift, a gate, a pass)."
     end
     if via and via.unknown then
@@ -3405,30 +3422,8 @@ local function buildArrow()
                 items[#items + 1] = { text = "Hide this stop", func = function() N:Hide(g.key) end }
                 items[#items + 1] = { sep = true }
             end
+            -- (The arrow's look is the Flow menu's "Arrow" section: N:ArrowMenuItems.)
             for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
-            items[#items + 1] = { sep = true }
-            for _, st in ipairs(N.ARROW_STYLES) do
-                items[#items + 1] = { text = "Arrow: " .. st[2], checked = N:ArrowStyle() == st[1],
-                    func = function() N:SetArrowStyle(st[1]) end }
-            end
-            items[#items + 1] = { text = "Arrow colour by distance", checked = N:ArrowColorMode() == "distance",
-                func = function() N:SetArrowColorMode(N:ArrowColorMode() == "distance" and "route" or "distance") end }
-            local cfg = ns.db.nav
-            -- (Off unless ticked: on, profession stops leave the main route,
-            -- and the Flow key works from that route.)
-            items[#items + 1] = { text = "Professions on their own faint arrow", checked = cfg.profArrow == true,
-                func = function() N:SetProfArrow(cfg.profArrow ~= true) end }
-            if cfg.profArrow == true then
-                items[#items + 1] = { text = "Profession arrow text", checked = cfg.profArrowText ~= false,
-                    func = function() cfg.profArrowText = (cfg.profArrowText == false) end }
-            end
-            -- (Only once you've Ctrl-dragged the drawer somewhere of its own.)
-            if ns.db.nav.drawerPoint then
-                items[#items + 1] = { text = "Drawer next to the arrow (again)", func = function()
-                    ns.db.nav.drawerPoint = nil
-                    if panel and panel:IsShown() then panel.side = placeDrawer(panel, frame) end
-                end }
-            end
             ns.menu:Open(items)
         elseif panel and panel:IsShown() then
             panel:Fold(true)
@@ -4176,6 +4171,33 @@ N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)
 ns.perf.PartsLabel("route: gather stops", "refreshed after", 8)   -- (each cause: collectSpread)
 
 -- A Flow window you can switch off (/flow nav off): the menus offer it back (Menu.lua).
+-- The Flow menu's "Arrow" section: its style (one of three), its colour,
+-- the faint profession arrow's text, and the drawer back beside it.
+function N:ArrowMenuItems()
+    local items = {}
+    for _, st in ipairs(N.ARROW_STYLES) do
+        items[#items + 1] = { text = st[2], radio = true, checked = N:ArrowStyle() == st[1],
+            func = function() N:SetArrowStyle(st[1]) end }
+    end
+    items[#items + 1] = { text = "Colour by distance", checked = N:ArrowColorMode() == "distance",
+        tip = "Ticked: grey in another zone, orange to green as you close in, blue in the area. Not ticked: the route's colour.",
+        func = function() N:SetArrowColorMode(N:ArrowColorMode() == "distance" and "route" or "distance") end }
+    local cfg = ns.db.nav
+    -- (The faint arrow itself is a tick under "Route includes".)
+    if cfg.profArrow == true then
+        items[#items + 1] = { text = "Text under the faint profession arrow", checked = cfg.profArrowText ~= false,
+            func = function() cfg.profArrowText = (cfg.profArrowText == false) end }
+    end
+    -- (Only once you've Ctrl-dragged the drawer somewhere of its own.)
+    if cfg.drawerPoint then
+        items[#items + 1] = { text = "Drawer next to the arrow (again)", func = function()
+            cfg.drawerPoint = nil
+            if panel and panel:IsShown() then panel.side = placeDrawer(panel, frame) end
+        end }
+    end
+    return items
+end
+
 ns:Register("window", "arrow", { name = "Flow Arrow", order = 10,
     hidden = function() return ns.db.nav.enabled == false end,
     show = function() ns.commands.nav("on") end,

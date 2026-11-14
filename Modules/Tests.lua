@@ -2202,8 +2202,9 @@ ns:Register("test", "click: arrow style and colour in the menu and on the settin
         t:ok(ok, "right-click runs" .. (ok and "" or (": " .. tostring(err))))
         local flat, col
         for _, it in ipairs(captured or {}) do
-            if it.text == "Arrow: Flat lines" then flat = it end
-            if it.text == "Arrow colour by distance" then col = it end
+            -- (0.35.182: the arrow's look is the Flow menu's "Arrow" section.)
+            if it.text == "Flat lines" then flat = it end
+            if it.text == "Colour by distance" then col = it end
         end
         t:ok(flat and col, "menu: the styles and the colour switch")
         if flat then pcall(flat.func) end
@@ -2934,7 +2935,8 @@ ns:Register("test", "click: the faint profession arrow (menu switches, its text)
     t:ok(okM, "the arrow's menu builds" .. (okM and "" or (": " .. tostring(errM))))
     local item
     for _, it in ipairs(captured or {}) do
-        if it.text and it.text:find("^Professions on their own faint arrow") then item = it end
+        -- (0.35.182: one switch, under "Route includes"; it used to be in the menu twice.)
+        if it.text and it.text:find("on their own faint arrow", 1, true) then item = it end
     end
     t:ok(item, "menu: the faint profession arrow switch")
     local saved = ns.db.nav.profArrow
@@ -8069,4 +8071,125 @@ ns:Register("test", "intro: Questie still starting up isn't \"no quest database\
     local okS, line = pcall(I.Status)
     t:ok(okS and type(line) == "string" and line:find("spells", 1, true) ~= nil, "the status line builds: " .. tostring(line))
     if okS and ok and yes then t:ok(not line:find("no quest database", 1, true), "with Questie loaded it never says there's none") end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.182: the Flow menu's sections, text-to-speech where you can find it,
+-- flight paths as ways between maps.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "flow menu: clean sections in one order, nothing loose, nothing twice", function(t)
+    local M = ns.menu
+    local ok, items = pcall(M.RouteItemsRaw, M)
+    t:ok(ok and type(items) == "table", "the menu builds" .. (ok and "" or (": " .. tostring(items))))
+    if not (ok and type(items) == "table") then return end
+    local order = {}
+    for i, name in ipairs(M.SECTIONS) do order[name] = i end
+    local titles, last, loose, seen, twice, texts, current = {}, 0, 0, {}, nil, {}, nil
+    for _, it in ipairs(items) do
+        if it.title then
+            current = it.text
+            titles[#titles + 1] = it.text
+            t:ok(order[it.text] ~= nil, "a section of the list: " .. tostring(it.text))
+            if order[it.text] then
+                t:ok(order[it.text] > last, tostring(it.text) .. " is in its place")
+                last = order[it.text]
+            end
+            if seen[it.text] then twice = it.text end
+            seen[it.text] = true
+        elseif it.sep then
+            current = nil
+        else
+            if not current then loose = loose + 1 end
+            if it.text and texts[it.text] then twice = twice or it.text end
+            if it.text then texts[it.text] = true end
+        end
+    end
+    t:eq(loose, 0, "no entry without a section")
+    t:eq(twice, nil, "no section and no entry twice")
+    t:eq(titles[1], "Order", "Order first")
+    t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
+        and seen["Stops on the map"] and seen.Arrow and seen.Keys and seen["Flow windows"], "the sections every Flow menu has")
+    t:ok(texts["Flow Settings"] and texts["Flow Improvements"], "Flow's windows are a click away")
+    t:ok(texts["Flat lines"] and texts["Colour by distance"], "the arrow's look is a section of it")
+    -- Folded: one row a section, none of them the catch-all.
+    local more, rows = false, 0
+    for _, row in ipairs(M.Fold(items)) do
+        if row.section then
+            rows = rows + 1
+            if row.text == "More" then more = true end
+        end
+    end
+    t:ok(not more, "folded: no left-over \"More\" row")
+    t:eq(rows, #titles - 1, "folded: the first section open, one row for each of the others")
+    -- A section that is one switch says on or off beside its name.
+    t:eq(M.SectionState({ { text = "x", checked = true } }), "on", "one tick, on")
+    t:eq(M.SectionState({ { text = "x", checked = false } }), "off", "one tick, off")
+    -- The arrow's own menu: the stop, then the same sections (its look isn't listed a second time).
+    local arrow = ns.nav:ArrowMenuItems()
+    local ticked = 0
+    for _, it in ipairs(arrow) do if it.radio and it.checked then ticked = ticked + 1 end end
+    t:eq(ticked, 1, "Arrow: one style ticked")
+end)
+
+ns:Register("test", "click: text-to-speech has a switch in the Flow menu", function(t)
+    local B, M = ns.bonus, ns.menu
+    if not (B and B.SetSpoken) then t:ok(true, "(no Bonus extras)") return end
+    local entry
+    for _, it in ipairs(M:RouteItems()) do
+        if it.text and it.text:find("text-to-speech", 1, true) then entry = it end
+    end
+    t:ok(entry ~= nil, "the Flow menu has it, by a name you'd look for")
+    local enabled, spoken = ns.db.bonus.enabled, ns.db.bonus.spoken
+    with(ns, "Print", function() end, function()
+        B:SetSpoken(true)
+        t:ok(B:Extra("spoken") and B:On(), "on: speaking (and Bonus mode with it)")
+        if entry then
+            local ok, err = pcall(M.Click, entry)   -- the way a click does
+            t:ok(ok, "the tick runs" .. (ok and "" or (": " .. tostring(err))))
+            t:ok(not B:Extra("spoken"), "clicked: off")
+            pcall(M.Click, entry)
+            t:ok(B:Extra("spoken"), "clicked again: on")
+        end
+        B:SetSpoken(false)
+        t:ok(not B:Extra("spoken"), "off: silent")
+        t:ok(B:On(), "the rest of Bonus mode is left as it is")
+    end)
+    ns.db.bonus.enabled, ns.db.bonus.spoken = enabled, spoken
+    M:Close()
+    local label
+    for _, x in ipairs(B.EXTRAS) do if x.key == "spoken" then label = x.label end end
+    t:ok(label and label:find("text-to-speech", 1, true) ~= nil, "Flow Settings names it text-to-speech too")
+end)
+
+ns:Register("test", "gates: a flight path is a way too", function(t)
+    local G, N = ns.gates, ns.nav
+    local via = { points = {}, unknown = true, from = 1456, to = 1413 }
+    local node = { cont = 1, wx = 10, wy = 20 }
+    local out = G.WithAir(via, { from = "Thunder Bluff", to = "Crossroads", sec = 100 }, node, 55)
+    t:ok(out == via and not via.unknown, "no way on foot, a flight that helps: no longer unknown")
+    t:ok(via.points[1] and via.points[1].wx == 10 and via.points[1].cont == 1, "the flight master is the gate")
+    t:eq(via.yards, 55, "as far as the flight master is")
+    t:ok(via.air and via.air.from == "Thunder Bluff" and via.air.to == "Crossroads", "and it says where to fly")
+    local known = { points = { {} }, yards = 5 }
+    t:ok(G.WithAir(known, { from = "A", to = "B" }, node, 1) == known and known.air == nil, "a way on foot is known: left alone")
+    local none = { points = {}, unknown = true }
+    G.WithAir(none, nil, node, 1)
+    t:ok(none.unknown and none.air == nil, "no flight that helps: still unknown")
+    G.WithAir(none, { from = "A", to = "B" }, nil, 1)
+    t:ok(none.unknown, "the flight master's spot isn't known: still unknown")
+    t:eq(N.GateText(via, 55), " (to the flight master: fly Thunder Bluff to Crossroads, 55 yd)", "beside the arrow")
+    local how = N.HowText("gate", via)
+    t:ok(how:find("flight master", 1, true) ~= nil and how:find("Fly Thunder Bluff to Crossroads", 1, true) ~= nil, "in its panel: " .. how)
+    t:ok(N.HowText("gate", { points = { {} } }):find("a lift, a gate, a pass", 1, true) ~= nil, "a gate on foot: as before")
+    -- /flow gates lists them.
+    local lines = G.AirLines({}, {})
+    t:ok(#lines == 1 and lines[1]:find("none known yet", 1, true) ~= nil, "no flight paths yet: it says how Flow learns them")
+    lines = G.AirLines({ ["Thunder Bluff, Mulgore"] = {}, ["Crossroads, The Barrens"] = {} },
+        { { name = "Bunthen Plainswind", how = "he flies druids to Thunder Bluff, free", mine = true },
+          { name = "Silva Fil'naveth", how = "x", mine = false } })
+    t:ok(lines[1]:find("2 known", 1, true) ~= nil and lines[1]:find("Crossroads, The Barrens; Thunder Bluff, Mulgore", 1, true) ~= nil,
+        "flight paths, by name: " .. lines[1])
+    t:eq(#lines, 2, "and the ride that's yours, not the other faction's")
+    t:ok(lines[2]:find("Bunthen Plainswind", 1, true) ~= nil, "Bunthen Plainswind's")
 end)

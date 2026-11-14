@@ -121,7 +121,8 @@ end
 -------------------------------------------------------------------------------
 
 -- What a folded section is set to, for its row: the ticked radio's text
--- ("Shortest path"), or how many ticks are on ("4 of 6"). nil: nothing to say.
+-- ("Shortest path"), how many ticks are on ("4 of 6"), or "on" / "off" for
+-- a single tick. nil: nothing to say.
 function Menu.SectionState(sub)
     local ticks, on = 0, 0
     for _, it in ipairs(sub) do
@@ -132,6 +133,7 @@ function Menu.SectionState(sub)
         end
     end
     if ticks > 1 then return string.format("%d of %d", on, ticks) end
+    if ticks == 1 then return on == 1 and "on" or "off" end   -- (a section that is one switch)
     return nil
 end
 
@@ -340,38 +342,52 @@ function Menu.KindItems()
     return items
 end
 
--- Route entries shared by every Flow menu (arrow, tracker rows).
+-- The Flow menu: the entries every Flow menu shares (the arrow, the Flow
+-- Tracker, a stop on the map, the Flow Router's Route button). One section
+-- for each thing you'd come here to do, always in this order (0.35.182:
+-- "it needs to be better organized, cleaner sections"):
+--
+--   Order                 how the route is sorted
+--   Route includes        which kinds of stops are on it; unhide what you hid
+--   Go to the nearest...  repair, vendor, flight master, inn, mailbox, bank
+--   Your waypoint         set one, follow someone, clear it
+--   Dungeons              (when a run fits your level)
+--   Party                 (in a group)
+--   Stops on the map      how many the map and the Flow Tracker show
+--   Arrow                 its look
+--   Keys                  binding them, listing them
+--   Extras                NPCs read aloud (text-to-speech)
+--   Flow windows          Settings, Improvements, Professions, Setup
+--
+-- Every entry is under a title (nothing loose at the bottom), and no entry
+-- is in two places. A section with nothing in it is left out. The menu
+-- folds each section into one row (Menu.Fold).
+Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
+                  "Stops on the map", "Arrow", "Keys", "Extras", "Flow windows" }
+
 function Menu:RouteItemsRaw()
     local nav = ns.nav
     local sort = ns.xpValue:Mode()
-    local nHidden = 0
-    for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
-    local items = Menu.KindItems()
-    -- Only the dungeon run (Dungeons.lua, pull request 20): a tick under what
-    -- the route includes. On, the route keeps only the prepared run's stops
-    -- (its quests, then the entrance), whatever else is ticked; click it
-    -- again to go back to your ticks.
-    local D = ns.dungeons
-    if D and D.RouteItem then
-        local ok, it = pcall(D.RouteItem, D)
-        if ok and it then items[#items + 1] = it end
+    local items = {}
+    -- A section: a line above it (not above the first), its title, its
+    -- entries. One with no entries is left out.
+    local function section(title, entries)
+        if not entries or #entries == 0 then return end
+        if #items > 0 then items[#items + 1] = { sep = true } end
+        items[#items + 1] = { title = true, text = title }
+        for _, it in ipairs(entries) do items[#items + 1] = it end
     end
-    -- Next to what the route includes: one click sends the arrow to the
-    -- nearest of these first (your waypoint; the route carries on after).
-    for _, it in ipairs({
-        { sep = true },
-        { title = true, text = "Go to the nearest..." },
-        { text = "Repair", func = function() if ns.services then ns.services:GoTo("repair") end end },
-        { text = "Vendor (sell)", func = function() if ns.services then ns.services:GoTo("vendor") end end },
-        { text = "Flight master", func = function() if ns.services then ns.services:GoTo("flight") end end },
-        { text = "Innkeeper", func = function() if ns.services then ns.services:GoTo("inn") end end },
-        { text = "Mailbox", func = function() if ns.services then ns.services:GoTo("mail") end end },
-        { text = "Banker", func = function() if ns.services then ns.services:GoTo("bank") end end },
-    }) do items[#items + 1] = it end
-    for _, it in ipairs({
-        { sep = true },
-        { title = true, text = "Order" },
-        -- (The default first.)
+    -- (One failing builder must not stop the menu opening: it's logged.)
+    local function safe(fn, ...)
+        if not fn then return {} end
+        local ok, res = pcall(fn, ...)
+        if ok and type(res) == "table" then return res end
+        if not ok then ns:Log("menu", "a section failed: " .. tostring(res)) end
+        return {}
+    end
+
+    -- Order (the default first).
+    section("Order", {
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
         -- On while you've picked the next stop yourself (a ^ / Go here next);
@@ -382,72 +398,120 @@ function Menu:RouteItemsRaw()
           func = function() ns.xpValue:SetMode("custom") end },
         { text = "Finish the area you're in first", checked = ns.db.nav.areaFirst == true,
           func = function() ns.db.nav.areaFirst = (ns.db.nav.areaFirst ~= true); nav.planDirty = true end },
-        { sep = true },
-        { title = true, text = "Stops on the map" },
-    }) do items[#items + 1] = it end
+    })
+
+    -- Route includes: the kinds of stops, the dungeon run on its own
+    -- (Dungeons.lua, pull request 20), and the stops you hid.
+    local includes = {}
+    for i, it in ipairs(Menu.KindItems()) do
+        if i > 1 then includes[#includes + 1] = it end   -- (its own title: the section's)
+    end
+    local D = ns.dungeons
+    if D and D.RouteItem then
+        local ok, it = pcall(D.RouteItem, D)
+        if ok and it then includes[#includes + 1] = it end
+    end
+    local nHidden = 0
+    for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
+    includes[#includes + 1] = { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
+        func = function() ns.commands.nav("unhide") end }
+    section("Route includes", includes)
+
+    -- One click sends the arrow to the nearest of these (your waypoint; the
+    -- route carries on after).
+    local function nearest(label, kind)
+        return { text = label, func = function() if ns.services then ns.services:GoTo(kind) end end }
+    end
+    section("Go to the nearest...", {
+        nearest("Repair", "repair"), nearest("Vendor (sell)", "vendor"), nearest("Flight master", "flight"),
+        nearest("Innkeeper", "inn"), nearest("Mailbox", "mail"), nearest("Banker", "bank"),
+    })
+
+    -- Your waypoint; in a group, follow a party member (the arrow keeps
+    -- pointing at them) or drop your waypoint where they are.
+    local following = ns.follow and ns.follow:Target()
+    local way = { { text = "Set a waypoint (coordinates, or a party member's name)...", func = function() ns.waypoint:Prompt() end } }
+    if ns.follow and ns.party and ns.party:InGroup() then
+        for _, it in ipairs(safe(ns.follow.MenuItems, ns.follow)) do way[#way + 1] = it end
+    end
+    way[#way + 1] = { text = following and ("Clear your waypoint (stop following " .. following .. ")") or "Clear your waypoint",
+        disabled = ns.waypoint:Get() == nil and not following,
+        func = function()
+            if following then ns.follow:Stop() end
+            if ns.waypoint:Get() then ns.waypoint:Clear(); ns:Print("waypoint cleared") end
+        end }
+    section("Your waypoint", way)
+
+    -- Dungeon runs worth doing at your level (Dungeons.lua; needs Questie).
+    -- Its list brings its own line and title.
+    if ns.dungeons then
+        local list = safe(ns.dungeons.MenuItems, ns.dungeons)
+        if #list > 0 and not list[1].sep and #items > 0 then items[#items + 1] = { sep = true } end
+        for _, it in ipairs(list) do items[#items + 1] = it end
+    end
+
+    -- In a group: your own route, the party route (one route for everyone's
+    -- quests), or just one member's quests. Never switched for you.
+    local P = ns.party
+    if P and P:InGroup() then
+        local party = {}
+        local H = ns.partyHelp
+        if H then for _, it in ipairs(safe(H.MenuItems, H)) do party[#party + 1] = it end end
+        -- (A hand-made route someone shared with /flow party share.)
+        if P:Active() then
+            party[#party + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = P:Following(),
+                func = function() P:SetFollowing(true) end }
+            party[#party + 1] = { text = "Drop the shared stops", func = function() P:Leave() end }
+        end
+        section("Party", party)
+    end
+
     -- Which stops the map and the Flow Tracker show (the Flow Router always
     -- lists them all): everything in this area, or your next N.
     local shown, area = nav:StopsShown(), nav:AreaMode()
-    items[#items + 1] = { text = nav.AREA_LABEL, radio = true, checked = area,
-        func = function() nav:SetArea(true) end }
+    local stops = { { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end } }
     for _, n in ipairs(nav.STOP_CHOICES) do
-        items[#items + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = not area and shown == n,
+        stops[#stops + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = not area and shown == n,
             func = function() nav:SetStopsShown(n) end }
     end
-    items[#items + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
+    stops[#stops + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
         radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
-    local following = ns.follow and ns.follow:Target()
-    for _, it in ipairs({
-        { sep = true },
-        { title = true, text = "Your waypoint" },
-        { text = "Set a waypoint (coordinates, or a party member's name)...", func = function() ns.waypoint:Prompt() end },
-    }) do items[#items + 1] = it end
-    -- In a group: follow a party member (the arrow keeps pointing at them),
-    -- or drop your waypoint where they are.
-    if ns.follow and ns.party and ns.party:InGroup() then
-        for _, it in ipairs(ns.follow:MenuItems()) do items[#items + 1] = it end
-    end
-    for _, it in ipairs({
-        { text = following and ("Clear your waypoint (stop following " .. following .. ")") or "Clear your waypoint",
-          disabled = ns.waypoint:Get() == nil and not following,
-          func = function()
-              if following then ns.follow:Stop() end
-              if ns.waypoint:Get() then ns.waypoint:Clear(); ns:Print("waypoint cleared") end
-          end },
-    }) do items[#items + 1] = it end
-    -- Dungeon runs worth doing at your level (Dungeons.lua; needs Questie).
-    -- (In a pcall: one error there must not stop the route menu opening.)
-    if ns.dungeons then
-        local ok, list = pcall(ns.dungeons.MenuItems, ns.dungeons)
-        for _, it in ipairs(ok and list or {}) do items[#items + 1] = it end
-    end
-    for _, it in ipairs({
-        { sep = true },
-        { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
-          func = function() ns.commands.nav("unhide") end },
-        -- Hover-to-bind mode, easy to find (also in /flow settings and /flow bind).
+    section("Stops on the map", stops)
+
+    -- The arrow's look (Nav.lua).
+    section("Arrow", safe(nav.ArrowMenuItems, nav))
+
+    section("Keys", {
+        -- Hover-to-bind mode (also in Flow Settings and /flow bind).
         { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
           func = function() if ns.bind then ns.bind:Start() end end },
         -- The keys that cast a spell straight away (bound from the Flow Spells
         -- list): the game's own Key Bindings window never lists those.
         { text = "Show keys bound straight to spells (in chat)", func = function() ns.commands.keys() end },
-    }) do items[#items + 1] = it end
-    -- In a group: your own route, join the party route (everyone on it: one
-    -- route for all their quests, the same for all of you), or just one
-    -- member's quests; then following a party member. Never switched for you.
-    local P = ns.party
-    if P and P:InGroup() then
-        items[#items + 1] = { sep = true }
-        items[#items + 1] = { title = true, text = "Party" }
-        local H = ns.partyHelp
-        if H then for _, it in ipairs(H:MenuItems()) do items[#items + 1] = it end end
-        -- (A hand-made route someone shared with /flow party share.)
-        if P:Active() then
-            items[#items + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = P:Following(),
-                func = function() P:SetFollowing(true) end }
-            items[#items + 1] = { text = "Drop the shared stops", func = function() P:Leave() end }
-        end
+    })
+
+    -- Extras (Bonus.lua). Text-to-speech was only in Flow Settings, under
+    -- "Bonus mode": "how do I turn off the TTS, it was like a hidden setting".
+    local B = ns.bonus
+    if B and B.SetSpoken then
+        section("Extras", {
+            { text = "NPCs read their words aloud (text-to-speech)", checked = B:Extra("spoken"), stay = true,
+              tip = "When you talk to an NPC, the game's text-to-speech voice reads what they say. Untick to switch it off.",
+              refresh = function(it) it.checked = B:Extra("spoken") end,
+              func = function() B:SetSpoken(not B:Extra("spoken")) end },
+        })
     end
+
+    -- Flow's own windows. (The game's options page can't be opened in a fight.)
+    local windows = {}
+    local function window(label, open, noCombat)
+        if open then windows[#windows + 1] = { text = label, disabled = noCombat and InCombatLockdown() or nil, func = open } end
+    end
+    window("Flow Settings", ns.commands.settings, true)
+    window("Flow Improvements", ns.advisor and ns.advisor.TogglePanel and function() ns.advisor:TogglePanel() end)
+    window("Flow Professions", ns.commands.professions and function() ns.commands.professions("") end)
+    window("Flow Setup", ns.commands.setup, true)
+    section("Flow windows", windows)
     return items
 end
 

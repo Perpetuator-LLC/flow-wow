@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.182
+- **The Flow menu, tidied.** Every Flow menu (the arrow's, the Flow Tracker's, a stop's, the
+  Flow Router's Route button) now has the same sections in the same order, each one a row
+  that pops out: **Order**, **Route includes**, **Go to the nearest...**, **Your waypoint**,
+  **Dungeons**, **Party**, **Stops on the map**, **Arrow**, **Keys**, **Extras**, **Flow
+  windows**. Nothing is loose at the bottom any more (two rows used to be called "More"),
+  and nothing is listed twice (the faint profession arrow was). "Unhide all stops" is under
+  Route includes, the arrow's look is its own section in every menu, and Flow Settings, Flow
+  Improvements, Flow Professions and Flow Setup open from Flow windows. A section that is
+  one switch says "on" or "off" beside its name.
+- **Text-to-speech has a switch you can find.** NPCs reading their words aloud is Flow's
+  "Spoken" extra; it was only in Flow Settings, under "Bonus mode". It's now a tick in every
+  Flow menu: Extras > "NPCs read their words aloud (text-to-speech)". Flow Settings names it
+  text-to-speech too, and `/flow bonus off` still turns all extras off.
+- **Flight paths are ways between maps too.** `/flow gates` now lists the flight paths Flow
+  knows and the people who carry you (the druids' flight masters), beside the ways on foot.
+  And for a walled place with no way known on foot (you flew into Thunder Bluff, so Flow
+  knew no way out): when flying from a flight master you know gets you nearer your stop,
+  that flight master is the way. The arrow leads there and says where to fly. Flow learns
+  flight paths when you open a flight master's map.
+
 ## 0.35.181
 - The intro on the arrow after a login or /reload said "no quest database" while Questie was
   installed and still starting up. It now says "Questie starting up" then, "Questie linked"
