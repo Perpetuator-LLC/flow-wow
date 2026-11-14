@@ -9365,3 +9365,80 @@ ns:Register("test", "click: the Flow Banker tab on your bags opens and closes it
     B.view, B.offset = view, offset
     if was then B:Fill(); f:Show() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.204: map labels move further out; pointing at a stop in a list shows
+-- it alone; the quest log link clicks the quest's own line.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map labels: no room by the point, the label moves further out", function(t)
+    local M = ns.mapOverlay
+    t:ok(M.LABEL_NEAR == 8, "eight places right by the point")
+    local sizes = { { 30, 10 }, { 12, 10 } }
+    -- Alone: right beside its point, the long text.
+    local boxes = { { -5, -5, 5, 5 } }
+    local k, ti, hit = M.PickLabel(0, 0, 5, sizes, boxes, 1)
+    t:ok(k == 1 and ti == 1 and hit == 0, "alone: right of the point, with its level")
+    -- A wall of other points all round, tight against it: every near place is taken.
+    boxes = { { -5, -5, 5, 5 }, { 6, -30, 40, 30 }, { -40, -30, -6, 30 }, { -40, 6, 40, 22 }, { -40, -22, 40, -6 } }
+    k, ti, hit = M.PickLabel(0, 0, 5, sizes, boxes, 1)
+    t:ok(k > M.LABEL_NEAR, "crowded: a place further out (place " .. tostring(k) .. ")")
+    t:eq(hit, 0, "where it covers nothing")
+    local l, b, r, top = M.LabelBox(k, 0, 0, 5, sizes[ti][1], sizes[ti][2])
+    t:ok(l > 40 or r < -40 or b > 22 or top < -22, "clear of the crowd")
+    -- Room is kept between labels: a box 1 away counts as in the way.
+    boxes = { { -5, -5, 5, 5 }, { 39, -5, 60, 5 } }   -- (the label right of the point ends at 38)
+    k = M.PickLabel(0, 0, 5, { { 30, 10 } }, boxes, 1)
+    t:ok(k ~= 1, "a neighbour 1 away: not squeezed in beside it")
+    k = M.PickLabel(0, 0, 5, { { 30, 10 } }, boxes, 1, 0)
+    t:eq(k, 1, "with no room asked for, it would have fitted")
+    t:ok(M.HOVER_SIZE <= 12, "the stop you point at is no bigger than a point with its ring")
+end)
+
+ns:Register("test", "map: pointing at a stop in a list shows it alone, between its neighbours", function(t)
+    local M = ns.mapOverlay
+    local plan = { { goal = { key = "a" } }, { goal = { key = "b" } }, { goal = { key = "c" } }, { goal = { key = "d" } } }
+    t:eq(M.SoloAt(plan, "c"), 3, "found on the route")
+    t:eq(M.SoloAt(plan, "x"), nil, "not on the route: the map as usual")
+    t:eq(M.SoloAt(plan, nil), nil, "pointing at nothing: the map as usual")
+    local s = M.SoloStops(4, 3)
+    t:ok(#s == 3 and s[1] == 2 and s[2] == 3 and s[3] == 4, "the one before, itself, the one after")
+    s = M.SoloStops(4, 1)
+    t:ok(#s == 2 and s[1] == 1 and s[2] == 2, "the first stop: itself and the next")
+    s = M.SoloStops(4, 4)
+    t:ok(#s == 2 and s[1] == 3 and s[2] == 4, "the last stop: the one before and itself")
+    t:ok(M.SOLO_FADE < 1, "the neighbours are muted")
+    -- The tracker's hover and back, with the map as it is: nothing errors.
+    local was = M._HoverKey()
+    local key = ns.nav.plan and ns.nav.plan[1] and ns.nav.plan[1].goal.key or "none"
+    local ok, err = pcall(M.Hover, key)
+    t:ok(ok, "pointing at a stop from the tracker" .. (ok and "" or (": " .. tostring(err))))
+    ok, err = pcall(M.Hover, nil)
+    t:ok(ok, "and away again" .. (ok and "" or (": " .. tostring(err))))
+    M.Hover(was)
+end)
+
+ns:Register("test", "quest log link: with the log open it goes to the quest's own line", function(t)
+    local O = ns.mapOpen
+    local a, b = { questID = 844 }, { questID = 870 }
+    local list = { titleFramePool = { EnumerateActive = function()
+        local i = 0
+        local all = { a, b }
+        return function() i = i + 1; return all[i] end
+    end } }
+    t:eq(O.QuestButton(870, list), b, "the line of that quest")
+    t:eq(O.QuestButton(999, list), nil, "a quest with no line (its header is folded): none")
+    t:eq(O.QuestButton(844, {}), nil, "a client whose list has no such lines: none")
+    t:eq(O.QuestButton(nil, list), nil, "no quest: none")
+    t:ok(pcall(O.QuestButton, 844), "the game's own list is read without error")
+end)
+
+ns:Register("test", "quest marks: /flow quest lists the nameplates and what each got", function(t)
+    local ok, lines = pcall(ns.questMarks.Lines)
+    local err = lines
+    if not ok then lines = {} end
+    t:ok(ok, "it runs" .. (ok and "" or (": " .. tostring(err))))
+    local found = false
+    for _, l in ipairs(lines) do if l:find("nameplate(s) in view", 1, true) then found = true end end
+    t:ok(found, "it says how many nameplates are in view and whether markers are on")
+end)

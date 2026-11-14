@@ -97,9 +97,35 @@ local function build()
 end
 O._Overlay = function() return overlay end   -- (tests)
 
-function O.Arm(link, kind, before, after)
+-- The quest's own line in the game's quest log (the list beside the map),
+-- or nil: a click on it opens the quest's details, the game's way. frame:
+-- the tests' own list.
+function O.QuestButton(questID, frame)
+    if frame == nil then frame = QuestScrollFrame end
+    local pool = frame and frame.titleFramePool
+    if not (questID and pool and pool.EnumerateActive) then return nil end
+    for b in pool:EnumerateActive() do
+        if b.questID == questID then return b end
+    end
+    return nil
+end
+
+-- questID (the "log" link): with the log already open, the click goes to
+-- that quest's line in the game's list, so the game opens its details
+-- ("it would be nice if it opened the quest log expanded, with the quest
+-- selected", 0.35.204). So: one click opens the log with the quest
+-- selected, the next opens the quest itself.
+function O.Arm(link, kind, before, after, questID)
     local target, path = O.Target(kind)
     local open = WorldMapFrame and WorldMapFrame:IsShown() and true or false
+    if open and questID and not InCombatLockdown() then
+        local ok, b = pcall(O.QuestButton, questID)
+        target, path, open = ok and b or nil, "the quest's line in the log", false
+        if not target then
+            ns:Log("buttons", "quest log link: no line for quest " .. tostring(questID) .. " in the game's list (QuestScrollFrame " .. (QuestScrollFrame and "there" or "missing") .. ")")
+            return false
+        end
+    end
     if not O.CanArm(InCombatLockdown() and true or false, open, target) then return false end
     local s = link:GetEffectiveScale() / UIParent:GetEffectiveScale()
     local x, y, w, h = O.Rect(link:GetLeft(), link:GetBottom(), link:GetWidth(), link:GetHeight(), s)

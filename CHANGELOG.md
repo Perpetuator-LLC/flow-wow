@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.204
+- **Map numbers keep their distance.** A stop's number used to sit right against its point
+  even when that put it on top of another number or point. Now it keeps a little room from
+  everything else, and where there's none by the point it moves one or two steps further
+  out, with a thin line back to its point.
+- **Point at a stop in a list, see only that stop.** With the map open, hovering a row in the
+  Flow Router or the Flow Tracker hides the rest of the route: that stop shows with its
+  area, and the stop before and the stop after stay as muted points joined to it, so you
+  see how the route gets there. Hovering a point on the map itself leaves the map as it is.
+  The highlighted point is smaller: it fills the point instead of covering its neighbours.
+- **"Select in quest log", second click.** The first click opens the log with the quest
+  selected (as before). With the log open, a click on the link now goes to the quest's own
+  line in the game's list, which opens the quest's details. Not seen working in game yet.
+- **For "this mob has no icon":** `/flow quest` (and the diagnostics) now list every
+  nameplate in view with the marks it got, who Flow thinks drops each item, and whether
+  markers and enemy nameplates are on. A marker that fails says why in the log.
+
 ## 0.35.203
 - **A recipe in your bank isn't bought again.** Flow Banker put a bought recipe in the bank,
   and the route then asked to buy it once more. Recipes now stay in your bags, and one that is

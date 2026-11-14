@@ -286,8 +286,9 @@ local function updateUnit(unit)
     m:Show()
 end
 
+local safeUpdate
 local function updateAll()
-    for unit in pairs(plates) do pcall(updateUnit, unit) end
+    for unit in pairs(plates) do safeUpdate(unit) end
 end
 
 -- Learn which mobs drop which quest items.
@@ -314,7 +315,17 @@ ns:OnLoad(function(saved)
     if saved.quests.enabled == nil then saved.quests.enabled = true end
 end)
 
-ns:On("NAME_PLATE_UNIT_ADDED", function(unit) plates[unit] = true; updateUnit(unit) end)
+-- (A marker that fails says so in the log, once per reason: "the Greater
+-- Plainstriders have no icon but they drop the items", 0.35.204.)
+local failed = {}
+function safeUpdate(unit)
+    local ok, err = pcall(updateUnit, unit)
+    if not ok and not failed[tostring(err)] then
+        failed[tostring(err)] = true
+        ns:Log("marks", "a nameplate marker failed: " .. tostring(err))
+    end
+end
+ns:On("NAME_PLATE_UNIT_ADDED", function(unit) plates[unit] = true; safeUpdate(unit) end)
 ns:On("NAME_PLATE_UNIT_REMOVED", function(unit)
     plates[unit] = nil
     local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit(unit)
@@ -335,6 +346,45 @@ ns:On("PLAYER_LEVEL_UP", function() C_Timer.After(5, function() pcall(readDrops)
 ns:On("PLAYER_ENTERING_WORLD", function() readQuests(); updateAll() end)
 ns:On("LOOT_OPENED", onLoot)
 
+-- What /flow quest prints (and the diagnostics keep): your open objectives,
+-- who drops what, and each nameplate in view with the marks it got.
+ns.questMarks = ns.questMarks or {}
+function ns.questMarks.Lines()
+    local out = {}
+    local function add(l) out[#out + 1] = l end
+    local n = 0
+    for name, c in pairs(kills) do add("  kill: " .. name .. " " .. table.concat(c, ", ")); n = n + 1 end
+    for name, c in pairs(items) do
+        local from = {}
+        for mob, list in pairs(dropsBy) do if list[name] then from[#from + 1] = mob end end
+        add("  collect: " .. name .. " " .. c .. (#from > 0 and (" (drops from " .. table.concat(from, ", ") .. ")") or ""))
+        n = n + 1
+    end
+    if n == 0 then add("  no open kill/collect objectives") end
+    -- What Flow learned from your own looting, for the items you need now.
+    for mob, list in pairs(db().drops or {}) do
+        for item in pairs(list) do
+            if items[item] then add("  learned: " .. mob .. " drops " .. item) end
+        end
+    end
+    -- The nameplates in view and what each got (for "this mob has no icon").
+    local shown = 0
+    for unit in pairs(plates) do
+        local okN, name = pcall(function() return ns.api.Safe(UnitName(unit)) end)
+        local okM, marks = pcall(classify, unit)
+        local okT, tgt = pcall(targetOf, unit)
+        local kinds = {}
+        for _, m in ipairs(okM and marks or {}) do kinds[#kinds + 1] = m.kind .. (m.label and m.label ~= "" and (" " .. m.label) or "") end
+        add(string.format("  plate %s: %s -> %s%s%s", unit, okN and tostring(name) or "name hidden",
+            #kinds > 0 and table.concat(kinds, ", ") or "no mark",
+            okT and tgt and (", (o) " .. tgt) or "", okM and "" or (" [failed: " .. tostring(marks) .. "]")))
+        shown = shown + 1
+    end
+    local cvar = GetCVar and GetCVar("nameplateShowEnemies")
+    add(string.format("  %d nameplate(s) in view; markers %s; enemy nameplates %s", shown, db().enabled and "on" or "off", tostring(cvar) == "1" and "on" or "off (V)"))
+    return out
+end
+
 ns.commands.quest = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
@@ -351,15 +401,7 @@ ns.commands.quest = function(arg)
         ns:Print("enemy and friendly nameplates turned on")
     else
         ns:Print("/flow quest on|off|plates")
-        local n = 0
-        for name, c in pairs(kills) do print("  kill: " .. name .. " " .. table.concat(c, ", ")); n = n + 1 end
-        for name, c in pairs(items) do
-            local from = {}
-            for mob, list in pairs(dropsBy) do if list[name] then from[#from + 1] = mob end end
-            print("  collect: " .. name .. " " .. c .. (#from > 0 and (" (drops from " .. table.concat(from, ", ") .. ")") or ""))
-            n = n + 1
-        end
-        if n == 0 then print("  no open kill/collect objectives") end
+        for _, l in ipairs(ns.questMarks.Lines()) do print(l) end
     end
 end
 

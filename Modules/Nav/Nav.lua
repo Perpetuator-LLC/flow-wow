@@ -3339,7 +3339,8 @@ local function buildCard()
             N:OpenInGame(f.goal)
             if not WorldMapFrame:IsShown() then ns:Print("selected in your quest log: press L (or M) to read it.") end
         end, function(self)
-            return ns.mapOpen and ns.mapOpen.Arm(self, "log", function() N:OpenInGame(f.goal) end)
+            local id = f.goal and tonumber(f.goal.key:match("^(%d+):"))
+            return ns.mapOpen and ns.mapOpen.Arm(self, "log", function() N:OpenInGame(f.goal) end, nil, id)
         end),
         map = uiLink(f, "Show on map", function()
             local g = f.goal

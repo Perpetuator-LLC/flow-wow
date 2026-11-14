@@ -24,6 +24,10 @@ local host           -- frame on the map canvas holding lines
 local lines, pins = {}, {}
 local nLines, nPins = 0, 0
 local previewKey, hoverKey
+-- Pointing at a stop in a list (the Flow Router's rows, the Flow Tracker):
+-- the map shows that stop alone, between the stop before and the one after
+-- (drawSolo). Pointing at a pin on the map itself doesn't: the pins stay.
+local hoverSolo = false
 local focusKey, focusUntil = nil, 0   -- a stop opened from the tracker / arrow menu
 
 local function theme() return ns.theme end
@@ -95,6 +99,9 @@ end
 -- marker (o) with a faint white ring; the other stops have black rings.
 M.TARGET_SIZE = 12          -- was 16: the heading-there pin drowned the map
 M.TARGET_RING_ALPHA = 0.45
+-- The stop you point at: was 18, a red blot over its neighbours ("make the
+-- red dot smaller, so it looks like it fills the centre of the point").
+M.HOVER_SIZE = 12
 -- top: the stop under your mouse (bigger, in the hover colour, on top).
 local function pin(c, x, y, label, color, stop, top, target)
     nPins = nPins + 1
@@ -123,12 +130,13 @@ local function pin(c, x, y, label, color, stop, top, target)
         -- and changing the route is only the ^ handle in the list.
         p:SetScript("OnEnter", function(self)
             hoverKey = self.stop.goal.key
+            hoverSolo = false
             ns.Tip(self, "ANCHOR_RIGHT")
             ns.nav:ClickCursor(true)
             ns.nav:FillTooltip(GameTooltip, self.stop.goal, "Click: open it. Right-click: menu. (^ in the Flow Router: go here next, a Custom route.)")
             GameTooltip:Show()
             -- Highlight in place (redrawing would move the point under the mouse).
-            self:SetSize(18, 18); self.edge:SetVertexColor(1, 1, 1, 1)
+            self:SetSize(M.HOVER_SIZE, M.HOVER_SIZE); self.edge:SetVertexColor(1, 1, 1, 1)
             self:SetFrameLevel(self:GetFrameLevel() + 100)
         end)
         p:SetScript("OnLeave", function(self)
@@ -164,6 +172,7 @@ local function pin(c, x, y, label, color, stop, top, target)
         pins[nPins] = p
     end
     p.stop = stop
+    p:SetAlpha(1)
     p.isTarget, p.color = (target and not top) and true or false, color
     p:SetParent(c)
     -- The hovered stop: bigger, white ring, above every other pin and line.
@@ -172,7 +181,7 @@ local function pin(c, x, y, label, color, stop, top, target)
     local base = math.min(c:GetFrameLevel() + 1000, 9000)
     p:SetFrameStrata(aboveMap())
     p:SetFrameLevel(top and base + 200 or base + 100)
-    local size = top and 18 or (target and M.TARGET_SIZE or 11)
+    local size = top and M.HOVER_SIZE or (target and M.TARGET_SIZE or 11)
     p:SetSize(size, size)
     p.text:SetFontObject((top or target) and "GameFontNormal" or "GameFontHighlightSmall")
     p:SetScale(1 / canvasScale())
@@ -603,6 +612,24 @@ local CANDS = {   -- anchor on the label, anchor on the point, x, y
     { "BOTTOMLEFT", "TOPRIGHT", 1, 0 }, { "TOPLEFT", "BOTTOMRIGHT", 1, 0 },
     { "BOTTOMRIGHT", "TOPLEFT", -1, 0 }, { "TOPRIGHT", "BOTTOMLEFT", -1, 0 },
 }
+-- Further out, when there's no room right by the point ("it gets to be a lot
+-- with numbers and dots and paths: can the text float out a little further",
+-- 0.35.204): the same eight places one and two steps away. A label out
+-- there gets a thin line back to its point.
+M.LABEL_NEAR = #CANDS
+M.LABEL_STEP = 13
+M.LABEL_PAD = 2      -- room kept between a label and anything else
+for ring = 1, 2 do
+    local g = M.LABEL_STEP * ring
+    local d = math.floor(g * 0.7 + 0.5)
+    for k = 1, M.LABEL_NEAR do
+        local a = CANDS[k]
+        local dx = a[2]:find("RIGHT") and 1 or (a[2]:find("LEFT") and -1 or 0)
+        local dy = a[2]:find("TOP") and 1 or (a[2]:find("BOTTOM") and -1 or 0)
+        local step = (dx ~= 0 and dy ~= 0) and d or g
+        CANDS[#CANDS + 1] = { a[1], a[2], a[3] + dx * step, a[4] + dy * step }
+    end
+end
 -- The label's box for candidate k, around a point at cx, cy of half size s.
 function M.LabelBox(k, cx, cy, s, w, h)
     local a = CANDS[k]
@@ -619,14 +646,39 @@ local function overlap(l1, b1, r1, t1, l2, b2, r2, t2)
     local h = math.min(t1, t2) - math.max(b1, b2)
     return (w > 0 and h > 0) and w * h or 0
 end
+-- Pure: the place for one label. cx, cy, s: its point and half size; sizes:
+-- { { w, h }, ... } for its texts, longest first; boxes: what's taken
+-- ({ l, b, r, t } each); own: the index in boxes of its own point (never in
+-- the way: every place stands clear of it). The nearest place that touches
+-- nothing, the label's box grown by `pad` on every side; none: the one that
+-- covers least. -> place (index into the candidates), text index, overlap.
+function M.PickLabel(cx, cy, s, sizes, boxes, own, pad)
+    pad = pad or M.LABEL_PAD
+    local bestK, bestText, bestHit
+    for ti, size in ipairs(sizes) do
+        for k = 1, #CANDS do
+            local l, b, r, t = M.LabelBox(k, cx, cy, s, size[1], size[2])
+            local hit = 0
+            for i, o in ipairs(boxes) do
+                if i ~= own then hit = hit + overlap(l - pad, b - pad, r + pad, t + pad, o[1], o[2], o[3], o[4]) end
+            end
+            if not bestHit or hit < bestHit then bestK, bestText, bestHit = k, ti, hit end
+            if hit == 0 then break end
+        end
+        if bestHit == 0 then break end
+    end
+    return bestK, bestText, bestHit
+end
+
 local function declutter()
     local list, boxes = {}, {}
     for i = 1, nPins do
         local p = pins[i]
         local cx, cy = p:GetCenter()
+        if p.leader then p.leader:Hide() end
         if cx and p.full and p.full ~= "" then
-            list[#list + 1] = { p = p, cx = cx, cy = cy, s = p:GetWidth() / 2 }
             boxes[#boxes + 1] = { cx - p:GetWidth() / 2, cy - p:GetHeight() / 2, cx + p:GetWidth() / 2, cy + p:GetHeight() / 2 }
+            list[#list + 1] = { p = p, cx = cx, cy = cy, s = p:GetWidth() / 2, own = #boxes }
         end
     end
     table.sort(list, function(a, b)
@@ -636,26 +688,77 @@ local function declutter()
     end)
     for _, e in ipairs(list) do
         local p = e.p
-        local bestK, bestText, bestHit
-        for _, text in ipairs({ p.full, p.short }) do
+        local texts, sizes = { p.full, p.short }, {}
+        for i, text in ipairs(texts) do
             p.text:SetText(text)
-            local w, h = p.text:GetStringWidth() + 2, p.text:GetStringHeight() + 1
-            for k = 1, #CANDS do
-                local l, b, r, t = M.LabelBox(k, e.cx, e.cy, e.s, w, h)
-                local hit = 0
-                for _, o in ipairs(boxes) do hit = hit + overlap(l, b, r, t, o[1], o[2], o[3], o[4]) end
-                if not bestHit or hit < bestHit then bestK, bestText, bestHit = k, text, hit end
-                if hit == 0 then break end
-            end
-            if bestHit == 0 then break end
+            sizes[i] = { p.text:GetStringWidth() + 2, p.text:GetStringHeight() + 1 }
         end
-        p.text:SetText(bestText)
-        local a = CANDS[bestK]
+        local k, ti = M.PickLabel(e.cx, e.cy, e.s, sizes, boxes, e.own)
+        p.text:SetText(texts[ti])
+        local a = CANDS[k]
         p.text:ClearAllPoints()
         p.text:SetPoint(a[1], p, a[2], a[3], a[4])
-        local w, h = p.text:GetStringWidth() + 2, p.text:GetStringHeight() + 1
-        local l, b, r, t = M.LabelBox(bestK, e.cx, e.cy, e.s, w, h)
+        local l, b, r, t = M.LabelBox(k, e.cx, e.cy, e.s, sizes[ti][1], sizes[ti][2])
         boxes[#boxes + 1] = { l, b, r, t }
+        -- Moved away from its point: a thin line back to it.
+        if k > M.LABEL_NEAR then
+            if not p.leader then
+                p.leader = p:CreateLine(nil, "ARTWORK")
+                p.leader:SetThickness(1)
+                p.leader:SetColorTexture(1, 1, 1, 0.45)
+            end
+            p.leader:SetStartPoint("CENTER", p, 0, 0)
+            p.leader:SetEndPoint(a[1], p.text, 0, 0)
+            p.leader:Show()
+        end
+    end
+end
+
+-- One stop alone ("as I hover over the waypoints in the Flow Router, hide
+-- all the other things and routes and show just that one objective; leave
+-- the previous and the next, without their area, a little muted, so I see
+-- the flow to it", 0.35.204).
+M.SOLO_FADE = 0.5
+-- Pure: where in the plan the stop you point at is (nil: not on the route).
+function M.SoloAt(plan, key)
+    if not key then return nil end
+    for i, s in ipairs(plan or {}) do
+        if s.goal and s.goal.key == key then return i end
+    end
+    return nil
+end
+-- Pure: the stops shown with it: the one before, itself, the one after.
+function M.SoloStops(n, at)
+    local out = {}
+    for j = at - 1, at + 1 do
+        if j >= 1 and j <= n then out[#out + 1] = j end
+    end
+    return out
+end
+local function drawSolo(c, mapID, plan, at, T)
+    local labels = ns.nav:PlanLabels(plan)
+    local pts = {}
+    for _, j in ipairs(M.SoloStops(#plan, at)) do
+        local s = plan[j]
+        if not M.FollowsYou(s) then
+            local x, y = toMap(s.point, mapID)
+            if x then pts[#pts + 1] = { j = j, x = x, y = y, s = s } end
+        end
+    end
+    for k = 1, #pts - 1 do
+        legs[#legs + 1] = { pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, color = T.route, alpha = REST_ALPHA }
+    end
+    for _, e in ipairs(pts) do
+        local kind = ns.theme.kinds[ns.nav:StopKind(e.s.goal)]
+        local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
+        if e.j == at then
+            pin(c, e.x, e.y, icon .. labels[e.j], T.hover, e.s, true)
+            pins[nPins].order = 0
+        else
+            pin(c, e.x, e.y, icon .. labels[e.j], T.route, e.s)
+            pins[nPins].order = e.j
+            pins[nPins]:SetAlpha(M.SOLO_FADE)
+        end
     end
 end
 -- Draws one route as a dotted trail through round points, starting at you.
@@ -1507,12 +1610,12 @@ local function buildList()
             if not self.blocked then ns.nav:ClickCursor(true) end
             ns.nav:FillTooltip(GameTooltip, g, footer)
             GameTooltip:Show()
-            if not (self.isHidden or self.blocked) then hoverKey = self.key; M:Redraw() end
+            if not (self.isHidden or self.blocked) then hoverKey, hoverSolo = self.key, true; M:Redraw() end
         end)
         r:SetScript("OnLeave", function()
             GameTooltip:Hide()
             ns.nav:ClickCursor(false)
-            if hoverKey then hoverKey = nil; M:Redraw() end
+            if hoverKey then hoverKey, hoverSolo = nil, false; M:Redraw() end
         end)
         r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         r:SetScript("OnClick", function(self, button)
@@ -1684,7 +1787,7 @@ M._updateList = function() updateList() end   -- (tests)
 -- does. nil: none.
 function M.Hover(key)
     if hoverKey == key then return end
-    hoverKey = key
+    hoverKey, hoverSolo = key, key ~= nil
     if WorldMapFrame and WorldMapFrame:IsShown() then pcall(M.Redraw, M) end
 end
 function M._HoverKey() return hoverKey end
@@ -1810,12 +1913,14 @@ local function fullDraw()
         for i = #plan, 2, -1 do if plan[i].goal.key ~= pointed then order[#order + 1] = i end end
         if plan[1] and plan[1].goal.key ~= pointed then order[#order + 1] = 1 end
         for i, s in ipairs(plan) do if s.goal.key == pointed then order[#order + 1] = i end end
+        local soloAt = M.SoloAt(plan, hoverSolo and not previewKey and hoverKey or nil)
         for _, i in ipairs(order) do
             local g = plan[i].goal
             -- Only the patch the route goes to; the stop you point at shows
             -- every place its mobs live. Past your Stops on the map limit,
             -- only the stop you point at.
             if M.FollowsYou(plan[i]) then   -- (follows you: nowhere to draw)
+            elseif soloAt and i ~= soloAt then   -- (one stop alone: only its area)
             elseif g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
             elseif ns.nav:StopVisible(i, false) then
                 -- Your next stop (the arrow's): every place its mobs live, as on
@@ -1829,12 +1934,19 @@ local function fullDraw()
             -- doesn't jump).
             drawRoute(c, mapID, ns.nav.plan, T.proposed, true, 0.95, true)
             drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false, 0.95)
+        elseif soloAt then
+            drawSolo(c, mapID, plan, soloAt, T)
         else
             drawRoute(c, mapID, ns.nav.plan, T.route, true)
         end
-        drawAway(c, mapID)
-        drawProf(c, mapID)
-        drawWaypoint(c, mapID)
+        if soloAt then
+            if wpPin then wpPin:Hide() end
+            if profPin then profPin:Hide() end
+        else
+            drawAway(c, mapID)
+            drawProf(c, mapID)
+            drawWaypoint(c, mapID)
+        end
     else
         if wpPin then wpPin:Hide() end
         if profPin then profPin:Hide() end
