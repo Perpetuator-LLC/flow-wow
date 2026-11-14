@@ -158,6 +158,14 @@ local function questGoals(db, q, goals, opts)
         deps = {},
     }
     if not skip(turnIn.key) then goals[#goals + 1] = turnIn end
+    -- Nowhere in the quest data: where it was handed in before (LearnedSpots).
+    if #turnIn.points == 0 and ns.learnedSpots then
+        local pts = ns.learnedSpots.Points(q.id, "done")
+        if pts then
+            turnIn.points = pts
+            table.insert(turnIn.details, "Flow's quest data has no place for it: this is where it was handed in before.")
+        end
+    end
     if #turnIn.points == 0 then
         cant("Flow doesn't know where it's handed in (" .. (who or "no NPC or object in Questie") .. ")")
         -- A finished quest with nowhere known to hand it in: the game's own
@@ -170,6 +178,11 @@ local function questGoals(db, q, goals, opts)
             else
                 turnIn.blockedBy = "Flow doesn't know where it's handed in" .. (who and (" (" .. who .. ")") or "") .. ". Your quest log says who to."
                 turnIn.blockedShort = ns.nav.NO_SPOT
+                local inside = ns.dungeons and ns.dungeons.Of and ns.dungeons.Of(q.id)
+                if inside then
+                    turnIn.blockedBy = "Handed in inside " .. inside .. (who and (" (" .. who .. ")") or "") .. ": a dungeon, so it isn't on your route. The dungeon run brings you there."
+                    turnIn.blockedShort = "in " .. inside
+                end
             end
         end
     end
@@ -274,13 +287,13 @@ local function questGoals(db, q, goals, opts)
         else
             for _, m in ipairs(missing) do
                 if not skip(m.key) then
-                    goals[#goals + 1] = {
+                    local g = {
                         key = m.key, points = {}, title = title, level = quest.level, kind = m.kind,
                         text = (title and (title .. ": ") or "") .. (ns.ProgressText(m.text) or "an objective"),
                         details = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(m.text) or "?") },
-                        blockedBy = "Flow doesn't know where: " .. m.why .. ". Your quest log says how.",
-                        blockedShort = ns.nav.NO_SPOT,
                     }
+                    goals[#goals + 1] = g
+                    ns.quests.Unplaced(g, q.id, tonumber(m.key:match(":(%d+)$")), m)
                 end
             end
         end
@@ -293,6 +306,32 @@ local function questGoals(db, q, goals, opts)
         if #turnIn.points > 0 then cant("waits for an objective Flow can't place, so the turn-in isn't planned yet") end
         turnIn.points = {}
     end
+end
+-- A stop the quest data doesn't place: where you did it before (LearnedSpots),
+-- else off the route with the reason: inside a dungeon, a battleground's
+-- reward, or simply not known. index: the objective's; m: { text, why }.
+-- Pure but for the two lookups, which the tests can pass in.
+function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
+    if learned == nil and ns.learnedSpots and index then learned = ns.learnedSpots.Points(questID, index) end
+    if learned and #learned > 0 then
+        g.points, g.area = learned, true
+        table.insert(g.details, "Flow's quest data has no place for this: the arrow goes where it was done before.")
+        return "learned"
+    end
+    if dungeon == nil then dungeon = ns.dungeons and ns.dungeons.Of and ns.dungeons.Of(questID) end
+    local text = (m and m.text or ""):lower()
+    if dungeon then
+        g.blockedBy = "Inside " .. dungeon .. ": a dungeon, so it isn't on your route. The dungeon run (Flow menu, Dungeons) brings you there."
+        g.blockedShort = "in " .. dungeon
+        return "dungeon"
+    elseif text:find("mark of honor", 1, true) then
+        g.blockedBy = "From winning or losing battlegrounds: not a place on your route."
+        g.blockedShort = "from battlegrounds"
+        return "battleground"
+    end
+    g.blockedBy = "Flow doesn't know where: " .. tostring(m and m.why or "no spot") .. ". Your quest log says how. Flow learns the spot when you do it."
+    g.blockedShort = ns.nav.NO_SPOT
+    return "unknown"
 end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 

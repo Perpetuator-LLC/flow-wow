@@ -341,7 +341,23 @@ local function readDrops()
 end
 ns.questMarks = ns.questMarks or {}
 ns.questMarks._dropStarts = dropStarts   -- (tests)
-ns:On("QUEST_LOG_UPDATE", function() readQuests(); pcall(readDrops); updateAll() end)
+-- The icons sit on nameplates. With enemy nameplates off there is nothing to
+-- put them on ("still not seeing the icons, no mark on quest mobs": the
+-- diagnostics said "0 nameplates in view; enemy nameplates off", 0.35.205).
+-- Flow says so once a session, when a quest of yours wants mobs.
+-- Pure: say it? wants: you have a kill or collect objective.
+function ns.questMarks.PlatesNote(enabled, wants, cvar, told)
+    return (enabled and wants and not told and tostring(cvar) == "0") and true or false
+end
+local toldPlates = false
+local function platesNote()
+    if not next(kills) and not next(items) then return end
+    local cvar = GetCVar and GetCVar("nameplateShowEnemies")
+    if not ns.questMarks.PlatesNote(db().enabled, true, cvar, toldPlates) then return end
+    toldPlates = true
+    ns:Print("your enemy nameplates are off, so Flow can't mark quest mobs (the skull, diamond and count sit on nameplates). Press V to turn them on, or type /flow quest plates.")
+end
+ns:On("QUEST_LOG_UPDATE", function() readQuests(); pcall(readDrops); updateAll(); pcall(platesNote) end)
 ns:On("PLAYER_LEVEL_UP", function() C_Timer.After(5, function() pcall(readDrops); updateAll() end) end)
 ns:On("PLAYER_ENTERING_WORLD", function() readQuests(); updateAll() end)
 ns:On("LOOT_OPENED", onLoot)

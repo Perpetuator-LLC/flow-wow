@@ -197,6 +197,9 @@ ns:Register("rotation", "DRUID", {
     -- their duration after you cast them.
     hots = { "Rejuvenation" },
     hotDuration = { Rejuvenation = 12 },
+    -- Regrowth heals at once and then for 21 s more: while that's on you it
+    -- isn't suggested again (Engine EarlyHeal).
+    lingers = { Regrowth = 21 },
 
     -- What the cast key stays on for a fight (it can't change in combat):
     -- the form's main attack, so pressing it all fight keeps hitting.
@@ -215,20 +218,33 @@ ns:Register("rotation", "DRUID", {
 
     -- The easy button's queue (Queue.lua): what Ctrl + key and Alt + key cast
     -- in a fight, for the form you're in at the pull (the first you know).
-    -- Caster: Entangling Roots beside Wrath, to hold a mob off you while you
-    -- cast (Moonfire until you can root); on Alt, when no healthstone or
-    -- potion holds it, Nature's Grasp (for when it's on you anyway), else
-    -- Moonfire, else War Stomp. Roots has Ctrl because
-    -- it's what Flow asks for most in a caster's fights: in one evening's
-    -- fights it advised Roots 18 times and Moonfire once, and every one of
-    -- those went uncast, being on the bar only (0.35.163).
+    -- Caster: Moonfire beside Wrath on Ctrl; Entangling Roots on Ctrl + Shift
+    -- (to hold a mob off you while you cast); on Alt, when no healthstone or
+    -- potion holds it, Nature's Grasp, else War Stomp.
     -- Cat: your finisher beside Claw (Rake until you have one). Bear: Swipe
     -- beside Maul, Bash to stop a cast.
     -- Shift + key is your heal; Alt is your healthstone or potion if you carry one.
     fightKeys = function()
         if inCat() then return { ctrl = { "Ferocious Bite", "Rip", "Rake" }, alt = {} } end
         if inBear() then return { ctrl = { "Swipe", "Demoralizing Roar" }, alt = { "Bash" } } end
-        return { ctrl = { "Entangling Roots", "Moonfire" }, alt = { "Nature's Grasp", "Moonfire", "War Stomp" } }
+        -- (0.35.205: Moonfire has Ctrl. "Roots is good for the pull, but then
+        -- Moonfire should be cast, and instead Roots goes on my bar: I'll be
+        -- casting Moonfire and Wrath a lot, Roots less often." The key opens
+        -- with Roots by itself; in the fight Roots is on Ctrl + Shift.)
+        return { ctrl = { "Moonfire", "Entangling Roots" }, alt = { "Nature's Grasp", "War Stomp" },
+                 more = { "Entangling Roots", "Nature's Grasp" } }
+    end,
+
+    -- What the key and Ctrl + key cast in each form, for a change of form
+    -- in the middle of a fight (Cast.lua: the key follows your form).
+    formKeys = function()
+        return {
+            none = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" } },
+            ["Bear Form"] = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" } },
+            ["Dire Bear Form"] = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" } },
+            ["Cat Form"] = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" } },
+            ["Moonkin Form"] = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" } },
+        }
     end,
 
     -- Default priority (first match wins).

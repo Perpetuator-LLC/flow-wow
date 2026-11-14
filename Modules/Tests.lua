@@ -9442,3 +9442,120 @@ ns:Register("test", "quest marks: /flow quest lists the nameplates and what each
     for _, l in ipairs(lines) do if l:find("nameplate(s) in view", 1, true) then found = true end end
     t:ok(found, "it says how many nameplates are in view and whether markers are on")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.205: nameplates-off note, stops with no spot (learned, dungeon,
+-- battleground), a lingering heal, the key follows your form.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest marks: says once when enemy nameplates are off", function(t)
+    local P = ns.questMarks.PlatesNote
+    t:ok(P(true, true, "0", false), "markers on, a quest wants mobs, nameplates off: say so")
+    t:ok(not P(true, true, "1", false), "nameplates on: nothing")
+    t:ok(not P(true, true, "0", true), "already said this session: nothing")
+    t:ok(not P(false, true, "0", false), "markers off: nothing")
+    t:ok(not P(true, false, "0", false), "no quest wants mobs: nothing")
+    t:ok(not P(true, true, nil, false), "the game won't say: nothing")
+end)
+
+ns:Register("test", "quest spots: learned where you did it; dungeon and battleground stops say so", function(t)
+    local LS = ns.learnedSpots
+    local list = {}
+    t:ok(LS.Add(list, 1413, 0.50, 0.30), "a first spot is kept")
+    t:ok(not LS.Add(list, 1413, 0.505, 0.301), "the same place again: not twice")
+    t:ok(LS.Add(list, 1413, 0.60, 0.30), "another place: kept")
+    t:ok(LS.Add(list, 1412, 0.50, 0.30), "the same numbers on another map: kept")
+    t:ok(not LS.Add(list, nil, 0.1, 0.1), "no map: nothing")
+    local full = {}
+    for i = 1, LS.MAX do LS.Add(full, 1, i / 10, 0.5) end
+    t:ok(not LS.Add(full, 1, 0.95, 0.95) and #full == LS.MAX, "no more than " .. LS.MAX .. " per objective")
+    local moved = LS.Moved({ [1] = 0, [2] = 3 }, { [1] = 1, [2] = 3, [3] = 2 })
+    t:ok(#moved == 1 and moved[1] == 1, "the objective that moved on (one seen for the first time doesn't count)")
+    t:eq(#LS.Moved(nil, { [1] = 1 }), 0, "a quest seen for the first time: nothing learned")
+    -- Saved and read back, then put away again.
+    with(ns.db, "learnedSpots", {}, function()
+        t:eq(LS.Points(76240, 1), nil, "nothing learned yet")
+        t:ok(LS.Note(76240, 1, 1412, 0.41, 0.52), "noted")
+        local pts = LS.Points(76240, 1)
+        t:ok(pts and #pts == 1 and pts[1].map == 1412, "read back for the stop")
+        t:ok(LS.Note(76240, "done", 1412, 0.47, 0.58) and LS.Points(76240, "done") ~= nil, "a turn-in too")
+        t:ok(type(LS.Lines()) == "table" and LS.Lines()[1]:find("2 quest spot", 1, true) ~= nil, "/flow spots counts them")
+    end)
+    -- The stop for an objective the quest data doesn't place.
+    local function stop() return { key = "1:1", points = {}, details = {} } end
+    local m = { text = "0/1 Fish Chunks", why = "Questie has no spot for Fish Chunks" }
+    local g = stop()
+    t:eq(ns.quests.Unplaced(g, 1, 1, m, { { map = 1412, x = 0.4, y = 0.5 } }, false), "learned", "a learned spot: used")
+    t:ok(#g.points == 1 and g.blockedBy == nil, "the stop is on the route, at that spot")
+    g = stop()
+    t:eq(ns.quests.Unplaced(g, 1, 1, { text = "0/8 Ragefire Trogg slain", why = "x" }, false, "Ragefire Chasm"), "dungeon", "a dungeon's quest")
+    t:eq(g.blockedShort, "in Ragefire Chasm", "the row says where, not 'no known spot'")
+    g = stop()
+    t:eq(ns.quests.Unplaced(g, 1, 1, { text = "0/3 Warsong Gulch Mark of Honor", why = "x" }, false, false), "battleground", "a battleground's marks")
+    t:eq(g.blockedShort, "from battlegrounds", "the row says so")
+    g = stop()
+    t:eq(ns.quests.Unplaced(g, 1, 1, m, false, false), "unknown", "nothing known")
+    t:eq(g.blockedShort, ns.nav.NO_SPOT, "still 'no known spot'")
+    t:ok(g.blockedBy:find("learns the spot", 1, true) ~= nil, "and it says Flow learns it when you do it")
+    t:eq(ns.dungeons.Of(-1), nil, "a quest that is no dungeon's: none")
+end)
+
+ns:Register("test", "professions: a recipe you own never reads 'buy it first'", function(t)
+    local W = ns.skillPlan.RecipeWait
+    t:eq(W(false, false, false, "Recipe: Strider Stew", "Cooking", 50, 40), "buy Recipe: Strider Stew first", "not owned: buy it")
+    t:eq(W(false, true, false, "Recipe: Strider Stew", "Cooking", 50, 40), "the recipe is in your bank: learn it at Cooking 50", "banked, skill too low")
+    t:eq(W(false, true, false, "Recipe: Strider Stew", "Cooking", 50, 50), "take Recipe: Strider Stew out of your bank first", "banked, learnable")
+    t:eq(W(true, false, false, "Recipe: Strider Stew", "Cooking", 50, 40), "you have the recipe: learn it at Cooking 50", "in your bags, skill too low")
+    t:eq(W(true, false, false, "Recipe: Strider Stew", "Cooking", 50, 55), "use the recipe in your bags first", "in your bags, learnable")
+    t:eq(W(false, false, true, "Plans", "Blacksmithing", 100, 100), "get the plans from the quest first", "from a quest")
+end)
+
+ns:Register("test", "heals: a heal still working on you isn't suggested again", function(t)
+    local E = ns.rotation
+    t:ok(E.Lingers(true, nil, 21, 100), "its buff shows: on you")
+    t:ok(E.Lingers(false, 90, 21, 100), "cast 10 s ago, lasts 21: on you")
+    t:ok(not E.Lingers(false, 70, 21, 100), "cast 30 s ago: gone")
+    t:ok(not E.Lingers(false, nil, 21, 100), "never cast: no")
+    local druid = ns:Get("rotation", "DRUID")
+    t:ok(druid.lingers and druid.lingers.Regrowth == 21, "the druid's Regrowth is one")
+end)
+
+ns:Register("test", "easy key: it follows your form in a fight", function(t)
+    local C = ns.cast
+    local forms = { { name = "Bear Form", index = 1 }, { name = "Cat Form", index = 3 } }
+    local keys = {
+        none = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" } },
+        ["Bear Form"] = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" } },
+        ["Cat Form"] = { key = "Claw", ctrl = { "Ferocious Bite", "Rake" } },
+    }
+    local known = { Wrath = true, Moonfire = true, Maul = true, ["Demoralizing Roar"] = true }
+    local cond, plan = C.FormPlan(forms, keys, function(s) return known[s] == true end)
+    t:eq(cond, "[form:1] 1; [form:3] 3; 0", "the game is asked about each form you have")
+    t:ok(plan[0].key == "Wrath" and plan[0].ctrl == "Moonfire", "no form: Wrath, Moonfire on Ctrl")
+    t:ok(plan[1].key == "Maul" and plan[1].ctrl == "Demoralizing Roar", "Bear Form: Maul, and the first Ctrl spell you know")
+    t:eq(plan[3], nil, "Cat Form with none of its spells known: left alone")
+    cond, plan = C.FormPlan({}, keys)
+    t:ok(cond == "0" and plan[0].key == "Wrath", "no forms yet: only the caster's")
+    local same = select(2, C.FormPlan({}, { none = { key = "Wrath", ctrl = "Wrath" } }))
+    t:eq(same[0].ctrl, nil, "Ctrl never repeats the key's own spell")
+    local druid = ns:Get("rotation", "DRUID")
+    local ok, k = pcall(druid.formKeys, ns.rotation)
+    t:ok(ok and k.none and k["Bear Form"] and k["Cat Form"], "the druid says what each form casts")
+    local fk = druid.fightKeys(ns.rotation)
+    if ns.api.Form() == nil then
+        t:eq(fk.ctrl[1], "Moonfire", "caster: Moonfire has Ctrl")
+        t:eq(fk.more and fk.more[1], "Entangling Roots", "and Entangling Roots has Ctrl + Shift")
+    end
+    t:ok(type(C.FormLines()) == "table" and #C.FormLines() >= 1, "/flow key test says what each form is given")
+    if not InCombatLockdown() then
+        local ok2, err = pcall(C.SetFormKeys)
+        t:ok(ok2, "the handler is set up without error" .. (ok2 and "" or (": " .. tostring(err))))
+        local _, class = UnitClass("player")
+        if class == "DRUID" and not C.formFailed and C.FormKeyOn() then
+            local h = C._FormHeader()
+            t:ok(h ~= nil, "a druid has the handler")
+            t:eq(h and h:GetAttribute("key-0"), "Wrath", "it holds the caster's key spell")
+            t:ok(issecurevariable("RegisterStateDriver"), "the game's own function stays untainted")
+        end
+    end
+end)

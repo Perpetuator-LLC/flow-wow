@@ -821,6 +821,21 @@ function SP.RecipeDue(learn, rank, ahead)
     return rank >= learn - (ahead or SP.BUY_AHEAD)
 end
 
+-- Pure: why a "Make X" stop waits on its recipe, in a few words. A recipe
+-- you own (bags or bank) never reads "buy ... first" ("I bought it, and Flow
+-- tells me to buy the recipe", 0.35.205).
+function SP.RecipeWait(inBags, inBank, fromQuest, name, prof, learn, rank)
+    local tooLow = learn and rank and rank < learn
+    if inBags then
+        return tooLow and string.format("you have the recipe: learn it at %s %d", prof, learn) or "use the recipe in your bags first"
+    end
+    if inBank then
+        return tooLow and string.format("the recipe is in your bank: learn it at %s %d", prof, learn) or ("take " .. name .. " out of your bank first")
+    end
+    if fromQuest then return "get the plans from the quest first" end
+    return "buy " .. name .. " first"
+end
+
 -- "Buy Recipe: X" for a bought recipe you don't have (as far as Flow knows).
 -- rank: your skill in the profession (nil: not looked at). banked: how many
 -- are in your bank (nil: Flow looks).
@@ -1474,8 +1489,8 @@ local function planProfession(prof, t, out)
             if s.tool then watched[s.tool] = true end
             local blocked = toolMissing and ("needs a " .. toolMissing)
                 or (s.tool and not haveStepTool(s.tool) and ("needs a " .. itemName(s.tool) .. " (make it first)"))
-                or (known and not known[s.recipe] and (s.recipeItem and (count(s.recipeItem) > 0 and "use the recipe in your bags first"
-                        or (s.quest and "get the plans from the quest first") or ("buy " .. itemName(s.recipeItem) .. " first"))
+                or (known and not known[s.recipe] and ((s.recipeItem and SP.RecipeWait(count(s.recipeItem) > 0, SP.BankCount(s.recipeItem) > 0,
+                        s.quest ~= nil, itemName(s.recipeItem), prof, s.learn, rank))
                     or ("learn " .. s.recipe .. " first")))
             blocked = blocked or depBlocked
             -- The count is the point: exactly what reaches your target, so

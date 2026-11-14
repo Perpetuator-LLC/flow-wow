@@ -660,6 +660,177 @@ ns:OnLoad(function(saved)
     end)
 end)
 
+-------------------------------------------------------------------------------
+-- The key follows your form in a fight (0.35.205)
+-------------------------------------------------------------------------------
+-- "I may want to pull with Moonfire and then go Bear Form, and the easy
+-- button gets stuck in the last form: is there a way for it to change based
+-- on form?" Flow's own code can't touch the key in a fight. The game can: a
+-- secure handler with a state driver on your form runs a small restricted
+-- snippet when the form changes, and that snippet may set the key's spell
+-- even in combat, as long as everything it needs was handed to it before
+-- the fight. So before every pull Flow gives the handler, for each form, the
+-- spell for the key and for Ctrl + key (the class's formKeys); changing
+-- form mid-fight swaps them in. Shift (your heal), Alt (your potion) and
+-- Ctrl + Shift stay as they were set at the pull.
+--
+-- A class says what each form's fight uses (rotation definition):
+--   formKeys = function(engine) return {
+--       none = { key = "Wrath", ctrl = "Moonfire" },           -- no form
+--       ["Bear Form"] = { key = "Maul", ctrl = "Demoralizing Roar" } } end
+--
+-- "The key follows your form in a fight" (Flow Settings, Your easy key)
+-- turns it off. /flow key test says what each form is given.
+
+local FORM_SNIPPET = [[
+    if not PlayerInCombat() then return end
+    local b = self:GetFrameRef("flowkey")
+    if not b then return end
+    local k = self:GetAttribute("key-" .. newstate)
+    if k and k ~= "" then
+        b:SetAttribute("type", "spell")
+        b:SetAttribute("spell", k)
+        b:SetAttribute("unit", "target")
+    end
+    local c = self:GetAttribute("ctrl-" .. newstate)
+    if c and c ~= "" then
+        b:SetAttribute("*type-ctrl", "spell")
+        b:SetAttribute("*spell-ctrl", c)
+        b:SetAttribute("*unit-ctrl", "target")
+    end
+]]
+C.FORM_STATES = 8   -- form numbers the handler is given (0 = no form)
+
+-- Pure: the state driver's condition and each state's spells. forms: your
+-- forms in the game's order ({ name, index } each); keys: the class's
+-- formKeys; knows(spell) -> bool. State 0 is no form.
+function C.FormPlan(forms, keys, knows)
+    local function pick(v)
+        if type(v) == "string" then return (not knows or knows(v)) and v or nil end
+        for _, spell in ipairs(v or {}) do
+            if not knows or knows(spell) then return spell end
+        end
+    end
+    local function entry(e)
+        if not e then return nil end
+        local key = pick(e.key)
+        local ctrl = pick(e.ctrl)
+        if ctrl == key then ctrl = nil end
+        if not (key or ctrl) then return nil end
+        return { key = key, ctrl = ctrl }
+    end
+    local cond, plan = {}, { [0] = entry(keys and keys.none) }
+    for _, f in ipairs(forms or {}) do
+        if f.index and f.index <= C.FORM_STATES then
+            cond[#cond + 1] = string.format("[form:%d] %d", f.index, f.index)
+            plan[f.index] = entry(keys and keys[f.name])
+        end
+    end
+    cond[#cond + 1] = "0"
+    return table.concat(cond, "; "), plan
+end
+
+local formHeader, formCond, formSwitched
+C.formPlan = nil
+function C.FormKeyOn() return ns.db.cast.formKey ~= false end
+
+-- Hands the handler this fight's spells. Out of a fight (and in the last
+-- moment before one) only.
+function C.SetFormKeys()
+    if InCombatLockdown() or not btn then return false end
+    local def = E:Definition()
+    local keys
+    if def and def.formKeys and C.FormKeyOn() then
+        local ok, k = pcall(def.formKeys, E)
+        keys = ok and k or nil
+    end
+    if not keys and not formHeader then return false end   -- (a class with no forms: no handler at all)
+    if not formHeader then
+        local ok, h = pcall(CreateFrame, "Frame", "FlowFormKey", UIParent, "SecureHandlerStateTemplate")
+        if not ok or not h or not h.SetFrameRef then
+            if not C.formFailed then ns:Log("rotation", "form key: this client has no secure state handler (" .. tostring(h) .. ")") end
+            C.formFailed = true
+            return false
+        end
+        formHeader = h
+        h:SetFrameRef("flowkey", btn)
+        h:SetAttribute("_onstate-flowform", FORM_SNIPPET)
+    end
+    local cond, plan = C.FormPlan(A.StanceSpells(), keys, function(spell) return E:Knows(spell) end)
+    for i = 0, C.FORM_STATES do
+        local p = keys and plan[i]
+        formHeader:SetAttribute("key-" .. i, p and p.key or "")
+        formHeader:SetAttribute("ctrl-" .. i, p and p.ctrl or "")
+    end
+    if cond ~= formCond then
+        if formCond and UnregisterStateDriver then UnregisterStateDriver(formHeader, "flowform") end
+        RegisterStateDriver(formHeader, "flowform", cond)
+        formCond = cond
+        ns:Log("rotation", "form key: watching " .. cond)
+    end
+    C.formPlan = keys and plan or nil
+    return true
+end
+C._FormHeader = function() return formHeader end   -- (tests)
+
+-- Flow's own picture of it: your form changed in a fight, so the key (and
+-- Ctrl + key) now cast that form's spells. The handler did the real work.
+local function formNow()
+    for _, s in ipairs(A.StanceSpells()) do
+        if s.active then return s.index end
+    end
+    return 0
+end
+ns:On("UPDATE_SHAPESHIFT_FORM", function()
+    if not (InCombatLockdown() and C.formPlan and formHeader) then return end
+    local p = C.formPlan[formNow()]
+    if not p then return end
+    if p.key then lockedSpell = p.key end
+    if p.ctrl then slotView.ctrl = { spell = p.ctrl, kind = "damage", reason = "Your second spell in this form" } end
+    formSwitched = true
+    ns:Log("rotation", string.format("form key: form %d in a fight, the key casts %s, Ctrl + key %s", formNow(), tostring(p.key), tostring(p.ctrl)))
+end)
+-- After the fight: what Flow remembers having set is stale (the handler
+-- changed it), so the next update writes the key and Ctrl again.
+ns:On("PLAYER_REGEN_ENABLED", function()
+    if formSwitched then
+        formSwitched = false
+        macro = nil
+        slotText.ctrl = nil
+    end
+    if C_Timer then C_Timer.After(0.3, function() pcall(C.SetFormKeys) end) end
+end)
+ns:On("PLAYER_ENTERING_WORLD", function() if C_Timer then C_Timer.After(3, function() pcall(C.SetFormKeys) end) end end)
+ns:On("SPELLS_CHANGED", function() if not InCombatLockdown() then pcall(C.SetFormKeys) end end)
+
+-- /flow key test: what each form is given.
+function C.FormLines()
+    if not C.formPlan then
+        return { "  key follows your form: " .. (C.formFailed and "not on this client (no secure state handler)" or (C.FormKeyOn() and "nothing to switch (this class has no forms set up)" or "off")) }
+    end
+    local out = { "  key follows your form in a fight (watching " .. tostring(formCond) .. "):" }
+    local names = { [0] = "no form" }
+    for _, s in ipairs(A.StanceSpells()) do names[s.index] = s.name end
+    for i = 0, C.FORM_STATES do
+        local p = C.formPlan[i]
+        if p then out[#out + 1] = string.format("    %s: key %s, Ctrl + key %s", names[i] or ("form " .. i), tostring(p.key), tostring(p.ctrl)) end
+    end
+    return out
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "The key follows your form in a fight",
+        tip = "Change form in a fight (Bear Form after pulling as a caster) and your key and Ctrl + key cast that form's spells. Off: they keep what they had at the pull.",
+        get = function() return C.FormKeyOn() end,
+        set = function(on)
+            ns.db.cast.formKey = on and true or false
+            if not InCombatLockdown() then pcall(C.SetFormKeys) end
+        end,
+    })
+end
+
 -- Last moment before combat lockdown: lock in the spell for this fight.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if btn and not btn:IsShown() then btn:Show() end  -- key must work all fight
@@ -689,6 +860,8 @@ ns:On("PLAYER_REGEN_DISABLED", function()
     -- they're given now for the whole fight (Queue.lua: your second attack,
     -- your heal, your healthstone or the spell that holds your target).
     C.SetFightQueue()
+    -- And what each form casts, for a change of form mid-fight (above).
+    pcall(C.SetFormKeys)
 end)
 
 ns:On("PLAYER_REGEN_ENABLED", function()
@@ -729,6 +902,7 @@ function C:Test()
         .. ", game has Start Attack (auto attack on, never off): " .. tostring(C.HasStartAttack()))
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "
         .. tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")))
+    for _, l in ipairs(C.FormLines()) do print(l) end
 end
 
 -------------------------------------------------------------------------------

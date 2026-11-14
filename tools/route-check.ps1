@@ -225,6 +225,25 @@ foreach ($q in $quests) {
 }
 $locked = @($rec | Where-Object { $_.kind -eq 'goal' -and $_.state -eq 'locked' -and $_.key -notmatch '^\d+:' })
 foreach ($g in $locked) { Write-Output ("held back: {0} - {1}" -f $g.text, $g.blocked); $missing++ }
+# Every stop Flow lists but can't put on the route, by the kind of reason, so
+# each check shows which ones are Flow's to fix ("fix all of these no known
+# spot issues ... add these into it so they're folded in as we go", 0.35.205).
+$unplaced = @($rec | Where-Object { $_.kind -eq 'goal' -and $_.state -eq 'locked' })
+if ($unplaced.Count -gt 0) {
+    Write-Output ""
+    Write-Output ("--- Stops Flow can't place ({0}) ---" -f $unplaced.Count)
+    foreach ($g in $unplaced) {
+        $b = [string]$g.blocked
+        $class = if ($b -match '^Inside |^Handed in inside ') { 'dungeon (expected: the dungeon run handles it)' }
+            elseif ($b -match 'battleground') { 'battleground (expected)' }
+            elseif ($b -match "doesn't know where it's handed in") { 'TO FIX: turn-in with no place (learned when handed in once)' }
+            elseif ($b -match "has no spot for|a kind Flow can't place") { 'TO FIX: objective with no place in the quest data (learned when done once)' }
+            elseif ($b -match "doesn't know where .* comes from|doesn't know who sells") { 'TO FIX: no source known for the item' }
+            elseif ($b -match ' first$|^needs |^buy |^learn |^use ') { 'waits for another step (expected)' }
+            else { 'CHECK: other reason' }
+        Write-Output ("{0}: {1} [{2}] - {3}" -f $class, $g.text, $g.key, $b)
+    }
+}
 # flight masters you pass without knowing their flight path
 $routePts = @($nodes | ForEach-Object { $_ })
 foreach ($f in $fms) {

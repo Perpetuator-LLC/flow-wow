@@ -981,6 +981,14 @@ function D:Cancel()
     if ns.nav and ns.nav.Collect then ns.nav:Collect() end
 end
 
+-- The dungeon a quest is filed under: its name, or nil (not a dungeon's, or
+-- the index isn't built yet).
+function D.Of(questID)
+    local t = questID and dungeonOfId[questID]
+    local d = t and dungeons and dungeons[t]
+    return d and d.name or nil
+end
+
 function D:GoToEntrance(key)
     local run = self:Run(key)
     if run and run.entrance then ns.waypoint:Set(run.entrance.map, run.entrance.x, run.entrance.y, run.name) end

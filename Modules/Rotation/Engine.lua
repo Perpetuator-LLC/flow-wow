@@ -303,6 +303,13 @@ function E.DirectHeal(heals, hots, ok, castMs)
     return fastest(true) or fastest(false)
 end
 
+-- Pure: is a lingering heal still on you? up: its buff shows; castAt: when
+-- you last cast it (nil: never); lasts: its seconds.
+function E.Lingers(up, castAt, lasts, now)
+    if up then return true end
+    return castAt ~= nil and (now - castAt) < (lasts or 0)
+end
+
 -- The heal to suggest for the estimate, or nil. hurt defaults to E.hurt.
 function E:EarlyHeal(ctx, def, hurt, now)
     hurt, now = hurt or E.hurt, now or GetTime()
@@ -318,10 +325,22 @@ function E:EarlyHeal(ctx, def, hurt, now)
         if hotUp(sp, def, now) then ticking = true
         elseif not hot and self:Ready(sp) then hot = sp end
     end
+    -- A heal that goes on healing after it lands (def.lingers: Regrowth, 21 s)
+    -- and is still on you: not that one again ("the easy button tells me to
+    -- cast Regrowth again even though it is active on me", 0.35.205). Another
+    -- heal if you're hit a lot; out of a fight it counts as healing you.
+    local lingering, again = {}, nil
+    for sp, dur in pairs(def.lingers or {}) do
+        if E.Lingers(A.Buff("player", sp) and true or false, hotCastAt[sp], dur, now) then
+            lingering[sp] = true
+            ticking = true
+            if self:Ready(sp) then again = again or sp end
+        end
+    end
     -- (A HoT already on you isn't cast again.)
     local fast, fastMs, big, bigMs
     for _, sp in ipairs(heals) do
-        if self:Ready(sp) and not (isHot[sp] and sp ~= hot) then
+        if self:Ready(sp) and not (isHot[sp] and sp ~= hot) and not lingering[sp] then
             local _, _, ms = A.SpellInfo(sp)
             ms = ms or 0
             if not fastMs or ms < fastMs then fast, fastMs = sp, ms end
@@ -337,9 +356,10 @@ function E:EarlyHeal(ctx, def, hurt, now)
         -- Hit a lot: a heal that lands at once (E.DirectHeal), not twelve
         -- seconds of ticks. The same heal Shift + key casts (Cast.lua HealFor).
         if hurt >= H.inHeal then
-            local direct = E.DirectHeal(heals, def.hots, function(sp) return self:Ready(sp) end,
+            local direct = E.DirectHeal(heals, def.hots, function(sp) return not lingering[sp] and self:Ready(sp) end,
                 function(sp) return select(3, A.SpellInfo(sp)) end)
-            return heal(direct or fast, "You've been hit a lot: heal now (Shift + key)")
+            -- (Only the lingering heal to cast: again, then. Its first part lands at once.)
+            return heal(direct or fast or again, "You've been hit a lot: heal now (Shift + key)")
         end
         if hurt >= H.inHot and hot then return heal(hot, "Hit for a while: " .. hot .. " now, before it's a problem (Shift + key)") end
         return nil
@@ -1538,6 +1558,7 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if not value or name == "First Aid" then return end   -- (a bandage: below)
     local def = E:Definition()
     for _, sp in ipairs(def and def.hots or {}) do if sp == name then hotCastAt[sp] = GetTime() end end
+    if def and def.lingers and def.lingers[name] then hotCastAt[name] = GetTime() end
     local before = E.hurt
     E.hurt = math.max(0, E.hurt - value)
     ns:Log("heal", string.format("cast %s: hurt %.0f -> %.0f", name, before, E.hurt))

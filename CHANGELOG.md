@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.35.205
+- **No icons on quest mobs: your enemy nameplates are off.** The skull, the diamond and the
+  count sit on nameplates, and the diagnostics showed none in view with the game's enemy
+  nameplates switched off. Flow now says so once a session when a quest of yours wants mobs:
+  press V, or type `/flow quest plates`.
+- **"No known spot" stops.** Three kinds, each handled its own way:
+  - *Inside a dungeon* (Testing an Enemy's Strength, the turn-in of Searching for the Lost
+    Satchel): the row now says "in Ragefire Chasm" and why it isn't on your route.
+  - *From battlegrounds* (Battle of Warsong Gulch): the row says "from battlegrounds".
+  - *Quests with no place in the quest data* (the ones new to WoW: Forever, like Stalk With
+    The Earthmother): Flow now learns the spot when you do the objective or hand the quest
+    in, and uses it the next time that quest is in a log (any of your characters).
+    `/flow spots` lists what it has learned. Until someone has done it once, it still reads
+    "no known spot".
+  - "Make Strider Stew: buy the recipe first" no longer says "buy" for a recipe you own:
+    "the recipe is in your bank: learn it at Cooking 50".
+- **The easy key follows your form in a fight.** Pull as a caster, go Bear Form, and the key
+  casts Maul and Ctrl + key Demoralizing Roar (Swipe once you have it); back out of the form
+  and they are Wrath and Moonfire again. The game does the switch itself, from a list Flow
+  hands it before each pull. Shift, Alt and Ctrl + Shift keep what they had at the pull.
+  "The key follows your form in a fight" in Flow Settings turns it off; `/flow key test`
+  shows what each form is given. Not seen working in game yet.
+- **Druid caster keys:** Moonfire is on Ctrl + key now and Entangling Roots on
+  Ctrl + Shift + key (the key still opens with Roots before the pull).
+- **Regrowth isn't suggested again while it's still healing you** (21 s). Hit a lot in a
+  fight, Flow asks for another heal instead (Healing Touch).
+- For route checks: `tools\route-check.ps1` now lists every stop Flow can't place, sorted
+  into expected ones (a dungeon, a battleground, waiting for another step) and ones to fix.
+
 ## 0.35.204
 - **Map numbers keep their distance.** A stop's number used to sit right against its point
   even when that put it on top of another number or point. Now it keeps a little room from

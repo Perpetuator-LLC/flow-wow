@@ -87,6 +87,10 @@ an improvement). Use it whenever the player asks whether the route is right, and
 changing the planner: where Flow is longer, find the rule that made it so (a class quest
 first, the zone first, a hub's quests picked up before leaving) and decide whether the rule
 or the route is wrong. It doesn't weigh XP or know terrain; say so when you report.
+Its last section, "Stops Flow can't place", sorts every locked stop into expected ones (a
+dungeon, a battleground, waiting for another step) and `TO FIX` / `CHECK` ones: each time
+you run it, fix those (a missing source, a reason that reads wrong, a new kind of stop) in
+the same change, without being asked.
 `-From file.txt` runs it on a file of export lines; `-Dump` prints the lines.
 
 ## "Watch Flow's in-game chat" (/si in game)
