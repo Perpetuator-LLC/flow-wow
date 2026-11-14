@@ -6469,7 +6469,9 @@ ns:Register("test", "click: route menu ticks stay open; select all, clear all", 
         ns.db.nav.kinds = {}
         local items = M.KindItems()
         local by = {}
-        for _, it in ipairs(items) do by[it.kind or it.text] = it end
+        for _, it in ipairs(items) do
+            if it.kind or it.text then by[it.kind or it.text] = it end   -- (a line across has neither)
+        end
         t:eq(items[1].text, "Route includes", "its title")
         t:ok(by.quests and by.newQuests and by.lowQuests and by.training and by.professions and by.town, "a tick for every kind")
         t:ok(by.quests.checked and not by.lowQuests.checked, "ticked as the route is (low-level quests off by default)")
@@ -10593,4 +10595,50 @@ ns:Register("test", "stops on the map: next stop only by default; the area choic
         if topic.title == "Stops, objectives, waypoints" then found = true end
     end
     t:ok(found, "/flow help says what a stop, an objective and a waypoint are")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.226: Route includes: the dungeon key's tick, and lines above Select
+-- all and Unhide all stops.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: Route includes has the dungeon key's tick and its two lines", function(t)
+    local M = ns.menu
+    local ok, items = pcall(M.RouteItemsRaw, M)
+    t:ok(ok and type(items) == "table", "the menu builds" .. (ok and "" or (": " .. tostring(items))))
+    if not ok then return end
+    -- The Route includes section, as a list.
+    local sec, inside = {}, false
+    for _, it in ipairs(items) do
+        if it.title then inside = it.text == "Route includes"
+        elseif it.sep then inside = false
+        elseif inside then sec[#sec + 1] = it end
+    end
+    local at = {}
+    for i, it in ipairs(sec) do
+        if it.text == "Select all" then at.select = i end
+        if type(it.text) == "string" and it.text:find("^Unhide all stops") then at.unhide = i end
+        if type(it.text) == "string" and it.text:find("^Dungeon key above the Flow Tracker") then at.key = i end
+    end
+    t:ok(at.select and sec[at.select - 1] and sec[at.select - 1].rule == true, "a line above Select all")
+    t:ok(at.unhide and sec[at.unhide - 1] and sec[at.unhide - 1].rule == true, "a line above Unhide all stops")
+    -- A line inside a section doesn't cut the section in two when the menu folds.
+    local folded = M.Fold({ { title = true, text = "This stop" }, { text = "Open it" }, { sep = true },
+        { title = true, text = "Route includes" }, { text = "Quests", checked = true }, { rule = true }, { text = "Select all" } })
+    local route
+    for _, it in ipairs(folded) do if it.section and it.text == "Route includes" then route = it end end
+    t:ok(route and #route.sub == 3 and route.sub[2].rule == true, "folded: the line stays inside its section")
+    t:ok(pcall(M.Click, { rule = true }), "a click on a line does nothing")
+    local D = ns.dungeons
+    if D and D.Suggest then
+        t:ok(at.key ~= nil, "the dungeon key has a tick in Route includes")
+        if at.key then
+            local was = ns.db.nav.dungeonSuggest
+            local it = sec[at.key]
+            t:eq(it.checked, D:Suggest(), "ticked as it is now")
+            local okC, err = pcall(it.func)
+            t:ok(okC and D:Suggest() == not it.checked, "a click turns the key on or off" .. (okC and "" or (": " .. tostring(err))))
+            ns.db.nav.dungeonSuggest = was
+        end
+    end
 end)

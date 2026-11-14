@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.226
+- **The dungeon key has a tick under Route includes.** "Dungeon key above the Flow Tracker
+  (suggests runs)" turns the gold key on and off, with the rest of what the route has. (The
+  Dungeons section keeps its "Suggest dungeons" tick: the same switch.)
+- **Route includes is easier to read:** a line above "Select all" and another above
+  "Unhide all stops".
+
 ## 0.35.225
 - **"Next stop only" is the default** for Stops on the map (the map and the Flow Tracker). It
   was "All objectives in this area" unless you had picked a number. If you never chose, you

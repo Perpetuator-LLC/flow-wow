@@ -212,14 +212,17 @@ layout = function(f, list, items)
         r:ClearAllPoints()
         r:SetPoint("TOPLEFT", 3, y)
         r:SetPoint("TOPRIGHT", 0, y)
-        local h = it.sep and 7 or ROW_H
+        -- A line across: between sections (sep), or inside one (rule: it
+        -- doesn't end the section when the menu folds, Menu.Fold).
+        local isLine = it.sep == true or it.rule == true
+        local h = isLine and 7 or ROW_H
         r:SetHeight(h)
-        r.line:SetShown(it.sep == true)
-        r.text:SetShown(not it.sep)
-        r.mark:SetShown(not it.sep)
+        r.line:SetShown(isLine)
+        r.text:SetShown(not isLine)
+        r.mark:SetShown(not isLine)
         r.arrow:SetShown(it.section == true)
-        r.hl:SetShown(not (it.sep or it.title or it.disabled))
-        if not it.sep then
+        r.hl:SetShown(not (isLine or it.title or it.disabled))
+        if not isLine then
             if it.section then
                 local state = Menu.SectionState(it.sub)
                 r.text:SetText("|cffffd200" .. (it.text or "") .. "|r" .. (state and ("  |cff999999" .. state .. "|r") or ""))
@@ -245,7 +248,7 @@ layout = function(f, list, items)
         r:SetScript("OnEnter", function(self)
             if f == frame then
                 if it.section then Menu.ShowSection(it, self)
-                elseif not it.sep then Menu.HideSection() end
+                elseif not it.sep and not it.rule then Menu.HideSection() end
             end
             if not it.tip then return end
             ns.Tip(self, "ANCHOR_RIGHT")
@@ -265,7 +268,7 @@ end
 -- function brings its own tick, text and disabled up to date, and the menu
 -- is drawn again where it is.
 function Menu.Click(it)
-    if it.sep or it.title or it.disabled or it.section then return end
+    if it.sep or it.rule or it.title or it.disabled or it.section then return end
     if not it.stay then Menu:Close() end
     if it.func then
         local ok, err = pcall(it.func)
@@ -337,6 +340,7 @@ function Menu.KindItems()
             items[#items + 1] = own
         end
     end
+    items[#items + 1] = { rule = true }   -- (a line above Select all, 0.35.226)
     items[#items + 1] = { text = "Select all", stay = true, func = function() nav:SetAllKinds(true) end }
     items[#items + 1] = { text = "Clear all", stay = true, func = function() nav:SetAllKinds(false) end }
     return items
@@ -411,8 +415,18 @@ function Menu:RouteItemsRaw()
         local ok, it = pcall(D.RouteItem, D)
         if ok and it then includes[#includes + 1] = it end
     end
+    -- The dungeon key above the Flow Tracker (Flow's dungeon suggestions): a
+    -- tick here too, where you choose what the route has (0.35.226).
+    if D and D.Suggest then
+        includes[#includes + 1] = { text = "Dungeon key above the Flow Tracker (suggests runs)", stay = true,
+            checked = D:Suggest(),
+            tip = "A gold key above your quest list when a dungeon run is worth doing at your level. Hover it for the run; click it to put the run's quests and its entrance on your route.",
+            refresh = function(it) it.checked = D:Suggest() end,
+            func = function() ns.db.nav.dungeonSuggest = not D:Suggest() end }
+    end
     local nHidden = 0
     for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
+    includes[#includes + 1] = { rule = true }   -- (and above Unhide all stops)
     includes[#includes + 1] = { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
         func = function() ns.commands.nav("unhide") end }
     section("Route includes", includes)
