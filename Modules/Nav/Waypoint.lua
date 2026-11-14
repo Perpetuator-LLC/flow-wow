@@ -94,6 +94,24 @@ function W.CtrlTip(key, down, over, db)
     return "hide"
 end
 
+-- The tooltip sits down and to the right of the cursor and follows it, so
+-- it never covers the spot you're about to click ("it is blocking where
+-- the waypoint is going to be clicked", 0.35.184).
+--   cx, cy: the cursor (screen pixels); scale: the interface's scale
+-- -> x, y of the tooltip's top left corner, from the screen's bottom left
+W.TIP_DX, W.TIP_DY = 28, 28
+function W.TipSpot(cx, cy, scale)
+    scale = (scale and scale > 0) and scale or 1
+    return cx / scale + W.TIP_DX, cy / scale - W.TIP_DY
+end
+local follower
+local function placeTip()
+    local cx, cy = GetCursorPosition()
+    local x, y = W.TipSpot(cx, cy, UIParent:GetEffectiveScale())
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+end
+
 local tipUp
 function W.OnModifier(key, down)
     local sc = WorldMapFrame and WorldMapFrame.ScrollContainer
@@ -102,11 +120,21 @@ function W.OnModifier(key, down)
     local act = W.CtrlTip(key, down, over, ns.db.nav)
     if act == "show" then
         tipUp = true
-        GameTooltip:SetOwner(sc, "ANCHOR_CURSOR")
+        GameTooltip:SetOwner(sc, "ANCHOR_NONE")
         GameTooltip:SetText("Waypoint")
+        placeTip()
         GameTooltip:Show()
+        -- (It follows the cursor while it's up.)
+        if not follower then
+            follower = CreateFrame("Frame")
+            follower:SetScript("OnUpdate", function(self)
+                if tipUp and GameTooltip:IsOwned(sc) then placeTip() else self:Hide() end
+            end)
+        end
+        follower:Show()
     elseif act == "hide" and tipUp then
         tipUp = nil
+        if follower then follower:Hide() end
         if GameTooltip:IsOwned(sc) then GameTooltip:Hide() end
     end
     return act

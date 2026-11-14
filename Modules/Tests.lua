@@ -7038,7 +7038,7 @@ ns:Register("test", "pathing: between regions the way goes by a gate (Thunder Bl
             G.Track({ cont = 1, wx = 100, wy = 0, map = 1456 }, false, 203)
             t:eq(#ns.db.nav.gates, 1, "standing still as the map becomes Thunder Bluff's (a lift): the spot is kept")
             G.Track({ cont = 1, wx = 110, wy = 2, map = 1412 }, false, 204)
-            t:eq(#ns.db.nav.gates, 1, "back down (out of a walled place): not learned")
+            t:eq(#ns.db.nav.gates, 1, "back down by the same lift: the same way, not a second one")
             G.Track({ cont = 1, wx = 2000, wy = 2000, map = 1456 }, false, 205)
             t:eq(#ns.db.nav.gates, 1, "a jump of 2000 yd is a hearthstone, not a walk: not learned")
             G.Track(nil)
@@ -8254,4 +8254,58 @@ ns:Register("test", "click: an improvement's row and its link icon open what it'
     t:eq(T.PrereqKey(spells, "Swiftmend", questKey), nil, "waits for a talent: no stop to send you to")
     t:eq(T.PrereqKey(spells, "Unheard Of", questKey), nil, "not in your class's list: nothing")
     t:eq(T.PrereqKey(spells, "Bear Form", nil), nil, "no quest lookup: nothing")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.184: a lift is learned going down too; the "Waypoint" tooltip sits
+-- down and to the right of the cursor.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gates: a lift ride is learned in either direction", function(t)
+    local G = ns.gates
+    t:eq(G.Learnable(1456, 1412, true, false, true, true), true, "riding a lift down out of Thunder Bluff: learned")
+    t:eq(G.Learnable(1456, 1412, true, false, true, false), false, "leaving it without a ride (off the edge, along the rim): not")
+    t:eq(G.Learnable(1412, 1456, false, true, true, true), true, "riding up: learned, as before")
+    t:eq(G.Learnable(1412, 1456, false, true, true, false), false, "the rim on foot: not, as before")
+    t:eq(G.Learnable(1454, 1411, true, false, false, true), false,
+        "out of a gated city into the open: still not (a jump off its wall is no way in)")
+    -- Tracked: you fly into Thunder Bluff, then stand on a lift as it takes you down to Mulgore.
+    local realLog = ns.Log
+    ns.Log = function() end
+    local ok, err = pcall(function()
+        with(ns.db.nav, "gates", {}, function()
+            G.Forget()
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 500, wy = 0, map = 1456 }, false, 100)
+            G.Track({ cont = 1, wx = 500, wy = 0, map = 1456 }, false, 101)
+            G.Track({ cont = 1, wx = 500, wy = 0, map = 1456 }, false, 102)
+            G.Track({ cont = 1, wx = 500, wy = 0, map = 1412 }, false, 103)
+            t:eq(#ns.db.nav.gates, 1, "standing still as the map becomes Mulgore's (the lift down): the way is kept")
+            local via = G.Via({ cont = 1, wx = 800, wy = 0, map = 1412 }, { cont = 1, wx = 480, wy = 0, map = 1456 })
+            t:ok(via and via.points[1] and via.points[1].wx == 500, "and it's the way back up")
+            -- Walking off the edge (the map flips while you move): nothing.
+            G.Track(nil)
+            G.Track({ cont = 1, wx = 900, wy = 0, map = 1456 }, false, 200)
+            G.Track({ cont = 1, wx = 907, wy = 0, map = 1412 }, false, 201)
+            t:eq(#ns.db.nav.gates, 1, "walking as the map flips: not a way")
+        end)
+    end)
+    ns.Log = realLog
+    G.Track(nil)
+    G.Forget()
+    t:ok(ok, "learning runs" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+ns:Register("test", "waypoint: the Ctrl tooltip sits down and to the right of the cursor", function(t)
+    local W = ns.waypoint
+    local x, y = W.TipSpot(1000, 600, 1)
+    t:ok(x > 1000 and y < 600, "its top left corner is right of the cursor and below it")
+    t:near(x, 1000 + W.TIP_DX, 0.01, "to the right")
+    t:near(y, 600 - W.TIP_DY, 0.01, "and down")
+    x, y = W.TipSpot(1000, 600, 0.5)
+    t:near(x, 2000 + W.TIP_DX, 0.01, "the interface's scale is counted")
+    t:near(y, 1200 - W.TIP_DY, 0.01, "both ways")
+    x, y = W.TipSpot(10, 10, nil)
+    t:ok(x and y, "no scale: still a spot")
+    t:ok(W.TIP_DX >= 20 and W.TIP_DY >= 20, "far enough from the cursor to leave the click spot clear")
 end)

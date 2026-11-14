@@ -102,13 +102,17 @@ end
 -------------------------------------------------------------------------------
 
 -- Is a crossing from one region into another one to learn? Into a walled
--- place: yes. Out of one into the open: no. Into a place only lifts reach
--- (liftOnly): only when you rode one (rode), not when the map flipped as you
--- walked along its edge.
+-- place: yes. Out of one into the open on foot: no (you can leave a city by
+-- jumping off its wall, which is no way in). A place only lifts reach
+-- (liftOnly: either end is one): only when you rode a lift (rode), not when
+-- the map flipped as you walked along its edge, and then in EITHER
+-- direction: a lift goes both ways. (Until 0.35.184 riding down out of
+-- Thunder Bluff taught nothing: a druid who flew in and rode the lift down
+-- still had no way up.)
 function G.Learnable(from, to, walledFrom, walledTo, liftOnly, rode)
     if not (from and to) or from == to then return false end
+    if liftOnly then return rode == true end
     if walledFrom and not walledTo then return false end
-    if liftOnly and not rode then return false end
     return true
 end
 
@@ -260,7 +264,7 @@ end
 -- stood still on the map while it happened (a lift carried you).
 function G.Learn(fromMap, toMap, p, rode)
     local a, b = G.Region(fromMap), G.Region(toMap)
-    if not G.Learnable(a, b, G.Walled(a), G.Walled(b), G.LiftOnly(b), rode) then return false end
+    if not G.Learnable(a, b, G.Walled(a), G.Walled(b), G.LiftOnly(a) or G.LiftOnly(b), rode) then return false end
     local list = store()
     if #list >= G.MAX or not G.IsNew(list, p.cont, p.wx, p.wy, a, b) then return false end
     list[#list + 1] = { cont = p.cont, wx = floor(p.wx), wy = floor(p.wy), a = a, b = b }

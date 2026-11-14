@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.184
+- **A lift is learned going down too.** Flow only learned a way between maps when you rode
+  INTO a walled place. A druid who flew into Thunder Bluff and rode the lift down had taught
+  it nothing, and it still knew no way up. A lift ride now counts in either direction (the
+  rim, a jump off the edge and a city wall still don't).
+- **The "Waypoint" tooltip no longer covers the spot you're about to click.** It sits down
+  and to the right of the cursor and follows it.
+
 ## 0.35.183
 - **Flow Improvements: a link icon and a hide icon on every row.** The link icon, or a click
   on the row, opens what the improvement is about: for a stop, its card (where it is, "Go
