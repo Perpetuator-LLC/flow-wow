@@ -209,7 +209,7 @@ end
 -------------------------------------------------------------------------------
 local function build()
     local f = CreateFrame("Frame", "FlowBanker", UIParent)
-    f:SetSize(330, 96 + B.ROWS * 15)
+    f:SetSize(330, 110 + B.ROWS * 15)   -- (0.35.221: 14 more, so two lines of words fit above the grid)
     f:SetFrameStrata("DIALOG")
     f:SetPoint("LEFT", UIParent, "LEFT", 380, 60)
     f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -274,6 +274,32 @@ local function build()
         r:SetWordWrap(false)
         f.rows[i] = r
     end
+    -- "Auction prices": a small search, by any part of the name (0.35.221).
+    f.search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    f.search:SetSize(120, 18)
+    f.search:SetPoint("BOTTOMRIGHT", -12, 10)
+    f.search:SetAutoFocus(false)
+    f.search:SetMaxLetters(30)
+    f.search.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.search.label:SetPoint("RIGHT", f.search, "LEFT", -8, 0)
+    f.search.label:SetText("Search:")
+    f.search:SetScript("OnTextChanged", function(self)
+        B.filter = self:GetText() or ""
+        B.offset = 0
+        B:Fill()
+    end)
+    f.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    -- "To bank": the things in your bags, or every choice you've made (also
+    -- for things you don't carry now).
+    f.all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.all:SetSize(110, 22)
+    f.all:SetPoint("BOTTOMLEFT", 10, 8)
+    f.all:SetScript("OnClick", function()
+        B.allRules = not B.allRules
+        B.offset = 0
+        B:Fill()
+    end)
     f.go = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.go:SetSize(120, 22)
     f.go:SetPoint("BOTTOM", 0, 8)
@@ -287,7 +313,7 @@ end
 -- what Flow saw in your bank when it was last open, readable anywhere.
 -- "prices": what Flow last saw at the auction house.
 B.VIEWS = {
-    { key = "put", label = "To put away" },
+    { key = "put", label = "To bank" },   -- (was "To put away" until 0.35.221)
     { key = "bank", label = "In your bank" },
     { key = "prices", label = "Auction prices" },
 }
@@ -351,6 +377,17 @@ function B.Window(n, offset, rows)
     return offset + 1, last, n - last, offset
 end
 
+-- Pure: the rows whose name holds `text` (any part, any case); no text: all.
+function B.Filter(rows, text)
+    text = type(text) == "string" and text:lower():gsub("^%s+", ""):gsub("%s+$", "") or ""
+    if text == "" then return rows end
+    local out = {}
+    for _, r in ipairs(rows or {}) do
+        if type(r.name) == "string" and r.name:lower():find(text, 1, true) then out[#out + 1] = r end
+    end
+    return out
+end
+
 -- What a view shows now: the line above the list, and its lines of text.
 function B.ViewLines(view)
     local now = time()
@@ -370,15 +407,19 @@ function B.ViewLines(view)
             local ok, p = pcall(AH.Prices, AH)
             if ok and type(p) == "table" then prices = p end
         end
-        local rows = B.PriceRows(prices, nameOf)
+        local all = B.PriceRows(prices, nameOf)
+        local rows = B.Filter(all, B.filter)
         local out = {}
         for _, r in ipairs(rows) do
             out[#out + 1] = string.format("%s  |cffffd100%s|r each  |cff999999(%s)|r", r.name, AH.Money(r.price), B.Ago(now - (r.at or 0)))
         end
-        if #rows == 0 then
+        if #all == 0 then
             return "No auction prices yet: Flow reads them when you open the auction house.", out
         end
-        return string.format("The cheapest buyout Flow last saw, for %d item(s):", #rows), out
+        if #rows < #all then
+            return string.format("%d of %d item(s) with \"%s\" in the name (the cheapest buyout Flow last saw):", #rows, #all, tostring(B.filter)), out
+        end
+        return string.format("The cheapest buyout Flow last saw, for %d item(s). Search below.", #rows), out
     end
     local list = B.List()
     local out = {}
@@ -429,7 +470,7 @@ local function makeCell(f, i)
     local c = CreateFrame("Frame", nil, f)
     c:SetSize(B.CELL - 2, B.CELL - 2)
     local col, row = (i - 1) % B.COLS, math.floor((i - 1) / B.COLS)
-    c:SetPoint("TOPLEFT", 14 + col * B.CELL, -68 - row * B.CELL)
+    c:SetPoint("TOPLEFT", 14 + col * B.CELL, -82 - row * B.CELL)
     c.edge = c:CreateTexture(nil, "BACKGROUND", nil, 1)
     c.edge:SetPoint("TOPLEFT", -1, 1); c.edge:SetPoint("BOTTOMRIGHT", 1, -1)
     c.edge:SetColorTexture(0.3, 0.3, 0.33, 0.9)
@@ -461,6 +502,24 @@ local function makeCell(f, i)
     c:SetScript("OnMouseUp", function(self, button) B:CellClick(self, button) end)
     c:Hide()
     return c
+end
+
+-- Pure: every choice you've made, as cells (things you carry or not): to
+-- the bank first, then by name.
+function B.RuleCells(rules, name)
+    local out = {}
+    for id, rule in pairs(rules or {}) do
+        if type(id) == "number" and (rule == "bank" or rule == "carry") then
+            out[#out + 1] = { id = id, name = (name and name(id)) or ("item " .. id), count = 0, bank = rule == "bank", mine = rule,
+                              why = rule == "bank" and "you chose to bank it" or "you chose to carry it" }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.bank ~= b.bank then return a.bank end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return out
 end
 
 -- A cell of the "to put away" view: green edge = goes to the bank, grey and
@@ -503,7 +562,7 @@ function B:FillGrid(show)
         -- What Flow keeps in your bags: to the bank (green) or with you (grey).
         local D = ns.disposition
         local okR, rows = pcall(D.Inventory, D)
-        cells = B.PutCells(okR and rows or {}, B.Needed(), B.Rules())
+        cells = B.allRules and B.RuleCells(B.Rules(), nameOf) or B.PutCells(okR and rows or {}, B.Needed(), B.Rules())
     else
         cells, own = B.Cells(bank.layout, bank.items, nameOf)
     end
@@ -537,6 +596,10 @@ function B:FillGrid(show)
     if show == "put" then
         local n = 0
         for _, s in ipairs(cells) do if s.bank then n = n + 1 end end
+        if B.allRules then
+            return string.format("Every choice you've made (%d), also for things not in your bags. Click to flip one, right-click to drop it.%s", #cells,
+                (below > 0 or offset > 0) and " Scroll for more." or "")
+        end
         return string.format("Green: to the bank (%d). Grey: stays with you. Click one to change it; right-click: Flow's own choice.%s", n,
             (below > 0 or offset > 0) and " Scroll for more." or "")
     end
@@ -573,6 +636,10 @@ function B:Fill()
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
     end
     f.go:SetShown(B.view == "put")
+    f.all:SetShown(B.view == "put")
+    f.all:SetText(B.allRules and "In my bags" or "All my choices")
+    f.search:SetShown(B.view == "prices")
+    f.search.label:SetShown(B.view == "prices")
     f.go:SetEnabled(bankOpen and putCount > 0)
     f.go:SetText(bankOpen and "Deposit" or "At a bank")
 end

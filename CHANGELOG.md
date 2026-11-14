@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.221
+- **Flow Banker: search the auction prices.** A small box under the list: type any part of
+  a name and the list narrows to the items that have it.
+- **"To put away" is now "To bank".** The words above its grid have room for two lines (they
+  ran under the first row of icons).
+- **All my choices.** A button in "To bank" switches between the things in your bags and
+  every banking choice you've made, also for things you don't carry right now. Click one to
+  flip it, right-click to drop it and leave it to Flow again.
+
 ## 0.35.220
 - **Flow keeps what the game tells it, and gets better from it.** Each time you open a class
   trainer, Flow records what it really teaches (spell, rank, level, price) and which spells

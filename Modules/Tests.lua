@@ -10367,3 +10367,64 @@ ns:Register("test", "facts: a trainer read keeps its lines and what it lacks", f
             "the same trainer again: nothing new")
     end) end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.221: Flow Banker: a search for auction prices, "To bank", every
+-- choice you've made.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: auction prices are searched by any part of the name", function(t)
+    local B = ns.banker
+    local rows = { { name = "Light Leather" }, { name = "Heavy Leather" }, { name = "Linen Cloth" }, { name = "item 765" } }
+    t:eq(#B.Filter(rows, "leath"), 2, "'leath': both leathers")
+    t:eq(#B.Filter(rows, "LIGHT"), 1, "any case")
+    t:eq(#B.Filter(rows, "  cloth "), 1, "spaces round it don't matter")
+    t:eq(#B.Filter(rows, ""), 4, "nothing typed: everything")
+    t:eq(#B.Filter(rows, nil), 4, "no search: everything")
+    t:eq(#B.Filter(rows, "zzz"), 0, "no match: none")
+    t:eq(#B.Filter(rows, "[%"), 0, "odd characters are taken as they are, no error")
+    t:eq(B.VIEWS[1].label, "To bank", "the first view is called To bank")
+end)
+
+ns:Register("test", "banker: every choice you've made, also for things not in your bags", function(t)
+    local B = ns.banker
+    local names = { [2318] = "Light Leather", [159] = "Refreshing Spring Water" }
+    local cells = B.RuleCells({ [159] = "carry", [2318] = "bank", [7] = "nonsense", bad = "bank" }, function(id) return names[id] end)
+    t:ok(#cells == 2 and cells[1].id == 2318 and cells[1].bank and cells[1].mine == "bank", "what you bank first")
+    t:ok(cells[2].id == 159 and not cells[2].bank and cells[2].mine == "carry", "then what you carry")
+    t:eq(#B.RuleCells({}, nil), 0, "no choices: none")
+    cells = B.RuleCells({ [765] = "bank" }, function() return nil end)
+    t:eq(cells[1].name, "item 765", "a name the game hasn't loaded: its number")
+end)
+
+ns:Register("test", "click: Flow Banker's search box and 'All my choices' button", function(t)
+    local B = ns.banker
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset, filter, all = B.view, B.offset, B.filter, B.allRules
+    local rules = ns.db.banker.rules
+    ns.db.banker.rules = { [999971] = "bank" }
+    pcall(B.Show, B, "prices")
+    local f = B._Frame()
+    t:ok(f and f.search and f.search:IsShown(), "the search box shows with the auction prices")
+    if f and f.search then
+        f.search:SetText("zzzz no such thing")
+        t:eq(B.filter, "zzzz no such thing", "typing sets the search")
+        t:eq(f.rows[1]:GetText() or "", "", "and the list follows it (nothing matches)")
+        f.search:SetText("")
+    end
+    pcall(B.Show, B, "put")
+    if f and f.all then
+        t:ok(f.all:IsShown() and not f.search:IsShown(), "To bank: the choices button, no search box")
+        B.allRules = false
+        local ok, err = pcall(function() f.all:GetScript("OnClick")(f.all) end)
+        t:ok(ok and B.allRules == true, "a click shows every choice" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(f.cells[1]:IsShown() and f.cells[1].cell and f.cells[1].cell.id == 999971, "also one for a thing that isn't in your bags")
+        t:eq(f.all:GetText(), "In my bags", "the button now leads back")
+        pcall(function() f.cells[1]:GetScript("OnMouseUp")(f.cells[1], "RightButton") end)
+        t:eq(ns.db.banker.rules[999971], nil, "a right-click drops that choice")
+    end
+    ns.db.banker.rules = rules
+    B.view, B.offset, B.filter, B.allRules = view, offset, filter, all
+    if f then B:Fill(); if not was then f:Hide() end end
+end)
