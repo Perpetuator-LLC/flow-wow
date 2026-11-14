@@ -58,8 +58,12 @@ $x, $y = $origin.X, $origin.Y
 if ($Crop) {
     $c = $Crop -split '[,; ]+' | Where-Object { $_ -ne '' } | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) }
     if ($c.Count -ne 4) { Write-Output "BAD-CROP give left,top,width,height as shares of the window, like 0.4,0.3,0.2,0.25"; exit 1 }
-    $cl = [Math]::Max(0, [Math]::Min(1, $c[0])); $ct = [Math]::Max(0, [Math]::Min(1, $c[1]))
-    $cw = [Math]::Max(0.01, [Math]::Min(1 - $cl, $c[2])); $ch = [Math]::Max(0.01, [Math]::Min(1 - $ct, $c[3]))
+    # (Doubles throughout: with a whole number first, [Math]::Min picks its
+    # whole-number form and turns 0.34 into 0.)
+    [double]$cl = [Math]::Max([double]0, [Math]::Min([double]1, [double]$c[0]))
+    [double]$ct = [Math]::Max([double]0, [Math]::Min([double]1, [double]$c[1]))
+    [double]$cw = [Math]::Max([double]0.01, [Math]::Min([double](1 - $cl), [double]$c[2]))
+    [double]$ch = [Math]::Max([double]0.01, [Math]::Min([double](1 - $ct), [double]$c[3]))
     $x += [int]($w * $cl); $y += [int]($ht * $ct)
     $w = [int]($w * $cw); $ht = [int]($ht * $ch)
 }
