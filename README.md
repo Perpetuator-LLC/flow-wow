@@ -253,6 +253,8 @@ Flow for WoW is a separate project from Flow Engine.
   healthstone or potion, and your bandage (`/flow carekeys`).
 - **Flow Meters**: in a group and at training dummies, two small lists: threat on your
   target and damage per second (the top two and you), from the game's own counts.
+- **Flow Auctions**: at the auction house, what Flow would post and at what price; one click
+  posts each. What keeps coming back unsold becomes a vendor item.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
   later that no stop on your route uses) and deposits it at a click; the route adds a bank
   stop when one is on your way. Away from a bank its "In your bank" view shows what was there

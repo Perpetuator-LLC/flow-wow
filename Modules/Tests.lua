@@ -9986,3 +9986,73 @@ ns:Register("test", "auction: a long read says how far it is, but rarely", funct
     t:eq(AH.Progress(217229, 217229, 0, 100), nil, "at the end: the finishing line says it")
     t:eq(AH.Progress(nil, nil, 0, 100), nil, "nothing being read: quiet")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.214: Flow Auctions: the price asked, giving up on what doesn't sell.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "auctions: the price asked is whole silver, a silver under the cheapest seen", function(t)
+    local P = ns.posting
+    t:eq(P.Price(1234), 1100, "seen 12s 34c: ask 11s (a silver under, no copper)")
+    t:eq(P.Price(500), 400, "seen 5s: ask 4s")
+    t:eq(P.Price(150), 100, "seen 1s 50c: ask 1s, never under a silver")
+    t:eq(P.Price(100), 100, "seen 1s: ask 1s")
+    t:eq(P.Price(45), nil, "worth under a silver each: not for the auction house (the game takes no copper prices)")
+    t:eq(P.Price(nil), nil, "no price seen: nothing to ask")
+    t:eq(P.Price(100000) % 100, 0, "always whole silver")
+end)
+
+ns:Register("test", "auctions: unsold until the deposits eat the gain, then it's a vendor item", function(t)
+    local P = ns.posting
+    -- 10 of something at 5s each, vendor 1s each: the house would earn 37s 50c over the vendor.
+    local what, left = P.Verdict(500, 100, 10, 0, 300)
+    t:ok(what == "post" and left == 3450, "nothing lost yet, a 3s deposit: post (34s 50c still to gain)")
+    t:eq((P.Verdict(500, 100, 10, 3600, 300)), "vendor", "36s of deposits lost already: the vendor pays more now")
+    t:eq((P.Verdict(100, 100, 10, 0, 50)), "vendor", "no better than the vendor to begin with: vendor")
+    -- The record over time.
+    local rec = P.Note(nil, "posted", 1000, 2500)
+    t:ok(rec.posted == 1 and rec.lastDeposit == 1000, "a post is counted, with its deposit")
+    rec = P.Note(rec, "expired")
+    t:ok(rec.expired == 1 and rec.lost == 1000 and not rec.gaveUp, "ran out once: the deposit is lost, still worth trying")
+    rec = P.Note(P.Note(rec, "posted", 1000, 2500), "expired")
+    rec = P.Note(P.Note(rec, "posted", 1000, 2500), "expired")
+    t:ok(rec.expired == 3 and rec.lost == 3000 and rec.gaveUp == true, "three times: 30s lost on a 25s gain, given up")
+    rec = P.Note(rec, "sold")
+    t:ok(rec.lost == 0 and rec.gaveUp == nil, "a sale wipes the count")
+    -- The game's own lines.
+    local sold, expired = "A buyer has been found for your auction of %s.", "Your auction of %s has expired."
+    local w, name = P.Parse("A buyer has been found for your auction of Light Leather.", sold, expired)
+    t:ok(w == "sold" and name == "Light Leather", "the sold line names the item")
+    w, name = P.Parse("Your auction of Pattern: Deviate Scale Belt has expired.", sold, expired)
+    t:ok(w == "expired" and name == "Pattern: Deviate Scale Belt", "the expired line too")
+    t:eq(P.Parse("You have learned a new spell.", sold, expired), nil, "another line: nothing")
+    t:eq(P.Parse(nil, sold, expired), nil, "no line: nothing")
+    -- Given up: the reason Flow's seller shows.
+    with(ns.db.ah, "posts", { [999981] = { name = "Flow Test Hide", expired = 3, lost = 3000, gaveUp = true } }, function()
+        local gave, why = P.GaveUp(999981)
+        t:ok(gave and why:find("didn't sell at auction 3 time", 1, true) ~= nil, "it says how often it didn't sell: " .. tostring(why))
+        t:ok(not P.GaveUp(999982), "an item with no record: not given up")
+    end)
+end)
+
+ns:Register("test", "click: Flow Auctions opens, lists, and posts nothing away from an auction house", function(t)
+    local P = ns.posting
+    local ok, list = pcall(P.List)
+    t:ok(ok and type(list) == "table", "the list builds" .. (ok and "" or (": " .. tostring(list))))
+    t:ok(type(P.Lines()) == "table" and #P.Lines() >= 1, "/flow auctions has something to say")
+    local def = ns:Get("gameButton", "auctionhouse")
+    t:ok(def and def.label == "Flow Auctions", "a Flow Auctions button is registered for the auction window")
+    if P.AtHouse() or InCombatLockdown() then return end   -- (never press Post at a real auction house)
+    local was = P._Frame() and P._Frame():IsShown()
+    local okO, err = pcall(P.Open, P)
+    t:ok(okO and P._Frame() and P._Frame():IsShown(), "the window opens" .. (okO and "" or (": " .. tostring(err))))
+    local posted, why = P:Post({ id = 2318, name = "Light Leather", count = 1, each = 100, vendor = 15 })
+    t:ok(posted == false and why == "open the auction house first", "away from an auction house nothing is posted")
+    local f = P._Frame()
+    local okN = pcall(function() f.next:GetScript("OnClick")(f.next) end)
+    t:ok(okN, "\"Post next\" runs without error there")
+    local okD = pcall(function() f.durations[3]:GetScript("OnClick")(f.durations[3]) end)
+    t:ok(okD and P.Duration() == 3, "48 h on a click")
+    ns.db.ah.duration = nil
+    if not was then f:Hide() end
+end)

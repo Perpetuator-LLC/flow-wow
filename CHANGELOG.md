@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.214
+- **Flow Auctions: post with one click an item.** At the auction house a small window lists
+  what in your bags Flow marks for the auction house, with the price it would ask: one
+  silver under the cheapest buyout Flow last saw (the game takes whole silver only). "Post"
+  on a row, or "Post next", puts up every one of that item you carry, for 12, 24 or 48
+  hours. The game needs a click of yours for each auction, so it can't post by itself.
+  A "Flow Auctions" tab on the auction window opens it; `/flow auctions` lists it all.
+- **What doesn't sell goes to the vendor.** Flow counts the deposit lost each time one of
+  your auctions runs out unsold. Once those deposits reach what the auction house would
+  have earned over the vendor, the item becomes "sell" in the Flow Seller, with the reason
+  "didn't sell at auction N times (deposits ...)". A sale wipes the count;
+  `/flow auctions forget` wipes them all.
+- Items worth under a silver each aren't listed: the game takes no copper prices.
+- Not seen working at an auction house yet.
+
 ## 0.35.213
 - **`/flow meter`: the meters whenever you want them.** It shows Flow Meters and keeps them
   shown, alone too; typed again, they go back to showing only in a group or at a training

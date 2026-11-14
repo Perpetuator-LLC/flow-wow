@@ -367,6 +367,14 @@ function D.AuctionOrVendor(ahPrice, vendorPrice, what, vendorUnpriced, money)
 end
 
 local function auctionOrVendor(i, what)
+    -- It kept coming back unsold until the deposits ate the gain (Posting.lua):
+    -- to the vendor, and the reason says so.
+    local P = ns.posting
+    local id = i.link and tonumber(i.link:match("item:(%d+)"))
+    if P and P.GaveUp and id then
+        local gave, why = P.GaveUp(id)
+        if gave then return { action = "sell", reason = what .. "; " .. why .. ": to a vendor" } end
+    end
     return D.AuctionOrVendor(D:AuctionPrice(i.link), i.sellPrice, what, D.VendorUnpriced(),
         ns.auction and ns.auction.Money or nil)
 end
