@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.198
+Found by running the new route check (`tools\route-check.ps1`) on a real route: Flow's 30
+stops came to 31,663 yards where the shortest order was 19,599.
+- **Full bags no longer send you to Moonglade.** A druid's Teleport: Moonglade counts as
+  "one cast away", so with bags full the nearest merchant was the one in Nighthaven, 10,000
+  yards from everything else, and the route went there and back. A spot reached only by a
+  travel spell is now left out when the same errand (a merchant, a trainer, a mailbox) can
+  be run on foot. A stop that is only there, like the class quest, is still a cast away.
+- **Flight paths to learn as you pass.** Five flight masters stood within 160 yards of that
+  route and none was a stop. The route now has "Learn the flight path: <name>" for each
+  flight master whose path you don't have, taken only when it's close to the way you're
+  going anyway. It's its own kind of stop ("Flight paths to learn" under Route includes).
+  Flow counts a path as learned once you've opened that master's flight map.
+- **The arrow says when your hearthstone is clearly quicker**: "... Hearthstone (Thunder
+  Bluff) is about 4 min quicker", beside the distance. The estimate was only in the arrow's
+  panel. Flow still never uses the stone for you.
+- The route check reads exports from the first version of the format too.
+
 ## 0.35.197
 - **After a fight: eat and drink in one sit, or bandage when that covers it.** The key
   followed your recovery order whatever your mana was, and a drink came only when you were

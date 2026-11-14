@@ -8963,3 +8963,98 @@ ns:Register("test", "recovery: eat and drink in one sit, or bandage when it cove
     t:ok(okN and type(sitting) == "boolean" and type(covers) == "boolean", "what it is right now reads from the game" .. (okN and "" or (": " .. tostring(sitting))))
     t:ok(type(E.CostsMana("Wrath")) == "boolean", "whether a spell costs mana can be asked")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.198 (found by tools\route-check.ps1): an errand you can run on foot
+-- isn't sent through a travel spell; flight paths to learn as you pass.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "planner: an errand you can run on foot isn't sent through a travel spell", function(t)
+    local P = ns.planner
+    local near = { map = 1412, cont = 1, wx = 400, wy = 0 }
+    local moon = { map = 1450, cont = 1, wx = 10000, wy = 0 }
+    local moon2 = { map = 1450, cont = 1, wx = 10050, wy = 0 }
+    local ported = function(pt) return pt.map == 1450 end
+    local kept = P.OnFoot({ near, moon }, ported)
+    t:ok(#kept == 1 and kept[1] == near, "a spot on foot and one a teleport away: only the one on foot")
+    t:eq(#P.OnFoot({ moon, moon2 }, ported), 2, "a stop that's only there keeps its spots")
+    t:eq(#P.OnFoot({ near }, ported), 1, "a stop with no teleport spot: as it is")
+    -- The whole planner: full bags, a merchant 400 yd away and one in Moonglade "one cast away".
+    local you = { map = 1412, cont = 1, wx = 0, wy = 0 }
+    local port = function(a, b) if b.map == 1450 and a.map ~= 1450 then return 120 end end
+    local merchant = { key = "merchant", text = "Sell", points = { near, moon } }
+    local plan = P:Plan(you, { merchant }, { port = port })
+    t:ok(plan and plan[1] and plan[1].point == near, "the merchant you can walk to, not the one 10,000 yards off by teleport")
+    t:near(plan and plan[1] and plan[1].leg or 0, 400, 1, "400 yards")
+    -- A stop that is only in Moonglade (the class quest) is still a cast away.
+    local quest = { key = "5926:1", text = "class quest", points = { moon } }
+    plan = P:Plan(you, { quest }, { port = port })
+    t:ok(plan and plan[1] and plan[1].point == moon, "a stop that's only there: still planned there")
+    -- Without the spell: nothing changes.
+    plan = P:Plan(you, { merchant }, {})
+    t:ok(plan and plan[1] and plan[1].point == near, "no travel spell: the nearest, as always")
+end)
+
+ns:Register("test", "flight paths: a stop for each one you don't have, when you pass it", function(t)
+    local FP = ns.flightPaths
+    local kelsuwa = { name = "Kelsuwa", map = 1413, x = 0.44, y = 0.59, cont = 1, wx = -2300, wy = -1950 }
+    local sikwa = { name = "Sikwa", map = 1413, x = 0.51, y = 0.30, cont = 1, wx = -430, wy = -2600 }
+    t:ok(not FP.Learned(kelsuwa, {}, {}), "never talked to, no flight point there: not learned")
+    t:ok(FP.Learned(kelsuwa, { Kelsuwa = true }, {}), "you opened their flight map: learned")
+    t:ok(FP.Learned(kelsuwa, {}, { ["Camp Taurajo"] = { cont = 1, wx = -2350, wy = -1900 } }), "a flight point you know is where they stand: learned")
+    t:ok(not FP.Learned(kelsuwa, {}, { ["Crossroads"] = { cont = 1, wx = -430, wy = -2600 } }), "a flight point somewhere else: not theirs")
+    t:ok(not FP.Learned(kelsuwa, {}, { ["Elsewhere"] = { cont = 0, wx = -2300, wy = -1950 } }), "the same spot on another continent: not theirs")
+    local goals = FP.Goals({ kelsuwa, sikwa, kelsuwa }, { Sikwa = true }, {})
+    t:eq(#goals, 1, "one stop for the one you don't have (a name once)")
+    local g = goals[1]
+    t:eq(g and g.key, "flightpath:Kelsuwa", "its key")
+    t:eq(g and g.text, "Learn the flight path: Kelsuwa", "what it says")
+    t:ok(g and g.optional == true, "optional: only when it's close to the way you're going")
+    t:ok(g and g.kind == "flight" and ns.theme.kinds.flight ~= nil, "its own kind of stop, with an icon")
+    t:ok(g and g.points[1].map == 1413, "where they stand")
+    t:eq(#FP.Goals({}, {}, {}), 0, "no flight masters known: no stops")
+    -- On the route: its own kind, on by default; and the stop's source runs.
+    local kind = ns:Get("routeKind", "flightpaths")
+    t:ok(kind and kind.default == true and kind.match({ provider = "flightpath" }) and not kind.match({ provider = "questie" }), "a kind of its own to untick")
+    FP._Forget()
+    local ok, res = pcall(ns:Get("navGoal", "flightpath").collect)
+    t:ok(ok and (res == nil or type(res) == "table"), "the stops' source runs" .. (ok and "" or (": " .. tostring(res))))
+    -- Talking to one: remembered (per character), and its stop goes.
+    with(ns.db, "flightTalked", {}, function()
+        with(ns.nav, "Collect", function() end, function()
+            t:ok(FP.Talked("Kelsuwa"), "you opened Kelsuwa's flight map")
+            t:ok(ns.db.flightTalked.Kelsuwa, "remembered")
+            t:ok(not FP.Talked(""), "no name: nothing")
+        end)
+    end)
+    FP._Forget()
+    -- The planner takes an optional stop only when it's nearly on the way.
+    local P = ns.planner
+    local you = { map = 1413, cont = 1, wx = 0, wy = 0 }
+    local quest = { key = "1:1", text = "quest", points = { { map = 1413, cont = 1, wx = 1000, wy = 0 } } }
+    local onWay = { key = "flightpath:On", text = "fp", optional = true, weight = 1, points = { { map = 1413, cont = 1, wx = 500, wy = 40 } } }
+    local offWay = { key = "flightpath:Off", text = "fp", optional = true, weight = 1, points = { { map = 1413, cont = 1, wx = 500, wy = 3000 } } }
+    local plan = P:Plan(you, { quest, onWay, offWay }, {})
+    local keys = {}
+    for _, s in ipairs(plan or {}) do keys[s.goal.key] = true end
+    t:ok(keys["flightpath:On"], "a flight master 40 yd off your way: on the route")
+    t:ok(not keys["flightpath:Off"], "one 3,000 yd off it: left out")
+end)
+
+ns:Register("test", "arrow: says when your hearthstone is clearly the quicker way", function(t)
+    local H, N = ns.hearth, ns.nav
+    t:eq(H.Cue(nil, "Thunder Bluff"), nil, "not quicker: nothing")
+    local cue = H.Cue(221, "Thunder Bluff")
+    t:ok(cue and cue:find("Hearthstone (Thunder Bluff)", 1, true) ~= nil and cue:find("quicker", 1, true) ~= nil, "quicker: it says where to and by how much: " .. tostring(cue))
+    t:ok(H.Cue(60, nil):find("your inn", 1, true) ~= nil, "a home with no name: your inn")
+    -- 2,100 yd on foot against 413 yd from your inn, the stone ready: clearly quicker.
+    local c = H.Compare(2100, 413, 0, 7)
+    t:ok(c and c.better, "the walk back to Thunder Bluff the route check found: the stone wins")
+    t:ok(not H.Compare(600, 413, 0, 7).better, "a short walk: not worth it")
+    t:ok(not H.Compare(2100, 413, 1500, 7).better, "25 minutes left on its cooldown: not quicker")
+    -- The arrow's piece of text: runs, and is words or nothing.
+    local ok, text = pcall(N.HearthCue, "test:hearth-cue", { map = 1412, x = 0.5, y = 0.5 }, 2100, GetTime())
+    t:ok(ok and type(text) == "string", "the arrow's cue runs" .. (ok and "" or (": " .. tostring(text))))
+    local ok2, saving = pcall(H.Saves, H, 1412, 0.5, 0.5, 2100)
+    t:ok(ok2 and (saving == nil or type(saving) == "number"), "and the estimate behind it")
+end)

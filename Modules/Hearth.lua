@@ -223,6 +223,32 @@ function H:Advice(map, x, y, directYd)
     return ok and text or nil
 end
 
+-- For the arrow itself (0.35.198): how many seconds the hearthstone saves on
+-- the way to a spot, when it's clearly the quicker way (H.Compare), and
+-- where it's set; nil otherwise. tools\route-check.ps1 found a 2,100 yd walk
+-- back to Thunder Bluff with the stone set there and ready: the estimate was
+-- only in the arrow's panel, which you have to open to see.
+function H:Saves(map, x, y, directYd)
+    local ok, saving, bind = pcall(function()
+        local nav = ns.nav
+        local p, where = H:BindPoint()
+        if not (nav and p) then return nil end
+        local c1, ax, ay = nav:ToWorld(p.map, p.x, p.y)
+        local c2, bx, by = nav:ToWorld(map, x, y)
+        if not (c1 and c2 and c1 == c2 and ax and bx) then return nil end
+        local c = H.Compare(directYd, math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2), H:CooldownLeft(), nav.RUN_SPEED or 7)
+        if c and c.better then return c.saving, where end
+        return nil
+    end)
+    if not ok then return nil end
+    return saving, bind
+end
+-- Pure: the few words beside the arrow.
+function H.Cue(saving, bind)
+    if not saving then return nil end
+    return string.format("Hearthstone (%s) is about %s quicker", bind or "your inn", span(saving))
+end
+
 ns:Register("navGoal", "hearth", {
     collect = function()
         if ns.db.hearth and ns.db.hearth.off then return nil end

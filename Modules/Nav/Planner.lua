@@ -148,6 +148,31 @@ local dk = {}   -- (candidates: each spot's distance from you)
 local function byNear(a, b) return dk[a] < dk[b] end
 local NONE = {}
 
+-- Is spot b near spot a only by a travel spell (a druid's Teleport:
+-- Moonglade), not on foot?
+local function byPort(a, b)
+    if not (OPT.port and a.map ~= b.map) then return false end
+    local ok, t = pcall(OPT.port, a, b)
+    return ok and type(t) == "number" and t < dist(a.wx, a.wy, b.wx, b.wy)
+end
+
+-- Pure: of a stop's spots, the ones to consider. A spot that's only near by
+-- a travel spell is no place for an errand that can be done on foot: with
+-- full bags, the "nearest" merchant was the one in Moonglade, one cast away
+-- and 10,000 yards from everything else on the route (found by
+-- tools\route-check.ps1, 0.35.198). So when some of a stop's spots are
+-- reached on foot, the ones reached only by the spell are left out. A stop
+-- whose every spot is there (the class quest in Moonglade) keeps them.
+--   pts: the spots; ported(pt) -> it's near only by a travel spell
+function P.OnFoot(pts, ported)
+    local walk = {}
+    for _, pt in ipairs(pts) do
+        if not ported(pt) then walk[#walk + 1] = pt end
+    end
+    if #walk == 0 or #walk == #pts then return pts end
+    return walk
+end
+
 local function candidates(p, goals)
     local stops = {}
     for _, g in ipairs(goals) do
@@ -156,9 +181,14 @@ local function candidates(p, goals)
         for _, pt in ipairs(g.points or NONE) do
             if pt.wx and pt.cont == p.cont then
                 n = n + 1
-                pts[n], dk[pt] = pt, far(p, pt)
+                pts[n] = pt
             end
         end
+        if n > 1 and OPT.port then
+            pts = P.OnFoot(pts, function(pt) return byPort(p, pt) end)
+            n = #pts
+        end
+        for i = 1, n do dk[pts[i]] = far(p, pts[i]) end
         if n > 0 then
             if n > 1 then table.sort(pts, byNear) end
             local near = dk[pts[1]]

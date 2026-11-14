@@ -43,11 +43,17 @@ if ($Dump) { $lines | ForEach-Object { Write-Output $_ } }
 # --- read the records -------------------------------------------------------
 function Parse-Line([string]$line) {
     $parts = $line.Substring(2).Split('^')
-    $r = @{ kind = $parts[0] }
+    $r = @{}
     for ($i = 1; $i -lt $parts.Count; $i++) {
         $eq = $parts[$i].IndexOf('=')
-        if ($eq -gt 0) { $r[$parts[$i].Substring(0, $eq)] = $parts[$i].Substring($eq + 1) }
+        if ($eq -gt 0) {
+            $name = $parts[$i].Substring(0, $eq)
+            # (An early export called a stop's own kind "kind", the same word as the record's: read it as "stop".)
+            if ($name -eq 'kind') { $name = 'stop' }
+            $r[$name] = $parts[$i].Substring($eq + 1)
+        }
     }
+    $r['kind'] = $parts[0]
     return $r
 }
 function Num($v) {

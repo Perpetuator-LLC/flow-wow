@@ -2952,6 +2952,23 @@ function N.LegVia(a, b, live)
     return out
 end
 
+-- ". Hearthstone (Thunder Bluff) is about 4 min quicker": beside the arrow's
+-- distance when the stone is ready and clearly the quicker way to this stop
+-- (Hearth.lua H:Saves). Asked every few seconds, not every update.
+local hearthCue = { key = nil, at = 0, text = "" }
+function N.HearthCue(key, pt, yards, now)
+    if hearthCue.key == key and now - hearthCue.at < 3 then return hearthCue.text end
+    local text = ""
+    local H = ns.hearth
+    if H and H.Saves and pt and pt.map and pt.x then
+        local saving, bind = H:Saves(pt.map, pt.x, pt.y, yards)
+        local cue = H.Cue(saving, bind)
+        if cue then text = ". " .. cue end
+    end
+    hearthCue.key, hearthCue.at, hearthCue.text = key, now, text
+    return text
+end
+
 -- " (by the way into Thunder Bluff, 340 yd)": beside the distance while the
 -- arrow leads to a gate.
 function N.GateText(via, yards)
@@ -3818,7 +3835,8 @@ local function update()
             how == "path" and string.format(" (trail, %d yd walk)", length)
                 or (how == "entrance" and " (it's inside: entrance first)")
                 or (how == "gate" and N.GateText(N.via, length)) or "")
-            .. (N.port and (": cast " .. N.port) or ""))
+            .. (N.port and (": cast " .. N.port) or "")
+            .. N.HearthCue(g.key, choice.point, choice.d, GetTime()))
         frame.arrow:SetArrived(false)
     end
     -- On a flight you can't steer: the arrow's two lines are the flight's
