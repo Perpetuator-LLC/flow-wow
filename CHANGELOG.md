@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.208
+- **The buff button only when something is due.** It used to be always there, showing the
+  buff that runs out first. Now it shows up when a buff, a stone, a bandage or food is due;
+  with an enemy targeted (and heals on its key) it shows your heal, ready for the fight;
+  otherwise it stays away, like Flow's icon. "Buff button always shows my next buff" in
+  Flow Settings brings the old way back.
+- **Key messages stand out.** In Flow Settings, what a key already does (and the buttons to
+  use it anyway, unbind it or pick another) now sits in an orange box that flashes when it
+  appears; a key that was set flashes green.
+- A self-test that expected "no known spot" for a quest handed in inside a dungeon now
+  expects the dungeon's name (it was right in the game, the test was behind).
+
 ## 0.35.207
 - **Heal and potion moved to the second key.** With the buff button on and a key of its own,
   Shift + Flow's key and Alt + Flow's key are two more attacks instead of your heal and

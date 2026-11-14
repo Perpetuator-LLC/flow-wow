@@ -7249,7 +7249,10 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = none })
     g = byKey(goals)["5722:done"]
     t:ok(g and g.blockedBy and g.blockedBy:find("Maur Grimtotem", 1, true) ~= nil, "nowhere known to hand it in: listed, with who to")
-    t:eq(g and g.blockedShort, ns.nav.NO_SPOT, "its row says it in a few words")
+    -- (This one is handed in inside a dungeon: where the quest data knows
+    -- that, the row names the dungeon, 0.35.205.)
+    local inside = ns.dungeons and ns.dungeons.Of and ns.dungeons.Of(5722)
+    t:eq(g and g.blockedShort, inside and ("in " .. inside) or ns.nav.NO_SPOT, "its row says it in a few words")
     goals = {}
     ns.quests.QuestGoals(db, { id = 5722, title = "Searching for the Lost Satchel", complete = true, objectives = {} }, goals, { waypoint = marker })
     g = byKey(goals)["5722:done"]
@@ -9708,4 +9711,40 @@ ns:Register("test", "click: the Flow menu's Keys section toggles the buff button
     t:ok(okC, "a click runs" .. (okC and "" or (": " .. tostring(err))))
     t:eq(BB.On(), not was, "it flips the buff button")
     BB.Set(was)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.208: key messages in a box of their own; the buff button only when
+-- something is due.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "settings: a key message stands in its own box, and a conflict flashes", function(t)
+    local S = ns.settings
+    local r, _, _, extra, flash = S.NoticeLook("conflict")
+    t:ok(r ~= nil and flash == true, "a key something else uses: a box that flashes")
+    local _, _, _, extraInfo, flashInfo = S.NoticeLook("info")
+    t:ok(extra > extraInfo, "with room for its buttons inside")
+    t:ok(flashInfo == false, "a plain message: a box, no flash")
+    t:ok(select(5, S.NoticeLook("done")) == true, "a key that was set: flashes too")
+    t:eq(S.NoticeLook(nil), nil, "no message: no box")
+    local f = S._Build and S._Build()
+    if not f then return end
+    t:ok(f.noticeBg ~= nil and f.noticeAnim ~= nil, "Flow Settings has the box")
+    local was = f.status:GetText()
+    f.noticeKind = "conflict"
+    f.status:SetText("E already does: Interact With Target.")
+    t:ok(f.noticeBg:IsShown() and f.noticeKindShown == "conflict", "a conflict message shows it")
+    f.status:SetText("Second key cleared.")
+    t:eq(f.noticeKindShown, "info", "the next message is a plain one")
+    f.status:SetText("")
+    t:ok(not f.noticeBg:IsShown(), "an empty message hides it")
+    f.status:SetText(was or "")
+end)
+
+ns:Register("test", "buff button: only when something is due", function(t)
+    local BB = ns.buffButton
+    t:eq(BB.WhenIdle(false, false), "hide", "nothing due, no enemy: it stays away")
+    t:eq(BB.WhenIdle(false, true), "heal", "nothing due, an enemy targeted and the key heals: your heal, ready")
+    t:eq(BB.WhenIdle(true, false), "next", "'always show my next buff' ticked: the buff that runs out first, as before")
+    t:eq(BB.WhenIdle(true, true), "next", "ticked wins")
 end)

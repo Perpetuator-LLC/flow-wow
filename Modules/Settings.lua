@@ -142,6 +142,33 @@ local function stopCapture(msg)
 end
 
 -- A key was pressed while capturing: check it, then set it or ask.
+-- Pure: how the notice box looks. kind: "conflict", "done", "info"; nil: no
+-- box. -> r, g, b, its height beyond the text, flash?
+function S.NoticeLook(kind)
+    if kind == "conflict" then return 1, 0.55, 0.1, 54, true end   -- (room for the buttons under the text)
+    if kind == "done" then return 0.3, 0.9, 0.3, 16, true end
+    if kind == "info" then return 0.6, 0.6, 0.6, 16, false end
+    return nil
+end
+-- Shows, recolours or hides the box around the key messages.
+function S.Notice(f, kind)
+    if not (f and f.noticeBg) then return end
+    local r, g, b, extra, flash = S.NoticeLook(kind)
+    local shown = r ~= nil
+    f.noticeBg:SetShown(shown)
+    f.noticeFlash:SetShown(shown)
+    for _, e in ipairs(f.noticeEdges) do e:SetShown(shown) end
+    f.noticeKindShown = kind
+    if not shown then return end
+    f.noticeBg:SetColorTexture(r * 0.18, g * 0.18, b * 0.18, 0.92)
+    f.noticeFlash:SetColorTexture(r, g, b, 1)
+    for _, e in ipairs(f.noticeEdges) do e:SetColorTexture(r, g, b, 0.9) end
+    f.noticeBg:SetHeight((f.status:GetStringHeight() or 12) + extra)
+    f.noticeAnim:Stop()
+    f.noticeFlash:SetAlpha(0)
+    if flash then f.noticeAnim:Play() end
+end
+
 -- Which of Flow's own keys already has this key: 1, 2 (the easy key's) or 3
 -- (the buff button's); nil: none. Pure: keys = { key1, key2, buffKey }.
 function S.FlowSlotOf(key, keys)
@@ -194,12 +221,14 @@ local function choose(key)
     if what and action and action:find("FlowBuffButton", 1, true) then what = nil end
     if not what then
         setSlotKey(key, frame.slot)
+        frame.noticeKind = "done"
         frame.status:SetText(doneText(key, frame.slot) .. moved)
         refresh()
         return
     end
     frame.pendingKey = key
     frame.pendingAction = action
+    frame.noticeKind = "conflict"
     frame.status:SetText(S.ConflictText(label(key), what, ns.cast:IsMovement(action)))
     frame.confirm:Show()
     frame.unbind:Show()
@@ -401,6 +430,46 @@ local function build(parent)
     f.status:SetPoint("TOPLEFT", 16, y - 66)
     f.status:SetWidth(WIDTH - 40)
     f.status:SetJustifyH("LEFT")
+    -- Key news gets a box of its own, and flashes when it appears ("it looks
+    -- like other menu text and is not obvious it just popped up", 0.35.208):
+    -- orange for a key something else uses (the buttons are inside it),
+    -- green for a key that was set, grey for the rest.
+    f.noticeBg = f:CreateTexture(nil, "BACKGROUND", nil, 2)
+    f.noticeBg:SetPoint("TOPLEFT", f.status, "TOPLEFT", -8, 8)
+    f.noticeBg:SetWidth(WIDTH - 24)
+    f.noticeEdges = {}
+    for i, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local e = f:CreateTexture(nil, "BORDER")
+        if i <= 2 then
+            e:SetPoint(side .. "LEFT", f.noticeBg, side .. "LEFT")
+            e:SetPoint(side .. "RIGHT", f.noticeBg, side .. "RIGHT")
+            e:SetHeight(1)
+        else
+            e:SetPoint("TOP" .. side, f.noticeBg, "TOP" .. side)
+            e:SetPoint("BOTTOM" .. side, f.noticeBg, "BOTTOM" .. side)
+            e:SetWidth(i == 3 and 3 or 1)   -- (a thicker bar down the left)
+        end
+        f.noticeEdges[i] = e
+    end
+    f.noticeFlash = f:CreateTexture(nil, "ARTWORK")
+    f.noticeFlash:SetAllPoints(f.noticeBg)
+    f.noticeFlash:SetAlpha(0)
+    f.noticeAnim = f.noticeFlash:CreateAnimationGroup()
+    for n = 1, 3 do
+        local up = f.noticeAnim:CreateAnimation("Alpha")
+        up:SetFromAlpha(0); up:SetToAlpha(0.55); up:SetDuration(0.12); up:SetOrder(n * 2 - 1)
+        local down = f.noticeAnim:CreateAnimation("Alpha")
+        down:SetFromAlpha(0.55); down:SetToAlpha(0); down:SetDuration(0.28); down:SetOrder(n * 2)
+    end
+    S.Notice(f, nil)
+    -- (Every message on this line shows the box; an empty one hides it.)
+    local rawSet = f.status.SetText
+    f.status.SetText = function(self, text)
+        rawSet(self, text)
+        local kind = (text and text ~= "") and (f.noticeKind or "info") or nil
+        f.noticeKind = nil
+        S.Notice(f, kind)
+    end
     f.confirm = button(f, "Use it anyway", 120)
     f.confirm:SetPoint("TOPLEFT", 16, y - 96)
     f.unbind = button(f, "Use it and unbind", 150)
@@ -707,6 +776,7 @@ local function build(parent)
         if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
         f.slot = slot
         f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
+        f.status:SetText("")
         f.capturing = true
         cap:Show()
     end
@@ -730,6 +800,7 @@ local function build(parent)
     end)
     f.confirm:SetScript("OnClick", function()
         setSlotKey(f.pendingKey, f.slot)
+        f.noticeKind = "done"
         f.status:SetText(doneText(f.pendingKey, f.slot))
         f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
         refresh()
@@ -740,12 +811,14 @@ local function build(parent)
         if InCombatLockdown() then f.status:SetText("Key bindings can't change in combat.") return end
         local was = S.Unbind(f.pendingKey)
         setSlotKey(f.pendingKey, f.slot)
+        f.noticeKind = "done"
         f.status:SetText(doneText(f.pendingKey, f.slot) .. (was and ("  |cffffd200" .. was .. " no longer has that key.|r") or ""))
         f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
         refresh()
     end)
     f.another:SetScript("OnClick", function()
         f.confirm:Hide(); f.unbind:Hide(); f.another:Hide()
+        f.status:SetText("")
         f.capturing = true
         cap:Show()
     end)

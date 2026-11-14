@@ -142,6 +142,15 @@ function BB.FightSpell(live, lastCast)
     return lastCast
 end
 
+-- Pure: nothing is due; what then? always: "always show my next buff" is
+-- ticked; fight: an enemy is targeted and this key heals. -> "next" (the
+-- buff that runs out first, as before 0.35.208), "heal" (your heal, ready)
+-- or "hide".
+function BB.WhenIdle(always, fight)
+    if always then return "next" end
+    return fight and "heal" or "hide"
+end
+
 -- What the button shows when nothing is due (dim, does nothing).
 function BB.Idle()
     return { idle = true, label = "no buffs due", reason = "Nothing to buff right now." }
@@ -537,7 +546,30 @@ local function tick(_, dt)
     local ctx = actionCtx()
     local recover, camp = GetTime() - liveAt < 1 and liveRecover or nil, BB.TakesCamp() and pickCamp(ctx) or nil
     local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
-        or pickUpcoming(GetTime() - liveAt < 1 and liveNext or nil)
+    -- Nothing due ("I don't want my buff button always showing buffs: like the
+    -- easy button, if I need it show it, else what fits my target", 0.35.208):
+    -- with an enemy targeted and heals on this key, your heal, ready; else the
+    -- button goes away until something is due. "Always show my next buff"
+    -- (Flow Settings) brings back the buff that runs out first.
+    if not s then
+        local K = ns.careKeys
+        local ctxR = E.lastCtx
+        local heal = K and K.Active() and K.plan and K.plan.key or nil
+        local what = BB.WhenIdle(cfg().always == true, heal ~= nil and ctxR ~= nil and ctxR.hostile == true)
+        if what == "next" then
+            s = pickUpcoming(GetTime() - liveAt < 1 and liveNext or nil)
+        elseif what == "heal" then
+            s = { spell = heal.spell, unit = "player", kind = "heal", standby = true,
+                  reason = "Nothing to buff: your heal, ready for this fight. Shift, Ctrl, Alt and Ctrl + Shift with this key: the icons beside it." }
+        else
+            current = nil
+            setAction(nil)
+            if BB.sitting then BB.sitting = false; applyKey() end
+            setKeyInteract(false)
+            if btn:IsShown() then btn:Hide() end
+            return
+        end
+    end
     current = s or BB.Idle()
     current.faded = s ~= nil and not BB.Bright(s, fightNear(ctx)) or nil
     setAction(s)
@@ -627,6 +659,18 @@ if ns.settings and ns.settings.AddCheck then
             .. "goes back on Flow's icon and key.",
         get = function() return BB.On() end,
         set = function(on) BB.Set(on) end,
+    })
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "Buff button always shows my next buff",
+        note = "(off: only when something is due)",
+        tip = "Off: the buff button shows up when a buff, a stone, a bandage or food is due, and with an enemy targeted it "
+            .. "shows your heal; otherwise it stays away, like Flow's icon. On: it is always there, with the buff that runs out first and its time left.",
+        get = function() return cfg().always == true end,
+        set = function(on) cfg().always = on and true or nil end,
     })
 end
 
