@@ -207,9 +207,15 @@ local function build()
     end
     h.pm = h:CreateTexture(nil, "ARTWORK")
     h.pm:SetSize(16, 16); h.pm:SetPoint("RIGHT", -6, 0)
-    -- The title ("Flow Tracker  3 here, 30 stops  2 blocked") stops short of
-    -- the +/- button: it's cut off with "..." rather than drawn over it.
-    h.text:SetPoint("RIGHT", h.pm, "LEFT", -4, 0)
+    -- The locked stops: a lock and their number, beside the +/- button, in a
+    -- line of their own. (As the tail of the title they were the first thing
+    -- cut off: "9 blocked" showed as "9...", and a cut through the lock's
+    -- picture code as "|...".)
+    h.locked = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    h.locked:SetPoint("RIGHT", h.pm, "LEFT", -4, 0)
+    -- The title ("Flow Tracker  3 here, 30 stops") stops short of them:
+    -- it's cut off with "..." rather than drawn over them.
+    h.text:SetPoint("RIGHT", h.locked, "LEFT", -4, 0)
     h.text:SetJustifyH("LEFT")
     h.text:SetWordWrap(false)
     -- Left-click: open or fold it. Right-click: its menu.
@@ -395,14 +401,18 @@ end
 
 RT.ITEM_ROOM = 18   -- room at a row's right end for its quest item
 
--- The header's words. The locked stops are a lock and a number: "9 blocked"
--- didn't fit beside "1 here, 29 stops" and was cut to "9..." (seen on
--- screen, 0.35.186). The header's tooltip says what the lock means.
+-- The header's words: its title, and (a text of their own, at the right) the
+-- locked stops as a lock and a number. "9 blocked" didn't fit beside "1 here,
+-- 29 stops" and was cut to "9..." (0.35.186); as the title's tail the lock
+-- was still the first thing cut, through its picture code, while the route
+-- was being worked out: "|..." (0.35.189). The header's tooltip says what
+-- the lock means.
 --   count: "1 here, 29 stops"; busy: the route is being worked out; nBlocked: locked stops
+-- -> title, locked ("" when nothing is locked)
 RT.LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
 function RT.Title(count, busy, nBlocked)
-    return string.format("Flow Tracker  |cff888888%s|r%s", busy and "updating route..." or tostring(count or ""),
-        (nBlocked or 0) > 0 and string.format("  |T%s:12:12|t|cffff7070%d|r", RT.LOCK, nBlocked) or "")
+    return string.format("Flow Tracker  |cff888888%s|r", busy and "updating route..." or tostring(count or "")),
+        (nBlocked or 0) > 0 and string.format("|T%s:12:12|t|cffff7070%d|r", RT.LOCK, nBlocked) or ""
 end
 function RT:Refresh()
     if not frame then return end
@@ -422,7 +432,9 @@ function RT:Refresh()
     local busy = ns.nav and ns.nav.Busy and ns.nav.Busy()
     local count = (RT.Here() and #plan > 0)
         and string.format("%d here, %d stops", #ns.nav.HereStops(plan, ns.nav:PlayerPos()), #plan) or (#plan .. " stops")
-    h.text:SetText(RT.Title(count, busy, nBlocked))
+    local title, lockedText = RT.Title(count, busy, nBlocked)
+    h.text:SetText(title)
+    h.locked:SetText(lockedText)
     if busy ~= h.spinning then
         h.spinning = busy
         h.icon:SetShown(not busy)

@@ -8392,12 +8392,15 @@ end)
 
 ns:Register("test", "tracker: its title says the locked stops in a lock and a number", function(t)
     local RT = ns.routeTracker
-    local title = RT.Title("1 here, 29 stops", false, 9)
+    local title, locked = RT.Title("1 here, 29 stops", false, 9)
     t:ok(title:find("Flow Tracker", 1, true) ~= nil and title:find("1 here, 29 stops", 1, true) ~= nil, "its name and the count")
-    t:ok(title:find("LockButton", 1, true) ~= nil and title:find("9|r", 1, true) ~= nil, "a lock and the number")
-    t:ok(not title:find("blocked", 1, true), "not the word (it was cut to \"9...\")")
-    t:ok(not RT.Title("3 stops", false, 0):find("LockButton", 1, true), "nothing locked: no lock")
-    t:ok(RT.Title("3 stops", true, 0):find("updating route", 1, true) ~= nil, "while the route is worked out it says so")
+    t:ok(locked:find("LockButton", 1, true) ~= nil and locked:find("9|r", 1, true) ~= nil, "a lock and the number, in a text of their own")
+    t:ok(not title:find("|T", 1, true) and not title:find("blocked", 1, true), "none of it in the title, where it was cut off (\"9...\", \"|...\")")
+    t:eq(select(2, RT.Title("3 stops", false, 0)), "", "nothing locked: no lock")
+    t:ok((RT.Title("3 stops", true, 0)):find("updating route", 1, true) ~= nil, "while the route is worked out it says so")
+    t:ok(select(2, RT.Title("3 stops", true, 11)):find("11|r", 1, true) ~= nil, "and the locked stops are still told")
+    local hdr = _G.FlowTracker and _G.FlowTracker.header
+    if hdr then t:ok(hdr.locked ~= nil and hdr.locked:GetNumPoints() == 1, "the header has that second text, at its right") end
     t:ok(pcall(RT.Title, nil, false, nil), "nothing to count: still a title")
     -- The header's tooltip opens (it explains the lock).
     local f = _G.FlowTracker

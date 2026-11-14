@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.189
+- The Flow Tracker's title showed "|..." in place of its lock while the route was being
+  worked out ("updating route..." left no room, and the cut went through the lock's picture
+  code). The lock and its number now have a place of their own beside the +/- button, and
+  only the title's words are ever shortened.
+
 ## 0.35.188
 - **The easy button's modifier icons run out to the left.** The CTRL, SHIFT and ALT icons
   used to run off to the right of the big icon; they now run to its left, CTRL nearest. The
