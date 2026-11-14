@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.195
+- **The arrow no longer points the wrong way for a while and then flips.** Since 0.35.172
+  the arrow follows trails you've walked by default, and a trail up to half again as long as
+  the straight line can set off well to one side, or back to its nearest point, before it
+  bends round. In open country that looked like an arrow pointing the wrong way, until you
+  walked far enough off the trail for Flow to drop it. A trail is now followed only while
+  it heads within 60 degrees of where the stop is; otherwise the arrow points straight at
+  the stop. Trails into caves are kept whatever their heading. Flow notes in its log each
+  time it turns a trail down, so this can be checked.
+
 ## 0.35.194
 - **The suggested spell on a modifier of its own: Ctrl + Shift + your key.** When Flow
   advised something your key couldn't cast mid-fight, it was a little icon in the corner

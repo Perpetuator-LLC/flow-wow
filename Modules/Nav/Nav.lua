@@ -2747,6 +2747,27 @@ function N.Carrot(pts, idx, px, py, ahead)
     return best
 end
 
+-- A trail is followed only while it heads roughly where the stop is. A trail
+-- up to half again as long as the straight line may set off well to one
+-- side, or backwards to its nearest point, before it bends round: "the arrow
+-- will point the wrong way for some time and then all of a sudden flip to
+-- being right" (0.35.195; trails had become the default that day). In open
+-- country the straight line is right; Flow can't see cliffs, so a trail that
+-- leads off at a wide angle is more often an old wander than a way round.
+-- Stops inside a cave keep their trail whatever its heading.
+--   p: you; c: the trail point the arrow would lead to; t: the stop
+N.TRAIL_HEADING = 60   -- degrees between "along the trail" and "at the stop", at most
+N.TRAIL_NEAR = 8       -- a trail point this close says nothing about a heading
+function N.TrailHeadingOk(px, py, cx, cy, tx, ty, maxDeg)
+    local ax, ay, bx, by = cx - px, cy - py, tx - px, ty - py
+    local la, lb = math.sqrt(ax * ax + ay * ay), math.sqrt(bx * bx + by * by)
+    if la < N.TRAIL_NEAR or lb < 1 then return true end
+    local cos = (ax * bx + ay * by) / (la * lb)
+    return cos >= math.cos(math.rad(maxDeg or N.TRAIL_HEADING))
+end
+-- A trail turned down for its heading isn't worked out again for a while.
+local trailOff = { key = nil, till = 0 }
+
 -- "Arrow follows paths you've walked": on unless you turn it off (0.35.172;
 -- it was off unless ticked). A trail is only taken when it's at most half
 -- again as long as the straight line, so it bends round a cliff you've
@@ -2772,7 +2793,7 @@ local function steerTo(p, pt, direct, key, inside)
     if stale and now - lastRouteAt > 1 then
         lastRouteAt = now
         route = nil
-        local s = nearestNode(p.cont, p.wx, p.wy, 40)
+        local s = not (trailOff.key == key and now < trailOff.till) and nearestNode(p.cont, p.wx, p.wy, 40) or nil
         local t, td = nearestNode(p.cont, pt.wx, pt.wy, 80)
         if s and t and s ~= t then
             local nodes, length = astar(p.cont, s, t)
@@ -2813,6 +2834,17 @@ local function steerTo(p, pt, direct, key, inside)
     end
     local ahead = route.idx + N.Carrot(pts, 1, p.wx, p.wy, LOOKAHEAD) - 1
     n = route.nodes[ahead] or n
+    -- Leading well away from where the stop is: not this trail. Straight at
+    -- the stop, and the trail isn't tried again for a while.
+    if not inside and not N.TrailHeadingOk(p.wx, p.wy, g.x[n], g.y[n], pt.wx, pt.wy) then
+        if trailOff.key ~= key then
+            ns:Log("nav", string.format("a trail to %s (%d yd, %d straight) leads off at a wide angle: pointing straight at it",
+                tostring(key), route.length or 0, direct or 0))
+        end
+        trailOff.key, trailOff.till = key, now + 15
+        route = nil
+        return pt.wx, pt.wy, "direct", direct
+    end
     return g.x[n], g.y[n], "path", route.length
 end
 

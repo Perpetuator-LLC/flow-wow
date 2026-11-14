@@ -8796,3 +8796,20 @@ ns:Register("test", "move handle: its note sits below the button, faint", functi
         t:near(h.text:GetAlpha(), ns.MOVE_NOTE_ALPHA, 0.01, "faint until the mouse is on the handle")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.195: the arrow follows a trail only while it heads toward the stop.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "arrow: a trail is followed only while it heads toward the stop", function(t)
+    local N = ns.nav
+    -- You at 0, 0; the stop due east at 400, 0.
+    t:ok(N.TrailHeadingOk(0, 0, 30, 5, 400, 0), "a trail that sets off toward the stop: followed")
+    t:ok(N.TrailHeadingOk(0, 0, 20, 25, 400, 0), "bending 50 degrees off: still followed")
+    t:ok(not N.TrailHeadingOk(0, 0, 5, 30, 400, 0), "80 degrees off to one side: not followed")
+    t:ok(not N.TrailHeadingOk(0, 0, -30, 0, 400, 0), "leading backwards: not followed (the arrow pointed the wrong way)")
+    t:ok(N.TrailHeadingOk(0, 0, -3, 0, 400, 0), "a trail point right at your feet says nothing about a heading")
+    t:ok(N.TrailHeadingOk(0, 0, 0, 30, 400, 0, 100), "a wider allowance when asked for")
+    t:ok(N.TrailHeadingOk(0, 0, 30, 0, 0, 0), "standing on the stop: nothing to compare")
+    t:eq(N.TRAIL_HEADING, 60, "60 degrees at most")
+end)
