@@ -1,5 +1,5 @@
--- Flow's buttons on the game's own windows: a small "Flow Talents" button in
--- the title bar of WoW's talent window opens the Flow Talents view, and so
+-- Flow's buttons on the game's own windows: a "Flow Talents" tab standing
+-- on the top edge of WoW's talent window opens the Flow Talents view, and so
 -- on for the other windows that have a Flow view to go with them. The Flow
 -- view stays closed until you click: nothing opens by itself.
 --
@@ -18,8 +18,8 @@
 --   })
 --
 -- The button is a child of the frame it names, so the game shows and hides
--- it with that frame, and it sits in the title bar of the window the frame
--- belongs to, left of the close (and maximise) button. Flow only adds a
+-- it with that frame, and it stands on the top edge of the window the frame
+-- belongs to, near its right end (a tab: nothing of the window covers it). Flow only adds a
 -- child: it never moves, shows, hides or calls anything on the game's
 -- window, so nothing of the game's is tainted. Windows the game loads only
 -- when you first open them get their button then (ADDON_LOADED).
@@ -32,7 +32,11 @@ local _, ns = ...
 local GB = {}
 ns.gameButtons = GB
 
-GB.X, GB.Y, GB.HEIGHT = -52, -1, 19
+-- A tab standing on the window's top edge, near its right end (0.35.190).
+-- It used to be a small dark button inside the title bar: the game reported
+-- it attached to the talent window, and the player asked for a button there.
+-- On top of the window nothing of the window's own can cover it.
+GB.X, GB.Y, GB.HEIGHT = -40, -3, 22
 
 function GB.On() return ns.db.settings.gameButtons ~= false end
 
@@ -84,6 +88,12 @@ function GB.List()
     return out
 end
 
+-- Pure: where a button showed up, for the log.
+function GB.Where(label, left, bottom, strata, level, window)
+    return string.format("%s button shown at %d, %d (%s, level %d) on %s", tostring(label), math.floor((left or -1) + 0.5),
+        math.floor((bottom or -1) + 0.5), tostring(strata), level or 0, tostring(window or "a window with no name"))
+end
+
 -- One line of /flow buttons.
 function GB.Line(def, path, shown)
     if not path then
@@ -131,18 +141,34 @@ local function make(key, def, frame)
     b.accent = b:CreateTexture(nil, "BORDER")
     b.accent:SetPoint("TOPLEFT"); b.accent:SetPoint("BOTTOMLEFT"); b.accent:SetWidth(3)
     b.accent:SetColorTexture(o[1], o[2], o[3], 1)
-    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     b.text:SetPoint("CENTER", 2, 0)
     b.text:SetText(def.label)
-    b:SetWidth(math.max(60, (b.text:GetStringWidth() or 60) + 18))
+    b:SetWidth(math.max(70, (b.text:GetStringWidth() or 70) + 22))
     b.hover = b:CreateTexture(nil, "HIGHLIGHT")
     b.hover:SetAllPoints()
     b.hover:SetColorTexture(1, 1, 1, 0.12)
-    b:SetPoint("TOPRIGHT", win, "TOPRIGHT", def.x or GB.X, def.y or GB.Y)
-    -- Over the window's title bar (the game puts its title and close button at 510).
+    -- Its bottom edge a few pixels into the window's top edge: a tab on top of it.
+    b:SetPoint("BOTTOMRIGHT", win, "TOPRIGHT", def.x or GB.X, def.y or GB.Y)
+    -- Over the window's own art (the game puts its title and close button at 510).
     b:SetFrameLevel(math.min((win:GetFrameLevel() or 1) + 520, 9990))
+    -- A gold line round it, so it reads as a button.
+    b.edge = {}
+    for i, side in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local e = b:CreateTexture(nil, "OVERLAY")
+        e:SetColorTexture(1, 0.82, 0, 0.9)
+        e:SetPoint(side[1]); e:SetPoint(side[2])
+        if i == 1 then e:SetHeight(1) else e:SetWidth(1) end
+        b.edge[i] = e
+    end
     b:SetScript("OnClick", function() GB.Click(key) end)
-    b:SetScript("OnShow", function(self) paint(self, def) end)
+    b:SetScript("OnShow", function(self)
+        paint(self, def)
+        if not self.logged then
+            self.logged = true
+            ns:Log("buttons", GB.Where(def.label, self:GetLeft(), self:GetBottom(), self:GetFrameStrata(), self:GetFrameLevel(), win:GetName()))
+        end
+    end)
     b:SetScript("OnEnter", function(self)
         paint(self, def)
         ns.Tip(self, "ANCHOR_BOTTOMRIGHT")
@@ -193,9 +219,18 @@ ns:On("PLAYER_REGEN_ENABLED", function() if waiting then GB:Attach() end end)
 -- The built-in ones
 -------------------------------------------------------------------------------
 
-ns:Register("gameButton", "talents", {
-    order = 10,
-    frames = { "PlayerSpellsFrame.TalentsFrame", "ClassTalentFrame.TalentsTab", "ClassTalentFrame", "PlayerTalentFrame", "TalentFrame" },
+-- The talent view is one of several frames, depending on the client (and a
+-- client can have more than one of them, only one in use): a Flow Talents
+-- button on each that exists, so it's on the one you open.
+for i, frames in ipairs({
+    { "PlayerSpellsFrame.TalentsFrame" },
+    { "ClassTalentFrame.TalentsTab", "ClassTalentFrame" },
+    { "PlayerTalentFrame", "TalentFrame" },
+}) do
+    ns:Register("gameButton", i == 1 and "talents" or ("talents" .. i), {
+    order = 10 + (i - 1) * 0.1,
+    alt = i > 1 or nil,
+    frames = frames,
     label = "Flow Talents",
     tip = "Your talent trees with Flow's levelling build over them: what to take now, what comes at each level, and where it ends up.",
     isOpen = function() local f = ns.talents and ns.talents._Frame(); return f and f:IsShown() end,
@@ -204,7 +239,8 @@ ns:Register("gameButton", "talents", {
         local f = T._Frame()
         if f and f:IsShown() then f:Hide() else T:Show() end
     end,
-})
+    })
+end
 
 ns:Register("gameButton", "spellbook", {
     order = 20,
@@ -248,7 +284,7 @@ if ns.settings and ns.settings.AddCheck then
         group = "screen",
         label = "Flow buttons on WoW's windows",
         note = "(Flow Talents on the talent window...)",
-        tip = "A small button in the title bar of the game's talent window, spellbook, profession window and "
+        tip = "A Flow tab on top of the game's talent window, spellbook, profession window and "
             .. "character window opens the Flow view that goes with it (Flow Talents, Flow Key Bindings, Flow "
             .. "Professions, Flow Improvements). The Flow view stays closed until you click. /flow buttons lists them.",
         get = function() return GB.On() end,
@@ -279,7 +315,8 @@ ns.commands.buttons = function(arg)
     ns:Print("Flow buttons on WoW's windows: " .. (GB.On() and "on" or "off") .. "  (/flow buttons on|off)")
     for _, e in ipairs(GB.List()) do
         local b = buttons[e.key]
-        print("  " .. GB.Line(e.def, paths[e.key], b and b:IsVisible()))
+        -- (A second home for a view, on a window this client doesn't have: not worth a line.)
+        if b or not e.def.alt then print("  " .. GB.Line(e.def, paths[e.key], b and b:IsVisible())) end
     end
     if ns.mapOpen then
         for _, l in ipairs(ns.mapOpen.Lines()) do print("  " .. l) end
@@ -293,6 +330,6 @@ ns.commands.buttons = function(arg)
 end
 
 ns:Register("help", "buttons", { order = 47, title = "Flow buttons on WoW's windows", lines = {
-    "A small Flow button in the title bar of the talent window, spellbook, profession window and character window opens the Flow view that goes with it.",
+    "A Flow tab on top of the talent window, spellbook, profession window and character window opens the Flow view that goes with it.",
     "/flow buttons on|off: all of them. /flow buttons: which windows they found.",
 } })

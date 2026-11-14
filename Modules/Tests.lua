@@ -8476,3 +8476,33 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     local tp, trel, trp = icon.shiftTag:GetPoint(1)
     t:ok(tp == "BOTTOMLEFT" and trel == icon and trp == "TOPRIGHT", "the SHIFT+ tag is above its right corner, clear of both")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.190: Flow's buttons on the game's windows are tabs on top of them;
+-- Flow Talents is on every talent frame the client has.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "game buttons: a tab on top of the window, on every talent frame there is", function(t)
+    local GB = ns.gameButtons
+    t:eq(GB.Where("Flow Talents", 1210.4, 820.6, "MEDIUM", 530, "PlayerSpellsFrame"),
+        "Flow Talents button shown at 1210, 821 (MEDIUM, level 530) on PlayerSpellsFrame", "the log says where it showed")
+    t:ok(pcall(GB.Where, "x", nil, nil, nil, nil, nil), "a button with no place yet: still a line")
+    local talents = 0
+    for _, e in ipairs(GB.List()) do
+        if e.def.label == "Flow Talents" then talents = talents + 1 end
+    end
+    t:eq(talents, 3, "Flow Talents has a home on each kind of talent window")
+    local main, two, three = ns:Get("gameButton", "talents"), ns:Get("gameButton", "talents2"), ns:Get("gameButton", "talents3")
+    t:ok(main and not main.alt, "the first is the main one")
+    t:ok(two and two.alt and three and three.alt, "the others are spares (not listed when the client has no such window)")
+    local b = GB._Buttons().talents
+    if b then
+        local p, rel, rp, x, y = b:GetPoint(1)
+        t:ok(p == "BOTTOMRIGHT" and rp == "TOPRIGHT", "it stands on the window's top edge (its bottom on the window's top)")
+        t:ok(rel == GB.Window(b:GetParent()), "of the window its frame belongs to")
+        t:ok((x or 0) < 0 and (y or 0) <= 0, "near the right end, a few pixels into the edge")
+        t:ok(b:GetHeight() >= 20 and b:GetWidth() >= 70, "big enough to see")
+        t:ok(b.edge and #b.edge == 3, "with a gold line round it")
+        t:eq(b:GetNumPoints(), 1, "and nowhere else")
+    end
+end)

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.190
+- **A Flow Talents tab on the game's talent window.** Flow already put a small button in
+  that window's title bar, and the game reported it there, but it wasn't being seen. It's
+  now a tab standing on top of the window, near its right end, with a gold outline and
+  bigger letters, where nothing of the window can cover it; click it for Flow Talents (what
+  to take now, and at each level). It's also put on every kind of talent window the client
+  has, in case the one you open isn't the one Flow picked. The same goes for the tabs on
+  the spellbook (Flow Key Bindings), the profession window (Flow Professions) and the
+  character window (Flow Improvements). The first time one shows, Flow notes where in its log.
+
 ## 0.35.189
 - The Flow Tracker's title showed "|..." in place of its lock while the route was being
   worked out ("updating route..." left no room, and the cut went through the lock's picture

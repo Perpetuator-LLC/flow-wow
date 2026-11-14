@@ -267,7 +267,7 @@ Flow for WoW is a separate project from Flow Engine.
   for the game's own text and why it's in the build. A reference: you spend the points.
   A build is one registration per class (`talentBuild`); a class without one still sees its
   trees.
-- **Flow buttons on WoW's windows**: a small button in the title bar of the game's talent
+- **Flow buttons on WoW's windows**: a Flow tab standing on top of the game's talent
   window, spellbook, profession window and character window opens the Flow view that goes with
   it (Flow Talents, Flow Key Bindings, Flow Professions, Flow Improvements). Nothing opens until
   you click. `/flow buttons`; one registration each (`gameButton`).
