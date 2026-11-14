@@ -48,8 +48,13 @@ end
 -- Pure: bank this row of the inventory? row: D.InventoryRows' ({ id, name,
 -- action, rule, kind, count, stacks }); needed: { [itemID] = true } for what
 -- a stop on your route uses. -> true / false, and why.
-function B.Banks(row, needed)
+-- rules: your own choices, { [itemID] = "bank" | "carry" } (Flow sets the
+-- default, you can change it: click an item in the window, 0.35.216).
+function B.Banks(row, needed, rules)
     if type(row) ~= "table" or row.action ~= "keep" then return false, "not something Flow keeps" end
+    local mine = rules and row.id and rules[row.id]
+    if mine == "carry" then return false, "you chose to carry it" end
+    if mine == "bank" then return true, "you chose to bank it" end
     if needed and row.id and needed[row.id] then return false, "a stop on your route uses it" end
     if stays(row.kind) then return false, "you carry it" end
     if B.LATER_RULES[row.rule or ""] then return true, "kept for later" end
@@ -59,10 +64,10 @@ function B.Banks(row, needed)
 end
 
 -- Pure: the rows to bank, biggest first.
-function B.Pick(rows, needed)
+function B.Pick(rows, needed, rules)
     local out = {}
     for _, r in ipairs(rows or {}) do
-        if B.Banks(r, needed) then out[#out + 1] = r end
+        if B.Banks(r, needed, rules) then out[#out + 1] = r end
     end
     table.sort(out, function(a, b)
         if (a.stacks or 0) ~= (b.stacks or 0) then return (a.stacks or 0) > (b.stacks or 0) end
@@ -103,13 +108,45 @@ function B.Needed()
     return B.NeededBy(all)
 end
 
+-- Your own banking choices (saved for all your characters).
+function B.Rules()
+    ns.db.banker.rules = ns.db.banker.rules or {}
+    return ns.db.banker.rules
+end
+-- Pure: the next choice for an item on a click. banks: it goes to the bank
+-- now; mine: your choice so far (nil: Flow's). Left click flips it; a right
+-- click (reset) goes back to Flow's own.
+function B.NextRule(banks, mine, reset)
+    if reset then return nil end
+    if mine then return (mine == "bank") and "carry" or "bank" end
+    return banks and "carry" or "bank"
+end
+-- Pure: every item Flow keeps, for the window: what goes to the bank first,
+-- then what stays with you, each by name. -> { { id, name, count, bank,
+-- why, mine } }
+function B.PutCells(rows, needed, rules)
+    local out = {}
+    for _, r in ipairs(rows or {}) do
+        if type(r) == "table" and r.action == "keep" and r.id then
+            local bank, why = B.Banks(r, needed, rules)
+            out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, bank = bank and true or false, why = why,
+                              mine = rules and rules[r.id] or nil }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.bank ~= b.bank then return a.bank end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    return out
+end
+
 -- The list right now: rows to bank.
 function B.List()
     local D = ns.disposition
     if not (D and D.Inventory) then return {} end
     local ok, rows = pcall(D.Inventory, D)
     if not ok then return {} end
-    return B.Pick(rows, B.Needed())
+    return B.Pick(rows, B.Needed(), B.Rules())
 end
 
 -------------------------------------------------------------------------------
@@ -365,12 +402,45 @@ local function makeCell(f, i)
         ns.Tip(self, "ANCHOR_RIGHT")
         if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.id) end
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("In your bank, as Flow last saw it. Go to a bank to take it out.", 0.6, 0.6, 0.6, true)
+        local cell = self.cell
+        if cell then
+            GameTooltip:AddLine(cell.bank and "Goes to the bank" or "Stays with you", cell.bank and 0.2 or 0.8, cell.bank and 0.9 or 0.8, cell.bank and 0.3 or 0.8)
+            GameTooltip:AddLine((cell.mine and "Your choice. " or "Flow's choice: ") .. tostring(cell.why) .. ".", 1, 1, 1, true)
+            GameTooltip:AddLine("Click: " .. (cell.bank and "keep it with you" or "put it in the bank") .. ". Right-click: Flow's own choice.", 0.6, 0.6, 0.6, true)
+        else
+            GameTooltip:AddLine("In your bank, as Flow last saw it. Go to a bank to take it out.", 0.6, 0.6, 0.6, true)
+        end
         GameTooltip:Show()
     end)
     c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c:SetScript("OnMouseUp", function(self, button) B:CellClick(self, button) end)
     c:Hide()
     return c
+end
+
+-- A cell of the "to put away" view: green edge = goes to the bank, grey and
+-- dimmed = stays with you, gold = your own choice. (nil: a plain bank slot.)
+function B.StyleCell(c, cell)
+    if not cell then
+        c.edge:SetColorTexture(0.3, 0.3, 0.33, 0.9)
+        c.icon:SetDesaturated(false)
+        c.icon:SetAlpha(1)
+        return
+    end
+    if cell.mine then c.edge:SetColorTexture(1, 0.82, 0.1, 1)
+    elseif cell.bank then c.edge:SetColorTexture(0.2, 0.9, 0.3, 1)
+    else c.edge:SetColorTexture(0.3, 0.3, 0.33, 0.9) end
+    c.icon:SetDesaturated(not cell.bank)
+    c.icon:SetAlpha(cell.bank and 1 or 0.6)
+end
+-- A click on a cell of that view: bank it or carry it; right-click: Flow's own choice.
+function B:CellClick(c, button)
+    local cell = c and c.cell
+    if not cell then return false end
+    B.Rules()[cell.id] = B.NextRule(cell.bank, cell.mine, button == "RightButton")
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("banking choice") end
+    B:Fill()
+    return true
 end
 
 -- Fills (or hides) the grid. -> the line above it, when it shows.
@@ -383,7 +453,15 @@ function B:FillGrid(show)
         return nil
     end
     local bank = ns.db.bank or {}
-    local cells, own = B.Cells(bank.layout, bank.items, nameOf)
+    local cells, own
+    if show == "put" then
+        -- What Flow keeps in your bags: to the bank (green) or with you (grey).
+        local D = ns.disposition
+        local okR, rows = pcall(D.Inventory, D)
+        cells = B.PutCells(okR and rows or {}, B.Needed(), B.Rules())
+    else
+        cells, own = B.Cells(bank.layout, bank.items, nameOf)
+    end
     local first, offset, below = B.GridWindow(#cells, B.offset, B.COLS, B.GRID_ROWS)
     B.offset = offset
     local used = 0
@@ -396,6 +474,8 @@ function B:FillGrid(show)
             c:Hide()
         else
             c.id = s and s.id or nil
+            c.cell = (show == "put") and s or nil
+            B.StyleCell(c, c.cell)
             if s then
                 c.icon:SetTexture((ns.api.ItemIcon and ns.api.ItemIcon(s.id))
                     or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(s.id))
@@ -409,6 +489,12 @@ function B:FillGrid(show)
             c:Show()
         end
     end
+    if show == "put" then
+        local n = 0
+        for _, s in ipairs(cells) do if s.bank then n = n + 1 end end
+        return string.format("Green: to the bank (%d). Grey: stays with you. Click one to change it; right-click: Flow's own choice.%s", n,
+            (below > 0 or offset > 0) and " Scroll for more." or "")
+    end
     if not bank.seenAt then return "Flow hasn't seen inside your bank yet. Open it once and Flow remembers what's there." end
     return string.format("Your bank as Flow saw it %s: %d slot(s) used%s.%s", B.Ago(time() - bank.seenAt), used,
         own and string.format(" of %d", #cells) or "", (below > 0 or offset > 0) and " Scroll for more." or "")
@@ -419,11 +505,13 @@ function B:Fill()
     if not f then return end
     local note, lines = B.ViewLines(B.view)
     -- The bank is a grid of slots, not a list (FillGrid, above).
-    local grid = B:FillGrid(B.view == "bank")
-    if B.view == "bank" then note, lines = grid or note, {} end
+    local gridView = B.view == "bank" or B.view == "put"
+    local grid = B:FillGrid(gridView and B.view or nil)
+    local putCount = B.view == "put" and #lines or 0
+    if gridView then note, lines = grid or note, {} end
     f.note:SetText(note)
     local first, last, below = 1, 0, 0
-    if B.view ~= "bank" then
+    if not gridView then
         local offset
         first, last, below, offset = B.Window(#lines, B.offset, B.ROWS)
         B.offset = offset
@@ -440,13 +528,13 @@ function B:Fill()
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
     end
     f.go:SetShown(B.view == "put")
-    f.go:SetEnabled(bankOpen and #lines > 0)
+    f.go:SetEnabled(bankOpen and putCount > 0)
     f.go:SetText(bankOpen and "Deposit" or "At a bank")
 end
 
 function B:Scroll(delta)
     -- (The bank's grid moves a row of slots a notch; the lists three lines.)
-    B.offset = math.max(0, (B.offset or 0) - (delta or 0) * (B.view == "bank" and 1 or 3))
+    B.offset = math.max(0, (B.offset or 0) - (delta or 0) * ((B.view == "bank" or B.view == "put") and 1 or 3))
     B:Fill()
 end
 

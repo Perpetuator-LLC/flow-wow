@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.216
+- **Fixed: Flow took stable masters for flight masters.** Xon'cha in Orgrimmar, Seikwa in
+  Bloodhoof Village, Shoja'my in Razor Hill: each a stable master, each offered as "Learn
+  the flight path". Flow read the quest data's NPC roles with a later game's numbers; on
+  WoW: Forever the data uses the first game's, where that number means stable master. The
+  same mistake made every "vendor" from the data an innkeeper and every "repairer" an
+  auctioneer (the NPCs you had talked to yourself were always right). Roles are now read
+  by the data's own list, so the real flight masters, vendors, repairers, innkeepers,
+  bankers and auctioneers are found.
+- **Flow Banker, "To put away": a grid, and your own rules.** Everything Flow keeps in your
+  bags as icons: green edge goes to the bank, grey and dimmed stays with you. Click an item
+  to change which; it gets a gold edge and Flow follows your choice from then on, on every
+  character. Right-click gives the choice back to Flow. Hover says what Flow would do and why.
+
 ## 0.35.215
 - **Flow Banker shows your bank as it looks.** "In your bank" is now a grid of slots like the
   bank's own: each item's icon and count where it sits, empty slots as empty squares, the

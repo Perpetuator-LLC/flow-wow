@@ -12,8 +12,22 @@ local _, ns = ...
 local S = {}
 ns.services = S
 
--- npcFlags bits (classic data)
-local FLAG = { vendor = 0x80, repair = 0x1000, flight = 0x2000, inn = 0x10000, bank = 0x20000, auction = 0x200000 }
+-- npcFlags bits. They differ between the game's versions, and until
+-- 0.35.216 Flow used the later versions' numbers on WoW: Forever's data,
+-- which has the first game's: every "flight master" from the data was a
+-- stable master (Xon'cha in Orgrimmar, Seikwa in Bloodhoof Village: "only a
+-- stable master, no flight path there"), every "vendor" an innkeeper, every
+-- "repairer" an auctioneer. Now read from the quest data's own list
+-- (QuestieDB.npcFlags), with the first game's numbers when it has none.
+S.CLASSIC_FLAGS = { VENDOR = 4, FLIGHT_MASTER = 8, INNKEEPER = 128, BANKER = 256, AUCTIONEER = 4096, REPAIR = 16384 }
+-- Pure: Flow's kinds from a data set's flag names.
+function S.FlagsFrom(enum)
+    enum = type(enum) == "table" and enum or {}
+    local C = S.CLASSIC_FLAGS
+    return { vendor = enum.VENDOR or C.VENDOR, repair = enum.REPAIR or C.REPAIR, flight = enum.FLIGHT_MASTER or C.FLIGHT_MASTER,
+             inn = enum.INNKEEPER or C.INNKEEPER, bank = enum.BANKER or C.BANKER, auction = enum.AUCTIONEER or C.AUCTIONEER }
+end
+local FLAG = S.FlagsFrom(nil)
 local band = bit and bit.band
 local found = { vendor = {}, repair = {}, flight = {}, inn = {}, bank = {}, auction = {} }   -- { { name, spawns, faction } }
 local scan                                         -- nil, "running", "done"
@@ -44,6 +58,9 @@ function S:Scan()
     local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
     if not (db and db.NPCPointers and band) then scan = "done" return scan end
     scan = "running"
+    FLAG = S.FlagsFrom(db.npcFlags)
+    ns:Log("places", string.format("NPC roles from the quest data: flight master = %s, vendor = %s, repair = %s (%s)", tostring(FLAG.flight),
+        tostring(FLAG.vendor), tostring(FLAG.repair), db.npcFlags and "its own list" or "the first game's numbers"))
     local co = coroutine.create(function()
         local n = 0
         for id in pairs(db.NPCPointers) do

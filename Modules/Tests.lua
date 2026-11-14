@@ -10105,3 +10105,76 @@ ns:Register("test", "click: Flow Banker's bank view shows the grid, the other vi
     B.view, B.offset = view, offset
     if f then B:Fill(); if not was then f:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.216: NPC roles by the quest data's own flags; banking choices of
+-- your own, in a grid.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "places: a flight master is a flight master, not a stable master", function(t)
+    local S = ns.services
+    local f = S.FlagsFrom({ VENDOR = 4, FLIGHT_MASTER = 8, INNKEEPER = 128, BANKER = 256, AUCTIONEER = 4096, STABLEMASTER = 8192, REPAIR = 16384 })
+    t:eq(f.flight, 8, "the data's own number for a flight master (8 on WoW: Forever)")
+    t:ok(f.flight ~= 8192, "not the stable master's (8192): Xon'cha and Seikwa were taken for flight masters")
+    t:ok(f.vendor == 4 and f.repair == 16384 and f.inn == 128 and f.bank == 256 and f.auction == 4096, "and each other role by its own number")
+    f = S.FlagsFrom({ VENDOR = 128, FLIGHT_MASTER = 8192, INNKEEPER = 65536, BANKER = 131072, AUCTIONEER = 2097152, REPAIR = 4096 })
+    t:ok(f.flight == 8192 and f.vendor == 128, "a later game's data: its numbers")
+    f = S.FlagsFrom(nil)
+    t:ok(f.flight == 8 and f.vendor == 4, "no list in the data: the first game's numbers")
+    local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
+    if db and db.npcFlags then
+        t:eq(S.FlagsFrom(db.npcFlags).flight, db.npcFlags.FLIGHT_MASTER, "this client's quest data is read for it")
+    end
+end)
+
+ns:Register("test", "banker: your own choice beats Flow's, and a click sets it", function(t)
+    local B = ns.banker
+    local function row(name, id, rule, kind)
+        return { name = name, id = id, rule = rule, kind = kind, action = "keep", stacks = 1, count = 5 }
+    end
+    local leather = row("Light Leather", 2318, "professionMaterial", "Trade Goods: Leather")
+    local water = row("Refreshing Spring Water", 159, "professionMaterial", "Consumable: Food & Drink")
+    t:ok(B.Banks(leather, {}, {}), "Flow's choice: leather goes to the bank")
+    local ok, why = B.Banks(leather, {}, { [2318] = "carry" })
+    t:ok(not ok and why == "you chose to carry it", "you said carry it: it stays")
+    ok, why = B.Banks(water, {}, { [159] = "bank" })
+    t:ok(ok and why == "you chose to bank it", "you said bank it: it goes, whatever Flow thinks")
+    ok = B.Banks(leather, { [2318] = true }, { [2318] = "bank" })
+    t:ok(ok, "your choice also beats 'a stop on your route uses it'")
+    -- A click flips it; a right-click hands it back to Flow.
+    t:eq(B.NextRule(true, nil, false), "carry", "it was going to the bank: a click keeps it with you")
+    t:eq(B.NextRule(false, nil, false), "bank", "it was staying: a click banks it")
+    t:eq(B.NextRule(false, "carry", false), "bank", "your own choice flips")
+    t:eq(B.NextRule(true, "bank", true), nil, "a right-click: Flow's own choice again")
+    -- The window's cells: to the bank first, then what stays.
+    local cells = B.PutCells({ water, leather, { name = "Junk", id = 1, action = "sell" } }, {}, {})
+    t:ok(#cells == 2 and cells[1].id == 2318 and cells[1].bank and not cells[2].bank, "what goes to the bank first; things Flow doesn't keep aren't shown")
+    cells = B.PutCells({ water, leather }, {}, { [2318] = "carry" })
+    t:ok(not cells[1].bank and not cells[2].bank and (cells[1].mine or cells[2].mine) == "carry", "your choice shows on its cell")
+end)
+
+ns:Register("test", "click: Flow Banker's 'to put away' grid changes a choice and puts it back", function(t)
+    local B = ns.banker
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset = B.view, B.offset
+    local ok, err = pcall(B.Show, B, "put")
+    t:ok(ok, "the view opens" .. (ok and "" or (": " .. tostring(err))))
+    local f = B._Frame()
+    local c = f and f.cells and f.cells[1]
+    if c and c:IsShown() and c.cell then
+        local id, before = c.cell.id, B.Rules()[c.cell.id]
+        local banked = c.cell.bank
+        t:ok(pcall(function() c:GetScript("OnMouseUp")(c, "LeftButton") end), "a click on an item runs")
+        t:eq(B.Rules()[id], B.NextRule(banked, before, false), "and sets your choice for it")
+        local again
+        for _, cell in ipairs(f.cells) do if cell:IsShown() and cell.cell and cell.cell.id == id then again = cell end end
+        if again then pcall(function() again:GetScript("OnMouseUp")(again, "RightButton") end) end
+        B.Rules()[id] = before
+    else
+        t:ok(f ~= nil, "(nothing Flow keeps in your bags right now: no cell to click)")
+    end
+    t:eq(f and f.rows[1]:GetText() or "", "", "no list lines under the grid")
+    B.view, B.offset = view, offset
+    if f then B:Fill(); if not was then f:Hide() end end
+end)
