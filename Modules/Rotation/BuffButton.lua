@@ -561,7 +561,10 @@ ns:On("PLAYER_REGEN_ENABLED", function() if pendingKey then applyKey() end end)
 ns:On("PLAYER_REGEN_DISABLED", function()
     if not (btn and BB.On()) then return end
     setKeyInteract(false)   -- the key clicks the button again for the fight
-    local spell = BB.FightSpell(fresh(), lastCast)
+    -- With a key of its own and heals on it (CareKeys.lua): in a fight the
+    -- key is your quickest heal; else the buff due, as before.
+    local care = ns.careKeys and ns.careKeys.FightKey and ns.careKeys.FightKey()
+    local spell = care or BB.FightSpell(fresh(), lastCast)
     if spell and E:Knows(spell) then
         setAction({ spell = spell, unit = "player" })
         if not btn:IsShown() then btn:Show() end

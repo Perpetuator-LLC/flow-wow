@@ -1,0 +1,320 @@
+-- The second key: heals and potions, with modifiers of their own.
+--
+-- "Perhaps we should have two easy buttons, two key binds: one is heals and
+-- pots, the other is attacks. If both had their hotkey with all their
+-- modifiers we can fit quite a few things: ten different casts." (0.35.206)
+--
+-- Flow already has a second button with its own key: the buff button
+-- (BuffButton.lua, a contributor's: `/flow buffbutton on`, `/flow buffkey
+-- <key>`). This file gives that key the same four modifiers Flow's key has,
+-- for looking after yourself:
+--
+--   the key      out of a fight: your next buff, bandage or food, as before;
+--                in a fight: your quickest heal, on you
+--   SHIFT        your heal over time (Rejuvenation)
+--   CTRL         your other heal (Healing Touch: the big, slow one)
+--   ALT          your healthstone or healing potion
+--   C+S          your best bandage; without one, your cure (Cure Poison...)
+--
+-- All set before the pull, like Flow's key: the game lets nothing change in
+-- a fight. Little icons left of the buff button show what each press casts.
+-- Flow's own key is untouched (Shift + key still heals, Alt is still your
+-- potion): the same heal on both keys does no harm, and nothing you're used
+-- to moves. Freeing those two presses of Flow's key for attacks is the next
+-- step, once this has been played.
+--
+-- "Heals and potions on the buff button's key" (Flow Settings, Your easy
+-- key) turns it off. /flow carekeys says what each press is set to.
+
+local _, ns = ...
+local A, E = ns.api, ns.rotation
+local BB = ns.buffButton
+if not (A and E and BB) then return end
+
+local K = {}
+ns.careKeys = K
+
+K.SLOTS = { "shift", "ctrl", "alt", "more" }
+K.MODS = { shift = { "SHIFT" }, ctrl = { "CTRL" }, alt = { "ALT" }, more = { "CTRL", "SHIFT" } }
+K.LABEL = { shift = "SHIFT", ctrl = "CTRL", alt = "ALT", more = "C+S" }
+K.NAME = { shift = "Shift", ctrl = "Ctrl", alt = "Alt", more = "Ctrl + Shift" }
+K.BUTTON = { shift = "careshift", ctrl = "carectrl", alt = "carealt", more = "caremore" }
+K.ICON = 26
+
+local function cfg()
+    ns.db.buffButton = ns.db.buffButton or {}
+    return ns.db.buffButton
+end
+function K.Wanted() return cfg().care ~= false end
+-- On: the buff button is on, has a key, and this isn't switched off.
+function K.Active() return BB.On() and cfg().key ~= nil and K.Wanted() end
+
+-- Pure: the key with a slot's modifiers, in the game's order.
+--   K.KeyFor("E", "more") -> "CTRL-SHIFT-E"; a key that already uses one: nil.
+function K.KeyFor(key, slot, modKey)
+    modKey = modKey or (ns.cast and ns.cast.ModKey)
+    if not modKey then return nil end
+    for _, mod in ipairs(K.MODS[slot] or {}) do
+        key = key and modKey(key, mod)
+    end
+    return key
+end
+
+-- Pure: what each press casts.
+--   o.quick      your quickest heal (what Shift + Flow's key casts)
+--   o.heals      your heals you know, in the class's order
+--   o.hots       your heals over time you know
+--   o.emergency  "item:123": healthstone or healing potion (nil: none)
+--   o.bandage    "item:123": your best bandage (nil: none)
+--   o.cures      your cures you know (Cure Poison, Remove Curse...)
+-- -> { key, shift, ctrl, alt, more }: each a step or nil.
+function K.Plan(o)
+    o = o or {}
+    local function heal(spell, why) return spell and { spell = spell, kind = "heal", unit = "player", reason = why } or nil end
+    local plan = { key = heal(o.quick, "Your quickest heal, on you") }
+    local used = {}
+    if o.quick then used[o.quick] = true end
+    for _, hot in ipairs(o.hots or {}) do
+        if not used[hot] then
+            plan.shift = heal(hot, "Your heal over time, on you")
+            used[hot] = true
+            break
+        end
+    end
+    for _, spell in ipairs(o.heals or {}) do
+        if not used[spell] then
+            plan.ctrl = heal(spell, "Your other heal, on you")
+            used[spell] = true
+            break
+        end
+    end
+    if o.emergency then
+        plan.alt = { item = o.emergency, kind = "emergency", reason = "Your healthstone or healing potion" }
+    end
+    if o.bandage then
+        plan.more = { item = o.bandage, kind = "bandage", unit = "player", reason = "Your best bandage, on you" }
+    elseif o.cures and o.cures[1] then
+        plan.more = { spell = o.cures[1], kind = "dispel", unit = "player", reason = "Your cure, on you" }
+    end
+    return plan
+end
+
+-- Pure: a step as the secure button's attributes: kind, what, unit.
+function K.Attributes(s)
+    if not s then return nil end
+    if s.item then return "item", s.item, s.unit end
+    if s.spell then return "spell", s.spell, s.unit or "player" end
+    return nil
+end
+
+local lastBandage   -- (a bandage on cooldown isn't offered as a step: keep the last one seen)
+function K.Now()
+    local def = E:Definition()
+    local knows = function(spell) return E:Knows(spell) end
+    local C, BI = ns.cast, ns.buffItems
+    local heals, hots, cures = {}, {}, {}
+    for _, spell in ipairs(def and def.heals or {}) do if knows(spell) then heals[#heals + 1] = spell end end
+    for _, spell in ipairs(def and def.hots or {}) do if knows(spell) then hots[#hots + 1] = spell end end
+    for _, rule in ipairs(def and def.dispels or {}) do
+        if type(rule) == "table" and rule.spell and knows(rule.spell) then cures[#cures + 1] = rule.spell end
+    end
+    local quick = C and C.HealFor and C.HealFor(def, knows, function(spell) return select(3, A.SpellInfo(spell)) end) or heals[1]
+    local emergency
+    if BI and BI.EmergencyCarry then
+        local ok, it = pcall(BI.EmergencyCarry)
+        emergency = ok and it and it.id and ("item:" .. it.id) or nil
+    end
+    if BI and BI.BandageStep then
+        local ok, step = pcall(BI.BandageStep, false)
+        if ok and step and step.item then lastBandage = step.item end
+    end
+    if lastBandage then
+        local id = tonumber(tostring(lastBandage):match("(%d+)"))
+        if id and (A.Count and A.Count(id) or 0) <= 0 then lastBandage = nil end
+    end
+    return K.Plan({ quick = quick, heals = heals, hots = hots, emergency = emergency, bandage = lastBandage, cures = cures })
+end
+
+-------------------------------------------------------------------------------
+-- The secure side: attributes on the buff button, bindings on its key
+-------------------------------------------------------------------------------
+local owner = CreateFrame("Frame")
+local slotText, slotStep = {}, {}
+local boundKey, boundSet
+local icons = {}
+K.plan = nil
+
+local function button() return _G.FlowBuffButton end
+
+local function clearSlot(btn, slot)
+    for _, a in ipairs({ "type", "spell", "item", "unit" }) do btn:SetAttribute("*" .. a .. "-" .. K.BUTTON[slot], nil) end
+end
+
+local function bind()
+    ClearOverrideBindings(owner)
+    local key = K.Active() and cfg().key or nil
+    local set = {}
+    if key then
+        for _, slot in ipairs(K.SLOTS) do
+            local modKey = slotText[slot] and K.KeyFor(key, slot)
+            if modKey then
+                SetOverrideBindingClick(owner, true, modKey, "FlowBuffButton", K.BUTTON[slot])
+                set[#set + 1] = slot
+            end
+        end
+    end
+    boundKey, boundSet = key, table.concat(set, ",")
+end
+
+local function texOf(s)
+    if not s then return nil end
+    if s.spell then return select(2, A.SpellInfo(s.spell)) end
+    local id = tonumber(tostring(s.item):match("(%d+)"))
+    return id and ((C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or (GetItemIcon and GetItemIcon(id)))
+end
+local function nameOf(s)
+    if not s then return "nothing" end
+    if s.spell then return s.spell end
+    local id = tonumber(tostring(s.item):match("(%d+)"))
+    return (id and A.ItemInfo and A.ItemInfo(id)) or "your item"
+end
+
+-- The little icons, left of the buff button: what each modifier casts.
+local function paint()
+    local btn = button()
+    if not btn then return end
+    local n = 0
+    for _, slot in ipairs(K.SLOTS) do
+        local ic = icons[slot]
+        local s = K.Active() and slotStep[slot] or nil
+        if s and not ic then
+            ic = CreateFrame("Frame", nil, btn)
+            ic:SetSize(K.ICON, K.ICON)
+            ic.tex = ic:CreateTexture(nil, "ARTWORK")
+            ic.tex:SetAllPoints()
+            ic.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            ic.label = ic:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            ic.label:SetPoint("BOTTOM", ic, "TOP", 0, 2)
+            ic.label:SetTextColor(0.5, 0.8, 1)
+            ic.label:SetText(K.LABEL[slot])
+            ic:EnableMouse(true)
+            ic:SetScript("OnEnter", function(self)
+                ns.Tip(self, "ANCHOR_LEFT")
+                GameTooltip:AddLine(K.NAME[self.slot] .. " + your buff key: " .. nameOf(self.step), 1, 0.82, 0)
+                if self.step and self.step.reason then GameTooltip:AddLine(self.step.reason, 1, 1, 1, true) end
+                GameTooltip:AddLine("Set before the pull; it can't change in a fight.", 0.6, 0.6, 0.6, true)
+                GameTooltip:Show()
+            end)
+            ic:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            ic.slot = slot
+            icons[slot] = ic
+        end
+        if ic then
+            if s then
+                n = n + 1
+                ic.step = s
+                ic.tex:SetTexture(texOf(s) or "Interface\\Icons\\INV_Misc_QuestionMark")
+                ic:ClearAllPoints()
+                ic:SetPoint("RIGHT", btn, "LEFT", -6 - (n - 1) * (K.ICON + 6), 0)
+                ic:Show()
+            else
+                ic:Hide()
+            end
+        end
+    end
+end
+
+-- Sets the four presses. Out of a fight (and in the last moment before one).
+function K.Apply()
+    local btn = button()
+    if InCombatLockdown() or not btn then return false end
+    local plan = K.Active() and K.Now() or {}
+    K.plan = plan
+    local changed = false
+    for _, slot in ipairs(K.SLOTS) do
+        local kind, what, unit = K.Attributes(plan[slot])
+        local text = kind and (kind .. ":" .. tostring(what) .. "@" .. tostring(unit)) or nil
+        if text ~= slotText[slot] then
+            clearSlot(btn, slot)
+            if kind then
+                btn:SetAttribute("*type-" .. K.BUTTON[slot], kind)
+                btn:SetAttribute("*" .. kind .. "-" .. K.BUTTON[slot], what)
+                btn:SetAttribute("*unit-" .. K.BUTTON[slot], unit)
+            end
+            if (slotText[slot] ~= nil) ~= (text ~= nil) then changed = true end
+            slotText[slot] = text
+        end
+        slotStep[slot] = kind and plan[slot] or nil
+    end
+    local key = K.Active() and cfg().key or nil
+    if changed or key ~= boundKey or boundSet == nil then bind() end
+    paint()
+    return true
+end
+
+-- The key's own spell for a fight (BuffButton asks at the pull): your
+-- quickest heal, or nil (off, or no heal known: the buff button's own way).
+function K.FightKey()
+    if not K.Active() then return nil end
+    local ok, plan = pcall(K.Now)
+    local s = ok and plan and plan.key
+    return s and s.spell or nil
+end
+
+local acc = 0
+local driver = CreateFrame("Frame")
+driver:SetScript("OnUpdate", function(_, dt)
+    acc = acc + dt
+    if acc < 0.5 then return end
+    acc = 0
+    if not InCombatLockdown() then pcall(K.Apply) end
+end)
+ns:On("PLAYER_REGEN_DISABLED", function() pcall(K.Apply) end)
+
+-------------------------------------------------------------------------------
+-- Settings, /flow carekeys
+-------------------------------------------------------------------------------
+function K.Lines()
+    local out = {}
+    if not BB.On() then
+        out[1] = "the second key is off: /flow buffbutton on, then /flow buffkey <key> (heals and potions go on its modifiers)"
+        return out
+    end
+    if not cfg().key then
+        out[1] = "the buff button has no key yet: /flow buffkey <key> (heals and potions go on its modifiers)"
+        return out
+    end
+    if not K.Wanted() then out[1] = "heals and potions on the buff key: off" return out end
+    local plan = K.plan or {}
+    out[1] = string.format("buff key %s in a fight: %s", tostring(cfg().key), nameOf(plan.key))
+    for _, slot in ipairs(K.SLOTS) do
+        local modKey = K.KeyFor(cfg().key, slot)
+        out[#out + 1] = string.format("  %s (%s): %s%s", K.NAME[slot], tostring(modKey), nameOf(plan[slot]),
+            slotText[slot] and (" [set as " .. slotText[slot] .. "]") or "")
+    end
+    return out
+end
+ns.commands.carekeys = function()
+    for i, l in ipairs(K.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
+end
+ns:Register("help", "carekeys", { order = 31, title = "The second key: heals and potions", lines = {
+    "Turn on the buff button and give it a key (/flow buffbutton on, /flow buffkey <key>): in a fight that key is your quickest heal,",
+    "Shift + it your heal over time, Ctrl + it your other heal, Alt + it your healthstone or potion, Ctrl + Shift + it your bandage.",
+    "/flow carekeys: what each press is set to.",
+} })
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "Heals and potions on the buff button's key",
+        note = "(needs the buff button and its key)",
+        tip = "In a fight the buff button's key casts your quickest heal on you; Shift + it your heal over time, "
+            .. "Ctrl + it your other heal, Alt + it your healthstone or healing potion, Ctrl + Shift + it your best "
+            .. "bandage. Little icons left of the buff button show each. Flow's own key is unchanged. /flow carekeys lists them.",
+        get = function() return K.Wanted() end,
+        set = function(on)
+            cfg().care = on and true or false
+            if not InCombatLockdown() then pcall(K.Apply) end
+        end,
+    })
+end

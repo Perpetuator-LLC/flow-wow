@@ -247,6 +247,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
   auction house, keep), why and which rule said so, the vendor price and the last auction
   price. Saved with the diagnostics.
+- **A second key for heals and potions**: turn on the buff button and give it a key
+  (`/flow buffbutton on`, `/flow buffkey <key>`). In a fight that key is your quickest heal;
+  Shift, Ctrl, Alt and Ctrl + Shift with it cast your heal over time, your other heal, your
+  healthstone or potion, and your bandage (`/flow carekeys`).
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
   later that no stop on your route uses) and deposits it at a click; the route adds a bank
   stop when one is on your way. Away from a bank its "In your bank" view shows what was there

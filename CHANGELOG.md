@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.206
+- **A second key for heals and potions.** Flow already had a second button with its own key:
+  the buff button (`/flow buffbutton on`, then `/flow buffkey <key>`). That key now has
+  modifiers of its own, like Flow's key:
+  - the key itself: out of a fight your next buff, bandage or food, as before; in a fight
+    your quickest heal, on you
+  - Shift + it: your heal over time (Rejuvenation)
+  - Ctrl + it: your other heal (Healing Touch)
+  - Alt + it: your healthstone or healing potion
+  - Ctrl + Shift + it: your best bandage (without one, your cure)
+
+  Little icons left of the buff button show what each press casts. All of it is set before
+  the pull. Flow's own key is unchanged for now: Shift + key still heals and Alt is still
+  your potion. "Heals and potions on the buff button's key" in Flow Settings turns the new
+  presses off; `/flow carekeys` lists them. Not seen working in game yet.
+
 ## 0.35.205
 - **No icons on quest mobs: your enemy nameplates are off.** The skull, the diamond and the
   count sit on nameplates, and the diagnostics showed none in view with the game's enemy

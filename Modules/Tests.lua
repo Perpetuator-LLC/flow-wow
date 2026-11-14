@@ -9559,3 +9559,51 @@ ns:Register("test", "easy key: it follows your form in a fight", function(t)
         end
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.206: the second key (the buff button's) has heals and potions on its
+-- modifiers.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "second key: heals and potions on the buff key's modifiers", function(t)
+    local K = ns.careKeys
+    t:ok(K ~= nil, "the second key's file loaded")
+    if not K then return end
+    local function modKey(key, mod) return mod .. "-" .. key end
+    t:eq(K.KeyFor("E", "shift", modKey), "SHIFT-E", "Shift + the key")
+    t:eq(K.KeyFor("E", "more", modKey), "SHIFT-CTRL-E", "Ctrl + Shift: both modifiers are added")
+    t:eq(K.KeyFor("E", "more"), "CTRL-SHIFT-E", "in the game's own order")
+    t:eq(K.KeyFor("SHIFT-E", "shift"), nil, "a key that already uses the modifier: no such press")
+    local plan = K.Plan({ quick = "Regrowth", heals = { "Regrowth", "Healing Touch", "Rejuvenation" }, hots = { "Rejuvenation" },
+        emergency = "item:858", bandage = "item:1251", cures = { "Cure Poison" } })
+    t:eq(plan.key.spell, "Regrowth", "the key in a fight: your quickest heal")
+    t:eq(plan.shift.spell, "Rejuvenation", "Shift: your heal over time")
+    t:eq(plan.ctrl.spell, "Healing Touch", "Ctrl: your other heal")
+    t:eq(plan.alt.item, "item:858", "Alt: your potion")
+    t:eq(plan.more.item, "item:1251", "Ctrl + Shift: your bandage")
+    t:eq(plan.key.unit, "player", "on you")
+    plan = K.Plan({ quick = "Holy Light", heals = { "Holy Light" }, cures = { "Purify" } })
+    t:ok(plan.shift == nil and plan.ctrl == nil and plan.alt == nil, "one heal and nothing carried: only the key")
+    t:eq(plan.more.spell, "Purify", "no bandage: your cure")
+    plan = K.Plan({})
+    t:ok(plan.key == nil and plan.more == nil, "nothing known: nothing set")
+    local kind, what, unit = K.Attributes({ spell = "Rejuvenation", unit = "player" })
+    t:ok(kind == "spell" and what == "Rejuvenation" and unit == "player", "a spell, as the button's attributes")
+    kind, what = K.Attributes({ item = "item:858" })
+    t:ok(kind == "item" and what == "item:858", "an item, as the button's attributes")
+    t:eq(K.Attributes(nil), nil, "nothing: none")
+    local ok, now = pcall(K.Now)
+    t:ok(ok and type(now) == "table", "what you'd get right now builds" .. (ok and "" or (": " .. tostring(now))))
+    local lines = K.Lines()
+    t:ok(type(lines) == "table" and #lines >= 1, "/flow carekeys has something to say")
+    -- Off (the buff button off, or no key): the key keeps the buff button's own way in a fight.
+    local c = ns.db.buffButton or {}
+    with(c, "enabled", false, function()
+        t:eq(K.FightKey(), nil, "buff button off: no heal on its key")
+        t:ok(not K.Active(), "and nothing bound")
+    end)
+    if not InCombatLockdown() then
+        local okA, err = pcall(K.Apply)
+        t:ok(okA, "setting the presses runs without error" .. (okA and "" or (": " .. tostring(err))))
+    end
+end)
