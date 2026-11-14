@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.35.178
+- **The way back from Moonglade.** "How do I get back now? Where do I go from Moonglade?"
+  Flow knew the way in (Teleport: Moonglade) and no way out, so the arrow pointed across all
+  of Kalimdor. The way out is a person: Bunthen Plainswind (Horde) and Silva Fil'naveth
+  (Alliance) fly druids home for free. While a druid is in Moonglade and the next stop is
+  outside it, the arrow now leads to them and says so ("140 yd to Bunthen Plainswind: he
+  flies druids to Thunder Bluff, free"), the panel says the same, the map's path ends at
+  them, and the route counts the flight, so what's in Thunder Bluff comes next. A stop next
+  door (Felwood) is still walked. `/flow rides` lists them; more can be registered
+  (`ns:Register("ride", ...)`).
+- **Set your hearthstone, in the right place, before you leave.**
+  - Only Alliance inns were listed, so a Horde character never got the "Set hearthstone"
+    stop at all. Thunder Bluff, Bloodhoof Village, Orgrimmar, Razor Hill, the Crossroads,
+    Camp Taurajo, Brill, Undercity, the Sepulcher and Sun Rock Retreat are in now, with
+    Stormwind, Ironforge, Darnassus and five more Alliance towns.
+  - **A city beats a village.** In Thunder Bluff with your home in Bloodhoof Village, the
+    route gets "Set hearthstone: Innkeeper Pala (Thunder Bluff)" as you arrive. Walking back
+    down into Mulgore doesn't offer Bloodhoof Village again; a town far from your city (the
+    Crossroads) is still offered when you get there.
+  - **Home first, then the trip.** A stop that's a teleport away (Moonglade) waits for the
+    "Set hearthstone" stop where you are. Hide that stop and nothing waits.
+  - The arrow's panel says when your hearthstone then a run is clearly the quicker way to
+    the next stop (an estimate: Flow never uses it for you), and `/flow nav why` says where
+    your home is and whether the stone is ready.
+
 ## 0.35.177
 - **Flow's right-click menus fold.** The menu on a stop, the arrow, the Flow Tracker and the
   rest used to be one long list. Now the part about the thing you clicked is open as before,

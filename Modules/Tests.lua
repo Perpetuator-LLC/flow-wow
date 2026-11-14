@@ -7692,3 +7692,141 @@ ns:Register("test", "router: a locked stop's reason stays inside the Flow Router
     local wraps = r.leg.CanWordWrap or r.leg.GetWordWrap
     if wraps then t:ok(not wraps(r.leg), "the reason is one line: a long one is cut with \"...\", not spilled") end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.178: the way back from a far trip (rides), and which inn is home.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "rides: the way out of Moonglade is the druids' flight master", function(t)
+    local R = ns.rides
+    local zoneOf = function(m) return ({ [9999] = 1450 })[m] or m end
+    local rides = { { name = "Bunthen Plainswind", from = 1450, class = "DRUID", faction = "Horde" },
+                    { name = "Silva Fil'naveth", from = 1450, class = "DRUID", faction = "Alliance" } }
+    local a, b = { map = 1450 }, { map = 1456 }
+    local fit = R.Fits(a, b, rides, zoneOf, "DRUID", "Horde")
+    t:eq(fit and fit.name, "Bunthen Plainswind", "a Horde druid in Moonglade, the stop in Thunder Bluff")
+    fit = R.Fits(a, b, rides, zoneOf, "DRUID", "Alliance")
+    t:eq(fit and fit.name, "Silva Fil'naveth", "an Alliance druid: Silva Fil'naveth")
+    t:eq(R.Fits(a, b, rides, zoneOf, "WARRIOR", "Horde"), nil, "not a druid: no ride")
+    t:eq(R.Fits(a, { map = 9999 }, rides, zoneOf, "DRUID", "Horde"), nil, "the stop is in Moonglade too: no ride")
+    t:eq(R.Fits({ map = 1412 }, b, rides, zoneOf, "DRUID", "Horde"), nil, "you aren't in Moonglade: no ride")
+    t:near(R.Cost(100, 9000, 50, 4.5, 40), 100 + 40 + 2000 + 50, 0.01, "its cost: to them, the talk, the flight, and on from the landing")
+
+    -- Measured, with stand-ins for where he stands and where you land.
+    local npc = { map = 1450, cont = 1, wx = 100, wy = 0 }
+    local land = { map = 1456, cont = 1, wx = 9000, wy = 0 }
+    local spotOf, landOf = function() return npc end, function() return land end
+    local you = { map = 1450, cont = 1, wx = 0, wy = 0 }
+    local far = { map = 1456, cont = 1, wx = 9100, wy = 0 }
+    local way = R.Way(you, far, "DRUID", "Horde", spotOf, landOf)
+    t:ok(way and way.name == "Bunthen Plainswind", "a stop in Thunder Bluff from Moonglade: by his flight")
+    t:near(way and way.toNpc or 0, 100, 0.01, "100 yd to him")
+    t:ok(way and way.yards > 100 and way.yards < 9100, "the whole way costs less than the straight line: " .. tostring(way and way.yards))
+    t:ok(way and way.point == npc, "the arrow's point is where he stands")
+    t:eq(R.Text(way), "100 yd to Bunthen Plainswind: he flies druids to Thunder Bluff, free", "the arrow's line")
+    -- A stop next door (Felwood): walking beats a flight to Thunder Bluff and back.
+    local near = { map = 1448, cont = 1, wx = 600, wy = 0 }
+    t:eq((R.Way(you, near, "DRUID", "Horde", spotOf, landOf)), nil, "a stop next door: on foot, not the flight")
+    -- Nobody knows where he stands: not measured, but still named.
+    local none, named = R.Way(you, far, "DRUID", "Horde", function() return nil end, landOf)
+    t:ok(none == nil and named and named.name == "Bunthen Plainswind", "his spot unknown: named, not measured")
+    t:eq((R.Way(you, far, "MAGE", "Horde", spotOf, landOf)), nil, "a mage: nothing")
+    t:eq((R.Way(you, { map = 1456, cont = 2, wx = 9100, wy = 0 }, "DRUID", "Horde", spotOf, landOf)), nil, "a stop on another continent: not measured")
+
+    t:ok(ns:Get("ride", "Bunthen Plainswind") and ns:Get("ride", "Silva Fil'naveth"), "both are registered")
+    local ok, lines = pcall(R.Lines)
+    t:ok(ok and type(lines) == "table" and #lines >= 2, "/flow rides lists them")
+    local okP, plan = pcall(R.PlanRide)
+    t:ok(okP and (plan == nil or type(plan) == "function"), "the planner's question builds")
+    local okH = pcall(R.Hint, you, far)
+    t:ok(okH, "the panel's line builds")
+    local hint = R.HintOf(way)
+    t:ok(hint and hint:find("talk to Bunthen Plainswind", 1, true) ~= nil, "and says who to talk to: " .. tostring(hint))
+    t:eq(R.HintOf(nil), nil, "no ride: no line")
+end)
+
+ns:Register("test", "planner and arrow: a leg out of Moonglade costs the ride", function(t)
+    local P, N = ns.planner, ns.nav
+    local A = { map = 1450, cont = 1, wx = 0, wy = 0 }
+    local B = { map = 1456, cont = 1, wx = 9000, wy = 0 }
+    t:eq(P._Far(A, B, { ride = function() return 2300 end }), 2300, "a ride that's cheaper than the straight line counts")
+    t:eq(P._Far(A, B, { ride = function() return 99999 end }), 9000, "one that costs more: not taken")
+    t:eq(P._Far(A, B, { ride = function() return nil end }), 9000, "no ride for this leg: the straight line")
+    t:eq(P._Far(A, { map = 1450, cont = 1, wx = 300, wy = 0 }, { ride = function() return 1 end }), 300, "inside one map: never asked")
+    t:eq(P._Far(A, B, { ride = function() error("boom") end }), 9000, "a ride that errors: the straight line")
+    local how = N.HowText("ride", nil, { name = "Bunthen Plainswind", how = "he flies druids to Thunder Bluff, free" })
+    t:ok(how:find("Bunthen Plainswind", 1, true) ~= nil and how:find("Thunder Bluff", 1, true) ~= nil, "the panel says who and where to: " .. how)
+    t:ok(N.HowText("path", nil, nil):find("trail", 1, true) ~= nil, "no ride: as before")
+    -- The stop after the ride comes before one that's truly far.
+    local function goal(key, map, x)
+        return { key = key, text = key, points = { { map = map, cont = 1, wx = x, wy = 0 } } }
+    end
+    local you = { map = 1450, cont = 1, wx = 0, wy = 0 }
+    local ride = function(a, b)
+        if a.map == 1450 and b.map == 1456 then return 400 end
+    end
+    local plan = P:Plan(you, { goal("tb", 1456, 9000), goal("felwood", 1448, 1500) }, { ride = ride })
+    t:eq(plan and plan[1] and plan[1].goal.key, "tb", "Thunder Bluff by the flight (400) before Felwood on foot (1500)")
+    plan = P:Plan(you, { goal("tb", 1456, 9000), goal("felwood", 1448, 1500) }, {})
+    t:eq(plan and plan[1] and plan[1].goal.key, "felwood", "without the ride: the nearer one, as before")
+end)
+
+ns:Register("test", "hearthstone: a city beats a village; home first, then a far trip", function(t)
+    local H = ns.hearth
+    local tb, bh = ns:Get("innkeeper", "thunderbluff"), ns:Get("innkeeper", "bloodhoof")
+    local xr, tj = ns:Get("innkeeper", "crossroads"), ns:Get("innkeeper", "taurajo")
+    t:ok(tb and tb.city and bh and not bh.city and xr and tj, "Horde inns are listed: Thunder Bluff (a city), Bloodhoof Village, the Barrens")
+    if not (tb and bh and xr and tj) then return end
+    t:ok(H.Offer(tb, bh, 700), "in Thunder Bluff with your home in Bloodhoof Village: set it here")
+    t:ok(not H.Offer(bh, tb, 700), "back in Mulgore with your home in Thunder Bluff, close by: keep the city")
+    t:ok(H.Offer(xr, tb, 3200), "at the Crossroads, the city far away: offered")
+    t:ok(not H.Offer(tj, xr, 900), "another inn of the zone you're bound in: no")
+    t:ok(H.Offer(bh, nil, nil), "your home isn't an inn Flow knows: offered, as before")
+    t:ok(not H.Offer(tb, tb, 0), "bound here: no")
+    t:ok(not H.Offer(bh, tb, nil), "a city home, the distance unknown: keep it")
+    t:ok(not H.Offer(nil, bh, 1), "no inn here: nothing")
+
+    -- What the game calls your home.
+    with(ns.db.hearth, "binds", nil, function()
+        t:ok(H:BoundTo(bh, "Bloodhoof Village") and not H:BoundTo(tb, "Bloodhoof Village"), "\"Bloodhoof Village\" is Innkeeper Kauth's")
+        t:ok(H:BoundTo(ns:Get("innkeeper", "orgrimmar"), "Valley of Strength"), "a city's district counts")
+        t:eq((H:Home("Bloodhoof Village")), "bloodhoof", "your home, as an inn Flow knows")
+        t:eq((H:Home("Somewhere Unheard Of")), nil, "a home Flow doesn't know")
+        t:ok(H.Learn("Lower Rise", "Innkeeper Pala"), "set at an innkeeper Flow knows: the game's wording is kept")
+        t:ok(H:BoundTo(tb, "Lower Rise") and not H:BoundTo(bh, "Lower Rise"), "and counts from then on")
+        t:ok(not H.Learn("Lower Rise", "Some Vendor"), "not an innkeeper: nothing learned")
+    end)
+
+    -- A stop a travel spell away waits for "Set hearthstone".
+    local goals = {
+        { key = "hearth:thunderbluff", points = { { map = 1456 } } },
+        { key = "q:moonglade", points = { { map = 1450 } }, deps = { "q:other" } },
+        { key = "q:here", points = { { map = 1456 } } },
+        { key = "q:nowhere", points = {} },
+    }
+    local had = goals[2].deps
+    local isTrip = function(pt) return pt.map == 1450 end
+    t:eq(H.BeforeTrips(goals, isTrip), 1, "one stop is a cast away")
+    t:ok(goals[2].deps[1] == "q:other" and goals[2].deps[2] == "hearth:thunderbluff", "it waits for Set hearthstone, and for what it waited for before")
+    t:eq(#had, 1, "the list it had isn't changed (it may be shared)")
+    t:eq(goals[3].deps, nil, "a stop here doesn't wait")
+    H.BeforeTrips(goals, isTrip)
+    t:eq(#goals[2].deps, 2, "asked twice: not added twice")
+    t:eq(H.BeforeTrips({ goals[2], goals[3] }, function() return true end), 0, "no Set hearthstone stop on the route: nothing waits")
+    -- And the planner keeps that order, even with the far stop "one cast away".
+    local function goal(key, map, x, deps)
+        return { key = key, text = key, deps = deps, points = { { map = map, cont = 1, wx = x, wy = 0 } } }
+    end
+    local list = { goal("hearth:thunderbluff", 1456, 300), goal("q:moonglade", 1450, 9000) }
+    H.BeforeTrips(list, isTrip)
+    local port = function(a, b) if b.map == 1450 and a.map ~= 1450 then return 120 end end
+    local plan = ns.planner:Plan({ map = 1456, cont = 1, wx = 0, wy = 0 }, list, { port = port })
+    t:eq(plan and plan[1] and plan[1].goal.key, "hearth:thunderbluff", "Set hearthstone first (300 yd), though Moonglade is one cast away (120)")
+    t:eq(plan and plan[2] and plan[2].goal.key, "q:moonglade", "then the trip")
+
+    local okL, line = pcall(H.Line)
+    t:ok(okL and type(line) == "string" and line:find("^hearthstone: set to ") ~= nil, "/flow nav why says where your home is: " .. tostring(line))
+    local provider = ns:Get("navGoal", "hearth")
+    local okC, res = pcall(provider.collect)
+    t:ok(okC and (res == nil or type(res) == "table"), "the stop's source runs" .. (okC and "" or (": " .. tostring(res))))
+end)

@@ -2428,8 +2428,14 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
+    -- Set your home before a spell casts you far from it: a stop that's a
+    -- travel spell away waits for the "Set hearthstone" stop here (Hearth.lua).
+    if p and ns.hearth and ns.hearth.BeforeTrips and ns.travelSpells then
+        pcall(ns.hearth.BeforeTrips, goals, function(pt) return ns.travelSpells.Spell(p, pt) ~= nil end)
+    end
     return { first = first, tour = tour, here = here, away = away, air = N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil,
-             port = ns.travelSpells and ns.travelSpells.PlanPort() or nil }
+             port = ns.travelSpells and ns.travelSpells.PlanPort() or nil,
+             ride = ns.rides and ns.rides.PlanRide() or nil }
 end
 
 -- A plan as if you had picked this stop (for previews on the map / advice list).
@@ -2759,6 +2765,18 @@ local function steer(p, choice)
         local spell = TS.Spell(p, pt)
         N.port, N.portHint = spell and spell.name or nil, TS.Hint(p, pt)
     end
+    -- Out of a zone someone carries you from (a druid in Moonglade): the
+    -- arrow leads to them, and says who to talk to (Rides.lua).
+    local RD = ns.rides
+    local way, named
+    if RD then way, named = RD.Way(p, pt) end
+    N.ride, N.rideHint = way, RD and RD.HintOf(way or named) or nil
+    if way then
+        N.via = nil
+        local wx, wy, how, len = steerTo(p, way.point, way.toNpc, choice.goal.key .. ":ride", false)
+        if how == "path" then return wx, wy, "path", len end
+        return wx, wy, "ride", way.toNpc
+    end
     -- The stop is in another region: by a gate you've used, never straight
     -- through the cliff. The gate is where to walk to until you're through.
     local via = ns.gates and ns.gates.Via(p, pt) or nil
@@ -2795,6 +2813,16 @@ function N.LegVia(a, b, live)
             out[#out + 1] = { cont = route.cont, wx = g.x[node], wy = g.y[node] }
         end
     end
+    -- To someone who carries you (a flight out of Moonglade): the walk ends
+    -- at them; the rest is by air.
+    if live and N.ride and N.ride.point then
+        local pt, lastPt = N.ride.point, out and out[#out]
+        out = out or {}
+        if not lastPt or dist(lastPt.wx, lastPt.wy, pt.wx, pt.wy) > ARRIVED then
+            out[#out + 1] = { cont = pt.cont, wx = pt.wx, wy = pt.wy }
+        end
+        return out
+    end
     local via = ns.gates and ns.gates.Via(a, b)
     if via and via.points[1] then
         out = out or {}
@@ -2827,7 +2855,10 @@ function N.GateText(via, yards)
 end
 
 -- One line for the arrow's panel: how it's taking you there.
-function N.HowText(how, via)
+function N.HowText(how, via, ride)
+    if ride then
+        return string.format("It's far from here: the arrow takes you to %s (%s).", ride.name, ride.how or "a ride out")
+    end
     if how == "path" then return "Following a trail you've walked before." end
     if how == "entrance" then return "It's inside: the arrow takes you to the entrance first." end
     if how == "gate" then
@@ -2845,7 +2876,8 @@ end
 -- reached): the world map draws its path again then.
 function N.PathStamp()
     local via = N.via
-    return (N.how or "") .. (route and (":" .. tostring(route.goalKey) .. ":" .. route.idx .. ":" .. #route.nodes) or "")
+    return (N.how or "") .. (N.ride and (":ride:" .. N.ride.name) or "")
+        .. (route and (":" .. tostring(route.goalKey) .. ":" .. route.idx .. ":" .. #route.nodes) or "")
         .. ((via and via.points[1]) and (":g" .. #via.points .. ":" .. via.points[1].wx) or "")
 end
 
@@ -3061,7 +3093,13 @@ local function showPanel()
         if not l:find("^Quest: ") and not l:find("^Objective: ") then lines[#lines + 1] = "|cffcccccc" .. l .. "|r" end
     end
     if N.portHint then lines[#lines + 1] = "|cff66ccff" .. N.portHint .. "|r" end
-    lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via) .. "|r"
+    if N.rideHint then lines[#lines + 1] = "|cff66ccff" .. N.rideHint .. "|r" end
+    -- Your hearthstone, when Flow's estimate says it's clearly the quicker
+    -- way (against the ride, where there is one).
+    local hs = ns.hearth and ns.hearth.Advice and current.point and current.point.map
+        and ns.hearth:Advice(current.point.map, current.point.x, current.point.y, (N.ride and N.ride.yards) or current.d)
+    if hs then lines[#lines + 1] = "|cff66ccff" .. hs .. "|r" end
+    lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via, N.ride) .. "|r"
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
         lines[#lines + 1] = " "
@@ -3671,6 +3709,11 @@ local function update()
             frame.arrow:Show()
             frame.sub:SetText(choice.d < ARRIVED * 2 and "You're here" or "You're in the area")
         end
+    elseif N.ride then
+        -- Who to talk to and how far they are (not the stop's own distance:
+        -- that's a flight away).
+        frame.sub:SetText(ns.rides.Text(N.ride, how == "path" and length or N.ride.toNpc))
+        frame.arrow:SetArrived(false)
     else
         frame.sub:SetText(string.format("%d yd%s%s%s", choice.d,
             N.TravelText(p, choice.point, (how == "path" or how == "gate") and length or choice.d),
@@ -3994,6 +4037,9 @@ ns.commands.nav = function(arg)
         for _, e in ipairs(ns.quests.classSteps or {}) do
             print("  class quest: " .. ns.quests.ClassQuestLine(e))
         end
+        -- How you leave where you are: a ride (Rides.lua), your hearthstone (Hearth.lua).
+        if N.ride then print("  way out: " .. ns.rides.Text(N.ride)) elseif N.rideHint then print("  way out: " .. N.rideHint) end
+        if ns.hearth and ns.hearth.Line then print("  " .. ns.hearth.Line()) end
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
         print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")

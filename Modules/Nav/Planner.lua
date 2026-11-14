@@ -81,6 +81,12 @@ local function far(a, b)
         local ok, t = pcall(OPT.port, a, b)
         if ok and type(t) == "number" and t < d then return t end
     end
+    -- Out of a zone someone carries you from (a druid in Moonglade: the
+    -- flight to Thunder Bluff): to them, the ride, and on from the landing.
+    if OPT.ride and a.map ~= b.map then
+        local ok, t = pcall(OPT.ride, a, b)
+        if ok and type(t) == "number" and t < d then return t end
+    end
     -- On different maps (one up on Thunder Bluff, one at its foot; the next
     -- zone): the walk goes by a gate, not through the cliff (Gates.lua).
     if OPT.walk and a.map ~= b.map then

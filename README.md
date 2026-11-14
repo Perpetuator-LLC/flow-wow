@@ -108,6 +108,14 @@ Flow for WoW is a separate project from Flow Engine.
   stops on the bluff are done together), and the map's dotted path bends through it. Capital
   cities are walled: where Flow knows no way in yet, it says so. `/flow gates`. A druid's
   Teleport: Moonglade counts as travel too: a stop in Moonglade is one cast away.
+  And the way back is a person: in Moonglade a druid's arrow leads to Bunthen Plainswind
+  (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
+  to. `/flow rides`.
+- **Hearthstone**: in a town with an inn, when your stone is set somewhere else, the route
+  gets a "Set hearthstone" stop (Horde and Alliance towns and cities). A city beats a
+  village (in Thunder Bluff with your home in Bloodhoof Village, you're told to set it
+  there), a village near your city home isn't offered back, and a stop that's a teleport
+  away waits until you've set your home. `/flow hearth on|off`.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Shortest path**
   (rare blue, the default) and **Most XP first** (epic purple) are optimised; **Custom route**
   (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
