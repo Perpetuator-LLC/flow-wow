@@ -1800,6 +1800,7 @@ local function zoneName(map)
     local info = map and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(map)
     return info and info.name or "another zone"
 end
+N.ZoneNameOf = zoneName
 
 -------------------------------------------------------------------------------
 -- Travel by air: the flight masters this character can fly to (read when

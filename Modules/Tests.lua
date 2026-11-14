@@ -8486,9 +8486,9 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     local sp, srel, srp, sx = icon.swing:GetPoint(1)
     t:ok(sp == "LEFT" and srel == icon and srp == "RIGHT" and (sx or 0) > 0, "the crossed swords are on its right")
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
-    -- (0.35.193: on the left, right above the modifier names it speaks of.)
-    local tp, trel, trp, tx = icon.shiftTag:GetPoint(1)
-    t:ok(tp == "BOTTOMRIGHT" and trel == icon and trp == "TOPLEFT" and (tx or 0) < 0, "the SHIFT+ tag is above the modifier names, left of the icon")
+    -- (0.35.199: on the key bind's line, just left of it; its own test below.)
+    local tp, _, _, tx = icon.shiftTag:GetPoint(1)
+    t:ok(tp ~= nil and (tx or 0) < 0, "the SHIFT+ tag is to the left")
 end)
 
 -------------------------------------------------------------------------------
@@ -9057,4 +9057,46 @@ ns:Register("test", "arrow: says when your hearthstone is clearly the quicker wa
     t:ok(ok and type(text) == "string", "the arrow's cue runs" .. (ok and "" or (": " .. tostring(text))))
     local ok2, saving = pcall(H.Saves, H, 1412, 0.5, 0.5, 2100)
     t:ok(ok2 and (saving == nil or type(saving) == "number"), "and the estimate behind it")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.199: before you leave a zone; the modifier tag on the key bind's line.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "leaving a zone: what's still to train or level is said once", function(t)
+    local L = ns.leaving
+    t:ok(L.Counts({ text = "Herbalism is 26; aim for about 90 at level 13", improves = { "Professions" } }), "a profession behind your level counts")
+    t:ok(L.Counts({ text = "Train Revive at your class trainer", goalKey = "train:class" }), "training counts")
+    t:ok(L.Counts({ text = "Buy Journeyman Skinning", goalKey = "train:Skinning" }), "a profession trainer counts")
+    t:ok(not L.Counts({ text = "Equip a better staff", improves = { "DPS" } }), "gear doesn't")
+    t:ok(not L.Counts(nil), "nothing: no")
+    local list = L.Checklist({
+        { text = "Equip a better staff", improves = { "DPS" } },
+        { text = "Train Revive at your class trainer", goalKey = "train:class" },
+        { text = "Herbalism is 26; aim for about 90 at level 13", improves = { "Professions" } },
+    })
+    t:eq(#list, 2, "only the training and the professions")
+    t:eq(list[1], "Train Revive at your class trainer", "in Flow Improvements' order")
+    t:eq(#L.Checklist({ { text = "Train A" }, { text = "Train B" }, { text = "Train C" } }, 2), 2, "never more lines than asked")
+    t:ok(L.Due(1412, 1413, nil), "your next stop is in another zone: say it")
+    t:ok(not L.Due(1412, 1413, 1412), "already said for this zone: not again")
+    t:ok(not L.Due(1412, 1412, nil), "the next stop is here: nothing to say")
+    t:ok(not L.Due(nil, 1413, nil), "no zone known: nothing")
+    with(ns, "Print", function() end, function()
+        L._Forget()
+        local ok = pcall(L.Check)
+        t:ok(ok, "the check runs")
+        L._Forget()
+    end)
+end)
+
+ns:Register("test", "easy button: the held-modifier tag is on the key bind's line", function(t)
+    local C, E = ns.cast, ns.rotation
+    local key, icon = C._KeyText(), E.icon
+    if not (key and icon and icon.shiftTag) then t:ok(true, "(the Flow key isn't built yet)") return end
+    local p, rel, rp, x = icon.shiftTag:GetPoint(1)
+    t:ok(p == "RIGHT" and rel == key and rp == "LEFT" and (x or 0) < 0, "just left of the key's bind, on its line")
+    t:eq(icon.shiftTag:GetNumPoints(), 1, "and nowhere else")
+    local _, size = icon.shiftTag:GetFont()
+    t:near(size or 0, C.KEY_FONT, 0.6, "in the same size of lettering")
 end)

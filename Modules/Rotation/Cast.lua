@@ -364,6 +364,15 @@ local function build(cfg)
         keyText:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
         keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2)
         keyText:SetTextColor(0.85, 0.85, 0.85)
+        -- The tag for the modifier you hold ("CTRL+", "SHIFT+"): on the same
+        -- line as the key's bind, just left of it, in the same lettering, so
+        -- the two read as one: "SHIFT+ MB5 / Q" (0.35.199; it sat above the
+        -- modifier icons in bigger letters and looked out of line).
+        if icon.shiftTag then
+            icon.shiftTag:ClearAllPoints()
+            icon.shiftTag:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
+            icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0)
+        end
         lockIcon = CreateFrame("Frame", nil, icon)
         lockIcon:SetSize(22, 22)
         lockIcon:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 8, -8)

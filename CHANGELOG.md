@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.199
+- **Before you leave a zone, Flow says what's still to train or level there.** When your
+  next stop is in another zone, chat lists, once, what Flow Improvements still has about
+  training and professions: spells to train, professions behind your level, a tier to buy.
+  It tells you; it doesn't hold the route back.
+- The tag for the modifier you hold ("CTRL+", "SHIFT+") is on the same line as the key's
+  bind, just left of it, in the same size: "SHIFT+ MB5 / Q".
+
 ## 0.35.198
 Found by running the new route check (`tools\route-check.ps1`) on a real route: Flow's 30
 stops came to 31,663 yards where the shortest order was 19,599.
