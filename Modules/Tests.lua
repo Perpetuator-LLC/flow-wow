@@ -10056,3 +10056,52 @@ ns:Register("test", "click: Flow Auctions opens, lists, and posts nothing away f
     ns.db.ah.duration = nil
     if not was then f:Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.215: Flow Banker draws your bank as a grid of slots, read only.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: your bank as a grid of slots, in the bank's own order", function(t)
+    local B = ns.banker
+    local cells, own = B.Cells({ { 2318, 12 }, false, { 2589, 40 }, false, false }, { [2318] = 12, [2589] = 40 })
+    t:ok(own and #cells == 5, "slot by slot, the empty ones too")
+    t:ok(cells[1].id == 2318 and cells[1].count == 12 and cells[2] == false and cells[3].id == 2589, "each slot where it is in the bank")
+    cells, own = B.Cells(nil, { [2589] = 40, [2318] = 12 }, function(id) return id == 2318 and "Light Leather" or "Linen Cloth" end)
+    t:ok(not own and #cells == 2 and cells[1].id == 2318, "a bank seen before slots were kept: its things by name")
+    cells = B.Cells({}, {})
+    t:eq(#cells, 0, "an empty record: no cells")
+    -- 8 columns, 6 rows showing.
+    local first, off, below = B.GridWindow(48, 0, 8, 6)
+    t:ok(first == 1 and off == 0 and below == 0, "48 slots fit: no scrolling")
+    first, off, below = B.GridWindow(80, 0, 8, 6)
+    t:ok(first == 1 and off == 0 and below == 4, "80 slots: four more rows below")
+    first, off, below = B.GridWindow(80, 99, 8, 6)
+    t:ok(first == 33 and off == 4 and below == 0, "scrolled past the end: the last six rows")
+    t:ok(B.COLS * B.CELL < 330, "the grid fits the window")
+end)
+
+ns:Register("test", "click: Flow Banker's bank view shows the grid, the other views their lists", function(t)
+    local B = ns.banker
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset = B.view, B.offset
+    local bank = ns.db.bank
+    ns.db.bank = { items = { [2318] = 12, [2589] = 40 }, layout = { { 2318, 12 }, false, { 2589, 40 } }, seenAt = time() - 600 }
+    local ok, err = pcall(B.Show, B, "bank")
+    t:ok(ok, "the bank view opens" .. (ok and "" or (": " .. tostring(err))))
+    local f = B._Frame()
+    if ok and f and f.cells then
+        t:ok(f.cells[1]:IsShown() and f.cells[1].id == 2318, "the first slot holds what the bank's first slot held")
+        t:ok(f.cells[2]:IsShown() and f.cells[2].id == nil, "an empty slot is an empty square")
+        t:ok(f.cells[3]:IsShown() and not f.cells[4]:IsShown(), "as many squares as the bank has slots")
+        t:eq(f.rows[1]:GetText() or "", "", "no list lines under the grid")
+        t:ok(f.note:GetText():find("10 min ago", 1, true) ~= nil, "it says when Flow saw it: " .. tostring(f.note:GetText()))
+        t:ok(pcall(function() f.cells[1]:GetScript("OnEnter")(f.cells[1]); f.cells[1]:GetScript("OnLeave")(f.cells[1]) end), "hovering a slot shows its item")
+        t:ok(pcall(function() f:GetScript("OnMouseWheel")(f, -1) end), "the wheel scrolls it")
+        pcall(B.Show, B, "prices")
+        t:ok(not f.cells[1]:IsShown(), "another view: the grid goes")
+    end
+    ns.db.bank = bank
+    B.view, B.offset = view, offset
+    if f then B:Fill(); if not was then f:Hide() end end
+end)

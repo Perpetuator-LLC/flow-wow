@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.215
+- **Flow Banker shows your bank as it looks.** "In your bank" is now a grid of slots like the
+  bank's own: each item's icon and count where it sits, empty slots as empty squares, the
+  item's tooltip on hover, the wheel to scroll. It's read only: a picture of what Flow last
+  saw, usable anywhere. Open your bank once on this version so Flow records the slots;
+  until then it shows what it knew before, by name.
+
 ## 0.35.214
 - **Flow Auctions: post with one click an item.** At the auction house a small window lists
   what in your bags Flow marks for the auction house, with the price it would ask: one

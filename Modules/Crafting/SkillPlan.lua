@@ -1038,18 +1038,22 @@ end
 function SP.ReadBank()
     if not bankOpen then return false end
     local items = {}
+    -- layout: every slot in the bank's own order, { itemID, count } or false
+    -- for an empty one, so Flow Banker can draw the bank as it looks (0.35.215).
+    local layout = {}
     for _, bag in ipairs(bankContainers()) do
         local okSlots, n = pcall(containerSlots, bag)
         for slot = 1, okSlots and n or 0 do
             local id, c = containerItem(bag, slot)
             if id and c then items[id] = (items[id] or 0) + c end
+            layout[#layout + 1] = (id and c) and { id, c } or false
         end
     end
     local old = ns.db.bank and ns.db.bank.items or {}
     local changed = false
     for id, c in pairs(items) do if old[id] ~= c then changed = true end end
     for id in pairs(old) do if items[id] == nil then changed = true end end
-    ns.db.bank = { items = items, seenAt = time() }
+    ns.db.bank = { items = items, layout = layout, seenAt = time() }
     return changed
 end
 

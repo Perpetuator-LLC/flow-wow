@@ -307,13 +307,127 @@ function B.ViewLines(view)
     return string.format("%d stack(s) Flow keeps for later and nothing on your route uses now:", B.Stacks(list)), out
 end
 
+-------------------------------------------------------------------------------
+-- "In your bank", drawn as the bank looks: a grid of slots, read only
+-------------------------------------------------------------------------------
+-- "Flow Banker ... to look like it does when I'm at the actual bank, just
+-- read-only" (0.35.215). Each slot in the bank's own order, with its icon
+-- and count; empty slots stay empty squares. Hover a slot for the item.
+-- Nothing can be moved from here: it's a picture of what Flow last saw.
+-- (A bank Flow saw before 0.35.215 has no slot order kept: its things are
+-- shown by name, without the empty slots, until you open the bank again.)
+B.COLS, B.GRID_ROWS, B.CELL = 8, 6, 34
+
+-- Pure: the grid's cells. layout: the bank slot by slot ({ id, count } or
+-- false); without one, items ({ [id] = count }) by name. -> { { id, count }
+-- or false }, and whether it's the bank's own order.
+function B.Cells(layout, items, name)
+    if type(layout) == "table" and #layout > 0 then
+        local out = {}
+        for i, s in ipairs(layout) do
+            out[i] = (type(s) == "table" and s[1]) and { id = s[1], count = s[2] or 1 } or false
+        end
+        return out, true
+    end
+    local out = {}
+    for _, r in ipairs(B.BankRows(items, name)) do out[#out + 1] = { id = r.id, count = r.count } end
+    return out, false
+end
+
+-- Pure: which cells show. n cells, scrolled down `offset` rows.
+--   -> first cell, the offset in range, rows below the last one shown
+function B.GridWindow(n, offset, cols, rows)
+    local total = math.ceil((n or 0) / cols)
+    local maxOff = math.max(0, total - rows)
+    offset = math.max(0, math.min(offset or 0, maxOff))
+    return offset * cols + 1, offset, maxOff - offset
+end
+
+local function makeCell(f, i)
+    local c = CreateFrame("Frame", nil, f)
+    c:SetSize(B.CELL - 2, B.CELL - 2)
+    local col, row = (i - 1) % B.COLS, math.floor((i - 1) / B.COLS)
+    c:SetPoint("TOPLEFT", 14 + col * B.CELL, -68 - row * B.CELL)
+    c.edge = c:CreateTexture(nil, "BACKGROUND", nil, 1)
+    c.edge:SetPoint("TOPLEFT", -1, 1); c.edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    c.edge:SetColorTexture(0.3, 0.3, 0.33, 0.9)
+    c.back = c:CreateTexture(nil, "BACKGROUND", nil, 2)
+    c.back:SetAllPoints()
+    c.back:SetColorTexture(0.08, 0.08, 0.1, 1)
+    c.icon = c:CreateTexture(nil, "ARTWORK")
+    c.icon:SetAllPoints()
+    c.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    c.count = c:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    c.count:SetPoint("BOTTOMRIGHT", -1, 1)
+    c:EnableMouse(true)
+    c:SetScript("OnEnter", function(self)
+        if not self.id then return end
+        ns.Tip(self, "ANCHOR_RIGHT")
+        if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.id) end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("In your bank, as Flow last saw it. Go to a bank to take it out.", 0.6, 0.6, 0.6, true)
+        GameTooltip:Show()
+    end)
+    c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c:Hide()
+    return c
+end
+
+-- Fills (or hides) the grid. -> the line above it, when it shows.
+function B:FillGrid(show)
+    local f = B.frame
+    if not f then return nil end
+    f.cells = f.cells or {}
+    if not show then
+        for _, c in ipairs(f.cells) do c:Hide() end
+        return nil
+    end
+    local bank = ns.db.bank or {}
+    local cells, own = B.Cells(bank.layout, bank.items, nameOf)
+    local first, offset, below = B.GridWindow(#cells, B.offset, B.COLS, B.GRID_ROWS)
+    B.offset = offset
+    local used = 0
+    for _, s in ipairs(cells) do if s then used = used + 1 end end
+    for i = 1, B.COLS * B.GRID_ROWS do
+        local c = f.cells[i] or makeCell(f, i)
+        f.cells[i] = c
+        local s = cells[first + i - 1]
+        if s == nil then
+            c:Hide()
+        else
+            c.id = s and s.id or nil
+            if s then
+                c.icon:SetTexture((ns.api.ItemIcon and ns.api.ItemIcon(s.id))
+                    or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(s.id))
+                    or "Interface\\Icons\\INV_Misc_QuestionMark")
+                c.icon:Show()
+                c.count:SetText((s.count or 1) > 1 and s.count or "")
+            else
+                c.icon:Hide()
+                c.count:SetText("")
+            end
+            c:Show()
+        end
+    end
+    if not bank.seenAt then return "Flow hasn't seen inside your bank yet. Open it once and Flow remembers what's there." end
+    return string.format("Your bank as Flow saw it %s: %d slot(s) used%s.%s", B.Ago(time() - bank.seenAt), used,
+        own and string.format(" of %d", #cells) or "", (below > 0 or offset > 0) and " Scroll for more." or "")
+end
+
 function B:Fill()
     local f = B.frame
     if not f then return end
     local note, lines = B.ViewLines(B.view)
+    -- The bank is a grid of slots, not a list (FillGrid, above).
+    local grid = B:FillGrid(B.view == "bank")
+    if B.view == "bank" then note, lines = grid or note, {} end
     f.note:SetText(note)
-    local first, last, below, offset = B.Window(#lines, B.offset, B.ROWS)
-    B.offset = offset
+    local first, last, below = 1, 0, 0
+    if B.view ~= "bank" then
+        local offset
+        first, last, below, offset = B.Window(#lines, B.offset, B.ROWS)
+        B.offset = offset
+    end
     for i = 1, B.ROWS do
         local at = first + i - 1
         local text = at <= last and lines[at] or ""
@@ -331,7 +445,8 @@ function B:Fill()
 end
 
 function B:Scroll(delta)
-    B.offset = math.max(0, (B.offset or 0) - (delta or 0) * 3)
+    -- (The bank's grid moves a row of slots a notch; the lists three lines.)
+    B.offset = math.max(0, (B.offset or 0) - (delta or 0) * (B.view == "bank" and 1 or 3))
     B:Fill()
 end
 
