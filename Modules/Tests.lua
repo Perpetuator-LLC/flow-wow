@@ -11136,3 +11136,29 @@ ns:Register("test", "buttons: docked, the key is at the Flow icon's bottom right
     end
     C.LayoutLabels(was)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.237: docked, every press keeps its column and all four are named.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "second key: docked, each press has its own column and all four names are written", function(t)
+    local K = ns.careKeys
+    t:eq(K.ColumnRight(1), -10, "Shift's column starts 10 left of the button")
+    t:eq(K.ColumnRight(2), -10 - K.SIZES[1] - 6, "Ctrl's is one icon and a gap further")
+    t:eq(K.ColumnRight(3), K.ColumnRight(2) - K.SIZES[2] - 6, "Alt's after Ctrl's")
+    t:eq(K.ColumnRight(4), K.ColumnRight(3) - K.SIZES[3] - 6, "C+S's after Alt's, whether or not Alt has anything on it")
+    t:eq(K.ColumnMiddle(3), K.ColumnRight(3) - K.SIZES[3] / 2, "a name sits over the middle of its column")
+    local btn = _G.FlowBuffButton
+    if not btn then return end
+    K.DockNames(btn, true)
+    local names = {}
+    for index in ipairs(K.SLOTS) do
+        local fs = K._dockNames[index]
+        t:ok(fs and fs:IsShown(), "name " .. index .. " is written")
+        names[#names + 1] = fs and fs:GetText() or "?"
+    end
+    t:eq(table.concat(names, " "), "SHIFT CTRL ALT C+S", "all four, Alt among them, nearest the button first")
+    K.DockNames(btn, false)
+    t:ok(not K._dockNames[3]:IsShown(), "not docked: they are gone")
+    K.DockNames(btn, (ns.buffButton.Docked and ns.buffButton.Docked()) and K.Active())
+end)

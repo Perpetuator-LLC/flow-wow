@@ -189,13 +189,54 @@ local function nameOf(s)
     return (id and A.ItemInfo and A.ItemInfo(id)) or "your item"
 end
 
+-- Pure: where a press's column is, docked: the x of its right edge and of
+-- its middle, from the button's left edge (both negative: out to the left).
+-- The same steps as the icons beside Flow's own (Display.lua): 10 to the
+-- first, 6 between, sizes K.SIZES.
+function K.ColumnRight(index)
+    local x = -10
+    for i = 1, index - 1 do x = x - (K.SIZES[i] or K.SIZES[#K.SIZES]) - 6 end
+    return x
+end
+function K.ColumnMiddle(index)
+    return K.ColumnRight(index) - (K.SIZES[index] or K.SIZES[#K.SIZES]) / 2
+end
+-- Docked: SHIFT, CTRL, ALT and C+S written once, between the two rows, one
+-- over each column, always all four (they name Flow's presses too).
+local dockNames = {}
+function K.DockNames(btn, show)
+    for index, slot in ipairs(K.SLOTS) do
+        local fs = dockNames[index]
+        if show and not fs then
+            fs = btn:CreateFontString(nil, "OVERLAY")
+            fs:SetTextColor(0.85, 0.85, 0.85)
+            dockNames[index] = fs
+        end
+        if fs then
+            if show then
+                local sz = K.SIZES[index] or K.SIZES[#K.SIZES]
+                fs:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
+                fs:SetText(K.LABEL[slot])
+                fs:ClearAllPoints()
+                fs:SetPoint("BOTTOM", btn, "TOPLEFT", K.ColumnMiddle(index), 2)
+                fs:Show()
+            else
+                fs:Hide()
+            end
+        end
+    end
+end
+K._dockNames = dockNames   -- (tests)
+
 -- The little icons, left of the buff button: what each modifier casts.
 local function paint()
     local btn = button()
     if not btn then return end
     local n = 0
     local prevIcon
-    for _, slot in ipairs(K.SLOTS) do
+    local docked = (BB.Docked and BB.Docked()) and true or false
+    K.DockNames(btn, docked and K.Active())
+    for index, slot in ipairs(K.SLOTS) do
         local ic = icons[slot]
         local s = K.Active() and slotStep[slot] or nil
         if s and not ic then
@@ -242,16 +283,28 @@ local function paint()
                 end
                 ic.tex:SetTexture(texOf(s) or "Interface\\Icons\\INV_Misc_QuestionMark")
                 -- (Out to the left, nearest first and biggest, bottoms level: as Flow's icon has them.)
-                local sz = K.SIZES[n] or K.SIZES[#K.SIZES]
-                ic:SetSize(sz, sz)
-                ic.label:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
-                ic.label:SetText(K.LABEL[slot])
                 ic:ClearAllPoints()
-                -- (Docked under Flow's icon: hung from the top edge, so the
-                -- modifier names above them sit between the two rows.)
-                local edge = (BB.Docked and BB.Docked()) and "TOP" or "BOTTOM"
-                if prevIcon then ic:SetPoint(edge .. "RIGHT", prevIcon, edge .. "LEFT", -6, 0)
-                else ic:SetPoint(edge .. "RIGHT", btn, edge .. "LEFT", -10, 0) end
+                if docked then
+                    -- Docked under Flow's icon: each press keeps its own column,
+                    -- under Flow's icon for the same modifier, whether or not the
+                    -- others have anything on them (0.35.237: with no potion on
+                    -- Alt the icons closed up, C+S stood under Flow's Alt, and
+                    -- "ALT" was missing from the names). Hung from the top edge;
+                    -- the names are written once for all four (K.DockNames).
+                    local sz = K.SIZES[index] or K.SIZES[#K.SIZES]
+                    ic:SetSize(sz, sz)
+                    ic:SetPoint("TOPRIGHT", btn, "TOPLEFT", K.ColumnRight(index), 0)
+                    ic.label:Hide()
+                else
+                    -- (On its own: out to the left, nearest first and biggest, bottoms level.)
+                    local sz = K.SIZES[n] or K.SIZES[#K.SIZES]
+                    ic:SetSize(sz, sz)
+                    ic.label:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
+                    ic.label:SetText(K.LABEL[slot])
+                    ic.label:Show()
+                    if prevIcon then ic:SetPoint("BOTTOMRIGHT", prevIcon, "BOTTOMLEFT", -6, 0)
+                    else ic:SetPoint("BOTTOMRIGHT", btn, "BOTTOMLEFT", -10, 0) end
+                end
                 prevIcon = ic
                 ic:Show()
             else

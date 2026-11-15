@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.237
+- **Docked, all four modifier names are there: SHIFT, CTRL, ALT, C+S.** The names between
+  the two rows came from the buff button's own icons, and it only made an icon for a press
+  that had something on it. With no potion or healthstone in the bags, Alt had nothing: no
+  "ALT", and the C+S icon slid over to stand under Flow's Alt. Docked, each press now keeps
+  its own column under Flow's icon for the same modifier, and the four names are written
+  once, whether or not the buff button has something on each.
+
 ## 0.35.236
 - **The label moves are for the docked mode only.** 0.35.233 moved the key binds and spell
   names on both buttons whether docked or not. On their own the buttons are back as they
