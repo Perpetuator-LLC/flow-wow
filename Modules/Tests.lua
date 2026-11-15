@@ -12195,3 +12195,30 @@ ns:Register("test", "tooltips: an item's tooltip says how many you have, in bags
         t:eq(#lines, 1, "you have none: no line")
     end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.268: the key rows have room; the auction scan says done once and waits.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "settings: the key rows keep the key clear of the buttons, with room between rows", function(t)
+    local S = ns.settings
+    t:ok(S.KEY_BUTTON_X - S.KEY_VALUE_X >= 140, "the key has a column of its own before the buttons")
+    t:ok(S.KEY_VALUE_X >= 190, "past the longest label (Buff button's second key:)")
+    t:ok(S.KEY_ROW >= 30, "a little more room between the rows")
+    t:ok(S.KEY_BUTTON_X + 90 + 8 + 80 <= 580, "Set key and Clear still fit in the window")
+    local f = S._Build and S._Build()
+    t:ok(f ~= nil, "Flow Settings builds")
+    if f and f.key4Value and f.set4 then
+        t:ok(f.key4Value:GetWidth() <= S.KEY_BUTTON_X - S.KEY_VALUE_X, "the buff button's second key ends before its buttons")
+        local p, _, _, x = f.set4:GetPoint(1)
+        t:ok(p == "TOPLEFT" and x == S.KEY_BUTTON_X, "its Set key button is in the button column")
+    end
+end)
+
+ns:Register("test", "auctions: opening the window again soon doesn't look everything up again", function(t)
+    local AH = ns.auction
+    t:ok(AH.ScanDue(nil, 1000), "never looked: look")
+    t:ok(not AH.ScanDue(1000, 1060), "a minute ago: not again")
+    t:ok(AH.ScanDue(1000, 1000 + AH.SCAN_EVERY), "after the wait: look again")
+    t:ok(AH.SCAN_EVERY >= 120, "a few minutes between looks")
+end)

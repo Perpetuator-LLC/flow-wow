@@ -240,10 +240,14 @@ local function readFull()
     ns:Print(string.format("auction house: read %d listings, prices for %d different items.", full.n, kept))
     ns:Log("ah", string.format("full scan: %d listings, %d items", full.n, kept))
 end
+-- The game sends this again and again while the window stays open. Flow reads
+-- the list once for each time it asked (0.35.268: "after it finishes it just
+-- keeps printing that it has finished, over and over").
 ns:On("REPLICATE_ITEM_LIST_UPDATE", function()
-    if full.busy or not (CA and CA.GetNumReplicateItems) then return end
+    if full.busy or not full.asked or not (CA and CA.GetNumReplicateItems) then return end
     local ok, n = pcall(CA.GetNumReplicateItems)
     if not ok or type(n) ~= "number" or n <= 0 then return end
+    full.asked = false
     full.busy, full.i, full.n, full.best = true, 0, n, {}
     full.saidAt = GetTime()
     readFull()
@@ -329,6 +333,7 @@ function AH:ScanNew()
     if CA.ReplicateItems and CA.GetReplicateItemInfo and time() - (ns.db.ah.lastFull or 0) > AH.FULL_EVERY then
         local ok, err = pcall(CA.ReplicateItems)
         ns:Log("ah", "asked for the whole list: " .. (ok and "sent" or tostring(err)))
+        full.asked = ok and true or false
         if ok then ns:Print("auction house: reading every listing for prices. It takes about half a minute; Flow says when it's done. Keep the window open.") end
     end
     queue = AH:WantedAll()
@@ -348,9 +353,21 @@ function AH:Scan()
     end
 end
 
+-- Opening the window looks prices up by itself, but not again right after
+-- (0.35.268: "if I click on the auction house again, it immediately scans
+-- again"): once every few minutes. /flow ah scan does it now.
+AH.SCAN_EVERY = 300
+-- Pure: time for another look? last: when Flow last looked (nil: never).
+function AH.ScanDue(last, now, every)
+    return last == nil or (now - last) >= (every or AH.SCAN_EVERY)
+end
 ns:On("AUCTION_HOUSE_SHOW", function()
     open = true
-    C_Timer.After(1, function() if open then pcall(AH.Scan, AH) end end)
+    C_Timer.After(1, function()
+        if not open or not AH.ScanDue(ns.db.ah.lastScan, time()) then return end
+        ns.db.ah.lastScan = time()
+        pcall(AH.Scan, AH)
+    end)
 end)
 ns:On("AUCTION_HOUSE_CLOSED", function() open = false; wipe(queue); pending = nil end)
 ns:On("AUCTION_ITEM_LIST_UPDATE", function()
@@ -413,7 +430,7 @@ ns.commands.ah = function(arg)
         local id = itemId(rest)
         if id and ns.db.ah.watch[id] then ns.db.ah.watch[id] = nil; ns:Print("stopped watching it") else ns:Print("not on your watch list") end
     elseif cmd == "scan" then
-        if open then AH:Scan() else ns:Print("open an auction house first") end
+        if open then ns.db.ah.lastScan = time(); AH:Scan() else ns:Print("open an auction house first") end
     else
         ns:Print("auction house watch list:")
         local any = false

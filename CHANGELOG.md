@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.268
+- **The auction house scan says it's done once, and doesn't start again at once.** With the
+  window open, "read N listings" was printed over and over (the game repeats its signal and
+  Flow read the list each time). It's read once per request now. And opening the window again
+  within five minutes no longer looks everything up again; `/flow ah scan` does it right away.
+- **Flow Settings: the key rows have room.** The key shown for "Buff button's second key" ran
+  under its Set key button. Each key now has a column of its own between the label and the
+  buttons, and the four rows are a little further apart.
+
 ## 0.35.267
 - **Item tooltips say how many you have.** One line on every item's tooltip, wherever it's
   shown (your bags, a vendor, a quest reward, the auction house, a chat link): "You have 52:

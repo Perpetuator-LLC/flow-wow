@@ -241,6 +241,11 @@ end
 
 
 local WIDTH = 580
+-- The key rows (0.35.268): the label, then the key in its own column, then
+-- the buttons, far enough right that a long label ("Buff button's second
+-- key:") and a long key ("CTRL-SHIFT-BUTTON4") never run under them; and a
+-- little more room between the rows.
+S.KEY_VALUE_X, S.KEY_BUTTON_X, S.KEY_ROW = 200, 360, 32
 
 -- A group's heading; note: a few grey words beside it (when you'd use these).
 local function heading(f, y, text, note)
@@ -395,45 +400,62 @@ local function build(parent)
     name:SetPoint("TOPLEFT", 16, y - 4)
     name:SetText("Your key:")
     f.keyValue = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.keyValue:SetPoint("LEFT", name, "RIGHT", 12, 0)
+    f.keyValue:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
+    f.keyValue:SetPoint("TOP", name, "TOP", 0, 0)
+    f.keyValue:SetWidth(S.KEY_BUTTON_X - S.KEY_VALUE_X - 8)
+    f.keyValue:SetJustifyH("LEFT")
+    f.keyValue:SetWordWrap(false)
     local set = button(f, "Set key", 90)
-    set:SetPoint("TOPLEFT", 250, y)
+    set:SetPoint("TOPLEFT", S.KEY_BUTTON_X, y)
     f.clear = button(f, "Clear", 80)
     f.clear:SetPoint("LEFT", set, "RIGHT", 8, 0)
     -- A second key for the same button (e.g. one under each hand).
     local name2 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    name2:SetPoint("TOPLEFT", 16, y - 32)
+    name2:SetPoint("TOPLEFT", 16, y - S.KEY_ROW - 4)
     name2:SetText("Second key:")
     f.key2Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.key2Value:SetPoint("LEFT", name2, "RIGHT", 12, 0)
+    f.key2Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
+    f.key2Value:SetPoint("TOP", name2, "TOP", 0, 0)
+    f.key2Value:SetWidth(S.KEY_BUTTON_X - S.KEY_VALUE_X - 8)
+    f.key2Value:SetJustifyH("LEFT")
+    f.key2Value:SetWordWrap(false)
     local set2 = button(f, "Set key", 90)
-    set2:SetPoint("TOPLEFT", 250, y - 28)
+    set2:SetPoint("TOPLEFT", S.KEY_BUTTON_X, y - S.KEY_ROW)
     f.clear2 = button(f, "Clear", 80)
     f.clear2:SetPoint("LEFT", set2, "RIGHT", 8, 0)
     -- The buff button's own key (BuffButton.lua, CareKeys.lua): your second
     -- key, for buffs out of a fight and heals and potions in one.
     local name3 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    name3:SetPoint("TOPLEFT", 16, y - 60)
+    name3:SetPoint("TOPLEFT", 16, y - 2 * S.KEY_ROW - 4)
     name3:SetText("Buff button's key:")
     f.key3Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.key3Value:SetPoint("LEFT", name3, "RIGHT", 12, 0)
+    f.key3Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
+    f.key3Value:SetPoint("TOP", name3, "TOP", 0, 0)
+    f.key3Value:SetWidth(S.KEY_BUTTON_X - S.KEY_VALUE_X - 8)
+    f.key3Value:SetJustifyH("LEFT")
+    f.key3Value:SetWordWrap(false)
     local set3 = button(f, "Set key", 90)
-    set3:SetPoint("TOPLEFT", 250, y - 56)
+    set3:SetPoint("TOPLEFT", S.KEY_BUTTON_X, y - 2 * S.KEY_ROW)
     f.clear3 = button(f, "Clear", 80)
     f.clear3:SetPoint("LEFT", set3, "RIGHT", 8, 0)
     f.set3 = set3
     -- And a second key for it, as Flow's own key has (0.35.231).
     local name4 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    name4:SetPoint("TOPLEFT", 16, y - 88)
+    name4:SetPoint("TOPLEFT", 16, y - 3 * S.KEY_ROW - 4)
     name4:SetText("Buff button's second key:")
     f.key4Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.key4Value:SetPoint("LEFT", name4, "RIGHT", 12, 0)
+    f.key4Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
+    f.key4Value:SetPoint("TOP", name4, "TOP", 0, 0)
+    f.key4Value:SetWidth(S.KEY_BUTTON_X - S.KEY_VALUE_X - 8)
+    f.key4Value:SetJustifyH("LEFT")
+    f.key4Value:SetWordWrap(false)
     local set4 = button(f, "Set key", 90)
-    set4:SetPoint("TOPLEFT", 250, y - 84)
+    set4:SetPoint("TOPLEFT", S.KEY_BUTTON_X, y - 3 * S.KEY_ROW)
     f.clear4 = button(f, "Clear", 80)
     f.clear4:SetPoint("LEFT", set4, "RIGHT", 8, 0)
     f.set4 = set4
-    y = y - 84
+    f.keyNames = { name, name2, name3, name4 }
+    y = y - 3 * S.KEY_ROW
     local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     help:SetPoint("TOPLEFT", 16, y - 32)
     help:SetWidth(WIDTH - 40)
