@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.270
+- **Flow no longer says "destroy" of a quest item it knows no quest for.** It said so of
+  Sunscale Feathers, which a quest you get later uses. Flow now looks through every quest in
+  the quest data for the item (not only the short list the data keeps per item), and when it
+  finds one you haven't done it says "keep" and names it. When it finds none, the item is
+  kept and it says to read its tooltip first. Only a quest you've done makes it sell or destroy.
+- **Things only another class can use** (the scrolls: "Classes: Mage") are no longer just
+  kept. They go to the auction house when the price there is worth it, else to a vendor, with
+  the reason "only a Mage can use it".
+- **Flow Banker, In your bank: no empty rows on top.** Your things start at the top left, as
+  in the bank; a container with nothing in it comes after them. (Open your bank once for the
+  new picture.)
+- **A Flow Banker button on the bank's own window**, beside the one on your bags.
+
 ## 0.35.269
 - **Flow Banker: Deposit no longer overlaps "All my choices".** Deposit sat in the middle of
   the bottom row, over the end of the choices button. It's on the right now, the choices

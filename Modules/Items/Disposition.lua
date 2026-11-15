@@ -561,6 +561,41 @@ reg("outgrownConsumable", 22, function(i)
     end
 end)
 
+-- Only another class can use it (0.35.270). "I have a ton of these mage
+-- scrolls and nothing says what to do with them." Their tooltip does:
+-- "Classes: Mage". Something that isn't gear, that names classes and not
+-- yours, is no use to you: the auction house when the price there is worth
+-- it (a Mage will want it), else a vendor.
+-- Pure: the classes a tooltip names ("Classes: Mage, Warlock"), or nil.
+function D.ClassesOf(lines)
+    for _, l in ipairs(lines or {}) do
+        local list = type(l.left) == "string" and l.left:match("^Classes: (.+)$")
+        if list then
+            local out = {}
+            for name in list:gmatch("[^,]+") do out[#out + 1] = (name:gsub("^%s+", ""):gsub("%s+$", "")) end
+            return out
+        end
+    end
+    return nil
+end
+-- Pure: is your class one of them? (nil list: anyone can use it.)
+function D.ForYourClass(classes, mine)
+    if not classes then return true end
+    for _, c in ipairs(classes) do if c == mine then return true end end
+    return false
+end
+reg("otherClassItem", 29, function(i)
+    if i.gear or not i.link or not (ns.gear and ns.gear.TooltipLines) then return nil end
+    local ok, lines = pcall(ns.gear.TooltipLines, ns.gear, i.link)
+    local classes = ok and D.ClassesOf(lines) or nil
+    local mine = UnitClass("player")
+    if D.ForYourClass(classes, mine) then return nil end
+    local what = "only a " .. table.concat(classes, " or ") .. " can use it"
+    if (i.sellPrice or 0) <= 0 then return { action = "keep", reason = what .. ", and vendors won't take it" } end
+    if i.bound then return { action = "sell", reason = what } end
+    return auctionOrVendor(i, what)
+end)
+
 -- A bag in your bags (0.35.262): worth putting on when it's bigger than one
 -- you wear (or a bag slot is empty); else it's a spare taking a slot.
 -- Pure: how many slots a bag's tooltip says ("8 Slot Bag").

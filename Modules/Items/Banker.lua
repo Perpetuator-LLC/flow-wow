@@ -686,6 +686,16 @@ ns:Register("gameButton", "bags", {
     click = function() B:Toggle() end,
 })
 
+-- And on the bank's own window (0.35.270), beside the one on your bags.
+ns:Register("gameButton", "bank", {
+    order = 50,
+    frames = { "BankFrame" },
+    label = "Flow Banker",
+    tip = "What to put away here, what's in your bank, and the auction prices Flow last saw.",
+    isOpen = function() return B.frame and B.frame:IsShown() end,
+    click = function() B:Toggle() end,
+})
+
 ns:On("BANKFRAME_OPENED", function()
     bankOpen = true
     if ns.db.banker.off then return end
@@ -745,6 +755,12 @@ ns:Register("routeKind", "banker", { order = 62, default = true,
 function B.Lines()
     local list = B.List()
     local out = { string.format("Flow Banker: %d stack(s) to put away%s", B.Stacks(list), ns.db.banker.off and " (off)" or "") }
+    -- The bank as the game reports it, container by container (which hold things).
+    local parts = {}
+    for _, part in ipairs((ns.db.bank and ns.db.bank.parts) or {}) do
+        parts[#parts + 1] = string.format("%s: %d of %d", tostring(part.bag), part.used or 0, part.slots or 0)
+    end
+    if #parts > 0 then out[#out + 1] = "  bank containers (used of slots): " .. table.concat(parts, ", ") end
     for _, r in ipairs(list) do
         out[#out + 1] = string.format("%d x %s [%s] in %d slot(s): %s", r.count or 1, tostring(r.name), tostring(r.id), r.stacks or 1, tostring(r.reason))
     end

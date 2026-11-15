@@ -12139,9 +12139,9 @@ ns:Register("test", "bags: a leftover quest item gets one answer: keep for a que
     t:eq(what, "destroy", "done, and vendors won't take it: destroy")
     t:ok(why:find("destroy", 1, true) ~= nil, "in words")
     what = L.Advice({}, 0)
-    t:eq(what, "destroy", "no quest known for it, no price: destroy")
+    t:eq(what, "keep", "no quest known for it: kept, Flow does not guess")
     what = L.Advice({}, 40)
-    t:eq(what, "sell", "no quest known for it, a price: sell")
+    t:eq(what, "keep", "no quest known for it, a price: still kept")
     what = L.Advice({ { name = "A", level = 30, done = false }, { name = "B", level = 18, done = false } }, 0)
     t:eq(what, "keep", "two quests not done: keep")
     -- The bags' rule and Flow Improvements go by the same function.
@@ -12237,4 +12237,48 @@ ns:Register("test", "banker: Deposit and All my choices sit on opposite sides, c
     local pa, _, rpa, xa = f.all:GetPoint(1)
     t:ok(pa == "BOTTOMLEFT" and rpa == "BOTTOMLEFT" and xa > 0, "the choices button from the left edge")
     t:ok(xa + f.all:GetWidth() + 8 <= f:GetWidth() + x - f.go:GetWidth(), "with a gap between them")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.270: the bank's picture; leftovers look through every quest; class items.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: the bank's picture starts with the containers that hold things", function(t)
+    local SP = ns.skillPlan
+    local old = { false, false, false }                       -- the old main bank: nothing but empty slots
+    local tab = { { 2589, 20 }, false, { 2318, 7 } }          -- a tab with your things
+    local layout = SP.BankLayout({ old, tab })
+    t:eq(#layout, 6, "every slot is still there")
+    t:ok(layout[1] and layout[1][1] == 2589, "your things first, from the top left")
+    t:ok(layout[2] == false and layout[3] and layout[3][1] == 2318, "in their own order, gaps kept")
+    t:ok(layout[4] == false and layout[6] == false, "the empty container after them")
+    t:eq(#SP.BankLayout({}), 0, "no containers: nothing")
+    local same = SP.BankLayout({ tab, old })
+    t:ok(same[1][1] == 2589 and same[6] == false, "already in that order: unchanged")
+    local btn = ns:Get("gameButton", "bank")
+    t:ok(btn ~= nil and btn.frames[1] == "BankFrame" and btn.label == "Flow Banker", "a Flow Banker button on the bank's window")
+    t:ok(pcall(btn.isOpen), "its open check runs")
+end)
+
+ns:Register("test", "bags: a leftover with no quest known is kept, not destroyed; other classes' items go", function(t)
+    local L, D = ns.leftovers, ns.disposition
+    local what, why = L.Advice({}, 0)
+    t:eq(what, "keep", "no quest known: Flow doesn't say destroy")
+    t:ok(why:find("read its tooltip", 1, true) ~= nil, "it says to read the item first")
+    local ids = L.MergeIds({ 905, 881 }, { [905] = true, [3261] = true })
+    t:eq(table.concat(ids, ","), "881,905,3261", "the quest data's list and the look through every quest, once each")
+    t:eq(#L.MergeIds(nil, nil), 0, "neither: none")
+    t:ok(L.SCAN_CHUNK >= 50, "a few hundred quests a frame")
+    -- "Classes: Mage" on something that isn't gear.
+    local classes = D.ClassesOf({ { left = "Scroll: CWAL" }, { left = "Classes: Mage" }, { left = "Requires Comprehension (1)" } })
+    t:ok(classes and #classes == 1 and classes[1] == "Mage", "the tooltip names the class")
+    classes = D.ClassesOf({ { left = "Classes: Mage, Warlock" } })
+    t:ok(classes and classes[2] == "Warlock", "several classes")
+    t:eq(D.ClassesOf({ { left = "Use: Restores 100 health." } }), nil, "no class named: anyone's")
+    t:ok(not D.ForYourClass({ "Mage" }, "Druid"), "a Mage's scroll is no use to a Druid")
+    t:ok(D.ForYourClass({ "Mage", "Druid" }, "Druid"), "one of them is yours: it is")
+    t:ok(D.ForYourClass(nil, "Druid"), "no classes named: yours to use")
+    local rule = ns:Get("disposition", "otherClassItem")
+    t:ok(rule ~= nil and rule.order < 30, "asked before the plain 'not gear: keep'")
+    t:eq(rule.check({ gear = {}, link = "x" }), nil, "gear is left to the gear rules")
 end)

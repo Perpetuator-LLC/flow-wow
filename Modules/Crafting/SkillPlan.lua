@@ -1088,26 +1088,51 @@ local function containerItem(bag, slot)
     end
 end
 
+-- Pure: the bank slot by slot, for Flow Banker's picture of it. parts: one
+-- list of slots per container ({ id, count } or false), in the game's order.
+-- A container with nothing in it goes after the ones that hold something
+-- (0.35.270: "why are there 3 rows of empty spaces? In my bank the items
+-- start from the top left": this client still reports its old main bank as
+-- a container of empty slots, ahead of the tabs your things are really in).
+function SP.BankLayout(parts)
+    local out = {}
+    for pass = 1, 2 do
+        for _, part in ipairs(parts or {}) do
+            local holds = false
+            for _, s in ipairs(part) do if s then holds = true break end end
+            if holds == (pass == 1) then
+                for _, s in ipairs(part) do out[#out + 1] = s end
+            end
+        end
+    end
+    return out
+end
+
 -- Reads the bank while it's open. True when what's in it changed.
 function SP.ReadBank()
     if not bankOpen then return false end
     local items = {}
     -- layout: every slot in the bank's own order, { itemID, count } or false
     -- for an empty one, so Flow Banker can draw the bank as it looks (0.35.215).
-    local layout = {}
+    local parts = {}
     for _, bag in ipairs(bankContainers()) do
         local okSlots, n = pcall(containerSlots, bag)
+        local part = { bag = bag, used = 0 }
         for slot = 1, okSlots and n or 0 do
             local id, c = containerItem(bag, slot)
-            if id and c then items[id] = (items[id] or 0) + c end
-            layout[#layout + 1] = (id and c) and { id, c } or false
+            if id and c then items[id] = (items[id] or 0) + c; part.used = part.used + 1 end
+            part[#part + 1] = (id and c) and { id, c } or false
         end
+        if #part > 0 then parts[#parts + 1] = part end
     end
+    local layout = SP.BankLayout(parts)
+    local summary = {}
+    for _, part in ipairs(parts) do summary[#summary + 1] = { bag = part.bag, slots = #part, used = part.used } end
     local old = ns.db.bank and ns.db.bank.items or {}
     local changed = false
     for id, c in pairs(items) do if old[id] ~= c then changed = true end end
     for id in pairs(old) do if items[id] == nil then changed = true end end
-    ns.db.bank = { items = items, layout = layout, seenAt = time() }
+    ns.db.bank = { items = items, layout = layout, seenAt = time(), parts = summary }
     return changed
 end
 

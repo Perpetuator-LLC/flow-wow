@@ -157,18 +157,73 @@ function L.Advice(related, price)
         return "keep", string.format("no quest in your log uses it, but one you haven't done does: %s%s",
             tostring(open.name), open.level and string.format(" (level %d)", open.level) or "")
     end
-    local why = (#(related or {}) > 0) and "left over from a quest you've done" or "no quest in your log uses it, and none Flow knows of"
+    -- No quest known for it at all: Flow doesn't know enough to say sell or
+    -- destroy (0.35.270: it said "destroy" of Sunscale Feathers, which a quest
+    -- you get next uses). Kept, and it says to read the item first.
+    if #(related or {}) == 0 then
+        return "keep", "no quest in your log uses it, and Flow knows no quest for it: read its tooltip before you let it go"
+    end
+    local why = "left over from a quest you've done"
     if (price or 0) > 0 then return "sell", why .. ": sell it" end
     return "destroy", why .. ", and vendors won't take it: destroy it for the slot"
 end
 
 -- The quests the quest data ties an item to.
+-- The quest data's own list for an item is often empty, so Flow also looks
+-- through every quest for the item (as something it gives you, needs or has
+-- as an objective): a few hundred quests a frame, once per item, kept for
+-- the session. L.scan[itemId] = { [questId] = true } when done.
+local needsAt, needsIds, needsTexts = -100, nil, nil   -- (L.LogNeeds, below)
+L.SCAN_CHUNK = 250
+L.scan, L.scanning = {}, nil
+function L.StartScan(itemId)
+    if L.scan[itemId] or (L.scanning and L.scanning.want[itemId]) then return end
+    local Q = ns.quests
+    local src = Q and Q.Source and Q:Source()
+    if not (src and src.allIds) then L.scan[itemId] = {} return end
+    if L.scanning then L.scanning.want[itemId] = {} return end
+    local ok, ids = pcall(src.allIds)
+    if not ok or type(ids) ~= "table" then L.scan[itemId] = {} return end
+    L.scanning = { ids = ids, i = 1, want = { [itemId] = {} } }
+    local function step()
+        local sc = L.scanning
+        if not sc then return end
+        local last = math.min(#sc.ids, sc.i + L.SCAN_CHUNK - 1)
+        for k = sc.i, last do
+            local qid = sc.ids[k]
+            local uses = L.AddQuest({}, Q:QuestieGet("GetQuest", qid))
+            for want, found in pairs(sc.want) do
+                if uses[want] then found[qid] = true end
+            end
+        end
+        sc.i = last + 1
+        if sc.i <= #sc.ids then C_Timer.After(0, step) return end
+        for want, found in pairs(sc.want) do L.scan[want] = found end
+        L.scanning = nil
+        needsAt = -100
+        if ns.disposition and ns.disposition.Invalidate then ns.disposition:Invalidate() end
+    end
+    C_Timer.After(0, step)
+end
+-- Pure: one list of quest ids from the quest data's own and the scan's.
+function L.MergeIds(own, scanned)
+    local seen, out = {}, {}
+    for _, qid in pairs(type(own) == "table" and own or {}) do
+        if type(qid) == "number" and not seen[qid] then seen[qid] = true; out[#out + 1] = qid end
+    end
+    for qid in pairs(scanned or {}) do
+        if not seen[qid] then seen[qid] = true; out[#out + 1] = qid end
+    end
+    table.sort(out)
+    return out
+end
+
 function L.Related(itemId)
     local Q = ns.quests
     local out = {}
     local item = Q and Q.QuestieGet and Q:QuestieGet("GetItem", itemId)
-    local ids = item and item.relatedQuests
-    if type(ids) ~= "table" then return out end
+    if not L.scan[itemId] then pcall(L.StartScan, itemId) end
+    local ids = L.MergeIds(item and item.relatedQuests, L.scan[itemId])
     for _, qid in pairs(ids) do
         if type(qid) == "number" then
             local raw = Q:QuestieGet("GetQuest", qid)
@@ -181,7 +236,6 @@ end
 
 -- What your quest log uses (item ids, and its objective texts and titles):
 -- read at most every few seconds, the bag rules ask for every slot.
-local needsAt, needsIds, needsTexts = -100, nil, nil
 function L.LogNeeds()
     if needsIds and GetTime() - needsAt < 5 then return needsIds, needsTexts end
     local Q = ns.quests
@@ -214,7 +268,11 @@ function L.For(id, name, price)
     local Q = ns.quests
     local item = Q:QuestieGet("GetItem", id)
     if item ~= nil and type(item.startQuest) == "number" and item.startQuest > 0 then return nil end
-    return L.Advice(L.Related(id), price)
+    local related = L.Related(id)
+    if #related == 0 and not L.scan[id] then
+        return "keep", "no quest in your log uses it; Flow is looking through the quest data for one"
+    end
+    return L.Advice(related, price)
 end
 
 -- The bags' answer: before the plain "quest item: keep" (and before "vendors
