@@ -1043,7 +1043,7 @@ local function auraOn(unit, names)
         for i = 1, 40 do
             local n, _, _, _, _, e = UnitBuff(unit, i)
             if not n then return false, 0 end
-            if names[n] then return true, (e and e > 0) and (e - GetTime()) or math.huge end
+            if names[n] then return true, (e and e > 0) and (e - GetTime()) or math.huge, n end
         end
         return false, 0
     end
@@ -1055,11 +1055,12 @@ local function auraOn(unit, names)
         if n == nil then return nil end
         if names[n] then
             local e = A.Safe(a.expirationTime)
-            return true, (e and e > 0) and (e - GetTime()) or math.huge
+            return true, (e and e > 0) and (e - GetTime()) or math.huge, n
         end
     end
     return false, 0
 end
+E.AuraOn = auraOn   -- (up, seconds left, the name that matched; nil when the game hides it)
 
 -- guid -> { [spell] = when you cast it on them } (from the easy button).
 E.buffMemory = {}

@@ -12305,3 +12305,46 @@ ns:Register("test", "party: your own message come back under your full name is y
     t:ok(pcall(H.Drop, "Nobody By This Name"), "forgetting a name's progress runs")
     t:ok(pcall(H.Drop, nil), "no name: nothing")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.272: your buffs for others on a player's tooltip, whoever cast them.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tooltips: a player's tooltip says which of your buffs they have, from anyone", function(t)
+    local T = ns.groupTip
+    local text, kind = T.Line("Mark of the Wild", true, 24 * 60, "Mark of the Wild", false)
+    t:eq(text, "Mark of the Wild: has it (24 min)", "they have it: with the time left")
+    t:eq(kind, "has", "counted as having it")
+    text, kind = T.Line("Mark of the Wild", true, 51 * 60, "Gift of the Wild", false)
+    t:eq(text, "Mark of the Wild: has Gift of the Wild (51 min)", "the group version from someone else: named")
+    t:eq(kind, "other", "and it counts")
+    text, kind = T.Line("Mark of the Wild", false, 0, nil, true)
+    t:eq(text, "Mark of the Wild: has a more powerful one", "the game refused yours: a stronger one is on them")
+    t:eq(kind, "stronger", "no need to buff")
+    text, kind = T.Line("Thorns", false, 0, nil, false)
+    t:eq(text, "Thorns: MISSING", "not on them: missing")
+    t:eq(kind, "missing", "yours to give")
+    text, kind = T.Line("Thorns", nil, nil, nil, false)
+    t:eq(kind, "hidden", "the game hides their buffs: Flow says it can't tell")
+    t:ok(text:find("can't tell", 1, true) ~= nil, "in words")
+    t:eq(T.Left(40), " (40 s)", "under a minute and a half: seconds")
+    t:eq(T.Left(math.huge), "", "doesn't run out: no time")
+    t:eq(T.Left(nil), "", "unknown: no time")
+    t:ok(T.COLORS.missing[1] > T.COLORS.missing[2] and T.COLORS.has[2] > T.COLORS.has[1], "missing is red, having it green")
+    -- The lines go on the tooltip under a heading; nothing for yourself.
+    local lines = {}
+    local fake = { AddLine = function(_, s) lines[#lines + 1] = s end }
+    with(T, "Lines", function() return { { text = "Thorns: MISSING", kind = "missing" } } end, function()
+        T._addLines(fake, "party1")
+        t:ok(lines[1] == "Your buffs for them:" and lines[2] == "  Thorns: MISSING", "a heading, then a line per buff")
+        ns.db.settings = ns.db.settings or {}
+        local was = ns.db.settings.groupTip
+        ns.db.settings.groupTip = false
+        T._addLines(fake, "party1")
+        t:eq(#lines, 2, "turned off: nothing added")
+        ns.db.settings.groupTip = was
+    end)
+    local ok, mine = pcall(T.Lines, "player")
+    t:ok(ok and #mine == 0, "your own tooltip gets none")
+    t:ok(type(ns.rotation.AuraOn) == "function", "the buff reader says which buff it found")
+end)

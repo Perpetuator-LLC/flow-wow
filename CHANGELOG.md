@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.272
+- **A player's tooltip says which of your buffs they have, whoever cast them.** The game's own
+  party tooltip lists only buffs you could have cast and leaves out a stronger or group
+  version. Hover any friendly player and Flow adds a line for each buff you give others:
+  "has it (24 min)", "has Gift of the Wild (51 min)", "has a more powerful one", or "MISSING"
+  in red. Only the buffs that fit the person (Thorns for a tank). Flow Settings, In a group:
+  "Your buffs on a player's tooltip".
+
 ## 0.35.271
 - **In a party, you're no longer listed as a party member.** The choices under the arrow showed
   "Your own route", "Join the party route" and "Just <your name>'s quests", which was your
