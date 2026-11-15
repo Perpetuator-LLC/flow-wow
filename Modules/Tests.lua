@@ -11258,3 +11258,50 @@ ns:Register("test", "fishing: on the buff button alone while it has a key; the b
     t:ok(BB.DockWanted(true), "docked by you: docked")
     t:ok(not BB.DockWanted(false), "taken off by you: stays off")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.241: the buff button is yours, Flow's key is your target's.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "two keys: out of a fight what's cast on you is the buff button's, the rest Flow's key's", function(t)
+    local BB, E = ns.buffButton, ns.rotation
+    -- Who a step is for.
+    t:ok(BB.IsMine({ spell = "Regrowth", kind = "heal" }), "a heal with nobody named falls on you: yours")
+    t:ok(BB.IsMine({ spell = "Regrowth", kind = "heal", unit = "player" }), "a heal on you: yours")
+    t:ok(not BB.IsMine({ spell = "Regrowth", kind = "heal", unit = "target", target = "Bob" }), "a heal on your target: not yours")
+    t:ok(BB.IsMine({ spell = "Cure Poison", kind = "buff", unit = "player" }), "a cure for you: yours")
+    t:ok(not BB.IsMine({ spell = "Cure Poison", kind = "buff", unit = "party1", target = "Bob" }), "a cure for someone in your group: not yours")
+    t:ok(not BB.IsMine({ spell = "Wrath", kind = "attack" }), "an attack: not yours")
+    t:ok(not BB.IsMine(nil), "no step: nothing")
+    -- What Flow's key keeps.
+    local heal, wrath = { spell = "Regrowth", kind = "heal" }, { spell = "Wrath" }
+    t:eq(BB.ForTarget(heal, true, false), nil, "the split on, out of a fight: a heal for you leaves Flow's key")
+    t:eq(BB.ForTarget(heal, true, true), heal, "in a fight nothing moves (the keys were set at the pull)")
+    t:eq(BB.ForTarget(heal, false, false), heal, "the split off: as before")
+    t:eq(BB.ForTarget(wrath, true, false), wrath, "an attack stays on Flow's key")
+    local onBob = { spell = "Regrowth", kind = "heal", unit = "target" }
+    t:eq(BB.ForTarget(onBob, true, false), onBob, "a heal on your friendly target stays on Flow's key")
+    -- Order on the buff button.
+    local cure, food = { spell = "Cure Poison" }, { item = "item:1" }
+    t:eq(BB.MineFirst(cure, food), cure, "a poison on you comes off before you eat")
+    t:eq(BB.MineFirst(nil, food), food, "nothing to cure: heal up")
+    t:eq(BB.MineFirst(nil, nil), nil, "neither: nothing")
+    t:ok(type(BB.TakesMine()) == "boolean", "the button says whether it takes what's yours")
+    -- Healing up, all of it, for the buff button.
+    local asked = {}
+    local fake = {
+        DrinkStep = function() asked[#asked + 1] = "drink" return { item = "item:2", label = "drink" } end,
+        Recover = function(_, _, _, part) asked[#asked + 1] = "recover:" .. tostring(part) return nil end,
+    }
+    t:eq(BB.MineRecover(fake, { inCombat = true }, {}), nil, "in a fight: nothing (the fight's keys do it)")
+    local s = BB.MineRecover(fake, { inCombat = false, maxHp = 100, hp = 50, hpPct = 0.5 }, {})
+    t:ok(asked[1] == "recover:all", "hurt: the whole recovery order is asked, heal spell included")
+    t:ok(s and s.label == "drink", "nothing to heal with: a drink")
+    -- Choosing leaves the rotation as it found it.
+    local hs, dp = E.HealStep, E.Dispel
+    pcall(E.Choose, E)
+    t:ok(E.HealStep == hs and E.Dispel == dp, "after choosing, the rotation's own heal and cure steps are back in place")
+    local found
+    for _, l in ipairs(ns.careKeys.Lines()) do if l:find("out of a fight", 1, true) or l:find("off", 1, true) or l:find("no key", 1, true) then found = true end end
+    t:ok(found, "/flow carekeys says who each key is for")
+end)

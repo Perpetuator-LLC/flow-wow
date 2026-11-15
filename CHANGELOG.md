@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.241
+- **The buff button is yours, Flow's key is your target's.** With the buff button on and a
+  key on it, out of a fight too (in a fight it already was):
+  - **The buff button, for you:** healing up after a fight (your heal spell, bandage, food,
+    drink), a poison or curse to take off yourself, your buffs, fishing.
+  - **Flow's key, for your target:** attacks on an enemy; heals, buffs and cures on a
+    friendly player you target.
+  Flow's icon no longer says "cast a heal" on yourself between fights: the buff button does,
+  and which key you press says who gets it. "Flow's key keeps its heal and potion" (Flow
+  Settings) puts healing yourself back on both. `/flow carekeys` says which it is.
+
 ## 0.35.240
 - **No "Turn in" for a quest that isn't done because its stop is hidden.** "Turn in:
   Centaur Bracers" was on the route at 10/15: the stop for collecting the bracers had been

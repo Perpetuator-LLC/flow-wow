@@ -166,6 +166,7 @@ end
 
 local liveBuff, liveAt = nil, 0   -- the rotation's buff suggestion, and when it was worked out
 local liveRecover                 -- hurt after a fight: the bandage or food to use (same moment)
+local liveCure                    -- a poison, curse... on you that you can remove (the split, below)
 local liveNext                    -- your buffs still on, with their time left (out of a fight, once a second)
 local liveNextAt = -math.huge
 
@@ -208,7 +209,42 @@ local function onSpells(def, ctx)
     return out
 end
 
+-- The split (0.35.241): this button is yours, Flow's key is your target's.
+-- With a key of its own and looking after you (CareKeys: K.Moved), out of a
+-- fight everything cast on YOU is this button's: healing up (heal spell,
+-- bandage, food, drink), a poison or curse to take off you, your buffs. Flow's
+-- key keeps what goes on your TARGET: attacks on an enemy, and heals, buffs
+-- and cures on a friendly one. Which key you press says who gets it.
+function BB.TakesMine()
+    local K = ns.careKeys
+    return (K ~= nil and K.Moved ~= nil and K.Moved()) and true or false
+end
+-- Pure: is this step cast on you? (A step with no unit named is, when it
+-- helps: heals and buffs fall on yourself.)
+function BB.IsMine(s)
+    if not s then return false end
+    if s.unit then return s.unit == "player" end
+    return (s.kind == "heal" or s.kind == "emergency" or s.kind == "buff" or s.kind == "recover") and true or false
+end
+-- Pure: what Flow's key keeps of a step once this button takes yours: nil
+-- for one on you out of a fight; anything else stays (in a fight nothing
+-- moves: the keys are set at the pull, and Flow's icon still says what's wanted).
+function BB.ForTarget(s, takesMine, inCombat)
+    if s and takesMine and not inCombat and BB.IsMine(s) then return nil end
+    return s
+end
+-- Pure: healing up before the rest; a poison or curse on you first of all.
+function BB.MineFirst(cure, recover) return cure or recover end
+
 local function noGroupBuff() return nil end
+
+-- Healing up, all of it, as Flow's key did it (E:HealStep out of a fight):
+-- nothing above 80% but a drink; else your recovery order, then a drink.
+function BB.MineRecover(e, ctx, def)
+    if ctx.inCombat then return nil end
+    if E.HealthFine(ctx) then return e:DrinkStep(ctx) end
+    return e:Recover(ctx, def, "all") or e:DrinkStep(ctx)
+end
 
 -- While the button is on, the rotation chooses from its lists without the
 -- buffs (and without group buffs); what it would have buffed is worked out
@@ -218,16 +254,42 @@ function E:Choose()
     local def = BB.On() and self:Definition()
     if not def then return origChoose(self) end
     local p, ps, gb = def.priority, def.priorities, self.GroupBuff
+    local hs, dp = self.HealStep, self.Dispel
+    local mine = BB.TakesMine()
+    local cure
     def.priority, def.priorities, self.GroupBuff = BB.Strip(p), stripSet(ps), noGroupBuff
+    if mine then
+        -- Healing yourself up and curing yourself, out of a fight: not Flow's
+        -- key's any more (worked out for this button just below).
+        self.HealStep = function(e, c, d)
+            if c.inCombat then return hs(e, c, d) end
+            return nil
+        end
+        self.Dispel = function(e, c, d)
+            local found = dp(e, c, d)
+            local kept = BB.ForTarget(found, true, c.inCombat)
+            if found and not kept then cure = found end
+            return kept
+        end
+    end
     local ok, s = pcall(origChoose, self)
     def.priority, def.priorities, self.GroupBuff = p, ps, gb
+    self.HealStep, self.Dispel = hs, dp
     if not ok then error(s, 0) end
     local ctx = self.lastCtx
     if ctx then
         local okB, b = pcall(pickBuff, def, ctx)
         liveBuff, liveAt = okB and b or nil, GetTime()
-        local okR, rec = pcall(self.Recover, self, ctx, def, "items")
+        -- Hurt: this button's part of healing up. Yours altogether (the split):
+        -- the whole order, heal spell included, and a drink.
+        local okR, rec
+        if mine then
+            okR, rec = pcall(BB.MineRecover, self, ctx, def)
+        else
+            okR, rec = pcall(self.Recover, self, ctx, def, "items")
+        end
         liveRecover = okR and rec or nil
+        liveCure = mine and cure or nil
         -- Your buffs still on (for "what's next" on the button): only shown
         -- out of a fight, and it reads every buff of yours for each buff
         -- rule, so once a second there, not ten times a second everywhere
@@ -675,7 +737,7 @@ local function tick(_, dt)
         ns.pulse.Remove(edge)
         edge:SetColorTexture(0.1, 0.6, 1, 0.9)
     end
-    local recover, camp = GetTime() - liveAt < 1 and liveRecover or nil, BB.TakesCamp() and pickCamp(ctx) or nil
+    local recover, camp = GetTime() - liveAt < 1 and BB.MineFirst(liveCure, liveRecover) or nil, BB.TakesCamp() and pickCamp(ctx) or nil
     local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
     -- Nothing due ("I don't want my buff button always showing buffs: like the
     -- easy button, if I need it show it, else what fits my target", 0.35.208):

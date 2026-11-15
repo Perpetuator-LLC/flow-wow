@@ -434,6 +434,9 @@ function K.Lines()
         out[#out + 1] = string.format("  %s (%s): %s%s", K.NAME[slot], tostring(modKey), nameOf(plan[slot]),
             slotText[slot] and (" [set as " .. slotText[slot] .. "]") or "")
     end
+    out[#out + 1] = BB.TakesMine and BB.TakesMine()
+        and "  out of a fight: this key is yours (healing up, a cure for you, your buffs); Flow's key is your target's"
+        or "  out of a fight: Flow's key heals you too (\"Flow's key keeps its heal and potion\" is ticked)"
     return out
 end
 ns.commands.carekeys = function()
@@ -442,6 +445,8 @@ end
 ns:Register("help", "carekeys", { order = 31, title = "The second key: heals and potions", lines = {
     "Turn on the buff button and give it a key (/flow buffbutton on, /flow buffkey <key>): in a fight that key is your quickest heal,",
     "Shift + it your heal over time, Ctrl + it your other heal, Alt + it your healthstone or potion, Ctrl + Shift + it your bandage.",
+    "Out of a fight the two keys split the same way: the buff button's key is for you (heal up, eat, drink, bandage, cure, buffs),",
+    "Flow's key is for your target (attacks on an enemy; heals, buffs and cures on a friendly player you target).",
     "/flow carekeys: what each press is set to.",
 } })
 
