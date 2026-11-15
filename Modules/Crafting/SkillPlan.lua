@@ -1396,7 +1396,8 @@ local function planProfession(prof, t, out)
         add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
               text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
                   .. (t.zone and string.format(" (%s here needs %d)", t.zone, t.target) or ""),
-              details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target) })
+              details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target),
+                    "The spots are where it can grow, not what's up now: Flow isn't told that. Stand at an empty one a few seconds and the arrow goes on to the next; the game's Find Herbs dots are the ones that are up." })
                   or (g.tip and { g.tip }) or nil,
               blockedBy = (missing and ("needs a " .. missing))
                   or (#points == 0 and ("no known " .. prof .. " spot on this map")) or nil })

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.259
+- **An empty herb or ore spot no longer holds you.** Flow knows where herbs can grow, not
+  which ones are up right now (the game doesn't tell add-ons; its own Find Herbs dots are the
+  live ones). So it can't check before it sends you. What it does now: stand at a spot for a
+  few seconds without picking anything and that spot rests, like one you just picked, and the
+  arrow goes on to the next. The step's tooltip says so.
+
 ## 0.35.258
 - **Flow Meters: this fight, or all fights.** Right-click: "This fight" starts again at every
   pull (as before); "All fights" is everything since the last reset, all the damage (or

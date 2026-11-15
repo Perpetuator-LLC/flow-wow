@@ -3629,6 +3629,44 @@ ns:On("LOOT_OPENED", function()
     if p and current and current.goal then N.ClearSpotNear(p, current.goal) end
 end)
 
+-- A herb or ore spot with nothing on it (0.35.259). "The minimap showed me
+-- one, I went to it and there's nothing there: it should check the item's
+-- actually there." Flow can't: an add-on isn't told which nodes are up (the
+-- game's Find Herbs dots are its own), only where they can grow. So it does
+-- the next best thing: once you've stood at a spot for a few seconds
+-- without picking anything, that spot rests like a picked one and the arrow
+-- goes on to the next.
+N.EMPTY_YARDS, N.EMPTY_SECONDS = 15, 4
+-- Pure: is this a step at herb or ore spots?
+function N.GatherSpots(goal)
+    if not goal then return false end
+    return (goal.prof == "Herbalism" or goal.prof == "Mining") and (goal.kind == nil or goal.kind == "skill" or goal.kind == "gather")
+end
+-- Pure: has the spot you're at turned out empty? d: yards to it; since:
+-- when you got within reach (nil: not yet); now.
+function N.SpotEmpty(d, since, now)
+    return d ~= nil and d < N.EMPTY_YARDS and since ~= nil and (now - since) >= N.EMPTY_SECONDS
+end
+local atSpot, atSince
+local function watchSpot()
+    local goal = current and current.goal
+    if not N.GatherSpots(goal) or InCombatLockdown() then atSpot = nil return end
+    local p = N:PlayerPos()
+    local pt, d = N:NearestSpot(goal, p)
+    if not (pt and d and d < N.EMPTY_YARDS) then atSpot = nil return end
+    local key, now = spotKey(pt), GetTime()
+    if atSpot ~= key then atSpot, atSince = key, now return end
+    if N.SpotEmpty(d, atSince, now) then
+        cleared[key] = now
+        atSpot = nil
+        N.emptySpots = (N.emptySpots or 0) + 1
+        ns:Log("nav", string.format("nothing at this %s spot: on to the next (%d so far this session)", tostring(goal.prof), N.emptySpots))
+    end
+end
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(1, function() pcall(watchSpot) end)
+end
+
 -- A nameplate on screen for one of the step's mobs / NPCs (goal.npcs): the
 -- one nearest the middle of the screen. Returns { x, y (screen pixels), name }.
 function N:VisibleTarget(goal)

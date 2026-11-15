@@ -11882,3 +11882,22 @@ ns:Register("test", "click: the meters count this fight or all fights; rows are 
     ns.db.meters.span = was
     pcall(M.Update)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.259: a herb or ore spot with nothing on it: on to the next.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: standing at an empty herb spot moves the arrow on", function(t)
+    local N = ns.nav
+    t:ok(N.GatherSpots({ kind = "skill", prof = "Herbalism" }), "a Herbalism skill step is at herb spots")
+    t:ok(not N.GatherSpots({ kind = "train", prof = "Herbalism" }), "its trainer is not")
+    t:ok(N.GatherSpots({ kind = "gather", prof = "Mining" }), "a mining step too")
+    t:ok(not N.GatherSpots({ kind = "skill", prof = "Fishing" }), "fishing isn't: you stand at the water on purpose")
+    t:ok(not N.GatherSpots({ kind = "kill" }), "nor a kill step")
+    t:ok(not N.GatherSpots(nil), "no step: no")
+    t:ok(not N.SpotEmpty(5, nil, 100), "just arrived: not yet")
+    t:ok(not N.SpotEmpty(5, 98, 100), "two seconds there: still looking")
+    t:ok(N.SpotEmpty(5, 95, 100), "five seconds at it and nothing picked: empty")
+    t:ok(not N.SpotEmpty(40, 90, 100), "not at the spot: no")
+    t:ok(not N.SpotEmpty(nil, 90, 100), "no spot: no")
+end)
