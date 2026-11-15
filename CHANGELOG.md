@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.242
+- **The small "press this instead" icon has its own place when docked.** In a fight, when
+  Flow advises a spell your key doesn't hold, a small pulsing icon says which. Docked, it sat
+  on the icon's bottom right corner: under the auto-attack badge and over the gap to the buff
+  button. Docked it now stands right of the key bind, with its words after it. On its own it
+  stays on the corner. In both it is drawn above everything else.
+
 ## 0.35.241
 - **The buff button is yours, Flow's key is your target's.** With the buff button on and a
   key on it, out of a fight too (in a fight it already was):

@@ -8518,11 +8518,13 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     end
     t:eq(icon.deck[1]:GetNumPoints(), 1, "one anchor each (not still tied to the right side)")
     local sp, srel, srp, sx = icon.swing:GetPoint(1)
-    t:ok(sp == "LEFT" and srel == icon and srp == "RIGHT" and (sx or 0) > 0, "the crossed swords are on its right")
+    -- (Docked: small, at the bottom right corner, 0.35.239.)
+    local _, wantP, wantRp = ns.SwingPlace(icon.joined)
+    t:ok(sp == wantP and srel == icon and srp == wantRp and (sx or 0) > 0, "the crossed swords are on its right")
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
     -- (0.35.199: on the key bind's line, just left of it; its own test below.)
     local tp, _, _, tx = icon.shiftTag:GetPoint(1)
-    t:ok(tp ~= nil and (tx or 0) ~= 0, "the SHIFT+ tag sits beside the key bind (left of it; after it when docked)")
+    t:ok(tp ~= nil and (ns.cast.labelsDocked or (tx or 0) ~= 0), "the SHIFT+ tag sits beside the key bind (left of it; above it when docked)")
 end)
 
 -------------------------------------------------------------------------------
@@ -9130,7 +9132,7 @@ ns:Register("test", "easy button: the held-modifier tag is on the key bind's lin
     if not (key and icon and icon.shiftTag) then t:ok(true, "(the Flow key isn't built yet)") return end
     local p, rel, rp, x = icon.shiftTag:GetPoint(1)
     if C.labelsDocked then
-        t:ok(p == "LEFT" and rel == key and rp == "RIGHT" and (x or 0) > 0, "docked: just after the key's bind, on its line")
+        t:ok(p == "BOTTOMLEFT" and rel == key and rp == "TOPLEFT", "docked: on its own line above the key's bind")
     else
         t:ok(p == "RIGHT" and rel == key and rp == "LEFT" and (x or 0) < 0, "just left of the key's bind, on its line")
     end
@@ -11304,4 +11306,26 @@ ns:Register("test", "two keys: out of a fight what's cast on you is the buff but
     local found
     for _, l in ipairs(ns.careKeys.Lines()) do if l:find("out of a fight", 1, true) or l:find("off", 1, true) or l:find("no key", 1, true) then found = true end end
     t:ok(found, "/flow carekeys says who each key is for")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.242: the "press this instead" icon has a place in each layout, on top.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy button: the advised-spell icon is in the open in both layouts, above everything", function(t)
+    local C = ns.cast
+    local p, rp, x, y, lp, lrp = C.AdvicePlace(false)
+    t:ok(p == "BOTTOMRIGHT" and rp == "BOTTOMRIGHT" and x > 0 and y < 0, "on its own: over the icon's bottom right corner, as before")
+    t:ok(lp == "RIGHT" and lrp == "LEFT", "its words to its left")
+    p, rp, x, y, lp, lrp = C.AdvicePlace(true)
+    t:ok(p == "LEFT" and rp == "RIGHT" and x > 0 and y == 0, "docked: right of the key bind, level with it (clear of the auto-attack badge and the buff button)")
+    t:ok(lp == "LEFT" and lrp == "RIGHT", "its words after it")
+    local lock, key, icon = C._LockIcon(), C._KeyText(), ns.rotation.icon
+    if not (lock and key and icon) then return end
+    local rel
+    p, rel, rp = lock:GetPoint(1)
+    local wantP, wantRp = C.AdvicePlace(C.labelsDocked)
+    t:ok(p == wantP and rp == wantRp and rel == (C.labelsDocked and key or icon), "the real one is where this layout puts it")
+    t:eq(lock:GetNumPoints(), 1, "and only there")
+    t:ok(lock:GetFrameLevel() > icon:GetFrameLevel() + 30, "drawn above the badge, the numbers and the click buttons")
 end)

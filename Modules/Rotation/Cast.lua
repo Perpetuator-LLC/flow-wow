@@ -156,6 +156,32 @@ end
 -- bottom right of the easy button and the spell text on top; only in the
 -- docked mode"): the bind at the icon's bottom right, the tag after it,
 -- so the gap between the two rows is free.
+-- The small "press this instead" icon (what Flow advises in a fight when the
+-- key holds another spell), with its few words beside it.
+--   On its own: over the icon's bottom right corner, words to its left.
+--   Docked: that corner is the auto-attack badge's and the buff button is
+--   right under it, so it stands in the open, right of the key bind, words
+--   after it (0.35.242: it sat under the badge and over the gap).
+-- Pure: point, relative point, x, y for the icon (to the Flow icon, or to the
+-- key bind when docked), then the same for its words (to the small icon).
+function C.AdvicePlace(docked)
+    if docked then return "LEFT", "RIGHT", 10, 0, "LEFT", "RIGHT", 3, 0 end
+    return "BOTTOMRIGHT", "BOTTOMRIGHT", 8, -8, "RIGHT", "LEFT", -2, 0
+end
+function C.PlaceAdvice(docked)
+    local icon = E.icon
+    if not (lockIcon and icon and keyText) then return false end
+    local p, rp, x, y, lp, lrp, lx, ly = C.AdvicePlace(docked)
+    lockIcon:ClearAllPoints()
+    lockIcon:SetPoint(p, docked and keyText or icon, rp, x, y)
+    lockIcon.label:ClearAllPoints()
+    lockIcon.label:SetPoint(lp, lockIcon, lrp, lx, ly)
+    -- (Above the badge, the cooldown numbers and the click buttons: never under anything.)
+    lockIcon:SetFrameLevel(icon:GetFrameLevel() + 40)
+    return true
+end
+C._LockIcon = function() return lockIcon end   -- (tests)
+
 function C.LayoutLabels(docked)
     local icon = E.icon
     if not (keyText and icon) then return false end
@@ -169,6 +195,7 @@ function C.LayoutLabels(docked)
         if docked then icon.shiftTag:SetPoint("BOTTOMLEFT", keyText, "TOPLEFT", 0, 2)
         else icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0) end
     end
+    C.PlaceAdvice(docked)
     C.labelsDocked = docked and true or false
     return true
 end
@@ -414,6 +441,7 @@ local function build(cfg)
         lockIcon.label:SetPoint("RIGHT", lockIcon, "LEFT", -2, 0)
         lockIcon.label:SetText("bar:")
         lockIcon:Hide()
+        C.PlaceAdvice(C.labelsDocked)
     end
     -- Ctrl: drag to move, mouse wheel to resize (the icon too).
     C.handle = ns:MoveHandle(btn, { name = "the Flow button", save = function() return ns.db.rotation end,
