@@ -11831,3 +11831,54 @@ ns:Register("test", "click: the dungeon route shows under the arrow, with what's
     local ok, lines = pcall(D.QueueLines)
     t:ok(ok and #lines >= 1, "what the game's group finder offers is listed")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.258: meters: this fight or all fights; the rows are players.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the meters count this fight or all fights; rows are players, the group on top", function(t)
+    local M = ns.meters
+    t:eq(M.PlayerRows(3), 2, "compact: the top 2")
+    t:eq(M.PlayerRows(5), 5, "5: five players")
+    t:eq(M.PlayerRows(10), 10, "10: ten players")
+    t:ok(M.RowsLabel(3):find("Compact", 1, true) ~= nil and M.RowsLabel(5):find("5 players", 1, true) ~= nil, "named by players")
+    -- The damage list: the group's row, then that many players.
+    local list = {}
+    for i = 1, 8 do list[i] = { name = "P" .. i, value = 100 - i, raw = 100 - i, bar = 100 - i, me = i == 7 } end
+    local rows = M.DamageRows(list, M.PlayerRows(5) + 1, 500, nil)
+    t:eq(#rows, 6, "5 players: the group and five players")
+    t:ok(rows[1].group and rows[6].name == "P7", "the group on top; you in the last row when you'd fall off")
+    rows = M.DamageRows(list, M.PlayerRows(3) + 1, 500, nil)
+    t:eq(#rows, 3, "compact: the group and two players")
+    local trows = M.ThreatRows({ { name = "T", value = 100, tank = true }, { name = "A", value = 90 }, { name = "Me", value = 40, me = true } },
+        M.PlayerRows(3), true)
+    t:eq(#trows, 2, "compact threat: two rows")
+    t:ok(trows[1].name == "T" and trows[2].name == "Me", "whoever it's on, and you")
+    -- This fight, or all fights.
+    t:eq(M.SpanKey(nil), "fight", "nothing chosen: this fight")
+    t:eq(M.SpanKey("all"), "all", "all fights is kept")
+    local T = Enum and Enum.DamageMeterSessionType
+    if T then
+        t:eq(M.SessionType("fight"), T.Current, "this fight: the game's current count")
+        t:eq(M.SessionType("all"), T.Overall, "all fights: the game's overall count (nil if it keeps none)")
+    end
+    local was = ns.db.meters.span
+    local seen = 0
+    for _, it in ipairs(M.ContextItems()) do
+        if it.text and it.text:find("^All fights") then
+            seen = seen + 1
+            t:ok(pcall(it.func) and M.SpanKey(ns.db.meters.span) == "all", "a click picks all fights")
+        end
+    end
+    for _, it in ipairs(M.ContextItems()) do
+        if it.text and it.text:find("^This fight") then
+            seen = seen + 1
+            t:ok(pcall(it.func) and M.SpanKey(ns.db.meters.span) == "fight", "a click picks this fight")
+        end
+        if it.text == "Reset the counts" then seen = seen + 1 end
+    end
+    t:eq(seen, 3, "the menu has both, and Reset")
+    t:ok(pcall(M.ReadDamage, M.MODES.dps, "all"), "reading all fights runs")
+    ns.db.meters.span = was
+    pcall(M.Update)
+end)

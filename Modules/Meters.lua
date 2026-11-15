@@ -51,6 +51,46 @@ function M.RowCount()
     return (n == 5 or n == 10) and n or 3
 end
 
+-- How many players each list shows (0.35.258). "When we set it to 5 I'd
+-- expect the group and then each individual: the total shouldn't count as
+-- one of them. Compact really only needs the total and the other 2; 2 for
+-- threat is enough." So the choice is players: compact (saved as 3, its old
+-- name) shows 2, the others 5 or 10; the damage list has the group's row on
+-- top of those, not among them.
+-- Pure: players per list for a saved choice.
+function M.PlayerRows(n)
+    n = n or M.RowCount()
+    return n == 3 and 2 or n
+end
+-- Pure: the choice's name in the menus.
+function M.RowsLabel(n)
+    if n == 3 then return "Compact: the top 2 (and the group)" end
+    return string.format("%d players (and the group)", n)
+end
+
+-- What stretch the second list counts over (0.35.258): this fight (it
+-- starts again at every pull), or every fight since you last reset it (all
+-- the damage over all the time in combat). Both are the game's own counts.
+function M.SpanKey(saved) return saved == "all" and "all" or "fight" end
+function M.SetSpan(key)
+    cfg().span = (key == "all") and "all" or nil
+    pcall(M.Update)
+end
+-- The game's name for it, or nil when this client keeps no such count.
+function M.SessionType(span)
+    local T = Enum and Enum.DamageMeterSessionType
+    if not T then return nil end
+    if span == "all" then return T.Overall end
+    return T.Current
+end
+function M.Reset()
+    local DM = C_DamageMeter
+    if not (DM and DM.ResetAllCombatSessions) then return false end
+    local ok = pcall(DM.ResetAllCombatSessions)
+    pcall(M.Update)
+    return ok
+end
+
 -- Pure: which entries of a list (best first, `count` long) to show in `rows`
 -- rows. me: your place in it (nil: not in it). Three rows: the top two and
 -- you; when you are one of those, the third. More rows: the top ones, with
@@ -123,8 +163,9 @@ end
 -- The second list's figures (mode: one of M.MODES, default DPS):
 -- { { name, raw (may be hidden), value (number or nil), class, me } }, in
 -- the game's order; total (may be hidden); readable?
-function M.ReadDamage(mode)
+function M.ReadDamage(mode, span)
     mode = mode or M.MODES.dps
+    span = span or M.SpanKey(cfg().span)
     local DM = C_DamageMeter
     if not (DM and DM.GetCombatSessionFromType and Enum and Enum.DamageMeterSessionType and Enum.DamageMeterType) then
         return nil, nil, false, "this client has no damage meter"
@@ -135,7 +176,9 @@ function M.ReadDamage(mode)
     end
     local kind = Enum.DamageMeterType[mode.kind]
     if kind == nil then return nil, nil, false, "the game's meter doesn't count that here" end
-    local ok, session = pcall(DM.GetCombatSessionFromType, Enum.DamageMeterSessionType.Current, kind)
+    local sessionType = M.SessionType(span)
+    if sessionType == nil then return nil, nil, false, "the game keeps no count over all fights here" end
+    local ok, session = pcall(DM.GetCombatSessionFromType, sessionType, kind)
     if not ok or type(session) ~= "table" then return nil, nil, false, "no fight recorded yet" end
     local list, readable = {}, true
     local okL, sources = pcall(function() return session.combatSources end)
@@ -431,13 +474,14 @@ function M.Update()
         return
     end
     frame = frame or build()
-    local rows = M.RowCount()
+    -- Players per list; the damage list has the group's row on top of them.
+    local rows = M.PlayerRows()
     local threat, tReadable, tWhy = M.ReadThreat()
     if threat and tReadable then threat = M.SortThreat(threat) end
     fill(frame.threat, M.ThreatRows(threat, rows, tReadable), rows, tWhy or "nobody on its list")
     local mode = M.Mode()
     local damage, total, dReadable, dWhy = M.ReadDamage(mode)
-    frame.damage.head:SetText(mode.title)
+    frame.damage.head:SetText(mode.title .. (M.SpanKey(cfg().span) == "all" and " (all fights)" or ""))
     if damage and dReadable then damage = M.Sort(damage) end
     -- The group's total: every entry's amount per second, where readable.
     local sum
@@ -446,7 +490,7 @@ function M.Update()
         for _, e in ipairs(damage) do sum = sum + (e.value or 0) end
     end
     -- Row 1 the group, then the players against the top one.
-    fill(frame.damage, M.DamageRows(damage, rows, sum, nil), rows, dWhy or mode.empty)
+    fill(frame.damage, M.DamageRows(damage, rows + 1, sum, nil), rows + 1, dWhy or mode.empty)
     frame.damage.total:SetText("")
     frame.damage:ClearAllPoints()
     frame.damage:SetPoint("TOPLEFT", frame.threat, "BOTTOMLEFT", 0, -2)
@@ -474,7 +518,7 @@ end)
 ns:On("PLAYER_REGEN_ENABLED", function()
     if not (C_Timer and M.On()) then return end
     C_Timer.After(1.5, function()
-        local ok, list, _, readable = pcall(M.ReadDamage)
+        local ok, list, _, readable = pcall(M.ReadDamage, M.MODES.dps, "fight")
         if not (ok and list and #list > 0) then return end
         local parts, sum = {}, 0
         for i, e in ipairs(readable and M.Sort(list) or list) do
@@ -555,7 +599,7 @@ ns:Register("help", "meters", { order = 33, title = "Flow Meters", lines = {
 function M.ContextItems()
     local items = { { title = true, text = "Flow Meters" } }
     for _, n in ipairs(M.ROWS) do
-        items[#items + 1] = { text = string.format("%d rows%s", n, n == 3 and " (the group, the top one and you)" or ""), radio = true, stay = true,
+        items[#items + 1] = { text = M.RowsLabel(n), radio = true, stay = true,
             checked = M.RowCount() == n, refresh = function(it) it.checked = M.RowCount() == n end,
             func = function() cfg().rows = n; pcall(M.Update) end }
     end
@@ -565,6 +609,13 @@ function M.ContextItems()
             checked = M.ModeKey(cfg().mode) == key, refresh = function(it) it.checked = M.ModeKey(cfg().mode) == key end,
             func = function() M.SetMode(key) end }
     end
+    items[#items + 1] = { rule = true }
+    for _, sp in ipairs({ { "fight", "This fight (starts again at every pull)" }, { "all", "All fights (everything since the last reset)" } }) do
+        items[#items + 1] = { text = sp[2], radio = true, stay = true,
+            checked = M.SpanKey(cfg().span) == sp[1], refresh = function(it) it.checked = M.SpanKey(cfg().span) == sp[1] end,
+            func = function() M.SetSpan(sp[1]) end }
+    end
+    items[#items + 1] = { text = "Reset the counts", func = function() M.Reset() end }
     items[#items + 1] = { rule = true }
     for d = 0, 3 do
         items[#items + 1] = { text = d == 0 and "Whole numbers" or string.format("%d decimal%s", d, d == 1 and "" or "s"), radio = true, stay = true,
@@ -590,7 +641,7 @@ function M.MenuItems()
         refresh = function(it) it.checked = cfg().always == true end,
         func = function() M.SetAlways(not cfg().always) end }
     for _, n in ipairs(M.ROWS) do
-        items[#items + 1] = { text = string.format("   Flow Meters rows: %d%s", n, n == 3 and " (the top two and you)" or ""), stay = true,
+        items[#items + 1] = { text = "   Flow Meters: " .. M.RowsLabel(n), stay = true,
             radio = true, checked = M.RowCount() == n,
             refresh = function(it) it.checked = M.RowCount() == n end,
             func = function() cfg().rows = n; pcall(M.Update) end }

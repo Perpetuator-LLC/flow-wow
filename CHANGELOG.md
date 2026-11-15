@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.258
+- **Flow Meters: this fight, or all fights.** Right-click: "This fight" starts again at every
+  pull (as before); "All fights" is everything since the last reset, all the damage (or
+  healing) over all the time in combat, for the group and for each player. "Reset the counts"
+  starts it over. The list's title says "(all fights)" when it's that.
+- **The row choices are players now, with the group on top.** 5 and 10 show the group's row
+  and then 5 or 10 players (the group used to take one of the rows). Compact shows the group
+  and the top 2, and 2 rows of threat.
+
 ## 0.35.257
 - **The dungeon route shows.** While a dungeon run is prepared there's a line under the arrow,
   like the party route's: "Dungeon route: Ragefire Chasm, 3 to pick up", then "... 5 quests
