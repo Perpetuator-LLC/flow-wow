@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.236
+- **The label moves are for the docked mode only.** 0.35.233 moved the key binds and spell
+  names on both buttons whether docked or not. On their own the buttons are back as they
+  were: key above, name below. With the buff button docked under Flow's icon: Flow's key is
+  at the icon's bottom right, its spell name on top of the icon; the buff button's key is
+  at its top right and its name under it.
+
 ## 0.35.235
 - **The "Making ... 3/10" bar can't get stuck.** Attacked in the middle of a batch, the bar
   stayed up until a reload: the batch had ended without the game naming the interrupted

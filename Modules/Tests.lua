@@ -7911,10 +7911,17 @@ ns:Register("test", "easy button: its key bind is written to the right of the ic
     local key = C._KeyText()
     if not (key and E.icon) then t:ok(true, "(the Flow key isn't built yet)") return end
     local point, rel, relPoint, x, y = key:GetPoint(1)
-    -- (0.35.233: to the right, at the icon's top; it was above the icon.)
-    t:eq(point, "TOPLEFT", "its top left corner...")
-    t:ok(rel == E.icon and relPoint == "TOPRIGHT", "...on the icon's top right corner")
-    t:ok((x or 0) > 0 and (y or 0) == 0, "a little to the right, level with the top")
+    -- (On its own: above the icon. With the buff button docked under it: at
+    -- the icon's bottom right, 0.35.236.)
+    if C.labelsDocked then
+        t:eq(point, "BOTTOMLEFT", "docked: its bottom left corner...")
+        t:ok(rel == E.icon and relPoint == "BOTTOMRIGHT", "...on the icon's bottom right corner")
+        t:ok((x or 0) > 0 and (y or 0) == 0, "a little to the right, level with the bottom")
+    else
+        t:eq(point, "BOTTOM", "its bottom edge...")
+        t:ok(rel == E.icon and relPoint == "TOP", "...on the icon's top edge, like CTRL / SHIFT / ALT above the queue")
+        t:ok((x or 0) == 0 and (y or 0) > 0, "centred, a little above")
+    end
     t:eq(key:GetNumPoints(), 1, "and nowhere else (not in the icon's corner)")
     local _, size = key:GetFont()
     t:near(size or 0, C.KEY_FONT, 0.6, "in the queue labels' kind of lettering")
@@ -8515,7 +8522,7 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
     -- (0.35.199: on the key bind's line, just left of it; its own test below.)
     local tp, _, _, tx = icon.shiftTag:GetPoint(1)
-    t:ok(tp ~= nil and (tx or 0) > 0, "the SHIFT+ tag follows the key bind, right of the icon")
+    t:ok(tp ~= nil and (tx or 0) ~= 0, "the SHIFT+ tag sits beside the key bind (left of it; after it when docked)")
 end)
 
 -------------------------------------------------------------------------------
@@ -9122,7 +9129,11 @@ ns:Register("test", "easy button: the held-modifier tag is on the key bind's lin
     local key, icon = C._KeyText(), E.icon
     if not (key and icon and icon.shiftTag) then t:ok(true, "(the Flow key isn't built yet)") return end
     local p, rel, rp, x = icon.shiftTag:GetPoint(1)
-    t:ok(p == "LEFT" and rel == key and rp == "RIGHT" and (x or 0) > 0, "just after the key's bind, on its line")
+    if C.labelsDocked then
+        t:ok(p == "LEFT" and rel == key and rp == "RIGHT" and (x or 0) > 0, "docked: just after the key's bind, on its line")
+    else
+        t:ok(p == "RIGHT" and rel == key and rp == "LEFT" and (x or 0) < 0, "just left of the key's bind, on its line")
+    end
     t:eq(icon.shiftTag:GetNumPoints(), 1, "and nowhere else")
     local _, size = icon.shiftTag:GetFont()
     t:near(size or 0, C.KEY_FONT, 0.6, "in the same size of lettering")
@@ -10990,8 +11001,11 @@ ns:Register("test", "buttons: key binds to the right, names from the bottom left
     local icon = ns.rotation.icon
     if icon and icon.text then
         local p, rel, rp = icon.text:GetPoint(1)
-        t:ok(p == "TOPLEFT" and rel == icon and rp == "BOTTOMLEFT", "Flow's spell name hangs from the icon's bottom left corner")
-        t:eq(icon.text:GetJustifyH(), "LEFT", "and reads from the left")
+        if icon.joined then
+            t:ok(p == "BOTTOMLEFT" and rel == icon and rp == "TOPLEFT", "docked: Flow's spell name sits on top of the icon, from its left edge")
+        else
+            t:ok(p == "TOP" and rel == icon and rp == "BOTTOM", "on its own: Flow's spell name is under the icon, as it always was")
+        end
     end
     t:ok(type(ns.SetCooldownFrame) == "function", "the buff button can draw the same cooldown sweep")
     local b = _G.FlowBuffButton
@@ -11094,4 +11108,31 @@ ns:Register("test", "crafting: the batch bar never stays up, and says how long i
     t:eq(CB.Current(), nil, "nothing left of the test batch")
     local bar = _G.FlowCraftBar
     if bar then t:ok(not bar:IsShown(), "and no bar on screen") end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.236: the docked layout is the docked mode's only.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buttons: docked, the key is at the Flow icon's bottom right and its spell name on top; alone, nothing moved", function(t)
+    local C = ns.cast
+    local key, icon = C._KeyText(), ns.rotation.icon
+    t:ok(type(ns.DockLayout()) == "boolean", "Flow's icon can ask whether it's in the docked layout")
+    if not (key and icon and not InCombatLockdown()) then return end
+    local was = C.labelsDocked
+    t:ok(C.LayoutLabels(true), "the docked places")
+    local p, rel, rp = key:GetPoint(1)
+    t:ok(p == "BOTTOMLEFT" and rel == icon and rp == "BOTTOMRIGHT", "docked: the key bind at the icon's bottom right")
+    if icon.shiftTag then
+        local tp, trel, trp = icon.shiftTag:GetPoint(1)
+        t:ok(tp == "LEFT" and trel == key and trp == "RIGHT", "the held-modifier tag after it")
+    end
+    t:ok(C.LayoutLabels(false), "and the usual ones")
+    p, rel, rp = key:GetPoint(1)
+    t:ok(p == "BOTTOM" and rel == icon and rp == "TOP", "on its own: the key bind above the icon, as before")
+    if icon.shiftTag then
+        local tp, trel, trp = icon.shiftTag:GetPoint(1)
+        t:ok(tp == "RIGHT" and trel == key and trp == "LEFT", "the tag just left of it, as before")
+    end
+    C.LayoutLabels(was)
 end)

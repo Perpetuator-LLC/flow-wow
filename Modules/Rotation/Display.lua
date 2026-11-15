@@ -187,10 +187,7 @@ local function buildIcon(cfg)
     flashFade:SetFromAlpha(0.55); flashFade:SetToAlpha(0); flashFade:SetDuration(0.25)
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    -- (Under the icon, starting at its left edge: "the spell info can be at the
-    -- bottom of each button, just have to do left aligned", 0.35.233.)
-    f.text:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -2)
-    f.text:SetJustifyH("LEFT")
+    f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
 
     -- "SHIFT+" beside the icon while you hold Shift: the icon then shows
     -- what Shift + your key casts (your heal), pulsing so it's noticed.
@@ -466,6 +463,13 @@ end
 function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     if not (healSpell and shiftDown and (view or inCombat)) then return view, false end
     return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
+end
+
+-- Is the buff button set to dock under Flow's icon (and switched on)? Then
+-- Flow's own labels take their docked places.
+function ns.DockLayout()
+    local BB = ns.buffButton
+    return (BB ~= nil and BB.Docked ~= nil and BB.Docked() and BB.On()) and true or false
 end
 
 -- Is the buff button docked under Flow's icon and showing, with its own
@@ -755,6 +759,22 @@ local function tick()
     if docked ~= icon.docked then
         icon.docked = docked
         for _, d in ipairs(icon.deck) do d.mod:SetShown(not docked) end
+    end
+    -- Docked (the setting, whether or not the buff button shows right now, so
+    -- nothing jumps about): this icon's spell name above it, its key at its
+    -- bottom right. On its own: as it always was (name below, key above).
+    local joined = ns.DockLayout()
+    if joined ~= icon.joined then
+        icon.joined = joined
+        icon.text:ClearAllPoints()
+        if joined then
+            icon.text:SetPoint("BOTTOMLEFT", icon, "TOPLEFT", 0, 2)
+            icon.text:SetJustifyH("LEFT")
+        else
+            icon.text:SetPoint("TOP", icon, "BOTTOM", 0, -4)
+            icon.text:SetJustifyH("CENTER")
+        end
+        if ns.cast and ns.cast.LayoutLabels then ns.cast.LayoutLabels(joined) end
     end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
     -- heal up, or while you hold a modifier (Q.Shows).

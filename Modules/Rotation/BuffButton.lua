@@ -483,14 +483,27 @@ function BB.Place()
     local main = _G.FlowCastButton
     btn:ClearAllPoints()
     if label then label:ClearAllPoints() end
+    if keyText then keyText:ClearAllPoints() end
     if BB.Docked() then
         btn:SetScale(main:GetScale())
         btn:SetPoint("TOP", main, "BOTTOM", 0, -BB.DOCK_GAP)
-        -- (Each name under its own button, from its left edge: 0.35.233.)
-        if label then label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2) end
+        -- Docked: its name under it from its left edge, its key at its top
+        -- right (Flow's own key is at Flow's bottom right: the two sit together
+        -- beside the gap). Only in this mode: on its own it's as it always was.
+        if label then
+            label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+            label:SetJustifyH("LEFT")
+            label:SetWidth(170)
+        end
+        if keyText then keyText:SetPoint("TOPLEFT", btn, "TOPRIGHT", 6, 0) end
         return true
     end
-    if label then label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2) end
+    if label then
+        label:SetPoint("TOP", btn, "BOTTOM", 0, -3)
+        label:SetJustifyH("CENTER")
+        label:SetWidth(110)
+    end
+    if keyText then keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2) end
     if ns.RestorePlace and (cfg().point or not main) then
         ns.RestorePlace(btn, cfg(), -60, -160)
     elseif main then
@@ -524,14 +537,12 @@ local function build()
     tex:SetAllPoints()
     tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetWidth(170)
-    label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
+    label:SetWidth(110)
     label:SetTextColor(0.5, 0.8, 1)
     -- Its key above it, as on Flow's icon (same font and size).
     keyText = btn:CreateFontString(nil, "OVERLAY")
     keyText:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
-    keyText:SetPoint("TOPLEFT", btn, "TOPRIGHT", 6, 0)   -- (to the right, as Flow's own: 0.35.233)
+    keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2)   -- (BB.Place puts it at the top right when docked)
     -- The global cooldown and its spell's own, swept over the icon as on Flow's.
     sweep = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
     sweep:SetAllPoints()

@@ -150,6 +150,27 @@ local function setAction(s)
     C:SetKeyCommand(C.KeyCommandFor(s, C.HasStartAttack()))
 end
 
+-- Where the key's bind and the held-modifier tag sit. On its own: above
+-- the icon, the tag just left of the bind (as since 0.35.199). With the buff
+-- button docked under it (0.35.236: "the key bind text anchored to the
+-- bottom right of the easy button and the spell text on top; only in the
+-- docked mode"): the bind at the icon's bottom right, the tag after it,
+-- so the gap between the two rows is free.
+function C.LayoutLabels(docked)
+    local icon = E.icon
+    if not (keyText and icon) then return false end
+    keyText:ClearAllPoints()
+    if docked then keyText:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 6, 0)
+    else keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2) end
+    if icon.shiftTag then
+        icon.shiftTag:ClearAllPoints()
+        if docked then icon.shiftTag:SetPoint("LEFT", keyText, "RIGHT", 4, 0)
+        else icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0) end
+    end
+    C.labelsDocked = docked and true or false
+    return true
+end
+
 -- Blizzard's single-button assistant, if this client has one.
 local function assistantSpell()
     if not (C_AssistedCombat and C_AssistedCombat.GetActionSpell) then return nil end
@@ -368,10 +389,7 @@ local function build(cfg)
         -- corner, over the spell's picture).
         keyText = icon:CreateFontString(nil, "OVERLAY")
         keyText:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
-        -- (0.35.233: to the right of the icon, at its top, above the auto-attack
-        -- badge: "put the key binds to the right", so the space above and
-        -- below the icon is free. It was above the icon.)
-        keyText:SetPoint("TOPLEFT", icon, "TOPRIGHT", 6, 0)
+        keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2)
         keyText:SetTextColor(0.85, 0.85, 0.85)
         -- The tag for the modifier you hold ("CTRL+", "SHIFT+"): on the same
         -- line as the key's bind, just left of it, in the same lettering, so
@@ -380,7 +398,7 @@ local function build(cfg)
         if icon.shiftTag then
             icon.shiftTag:ClearAllPoints()
             icon.shiftTag:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
-            icon.shiftTag:SetPoint("LEFT", keyText, "RIGHT", 4, 0)   -- (after the bind, on its line)
+            icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0)
         end
         lockIcon = CreateFrame("Frame", nil, icon)
         lockIcon:SetSize(22, 22)
