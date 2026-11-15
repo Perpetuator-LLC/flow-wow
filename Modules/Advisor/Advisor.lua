@@ -135,15 +135,36 @@ function Adv:Print(limit)
     for i = 1, math.min(limit or #shown, #shown) do print("  " .. i .. ". " .. line(shown[i])) end
 end
 
+-- Pure: a spot on the minimap's rim, from its centre. width: the minimap's;
+-- degrees: 0 = right, 90 = top, 315 = bottom right. nil with no minimap.
+Adv.MINIMAP_ANGLE = 315
+function Adv.MinimapSpot(width, degrees)
+    width = tonumber(width)
+    if not width or width <= 0 then return nil end
+    local r = width / 2 + 6
+    local a = math.rad(degrees or Adv.MINIMAP_ANGLE)
+    return math.floor(r * math.cos(a) + 0.5), math.floor(r * math.sin(a) + 0.5)
+end
+
 local function buildButton()
     local b = CreateFrame("Button", "FlowAdviceButton", UIParent)
     -- A round, minimap-style button: an icon in a gold ring, with a small
     -- orange count bubble. Pulses gently when new important advice appears.
     b:SetSize(34, 34)
     b:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
+    -- Where you put it; never moved: on the minimap's rim, bottom right, like
+    -- the game's own minimap buttons ("can we place the Flow spyglass on the
+    -- mini-map border by default? If people set a position take what they
+    -- picked", 0.35.229; it used to start in the middle of the screen).
     local p = ns.db.advisor.point
-    if p then b:SetPoint(p[1], UIParent, p[2], p[3], p[4])
-    else b:SetPoint("CENTER", UIParent, "CENTER", 52, -160) end
+    if p then
+        b:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+    else
+        local mm = _G.Minimap
+        local x, y = Adv.MinimapSpot(mm and mm.GetWidth and mm:GetWidth() or nil, Adv.MINIMAP_ANGLE)
+        if mm and x then b:SetPoint("CENTER", mm, "CENTER", x, y)
+        else b:SetPoint("CENTER", UIParent, "CENTER", 52, -160) end
+    end
 
     b.back = b:CreateTexture(nil, "BACKGROUND")
     b.back:SetSize(26, 26)

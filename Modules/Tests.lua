@@ -10777,3 +10777,29 @@ ns:Register("test", "buff button: a held modifier shows what that press casts", 
     local held = ns.cast.HeldView("Wrath", nil)
     t:eq(held and held.label, "Wrath", "the held spell is named by itself (no 'key:' before it)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.229: the spyglass starts on the minimap's rim.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "improvements: the spyglass button starts on the minimap's rim; a place you chose is kept", function(t)
+    local Adv = ns.advisor
+    local x, y = Adv.MinimapSpot(140, 315)
+    t:ok(x > 0 and y < 0, "bottom right of the minimap")
+    t:near(math.sqrt(x * x + y * y), 76, 1.5, "on its rim (half its width and a little)")
+    x, y = Adv.MinimapSpot(140, 90)
+    t:ok(math.abs(x) <= 1 and y > 70, "another angle: the top")
+    t:eq(Adv.MinimapSpot(nil, 315), nil, "no minimap: no spot (the middle of the screen, as before)")
+    t:eq(Adv.MinimapSpot(0, 315), nil, "a minimap with no size yet: none")
+    t:eq(Adv.MINIMAP_ANGLE, 315, "the usual place is bottom right")
+    -- On screen: where you put it wins; never moved, it hangs on the minimap.
+    local b = _G.FlowAdvisorButton or (Adv._Button and Adv._Button())
+    if b and b.GetPoint then
+        local _, rel = b:GetPoint(1)
+        if ns.db.advisor.point then
+            t:ok(rel == UIParent or rel == nil, "you placed it: it's where you put it")
+        elseif _G.Minimap then
+            t:ok(rel == _G.Minimap, "never moved: on the minimap")
+        end
+    end
+end)

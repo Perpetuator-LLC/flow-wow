@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.229
+- **The spyglass starts on the minimap.** The round Flow Improvements button used to start
+  in the middle of the screen; if you've never moved it, it now sits on the minimap's rim,
+  bottom right, like the game's own minimap buttons. Where you dragged it to is kept.
+
 ## 0.35.228
 - **Dock the buff button under the Flow icon.** A tick in the Flow menu (Keys) and in Flow
   Settings joins the two into one block: the buff button right under Flow's icon, its
