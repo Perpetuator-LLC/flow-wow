@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.269
+- **Flow Banker: Deposit no longer overlaps "All my choices".** Deposit sat in the middle of
+  the bottom row, over the end of the choices button. It's on the right now, the choices
+  button on the left.
+
 ## 0.35.268
 - **The auction house scan says it's done once, and doesn't start again at once.** With the
   window open, "read N listings" was printed over and over (the game repeats its signal and

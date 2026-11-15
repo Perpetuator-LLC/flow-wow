@@ -12222,3 +12222,19 @@ ns:Register("test", "auctions: opening the window again soon doesn't look everyt
     t:ok(AH.ScanDue(1000, 1000 + AH.SCAN_EVERY), "after the wait: look again")
     t:ok(AH.SCAN_EVERY >= 120, "a few minutes between looks")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.269: Flow Banker: Deposit on the right, the choices button on the left.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: Deposit and All my choices sit on opposite sides, clear of each other", function(t)
+    local B = ns.banker
+    local ok, f = pcall(function() return B._Frame and B._Frame() or _G.FlowBanker end)
+    f = ok and f or _G.FlowBanker
+    if not (f and f.go and f.all) then return end
+    local p, _, rp, x = f.go:GetPoint(1)
+    t:ok(p == "BOTTOMRIGHT" and rp == "BOTTOMRIGHT" and x < 0, "Deposit hangs from the right edge")
+    local pa, _, rpa, xa = f.all:GetPoint(1)
+    t:ok(pa == "BOTTOMLEFT" and rpa == "BOTTOMLEFT" and xa > 0, "the choices button from the left edge")
+    t:ok(xa + f.all:GetWidth() + 8 <= f:GetWidth() + x - f.go:GetWidth(), "with a gap between them")
+end)

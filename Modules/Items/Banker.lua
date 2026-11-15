@@ -302,7 +302,9 @@ local function build()
     end)
     f.go = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.go:SetSize(120, 22)
-    f.go:SetPoint("BOTTOM", 0, 8)
+    -- On the right, "All my choices" on the left (0.35.269: in the middle it
+    -- lay over that button's end).
+    f.go:SetPoint("BOTTOMRIGHT", -10, 8)
     f.go:SetText("Deposit")
     f.go:SetScript("OnClick", function() B:Deposit() end)
     f:Hide()
