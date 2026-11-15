@@ -11056,3 +11056,42 @@ ns:Register("test", "professions: what a vendor sells is bought just before the 
     t:ok(not SP.BuyNow(nil, {}, fromVendor), "whether you know the recipe isn't known: not yet")
     t:ok(SP.buyLater == nil or type(SP.buyLater) == "table", "what's left for later is kept for the plan's report")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.235: the batch bar always ends, and says how long is left.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "crafting: the batch bar never stays up, and says how long is left", function(t)
+    local CB = ns.craftBar
+    -- How long is left.
+    t:eq(CB.Left(10, 3, 3, 0), 21, "7 to go at 3 s each: 21 s")
+    t:eq(CB.Left(10, 3, 3, 1.5), 19.5, "a second and a half into this one: that much less")
+    t:eq(CB.Left(10, 10, 3, 0), 0, "all made: nothing left")
+    t:eq(CB.Left(10, 3, nil, 0), nil, "how long one takes isn't known yet: no time shown")
+    t:eq(CB.Span(21), "21 s", "seconds")
+    t:eq(CB.Span(90), "1 min 30 s", "minutes and seconds")
+    t:eq(CB.Span(120), "2 min", "whole minutes")
+    t:eq(CB.Text({ name = "Linen Bandage", total = 10, done = 3, castSecs = 3, castStart = 100 }, 100), "Making Linen Bandage 3/10 (about 21 s)", "the bar's words, with the time")
+    t:eq(CB.Text({ name = "Linen Bandage", total = 10, done = 3 }, 100), "Making Linen Bandage 3/10", "no time known: as before")
+    -- Over without a word from the game.
+    t:ok(CB.Stalled({ total = 10, done = 3, lastAt = 100 }, 103, false), "nothing cast for 3 s: the batch is over")
+    t:ok(not CB.Stalled({ total = 10, done = 3, lastAt = 100 }, 101, false), "a second between two: still going")
+    t:ok(not CB.Stalled({ total = 10, done = 3, lastAt = 100 }, 200, true), "casting right now: still going")
+    t:ok(not CB.Stalled({ total = 10, done = 10, lastAt = 100 }, 200, false), "all made: nothing to stop")
+    t:ok(not CB.Stalled({ total = 10, done = 3, lastAt = 100, stopped = true }, 200, false), "already stopped: once is enough")
+    t:ok(not CB.Stalled(nil, 200, false), "no batch: nothing")
+    -- A real batch, stopped the three ways.
+    with(ns, "Log", function() end, function()
+        CB.Start("Flow Test Bandage", 5, nil)
+        CB.Step("Flow Test Bandage", true)
+        t:ok(CB.Stop("a fight started"), "a fight starts: the batch stops")
+        t:ok(CB.Current() and CB.Current().stopped and CB.Text(CB.Current()):find("^Stopped: Flow Test Bandage 1/5") ~= nil, "it says where it stopped")
+        t:ok(not CB.Stop("again"), "stopping twice does nothing")
+        CB.Start("Flow Test Bandage", 5, nil)
+        t:ok(CB.Stop("an interruption the game didn't name"), "an interruption with no name: stops too")
+        CB.Start("Flow Test Bandage", 1, nil)   -- (one: no bar, and the test batch is gone)
+    end)
+    t:eq(CB.Current(), nil, "nothing left of the test batch")
+    local bar = _G.FlowCraftBar
+    if bar then t:ok(not bar:IsShown(), "and no bar on screen") end
+end)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.235
+- **The "Making ... 3/10" bar can't get stuck.** Attacked in the middle of a batch, the bar
+  stayed up until a reload: the batch had ended without the game naming the interrupted
+  cast, so nothing closed it. A batch now also ends when a fight starts, when an
+  interruption comes with no name, and when nothing has been made for a few seconds. It
+  says "Stopped: ... 3/10" and goes.
+- **It says how long is left:** "Making Linen Bandage 3/10 (about 21 s)", counting down,
+  once the first one tells how long each takes.
+
 ## 0.35.234
 - **Vendor materials are bought when you can use them.** Flow sent you to buy Shiny Red
   Apples for a stew whose recipe you couldn't learn yet, and you carried them for levels. A
