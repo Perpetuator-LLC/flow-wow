@@ -10,6 +10,27 @@ ns.minimapPin = P
 local OUTDOOR = { [0] = 466 + 2 / 3, 400, 333 + 1 / 3, 266 + 2 / 3, 200, 133 + 1 / 3 }
 local INDOOR  = { [0] = 300, 240, 180, 120, 80, 50 }
 
+-- The step's spot when it's in view (0.35.264). "The Flow circle on the
+-- minimap hides the up and down arrows of the quest icons: can it go behind
+-- them?" It can't: the game draws its own icons into the minimap itself, and
+-- anything an add-on shows is on top of that. So the marker no longer sits
+-- ON the spot: in view it's a ring of small dots AROUND it, the middle left
+-- clear for whatever the game shows there (its icon, and the little arrow
+-- that says "above you" or "below you"). At the minimap's edge, where there
+-- is nothing under it, it stays the solid (o).
+P.RING_DOTS, P.RING_RADIUS, P.RING_DOT = 8, 11, 3
+-- Pure: where the ring's dots sit round the spot ({ x, y } each).
+function P.RingPoints(n, radius)
+    local out = {}
+    for i = 1, n do
+        local a = (i - 1) * 2 * math.pi / n
+        out[i] = { math.cos(a) * radius, math.sin(a) * radius }
+    end
+    return out
+end
+-- Pure: which look? "ring" in view, "dot" at the edge.
+function P.Look(edge) return edge and "dot" or "ring" end
+
 local pin, profPin
 local function makePin(name)
     local pin = CreateFrame("Button", name, Minimap)
@@ -31,6 +52,29 @@ local function makePin(name)
     pin.dot = pin:CreateTexture(nil, "ARTWORK", nil, 2)
     pin.dot:SetPoint("TOPLEFT", 4, -4); pin.dot:SetPoint("BOTTOMRIGHT", -4, 4)
     pin.dot:SetTexture(CIRCLE)
+    -- The ring of dots for a spot in view: each a dark square with the colour inside.
+    pin.around = {}
+    for i, pt in ipairs(P.RingPoints(P.RING_DOTS, P.RING_RADIUS)) do
+        local back = pin:CreateTexture(nil, "BORDER")
+        back:SetSize(P.RING_DOT + 2, P.RING_DOT + 2)
+        back:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
+        back:SetColorTexture(0, 0, 0, 0.9)
+        local dot = pin:CreateTexture(nil, "ARTWORK")
+        dot:SetSize(P.RING_DOT, P.RING_DOT)
+        dot:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
+        dot:SetColorTexture(1, 1, 1, 1)
+        pin.around[i] = { back = back, dot = dot }
+    end
+    function pin:SetLook(look, r, g, b)
+        local ring = look == "ring"
+        self.look = look
+        for _, part in ipairs({ self.edge, self.ring, self.hole, self.dot }) do part:SetShown(not ring) end
+        for _, a in ipairs(self.around) do
+            a.back:SetShown(ring)
+            a.dot:SetShown(ring)
+            a.dot:SetVertexColor(r or 1, g or 1, b or 1, 1)
+        end
+    end
     pin:SetScript("OnEnter", function(self)
         if not self.goal then return end
         ns.Tip(self, "ANCHOR_RIGHT")
@@ -348,6 +392,7 @@ function P:Update(p, pt, goal, col, here)
     pin.dot:SetVertexColor(col[1], col[2], col[3], 1)
     pin.ring:SetVertexColor(col[1], col[2], col[3], 1)
     pin:SetSize(edge and 12 or 16, edge and 12 or 16)
+    if pin.SetLook then pin:SetLook(P.Look(edge), col[1], col[2], col[3]) end
     pin:SetAlpha(edge and 0.8 or 1)
     pin:ClearAllPoints()
     pin:SetPoint("CENTER", Minimap, "CENTER", x, y)

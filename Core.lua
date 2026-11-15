@@ -360,6 +360,25 @@ local function apiReport(arg)
         .. ", stunned etc: " .. tostring(ns.api and ns.api.LossOfControl and ns.api.LossOfControl() or "no")
         .. ", auto attack on: " .. tostring(ns.api and ns.api.Swinging and ns.api.Swinging()))
     print("  C_Spell: " .. has(C_Spell) .. ", C_SpellBook: " .. has(C_SpellBook) .. ", C_Container: " .. has(C_Container))
+    -- Anything this client says about height (is the next step above or below
+    -- you?): the names in the game's map and navigation tables that sound like it.
+    do
+        local found = {}
+        for _, name in ipairs({ "C_Minimap", "C_Navigation", "C_SuperTrack", "C_QuestLog", "C_Map", "C_TaskQuest" }) do
+            local tbl = _G[name]
+            if type(tbl) == "table" then
+                for k in pairs(tbl) do
+                    local word = type(k) == "string" and k:lower() or ""
+                    if word:find("height") or word:find("floor") or word:find("vertical") or word:find("elevat")
+                        or word:find("above") or word:find("below") or word:find("navigation") or word:find("supertrack") then
+                        found[#found + 1] = name .. "." .. k
+                    end
+                end
+            end
+        end
+        table.sort(found)
+        print("  about height or floors (names only): " .. (#found > 0 and table.concat(found, ", "):sub(1, 600) or "nothing by those names"))
+    end
     print("  quest waypoints: " .. has(C_QuestLog and C_QuestLog.GetNextWaypoint)
         .. ", equipment manager: " .. has(C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs))
     print("  your health: " .. shown(UnitHealth("player")) .. ", facing: " .. shown(GetPlayerFacing and GetPlayerFacing()))

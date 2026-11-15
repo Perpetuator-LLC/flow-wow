@@ -12058,3 +12058,31 @@ ns:Register("test", "click: the dungeon route keeps your training, vendor and ba
     end)
     ns.db.nav.dungeonPrep, ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, wasRun, wasOnly
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.264: the minimap marker rings the spot, the middle left clear.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "minimap: in view the step's marker is a ring round the spot, clear in the middle", function(t)
+    local P = ns.minimapPin
+    t:eq(P.Look(false), "ring", "in view: a ring round the spot")
+    t:eq(P.Look(true), "dot", "at the minimap's edge: the solid dot")
+    local pts = P.RingPoints(8, 11)
+    t:eq(#pts, 8, "eight dots")
+    local clear = true
+    for _, pt in ipairs(pts) do
+        local d = math.sqrt(pt[1] * pt[1] + pt[2] * pt[2])
+        if math.abs(d - 11) > 0.01 then clear = false end
+    end
+    t:ok(clear, "all on the ring: none over the spot itself")
+    t:ok(P.RING_RADIUS - P.RING_DOT >= 7, "the clear middle is big enough for the game's icon and its arrow")
+    local pin = P.Pin()
+    if not (pin and pin.SetLook) then return end
+    local was = pin.look
+    pin:SetLook("ring", 1, 0.5, 0)
+    t:ok(not pin.ring:IsShown() and not pin.dot:IsShown() and not pin.hole:IsShown() and not pin.edge:IsShown(), "ring: nothing drawn on the spot")
+    t:ok(pin.around[1].dot:IsShown() and pin.around[8].dot:IsShown(), "the dots round it show")
+    pin:SetLook("dot", 1, 0.5, 0)
+    t:ok(pin.ring:IsShown() and pin.dot:IsShown() and not pin.around[1].dot:IsShown(), "dot: the solid marker, no ring of dots")
+    if was then pin:SetLook(was) end
+end)

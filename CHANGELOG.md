@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.264
+- **Flow's minimap marker no longer covers the game's icon.** The (o) sat on the step's spot
+  and hid the game's own icon there, with its little arrow for "above you" or "below you". It
+  can't go behind it (the game draws its icons into the minimap itself), so in view the
+  marker is now a ring of small dots round the spot with the middle left clear. At the
+  minimap's edge it's still the solid (o).
+
 ## 0.35.263
 - **The dungeon route gets you ready on the way.** On the dungeon route Flow used to drop
   everything but the run's own steps, so a trip to Thunder Bluff for a dungeon quest walked
