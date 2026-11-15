@@ -200,10 +200,12 @@ local function questGoals(db, q, goals, opts)
         if not obj.finished and od and not skillObj then
             local spawns, verb, what, elite = {}, nil, nil, false
             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
+            local mobs = {}     -- { name, min, max, rate }: their levels, and how often they drop it (0.35.232)
             if od.Type == "monster" then
                 local npcRaw
                 what, npcRaw = npcSpawns(db, spawns, od.Id); verb = "Kill"
                 if what then targets[#targets + 1] = what end
+                if what then mobs[#mobs + 1] = { name = what, min = npcRaw and npcRaw.minLevel, max = npcRaw and npcRaw.maxLevel } end
                 -- Elite mobs (Questie rank 1+): flagged and planned later; bring a friend.
                 if npcRaw and (npcRaw.rank or 0) >= 1 then elite = true end
             elseif od.Type == "object" then
@@ -222,6 +224,10 @@ local function questGoals(db, q, goals, opts)
                 for _, npcId in ipairs(item and item.npcDrops or {}) do
                     local dropper, npcRaw = npcSpawns(db, spawns, npcId)
                     if dropper then targets[#targets + 1] = dropper end
+                    if dropper then
+                        mobs[#mobs + 1] = { name = dropper, min = npcRaw and npcRaw.minLevel, max = npcRaw and npcRaw.maxLevel,
+                                            rate = ns.quests.DropRate(db, od.Id, npcId) }
+                    end
                     if npcRaw and (npcRaw.rank or 0) >= 1 then anyElite = true else anyNormal = true end
                 end
                 elite = anyElite and not anyNormal
@@ -249,6 +255,7 @@ local function questGoals(db, q, goals, opts)
                             if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
                             if hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
+                            for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
                             return d
                         end)(),
                     }
@@ -307,6 +314,56 @@ local function questGoals(db, q, goals, opts)
         turnIn.points = {}
     end
 end
+-- How often a mob drops an item, in percent, or nil (the quest data's own
+-- figure: QuestieDB.GetItemDroprate -> { rate, source }).
+function ns.quests.DropRate(db, itemId, npcId)
+    local fn = db and db.GetItemDroprate
+    if type(fn) ~= "function" then return nil end
+    local ok, r = pcall(fn, itemId, npcId)
+    if ok and type(r) == "table" and tonumber(r[1]) then return tonumber(r[1]) end
+    return nil
+end
+-- Pure: the lines for a stop's mobs: each one's level, and for a drop how
+-- often it gives the item, best first ("can we show the percent drops per
+-- level ... what levels are in what areas for my objective", 0.35.232).
+--   mobs: { { name, min, max, rate } }; drops: it's an item they drop.
+ns.quests.MOB_LINES = 6
+function ns.quests.MobLines(mobs, drops, max)
+    local list, seen = {}, {}
+    for _, m in ipairs(mobs or {}) do
+        if m.name and not seen[m.name] then
+            seen[m.name] = true
+            list[#list + 1] = m
+        end
+    end
+    table.sort(list, function(a, b)
+        if (a.rate or -1) ~= (b.rate or -1) then return (a.rate or -1) > (b.rate or -1) end
+        if (a.min or 0) ~= (b.min or 0) then return (a.min or 0) < (b.min or 0) end
+        return a.name < b.name
+    end)
+    local out = {}
+    max = max or ns.quests.MOB_LINES
+    for i, m in ipairs(list) do
+        if i > max then
+            out[#out + 1] = string.format("... and %d more.", #list - max)
+            break
+        end
+        local level = ""
+        if m.min and m.min > 0 then
+            level = (m.max and m.max > m.min) and string.format(", level %d-%d", m.min, m.max) or string.format(", level %d", m.min)
+        end
+        local rate = ""
+        if drops and m.rate then
+            rate = m.rate >= 10 and string.format(": drops it %d%% of the time", math.floor(m.rate + 0.5))
+                or string.format(": drops it %.1f%% of the time", m.rate)
+        elseif drops then
+            rate = ": drop chance not known"
+        end
+        if level ~= "" or rate ~= "" then out[#out + 1] = m.name .. level .. rate end
+    end
+    return out
+end
+
 -- A stop the quest data doesn't place: where you did it before (LearnedSpots),
 -- else off the route with the reason: inside a dungeon, a battleground's
 -- reward, or simply not known. index: the objective's; m: { text, why }.

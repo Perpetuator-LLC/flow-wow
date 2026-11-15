@@ -61,14 +61,15 @@ function M.Pick(count, rows, me)
     return out
 end
 
--- Pure: "1.2k", "34.5k", "1.2m"; small numbers whole.
-function M.Short(n)
+-- Pure: "1.2k", "34.5k", "1.2m"; a number under a thousand to `decimals`
+-- places (0: whole).
+function M.Short(n, decimals)
     n = tonumber(n)
     if not n then return "" end
     if n >= 1e6 then return string.format("%.1fm", n / 1e6) end
     if n >= 1e4 then return string.format("%.0fk", n / 1e3) end
     if n >= 1e3 then return string.format("%.1fk", n / 1e3) end
-    return string.format("%d", math.floor(n + 0.5))
+    return string.format("%." .. math.max(0, math.min(3, math.floor(tonumber(decimals) or 0))) .. "f", n)
 end
 
 -- Pure: sorts entries by .value (a number), biggest first; entries whose
@@ -117,7 +118,7 @@ function M.ReadDamage()
     for _, src in ipairs(okL and type(sources) == "table" and sources or {}) do
         local value = A.Safe(src.amountPerSecond)
         if type(value) ~= "number" then readable = false; value = nil end
-        list[#list + 1] = { name = src.name, raw = src.amountPerSecond, value = value,
+        list[#list + 1] = { name = src.name, raw = src.amountPerSecond, value = value, bar = src.amountPerSecond,
                             class = A.Safe(src.classFilename), me = A.Safe(src.isLocalPlayer) == true }
     end
     return list, session.totalAmount, readable
@@ -145,7 +146,11 @@ function M.ReadThreat()
     if not (UnitExists("target") and Yes(UnitCanAttack("player", "target"), false)) then return nil, false, "no enemy targeted" end
     local list, readable = {}, true
     for _, unit in ipairs(groupUnits()) do
-        local ok, _, status, pct = pcall(UnitDetailedThreatSituation, unit, "target")
+        -- (The share of the tank's threat, which runs past 100: a mob turns on
+        -- you only some way over.)
+        local ok, tanking, status, scaled, rawPct = pcall(UnitDetailedThreatSituation, unit, "target")
+        local pct = rawPct
+        if pct == nil then pct = scaled end
         -- (nil: not on its threat list. A hidden value can't be compared, not even with nil.)
         local onList = (issecretvalue and issecretvalue(status)) or status ~= nil
         if ok and onList then
@@ -153,7 +158,7 @@ function M.ReadThreat()
             if type(value) ~= "number" then readable = false; value = nil end
             local _, class = UnitClass(unit)
             list[#list + 1] = { name = UnitName(unit), raw = pct, value = value, class = A.Safe(class),
-                                me = unit == "player", pct = true }
+                                me = unit == "player", pct = true, tank = A.Safe(tanking) == true }
         end
     end
     return list, readable
@@ -188,6 +193,84 @@ local function makeList(parent, title)
     return l
 end
 
+-- Decimals shown after a number under a thousand (0 to 3; the meter's
+-- right-click menu). "It will at times show many, many decimals: make it
+-- show 0 for now" (0.35.232).
+function M.Decimals()
+    local d = tonumber(cfg().decimals) or 0
+    return math.max(0, math.min(3, math.floor(d)))
+end
+
+-- A row's number as text. Readable: shortened here. Hidden (a "secret"
+-- value in a fight): the game formats it for us where it will, to the same
+-- decimals; else it's handed over as it is.
+function M.Text(e, decimals)
+    decimals = decimals or M.Decimals()
+    if e.value then return M.Short(e.value, decimals) .. (e.pct and "%" or "") end
+    if e.raw == nil then return "" end
+    local ok, text = pcall(string.format, "%." .. decimals .. "f" .. (e.pct and "%%" or ""), e.raw)
+    if ok then return text end
+    return e.raw
+end
+
+-- Pure: the damage list's rows. list: players, best first ({ name, value,
+-- raw, class, me, bar }); rows: how many rows there are; sum: the group's
+-- damage per second (nil: hidden); total: the game's own group figure, for
+-- when sum is hidden; maxBar: the top player's bar value (nil: the first
+-- entry's). Row 1 is the group; then the top players, with you in the last
+-- row if you'd fall off. Each player's bar is measured against the top
+-- player's, so the top one is full.
+function M.DamageRows(list, rows, sum, total, maxBar)
+    local out = {}
+    list = list or {}
+    if #list == 0 then return out end
+    out[1] = { name = "Group", value = sum, raw = total, group = true, full = true }
+    local me
+    for i, e in ipairs(list) do if e.me then me = i break end end
+    local top = maxBar
+    if top == nil then top = list[1].bar end
+    for _, i in ipairs(M.Pick(#list, math.max(1, (rows or 3) - 1), me)) do
+        local e = list[i]
+        out[#out + 1] = { name = e.name, value = e.value, raw = e.raw, class = e.class, me = e.me, bar = e.bar, barMax = top }
+    end
+    return out
+end
+
+-- Pure: threat, in the order that matters: whoever it's attacking first,
+-- then the most threat. (Readable numbers only; hidden ones keep the
+-- group's order.)
+function M.SortThreat(list)
+    local out = {}
+    for i, e in ipairs(list or {}) do out[i] = e; e.order = i end
+    table.sort(out, function(a, b)
+        if (a.tank and true or false) ~= (b.tank and true or false) then return a.tank and true or false end
+        local av, bv = tonumber(a.value), tonumber(b.value)
+        if av and bv and av ~= bv then return av > bv end
+        if (av ~= nil) ~= (bv ~= nil) then return av ~= nil end
+        return a.order < b.order
+    end)
+    return out
+end
+
+-- Pure: the threat list's rows. Bars run to 100% (the tank's threat), or to
+-- the highest figure when someone is past it (110%, 120%: a boss turns on
+-- them only some way over the tank).
+function M.ThreatRows(list, rows, readable)
+    local out = {}
+    list = list or {}
+    local me, top = nil, 100
+    for i, e in ipairs(list) do
+        if e.me and not me then me = i end
+        if readable and tonumber(e.value) and e.value > top then top = e.value end
+    end
+    for _, i in ipairs(M.Pick(#list, rows or 3, me)) do
+        local e = list[i]
+        out[#out + 1] = { name = e.name, value = e.value, raw = e.raw, class = e.class, me = e.me, pct = true, tank = e.tank,
+                          bar = e.value or e.raw, barMax = top }
+    end
+    return out
+end
+
 local function row(l, i)
     local r = l.rows[i]
     if r then return r end
@@ -196,39 +279,53 @@ local function row(l, i)
     r:SetPoint("TOPLEFT", 0, -12 - (i - 1) * M.ROW_H)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
-    r.name = r:CreateFontString(nil, "OVERLAY")
+    r.bg:SetColorTexture(0, 0, 0, 0.35)
+    -- The bar: a status bar, which the game fills even from a hidden number.
+    r.bar = CreateFrame("StatusBar", nil, r)
+    r.bar:SetPoint("TOPLEFT", 0, -1)
+    r.bar:SetPoint("BOTTOMRIGHT", 0, 0)
+    r.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    r.bar:SetMinMaxValues(0, 1)
+    r.bar:SetValue(1)
+    r.text = CreateFrame("Frame", nil, r)
+    r.text:SetAllPoints()
+    r.text:SetFrameLevel(r.bar:GetFrameLevel() + 2)
+    r.name = r.text:CreateFontString(nil, "OVERLAY")
     r.name:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
     r.name:SetPoint("LEFT", 3, 0)
     r.name:SetWidth(M.WIDTH - 52)
     r.name:SetJustifyH("LEFT")
     r.name:SetWordWrap(false)
-    r.value = r:CreateFontString(nil, "OVERLAY")
+    r.value = r.text:CreateFontString(nil, "OVERLAY")
     r.value:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
     r.value:SetPoint("RIGHT", -3, 0)
     l.rows[i] = r
     return r
 end
 
--- Fills one list. list: entries best first (or in the game's order when the
--- numbers are hidden); returns how many rows it used.
-local function fill(l, list, rows, empty)
-    local me
-    for i, e in ipairs(list or {}) do if e.me then me = i break end end
-    local picks = M.Pick(#(list or {}), rows, me)
+-- Fills one list from its rows (M.DamageRows / M.ThreatRows).
+local function fill(l, entries, rows, empty)
+    local decimals = M.Decimals()
     for i = 1, math.max(rows, #l.rows) do
         local r = (i <= rows) and row(l, i) or l.rows[i]
-        local e = picks[i] and list[picks[i]]
+        local e = entries and entries[i]
         if r and e then
             local cr, cg, cb = classColor(e.class)
-            r.bg:SetColorTexture(cr, cg, cb, e.me and 0.45 or 0.22)
-            -- (A hidden name or number can't be read here, but the text can show it.)
+            if e.group then cr, cg, cb = 1, 0.82, 0.25 end
+            r.bar:SetStatusBarColor(cr, cg, cb, (e.me or e.group) and 0.8 or 0.55)
+            -- (A hidden number can't be compared here, but the bar takes it.)
+            local okB = false
+            if not e.full and e.bar ~= nil and e.barMax ~= nil then
+                okB = pcall(r.bar.SetMinMaxValues, r.bar, 0, e.barMax) and pcall(r.bar.SetValue, r.bar, e.bar)
+            end
+            if not okB then r.bar:SetMinMaxValues(0, 1); r.bar:SetValue(1) end
+            r.bar:Show()
             if not pcall(r.name.SetText, r.name, e.name) then r.name:SetText("?") end
-            if e.value then r.value:SetText(M.Short(e.value) .. (e.pct and "%" or ""))
-            elseif not pcall(r.value.SetText, r.value, e.raw) then r.value:SetText("") end
+            if not pcall(r.value.SetText, r.value, M.Text(e, decimals)) then r.value:SetText("") end
             r:Show()
         elseif r then
             if i == 1 and empty then
-                r.bg:SetColorTexture(0, 0, 0, 0.3)
+                r.bar:Hide()
                 r.name:SetText("|cff888888" .. empty .. "|r")
                 r.value:SetText("")
                 r:Show()
@@ -260,9 +357,13 @@ local function build()
         ns.Tip(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Flow Meters", 1, 0.82, 0)
         GameTooltip:AddLine("Threat on your target (percent of the tank's) and damage per second in this fight, from the game's own counts.", 1, 1, 1, true)
-        GameTooltip:AddLine(M.note or "The top two and you; if you're one of them, the third.", 0.7, 0.7, 0.7, true)
-        GameTooltip:AddLine("Ctrl + drag: move. Flow menu, Flow windows: rows, on or off.", 0.6, 0.6, 0.6, true)
+        GameTooltip:AddLine(M.note or "DPS: the group, then the top player (a full bar) and the rest against them. Threat: who it's on first; past 100% means close to pulling it.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Ctrl + drag: move. Right-click: rows, decimals, when it shows.", 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
+    end)
+    -- Right-click: its own menu (rows, decimals, when it shows).
+    f:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" and ns.menu and ns.menu.Open then ns.menu:Open(M.ContextItems()) end
     end)
     f:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
@@ -279,18 +380,19 @@ function M.Update()
     frame = frame or build()
     local rows = M.RowCount()
     local threat, tReadable, tWhy = M.ReadThreat()
-    if threat and tReadable then threat = M.Sort(threat) end
-    fill(frame.threat, threat, rows, tWhy or "nobody on its list")
+    if threat and tReadable then threat = M.SortThreat(threat) end
+    fill(frame.threat, M.ThreatRows(threat, rows, tReadable), rows, tWhy or "nobody on its list")
     local damage, total, dReadable, dWhy = M.ReadDamage()
     if damage and dReadable then damage = M.Sort(damage) end
-    fill(frame.damage, damage, rows, dWhy or "no damage yet")
     -- The group's total: every entry's amount per second, where readable.
     local sum
     if damage and dReadable then
         sum = 0
         for _, e in ipairs(damage) do sum = sum + (e.value or 0) end
     end
-    frame.damage.total:SetText(sum and ("group " .. M.Short(sum)) or "")
+    -- Row 1 the group, then the players against the top one.
+    fill(frame.damage, M.DamageRows(damage, rows, sum, nil), rows, dWhy or "no damage yet")
+    frame.damage.total:SetText("")
     frame.damage:ClearAllPoints()
     frame.damage:SetPoint("TOPLEFT", frame.threat, "BOTTOMLEFT", 0, -2)
     frame:SetHeight(frame.threat:GetHeight() + frame.damage:GetHeight() + 2)
@@ -388,6 +490,28 @@ ns:Register("help", "meters", { order = 33, title = "Flow Meters", lines = {
     "In a group (and at a training dummy): threat on your target and damage per second, the top two and you.",
     "/flow meter: show them all the time (again: back to groups and dummies). /flow meters on|off, /flow meters 3|5|10 (rows). Ctrl + drag moves them.",
 } })
+
+-- The meters' own menu (right-click them): rows, decimals, when they show.
+function M.ContextItems()
+    local items = { { title = true, text = "Flow Meters" } }
+    for _, n in ipairs(M.ROWS) do
+        items[#items + 1] = { text = string.format("%d rows%s", n, n == 3 and " (the group, the top one and you)" or ""), radio = true, stay = true,
+            checked = M.RowCount() == n, refresh = function(it) it.checked = M.RowCount() == n end,
+            func = function() cfg().rows = n; pcall(M.Update) end }
+    end
+    items[#items + 1] = { rule = true }
+    for d = 0, 3 do
+        items[#items + 1] = { text = d == 0 and "Whole numbers" or string.format("%d decimal%s", d, d == 1 and "" or "s"), radio = true, stay = true,
+            checked = M.Decimals() == d, refresh = function(it) it.checked = M.Decimals() == d end,
+            func = function() cfg().decimals = d; pcall(M.Update) end }
+    end
+    items[#items + 1] = { rule = true }
+    items[#items + 1] = { text = "Always shown (alone too)", stay = true, checked = cfg().always == true,
+        refresh = function(it) it.checked = cfg().always == true end,
+        func = function() M.SetAlways(not cfg().always) end }
+    items[#items + 1] = { text = "Turn Flow Meters off", func = function() cfg().off = true; pcall(M.Update) end }
+    return items
+end
 
 -- The Flow menu's entries (Menu.lua puts them under Flow windows).
 function M.MenuItems()

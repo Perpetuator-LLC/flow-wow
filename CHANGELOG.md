@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.232
+- **Flow Meters are bars now.** DPS: the first row is the whole group; under it the top
+  player with a full bar, and each row after measured against that player. Threat: whoever
+  the enemy is attacking is on top, then the most threat; the figures are the share of the
+  tank's threat, so 110% or 120% shows before a boss turns on someone, and the bars
+  stretch to the highest figure.
+- **Whole numbers.** The long strings of decimals are gone. Right-click the meters for
+  1, 2 or 3 decimals, the number of rows, "always shown" and off.
+- **A stop says how high its mobs are and how often they drop the item.** Hover a stop (on
+  the map, in the Flow Router or the Flow Tracker): "Greater Plainstrider, level 11-12:
+  drops it 25% of the time", best dropper first, from the quest data's own drop figures.
+  A mob to kill shows its level.
+- Where the game hides the numbers from add-ons in a fight, Flow can't sort those rows; the
+  bars still fill, since the game draws them itself.
+
 ## 0.35.231
 - **A second key for the buff button.** Like Flow's own key, the buff button can have two
   keys: Flow Settings has a "Buff button's second key" row (with the same check of what the

@@ -10867,3 +10867,80 @@ ns:Register("test", "buff button: two keys, each with the same modifier presses"
     c.enabled = enabled
     if ns.careKeys and ns.careKeys.Apply then pcall(ns.careKeys.Apply) end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.232: meter rows are bars, in the order that matters, with whole
+-- numbers; a stop says its mobs' levels and drop chances.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: bars; the group first, then players against the top one; threat by who it's on", function(t)
+    local M = ns.meters
+    t:eq(M.Short(8.123456, 0), "8", "whole numbers by default")
+    t:eq(M.Short(8.123456, 2), "8.12", "two decimals when asked")
+    t:eq(M.Short(8.123456, 9), "8.123", "never more than three")
+    t:eq(M.Short(1234.5678, 0), "1.2k", "thousands shortened as before")
+    t:eq(M.Text({ value = 112.3456, pct = true }, 0), "112%", "a percent, whole")
+    t:eq(M.Text({ value = 27.5 }, 1), "27.5", "one decimal")
+    t:eq(M.Text({}, 0), "", "nothing to show: empty")
+    -- Damage: the group, the top player, and you.
+    local list = { { name = "Ann", value = 30, bar = 30 }, { name = "Bob", value = 20, bar = 20 }, { name = "Cid", value = 10, bar = 10 },
+                   { name = "You", value = 5, bar = 5, me = true } }
+    local rows = M.DamageRows(list, 3, 65, nil)
+    t:eq(#rows, 3, "three rows")
+    t:ok(rows[1].group and rows[1].name == "Group" and rows[1].value == 65 and rows[1].full, "row 1: the whole group, a full bar")
+    t:ok(rows[2].name == "Ann" and rows[2].bar == 30 and rows[2].barMax == 30, "row 2: the top player, a full bar")
+    t:ok(rows[3].name == "You" and rows[3].bar == 5 and rows[3].barMax == 30, "row 3: you, measured against the top player")
+    rows = M.DamageRows(list, 5, 65, nil)
+    t:ok(#rows == 5 and rows[3].name == "Bob" and rows[3].barMax == 30, "five rows: the group and four players")
+    t:eq(#M.DamageRows({}, 3, nil, nil), 0, "nobody: no rows")
+    -- Threat: whoever it's attacking first, then the most threat.
+    local threat = M.SortThreat({ { name = "Mage", value = 118 }, { name = "Tank", value = 100, tank = true }, { name = "You", value = 60, me = true } })
+    t:ok(threat[1].name == "Tank" and threat[2].name == "Mage" and threat[3].name == "You", "the one with aggro on top, then 118%, then 60%")
+    local trows = M.ThreatRows(threat, 3, true)
+    t:ok(trows[1].tank and trows[2].bar == 118 and trows[2].barMax == 118, "the bars run to the highest figure when someone is past the tank")
+    trows = M.ThreatRows({ { name = "Tank", value = 100, tank = true }, { name = "You", value = 40, me = true } }, 3, true)
+    t:eq(trows[2].barMax, 100, "nobody past 100%: the bars run to 100")
+    local hidden = M.SortThreat({ { name = "a" }, { name = "b" } })
+    t:ok(hidden[1].name == "a" and hidden[2].name == "b", "hidden numbers: the group's order is kept")
+    -- The menu on the meters themselves.
+    local items = M.ContextItems()
+    local whole
+    for _, it in ipairs(items) do if it.text == "Whole numbers" then whole = it end end
+    t:ok(whole ~= nil, "right-click: whole numbers or 1, 2, 3 decimals")
+    local was = ns.db.meters.decimals
+    for _, it in ipairs(items) do
+        if it.text == "2 decimals" then
+            t:ok(pcall(it.func) and M.Decimals() == 2, "a click sets two decimals")
+        end
+    end
+    ns.db.meters.decimals = was
+    t:eq(M.Decimals() >= 0 and M.Decimals() <= 3, true, "between none and three")
+    t:ok(pcall(M.Update), "the meters draw")
+end)
+
+ns:Register("test", "quests: a stop says how high its mobs are and how often they drop the item", function(t)
+    local Q = ns.quests
+    local lines = Q.MobLines({
+        { name = "Ornery Plainstrider", min = 11, max = 12, rate = 1.74 },
+        { name = "Greater Plainstrider", min = 11, max = 12, rate = 25.4 },
+        { name = "Fleeting Plainstrider", min = 12, max = 13, rate = 18.6 },
+        { name = "Greater Plainstrider", min = 11, max = 12, rate = 25.4 },
+    }, true)
+    t:eq(#lines, 3, "each mob once")
+    t:eq(lines[1], "Greater Plainstrider, level 11-12: drops it 25% of the time", "the best dropper first, with its levels")
+    t:eq(lines[2], "Fleeting Plainstrider, level 12-13: drops it 19% of the time", "then the next")
+    t:eq(lines[3], "Ornery Plainstrider, level 11-12: drops it 1.7% of the time", "a small chance keeps a decimal")
+    lines = Q.MobLines({ { name = "Razormane Hunter", min = 14, max = 14 } }, false)
+    t:eq(lines[1], "Razormane Hunter, level 14", "a mob to kill: its level")
+    lines = Q.MobLines({ { name = "Kolkar Marauder", min = 15, max = 16 } }, true)
+    t:eq(lines[1], "Kolkar Marauder, level 15-16: drop chance not known", "no figure in the quest data: it says so")
+    t:eq(#Q.MobLines({ { name = "Nameless" } }, false), 0, "nothing known about a mob: no line")
+    t:eq(#Q.MobLines(nil, true), 0, "no mobs: none")
+    local many = {}
+    for i = 1, 9 do many[i] = { name = "Mob " .. i, min = 10, rate = i } end
+    lines = Q.MobLines(many, true)
+    t:ok(#lines == Q.MOB_LINES + 1 and lines[#lines] == "... and 3 more.", "a long list is cut short")
+    t:eq(Q.DropRate({ GetItemDroprate = function() return { 25.4, "wowhead" } end }, 5087, 3244), 25.4, "the quest data's own figure is read")
+    t:eq(Q.DropRate({}, 5087, 3244), nil, "quest data without drop chances: none")
+    t:eq(Q.DropRate({ GetItemDroprate = function() return nil end }, 1, 1), nil, "no figure for that mob: none")
+end)
