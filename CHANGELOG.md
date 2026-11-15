@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.250
+- **Flow Meters: each list's heading looks like a Flow title bar.** "Threat" and "DPS" (or
+  Damage, HPS, Healing) now sit on the same dark bar with the orange accent as the Flow
+  Tracker's title, small.
+
 ## 0.35.249
 - **Flow Meters: right-click to pick what the second list counts.** Damage per second (as
   before), total damage, healing per second or total healing, each from the game's own count

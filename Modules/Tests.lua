@@ -11572,3 +11572,31 @@ ns:Register("test", "click: the meters' menu picks DPS, total damage, HPS or tot
     t:eq(M.PetUnits({ "raid12" })[1], "raidpet12", "in a raid too")
     t:eq(#M.PetUnits({}), 0, "nobody: no pets")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.250: each meter list's heading looks like a Flow title bar.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: each list's heading has the Flow title bar look", function(t)
+    local M, th = ns.meters, ns.theme
+    t:ok(M.HEAD_H >= 10 and M.HEAD_H <= M.ROW_H, "a small bar, no taller than a row")
+    local was = ns.db.meters.always
+    ns.db.meters.always = true
+    pcall(M.Update)
+    local f = M._Frame()
+    if f then
+        for _, name in ipairs({ "threat", "damage" }) do
+            local l = f[name]
+            t:ok(l.bar ~= nil and l.accent ~= nil, name .. ": a bar and an accent")
+            local r, g, b = l.bar:GetVertexColor()
+            t:ok(math.abs(r - th.BAR[1]) < 0.02 and math.abs(g - th.BAR[2]) < 0.02 and math.abs(b - th.BAR[3]) < 0.02, name .. ": the title bars' dark colour")
+            r, g, b = l.accent:GetVertexColor()
+            t:ok(math.abs(r - th.arrow[1]) < 0.02 and math.abs(g - th.arrow[2]) < 0.02 and math.abs(b - th.arrow[3]) < 0.02, name .. ": the orange accent")
+            t:near(l.bar:GetHeight(), M.HEAD_H, 0.5, name .. ": as tall as the heading")
+            local _, _, _, x = l.head:GetPoint(1)
+            t:ok(x > M.HEAD_ACCENT, name .. ": the title clear of the accent")
+        end
+    end
+    ns.db.meters.always = was
+    pcall(M.Update)
+end)

@@ -39,6 +39,7 @@ end
 
 M.ROW_H = 13
 M.WIDTH = 150
+M.HEAD_H, M.HEAD_ACCENT = 12, 3   -- each list's heading bar, and its orange accent
 M.ROWS = { 3, 5, 10 }
 
 ns:OnLoad(function(saved) saved.meters = saved.meters or {} end)
@@ -220,9 +221,20 @@ local frame
 local function makeList(parent, title)
     local l = CreateFrame("Frame", nil, parent)
     l:SetWidth(M.WIDTH)
+    -- Its heading looks like every Flow view's title bar, small (0.35.250:
+    -- "give the Threat and the DPS a Flow header looking background"): the
+    -- same dark bar, orange accent at the left and gold title (ns.theme).
+    local th = ns.theme
+    l.bar = l:CreateTexture(nil, "BACKGROUND")
+    l.bar:SetPoint("TOPLEFT"); l.bar:SetPoint("TOPRIGHT")
+    l.bar:SetHeight(M.HEAD_H)
+    l.bar:SetColorTexture(th.BAR[1], th.BAR[2], th.BAR[3], th.BAR[4])
+    l.accent = l:CreateTexture(nil, "BORDER")
+    l.accent:SetPoint("TOPLEFT"); l.accent:SetSize(M.HEAD_ACCENT, M.HEAD_H)
+    l.accent:SetColorTexture(th.arrow[1], th.arrow[2], th.arrow[3], 1)
     l.head = l:CreateFontString(nil, "OVERLAY")
     l.head:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
-    l.head:SetPoint("TOPLEFT", 2, -1)
+    l.head:SetPoint("TOPLEFT", M.HEAD_ACCENT + 3, -1)
     l.head:SetTextColor(1, 0.82, 0.25)
     l.head:SetText(title)
     l.total = l:CreateFontString(nil, "OVERLAY")
