@@ -1210,9 +1210,29 @@ function D.RunIds(run)
     return ids
 end
 
--- Does step g stay on Route: Dungeon run? ids = D.RunIds(run).
-function D.KeepForRun(g, ids)
+-- Getting ready for the run (0.35.263). "When I say I'm going to do the
+-- dungeon, it should also have me hit the trainer, maybe the bank, and get
+-- prepped: I don't want to miss my class training while I'm in Thunder Bluff
+-- for the dungeon quest." The dungeon route used to drop everything but the
+-- run's own steps. It keeps the errands now: training that's waiting (class
+-- spells, a profession tier, a weapon skill), selling and repairing, and
+-- your bank. They're planned in with the run's steps, so the one in the
+-- town the run takes you to is done on the way.
+D.PREP_PROVIDERS = { merchant = true, repair = true, banker = true, weaponskill = true }
+-- Pure: is this step an errand to do before a run?
+function D.IsPrep(g)
+    if not g then return false end
+    if D.PREP_PROVIDERS[g.provider or ""] then return true end
+    local k = g.key or ""
+    return k:find("^train:") ~= nil
+end
+function D:PrepOn() return ns.db.nav.dungeonPrep ~= false end
+
+-- Does step g stay on Route: Dungeon run? ids = D.RunIds(run). prep: keep
+-- the errands too (nil: as the setting says).
+function D.KeepForRun(g, ids, prep)
     if g.provider == "dungeon" then return true end
+    if prep and D.IsPrep(g) then return true end
     local k = g.key or ""
     local id = questOf(k)
     if id then return ids[id] == true end
@@ -1225,7 +1245,7 @@ function D:FilterOnly(list)
     if not run then return list end
     local ids, out = D.RunIds(run), {}
     for _, g in ipairs(list) do
-        if D.KeepForRun(g, ids) then out[#out + 1] = g end
+        if D.KeepForRun(g, ids, self:PrepOn()) then out[#out + 1] = g end
     end
     return out
 end
@@ -1515,6 +1535,12 @@ function D:ModeItems()
     if run then
         items[#items + 1] = { text = "Ask my group in chat who has its quests", func = function() D:AskParty(run) end }
     end
+    items[#items + 1] = { text = "Get ready on the way: training, selling and repairs, your bank", checked = D:PrepOn(), stay = true,
+        refresh = function(it) it.checked = D:PrepOn() end,
+        func = function()
+            ns.db.nav.dungeonPrep = not D:PrepOn()
+            if ns.nav and ns.nav.Collect then ns.nav:Collect() end
+        end }
     items[#items + 1] = { text = "Cancel this run", func = function() D:Cancel(); D:RefreshToggle() end }
     return items
 end
@@ -1678,7 +1704,8 @@ ns.commands.dungeons = function(arg)
         if not run then ns:Print("no dungeon run at your level called \"" .. arg .. "\" (/flow dungeons lists them)") return end
         D:SetRunOnly(run.key)
         D:RefreshToggle()
-        ns:Print("you're on the dungeon route for " .. run.name .. ": only its steps, then the entrance. " .. D.HaveLine(run)
+        ns:Print("you're on the dungeon route for " .. run.name .. ": its steps"
+            .. (D:PrepOn() and ", your training, vendor and bank on the way" or "") .. ", then the entrance. " .. D.HaveLine(run)
             .. " (/flow dungeons leave: your usual route; /flow dungeons off: cancel)")
         return
     end

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.263
+- **The dungeon route gets you ready on the way.** On the dungeon route Flow used to drop
+  everything but the run's own steps, so a trip to Thunder Bluff for a dungeon quest walked
+  you past your trainer. It now keeps the errands: training that's waiting (class spells, a
+  profession tier, a weapon skill), selling and repairs, and your bank, planned in with the
+  run's steps. The route's menu (the "Dungeon route" line under the arrow) has a tick, "Get
+  ready on the way", to turn that off.
+
 ## 0.35.262
 - **A material your skill has moved past is let go.** Linen Cloth was kept "for First Aid:
   Heavy Linen Bandage" although First Aid 80 is on Wool Bandage. Once you're at the end of

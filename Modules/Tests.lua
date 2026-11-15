@@ -12019,3 +12019,42 @@ ns:Register("test", "bags: a material your skill has moved past is no longer kep
     local ok, worn = pcall(D.WornBags)
     t:ok(ok and #worn == 4, "your four bag slots are read")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.263: the dungeon route keeps the errands that get you ready.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the dungeon route keeps your training, vendor and bank; a tick turns that off", function(t)
+    local D = ns.dungeons
+    t:ok(D.IsPrep({ key = "train:class", provider = "errands" }), "class training is getting ready")
+    t:ok(D.IsPrep({ key = "train:Herbalism", provider = "skillplan" }), "a profession tier at its trainer too")
+    t:ok(D.IsPrep({ key = "merchant", provider = "merchant" }), "selling")
+    t:ok(D.IsPrep({ key = "repair", provider = "repair" }), "repairs")
+    t:ok(D.IsPrep({ key = "bank", provider = "banker" }), "your bank")
+    t:ok(not D.IsPrep({ key = "skill:Herbalism", provider = "skillplan" }), "gathering isn't")
+    t:ok(not D.IsPrep({ key = "99:obj1", provider = "questie" }), "another quest isn't")
+    t:ok(not D.IsPrep({ key = "flightpath:Tal", provider = "flightpath" }), "a flight path isn't")
+    t:ok(not D.IsPrep(nil), "nothing: no")
+    local ids = { [10] = true }
+    t:ok(D.KeepForRun({ key = "train:class", provider = "errands" }, ids, true), "on the dungeon route: training stays")
+    t:ok(not D.KeepForRun({ key = "train:class", provider = "errands" }, ids, false), "with getting ready off: only the run")
+    t:ok(D.KeepForRun({ key = "10:obj1" }, ids, false), "the run's own steps stay either way")
+    t:ok(not D.KeepForRun({ key = "99:obj1" }, ids, true), "other quests still go")
+    -- The tick on the route's menu.
+    local was, wasRun, wasOnly = ns.db.nav.dungeonPrep, ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    with(ns.nav, "Collect", function() end, function()
+        ns.db.nav.dungeonRun = { key = "no-such-run", name = "Test" }
+        ns.db.nav.dungeonPrep = nil
+        t:ok(D:PrepOn(), "on unless you turn it off")
+        local tick
+        for _, it in ipairs(D:ModeItems()) do if it.text and it.text:find("^Get ready on the way") then tick = it end end
+        t:ok(tick ~= nil and tick.checked == true, "the menu has the tick, on")
+        if tick then
+            t:ok(pcall(tick.func), "a click runs")
+            t:ok(not D:PrepOn(), "and turns it off")
+            pcall(tick.func)
+            t:ok(D:PrepOn(), "again: back on")
+        end
+    end)
+    ns.db.nav.dungeonPrep, ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, wasRun, wasOnly
+end)
