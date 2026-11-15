@@ -390,6 +390,7 @@ function K.HeldStep(mod)
     local out = {}
     for k, v in pairs(s) do out[k] = v end
     out.press = K.LABEL[mod] .. "+"
+    out.mod = mod
     return out
 end
 

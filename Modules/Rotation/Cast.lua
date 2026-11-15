@@ -160,11 +160,13 @@ function C.LayoutLabels(docked)
     local icon = E.icon
     if not (keyText and icon) then return false end
     keyText:ClearAllPoints()
-    if docked then keyText:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 6, 0)
+    -- (Docked: the bind at the middle of the icon's right side, the held
+    -- modifier on its own line above it, the auto-attack badge below.)
+    if docked then keyText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     else keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2) end
     if icon.shiftTag then
         icon.shiftTag:ClearAllPoints()
-        if docked then icon.shiftTag:SetPoint("LEFT", keyText, "RIGHT", 4, 0)
+        if docked then icon.shiftTag:SetPoint("BOTTOMLEFT", keyText, "TOPLEFT", 0, 2)
         else icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0) end
     end
     C.labelsDocked = docked and true or false

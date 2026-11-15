@@ -342,7 +342,7 @@ end
 -- The button
 -------------------------------------------------------------------------------
 
-local btn, tex, label, keyText, timer, sweep, edge
+local btn, tex, label, keyText, modTag, timer, sweep, edge
 local shownText          -- what the secure button is set to, to skip repeats
 local lastCast           -- the buff spell you last cast (held for fights)
 local buffSpells = {}    -- every buff spell this button has shown
@@ -421,7 +421,14 @@ local function paint(s, bright)
     if s and s.target then name = name .. " on " .. s.target end
     if s and s.later then name = name .. " (" .. BB.Left(s.left) .. ")" end
     label:SetText(name)
-    keyText:SetText((s and s.press) or keyLabel())
+    -- Docked: the held modifier on its own line above the bind ("CTRL +"
+    -- over "E / MB4"); on its own: in the bind's place, as before.
+    local held = s and s.mod and BB.Docked() and ns.careKeys and ns.careKeys.LABEL[s.mod] or nil
+    if modTag then
+        modTag:SetText(held and (held .. " +") or "")
+        modTag:SetShown(held ~= nil)
+    end
+    keyText:SetText((not held and s and s.press) or keyLabel())
     -- Its cooldown counted down, and red when its target is out of reach (as
     -- Flow's icon does it).
     local cd, reach = "", true
@@ -495,7 +502,7 @@ function BB.Place()
             label:SetJustifyH("LEFT")
             label:SetWidth(170)
         end
-        if keyText then keyText:SetPoint("TOPLEFT", btn, "TOPRIGHT", 6, 0) end
+        if keyText then keyText:SetPoint("LEFT", btn, "RIGHT", 6, 0) end
         return true
     end
     if label then
@@ -543,6 +550,12 @@ local function build()
     keyText = btn:CreateFontString(nil, "OVERLAY")
     keyText:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
     keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2)   -- (BB.Place puts it at the top right when docked)
+    modTag = btn:CreateFontString(nil, "OVERLAY")
+    modTag:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
+    modTag:SetPoint("BOTTOMLEFT", keyText, "TOPLEFT", 0, 2)
+    modTag:SetTextColor(0.4, 1, 0.4)
+    modTag:Hide()
+    BB._keyText, BB._modTag = keyText, modTag   -- (tests)
     -- The global cooldown and its spell's own, swept over the icon as on Flow's.
     sweep = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
     sweep:SetAllPoints()

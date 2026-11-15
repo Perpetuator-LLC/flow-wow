@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.239
+- **Docked: modifier, key bind, auto-attack, one above the other.** With the buff button
+  docked under Flow's icon, the key bind of each button is at the middle of its right side,
+  and the modifier you hold is on its own line above it ("CTRL +" over "Q / MB5"). The
+  auto-attack badge is as small as those letters and sits at the bottom right of Flow's
+  icon, under the bind; it can still be clicked. On their own the buttons are unchanged.
+
 ## 0.35.238
 - **Flow Banker, Auction prices: the two lines of words at the top no longer run into the
   list.** The list began at a fixed height that left room for one line. It now starts under

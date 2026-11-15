@@ -480,6 +480,28 @@ function ns.DockedNow()
         and K ~= nil and K.Active ~= nil and K.Active()) and true or false
 end
 
+-- Docked: the auto-attack badge is as tall as the key bind's letters and
+-- sits at the icon's bottom right, under the bind ("CTRL +" over "Q / MB5"
+-- over the badge, 0.35.239). On its own: 24 wide, at the middle of the right.
+ns.SWING_SIZE, ns.SWING_DOCKED = 24, 14
+function ns.SwingPlace(joined)
+    if joined then return ns.SWING_DOCKED, "BOTTOMLEFT", "BOTTOMRIGHT", 6, 0 end
+    return ns.SWING_SIZE, "LEFT", "RIGHT", 8, 0
+end
+function ns.PlaceSwing(frame, anchor, joined)
+    local size, point, rel, x, y = ns.SwingPlace(joined)
+    frame:ClearAllPoints()
+    frame:SetSize(size, size)
+    frame:SetPoint(point, anchor, rel, x, y)
+    frame.joined = joined and true or false
+end
+-- Pure: the held modifier's tag: "CTRL +" on its own line above the bind
+-- when docked; "CTRL+" on the bind's line otherwise.
+function ns.ModTag(name, joined)
+    if joined then return name .. " +" end
+    return (name:gsub(" ", "")) .. "+"
+end
+
 -- Pure: the auto-attack badge beside the icon: "on" while you swing, "off"
 -- (dim) in a fight or with an enemy targeted while you don't, nil otherwise.
 function ns.SwingBadge(shown, swinging, inCombat, hostile)
@@ -702,7 +724,7 @@ local function tick()
     -- holds another spell (ns.ShiftCue).
     local healSpell = ns.cast and ns.cast.HealSpell and ns.cast:HealSpell()
     local cue = ns.ShiftCue(advice, healSpell, swapped ~= nil, inCombat)
-    local tag = (swapped and (Q.NAME[swapped]:gsub(" ", "") .. "+")) or (cue == "press" and "Heal: SHIFT+") or nil
+    local tag = (swapped and ns.ModTag(Q.NAME[swapped], icon.joined)) or (cue == "press" and "Heal: SHIFT+") or nil
     if tag ~= icon.shiftTag.cue then
         icon.shiftTag.cue = tag
         icon.shiftTag:SetShown(tag ~= nil)
@@ -775,6 +797,7 @@ local function tick()
             icon.text:SetJustifyH("CENTER")
         end
         if ns.cast and ns.cast.LayoutLabels then ns.cast.LayoutLabels(joined) end
+        if icon.swing then ns.PlaceSwing(icon.swing, icon, joined) end
     end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
     -- heal up, or while you hold a modifier (Q.Shows).

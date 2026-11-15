@@ -7912,11 +7912,11 @@ ns:Register("test", "easy button: its key bind is written to the right of the ic
     if not (key and E.icon) then t:ok(true, "(the Flow key isn't built yet)") return end
     local point, rel, relPoint, x, y = key:GetPoint(1)
     -- (On its own: above the icon. With the buff button docked under it: at
-    -- the icon's bottom right, 0.35.236.)
+    -- the middle of the icon's right side, 0.35.239.)
     if C.labelsDocked then
-        t:eq(point, "BOTTOMLEFT", "docked: its bottom left corner...")
-        t:ok(rel == E.icon and relPoint == "BOTTOMRIGHT", "...on the icon's bottom right corner")
-        t:ok((x or 0) > 0 and (y or 0) == 0, "a little to the right, level with the bottom")
+        t:eq(point, "LEFT", "docked: its left edge...")
+        t:ok(rel == E.icon and relPoint == "RIGHT", "...on the middle of the icon's right side")
+        t:ok((x or 0) > 0 and (y or 0) == 0, "a little to the right, level with the middle")
     else
         t:eq(point, "BOTTOM", "its bottom edge...")
         t:ok(rel == E.icon and relPoint == "TOP", "...on the icon's top edge, like CTRL / SHIFT / ALT above the queue")
@@ -11122,10 +11122,10 @@ ns:Register("test", "buttons: docked, the key is at the Flow icon's bottom right
     local was = C.labelsDocked
     t:ok(C.LayoutLabels(true), "the docked places")
     local p, rel, rp = key:GetPoint(1)
-    t:ok(p == "BOTTOMLEFT" and rel == icon and rp == "BOTTOMRIGHT", "docked: the key bind at the icon's bottom right")
+    t:ok(p == "LEFT" and rel == icon and rp == "RIGHT", "docked: the key bind at the middle of the icon's right side")
     if icon.shiftTag then
         local tp, trel, trp = icon.shiftTag:GetPoint(1)
-        t:ok(tp == "LEFT" and trel == key and trp == "RIGHT", "the held-modifier tag after it")
+        t:ok(tp == "BOTTOMLEFT" and trel == key and trp == "TOPLEFT", "the held-modifier tag on its own line above it")
     end
     t:ok(C.LayoutLabels(false), "and the usual ones")
     p, rel, rp = key:GetPoint(1)
@@ -11178,4 +11178,47 @@ ns:Register("test", "banker: the list starts under the words above it, with a ga
     local _, rel2, _, _, y2 = f.rows[2]:GetPoint(1)
     t:ok(rel2 == f.note, "the others too")
     t:near(y2, -B.NOTE_GAP - 15, 0.5, "one line further down")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.239: docked: "CTRL +" over the key bind over a small auto-attack badge.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buttons: docked, the modifier is above the key bind and the auto-attack badge small at the bottom", function(t)
+    -- The words.
+    t:eq(ns.ModTag("CTRL", true), "CTRL +", "docked: the modifier on its own line, 'CTRL +'")
+    t:eq(ns.ModTag("CTRL + SHIFT", true), "CTRL + SHIFT +", "two modifiers the same way")
+    t:eq(ns.ModTag("CTRL", false), "CTRL+", "on its own: as before, on the bind's line")
+    t:eq(ns.ModTag("CTRL + SHIFT", false), "CTRL+SHIFT+", "and two, as before")
+    -- The badge.
+    local size, point, rel, x, y = ns.SwingPlace(true)
+    t:ok(size == ns.SWING_DOCKED and size < ns.SWING_SIZE, "docked: the badge is small, the height of the bind's letters")
+    t:ok(size >= ns.cast.KEY_FONT and size <= ns.cast.KEY_FONT + 4, "about as tall as those letters")
+    t:ok(point == "BOTTOMLEFT" and rel == "BOTTOMRIGHT" and x > 0 and y == 0, "at the icon's bottom right, level with its bottom")
+    size, point, rel = ns.SwingPlace(false)
+    t:ok(size == ns.SWING_SIZE and point == "LEFT" and rel == "RIGHT", "on its own: where and as big as it was")
+    -- The real badge and the button over it agree with the mode.
+    local icon = ns.rotation.icon
+    if icon and icon.swing and icon.joined ~= nil then
+        local p, r, rp = icon.swing:GetPoint(1)
+        local wantSize, wantP, wantRp = ns.SwingPlace(icon.joined)
+        t:ok(p == wantP and r == icon and rp == wantRp, "the badge is where this mode puts it")
+        t:near(icon.swing:GetWidth(), wantSize, 0.5, "and that size")
+    end
+    local w = ns.clickSlots and ns.clickSlots.swing
+    if w and w.joined ~= nil and icon and icon.joined ~= nil and not InCombatLockdown() then
+        t:near(w:GetWidth(), (ns.SwingPlace(w.joined)), 0.5, "the button over the badge is the badge's size")
+    end
+    -- The buff button: its bind at the middle of its right side, the tag above.
+    local BB = ns.buffButton
+    if BB._keyText and BB._modTag and _G.FlowBuffButton then
+        local tp, trel, trp = BB._modTag:GetPoint(1)
+        t:ok(tp == "BOTTOMLEFT" and trel == BB._keyText and trp == "TOPLEFT", "the buff button's modifier is written above its bind")
+        if BB.Docked() and not InCombatLockdown() then
+            local kp, krel, krp = BB._keyText:GetPoint(1)
+            t:ok(kp == "LEFT" and krel == _G.FlowBuffButton and krp == "RIGHT", "docked: its bind at the middle of its right side")
+        end
+    end
+    local held = ns.careKeys.HeldStep
+    t:ok(type(held) == "function", "a held modifier's step says which modifier it is")
 end)

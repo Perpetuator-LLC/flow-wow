@@ -177,6 +177,9 @@ function S.Sync(fight)
     local w = S.swing
     local spell = S.AttackSpell()
     if w then
+        -- (Where the badge is: small at the bottom right when docked.)
+        local joined = icon.joined and true or false
+        if w.joined ~= joined and ns.PlaceSwing then ns.PlaceSwing(w, btn, joined) end
         local okS, slot = pcall(S.AttackSlot)
         local kind, value = S.AttackVia(okS and slot or nil, spell)
         local set = tostring(kind) .. ":" .. tostring(value)
