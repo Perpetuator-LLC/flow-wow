@@ -64,8 +64,7 @@ function M.PlayerRows(n)
 end
 -- Pure: the choice's name in the menus.
 function M.RowsLabel(n)
-    if n == 3 then return "Compact: the top 2 (and the group)" end
-    return string.format("%d players (and the group)", n)
+    return tostring(M.PlayerRows(n))
 end
 
 -- What stretch the second list counts over (0.35.258): this fight (it
@@ -250,11 +249,30 @@ function M.ReadThreat()
 end
 
 -- When the meters show: in a group, or with a training dummy targeted.
+-- When they show (0.35.261: "show in combat, show in group, always show").
+-- Pure: the saved choice ("combat", "group" or "always"; group is the usual).
+function M.WhenKey(c)
+    if c and c.always then return "always" end
+    if c and c.when == "combat" then return "combat" end
+    return "group"
+end
+-- Pure: shown now? In a group also counts a training dummy as your target.
+function M.ShowNow(when, inGroup, inCombat, dummy)
+    if when == "always" then return true end
+    if when == "combat" then return inCombat and true or false end
+    return (inGroup or dummy) and true or false
+end
+function M.SetWhen(key)
+    cfg().always = (key == "always") and true or nil
+    cfg().when = (key == "combat") and "combat" or nil
+    cfg().off = nil
+    pcall(M.Update)
+end
 function M.Wanted()
     if not M.On() then return false end
-    if cfg().always then return true end   -- (/flow meter: shown whenever, alone too)
-    if (IsInGroup and IsInGroup()) or (IsInRaid and IsInRaid()) then return true end
-    return M.IsDummy(A.Safe(UnitName("target")))
+    local grouped = ((IsInGroup and IsInGroup()) or (IsInRaid and IsInRaid())) and true or false
+    local fighting = (InCombatLockdown() or Yes(UnitAffectingCombat("player"), false)) and true or false
+    return M.ShowNow(M.WhenKey(cfg()), grouped, fighting, M.IsDummy(A.Safe(UnitName("target"))))
 end
 
 -------------------------------------------------------------------------------
@@ -598,12 +616,21 @@ ns:Register("help", "meters", { order = 33, title = "Flow Meters", lines = {
 -- The meters' own menu (right-click them): rows, decimals, when they show.
 function M.ContextItems()
     local items = { { title = true, text = "Flow Meters" } }
+    -- Show: when.
+    items[#items + 1] = { title = true, text = "Show" }
+    for _, w in ipairs({ { "combat", "Show in combat" }, { "group", "Show in group" }, { "always", "Always show" } }) do
+        items[#items + 1] = { text = w[2], radio = true, stay = true,
+            checked = M.WhenKey(cfg()) == w[1], refresh = function(it) it.checked = M.WhenKey(cfg()) == w[1] end,
+            func = function() M.SetWhen(w[1]) end }
+    end
+    -- Rows: players per list (the group's row is on top of them).
+    items[#items + 1] = { title = true, text = "Rows" }
     for _, n in ipairs(M.ROWS) do
         items[#items + 1] = { text = M.RowsLabel(n), radio = true, stay = true,
             checked = M.RowCount() == n, refresh = function(it) it.checked = M.RowCount() == n end,
             func = function() cfg().rows = n; pcall(M.Update) end }
     end
-    items[#items + 1] = { rule = true }
+    items[#items + 1] = { title = true, text = "Count" }
     for _, key in ipairs(M.MODE_ORDER) do
         items[#items + 1] = { text = M.MODES[key].menu, radio = true, stay = true,
             checked = M.ModeKey(cfg().mode) == key, refresh = function(it) it.checked = M.ModeKey(cfg().mode) == key end,
@@ -616,16 +643,13 @@ function M.ContextItems()
             func = function() M.SetSpan(sp[1]) end }
     end
     items[#items + 1] = { text = "Reset the counts", func = function() M.Reset() end }
-    items[#items + 1] = { rule = true }
+    items[#items + 1] = { title = true, text = "Numbers" }
     for d = 0, 3 do
         items[#items + 1] = { text = d == 0 and "Whole numbers" or string.format("%d decimal%s", d, d == 1 and "" or "s"), radio = true, stay = true,
             checked = M.Decimals() == d, refresh = function(it) it.checked = M.Decimals() == d end,
             func = function() cfg().decimals = d; pcall(M.Update) end }
     end
     items[#items + 1] = { rule = true }
-    items[#items + 1] = { text = "Always shown (alone too)", stay = true, checked = cfg().always == true,
-        refresh = function(it) it.checked = cfg().always == true end,
-        func = function() M.SetAlways(not cfg().always) end }
     items[#items + 1] = { text = "Turn Flow Meters off", func = function() cfg().off = true; pcall(M.Update) end }
     return items
 end
@@ -641,7 +665,7 @@ function M.MenuItems()
         refresh = function(it) it.checked = cfg().always == true end,
         func = function() M.SetAlways(not cfg().always) end }
     for _, n in ipairs(M.ROWS) do
-        items[#items + 1] = { text = "   Flow Meters: " .. M.RowsLabel(n), stay = true,
+        items[#items + 1] = { text = "   Flow Meters rows: " .. M.RowsLabel(n), stay = true,
             radio = true, checked = M.RowCount() == n,
             refresh = function(it) it.checked = M.RowCount() == n end,
             func = function() cfg().rows = n; pcall(M.Update) end }

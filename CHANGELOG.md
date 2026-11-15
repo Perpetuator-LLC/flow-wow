@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.261
+- **Flow Meters menu: Show and Rows.** Right-click: under "Show", pick "Show in combat",
+  "Show in group" (the usual; a training dummy counts) or "Always show". Under "Rows", 2, 5 or
+  10 players (the group's row sits on top of them).
+- **Dungeons read "Quests: 1/3".** How many of a run's quests are in your log, out of how many
+  it has, in the Dungeons list, `/flow dungeons` and the line under the arrow ("Dungeon
+  route: Ragefire Chasm · Quests: 2/5").
+- **Flow's tooltips have room for their sentences.** The longer explanations were wrapped into
+  a narrow column of short lines. A tooltip Flow opens is wider now; the game's own tooltips
+  keep their width.
+
 ## 0.35.260
 - **Ask your group in chat for a dungeon's quests.** On a dungeon run's menu (the arrow's
   Dungeons list, and the "Dungeon route" line under the arrow): "Ask my group in chat who has

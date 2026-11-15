@@ -235,8 +235,24 @@ end)
 -- each one opens next to what you hover (`anchor`, e.g. "ANCHOR_RIGHT").
 function ns.TipsAtGameSpot() return not (ns.db and ns.db.settings and ns.db.settings.tipsBeside) end
 
+-- Room for the words (0.35.261). Flow's longer explanations are wrapped
+-- lines, and the game wraps those to a narrow box: a column of short ragged
+-- lines. A tooltip Flow opens is given a width that sentences fit in; the
+-- width goes back to the game's own when it closes (it's the game's tooltip).
+ns.TIP_WIDTH = 340
+local widened = {}
+function ns.WidenTip(tooltip)
+    if not (tooltip and tooltip.SetMinimumWidth) then return false end
+    if not widened[tooltip] and tooltip.HookScript then
+        widened[tooltip] = true
+        tooltip:HookScript("OnHide", function(self) if self.SetMinimumWidth then self:SetMinimumWidth(0) end end)
+    end
+    tooltip:SetMinimumWidth(ns.TIP_WIDTH)
+    return true
+end
 function ns.Tip(owner, anchor, tooltip)
     tooltip = tooltip or GameTooltip
+    pcall(ns.WidenTip, tooltip)
     if ns.TipsAtGameSpot() and GameTooltip_SetDefaultAnchor then
         GameTooltip_SetDefaultAnchor(tooltip, owner)
     else

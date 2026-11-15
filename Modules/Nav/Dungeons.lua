@@ -1475,17 +1475,9 @@ end
 -- Pure: a run's quests at a glance ("5 quests: 2 in your log, 3 to get; 1
 -- done"), so it's plain what you have done already and what's left.
 function D.CountText(run)
-    local n = run.count or 0
-    local have = #(run.ready or {})
-    local get = #(run.pickups or {}) + #(run.leadIns or {})
-    local parts = {}
-    if have > 0 then parts[#parts + 1] = have .. " in your log" end
-    if get > 0 then parts[#parts + 1] = get .. " to get" end
-    local inside = #(run.inside or {}) + #(run.followups or {})
-    if inside > 0 then parts[#parts + 1] = inside .. " inside" end
-    local text = string.format("%d quest%s", n, n == 1 and "" or "s")
-    if #parts > 0 then text = text .. ": " .. table.concat(parts, ", ") end
-    if (run.done or 0) > 0 then text = text .. "; " .. run.done .. " done" end
+    -- "Quests: 1/3": in your log, out of this run's (0.35.261: "something simpler").
+    local text = string.format("Quests: %d/%d", #(run.ready or {}), run.count or 0)
+    if (run.done or 0) > 0 then text = text .. string.format(" (%d done before)", run.done) end
     return text
 end
 
@@ -1494,12 +1486,11 @@ end
 -- a dungeon route you can leave or go back into." A line under the arrow
 -- while a run is prepared; a click opens its few choices.
 -- Pure: the line. name: the run; on: you're on the dungeon route (only its
--- steps); get: quests still to pick up; have: in your log.
-function D.ModeText(name, on, have, get)
+-- steps); have: its quests in your log; total: its quests this run.
+function D.ModeText(name, on, have, total)
     if not name then return nil end
     if not on then return string.format("%s prepared (your usual route)", name) end
-    if get > 0 then return string.format("Dungeon route: %s, %d to pick up", name, get) end
-    return string.format("Dungeon route: %s, %d quest%s ready: go in", name, have, have == 1 and "" or "s")
+    return string.format("Dungeon route: %s · Quests: %d/%d", name, have, total)
 end
 function D:ModeItems()
     local key = self:Prepared()
@@ -1550,11 +1541,11 @@ function D:RefreshToggle()
     else self.toggle:SetPoint("TOP", arrow, "BOTTOM", 0, -50) end
     local run = self:Run(key)
     local have = run and #run.ready or 0
-    local get = run and (#run.pickups + #run.leadIns) or 0
+    local total = run and run.count or have
     local on = self:RunOnly()
     local c = ns.theme.user
     self.toggle.text:SetText(string.format("|cff%s%s|r  |cff888888(click: change)|r", on and c.hex or "ffffff",
-        D.ModeText(ns.db.nav.dungeonRun.name or "the run", on, have, get)))
+        D.ModeText(ns.db.nav.dungeonRun.name or "the run", on, have, total)))
     self.toggle:Show()
 end
 if C_Timer and C_Timer.NewTicker then

@@ -11790,12 +11790,12 @@ ns:Register("test", "click: the dungeon route shows under the arrow, with what's
     }, 15, 10)
     t:eq(#runs, 1, "one run still has quests")
     t:eq(runs[1].done, 1, "and one of its quests is done")
-    t:eq(D.CountText(runs[1]), "2 quests: 1 in your log, 1 to get; 1 done", "said at a glance")
+    t:eq(D.CountText(runs[1]), "Quests: 1/2 (1 done before)", "said at a glance")
     t:ok(#finished == 1 and finished[1].name == "Old Cave" and finished[1].done == 2, "a dungeon with everything done is named as done")
-    t:eq(D.CountText({ count = 1, ready = {}, pickups = {}, leadIns = {}, inside = { 9 } }), "1 quest: 1 inside", "one that starts inside")
+    t:eq(D.CountText({ count = 1, ready = {}, pickups = {}, leadIns = {}, inside = { 9 } }), "Quests: 0/1", "one that starts inside")
     -- The line under the arrow.
-    t:eq(D.ModeText("Ragefire Chasm", true, 2, 3), "Dungeon route: Ragefire Chasm, 3 to pick up", "on it, quests still to get")
-    t:eq(D.ModeText("Ragefire Chasm", true, 5, 0), "Dungeon route: Ragefire Chasm, 5 quests ready: go in", "on it, all in your log")
+    t:eq(D.ModeText("Ragefire Chasm", true, 2, 5), "Dungeon route: Ragefire Chasm · Quests: 2/5", "on it, quests still to get")
+    t:eq(D.ModeText("Ragefire Chasm", true, 5, 5), "Dungeon route: Ragefire Chasm · Quests: 5/5", "on it, all in your log")
     t:eq(D.ModeText("Ragefire Chasm", false, 2, 3), "Ragefire Chasm prepared (your usual route)", "left it: the run is kept")
     t:eq(D.ModeText(nil, true, 0, 0), nil, "no run: no line")
     -- Its menu: leave, or back, and cancel; each click runs.
@@ -11841,7 +11841,7 @@ ns:Register("test", "click: the meters count this fight or all fights; rows are 
     t:eq(M.PlayerRows(3), 2, "compact: the top 2")
     t:eq(M.PlayerRows(5), 5, "5: five players")
     t:eq(M.PlayerRows(10), 10, "10: ten players")
-    t:ok(M.RowsLabel(3):find("Compact", 1, true) ~= nil and M.RowsLabel(5):find("5 players", 1, true) ~= nil, "named by players")
+    t:ok(M.RowsLabel(3) == "2" and M.RowsLabel(5) == "5" and M.RowsLabel(10) == "10", "named 2, 5 and 10")
     -- The damage list: the group's row, then that many players.
     local list = {}
     for i = 1, 8 do list[i] = { name = "P" .. i, value = 100 - i, raw = 100 - i, bar = 100 - i, me = i == 7 } end
@@ -11928,4 +11928,63 @@ ns:Register("test", "click: a dungeon run can ask your group in chat for its que
     ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, wasOnly
     t:ok(type(D.AskParty) == "function", "asking is there")
     t:eq(D:AskParty(nil), false, "no run: nothing said")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.261: meters: when they show, rows 2 / 5 / 10; tooltips with room.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the meters' menu: show in combat, in group or always; rows 2, 5, 10", function(t)
+    local M = ns.meters
+    t:eq(M.WhenKey({}), "group", "nothing chosen: in a group")
+    t:eq(M.WhenKey({ always = true }), "always", "the older always-shown choice still counts")
+    t:eq(M.WhenKey({ when = "combat" }), "combat", "in combat")
+    t:ok(M.ShowNow("always", false, false, false), "always: alone and out of a fight too")
+    t:ok(M.ShowNow("combat", false, true, false) and not M.ShowNow("combat", true, false, false), "combat: only in a fight, grouped or not")
+    t:ok(M.ShowNow("group", true, false, false) and not M.ShowNow("group", false, true, false), "group: in a group, not alone in a fight")
+    t:ok(M.ShowNow("group", false, false, true), "group: a training dummy counts too")
+    local c = ns.db.meters
+    local always, when, off, rows = c.always, c.when, c.off, c.rows
+    local items = M.ContextItems()
+    local heads, seen = {}, 0
+    for _, it in ipairs(items) do
+        if it.title then heads[it.text] = true end
+        for _, want in ipairs({ { "Show in combat", "combat" }, { "Show in group", "group" }, { "Always show", "always" } }) do
+            if it.text == want[1] then
+                seen = seen + 1
+                t:ok(pcall(it.func), "a click on " .. want[1] .. " runs")
+                t:eq(M.WhenKey(c), want[2], "and picks it")
+            end
+        end
+    end
+    t:eq(seen, 3, "all three are there")
+    t:ok(heads.Show and heads.Rows, "under Show and Rows headings")
+    local labels = {}
+    for _, it in ipairs(items) do
+        if it.text == "2" or it.text == "5" or it.text == "10" then
+            labels[#labels + 1] = it.text
+            if it.text == "5" then
+                t:ok(pcall(it.func) and M.PlayerRows() == 5, "a click on 5 shows five players")
+            end
+        end
+    end
+    t:eq(table.concat(labels, " "), "2 5 10", "the rows are named 2, 5 and 10")
+    c.always, c.when, c.off, c.rows = always, when, off, rows
+    pcall(M.Update)
+end)
+
+ns:Register("test", "tooltips: one Flow opens has room for its sentences, and gives the width back", function(t)
+    t:ok(ns.TIP_WIDTH >= 280, "wide enough for a sentence")
+    local set = {}
+    local fake = { SetMinimumWidth = function(_, w) set[#set + 1] = w end,
+                   HookScript = function(self, _, fn) self.onHide = fn end }
+    t:ok(ns.WidenTip(fake), "a tooltip is widened")
+    t:eq(set[1], ns.TIP_WIDTH, "to Flow's width")
+    t:ok(type(fake.onHide) == "function", "and watched for closing")
+    fake.onHide(fake)
+    t:eq(set[2], 0, "closed: the game's own width again")
+    ns.WidenTip(fake)
+    t:eq(#set, 3, "opened again: widened again")
+    t:eq(ns.WidenTip({}), false, "a tooltip that can't be widened: left alone")
+    t:eq(ns.WidenTip(nil), false, "none: nothing")
 end)
