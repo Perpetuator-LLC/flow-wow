@@ -11528,3 +11528,47 @@ ns:Register("test", "threat on nameplates: the number and where you stand", func
     t:ok(ok and #lines >= 2, "the diagnostics lines build")
     t:ok(type(P.Wanted()) == "boolean" and type(P.Tanking()) == "boolean", "wanted and tanking are yes or no")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.249: the meters count DPS, damage, HPS or healing; pets on threat.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the meters' menu picks DPS, total damage, HPS or total healing; pets are asked about", function(t)
+    local M = ns.meters
+    t:eq(M.ModeKey(nil), "dps", "nothing chosen: DPS")
+    t:eq(M.ModeKey("healing"), "healing", "a choice is kept")
+    t:eq(M.ModeKey("nonsense"), "dps", "an unknown one: DPS")
+    t:ok(M.MODES.dps.field == "amountPerSecond" and M.MODES.damage.field == "totalAmount", "damage: per second, or in all")
+    t:ok(M.MODES.hps.kind == "HealingDone" and M.MODES.healing.field == "totalAmount", "healing: per second, or in all")
+    local was = ns.db.meters.mode
+    local items, seen = M.ContextItems(), 0
+    for _, want in ipairs({ { "Total damage", "damage" }, { "Healing per second (HPS)", "hps" }, { "Total healing", "healing" },
+                            { "Damage per second (DPS)", "dps" } }) do
+        for _, it in ipairs(items) do
+            if it.text == want[1] then
+                seen = seen + 1
+                t:ok(pcall(it.func), "a click on " .. want[1] .. " runs")
+                t:eq(M.ModeKey(ns.db.meters.mode), want[2], "and picks it")
+                if it.refresh then it.refresh(it) end
+                t:ok(it.checked, "its dot is on")
+            end
+        end
+    end
+    t:eq(seen, 4, "all four are in the menu")
+    -- Each one reads without error (nothing recorded, or a kind this client lacks: a reason, no rows).
+    for _, key in ipairs(M.MODE_ORDER) do
+        t:ok(pcall(M.ReadDamage, M.MODES[key]), key .. " reads")
+    end
+    local f = M._Frame()
+    if f and f:IsShown() then
+        M.SetMode("healing")
+        t:eq(f.damage.head:GetText(), "Healing", "the list's title says what it counts")
+    end
+    ns.db.meters.mode = was
+    pcall(M.Update)
+    -- Pets.
+    local pets = M.PetUnits({ "player", "party1", "party3" })
+    t:ok(pets[1] == "pet" and pets[2] == "partypet1" and pets[3] == "partypet3", "your pet and each party member's")
+    t:eq(M.PetUnits({ "raid12" })[1], "raidpet12", "in a raid too")
+    t:eq(#M.PetUnits({}), 0, "nobody: no pets")
+end)

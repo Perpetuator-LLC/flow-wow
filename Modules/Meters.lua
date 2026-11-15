@@ -100,9 +100,29 @@ local function classColor(class)
     return 0.6, 0.6, 0.6
 end
 
--- Damage per second: { { name, raw (may be hidden), value (number or nil),
--- class, me } }, in the game's order; total (may be hidden); readable?
-function M.ReadDamage()
+-- What the second list counts (0.35.249: "RMB and select total damage, HPS
+-- and total healing"): the game's own figures for this fight. kind: the
+-- game's Enum.DamageMeterType name; field: per second, or the whole amount.
+M.MODES = {
+    dps     = { title = "DPS",     menu = "Damage per second (DPS)",  kind = "DamageDone",  field = "amountPerSecond", empty = "no damage yet" },
+    damage  = { title = "Damage",  menu = "Total damage",             kind = "DamageDone",  field = "totalAmount",     empty = "no damage yet" },
+    hps     = { title = "HPS",     menu = "Healing per second (HPS)", kind = "HealingDone", field = "amountPerSecond", empty = "no healing yet" },
+    healing = { title = "Healing", menu = "Total healing",            kind = "HealingDone", field = "totalAmount",     empty = "no healing yet" },
+}
+M.MODE_ORDER = { "dps", "damage", "hps", "healing" }
+-- Pure: the mode a saved choice stands for (anything else: DPS).
+function M.ModeKey(saved) return M.MODES[saved] and saved or "dps" end
+function M.Mode() return M.MODES[M.ModeKey(cfg().mode)] end
+function M.SetMode(key)
+    cfg().mode = (M.MODES[key] and key ~= "dps") and key or nil
+    pcall(M.Update)
+end
+
+-- The second list's figures (mode: one of M.MODES, default DPS):
+-- { { name, raw (may be hidden), value (number or nil), class, me } }, in
+-- the game's order; total (may be hidden); readable?
+function M.ReadDamage(mode)
+    mode = mode or M.MODES.dps
     local DM = C_DamageMeter
     if not (DM and DM.GetCombatSessionFromType and Enum and Enum.DamageMeterSessionType and Enum.DamageMeterType) then
         return nil, nil, false, "this client has no damage meter"
@@ -111,19 +131,35 @@ function M.ReadDamage()
         local okA, avail = pcall(DM.IsDamageMeterAvailable)
         if okA and A.Safe(avail) == false then return nil, nil, false, "the game's damage meter is switched off" end
     end
-    local ok, session = pcall(DM.GetCombatSessionFromType, Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone)
+    local kind = Enum.DamageMeterType[mode.kind]
+    if kind == nil then return nil, nil, false, "the game's meter doesn't count that here" end
+    local ok, session = pcall(DM.GetCombatSessionFromType, Enum.DamageMeterSessionType.Current, kind)
     if not ok or type(session) ~= "table" then return nil, nil, false, "no fight recorded yet" end
     local list, readable = {}, true
     local okL, sources = pcall(function() return session.combatSources end)
     for _, src in ipairs(okL and type(sources) == "table" and sources or {}) do
-        local value = A.Safe(src.amountPerSecond)
+        local amount = src[mode.field]
+        local value = A.Safe(amount)
         if type(value) ~= "number" then readable = false; value = nil end
-        list[#list + 1] = { name = src.name, raw = src.amountPerSecond, value = value, bar = src.amountPerSecond,
+        list[#list + 1] = { name = src.name, raw = amount, value = value, bar = amount,
                             class = A.Safe(src.classFilename), me = A.Safe(src.isLocalPlayer) == true }
     end
     return list, session.totalAmount, readable
 end
 
+-- Pure: the pet of each unit ("player" -> "pet", "party2" -> "partypet2",
+-- "raid7" -> "raidpet7").
+function M.PetUnits(units)
+    local out = {}
+    for _, u in ipairs(units or {}) do
+        if u == "player" then out[#out + 1] = "pet"
+        else
+            local kind, n = u:match("^(%a+)(%d+)$")
+            if kind == "party" or kind == "raid" then out[#out + 1] = kind .. "pet" .. n end
+        end
+    end
+    return out
+end
 local function groupUnits()
     local units = { "player" }
     if IsInRaid and IsInRaid() then
@@ -135,7 +171,11 @@ local function groupUnits()
             if UnitExists("party" .. i) then units[#units + 1] = "party" .. i end
         end
     end
-    if UnitExists("pet") then units[#units + 1] = "pet" end
+    -- Pets: yours, and the others' ("pets don't show on the threat meter",
+    -- 0.35.249: only your own was asked about).
+    for _, pet in ipairs(M.PetUnits(units)) do
+        if UnitExists(pet) then units[#units + 1] = pet end
+    end
     return units
 end
 M._GroupUnits = groupUnits
@@ -356,9 +396,9 @@ local function build()
     f:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Flow Meters", 1, 0.82, 0)
-        GameTooltip:AddLine("Threat on your target (percent of the tank's) and damage per second in this fight, from the game's own counts.", 1, 1, 1, true)
+        GameTooltip:AddLine("Threat on your target (percent of the tank's) and damage or healing in this fight (per second or in all: right-click), from the game's own counts.", 1, 1, 1, true)
         GameTooltip:AddLine(M.note or "DPS: the group, then the top player (a full bar) and the rest against them. Threat: who it's on first; past 100% means close to pulling it.", 0.7, 0.7, 0.7, true)
-        GameTooltip:AddLine("Ctrl + drag: move. Right-click: rows, decimals, when it shows.", 0.6, 0.6, 0.6, true)
+        GameTooltip:AddLine("Ctrl + drag: move. Right-click: what it counts, rows, decimals, when it shows.", 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
     end)
     -- Right-click: its own menu (rows, decimals, when it shows).
@@ -382,7 +422,9 @@ function M.Update()
     local threat, tReadable, tWhy = M.ReadThreat()
     if threat and tReadable then threat = M.SortThreat(threat) end
     fill(frame.threat, M.ThreatRows(threat, rows, tReadable), rows, tWhy or "nobody on its list")
-    local damage, total, dReadable, dWhy = M.ReadDamage()
+    local mode = M.Mode()
+    local damage, total, dReadable, dWhy = M.ReadDamage(mode)
+    frame.damage.head:SetText(mode.title)
     if damage and dReadable then damage = M.Sort(damage) end
     -- The group's total: every entry's amount per second, where readable.
     local sum
@@ -391,7 +433,7 @@ function M.Update()
         for _, e in ipairs(damage) do sum = sum + (e.value or 0) end
     end
     -- Row 1 the group, then the players against the top one.
-    fill(frame.damage, M.DamageRows(damage, rows, sum, nil), rows, dWhy or "no damage yet")
+    fill(frame.damage, M.DamageRows(damage, rows, sum, nil), rows, dWhy or mode.empty)
     frame.damage.total:SetText("")
     frame.damage:ClearAllPoints()
     frame.damage:SetPoint("TOPLEFT", frame.threat, "BOTTOMLEFT", 0, -2)
@@ -443,7 +485,12 @@ function M.Lines()
         .. "; threat call: " .. (UnitDetailedThreatSituation and "there" or "missing")
         .. "; says threat is hidden: " .. tostring(C_Secrets and C_Secrets.ShouldUnitThreatValuesBeSecret
             and select(2, pcall(C_Secrets.ShouldUnitThreatValuesBeSecret, "player", "target")) or "can't ask")
-    local okD, list, total, readable, why = pcall(M.ReadDamage)
+    -- What the game's meter can count here (for the menu's choices).
+    local kinds = {}
+    for k in pairs((Enum and Enum.DamageMeterType) or {}) do kinds[#kinds + 1] = tostring(k) end
+    table.sort(kinds)
+    out[#out + 1] = "  second list counts: " .. M.Mode().title .. "; the game's meter kinds: " .. (#kinds > 0 and table.concat(kinds, ", ") or "none")
+    local okD, list, total, readable, why = pcall(M.ReadDamage, M.Mode())
     if okD then
         out[#out + 1] = string.format("  damage now: %d entr%s, numbers %s, total %s%s", list and #list or 0, (list and #list == 1) and "y" or "ies",
             readable and "readable" or "hidden", A.Safe(total) ~= nil and "readable" or "hidden", why and (" (" .. why .. ")") or "")
@@ -498,6 +545,12 @@ function M.ContextItems()
         items[#items + 1] = { text = string.format("%d rows%s", n, n == 3 and " (the group, the top one and you)" or ""), radio = true, stay = true,
             checked = M.RowCount() == n, refresh = function(it) it.checked = M.RowCount() == n end,
             func = function() cfg().rows = n; pcall(M.Update) end }
+    end
+    items[#items + 1] = { rule = true }
+    for _, key in ipairs(M.MODE_ORDER) do
+        items[#items + 1] = { text = M.MODES[key].menu, radio = true, stay = true,
+            checked = M.ModeKey(cfg().mode) == key, refresh = function(it) it.checked = M.ModeKey(cfg().mode) == key end,
+            func = function() M.SetMode(key) end }
     end
     items[#items + 1] = { rule = true }
     for d = 0, 3 do

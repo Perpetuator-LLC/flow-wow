@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.249
+- **Flow Meters: right-click to pick what the second list counts.** Damage per second (as
+  before), total damage, healing per second or total healing, each from the game's own count
+  for this fight. The list's title says which.
+- **Pets on the threat list.** Only your own pet was asked about; now every party or raid
+  member's pet is too, so a hunter's or warlock's pet holding a mob shows.
+
 ## 0.35.248
 - **Your threat on each enemy's nameplate.** In a fight, in a group (or with a pet out), a
   small number at the right of each enemy's nameplate: your threat as a share of whoever it's
