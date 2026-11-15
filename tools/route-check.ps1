@@ -236,6 +236,7 @@ if ($unplaced.Count -gt 0) {
         $b = [string]$g.blocked
         $class = if ($b -match '^Inside |^Handed in inside ') { 'dungeon (expected: the dungeon run handles it)' }
             elseif ($b -match 'battleground') { 'battleground (expected)' }
+            elseif ($b -match 'you hid that stop') { 'waits for a stop the player hid (expected)' }
             elseif ($b -match "doesn't know where it's handed in") { 'TO FIX: turn-in with no place (learned when handed in once)' }
             elseif ($b -match "has no spot for|a kind Flow can't place") { 'TO FIX: objective with no place in the quest data (learned when done once)' }
             elseif ($b -match "doesn't know where .* comes from|doesn't know who sells") { 'TO FIX: no source known for the item' }

@@ -37,6 +37,10 @@ end
 -- (blessings, auras, Mark of the Wild) and stones, which surprised players
 -- who never asked for a second button.
 function BB.On() return ns.db ~= nil and cfg().enabled == true end
+-- Does this button do your fishing by itself? On, with a key (reeling in
+-- needs a key: a click can't reach the bobber). Then the Flow key leaves
+-- fishing to it (Actions.lua).
+function BB.Fishes() return BB.On() and (cfg().key ~= nil or cfg().key2 ~= nil) end
 
 -- Buffs that stay on Flow's icon and key because they're part of the fight,
 -- pressed with the rest of it: a paladin's seal (Judgement needs one up),
@@ -482,7 +486,9 @@ BB.SIZE = 52
 -- button's icons hang from its top edge, the modifier names sit once
 -- between the two rows, and both spell names go below the lot.
 BB.DOCK_GAP = 14     -- between the two rows: room for the modifier names
-function BB.Docked() return cfg().dock == true and _G.FlowCastButton ~= nil end
+-- (Docked unless you took it off: the default since 0.35.240.)
+function BB.DockWanted(saved) return saved ~= false end
+function BB.Docked() return BB.DockWanted(cfg().dock) and _G.FlowCastButton ~= nil end
 -- Puts the button where it belongs: docked, where you left it, or (never
 -- moved) just left of the Flow button. Out of a fight only.
 function BB.Place()
@@ -523,7 +529,7 @@ function BB.Place()
 end
 function BB.SetDock(on)
     if InCombatLockdown() then return false end
-    cfg().dock = on and true or nil
+    cfg().dock = on and true or false
     BB.Place()
     if ns.careKeys and ns.careKeys.Apply then pcall(ns.careKeys.Apply) end
     return true
@@ -805,7 +811,7 @@ if ns.settings and ns.settings.AddCheck then
         label = "Dock the buff button under the Flow icon",
         note = "(the two as one block)",
         tip = "The buff button sits right under Flow's icon, its little icons under Flow's, with Shift, Ctrl, Alt and C+S written once between the two rows. Off: it stands where you put it.",
-        get = function() return cfg().dock == true end,
+        get = function() return BB.DockWanted(cfg().dock) end,
         set = function(on) BB.SetDock(on) end,
     })
 end

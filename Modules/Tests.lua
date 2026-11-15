@@ -11222,3 +11222,39 @@ ns:Register("test", "buttons: docked, the modifier is above the key bind and the
     local held = ns.careKeys.HeldStep
     t:ok(type(held) == "function", "a held modifier's step says which modifier it is")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.240: a hand-in waits with its hidden objective; fishing is the buff
+-- button's alone; the buff button is docked unless taken off.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a hand-in whose objective you hid leaves the route with it", function(t)
+    local N = ns.nav
+    local collect = { key = "855:1", text = "Centaur Bracers: 10 -> 15 Centaur Bracers" }
+    local turnIn = { key = "855:done", text = "Turn in: Centaur Bracers", deps = { "855:1" } }
+    local after = { key = "x:after", text = "After the hand-in", deps = { "855:done" } }
+    local other = { key = "850:done", text = "Turn in: Kolkar Leaders", deps = { "850:1" } }
+    local free = { key = "870:1", text = "The Forgotten Pools" }
+    local kept, held = N.HoldForHidden({ turnIn, after, other, free }, { collect })
+    t:eq(#kept, 2, "the hand-in and what follows it are off the route")
+    t:ok(kept[1] == other and kept[2] == free, "the rest stays, in order (a hand-in whose objective is done or not hidden too)")
+    t:eq(#held, 2, "both are listed as waiting")
+    t:ok(held[1].key == "855:done" and held[1].blockedBy:find("Centaur Bracers: 10 %-> 15", 1) ~= nil, "the reason names the hidden stop")
+    t:ok(held[1].blockedBy:find("you hid that stop", 1, true) ~= nil, "and says you hid it")
+    t:ok(held[1] ~= turnIn and turnIn.blockedBy == nil, "the stop itself isn't marked (a copy is)")
+    t:eq(held[2].key, "x:after", "down the chain")
+    kept, held = N.HoldForHidden({ turnIn, free }, {})
+    t:ok(#kept == 2 and #held == 0, "nothing hidden: nothing waits")
+end)
+
+ns:Register("test", "fishing: on the buff button alone while it has a key; the buff button is docked by default", function(t)
+    local X, BB = ns.actions, ns.buffButton
+    t:ok(X.OnBuffOnly({ fish = true }, true), "a fishing step, the buff button fishes: not on the Flow key too")
+    t:ok(not X.OnBuffOnly({ fish = true }, false), "no buff button (or no key on it): the Flow key fishes, as before")
+    t:ok(not X.OnBuffOnly({ type = "spell" }, true), "any other step stays on the Flow key")
+    t:ok(not X.OnBuffOnly(nil, true), "no step: nothing")
+    t:ok(type(BB.Fishes()) == "boolean", "the buff button says whether it fishes")
+    t:ok(BB.DockWanted(nil), "never chosen: docked")
+    t:ok(BB.DockWanted(true), "docked by you: docked")
+    t:ok(not BB.DockWanted(false), "taken off by you: stays off")
+end)

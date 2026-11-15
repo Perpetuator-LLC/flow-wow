@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.240
+- **No "Turn in" for a quest that isn't done because its stop is hidden.** "Turn in:
+  Centaur Bracers" was on the route at 10/15: the stop for collecting the bracers had been
+  hidden, and the hand-in stayed behind without it. A stop that comes after one you hid now
+  leaves the route with it, and the Flow Router says why ("first: ... you hid that stop").
+  Unhide the stop and both come back.
+- **Fishing is on the buff button only.** With the buff button on and a key on it, the pole,
+  the lure, the cast and reeling in are its steps alone; they no longer show on Flow's icon
+  as well. Without a buff button key the Flow key fishes as before.
+- **The buff button is docked under Flow's icon unless you take it off** (Flow menu, Keys,
+  or Flow Settings).
+
 ## 0.35.239
 - **Docked: modifier, key bind, auto-attack, one above the other.** With the buff button
   docked under Flow's icon, the key bind of each button is at the middle of its right side,

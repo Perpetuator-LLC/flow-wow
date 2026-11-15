@@ -1147,6 +1147,14 @@ X._errors = errors   -- (tests)
 local clock = debugprofilestop
 local addPart = ns.perf and ns.perf.AddPart
 local PERF = "flow actions"
+-- Pure: is this step the buff button's alone? Fishing is, while the buff
+-- button is on with a key of its own (it does every fishing step, reeling in
+-- included): the Flow key keeps to your target and your route, and the same
+-- step isn't shown on both (0.35.240).
+function X.OnBuffOnly(step, buffFishes)
+    return (step ~= nil and step.fish == true and buffFishes == true) and true or false
+end
+
 function X:Current()
     if InCombatLockdown() or UnitIsDeadOrGhost("player") or ns.db.actions.enabled == false then return nil end
     local t0 = clock and addPart and clock()
@@ -1162,6 +1170,7 @@ function X:Current()
             if errors[e.key] ~= msg then errors[e.key] = msg; ns:Log("action", "error in " .. msg) end
             s = nil
         end
+        if ok and s and X.OnBuffOnly(s, ns.buffButton ~= nil and ns.buffButton.Fishes ~= nil and ns.buffButton.Fishes()) then s = nil end
         if ok and s then
             s.kind, s.key = "action", e.key
             return s

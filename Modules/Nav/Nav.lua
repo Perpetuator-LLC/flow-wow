@@ -456,6 +456,12 @@ function N:Collect(gathered)
         if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
     end
     N.hiddenGoals = hiddenGoals
+    -- A stop that waits for one you hid (a quest's hand-in, its objective
+    -- hidden) can't be done yet either: off the route, with the reason
+    -- (0.35.240: "Turn in: Centaur Bracers" at 10/15, its collect stop hidden).
+    local waiting
+    shown, waiting = N.HoldForHidden(shown, hiddenGoals)
+    for _, g in ipairs(waiting) do blockedGoals[#blockedGoals + 1] = g end
     -- "Along the way" goals (loot meat for an optional profession): never a
     -- stop of their own, so the route never sends you off to grind them.
     -- They're listed in the arrow panel and stop cards, and their mobs are
@@ -535,6 +541,37 @@ function N.HoldCrafts(shown, all)
             end
         end
         kept = next
+        if not changed then return kept, held end
+    end
+end
+
+-- Pure: stops that come after a stop you hid (goal.deps) leave the route
+-- too, blocked with the reason; and so on down the chain. Returns kept, held.
+function N.HoldForHidden(shown, hiddenGoals)
+    local off = {}
+    for _, g in ipairs(hiddenGoals or {}) do off[g.key] = g end
+    local kept, held = shown, {}
+    if not next(off) then return kept, held end
+    while true do
+        local nextKept, changed = {}, false
+        for _, g in ipairs(kept) do
+            local wait
+            for _, dep in ipairs(g.deps or {}) do
+                if off[dep] then wait = off[dep] break end
+            end
+            if wait then
+                local c = {}
+                for k, v in pairs(g) do c[k] = v end
+                c.blockedBy = "first: " .. (wait.text or wait.title or wait.key) .. " (you hid that stop: unhide it in the Flow Router)"
+                c.blockedShort = "its stop is hidden"
+                held[#held + 1] = c
+                off[g.key] = c
+                changed = true
+            else
+                nextKept[#nextKept + 1] = g
+            end
+        end
+        kept = nextKept
         if not changed then return kept, held end
     end
 end
