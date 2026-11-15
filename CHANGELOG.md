@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.233
+- **One sign for "press this".** The glow on your action bar, the ring round a modifier's
+  icon, the small icon in the corner, the heal prompt and the buff button's edge all meant
+  "Flow suggests this", each in its own gold and its own blink. They're all the orange of a
+  legendary item now, and they pulse together, on one beat.
+- **Cast time on the buttons.** While you cast or channel, a thin bar runs along the bottom
+  edge of Flow's icon and of the buff button.
+- **The buff button shows the global cooldown** (and its spell's own) as a sweep over the
+  icon, like Flow's.
+- **Key binds to the right, spell names underneath.** Each button's key is written at its
+  top right; the name of what it casts hangs under the button from its left edge. Docked,
+  each name sits under its own button.
+- **Exact stops before spread-out ones.** A quest whose mobs or items are all over an area
+  (20 spots or more) is planned a little later than a stop at one exact place nearby, so
+  you go to the exact ones and get the spread-out ones on the way. Its details say so.
+- **`/flow roll` no longer speaks at every login** (a self-test was calling it out loud), and
+  its words say what it is: a suggestion. Flow never rolls for you.
+- Not seen in game yet.
+
 ## 0.35.232
 - **Flow Meters are bars now.** DPS: the first row is the whole group; under it the top
   player with a full bar, and each row after measured against that player. Threat: whoever

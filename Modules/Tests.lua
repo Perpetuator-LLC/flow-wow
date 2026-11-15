@@ -7906,14 +7906,15 @@ ns:Register("test", "modern arrow: the beam and its mirror meet with no crack", 
     a:Hide()
 end)
 
-ns:Register("test", "easy button: its key bind is written above the icon", function(t)
+ns:Register("test", "easy button: its key bind is written to the right of the icon", function(t)
     local C, E = ns.cast, ns.rotation
     local key = C._KeyText()
     if not (key and E.icon) then t:ok(true, "(the Flow key isn't built yet)") return end
     local point, rel, relPoint, x, y = key:GetPoint(1)
-    t:eq(point, "BOTTOM", "its bottom edge...")
-    t:ok(rel == E.icon and relPoint == "TOP", "...on the icon's top edge, like CTRL / SHIFT / ALT above the queue")
-    t:ok((x or 0) == 0 and (y or 0) > 0, "centred, a little above")
+    -- (0.35.233: to the right, at the icon's top; it was above the icon.)
+    t:eq(point, "TOPLEFT", "its top left corner...")
+    t:ok(rel == E.icon and relPoint == "TOPRIGHT", "...on the icon's top right corner")
+    t:ok((x or 0) > 0 and (y or 0) == 0, "a little to the right, level with the top")
     t:eq(key:GetNumPoints(), 1, "and nowhere else (not in the icon's corner)")
     local _, size = key:GetFont()
     t:near(size or 0, C.KEY_FONT, 0.6, "in the queue labels' kind of lettering")
@@ -8514,7 +8515,7 @@ ns:Register("test", "easy button: modifier icons to its left, auto attack on its
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
     -- (0.35.199: on the key bind's line, just left of it; its own test below.)
     local tp, _, _, tx = icon.shiftTag:GetPoint(1)
-    t:ok(tp ~= nil and (tx or 0) < 0, "the SHIFT+ tag is to the left")
+    t:ok(tp ~= nil and (tx or 0) > 0, "the SHIFT+ tag follows the key bind, right of the icon")
 end)
 
 -------------------------------------------------------------------------------
@@ -9121,7 +9122,7 @@ ns:Register("test", "easy button: the held-modifier tag is on the key bind's lin
     local key, icon = C._KeyText(), E.icon
     if not (key and icon and icon.shiftTag) then t:ok(true, "(the Flow key isn't built yet)") return end
     local p, rel, rp, x = icon.shiftTag:GetPoint(1)
-    t:ok(p == "RIGHT" and rel == key and rp == "LEFT" and (x or 0) < 0, "just left of the key's bind, on its line")
+    t:ok(p == "LEFT" and rel == key and rp == "RIGHT" and (x or 0) > 0, "just after the key's bind, on its line")
     t:eq(icon.shiftTag:GetNumPoints(), 1, "and nowhere else")
     local _, size = icon.shiftTag:GetFont()
     t:near(size or 0, C.KEY_FONT, 0.6, "in the same size of lettering")
@@ -9953,7 +9954,10 @@ ns:Register("test", "loot rolls: Need on an upgrade, Greed on the rest", functio
     t:eq(R.Verdict(nil, "dps"), nil, "not gear: no verdict")
     t:eq(R.Verdict({ canUse = true, diffs = { tank = 5 } }, "dps").roll, "greed", "an upgrade for another role only: Greed")
     t:ok(R.For(nil) == nil, "no item: nothing")
-    t:ok(pcall(ns.commands.roll, ""), "/flow roll with nothing says how to use it")
+    -- (Said into nothing here: it printed at every login, 0.35.233.)
+    with(ns, "Print", function() end, function()
+        t:ok(pcall(ns.commands.roll, ""), "/flow roll with nothing says how to use it")
+    end)
 end)
 
 ns:Register("test", "easy button: a druid's Bash and a paladin's Hammer of Justice stop a cast", function(t)
@@ -10943,4 +10947,95 @@ ns:Register("test", "quests: a stop says how high its mobs are and how often the
     t:eq(Q.DropRate({ GetItemDroprate = function() return { 25.4, "wowhead" } end }, 5087, 3244), 25.4, "the quest data's own figure is read")
     t:eq(Q.DropRate({}, 5087, 3244), nil, "quest data without drop chances: none")
     t:eq(Q.DropRate({ GetItemDroprate = function() return nil end }, 1, 1), nil, "no figure for that mob: none")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.233: one orange beat for what's suggested; cast time on the buttons'
+-- edge; key binds to the right, names bottom left; spread-out stops later.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "suggested: one colour and one beat for everything Flow asks you to press", function(t)
+    local P = ns.pulse
+    t:ok(P.COLOR[1] == 1 and P.COLOR[2] == 0.5 and P.COLOR[3] == 0, "legendary orange")
+    t:near(P.Alpha(0, 1, 0.3), 1, 0.001, "at the start of a beat: full")
+    t:near(P.Alpha(0.5, 1, 0.3), 0.3, 0.001, "halfway: at its dimmest")
+    t:near(P.Alpha(1, 1, 0.3), 1, 0.001, "and back")
+    t:near(P.Alpha(7.25, 1, 0.3), P.Alpha(3.25, 1, 0.3), 0.001, "the same moment in any beat: the same brightness (so everything is in step)")
+    -- Two things pulse together, and stop at full brightness.
+    local a, b = CreateFrame("Frame"), CreateFrame("Frame")
+    local before = P.Count()
+    P.Add(a); P.Add(b)
+    t:ok(P.Has(a) and P.Has(b) and P.Count() == before + 2, "both are on the beat")
+    a:SetAlpha(0.4)
+    P.Remove(a)
+    t:ok(not P.Has(a) and math.abs(a:GetAlpha() - 1) < 0.001, "taken off: back to full brightness")
+    P.Remove(b)
+    t:eq(P.Count(), before, "nothing left over")
+    t:ok(pcall(P.Add, nil) and pcall(P.Remove, nil), "nothing given: no error")
+end)
+
+ns:Register("test", "easy and buff buttons: the cast's progress along the bottom edge", function(t)
+    local CE = ns.castEdge
+    t:near(CE.Progress(1000, 3000, 2000, false), 0.5, 0.001, "halfway through a 2 s cast: half full")
+    t:near(CE.Progress(1000, 3000, 1000, false), 0, 0.001, "just started: empty")
+    t:near(CE.Progress(1000, 3000, 3000, false), 1, 0.001, "done: full")
+    t:near(CE.Progress(1000, 3000, 1500, true), 0.75, 0.001, "a channel empties as it goes")
+    t:eq(CE.Progress(1000, 3000, 9000, false), nil, "long over: no bar")
+    t:eq(CE.Progress(nil, nil, 1000, false), nil, "nothing being cast: no bar")
+    t:eq(CE.Progress(3000, 3000, 3000, false), nil, "a cast with no length: no bar")
+    t:ok(pcall(CE.Now), "what you're casting is read without error")
+end)
+
+ns:Register("test", "buttons: key binds to the right, names from the bottom left", function(t)
+    local icon = ns.rotation.icon
+    if icon and icon.text then
+        local p, rel, rp = icon.text:GetPoint(1)
+        t:ok(p == "TOPLEFT" and rel == icon and rp == "BOTTOMLEFT", "Flow's spell name hangs from the icon's bottom left corner")
+        t:eq(icon.text:GetJustifyH(), "LEFT", "and reads from the left")
+    end
+    t:ok(type(ns.SetCooldownFrame) == "function", "the buff button can draw the same cooldown sweep")
+    local b = _G.FlowBuffButton
+    if b then t:near(b:GetWidth(), ns.buffButton.SIZE, 0.5, "the buff button is there") end
+end)
+
+ns:Register("test", "route: a stop spread all over the area comes after the exact ones", function(t)
+    local Q = ns.quests
+    t:ok(Q.IsSpread(80) and Q.IsSpread(20), "80 spots (or 20): spread out")
+    t:ok(not Q.IsSpread(19) and not Q.IsSpread(1) and not Q.IsSpread(nil), "a handful, or one exact place: not")
+    t:ok(Q.SPREAD_WEIGHT > 1 and Q.SPREAD_WEIGHT < 1.6, "a little heavier than a normal stop, lighter than an elite one")
+    -- Through the stop builder: a mob with many spawns, and one with a single place.
+    local many, one = {}, { { 50, 50 } }
+    for i = 1, 30 do many[i] = { 20 + i, 30 + (i % 7) } end
+    local db = {
+        GetQuest = function(id)
+            if id == 990001 then return { name = "Flow Test Wide", level = 12, Finisher = { NPC = { 3 } }, ObjectiveData = { { Type = "monster", Id = 1 } } } end
+            if id == 990002 then return { name = "Flow Test Exact", level = 12, Finisher = { NPC = { 3 } }, ObjectiveData = { { Type = "monster", Id = 2 } } } end
+        end,
+        GetNPC = function(id)
+            if id == 1 then return { name = "Wide Mob", minLevel = 11, maxLevel = 12, spawns = { [17] = many } } end
+            if id == 2 then return { name = "Exact Mob", minLevel = 12, maxLevel = 12, spawns = { [17] = one } } end
+            if id == 3 then return { name = "A Giver", spawns = { [17] = one } } end
+        end,
+    }
+    local goals = {}
+    local none = function() return nil end
+    Q.QuestGoals(db, { id = 990001, title = "Flow Test Wide", complete = false, objectives = { { text = "Wide Mob slain: 0/8", finished = false } } }, goals, { waypoint = none })
+    Q.QuestGoals(db, { id = 990002, title = "Flow Test Exact", complete = false, objectives = { { text = "Exact Mob slain: 0/1", finished = false } } }, goals, { waypoint = none })
+    local wide, exact
+    for _, g in ipairs(goals) do
+        if g.key == "990001:1" then wide = g end
+        if g.key == "990002:1" then exact = g end
+    end
+    if wide and exact and #wide.points >= Q.SPREAD_SPOTS then
+        t:ok(wide.spread == true and wide.weight == Q.SPREAD_WEIGHT, "the mob with 30 spots: marked spread out, a little heavier")
+        t:ok(exact.spread == nil and exact.weight == nil, "the one exact place: as before")
+        local said = false
+        for _, d in ipairs(wide.details) do if d:find("all over the area", 1, true) then said = true end end
+        t:ok(said, "its details say why it comes later")
+        local levels = false
+        for _, d in ipairs(wide.details) do if d == "Wide Mob, level 11-12" then levels = true end end
+        t:ok(levels, "and how high its mobs are")
+    else
+        t:ok(true, "(no map for the test zone here: the stops have no places to count)")
+    end
 end)

@@ -79,7 +79,7 @@ local function onRoll(rollID)
     for _, f in ipairs(framesFor(rollID)) do pcall(mark, f, v) end
     if v and v.roll == "need" and not R.said[rollID] then
         R.said[rollID] = true
-        ns:Print(string.format("%s is an upgrade for you (+%.1f): roll Need.", tostring(link), v.gain or 0))
+        ns:Print(string.format("%s is an upgrade for you (+%.1f): Flow suggests Need. (It never rolls for you.)", tostring(link), v.gain or 0))
     end
 end
 ns:On("START_LOOT_ROLL", function(rollID)
@@ -93,7 +93,7 @@ end)
 
 ns.commands.roll = function(arg)
     local link = (arg or ""):match("(|c.-|h|r)") or (arg or ""):match("(|H.-|h.-|h)")
-    if not link then ns:Print("/flow roll <shift-click an item>: would Flow roll Need or Greed on it?") return end
+    if not link then ns:Print("/flow roll <shift-click an item>: is it an upgrade for you (Need) or not (Greed)? Flow only says; it never rolls.") return end
     local v = R.For(link)
     ns:Print(link .. ": " .. (v and v.text or "not gear Flow can judge (or not loaded yet)"))
 end

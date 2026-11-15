@@ -187,7 +187,10 @@ local function buildIcon(cfg)
     flashFade:SetFromAlpha(0.55); flashFade:SetToAlpha(0); flashFade:SetDuration(0.25)
 
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.text:SetPoint("TOP", f, "BOTTOM", 0, -4)
+    -- (Under the icon, starting at its left edge: "the spell info can be at the
+    -- bottom of each button, just have to do left aligned", 0.35.233.)
+    f.text:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -2)
+    f.text:SetJustifyH("LEFT")
 
     -- "SHIFT+" beside the icon while you hold Shift: the icon then shows
     -- what Shift + your key casts (your heal), pulsing so it's noticed.
@@ -276,7 +279,7 @@ end
 local function clearGlows()
     if not glows then return end
     for _, g in pairs(glows) do
-        g.anim:Stop()
+        ns.pulse.Remove(g)
         g:Hide()
     end
 end
@@ -299,10 +302,11 @@ local function showGlows(s, color, kind)
     clearGlows()
     for _, btn in ipairs(buttonsOf(s)) do
         local g = glowFor(btn)
-        g.border:SetColor(color[1], color[2], color[3])
-        g.fade:SetDuration(kind == "emergency" and 0.2 or 0.45)
+        -- One colour and one beat for everything Flow suggests (Pulse.lua).
+        local c = ns.pulse.COLOR
+        g.border:SetColor(c[1], c[2], c[3])
         g:Show()
-        g.anim:Play()
+        ns.pulse.Add(g)
     end
 end
 
@@ -312,6 +316,7 @@ end
 
 
 -- Cooldown of what the button does: a spell, or an item (a lure, a recipe).
+-- (BuffButton.lua draws its own sweep the same way: ns.SetCooldownFrame, set below.)
 local function cooldownOf(s)
     if s.spell then return A.CooldownRaw(s.spell) end
     local id = s.item and tonumber(tostring(s.item):match("(%d+)"))
@@ -355,6 +360,7 @@ local function setCooldown(cd, s)
     cd:SetCooldown(start or 0, dur or 0)
     return readable and "readable" or "none", start, dur
 end
+ns.SetCooldownFrame = setCooldown   -- (the buff button's sweep: BuffButton.lua)
 
 -- Like an action button: grey when you can't cast it now (not enough mana,
 -- or the game says it isn't usable), red when your target is out of its
@@ -611,13 +617,14 @@ local function drawSlot(slot, e, now, state)
     if state ~= slot.state then
         slot.state = state
         if state == "advised" then
-            slot.ring:SetColorTexture(1, 0.82, 0.1, 1); slot.ring:Show(); slot.ring.pulse:Play()
-            slot.mod:SetTextColor(1, 0.82, 0.1)
+            local c = ns.pulse.COLOR
+            slot.ring:SetColorTexture(c[1], c[2], c[3], 1); slot.ring:Show(); ns.pulse.Add(slot.ring)
+            slot.mod:SetTextColor(c[1], c[2], c[3])
         elseif state == "held" then
-            slot.ring.pulse:Stop(); slot.ring:SetColorTexture(0.4, 1, 0.4, 1); slot.ring:Show()
+            ns.pulse.Remove(slot.ring); slot.ring:SetColorTexture(0.4, 1, 0.4, 1); slot.ring:Show()
             slot.mod:SetTextColor(0.4, 1, 0.4)
         else
-            slot.ring.pulse:Stop(); slot.ring:Hide()
+            ns.pulse.Remove(slot.ring); slot.ring:Hide()
             slot.mod:SetTextColor(0.85, 0.85, 0.85)
         end
     end
@@ -697,10 +704,17 @@ local function tick()
         icon.shiftTag:SetShown(tag ~= nil)
         if tag then
             icon.shiftTag:SetText(tag)
-            if swapped then icon.shiftTag:SetTextColor(0.4, 1, 0.4) else icon.shiftTag:SetTextColor(1, 0.82, 0.1) end
-            icon.shiftTag.pulse:Play()
+            -- (Held: steady green. A heal to press: the suggestion's orange, on the beat.)
+            if swapped then
+                icon.shiftTag:SetTextColor(0.4, 1, 0.4)
+                ns.pulse.Remove(icon.shiftTag)
+            else
+                local c = ns.pulse.COLOR
+                icon.shiftTag:SetTextColor(c[1], c[2], c[3])
+                ns.pulse.Add(icon.shiftTag)
+            end
         else
-            icon.shiftTag.pulse:Stop()
+            ns.pulse.Remove(icon.shiftTag)
         end
     end
     -- A flash when a modifier swaps a spell in: the big icon became it.
@@ -740,8 +754,6 @@ local function tick()
     local docked = ns.DockedNow()
     if docked ~= icon.docked then
         icon.docked = docked
-        icon.text:ClearAllPoints()
-        icon.text:SetPoint("TOP", icon, "BOTTOM", 0, docked and -(ns.buffButton.DOCK_GAP + 52 + 4) or -4)
         for _, d in ipairs(icon.deck) do d.mod:SetShown(not docked) end
     end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
@@ -761,7 +773,7 @@ local function tick()
             if not okS then E.lastError, E.lastErrorAt = "queue icon: " .. tostring(errS), GetTime() end
             slot:Show()
         else
-            if slot.state then slot.ring.pulse:Stop(); slot.ring:Hide(); slot.state = nil end
+            if slot.state then ns.pulse.Remove(slot.ring); slot.ring:Hide(); slot.state = nil end
             slot:Hide()
         end
     end

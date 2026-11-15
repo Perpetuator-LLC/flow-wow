@@ -307,7 +307,9 @@ local function refreshLabels()
         lockIcon.tex:SetTexture(tex)
         lockIcon.label:SetText(C.AdviceLabel(adv, C:HealSpell(), ns.careKeys and ns.careKeys.PressFor and ns.careKeys.PressFor(adv)))
         lockIcon:Show()
+        ns.pulse.Add(lockIcon)   -- (on the same beat as every other "press this": Pulse.lua)
     else
+        ns.pulse.Remove(lockIcon)
         lockIcon:Hide()
     end
 end
@@ -366,7 +368,10 @@ local function build(cfg)
         -- corner, over the spell's picture).
         keyText = icon:CreateFontString(nil, "OVERLAY")
         keyText:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
-        keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2)
+        -- (0.35.233: to the right of the icon, at its top, above the auto-attack
+        -- badge: "put the key binds to the right", so the space above and
+        -- below the icon is free. It was above the icon.)
+        keyText:SetPoint("TOPLEFT", icon, "TOPRIGHT", 6, 0)
         keyText:SetTextColor(0.85, 0.85, 0.85)
         -- The tag for the modifier you hold ("CTRL+", "SHIFT+"): on the same
         -- line as the key's bind, just left of it, in the same lettering, so
@@ -375,11 +380,14 @@ local function build(cfg)
         if icon.shiftTag then
             icon.shiftTag:ClearAllPoints()
             icon.shiftTag:SetFont(STANDARD_TEXT_FONT, C.KEY_FONT, "OUTLINE")
-            icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0)
+            icon.shiftTag:SetPoint("LEFT", keyText, "RIGHT", 4, 0)   -- (after the bind, on its line)
         end
         lockIcon = CreateFrame("Frame", nil, icon)
         lockIcon:SetSize(22, 22)
         lockIcon:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 8, -8)
+        lockIcon.edge = lockIcon:CreateTexture(nil, "BACKGROUND")
+        lockIcon.edge:SetPoint("TOPLEFT", -2, 2); lockIcon.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+        lockIcon.edge:SetColorTexture(ns.pulse.COLOR[1], ns.pulse.COLOR[2], ns.pulse.COLOR[3], 1)
         lockIcon.tex = lockIcon:CreateTexture(nil, "OVERLAY")
         lockIcon.tex:SetAllPoints()
         lockIcon.label = lockIcon:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

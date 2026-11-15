@@ -245,7 +245,9 @@ local function questGoals(db, q, goals, opts)
                 if not skip(key) then
                     goals[#goals + 1] = {
                         key = key, points = points, known = known, title = title, level = quest.level,
-                        weight = (elite or hard) and 1.6 or nil, elite = elite or nil, hard = hard or nil, helping = opts.who,
+                        weight = (elite or hard) and 1.6 or (ns.quests.IsSpread(#points) and ns.quests.SPREAD_WEIGHT) or nil,
+                        spread = ns.quests.IsSpread(#points) or nil,
+                        elite = elite or nil, hard = hard or nil, helping = opts.who,
                         npcs = #targets > 0 and targets or nil, area = true, target = what,
                         kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                         text = whose .. (elite and "[Elite] " or "") .. (title and (title .. ": ") or "") .. ns.ProgressText(objText),
@@ -256,6 +258,7 @@ local function questGoals(db, q, goals, opts)
                             if hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
                             for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
+                            if ns.quests.IsSpread(#points) then d[#d + 1] = "Found all over the area: Flow plans the exact spots near it first, and you get these on the way." end
                             return d
                         end)(),
                     }
@@ -314,6 +317,16 @@ local function questGoals(db, q, goals, opts)
         turnIn.points = {}
     end
 end
+-- A stop whose mobs or items are spread all over an area (many spots) is
+-- planned a little later than a stop at one exact place nearby: "you have
+-- me focus on ones that are all over the area first; wouldn't it be better
+-- to go to the specific ones, and on the way I'll probably get the others?"
+-- (0.35.233) Its legs cost more, so the planner puts it where you're
+-- passing through anyway.
+ns.quests.SPREAD_SPOTS = 20     -- this many spots or more: spread out
+ns.quests.SPREAD_WEIGHT = 1.3
+function ns.quests.IsSpread(spots) return (spots or 0) >= ns.quests.SPREAD_SPOTS end
+
 -- How often a mob drops an item, in percent, or nil (the quest data's own
 -- figure: QuestieDB.GetItemDroprate -> { rate, source }).
 function ns.quests.DropRate(db, itemId, npcId)

@@ -342,7 +342,7 @@ end
 -- The button
 -------------------------------------------------------------------------------
 
-local btn, tex, label, keyText, timer
+local btn, tex, label, keyText, timer, sweep, edge
 local shownText          -- what the secure button is set to, to skip repeats
 local lastCast           -- the buff spell you last cast (held for fights)
 local buffSpells = {}    -- every buff spell this button has shown
@@ -435,6 +435,8 @@ local function paint(s, bright)
         end
     end
     if timer then timer:SetText(cd) end
+    if sweep and s and (s.spell or s.item) and ns.SetCooldownFrame then pcall(ns.SetCooldownFrame, sweep, s)
+    elseif sweep then pcall(sweep.SetCooldown, sweep, 0, 0) end
     if reach then tex:SetVertexColor(1, 1, 1) else tex:SetVertexColor(1, 0.3, 0.3) end
 end
 
@@ -484,11 +486,11 @@ function BB.Place()
     if BB.Docked() then
         btn:SetScale(main:GetScale())
         btn:SetPoint("TOP", main, "BOTTOM", 0, -BB.DOCK_GAP)
-        -- (Flow's own spell name is just under this button: Display.lua.)
-        if label then label:SetPoint("TOP", btn, "BOTTOM", 0, -18) end
+        -- (Each name under its own button, from its left edge: 0.35.233.)
+        if label then label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2) end
         return true
     end
-    if label then label:SetPoint("TOP", btn, "BOTTOM", 0, -3) end
+    if label then label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2) end
     if ns.RestorePlace and (cfg().point or not main) then
         ns.RestorePlace(btn, cfg(), -60, -160)
     elseif main then
@@ -517,16 +519,23 @@ local function build()
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     bg:SetPoint("TOPLEFT", -3, 3); bg:SetPoint("BOTTOMRIGHT", 3, -3)
     bg:SetColorTexture(0.1, 0.6, 1, 0.9)   -- blue edge: the buff button
+    edge = bg
     tex = btn:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
     tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetWidth(110)
+    label:SetWidth(170)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
     label:SetTextColor(0.5, 0.8, 1)
     -- Its key above it, as on Flow's icon (same font and size).
     keyText = btn:CreateFontString(nil, "OVERLAY")
     keyText:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
-    keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2)
+    keyText:SetPoint("TOPLEFT", btn, "TOPRIGHT", 6, 0)   -- (to the right, as Flow's own: 0.35.233)
+    -- The global cooldown and its spell's own, swept over the icon as on Flow's.
+    sweep = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+    sweep:SetAllPoints()
+    if sweep.SetHideCountdownNumbers then sweep:SetHideCountdownNumbers(true) end
     -- Its spell's cooldown, counted down on the icon as on Flow's (0.35.228).
     timer = btn:CreateFontString(nil, "OVERLAY")
     timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
@@ -612,10 +621,30 @@ local function tick(_, dt)
         local held = btn:GetAttribute("spell")
         current = held and { spell = held, reason = live and live.reason } or nil
         -- (Bright too while Flow wants a heal and this key heals: CareKeys.lua.)
-        if current then paint(current, (live and live.spell == held) or (ns.careKeys and ns.careKeys.HealWanted and ns.careKeys.HealWanted())) end
+        local wanted = ns.careKeys and ns.careKeys.HealWanted and ns.careKeys.HealWanted() or false
+        if current then paint(current, (live and live.spell == held) or wanted) end
+        -- Flow wants a heal and this key casts it: its edge takes the
+        -- suggestion's orange, on the beat (Pulse.lua); else its own blue.
+        if wanted ~= BB.wanted then
+            BB.wanted = wanted
+            if wanted then
+                local c = ns.pulse.COLOR
+                edge:SetColorTexture(c[1], c[2], c[3], 1)
+                ns.pulse.Add(edge)
+            else
+                ns.pulse.Remove(edge)
+                edge:SetColorTexture(0.1, 0.6, 1, 0.9)
+            end
+        end
         return
     end
     local ctx = actionCtx()
+    -- (Out of a fight: its edge is its own blue again.)
+    if BB.wanted then
+        BB.wanted = false
+        ns.pulse.Remove(edge)
+        edge:SetColorTexture(0.1, 0.6, 1, 0.9)
+    end
     local recover, camp = GetTime() - liveAt < 1 and liveRecover or nil, BB.TakesCamp() and pickCamp(ctx) or nil
     local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
     -- Nothing due ("I don't want my buff button always showing buffs: like the
