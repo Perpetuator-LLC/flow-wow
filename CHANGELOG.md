@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.256
+- **Flow's icon and the buff button are the same size, with the same edge.** Flow's coloured
+  edge was drawn over the outer 3 pixels of its picture, the buff button's blue edge round its
+  picture, so Flow's looked smaller and the cast bar lay on Flow's edge. Both edges now go
+  round the picture, and the cast bar sits inside the edge on both. Docked, the gap between
+  the two is a little bigger so the modifier names still fit.
+
 ## 0.35.255
 - **`/flow dungeons`: the dungeon runs at your level as a checklist.** Each run with its quests
   (who gives each, and where), and one line that says whether you have them all: "You have 2

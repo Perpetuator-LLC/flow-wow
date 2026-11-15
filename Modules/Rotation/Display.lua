@@ -26,13 +26,19 @@ local buttonsByItem = {}   -- item ID -> buttons (a healthstone, a bandage)
 
 -- A coloured frame made of plain colour textures. Works on every client
 -- (no dependency on Blizzard art files).
-local function makeBorder(parent, thickness, inset)
-    local b = { edges = {} }
+-- outside: the frame goes round the parent (as the buff button's blue edge
+-- does) and leaves all of the parent's own area clear; else it lies on the
+-- parent's own outer few pixels.
+ns.ICON_EDGE = 3   -- the coloured edge round Flow's icon and round the buff button
+local function makeBorder(parent, thickness, inset, outside)
+    local b = { edges = {}, outside = outside and thickness or 0 }
+    local o = b.outside
+    local OUT = { TOPLEFT = { -o, o }, TOPRIGHT = { o, o }, BOTTOMLEFT = { -o, -o }, BOTTOMRIGHT = { o, -o } }
     local function edge(p1, p2, horizontal)
         local t = parent:CreateTexture(nil, "OVERLAY", nil, 7)
         t:SetColorTexture(1, 1, 1, 1)
-        t:SetPoint(p1, parent, p1, 0, 0)
-        t:SetPoint(p2, parent, p2, 0, 0)
+        t:SetPoint(p1, parent, p1, OUT[p1][1], OUT[p1][2])
+        t:SetPoint(p2, parent, p2, OUT[p2][1], OUT[p2][2])
         if horizontal then t:SetHeight(thickness) else t:SetWidth(thickness) end
         b.edges[#b.edges + 1] = t
     end
@@ -65,7 +71,10 @@ local function buildIcon(cfg)
     f.tex:SetAllPoints()
     f.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    f.border = makeBorder(f, 3)
+    -- Round the icon, not on it (0.35.256): the same 52 of picture inside a
+    -- 3 pixel edge as the buff button, so the two are one size, and the cast
+    -- bar along the bottom lies inside the edge on both.
+    f.border = makeBorder(f, ns.ICON_EDGE, nil, true)
     f.border.fill:Hide()  -- keep the spell icon clear
 
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")

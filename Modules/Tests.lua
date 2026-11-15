@@ -11737,3 +11737,32 @@ ns:Register("test", "dungeons: /flow dungeons says whether you have a run's ques
         t:ok(pcall(ns.commands.dungeons, "no such dungeon xyz"), "an unknown name is answered, not an error")
     end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.256: Flow's icon and the buff button are one size, edge round each.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy and buff buttons: the same size, the same edge round the picture, the cast bar inside it", function(t)
+    local icon, buff, BB = ns.rotation.icon, _G.FlowBuffButton, ns.buffButton
+    t:eq(ns.ICON_EDGE, 3, "one edge width for both")
+    if not icon then return end
+    t:eq(icon.border.outside, ns.ICON_EDGE, "Flow's edge goes round its picture, not over it")
+    local top = icon.border.edges[1]
+    local _, _, _, x, y = top:GetPoint(1)
+    t:ok(x == -ns.ICON_EDGE and y == ns.ICON_EDGE, "its top edge starts outside the picture's corner")
+    t:near(icon:GetWidth(), BB.SIZE, 0.01, "the two pictures are the same width")
+    t:near(icon:GetHeight(), BB.SIZE, 0.01, "and height")
+    t:ok(BB.DOCK_GAP >= 2 * ns.ICON_EDGE + 10, "docked: the gap holds both edges and the modifier names")
+    if buff then
+        t:near(buff:GetWidth(), icon:GetWidth(), 0.01, "the buff button's picture matches")
+    end
+    -- The cast bar lies along the bottom of the picture: inside the edge on both.
+    local CE = ns.castEdge
+    for _, parent in ipairs({ icon, buff }) do
+        local bar = parent and CE._bars[parent]
+        if bar then
+            local p, rel, rp, bx, by = bar:GetPoint(1)
+            t:ok(p == "BOTTOMLEFT" and rel == parent and rp == "BOTTOMLEFT" and bx == 0 and by == 0, "the cast bar starts at the picture's own bottom left")
+        end
+    end
+end)

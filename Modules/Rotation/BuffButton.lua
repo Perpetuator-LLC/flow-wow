@@ -543,7 +543,7 @@ BB.SIZE = 52
 -- block ("an option to join or dock buff to easy", 0.35.228). The buff
 -- button's icons hang from its top edge, the modifier names sit once
 -- between the two rows, and both spell names go below the lot.
-BB.DOCK_GAP = 14     -- between the two rows: room for the modifier names
+BB.DOCK_GAP = 17     -- between the two rows: room for the modifier names (and Flow's edge, round its icon since 0.35.256)
 -- (Docked unless you took it off: the default since 0.35.240.)
 function BB.DockWanted(saved) return saved ~= false end
 function BB.Docked() return BB.DockWanted(cfg().dock) and _G.FlowCastButton ~= nil end
@@ -622,7 +622,8 @@ local function build()
     -- (Placed at the end, once its texts exist: BB.Place.)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     local bg = btn:CreateTexture(nil, "BACKGROUND")
-    bg:SetPoint("TOPLEFT", -3, 3); bg:SetPoint("BOTTOMRIGHT", 3, -3)
+    local e = ns.ICON_EDGE or 3   -- (the same edge as round Flow's icon)
+    bg:SetPoint("TOPLEFT", -e, e); bg:SetPoint("BOTTOMRIGHT", e, -e)
     bg:SetColorTexture(0.1, 0.6, 1, 0.9)   -- blue edge: the buff button
     edge = bg
     tex = btn:CreateTexture(nil, "ARTWORK")
