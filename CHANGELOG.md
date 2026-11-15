@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.238
+- **Flow Banker, Auction prices: the two lines of words at the top no longer run into the
+  list.** The list began at a fixed height that left room for one line. It now starts under
+  the words, however many lines they take, with a gap; the window is a little taller for it.
+
 ## 0.35.237
 - **Docked, all four modifier names are there: SHIFT, CTRL, ALT, C+S.** The names between
   the two rows came from the buff button's own icons, and it only made an icon for a press

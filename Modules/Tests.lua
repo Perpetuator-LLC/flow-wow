@@ -11162,3 +11162,20 @@ ns:Register("test", "second key: docked, each press has its own column and all f
     t:ok(not K._dockNames[3]:IsShown(), "not docked: they are gone")
     K.DockNames(btn, (ns.buffButton.Docked and ns.buffButton.Docked()) and K.Active())
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.238: the Banker's lines start under its words, however many lines.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: the list starts under the words above it, with a gap, even when they take two lines", function(t)
+    local B = ns.banker
+    t:ok(B.NOTE_GAP >= 6, "a real gap under the words")
+    local f = _G.FlowBanker
+    if not (f and f.rows and f.note) then return end
+    local p, rel, rp, _, y = f.rows[1]:GetPoint(1)
+    t:ok(p == "TOPLEFT" and rel == f.note and rp == "BOTTOMLEFT", "the first line hangs from the bottom of the words, not from a fixed height")
+    t:near(y, -B.NOTE_GAP, 0.5, "that gap under them")
+    local _, rel2, _, _, y2 = f.rows[2]:GetPoint(1)
+    t:ok(rel2 == f.note, "the others too")
+    t:near(y2, -B.NOTE_GAP - 15, 0.5, "one line further down")
+end)

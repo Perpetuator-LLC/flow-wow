@@ -31,6 +31,7 @@ ns.banker = B
 
 B.MIN_STACKS = 4    -- a bank stop on the route is worth it from this many stacks
 B.ROWS = 14         -- lines in the window
+B.NOTE_GAP = 8      -- between the words at the top and the first line under them
 B.STEP = 0.25       -- seconds between two stacks going in
 
 -- The rules that mark something Flow keeps for later (Disposition.lua).
@@ -209,7 +210,7 @@ end
 -------------------------------------------------------------------------------
 local function build()
     local f = CreateFrame("Frame", "FlowBanker", UIParent)
-    f:SetSize(330, 110 + B.ROWS * 15)   -- (0.35.221: 14 more, so two lines of words fit above the grid)
+    f:SetSize(330, 124 + B.ROWS * 15)   -- (0.35.221: 14 more, so two lines of words fit above the grid)
     f:SetFrameStrata("DIALOG")
     f:SetPoint("LEFT", UIParent, "LEFT", 380, 60)
     f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -268,8 +269,11 @@ local function build()
     f.rows = {}
     for i = 1, B.ROWS do
         local r = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r:SetPoint("TOPLEFT", 10, -68 - (i - 1) * 15)
-        r:SetPoint("TOPRIGHT", -10, -68 - (i - 1) * 15)
+        -- Under the words above, however many lines they take (0.35.238: a
+        -- two-line note ran into the first row), with B.NOTE_GAP between.
+        local gap = -B.NOTE_GAP - (i - 1) * 15
+        r:SetPoint("TOPLEFT", f.note, "BOTTOMLEFT", 0, gap)
+        r:SetPoint("TOPRIGHT", f.note, "BOTTOMRIGHT", 0, gap)
         r:SetJustifyH("LEFT")
         r:SetWordWrap(false)
         f.rows[i] = r
