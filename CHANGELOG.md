@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.253
+- **Docked: the buff button has a size of its own.** Hold Ctrl and turn the mouse wheel over
+  the buff button and only it grows or shrinks; Flow's icon keeps its size, and the buff
+  button stays docked under it. Until you resize it, it's the size of Flow's icon. It still
+  can't be dragged while docked (it goes where Flow's icon goes), and the one "drag to move"
+  note stays under the pair.
+
 ## 0.35.252
 - **A herb you can't pick yet now puts gathering on your route.** In the Barrens with
   Herbalism 35, Mageroyal (50) was everywhere and out of reach, and Flow had planned nothing:

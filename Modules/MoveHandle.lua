@@ -32,6 +32,12 @@ end
 -- opts.onDone: called after each move or resize.
 -- opts.off: function, true while something else moves this button (the buff
 --   button docked under Flow's icon): then it has no handle of its own.
+-- opts.fixed: function, true while the button can't be dragged (docked: it
+--   goes where Flow's icon goes) but can still be resized with the wheel.
+-- opts.wheel: function(delta) that does the resize itself and returns true
+--   (docked: the size is kept apart and the button is put back in its dock).
+-- opts.quiet: function, true to leave this handle's own note out (docked:
+--   the one note under both buttons is Flow's).
 -- opts.noteUnder: function returning the frame the note goes under (the
 --   docked buff button: one note, under both), or nil for the button itself.
 -- Pure: does a handle show?
@@ -89,6 +95,9 @@ function ns:MoveHandle(target, opts)
             self.noteUnder = under
             self.text:ClearAllPoints()
             self.text:SetPoint("TOP", under, "BOTTOM", 0, -(ns.MOVE_NOTE_DROP))
+            local quiet = (opts.quiet and opts.quiet()) and true or false
+            self.text:SetShown(not quiet)
+            self.tab:SetShown(not quiet)
             self:Label()
             self:Show()
         elseif not self.moving then
@@ -122,6 +131,7 @@ function ns:MoveHandle(target, opts)
     -- Resize keeping the centre still on the screen.
     function h:ScaleBy(delta)
         if InCombatLockdown() then return end
+        if opts.wheel and opts.wheel(delta) then self:Label() return end
         local old = target:GetScale()
         local new = ns.ClampScale(old + (delta > 0 and ns.SCALE_STEP or -ns.SCALE_STEP))
         if new == old then return end
@@ -152,7 +162,7 @@ function ns:MoveHandle(target, opts)
         GameTooltip:Hide()
     end)
     h:SetScript("OnMouseDown", function(self)
-        if InCombatLockdown() or not ns.MoveKeyDown() then return end
+        if InCombatLockdown() or not ns.MoveKeyDown() or (opts.fixed and opts.fixed()) then return end
         target:StartMoving()
         self.moving = true
     end)

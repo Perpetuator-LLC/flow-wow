@@ -11462,7 +11462,7 @@ end)
 -- 0.35.247: docked, one "drag to move" note under both buttons.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "move handle: docked, the buff button has none and the one note goes under both", function(t)
+ns:Register("test", "move handle: docked, the one note goes under both buttons", function(t)
     t:ok(ns.HandleWanted(true, false, true, false), "Ctrl held, no fight, on screen: the handle shows")
     t:ok(not ns.HandleWanted(true, false, true, true), "moved by something else (docked): no handle of its own")
     t:ok(not ns.HandleWanted(false, false, true, false), "no Ctrl: none")
@@ -11483,7 +11483,7 @@ ns:Register("test", "move handle: docked, the buff button has none and the one n
     if hb and not InCombatLockdown() then
         with(BB, "Docked", function() return true end, function()
             t:ok(pcall(hb.Refresh, hb), "refresh runs")
-            t:ok(not hb:IsShown(), "docked: the buff button's handle stays hidden")
+            t:ok(not hb:IsShown(), "docked, no Ctrl held: no handle")
         end)
         pcall(hb.Refresh, hb)
     end
@@ -11656,4 +11656,36 @@ ns:Register("test", "professions: a herb here that's beyond you sets Herbalism's
             t:ok(h and not h.optional, "and it isn't optional")
         end
     end) end) end)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.253: docked, the buff button has a size of its own (Ctrl + wheel).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: docked, the wheel over the buff button resizes it alone", function(t)
+    local BB = ns.buffButton
+    t:eq(BB.DockScale(nil, 1.2), 1.2, "never resized: the size of Flow's icon")
+    t:eq(BB.DockScale(0.8, 1.2), 0.8, "resized: its own size, whatever Flow's is")
+    t:near(BB.DockScaleStep(1, 1), 1.1, 0.001, "a notch up: a tenth bigger")
+    t:near(BB.DockScaleStep(1, -1), 0.9, 0.001, "a notch down: a tenth smaller")
+    t:eq(BB.DockScaleStep(ns.SCALE_MAX, 1), ns.SCALE_MAX, "not past the biggest")
+    t:eq(BB.DockScaleStep(ns.SCALE_MIN, -1), ns.SCALE_MIN, "nor under the smallest")
+    local buff, main = _G.FlowBuffButton, _G.FlowCastButton
+    if not (buff and main and BB.handle) or InCombatLockdown() then return end
+    local cfg = ns.db.buffButton
+    local was = cfg.dockScale
+    with(BB, "Docked", function() return true end, function()
+        local mainScale, before = main:GetScale(), buff:GetScale()
+        local h = BB.handle
+        -- The wheel, as the handle hears it (Ctrl held is what shows the handle).
+        t:ok(pcall(h.ScaleBy, h, 1), "a notch over the docked button runs")
+        t:near(buff:GetScale(), ns.ClampScale(before + ns.SCALE_STEP), 0.001, "the buff button is a tenth bigger")
+        t:near(main:GetScale(), mainScale, 0.001, "Flow's icon keeps its size")
+        local p, rel = buff:GetPoint(1)
+        t:ok(p == "TOP" and rel == main, "and it's still docked under Flow's icon")
+        t:ok(pcall(h.ScaleBy, h, -1), "a notch back")
+        t:near(buff:GetScale(), before, 0.001, "as it was")
+    end)
+    cfg.dockScale = was
+    pcall(BB.Place)
 end)

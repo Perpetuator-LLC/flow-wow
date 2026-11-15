@@ -547,6 +547,27 @@ BB.DOCK_GAP = 14     -- between the two rows: room for the modifier names
 -- (Docked unless you took it off: the default since 0.35.240.)
 function BB.DockWanted(saved) return saved ~= false end
 function BB.Docked() return BB.DockWanted(cfg().dock) and _G.FlowCastButton ~= nil end
+-- Docked, it has a size of its own (0.35.253: "hover the buff button and
+-- scroll to resize it, independent of the easy button"): Ctrl + mouse wheel
+-- over it. Until you've set one it's the size of Flow's icon.
+-- Pure: saved: your docked size or nil; main: Flow's icon's size.
+function BB.DockScale(saved, main)
+    local s = tonumber(saved) or tonumber(main) or 1
+    return ns.ClampScale and ns.ClampScale(s) or s
+end
+-- Pure: the size one wheel notch gives (a tenth up or down, within the limits).
+function BB.DockScaleStep(now, delta)
+    local step = ns.SCALE_STEP or 0.1
+    local s = (tonumber(now) or 1) + (delta > 0 and step or -step)
+    return ns.ClampScale and ns.ClampScale(s) or s
+end
+-- One wheel notch over the docked button. true: done here.
+function BB.DockWheel(delta)
+    if not BB.Docked() or not btn or InCombatLockdown() then return false end
+    cfg().dockScale = BB.DockScaleStep(btn:GetScale(), delta)
+    BB.Place()
+    return true
+end
 -- Puts the button where it belongs: docked, where you left it, or (never
 -- moved) just left of the Flow button. Out of a fight only.
 function BB.Place()
@@ -556,7 +577,7 @@ function BB.Place()
     if label then label:ClearAllPoints() end
     if keyText then keyText:ClearAllPoints() end
     if BB.Docked() then
-        btn:SetScale(main:GetScale())
+        btn:SetScale(BB.DockScale(cfg().dockScale, main:GetScale()))
         btn:SetPoint("TOP", main, "BOTTOM", 0, -BB.DOCK_GAP)
         -- Docked: its name under it from its left edge, its key at its top
         -- right (Flow's own key is at Flow's bottom right: the two sit together
@@ -647,8 +668,10 @@ local function build()
         end
     end)
     -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
-    -- (Docked it goes where Flow's icon goes: no handle of its own, one note under both.)
-    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg, off = function() return BB.Docked() end }) end
+    -- (Docked it goes where Flow's icon goes: its handle resizes it but doesn't drag it, and the one note under both is Flow's.)
+    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg,
+        fixed = function() return BB.Docked() end, quiet = function() return BB.Docked() end,
+        wheel = function(delta) return BB.DockWheel(delta) end }) end
     btn:Hide()
 end
 
