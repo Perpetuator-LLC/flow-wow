@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.248
+- **Your threat on each enemy's nameplate.** In a fight, in a group (or with a pet out), a
+  small number at the right of each enemy's nameplate: your threat as a share of whoever it's
+  attacking. Its colour says where you stand. Tanking (a bear, or a role of Tank): green it's
+  on you, orange it's on you but someone has more threat (you're losing it), yellow nearly
+  yours, red it's on someone else. Otherwise: grey fine, yellow you're about to take it, red
+  it's on you. While it's on you, the number shows who's closest behind ("100% · Beryl 85%").
+  Enemy nameplates must be on (V). Flow Settings, On your screen; or `/flow threat on|off`.
+  If the game hides threat numbers in a fight, the number is white and Flow can't say more.
+
 ## 0.35.247
 - **Docked: one "drag to move · wheel to resize" note, under both buttons.** Holding Ctrl
   showed it twice, once under Flow's icon and once under the buff button. Docked, the buff

@@ -11489,3 +11489,42 @@ ns:Register("test", "move handle: docked, the buff button has none and the one n
     end
     if C.handle then t:ok(pcall(C.handle.Refresh, C.handle), "Flow's handle refreshes") end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.248: your threat on each enemy's nameplate.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "threat on nameplates: the number and where you stand", function(t)
+    local P = ns.plateThreat
+    -- Tanking: holding it is good, someone passing you is the warning.
+    t:eq(P.State(3, true), "safe", "tank, it's on you: safe")
+    t:eq(P.State(2, true), "losing", "tank, on you but someone has more threat: losing it")
+    t:eq(P.State(1, true), "pulling", "tank, not on you but you have more: nearly yours")
+    t:eq(P.State(0, true), "lost", "tank, not on you: lost")
+    -- Anyone else: it being on you is the warning.
+    t:eq(P.State(3, false), "danger", "not a tank, it's on you: danger")
+    t:eq(P.State(2, false), "danger", "the same while it still is")
+    t:eq(P.State(1, false), "pulling", "more threat than the tank: about to take it")
+    t:eq(P.State(0, false), "low", "under the tank: fine")
+    t:eq(P.State(nil, true), "hidden", "the game hides it: Flow doesn't guess")
+    for _, s in ipairs({ "safe", "losing", "pulling", "lost", "danger", "low", "hidden" }) do
+        t:ok(type(P.COLORS[s]) == "table" and #P.COLORS[s] == 3, s .. " has a colour")
+    end
+    t:ok(P.COLORS.safe[2] > P.COLORS.safe[1] and P.COLORS.lost[1] > P.COLORS.lost[2], "safe is green, lost is red")
+    t:eq(P.Text(84.6), "85%", "your share, whole")
+    t:eq(P.Text(100, { name = "Beryl", pct = 85.2 }), "100% · Beryl 85%", "on you: who's closest behind")
+    t:eq(P.Text(nil), "", "nothing to show")
+    local c = P.Closest({ { name = "A", pct = 40 }, { name = "B", pct = 85 }, { name = "C" } })
+    t:eq(c and c.name, "B", "the closest behind is the highest of the others (a hidden one is passed over)")
+    t:eq(P.Closest({}), nil, "nobody else on its list: nobody")
+    -- The switch, by a click on its settings box and by /flow threat.
+    local was = ns.db.plateThreat.off
+    t:ok(pcall(P.Set, false), "turning it off runs"); t:eq(P.On(), false, "off")
+    t:ok(pcall(P.Set, true), "and on"); t:eq(P.On(), true, "on")
+    ns.db.plateThreat.off = was
+    t:ok(type(ns.commands.threat) == "function", "/flow threat")
+    t:ok(pcall(P.UpdateAll), "looking at the nameplates in view runs")
+    local ok, lines = pcall(P.Lines)
+    t:ok(ok and #lines >= 2, "the diagnostics lines build")
+    t:ok(type(P.Wanted()) == "boolean" and type(P.Tanking()) == "boolean", "wanted and tanking are yes or no")
+end)

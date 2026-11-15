@@ -257,6 +257,10 @@ Flow for WoW is a separate project from Flow Engine.
   buffs, cast straight on whoever is missing one).
 - **Flow Meters**: in a group and at training dummies, two small lists: threat on your
   target and damage per second (the top two and you), from the game's own counts.
+- **Your threat on enemy nameplates**: in a group, in a fight, a small number at the right of
+  each enemy's nameplate: your threat as a share of whoever it's attacking, coloured by where
+  you stand (tanking: green yours, orange losing it, red lost; otherwise red means it's on
+  you). `/flow threat on|off`.
 - **Flow Auctions**: at the auction house, what Flow would post and at what price; one click
   posts each. What keeps coming back unsold becomes a vendor item.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for

@@ -99,6 +99,7 @@ function D:Snapshot(reason, spread)
         { "auctions", function() if c.auctions then c.auctions("") end end },
         { "second key", function() if c.carekeys then c.carekeys("") end end },
         { "meters", function() if c.meters then c.meters("") end end },
+        { "threat", function() if c.threat then c.threat("") end end },
         { "quest marks", function() if c.quest then c.quest("") end end },
         -- (Your quests, skills and the route, for tools\route-check.ps1.)
         { "export", function() if c.export then c.export("dump") end end },
