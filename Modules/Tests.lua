@@ -10725,7 +10725,7 @@ ns:Register("test", "click: the icons beside the Flow icon and the auto-attack b
                 t:ok(pcall(function() b:GetScript("OnEnter")(b); b:GetScript("OnLeave")(b) end), "hovering the " .. slot .. " icon runs")
             end
         end
-        t:ok(S.swing ~= nil and (S.swing.spell == nil or S.swing:GetAttribute("spell") == S.swing.spell), "the badge's button casts the attack spell")
+        t:ok(S.swing ~= nil, "the badge has its button")
     end
     t:ok(type(S.Lines()) == "table", "it can say what each is set to")
     t:ok(issecurevariable("SecureActionButton_OnClick") ~= false, "the game's own click handler stays untainted")
@@ -10802,4 +10802,34 @@ ns:Register("test", "improvements: the spyglass button starts on the minimap's r
             t:ok(rel == _G.Minimap, "never moved: on the minimap")
         end
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.230: any opening press starts auto attack; the badge toggles it by
+-- the bar slot where Attack is on a bar.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: opening with a modifier press starts auto attack too", function(t)
+    local C = ns.cast
+    t:ok(C.ModsStartAttack("STARTATTACK"), "while the key is Start Attack, its modifier presses are too")
+    t:ok(not C.ModsStartAttack("INTERACTTARGET"), "Interact stays the plain key's alone")
+    t:ok(not C.ModsStartAttack("SITORSTAND"), "so does Sit")
+    t:ok(not C.ModsStartAttack(nil), "no command: the modifiers cast their own spells")
+    t:eq(C.KeyCommandFor({ spell = "Attack", engage = true }, true), "STARTATTACK", "the pull's first press is the game's Start Attack")
+end)
+
+ns:Register("test", "auto-attack badge: a click toggles your swing by the bar slot, else by the spell", function(t)
+    local S = ns.clickSlots
+    local bars = { [3] = { "spell", 100 }, [14] = { "spell", 6603 }, [20] = { "item", 5 } }
+    local slot = S.AttackSlot(function(s) return bars[s] ~= nil end, function(s) return bars[s][1], bars[s][2] end,
+        function(id) return id == 6603 and "Attack" or "Wrath" end)
+    t:eq(slot, 14, "Attack found on your bars")
+    t:eq(S.AttackSlot(function() return false end, function() end, function() end), nil, "not on a bar: none")
+    local kind, value = S.AttackVia(14, "Attack")
+    t:ok(kind == "action" and value == 14, "on a bar: the click presses that bar slot")
+    kind, value = S.AttackVia(nil, "Attack")
+    t:ok(kind == "spell" and value == "Attack", "not on a bar: the spell")
+    t:eq(S.AttackVia(nil, nil), nil, "no attack spell known: nothing")
+    t:ok(pcall(S.AttackSlot), "your own bars are read without error")
+    if S.swing then t:ok(S.swing.set ~= nil, "the badge's button says how it's set: " .. tostring(S.swing.set)) end
 end)

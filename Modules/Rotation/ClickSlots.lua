@@ -50,6 +50,35 @@ function S.AttackSpell()
     return nil
 end
 
+-- Where Attack sits on your action bars (a slot number), or nil. A bar slot
+-- is the surest way for a click to toggle your swing: it's what clicking
+-- the game's own Attack button does. (0.35.230: "clicking the auto-attack
+-- button clicks, but it does not toggle auto-attack": cast as a spell, the
+-- click did nothing here.)
+function S.AttackSlot(hasAction, actionInfo, spellName)
+    hasAction = hasAction or HasAction
+    actionInfo = actionInfo or GetActionInfo
+    spellName = spellName or function(id) return A.SpellInfo(id) end
+    if not (hasAction and actionInfo) then return nil end
+    for slot = 1, 120 do
+        if hasAction(slot) then
+            local kind, id = actionInfo(slot)
+            if kind == "spell" and id then
+                local name = spellName(id)
+                if name == "Attack" or name == "Auto Attack" then return slot end
+            end
+        end
+    end
+    return nil
+end
+-- Pure: how the badge's button toggles your swing: the bar slot when Attack
+-- is on a bar, else the spell. -> kind ("action" | "spell"), value.
+function S.AttackVia(slot, spell)
+    if slot then return "action", slot end
+    if spell then return "spell", spell end
+    return nil
+end
+
 local function order() return (ns.queue and ns.queue.ORDER) or { "shift", "ctrl", "alt", "more" } end
 
 local function build(btn, icon)
@@ -93,6 +122,16 @@ local function build(btn, icon)
         if fn then pcall(fn, icon.swing) end
     end)
     w:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- What a click did, for the log (the first few a session): how it's set,
+    -- and whether your swing changed.
+    w:HookScript("PostClick", function(self)
+        S.swingClicks = (S.swingClicks or 0) + 1
+        if S.swingClicks > 5 or not C_Timer then return end
+        local before = A.Swinging() and true or false
+        C_Timer.After(0.4, function()
+            ns:Log("cast", string.format("auto-attack badge clicked (set as %s): swinging %s -> %s", tostring(self.set), tostring(before), tostring(A.Swinging() and true or false)))
+        end)
+    end)
     w:Hide()
     S.swing = w
     S.built = true
@@ -138,10 +177,15 @@ function S.Sync(fight)
     local w = S.swing
     local spell = S.AttackSpell()
     if w then
-        if spell ~= w.spell then
-            w.spell = spell
-            w:SetAttribute("type", spell and "spell" or nil)
-            w:SetAttribute("spell", spell)
+        local okS, slot = pcall(S.AttackSlot)
+        local kind, value = S.AttackVia(okS and slot or nil, spell)
+        local set = tostring(kind) .. ":" .. tostring(value)
+        if set ~= w.set then
+            w.set, w.spell, w.via = set, spell, kind
+            w:SetAttribute("spell", nil)
+            w:SetAttribute("action", nil)
+            w:SetAttribute("type", kind)
+            if kind then w:SetAttribute(kind, value) end
         end
         if w:GetFrameLevel() ~= level then w:SetFrameLevel(level) end
         local want = S.Wanted(on, spell ~= nil, fight or (icon.swing ~= nil and icon.swing:IsShown()))
@@ -169,7 +213,7 @@ function S.Lines()
         local b = S.buttons[slot]
         if b then out[#out + 1] = string.format("    %s icon: %s%s", slot, b.text ~= "" and b.text or "nothing", b:IsShown() and "" or " (hidden)") end
     end
-    if S.swing then out[#out + 1] = "    auto-attack badge: " .. tostring(S.swing.spell) .. (S.swing:IsShown() and "" or " (hidden)") end
+    if S.swing then out[#out + 1] = "    auto-attack badge: " .. tostring(S.swing.set) .. (S.swing:IsShown() and "" or " (hidden)") end
     return out
 end
 

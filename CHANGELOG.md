@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.230
+- **Auto attack starts whichever press you open with.** Flow already made the first press of
+  your key at a new enemy the game's Start Attack (your opener comes with the next press),
+  but only the plain key: opening with Shift, Ctrl, Alt or Ctrl + Shift + key cast its
+  spell and never started your swing. While that first press is pending, every one of the
+  key's presses is Start Attack now.
+- **The auto-attack badge:** a click did nothing. If Attack is on one of your action bars,
+  the badge now presses that bar slot, which is what the game's own Attack button does; if
+  it isn't, it still tries the Attack spell. Each click writes to the log how the badge is
+  set and whether your swing changed. If the click still does nothing, put Attack from your
+  spellbook on any action bar slot.
+- Once a fight is on, Flow can't turn auto attack on from the key: the game allows no key
+  to change mid-fight. The badge is for that.
+
 ## 0.35.229
 - **The spyglass starts on the minimap.** The round Flow Improvements button used to start
   in the middle of the screen; if you've never moved it, it now sits on the minimap's rim,

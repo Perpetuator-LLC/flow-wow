@@ -590,13 +590,26 @@ function C:ApplyKey()
         if keyCommand then SetOverrideBinding(owner, true, key, keyCommand)
         else SetOverrideBindingClick(owner, true, key, "FlowCastButton", "LeftButton") end
         -- The queue: a modifier is bound while its slot has something on it.
+        -- While the key is the game's Start Attack (the first press at a new
+        -- enemy: Engine EngageStep), every modifier press is Start Attack too:
+        -- "when I engage with a spell I expect auto attack to go on right
+        -- then" (0.35.230: opening with Shift + key cast Moonfire and never
+        -- started the swing; only the plain key did).
         for _, slot in ipairs(C.SLOTS) do
-            local modKey = slotText[slot] and C.SlotKey(key, slot)
-            if modKey then SetOverrideBindingClick(owner, true, modKey, "FlowCastButton", SLOT_BUTTON[slot]) end
+            local modKey = C.SlotKey(key, slot)
+            if modKey and C.ModsStartAttack(keyCommand) then
+                SetOverrideBinding(owner, true, modKey, keyCommand)
+            elseif modKey and slotText[slot] then
+                SetOverrideBindingClick(owner, true, modKey, "FlowCastButton", SLOT_BUTTON[slot])
+            end
         end
     end
     refreshLabels()
 end
+
+-- Pure: do the modifier presses run the key's command too? Only for Start
+-- Attack (Interact and Sit stay the plain key's alone).
+function C.ModsStartAttack(cmd) return cmd == "STARTATTACK" end
 
 -- Key = a game command (Interact, Start Attack) or back to Flow's button.
 -- Only out of combat (the fight lock sets it just before the lockdown).
