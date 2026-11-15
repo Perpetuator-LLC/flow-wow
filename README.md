@@ -138,7 +138,8 @@ Flow for WoW is a separate project from Flow Engine.
   lead-in quests go on the route (plus any breadcrumb whose giver is next to one of those
   steps), then the entrance; inside, the route shows only that dungeon's quests. Wings are
   told apart by their bosses. In a group, "Share quests" shares the run quests party members
-  lack.
+  lack. `/flow dungeons` lists the runs with each quest and what you still have to pick up;
+  `/flow dungeons <name>` prepares one, `/flow dungeons off` cancels it.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.

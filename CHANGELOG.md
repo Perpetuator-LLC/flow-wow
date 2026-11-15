@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.255
+- **`/flow dungeons`: the dungeon runs at your level as a checklist.** Each run with its quests
+  (who gives each, and where), and one line that says whether you have them all: "You have 2
+  of 5: 3 still to pick up before you go in." `/flow dungeons wailing` prepares that run: its
+  quests to pick up go on your route, then the entrance. `/flow dungeons off` cancels it. All
+  of this was already in the arrow's right-click menu (Dungeons); now it can be read at a
+  glance, and it's in the diagnostics.
+
 ## 0.35.254
 - **Suggested game setting: health and mana numbers on your and your target's frames.** A new
   row under "Suggested WoW settings" (Flow Settings, and `/flow setup`), ticked by "Flow

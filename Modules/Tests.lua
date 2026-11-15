@@ -11713,3 +11713,27 @@ ns:Register("test", "setup: health and mana numbers on the frames is a suggested
     t:ok(row ~= nil and row.suggested == true, "the row is there, and Flow suggests it")
     t:ok(pcall(row.available) and pcall(row.isOn) and pcall(row.default), "its questions to the game run")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.255: /flow dungeons: the runs at your level as a checklist.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "dungeons: /flow dungeons says whether you have a run's quests, and picks a run by name", function(t)
+    local D = ns.dungeons
+    t:eq(D.HaveLine({ ready = { 1, 2 }, pickups = { 3 }, leadIns = { 4, 5 }, inside = {} }),
+        "You have 2 of 5: 3 still to pick up before you go in.", "some still to get")
+    t:eq(D.HaveLine({ ready = { 1, 2, 3 }, pickups = {}, leadIns = {}, inside = { 9 } }),
+        "You have all 3 of its quests you can get outside: ready to go. 1 more starts inside.", "all of them, and one inside")
+    t:eq(D.HaveLine({ ready = {}, pickups = {}, leadIns = {}, inside = {} }), "Nothing to pick up outside.", "none outside")
+    local runs = { { name = "Ragefire Chasm", key = "a" }, { name = "Wailing Caverns", key = "b" } }
+    t:eq(D.Find(runs, "wailing").key, "b", "a part of the name, any case")
+    t:eq(D.Find(runs, "  RAGE ").key, "a", "spaces and capitals don't matter")
+    t:eq(D.Find(runs, "deadmines"), nil, "not at your level: none")
+    t:eq(D.Find(runs, ""), nil, "nothing typed: none")
+    local ok, lines = pcall(D.Lines)
+    t:ok(ok and type(lines) == "table" and #lines >= 1, "the list builds" .. (ok and "" or (": " .. tostring(lines))))
+    t:ok(type(ns.commands.dungeons) == "function", "/flow dungeons")
+    with(ns, "Print", function() end, function()
+        t:ok(pcall(ns.commands.dungeons, "no such dungeon xyz"), "an unknown name is answered, not an error")
+    end)
+end)

@@ -1457,6 +1457,68 @@ function D.Summary(run, solo, info)
 end
 
 -------------------------------------------------------------------------------
+-- /flow dungeons: the runs at your level as a checklist (0.35.255)
+-------------------------------------------------------------------------------
+-- "I want to know just the dungeons for my level, or the one I want to run;
+-- collect those quests; then I know if I have all the quests before I start."
+-- All of that was in the arrow's right-click menu only. /flow dungeons lists
+-- each run with its quests and what you still have to pick up;
+-- /flow dungeons <name> prepares that run (its pickups go on the route, then
+-- the entrance); /flow dungeons off cancels it. Also in the diagnostics.
+
+-- Pure: "do I have them all?" for one run.
+function D.HaveLine(run)
+    local have = #(run.ready or {})
+    local get = #(run.pickups or {}) + #(run.leadIns or {})
+    local inside = #(run.inside or {})
+    local tail = inside > 0 and string.format(" %d more start%s inside.", inside, inside == 1 and "s" or "") or ""
+    if get == 0 and have == 0 then return "Nothing to pick up outside." .. tail end
+    if get == 0 then return string.format("You have all %d of its quests you can get outside: ready to go.%s", have, tail) end
+    return string.format("You have %d of %d: %d still to pick up before you go in.%s", have, have + get, get, tail)
+end
+-- Pure: the run a typed name means (a part of its name, any case), or nil.
+function D.Find(list, text)
+    text = (text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if text == "" then return nil end
+    for _, run in ipairs(list or {}) do
+        if (run.name or ""):lower():find(text, 1, true) then return run end
+    end
+    return nil
+end
+function D.Lines()
+    if not D:Available() then return { "dungeon runs: Questie isn't loaded (Flow reads the dungeon quests from it)" } end
+    local list = D:Runs()
+    if not list then return { "dungeon runs: still reading Questie's dungeons; ask again in a moment" } end
+    if #list == 0 then return { "dungeon runs: no dungeon quests at your level" } end
+    local out = { string.format("dungeon runs at your level: %d (/flow dungeons <name> prepares one, /flow dungeons off cancels)", #list) }
+    local prepared = D:Prepared()
+    for i, run in ipairs(list) do
+        if i > 6 then break end
+        out[#out + 1] = string.format("%s%s: %d quest%s", prepared == run.key and "* " or "", run.name, run.count, run.count == 1 and "" or "s")
+        out[#out + 1] = "  " .. D.HaveLine(run)
+        local ok, lines = pcall(D.QuestLines, run, D.QuestInfo)
+        for _, l in ipairs(ok and lines or {}) do out[#out + 1] = "    " .. l end
+    end
+    return out
+end
+ns.commands.dungeons = function(arg)
+    arg = arg or ""
+    if arg:lower() == "off" then
+        D:Cancel()
+        ns:Print("dungeon run cancelled: back to your usual route")
+        return
+    end
+    if arg ~= "" then
+        local run = D.Find(D:Runs(), arg)
+        if not run then ns:Print("no dungeon run at your level called \"" .. arg .. "\" (/flow dungeons lists them)") return end
+        D:Prepare(run.key)
+        ns:Print(run.name .. " prepared: its quests to pick up are on your route, then the entrance. " .. D.HaveLine(run))
+        return
+    end
+    for i, l in ipairs(D.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
+end
+
+-------------------------------------------------------------------------------
 -- The arrow menu's "Dungeons" section
 -------------------------------------------------------------------------------
 
