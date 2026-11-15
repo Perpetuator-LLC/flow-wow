@@ -104,6 +104,37 @@ cvarRow("lowHealthFlash", 53, "Low-health screen warning",
 
 -- Target of target: classic-style clients have a CVar; newer ones put it in Edit Mode
 -- (Target Frame > "Target of Target"), so that case is an info row telling you where.
+-- Health and mana as numbers on your own and your target's frames (0.35.254:
+-- "a Flow recommended default should be to keep the health and mana numbers
+-- on target frames and player frames"). Two of the game's settings between
+-- them, depending on the client: statusText (on or off) and
+-- statusTextDisplay (NONE, NUMERIC, PERCENT, BOTH). Pure:
+--   is it on, going by whichever of the two this client has?
+function S.StatusTextOn(statusText, display)
+    if statusText == nil and display == nil then return false end
+    if statusText ~= nil and statusText ~= "1" then return false end
+    if display ~= nil and display == "NONE" then return false end
+    return true
+end
+--   what to set: { statusText, statusTextDisplay }. On keeps the way of
+--   showing you already chose (percent, both); numbers when there was none.
+function S.StatusTextSet(on, display)
+    if not on then return "0", "NONE" end
+    return "1", (display ~= nil and display ~= "NONE") and display or "NUMERIC"
+end
+ns:Register("setupItem", "statusText", {
+    order = 54, label = "Health and mana numbers on your and your target's frames",
+    why = "The numbers written on the health and mana bars of your own frame and your target's, so you can read how much is left and not only see the bar. (If they don't show at once, /reload.)",
+    available = function() return cvar("statusText") ~= nil or cvar("statusTextDisplay") ~= nil end,
+    isOn = function() return S.StatusTextOn(cvar("statusText"), cvar("statusTextDisplay")) end,
+    set = function(on)
+        local text, display = S.StatusTextSet(on, cvar("statusTextDisplay"))
+        if cvar("statusText") ~= nil then SetCVar("statusText", text) end
+        if cvar("statusTextDisplay") ~= nil then SetCVar("statusTextDisplay", display) end
+    end,
+    suggested = true, isNew = true,
+    default = function() return S.StatusTextOn(cvarDefault("statusText"), cvarDefault("statusTextDisplay")) end,
+})
 ns:Register("setupItem", "targetOfTarget", {
     order = 55, label = "Target of target",
     why = "Shows who your target is attacking, so you see when a mob turns on you or a party member.",

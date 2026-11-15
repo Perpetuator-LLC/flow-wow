@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.254
+- **Suggested game setting: health and mana numbers on your and your target's frames.** A new
+  row under "Suggested WoW settings" (Flow Settings, and `/flow setup`), ticked by "Flow
+  suggests": the numbers written on the bars, so you read how much is left. If you already
+  show percent or both, that's kept. Flow doesn't change it by itself: tick it and Apply.
+
 ## 0.35.253
 - **Docked: the buff button has a size of its own.** Hold Ctrl and turn the mouse wheel over
   the buff button and only it grows or shrinks; Flow's icon keeps its size, and the buff

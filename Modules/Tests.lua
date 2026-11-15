@@ -11689,3 +11689,27 @@ ns:Register("test", "click: docked, the wheel over the buff button resizes it al
     cfg.dockScale = was
     pcall(BB.Place)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.254: suggested: health and mana numbers on your and your target's frames.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "setup: health and mana numbers on the frames is a suggested game setting", function(t)
+    local S = ns.setup
+    t:eq(S.StatusTextOn("1", "NUMERIC"), true, "on, as numbers")
+    t:eq(S.StatusTextOn("1", "BOTH"), true, "on, numbers and percent")
+    t:eq(S.StatusTextOn("0", "NUMERIC"), false, "switched off")
+    t:eq(S.StatusTextOn("1", "NONE"), false, "on, but showing nothing")
+    t:eq(S.StatusTextOn(nil, "PERCENT"), true, "a client with only the display setting")
+    t:eq(S.StatusTextOn("1", nil), true, "a client with only the switch")
+    t:eq(S.StatusTextOn(nil, nil), false, "a client with neither")
+    local text, display = S.StatusTextSet(true, "NONE")
+    t:ok(text == "1" and display == "NUMERIC", "turning it on from nothing: numbers")
+    text, display = S.StatusTextSet(true, "PERCENT")
+    t:ok(text == "1" and display == "PERCENT", "turning it on keeps the way you chose")
+    text, display = S.StatusTextSet(false, "BOTH")
+    t:ok(text == "0" and display == "NONE", "turning it off")
+    local row = ns:Get("setupItem", "statusText")
+    t:ok(row ~= nil and row.suggested == true, "the row is there, and Flow suggests it")
+    t:ok(pcall(row.available) and pcall(row.isOn) and pcall(row.default), "its questions to the game run")
+end)
