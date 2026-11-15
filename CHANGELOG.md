@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.246
+- **"A more powerful spell is already active": Flow moves on.** When someone already has a
+  stronger buff than yours (a higher rank, or one Flow can't see), the game refuses your cast,
+  and Flow kept offering it. Now that refusal is remembered for that person and spell: your
+  next buff for them, or the next person, comes up at once. Flow asks again after 5 minutes,
+  in case the stronger one has run out.
+
 ## 0.35.245
 - **The world map shows the way to a stop in another zone.** With your next stop on another map
   than you, there was no line at all. Now the dotted line (with its dots walking the way you

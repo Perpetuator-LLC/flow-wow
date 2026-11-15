@@ -11425,3 +11425,35 @@ ns:Register("test", "map: the way to a stop in another zone is drawn to the map'
     t:ok(not M.CrossesEdge(0.3, 0.4) and not M.CrossesEdge(nil, nil), "both on it (the usual line) or neither: not this")
     t:ok(pcall(M.Redraw, M), "the map still draws")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.246: "a more powerful spell is already active": the next buff comes up.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buffs for others: one the game refuses as weaker is skipped, the next comes up", function(t)
+    local E = ns.rotation
+    t:ok(E.IsBounce("A more powerful spell is already active", nil), "the game's words")
+    t:ok(E.IsBounce("Ein mächtigerer Zauber ist bereits aktiv", "Ein mächtigerer Zauber ist bereits aktiv"), "or its own text in another language")
+    t:ok(not E.IsBounce("Out of range.", "A more powerful spell is already active"), "another error: no")
+    t:ok(not E.IsBounce(nil, nil), "nothing: no")
+    local store = {}
+    t:ok(not E.NoteBounce({ spell = "Mark of the Wild", unit = "player" }, 100, store), "a buff on you: not this")
+    t:ok(not E.NoteBounce(nil, 100, store), "nothing offered: nothing noted")
+    t:ok(E.NoteBounce({ spell = "Mark of the Wild", unit = "party1", guid = "G1", target = "Tank" }, 100, store), "a buff on someone else: noted")
+    t:ok(E.NoteBounce({ spell = "Thorns", unit = "target", target = "Bob" }, 100, store), "their ID hidden: by name")
+    t:ok(E.Bounced({ guid = "G1" }, "Mark of the Wild", 130, store), "that person, that spell: refused")
+    t:ok(E.Bounced({ name = "Bob" }, "Thorns", 130, store), "by name too")
+    t:ok(not E.Bounced({ guid = "G1" }, "Thorns", 130, store), "another spell for them: still offered")
+    t:ok(not E.Bounced({ guid = "G2" }, "Mark of the Wild", 130, store), "someone else: still offered")
+    t:ok(not E.Bounced({ guid = "G1" }, "Mark of the Wild", 100 + E.BOUNCE_SECONDS + 1, store), "asked again later: the stronger one runs out")
+    -- And it counts as covered, so the friend step moves on to the next buff.
+    with(E, "bounced", { G1 = { ["Mark of the Wild"] = 100 } }, function()
+        local u = { unit = "party1", guid = "G1", name = "Tank" }
+        t:ok(E.GroupCovered(u, { spell = "Mark of the Wild" }, 130, function() return false, 0 end), "covered, though it isn't among their buffs")
+        t:ok(not E.GroupCovered(u, { spell = "Thorns" }, 130, function() return false, 0 end), "Thorns isn't")
+        local pick = E.FriendStep({ hurt = false }, {
+            { spell = "Mark of the Wild", covered = E.GroupCovered(u, { spell = "Mark of the Wild" }, 130, function() return false, 0 end) },
+            { spell = "Thorns", covered = false } }, nil, true, true)
+        t:eq(pick and pick.spell, "Thorns", "the next buff comes up")
+    end)
+end)

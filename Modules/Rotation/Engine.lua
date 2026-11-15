@@ -1064,9 +1064,41 @@ end
 -- guid -> { [spell] = when you cast it on them } (from the easy button).
 E.buffMemory = {}
 
+-- "A more powerful spell is already active" (0.35.246): someone has a
+-- stronger buff than yours, of a kind Flow can't tell from their buffs (a
+-- higher rank, another class's, or their buffs are hidden). Flow kept
+-- offering yours. Now the game's refusal is remembered for that person and
+-- spell, and the next buff (or person) comes up. Asked again after a while:
+-- the stronger one runs out.
+E.BOUNCE_SECONDS = 300
+E.bounced = {}   -- [their guid, or name] = { [spell] = when the game refused it }
+-- Pure: is this the game's "a more powerful spell is already active"?
+function E.IsBounce(msg, want)
+    if type(msg) ~= "string" then return false end
+    return (want ~= nil and msg == want) or msg:lower():find("more powerful spell", 1, true) ~= nil
+end
+-- Pure: the step refused was a buff or heal over time on someone else: note it.
+function E.NoteBounce(s, now, store)
+    if not (s and s.spell and s.unit and s.unit ~= "player") then return false end
+    local who = s.guid or s.target
+    if not who then return false end
+    store[who] = store[who] or {}
+    store[who][s.spell] = now
+    return true
+end
+function E.Bounced(u, spell, now, store)
+    store = store or E.bounced
+    local who = u and (u.guid or u.name)
+    local at = who and store[who] and store[who][spell]
+    return at ~= nil and (now - at) < E.BOUNCE_SECONDS
+end
+
 -- Has this person got it, with more than `rebuff` seconds left?
 --   read(unit, names) -> up, left (or nil: unknown); defaults to the game.
 function E.GroupCovered(u, rule, now, read)
+    -- The game refused it a moment ago ("A more powerful spell is already
+    -- active"): they're covered, by something stronger than yours.
+    if E.Bounced(u, rule.spell, now) then return true end
     local names = {}
     for _, n in ipairs(rule.aura or { rule.spell }) do names[n] = true end
     local up, left = (read or auraOn)(u.unit, names)
@@ -1106,6 +1138,7 @@ function E:GroupWhy(ctx, def)
             local state
             if not self:Knows(rule.spell) then state = "you don't know it"
             elseif not rule.who(u) then state = "not for them"
+            elseif E.Bounced(u, rule.spell, now) then state = "has a more powerful one (the game refused yours)"
             elseif E.GroupCovered(u, rule, now) then state = "has it"
             elseif not self:Ready(rule.spell, u.unit) then state = "missing, can't cast now (range, mana or sight)"
             else state = "MISSING: Flow's key gives it" end
@@ -1365,6 +1398,16 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellId)
     end
 end)
 ns:On("GROUP_ROSTER_UPDATE", function() groupCache = nil end)
+ns:On("UI_ERROR_MESSAGE", function(_, msg)
+    if not E.IsBounce(A.Safe(msg), _G.SPELL_FAILED_AURA_BOUNCED) then return end
+    local s = E.current
+    if E.NoteBounce(s, GetTime(), E.bounced) then
+        groupCache = nil
+        E.ClearFriendCache()
+        ns:Log("group", string.format("%s on %s: the game says a more powerful spell is active; not offered again for %d min",
+            tostring(s.spell), tostring(s.target), E.BOUNCE_SECONDS / 60))
+    end
+end)
 
 -- Diagnostics for /flow rot why: why each rule is or isn't suggested.
 function E:Explain()
