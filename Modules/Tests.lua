@@ -2043,6 +2043,12 @@ ns:Register("test", "click: Ctrl + drag moves and Ctrl + wheel resizes the Flow 
     local ok, err = pcall(h:GetScript("OnMouseWheel"), h, 1)
     t:ok(ok, "the wheel runs" .. (ok and "" or (": " .. tostring(err))))
     if not ns.MoveKeyDown() then t:eq(f:GetScale(), 1, "no Ctrl: the wheel leaves the size alone") end
+    -- (Ctrl held while the tests run, as when you're pressing Ctrl + key: the
+    -- wheel just resized it. Back to normal size for what follows, 0.35.227.)
+    if ns.MoveKeyDown() then
+        f.save = {}
+        ns.RestorePlace(f, { point = { "CENTER", "CENTER", 100, 50 } })
+    end
     t:ok(not h.moving, "no Shift: a press doesn't start a move")
     if InCombatLockdown() then
         t:ok(true, "(in a fight: resizing is off)")
@@ -2967,7 +2973,7 @@ ns:Register("test", "click: every route menu entry is well formed", function(t)
     local items = ns.menu:RouteItems()
     t:ok(#items > 3, "route list has its entries")
     for i, it in ipairs(items) do
-        local good = it.sep or it.title or (type(it.text) == "string" and (it.func == nil or type(it.func) == "function"))
+        local good = it.sep or it.rule or it.title or (type(it.text) == "string" and (it.func == nil or type(it.func) == "function"))
         t:ok(good, "entry " .. i .. " (" .. tostring(it.text) .. ")")
     end
 end)
@@ -4485,8 +4491,9 @@ ns:Register("test", "queue: four things on one key (Ctrl, Shift, Alt)", function
     -- A friendly target and a heal or buff on the key: Ctrl casts it on them.
     local buff = { spell = "Mark of the Wild", kind = "buff" }
     q = Q.Slots(buff, { friend = true, ctrlSpell = "Moonfire" })
-    t:eq(q.ctrl.spell .. "@" .. tostring(q.ctrl.unit), "Mark of the Wild@target", "friend targeted: the same buff on them")
-    t:eq(Q.Slots(buff, { ctrlSpell = "Moonfire" }).ctrl.spell, "Moonfire", "no friend targeted: the second attack")
+    -- (With no heal on Shift, the nearest icon is Shift's: 0.35.227.)
+    t:eq(q.shift.spell .. "@" .. tostring(q.shift.unit), "Mark of the Wild@target", "friend targeted: the same buff on them")
+    t:eq(Q.Slots(buff, { ctrlSpell = "Moonfire" }).shift.spell, "Moonfire", "no friend targeted: the second attack")
     -- Hurt between fights: the other ways to heal up, in your order.
     local bandage = { type = "item", item = "item:3531", kind = "heal" }
     local food = { type = "item", item = "item:117", kind = "heal" }
@@ -9594,8 +9601,8 @@ ns:Register("test", "second key: heals and potions on the buff key's modifiers",
     local plan = K.Plan({ quick = "Regrowth", heals = { "Regrowth", "Healing Touch", "Rejuvenation" }, hots = { "Rejuvenation" },
         emergency = "item:858", bandage = "item:1251", cures = { "Cure Poison" } })
     t:eq(plan.key.spell, "Regrowth", "the key in a fight: your quickest heal")
-    t:eq(plan.shift.spell, "Rejuvenation", "Shift: your heal over time")
-    t:eq(plan.ctrl.spell, "Healing Touch", "Ctrl: your other heal")
+    t:eq(plan.shift.spell, "Healing Touch", "Shift: your other heal")
+    t:eq(plan.ctrl.spell, "Rejuvenation", "Ctrl: your heal over time")
     t:eq(plan.alt.item, "item:858", "Alt: your potion")
     t:eq(plan.more.item, "item:1251", "Ctrl + Shift: your bandage")
     t:eq(plan.key.unit, "player", "on you")
@@ -9639,7 +9646,8 @@ ns:Register("test", "easy key: with heals on the second key, Shift and Alt are a
     t:ok(ctrl == "Moonfire" and alt == "Nature's Grasp" and shift == "Entangling Roots", "Ctrl, Alt and Shift each get their own spell")
     local wrath = { spell = "Wrath", kind = "damage" }
     local slots = Q.Slots(wrath, { ctrlSpell = ctrl, altSpell = alt, shiftSpell = shift, keySpell = "Wrath", more = { "War Stomp" } })
-    t:eq(slots.shift and slots.shift.spell, "Entangling Roots", "no heal on Shift: the attack takes it")
+    t:eq(slots.shift and slots.shift.spell, "Moonfire", "no heal on Shift: your second attack takes it (the nearest icon)")
+    t:eq(slots.ctrl and slots.ctrl.spell, "Entangling Roots", "and Ctrl gets the third")
     t:eq(slots.alt and slots.alt.spell, "Nature's Grasp", "no potion on Alt: the attack takes it")
     t:eq(slots.more and slots.more.spell, "War Stomp", "Ctrl + Shift: one more")
     slots = Q.Slots(wrath, { heal = "Regrowth", ctrlSpell = ctrl, altSpell = alt, shiftSpell = shift, emergency = "item:858" })
@@ -9674,10 +9682,10 @@ ns:Register("test", "easy key: every press follows your form", function(t)
     local knows = function(s) return known[s] == true end
     local _, plan = C.FormPlan(forms, keys, knows, C.FORM_SLOTS)
     local c, b = plan[0], plan[1]
-    t:ok(c.key == "Wrath" and c.ctrl == "Moonfire" and c.shift == "Entangling Roots" and c.alt == "Nature's Grasp" and c.more == "War Stomp",
-        "caster: Wrath, Moonfire, Roots, Nature's Grasp, War Stomp: five presses, none twice")
-    t:ok(b.key == "Maul" and b.ctrl == "Demoralizing Roar" and b.shift == "Growl" and b.alt == "Enrage",
-        "bear at this level: Maul, Demoralizing Roar, Growl, Enrage")
+    t:ok(c.key == "Wrath" and c.shift == "Moonfire" and c.ctrl == "Entangling Roots" and c.alt == "Nature's Grasp" and c.more == "War Stomp",
+        "caster: Wrath, Moonfire (Shift), Roots (Ctrl), Nature's Grasp, War Stomp: five presses, none twice")
+    t:ok(b.key == "Maul" and b.shift == "Demoralizing Roar" and b.ctrl == "Growl" and b.alt == "Enrage",
+        "bear at this level: Maul, Demoralizing Roar (Shift), Growl (Ctrl), Enrage")
     t:eq(b.more, nil, "nothing left for Ctrl + Shift in bear: left as it was")
     _, plan = C.FormPlan(forms, keys, knows)
     t:ok(plan[1].shift == nil and plan[1].alt == nil, "heal and potion on Flow's key: Shift and Alt aren't swapped")
@@ -9772,7 +9780,7 @@ ns:Register("test", "buff button: the size and side icons of Flow's own", functi
     local BB, K = ns.buffButton, ns.careKeys
     t:eq(BB.SIZE, 52, "as big as Flow's icon")
     t:ok(K.SIZES[1] == 36 and K.SIZES[2] == 30 and K.SIZES[3] == 25 and K.SIZES[4] == 22, "its side icons step down like Flow's")
-    t:ok(K.SLOTS[1] == "ctrl" and K.SLOTS[2] == "shift" and K.SLOTS[3] == "alt" and K.SLOTS[4] == "more", "in the same order: CTRL, SHIFT, ALT, C+S")
+    t:ok(K.SLOTS[1] == "shift" and K.SLOTS[2] == "ctrl" and K.SLOTS[3] == "alt" and K.SLOTS[4] == "more", "in the same order: SHIFT, CTRL, ALT, C+S")
     local b = _G.FlowBuffButton
     if b then t:near(b:GetWidth(), 52, 0.5, "the button on screen is that size") end
 end)
@@ -10422,10 +10430,13 @@ ns:Register("test", "click: Flow Banker's search box and 'All my choices' button
     local f = B._Frame()
     t:ok(f and f.search and f.search:IsShown(), "the search box shows with the auction prices")
     if f and f.search then
-        f.search:SetText("zzzz no such thing")
+        -- (The game tells the box about new text a moment later, so the test
+        -- calls what the box calls.)
+        t:ok(f.search:GetScript("OnTextChanged") ~= nil, "the box listens for typing")
+        B.SetFilter("zzzz no such thing")
         t:eq(B.filter, "zzzz no such thing", "typing sets the search")
         t:eq(f.rows[1]:GetText() or "", "", "and the list follows it (nothing matches)")
-        f.search:SetText("")
+        B.SetFilter("")
     end
     pcall(B.Show, B, "put")
     if f and f.all then
@@ -10641,4 +10652,81 @@ ns:Register("test", "click: Route includes has the dungeon key's tick and its tw
             ns.db.nav.dungeonSuggest = was
         end
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.227: no spell on two presses; Shift nearest, Ctrl next; the side
+-- icons and the auto-attack badge take clicks; an in-combat mark.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: no spell on two presses; Shift is the nearest icon, Ctrl the next", function(t)
+    local Q = ns.queue
+    t:ok(Q.ORDER[1] == "shift" and Q.ORDER[2] == "ctrl" and Q.ORDER[3] == "alt" and Q.ORDER[4] == "more", "the icons, nearest first: Shift, Ctrl, Alt, Ctrl + Shift")
+    local maul = { spell = "Maul", kind = "damage" }
+    local slots = Q.NoRepeats({ key = maul, shift = { spell = "Bash" }, ctrl = { spell = "Demoralizing Roar" }, alt = { spell = "Bash" }, more = { spell = "Maul" } }, "Maul")
+    t:eq(slots.shift and slots.shift.spell, "Bash", "Bash on the first press that has it")
+    t:eq(slots.alt, nil, "not on a second one")
+    t:eq(slots.more, nil, "nor the key's own spell on a modifier")
+    t:eq(slots.ctrl and slots.ctrl.spell, "Demoralizing Roar", "the others stay")
+    slots = Q.NoRepeats({ key = { spell = "Mark of the Wild", kind = "buff" }, shift = { spell = "Mark of the Wild", unit = "target" } }, nil)
+    t:ok(slots.shift ~= nil, "the same spell on another unit (your friendly target) is another press")
+    slots = Q.NoRepeats({ key = maul, alt = { item = "item:858" }, more = { item = "item:858" } }, nil)
+    t:ok(slots.alt and slots.more, "items aren't spells: left alone")
+    -- Through the whole queue: a class list that names a spell twice.
+    local q = Q.Slots(maul, { ctrlSpell = "Bash", altSpell = "Bash", shiftSpell = "Bash", keySpell = "Maul", more = { "Bash", "Growl" } })
+    local n = 0
+    for _, name in ipairs(Q.ORDER) do if q[name] and q[name].spell == "Bash" then n = n + 1 end end
+    t:eq(n, 1, "Bash named for three presses: on one")
+    -- The druid's lists are one and the same for the pull and for a change of form.
+    local druid = ns:Get("rotation", "DRUID")
+    local forms = druid.formKeys(ns.rotation)
+    local fk = druid.fightKeys(ns.rotation)
+    local mine = forms[ns.api.Form() or "none"] or forms.none
+    t:ok(fk.ctrl[1] == mine.ctrl[1] and fk.shift[1] == mine.shift[1] and fk.alt[1] == mine.alt[1], "the pull's presses come from the same list as the form change's")
+    -- The second key's icons, in the same order.
+    local K = ns.careKeys
+    local plan = K.Plan({ quick = "Regrowth", heals = { "Regrowth", "Healing Touch", "Rejuvenation" }, hots = { "Rejuvenation" } })
+    t:ok(plan.shift.spell == "Healing Touch" and plan.ctrl.spell == "Rejuvenation", "second key: Shift the other heal (nearest), Ctrl the heal over time")
+end)
+
+ns:Register("test", "click: the icons beside the Flow icon and the auto-attack badge take clicks", function(t)
+    local S = ns.clickSlots
+    t:ok(S ~= nil, "the click-to-cast file loaded")
+    if not S then return end
+    t:ok(S.Wanted(true, true, true), "a slot that casts something, its icon showing: a button over it")
+    t:ok(not S.Wanted(true, true, false), "its icon not showing: no unseen button to click by accident")
+    t:ok(not S.Wanted(true, false, true), "a slot with nothing on it: no button")
+    t:ok(not S.Wanted(false, true, true), "switched off: none")
+    t:eq(S.Text("spell", "Moonfire", "target"), "spell:Moonfire@target", "what a button is set to, as text")
+    t:eq(S.Text(nil), "", "nothing: empty")
+    t:eq(ns.SwingBadge(true, true, false, false), "on", "swinging: the badge is lit")
+    t:eq(ns.SwingBadge(true, false, true, false), "off", "in a fight, not swinging: the badge is there, dim, to click")
+    t:eq(ns.SwingBadge(true, false, false, true), "off", "an enemy targeted: the same")
+    t:eq(ns.SwingBadge(true, false, false, false), nil, "nothing to fight: no badge")
+    t:eq(ns.SwingBadge(false, true, true, true), nil, "the Flow icon hidden: no badge")
+    local icon = _G.FlowRotationIcon
+    if icon then
+        t:ok(icon.combat ~= nil, "the Flow icon has its in-combat mark")
+        t:ok(icon.swing and icon.swing:GetScript("OnEnter") ~= nil, "the auto-attack badge says what it is on hover")
+        if icon.swing then
+            local ok = pcall(function() icon.swing:GetScript("OnEnter")(icon.swing); icon.swing:GetScript("OnLeave")(icon.swing) end)
+            t:ok(ok, "hovering it runs")
+        end
+    end
+    if InCombatLockdown() then return end
+    local ok, err = pcall(S.Sync, false)
+    t:ok(ok, "the buttons are brought up to date without error" .. (ok and "" or (": " .. tostring(err))))
+    if S.built then
+        for _, slot in ipairs(ns.queue.ORDER) do
+            local b = S.buttons[slot]
+            t:ok(b ~= nil and b:GetParent() == _G.FlowCastButton, "a button for the " .. slot .. " icon, a child of Flow's own secure button")
+            if b then
+                -- (Never clicked here: a click would cast. Its hover runs.)
+                t:ok(pcall(function() b:GetScript("OnEnter")(b); b:GetScript("OnLeave")(b) end), "hovering the " .. slot .. " icon runs")
+            end
+        end
+        t:ok(S.swing ~= nil and (S.swing.spell == nil or S.swing:GetAttribute("spell") == S.swing.spell), "the badge's button casts the attack spell")
+    end
+    t:ok(type(S.Lines()) == "table", "it can say what each is set to")
+    t:ok(issecurevariable("SecureActionButton_OnClick") ~= false, "the game's own click handler stays untainted")
 end)

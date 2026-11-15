@@ -101,6 +101,25 @@ local function buildIcon(cfg)
     fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
     f.swing.pulse = pulse
     f.swing:Hide()
+    -- Hover: what it is. (A click on it toggles auto attack: ClickSlots.lua
+    -- lays a button of the game's kind over it.)
+    f.swing:EnableMouse(true)
+    f.swing:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Auto-Attack", 1, 0.82, 0)
+        GameTooltip:AddLine(A.Swinging() and "On: you're swinging at your target." or "Off.", 1, 1, 1, true)
+        GameTooltip:AddLine("Click to turn it on or off.", 0.6, 0.6, 0.6, true)
+        GameTooltip:Show()
+    end)
+    f.swing:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- In a fight: a small crossed-swords mark at the icon's top left corner
+    -- ("it should show a small in-combat icon", 0.35.227).
+    f.combat = f.timerLayer:CreateTexture(nil, "OVERLAY")
+    f.combat:SetSize(16, 16)
+    f.combat:SetPoint("CENTER", f, "TOPLEFT", 1, -1)
+    f.combat:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
+    f.combat:SetTexCoord(0.5, 1.0, 0, 0.484375)
+    f.combat:Hide()
     -- The queue (left of the button since 0.35.188; it ran off to the right
     -- before): what your key casts with Ctrl, Shift
     -- and Alt held (Queue.lua; Cast.lua has them set), each a little smaller
@@ -109,7 +128,7 @@ local function buildIcon(cfg)
     -- whose modifier you hold is ringed green.
     f.deck = {}
     local SIZES = { 36, 30, 25, 22 }
-    local MODS = { "CTRL", "SHIFT", "ALT", "C+S" }   -- (C+S: Ctrl and Shift together, Queue.lua "more")
+    local MODS = { "SHIFT", "CTRL", "ALT", "C+S" }   -- (in Queue.lua's Q.ORDER; C+S: Ctrl and Shift together, "more")
     local prev
     for i, sz in ipairs(SIZES) do
         local d = CreateFrame("Frame", nil, f)
@@ -443,6 +462,15 @@ function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
 end
 
+-- Pure: the auto-attack badge beside the icon: "on" while you swing, "off"
+-- (dim) in a fight or with an enemy targeted while you don't, nil otherwise.
+function ns.SwingBadge(shown, swinging, inCombat, hostile)
+    if not shown then return nil end
+    if swinging then return "on" end
+    if inCombat or hostile then return "off" end
+    return nil
+end
+
 -- The tag beside the icon: "held" while Shift is down (the icon shows what
 -- Shift + key casts); "press" while Flow advises a heal in a fight that your
 -- key can't cast (it's locked to another spell) and Shift + key heals.
@@ -678,11 +706,19 @@ local function tick()
     local okR, err = pcall(render, view, cfg, advice or (not swapped and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
     -- Swords badge while auto attack is on.
+    -- (Also there, dim, in a fight or with an enemy targeted while it's off:
+    -- so there's something to point at and click, 0.35.227.)
     local swinging = icon:IsShown() and A.Swinging()
-    if swinging ~= icon.swing:IsShown() then
-        icon.swing:SetShown(swinging)
-        if swinging then icon.swing.pulse:Play() else icon.swing.pulse:Stop() end
+    local badge = ns.SwingBadge(icon:IsShown(), swinging, inCombat, E.lastCtx and E.lastCtx.hostile)
+    if badge ~= icon.swingState then
+        icon.swingState = badge
+        icon.swing:SetShown(badge ~= nil)
+        icon.swing.pulse:Stop()
+        if badge == "on" then icon.swing:SetAlpha(1); icon.swing.pulse:Play()
+        elseif badge == "off" then icon.swing:SetAlpha(0.4) end
     end
+    local fighting = icon:IsShown() and inCombat and true or false
+    if fighting ~= icon.combat:IsShown() then icon.combat:SetShown(fighting) end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
     -- heal up, or while you hold a modifier (Q.Shows).
     local ctx = E.lastCtx

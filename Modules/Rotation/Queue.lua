@@ -37,7 +37,10 @@ ns.queue = Q
 -- be in a modifier spot, so the user connects it with the modifier and hits
 -- it to cast?" In a fight no slot can change, so the likeliest advice gets
 -- a slot before the pull; when Flow advises it, that slot pulses.
-Q.ORDER = { "ctrl", "shift", "alt", "more" }                              -- slots 2, 3, 4, 5
+-- The order of the icons beside the big one, nearest first: Shift, then Ctrl
+-- (0.35.227: "swap the SHIFT and CTRL but leave the spells there": the
+-- spell nearest the key is Shift's now, the next one Ctrl's).
+Q.ORDER = { "shift", "ctrl", "alt", "more" }                              -- slots 2, 3, 4, 5
 Q.LABEL = { ctrl = "CTRL", shift = "SHIFT", alt = "ALT", more = "C+S" }   -- written above them
 Q.NAME = { ctrl = "CTRL", shift = "SHIFT", alt = "ALT", more = "CTRL + SHIFT" }   -- in a sentence
 
@@ -127,7 +130,32 @@ function Q.Slots(main, o)
             break
         end
     end
-    return { key = main, ctrl = ctrl, shift = shift, alt = alt, more = more }
+    -- Your second attack is the nearest icon, which is Shift's: so it goes on
+    -- Shift and what Shift had goes on Ctrl. Not while Shift is your heal
+    -- ("Shift + key heals" stays true where the heal lives on this key).
+    if not (shift and shift.kind == "heal") then ctrl, shift = shift, ctrl end
+    local out = { key = main, ctrl = ctrl, shift = shift, alt = alt, more = more }
+    return Q.NoRepeats(out, o.keySpell)
+end
+
+-- Pure: no spell on two presses ("Bash is showing as 2 of my spells on the
+-- easy button: we should never allow a duplicate"). The key first, then the
+-- icons in their order; a later press that would cast the same spell on the
+-- same unit is left empty. (The same spell on another unit is another
+-- press: your buff on you, and on your friendly target.)
+function Q.NoRepeats(slots, keySpell)
+    local seen = {}
+    local function id(s) return s and s.spell and (s.spell .. "@" .. tostring(s.unit or "")) or nil end
+    if keySpell then seen[keySpell .. "@"] = true end
+    local k = id(slots.key)
+    if k then seen[k] = true end
+    for _, name in ipairs(Q.ORDER) do
+        local key = id(slots[name])
+        if key then
+            if seen[key] then slots[name] = nil else seen[key] = true end
+        end
+    end
+    return slots
 end
 
 -- The fight's other spells, for Ctrl + Shift: the ones you know, in the

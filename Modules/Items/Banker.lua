@@ -283,11 +283,7 @@ local function build()
     f.search.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.search.label:SetPoint("RIGHT", f.search, "LEFT", -8, 0)
     f.search.label:SetText("Search:")
-    f.search:SetScript("OnTextChanged", function(self)
-        B.filter = self:GetText() or ""
-        B.offset = 0
-        B:Fill()
-    end)
+    f.search:SetScript("OnTextChanged", function(self) B.SetFilter(self:GetText()) end)
     f.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     f.search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     -- "To bank": the things in your bags, or every choice you've made (also
@@ -375,6 +371,13 @@ function B.Window(n, offset, rows)
     offset = math.max(0, math.min(offset or 0, maxOff))
     local last = math.min(n, offset + rows)
     return offset + 1, last, n - last, offset
+end
+
+-- The search box's text changed: the list narrows to it.
+function B.SetFilter(text)
+    B.filter = text or ""
+    B.offset = 0
+    B:Fill()
 end
 
 -- Pure: the rows whose name holds `text` (any part, any case); no text: all.

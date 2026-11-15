@@ -11,8 +11,8 @@
 --
 --   the key      out of a fight: your next buff, bandage or food, as before;
 --                in a fight: your quickest heal, on you
---   SHIFT        your heal over time (Rejuvenation)
---   CTRL         your other heal (Healing Touch: the big, slow one)
+--   SHIFT        your other heal (Healing Touch: the big, slow one)
+--   CTRL         your heal over time (Rejuvenation)
 --   ALT          your healthstone or healing potion
 --   C+S          your best bandage; without one, your cure (Cure Poison...)
 --
@@ -34,7 +34,7 @@ if not (A and E and BB) then return end
 local K = {}
 ns.careKeys = K
 
-K.SLOTS = { "ctrl", "shift", "alt", "more" }   -- (the order of the icons, as beside Flow's own)
+K.SLOTS = { "shift", "ctrl", "alt", "more" }   -- (the order of the icons, as beside Flow's own: Shift nearest, 0.35.227)
 K.MODS = { shift = { "SHIFT" }, ctrl = { "CTRL" }, alt = { "ALT" }, more = { "CTRL", "SHIFT" } }
 K.LABEL = { shift = "SHIFT", ctrl = "CTRL", alt = "ALT", more = "C+S" }
 K.NAME = { shift = "Shift", ctrl = "Ctrl", alt = "Alt", more = "Ctrl + Shift" }
@@ -85,14 +85,14 @@ function K.Plan(o)
     if o.quick then used[o.quick] = true end
     for _, hot in ipairs(o.hots or {}) do
         if not used[hot] then
-            plan.shift = heal(hot, "Your heal over time, on you")
+            plan.ctrl = heal(hot, "Your heal over time, on you")
             used[hot] = true
             break
         end
     end
     for _, spell in ipairs(o.heals or {}) do
         if not used[spell] then
-            plan.ctrl = heal(spell, "Your other heal, on you")
+            plan.shift = heal(spell, "Your other heal, on you")
             used[spell] = true
             break
         end
@@ -198,7 +198,13 @@ local function paint()
         local ic = icons[slot]
         local s = K.Active() and slotStep[slot] or nil
         if s and not ic then
-            ic = CreateFrame("Frame", nil, btn)
+            -- (A button of the game's secure kind, so a click on the icon casts
+            -- it: 0.35.227. Set here, which only runs out of a fight.)
+            ic = CreateFrame("Button", nil, btn, "SecureActionButtonTemplate")
+            ic:RegisterForClicks("AnyUp", "AnyDown")
+            ic.hl = ic:CreateTexture(nil, "HIGHLIGHT")
+            ic.hl:SetAllPoints()
+            ic.hl:SetColorTexture(1, 1, 1, 0.25)
             ic.back = ic:CreateTexture(nil, "BACKGROUND", nil, -1)
             ic.back:SetPoint("TOPLEFT", -1, 1); ic.back:SetPoint("BOTTOMRIGHT", 1, -1)
             ic.back:SetColorTexture(0, 0, 0, 0.85)
@@ -213,7 +219,7 @@ local function paint()
                 ns.Tip(self, "ANCHOR_LEFT")
                 GameTooltip:AddLine(K.NAME[self.slot] .. " + your buff key: " .. nameOf(self.step), 1, 0.82, 0)
                 if self.step and self.step.reason then GameTooltip:AddLine(self.step.reason, 1, 1, 1, true) end
-                GameTooltip:AddLine("Set before the pull; it can't change in a fight.", 0.6, 0.6, 0.6, true)
+                GameTooltip:AddLine("Click the icon to cast it. Set before the pull; it can't change in a fight.", 0.6, 0.6, 0.6, true)
                 GameTooltip:Show()
             end)
             ic:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -224,6 +230,15 @@ local function paint()
             if s then
                 n = n + 1
                 ic.step = s
+                local kind, what, unit = K.Attributes(s)
+                local text = tostring(kind) .. ":" .. tostring(what) .. "@" .. tostring(unit)
+                if text ~= ic.set then
+                    ic.set = text
+                    for _, a in ipairs({ "type", "spell", "item", "unit" }) do ic:SetAttribute(a, nil) end
+                    ic:SetAttribute("type", kind)
+                    ic:SetAttribute(kind, what)
+                    ic:SetAttribute("unit", unit)
+                end
                 ic.tex:SetTexture(texOf(s) or "Interface\\Icons\\INV_Misc_QuestionMark")
                 -- (Out to the left, nearest first and biggest, bottoms level: as Flow's icon has them.)
                 local sz = K.SIZES[n] or K.SIZES[#K.SIZES]

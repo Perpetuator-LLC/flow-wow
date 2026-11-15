@@ -720,8 +720,14 @@ local function formSnippet()
         b:SetAttribute("*type-%s", "spell")
         b:SetAttribute("*spell-%s", v)
         b:SetAttribute("*unit-%s", "target")
+        local d = self:GetFrameRef("deck-%s")
+        if d then
+            d:SetAttribute("type", "spell")
+            d:SetAttribute("spell", v)
+            d:SetAttribute("unit", "target")
+        end
     end
-]], slot, name, name, name)
+]], slot, name, name, name, slot)
     end
     return table.concat(parts)
 end
@@ -749,7 +755,14 @@ function C.FormPlan(forms, keys, knows, slots)
             end
         end
         local out = { key = pick(e.key) }
-        for _, slot in ipairs(slots) do out[slot] = pick(e[slot]) end
+        local hasShift = false
+        for _, slot in ipairs(slots) do
+            out[slot] = pick(e[slot])
+            if slot == "shift" then hasShift = true end
+        end
+        -- (As the queue does it: the second attack on Shift, the nearest icon;
+        -- what Shift had on Ctrl. Only where Shift is an attack's.)
+        if hasShift then out.ctrl, out.shift = out.shift, out.ctrl end
         return any and out or nil
     end
     local cond, plan = {}, { [0] = entry(keys and keys.none) }
@@ -949,6 +962,7 @@ function C:Test()
     print("  in combat: " .. tostring(InCombatLockdown()) .. ", cast on key down: "
         .. tostring(GetCVarBool and GetCVarBool("ActionButtonUseKeyDown")))
     for _, l in ipairs(C.FormLines()) do print(l) end
+    if ns.clickSlots then for _, l in ipairs(ns.clickSlots.Lines()) do print(l) end end
 end
 
 -------------------------------------------------------------------------------

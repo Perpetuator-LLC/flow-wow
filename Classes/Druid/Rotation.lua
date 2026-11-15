@@ -185,6 +185,22 @@ local dispels = {
     { spell = "Cure Poison", types = { Poison = true } },
 }
 
+-- What the key and each modifier cast, form by form (the first spell of a
+-- list you know; no spell twice in a form). Read at the pull (fightKeys) and
+-- handed to the game for a change of form in a fight (formKeys).
+local FORMS   -- (built once: the key asks ten times a second)
+local function druidForms()
+    if FORMS then return FORMS end
+    local caster = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
+                     alt = { "Nature's Grasp", "War Stomp" }, more = { "Entangling Roots", "Nature's Grasp", "War Stomp" } }
+    local bear = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" }, shift = { "Bash", "Growl", "Demoralizing Roar" },
+                   alt = { "Enrage", "Growl" }, more = { "Demoralizing Roar", "Growl", "Enrage" } }
+    local cat = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" }, shift = { "Rake", "Rip" },
+                  alt = { "Tiger's Fury", "Dash" }, more = { "Rip", "Prowl" } }
+    FORMS = { none = caster, ["Moonkin Form"] = caster, ["Bear Form"] = bear, ["Dire Bear Form"] = bear, ["Cat Form"] = cat }
+    return FORMS
+end
+
 ns:Register("rotation", "DRUID", {
     guide = guide,
     groupBuffs = groupBuffs,
@@ -224,30 +240,18 @@ ns:Register("rotation", "DRUID", {
     -- Cat: your finisher beside Claw (Rake until you have one). Bear: Swipe
     -- beside Maul, Bash to stop a cast.
     -- Shift + key is your heal; Alt is your healthstone or potion if you carry one.
+    -- (0.35.227: one list for both: what a form's presses are at the pull and
+    -- after a change of form mid-fight. Two lists disagreed: Bash could be on
+    -- two presses.)
     fightKeys = function()
-        if inCat() then return { ctrl = { "Ferocious Bite", "Rip", "Rake" }, alt = {} } end
-        if inBear() then return { ctrl = { "Swipe", "Demoralizing Roar" }, alt = { "Bash" } } end
-        -- (0.35.205: Moonfire has Ctrl. "Roots is good for the pull, but then
-        -- Moonfire should be cast, and instead Roots goes on my bar: I'll be
-        -- casting Moonfire and Wrath a lot, Roots less often." The key opens
-        -- with Roots by itself; in the fight Roots is on Ctrl + Shift.)
-        -- (shift: only while your heal is on the second key, CareKeys.lua.)
-        return { ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
-                 alt = { "Nature's Grasp", "War Stomp" },
-                 more = { "Entangling Roots", "Nature's Grasp", "War Stomp" } }
+        local all = druidForms()
+        local k = all[A.Form() or "none"] or all.none
+        return { ctrl = k.ctrl, shift = k.shift, alt = k.alt, more = k.more }
     end,
 
     -- What the key and Ctrl + key cast in each form, for a change of form
     -- in the middle of a fight (Cast.lua: the key follows your form).
-    formKeys = function()
-        local caster = { key = "Wrath", ctrl = { "Moonfire", "Entangling Roots" }, shift = { "Entangling Roots", "Nature's Grasp" },
-                         alt = { "Nature's Grasp", "War Stomp" }, more = { "Entangling Roots", "Nature's Grasp", "War Stomp" } }
-        local bear = { key = "Maul", ctrl = { "Swipe", "Demoralizing Roar" }, shift = { "Bash", "Growl", "Demoralizing Roar" },
-                       alt = { "Enrage", "Growl" }, more = { "Demoralizing Roar", "Growl", "Enrage" } }
-        local cat = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" }, shift = { "Rake", "Rip" },
-                      alt = { "Tiger's Fury", "Dash" }, more = { "Rip", "Prowl" } }
-        return { none = caster, ["Moonkin Form"] = caster, ["Bear Form"] = bear, ["Dire Bear Form"] = bear, ["Cat Form"] = cat }
-    end,
+    formKeys = function() return druidForms() end,
 
     -- Default priority (first match wins).
     priority = join(buffs, melee, cat, bear, roots, casterDamage),

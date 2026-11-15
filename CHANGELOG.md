@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.35.227
+- **No spell on two presses.** Bash could sit on two of the easy button's modifiers: the
+  druid had one list for the pull and another for a change of form, and they disagreed.
+  There's one list now, and the easy button never gives a second press the spell an earlier
+  one already casts.
+- **Shift is the nearest icon, Ctrl the next,** on both buttons; the spells stay where they
+  were. Easy button, as a caster: Moonfire is Shift + key, Entangling Roots Ctrl + key.
+  Second key: Healing Touch is Shift, Rejuvenation Ctrl. (Where your heal lives on the easy
+  button itself, it stays on Shift.)
+- **Click the little icons to cast.** A click on an icon beside the Flow icon, or beside the
+  buff button, casts what its modifier press casts. "Click the icons beside the Flow icon
+  to cast" in Flow Settings turns the easy button's off.
+- **Auto-Attack badge:** the crossed swords right of the Flow icon say "Auto-Attack" on
+  hover, show dim in a fight or with an enemy targeted while you aren't swinging, and a
+  click turns your swing on or off.
+- **In a fight** a small crossed-swords mark shows at the Flow icon's top left corner.
+- Self-tests: three that failed are fixed (one failed whenever Ctrl was held while the
+  tests ran; one didn't know the menu's new divider lines; one waited on the search box).
+- The clickable icons and the badge haven't been seen working in game yet.
+
 ## 0.35.226
 - **The dungeon key has a tick under Route includes.** "Dungeon key above the Flow Tracker
   (suggests runs)" turns the gold key on and off, with the rest of what the route has. (The
