@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.273
+- **Every small icon shows its cooldown and whether it can be cast.** The buff button's four
+  icons (Shift, Ctrl, Alt, C+S) had neither; Flow's own showed it for spells only. All of
+  them now show the time left on a cooldown in the middle, go grey while cooling down or when
+  they can't be cast (no mana, none left in your bags), and red when out of range. Items too:
+  a potion's and a bandage's cooldown.
+- **Threat on nameplates: a little higher, and coloured by your share.** The number sat on the
+  level beside the name; it's raised clear of it. When you're not tanking: green way below,
+  yellow from 50%, red above 90%, flashing red at 100% and over. Tanking keeps its own
+  colours (green: it's on you; orange: you're losing it), since 100% is where a tank wants
+  to be.
+
 ## 0.35.272
 - **A player's tooltip says which of your buffs they have, whoever cast them.** The game's own
   party tooltip lists only buffs you could have cast and leaves out a stronger or group

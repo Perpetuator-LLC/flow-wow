@@ -253,6 +253,10 @@ local function paint()
             ic.tex = ic:CreateTexture(nil, "ARTWORK")
             ic.tex:SetAllPoints()
             ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            -- Its cooldown, in the middle (as on Flow's own small icons).
+            ic.timer = ic:CreateFontString(nil, "OVERLAY")
+            ic.timer:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
+            ic.timer:SetPoint("CENTER")
             ic.label = ic:CreateFontString(nil, "OVERLAY")
             ic.label:SetPoint("BOTTOM", ic, "TOP", 0, 2)
             ic.label:SetTextColor(0.85, 0.85, 0.85)
@@ -476,4 +480,23 @@ if ns.settings and ns.settings.AddCheck then
             if not InCombatLockdown() then pcall(K.Apply) end
         end,
     })
+end
+
+-- The icons' cooldown and can't-cast look (0.35.273), kept fresh a few times
+-- a second. Only their pictures and texts change, which is allowed in a fight.
+K.STATUS_EVERY = 0.25
+function K.PaintStatus(now)
+    if not ns.PaintStatus then return 0 end
+    local n = 0
+    for _, ic in pairs(icons) do
+        if ic:IsShown() and ic.step and ic.tex then
+            local ok = pcall(ns.PaintStatus, ic.tex, ic.timer, ic.step, now or GetTime())
+            if ok then n = n + 1 end
+        end
+    end
+    return n
+end
+K._icons = icons   -- (tests)
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(K.STATUS_EVERY, function() pcall(K.PaintStatus) end)
 end

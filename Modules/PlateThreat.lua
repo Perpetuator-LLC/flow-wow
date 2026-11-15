@@ -34,7 +34,33 @@ function P.On() return cfg().off ~= true end
 P.TICK = 0.5         -- seconds between looks while you're in a fight
 P.CHASERS_MAX = 5    -- ask who's behind you only in a group this small
 
+-- Raised a little (0.35.273: "they overlap the level"), and for anyone not
+-- tanking coloured by the share itself: "above 90% red, over 100% flashing
+-- red, below that yellow, way below green."
+P.RAISE = 12
+P.OVER, P.HIGH, P.MID = 100, 90, 50
+-- Pure: the band a share falls in.
+function P.Band(pct)
+    if type(pct) ~= "number" then return nil end
+    if pct >= P.OVER then return "over" end
+    if pct >= P.HIGH then return "high" end
+    if pct >= P.MID then return "mid" end
+    return "calm"
+end
+-- Pure: the look for a number. tank: Flow's tanking colours (there 100% is
+-- where you want to be); else by the band; a hidden share: white.
+--   -> colour key, flash?
+function P.Look(state, pct, tank)
+    if tank or type(pct) ~= "number" then return state, false end
+    local band = P.Band(pct)
+    return band, band == "over"
+end
+
 P.COLORS = {
+    over    = { 1.00, 0.15, 0.15 },
+    high    = { 1.00, 0.25, 0.25 },
+    mid     = { 1.00, 0.90, 0.20 },
+    calm    = { 0.35, 1.00, 0.35 },
     safe    = { 0.35, 1.00, 0.35 },
     losing  = { 1.00, 0.55, 0.10 },
     pulling = { 1.00, 0.90, 0.20 },
@@ -154,7 +180,7 @@ local function labelFor(plate)
     if plate.FlowThreat then return plate.FlowThreat end
     local f = CreateFrame("Frame", nil, plate)
     f:SetSize(1, 12)
-    f:SetPoint("LEFT", plate, "RIGHT", 2, 0)
+    f:SetPoint("LEFT", plate, "RIGHT", 2, P.RAISE)   -- (clear of the level beside the name)
     f:SetFrameLevel(plate:GetFrameLevel() + 10)
     f.text = f:CreateFontString(nil, "OVERLAY")
     f.text:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
@@ -180,8 +206,13 @@ local function update(unit, wanted, tank)
     end
     local f = labelFor(plate)
     f.text:SetText(r.text)
-    local c = P.COLORS[r.state] or P.COLORS.hidden
+    local key, flash = P.Look(r.state, r.value, tank)
+    local c = P.COLORS[key] or P.COLORS.hidden
     f.text:SetTextColor(c[1], c[2], c[3])
+    if flash ~= f.flashing and ns.pulse then
+        f.flashing = flash
+        if flash then ns.pulse.Add(f.text) else ns.pulse.Remove(f.text); f.text:SetAlpha(1) end
+    end
     f:Show()
     P.shown = P.shown + 1
     P.lastState, P.lastHidden = r.state, r.hidden and true or false

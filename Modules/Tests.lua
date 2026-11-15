@@ -12348,3 +12348,62 @@ ns:Register("test", "tooltips: a player's tooltip says which of your buffs they 
     t:ok(ok and #mine == 0, "your own tooltip gets none")
     t:ok(type(ns.rotation.AuraOn) == "function", "the buff reader says which buff it found")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.273: every small icon shows its cooldown and status; nameplate threat.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "small icons: cooldown and can't-cast look on Flow's and the buff button's alike", function(t)
+    local grey, r, g, b = ns.StatusLook("", nil)
+    t:ok(not grey and r == 1 and g == 1 and b == 1, "ready: drawn as it is")
+    grey = ns.StatusLook("12", nil)
+    t:ok(grey, "cooling down: greyed")
+    grey, r, g, b = ns.StatusLook("", { 1, 0.35, 0.35, false })
+    t:ok(not grey and r == 1 and g < 0.5 and b < 0.5, "out of range: red, not grey")
+    grey, r = ns.StatusLook("", { 0.55, 0.55, 0.55, true })
+    t:ok(grey and r < 1, "can't be cast now: grey")
+    local txt, tv = ns.StepStatus(nil, GetTime())
+    t:ok(txt == "" and tv == nil, "no step: nothing to show")
+    t:ok(pcall(ns.StepStatus, { item = "item:858" }, GetTime()), "an item's cooldown reads (a potion, a bandage)")
+    t:ok(pcall(ns.StepStatus, { spell = "No Such Spell" }, GetTime()), "a spell you don't have: no error")
+    -- Painting onto an icon.
+    local seen = {}
+    local tex = { SetDesaturated = function(_, v) seen.grey = v end, SetVertexColor = function(_, rr) seen.r = rr end }
+    local timer = { SetText = function(_, s) seen.text = s end }
+    t:ok(pcall(ns.PaintStatus, tex, timer, { spell = "No Such Spell" }, GetTime()), "painting runs")
+    t:ok(seen.text ~= nil and seen.grey ~= nil and seen.r ~= nil, "it sets the timer, the grey and the colour")
+    -- The buff button's icons have a timer and are kept fresh.
+    local K = ns.careKeys
+    t:ok(K.STATUS_EVERY <= 0.5, "a few times a second")
+    local ok, n = pcall(K.PaintStatus, GetTime())
+    t:ok(ok and type(n) == "number", "painting the buff button's icons runs")
+    for _, ic in pairs(K._icons) do
+        t:ok(ic.timer ~= nil, "each has a place for its cooldown")
+    end
+end)
+
+ns:Register("test", "threat on nameplates: raised, and coloured by your share when you're not tanking", function(t)
+    local P = ns.plateThreat
+    t:ok(P.RAISE >= 8, "raised clear of the level")
+    t:eq(P.Band(120), "over", "over 100%")
+    t:eq(P.Band(100), "over", "at 100%")
+    t:eq(P.Band(95), "high", "above 90%")
+    t:eq(P.Band(70), "mid", "below that")
+    t:eq(P.Band(20), "calm", "way below")
+    t:eq(P.Band(nil), nil, "hidden: no band")
+    local key, flash = P.Look("danger", 110, false)
+    t:ok(key == "over" and flash == true, "over 100%: red and flashing")
+    key, flash = P.Look("pulling", 93, false)
+    t:ok(key == "high" and not flash, "above 90%: red, steady")
+    key, flash = P.Look("low", 60, false)
+    t:ok(key == "mid" and not flash, "below: yellow")
+    key = P.Look("low", 10, false)
+    t:eq(key, "calm", "way below: green")
+    key, flash = P.Look("safe", 100, true)
+    t:ok(key == "safe" and not flash, "tanking: 100% is where you want to be, so Flow's tanking colours, no flash")
+    key = P.Look("hidden", nil, false)
+    t:eq(key, "hidden", "a hidden share: white")
+    t:ok(P.COLORS.over[1] > 0.9 and P.COLORS.over[2] < 0.3, "over is red")
+    t:ok(P.COLORS.mid[1] > 0.9 and P.COLORS.mid[2] > 0.8, "mid is yellow")
+    t:ok(P.COLORS.calm[2] > P.COLORS.calm[1], "calm is green")
+end)

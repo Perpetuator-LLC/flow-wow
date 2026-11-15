@@ -420,6 +420,47 @@ function ns.CooldownText(start, dur, now)
     return string.format("%.1f", left)
 end
 
+-- A small icon's status (0.35.273): "each of the icons next to the easy
+-- button should show the cooldown if it's been cast, and any other status,
+-- like if it can't be cast." Flow's own modifier icons had this for spells;
+-- the buff button's icons had none, and items (a potion, a bandage) had no
+-- cooldown on either. One function for all of them:
+--   -> the timer's text, and the tint ({ r, g, b, grey? } or nil: as it is)
+function ns.StepStatus(s, now)
+    if not s then return "", nil end
+    local txt = ""
+    if s.spell then
+        local start, dur = A.CooldownRaw(s.spell)
+        txt = ns.CooldownText(start, dur, now)
+    elseif s.item then
+        local id = tonumber(tostring(s.item):match("(%d+)"))
+        local get = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown
+        if id and get then
+            local ok, start, dur = pcall(get, id)
+            if ok then txt = ns.CooldownText(start, dur, now) end
+        end
+        -- (None left in your bags: it can't be used.)
+        if id and A.Count and A.Count(id) == 0 then return txt, TINT.grey end
+    end
+    local okT, tint = pcall(tintOf, s)
+    return txt, okT and TINT[tint] or nil
+end
+-- Pure: how the picture is drawn for a status: grey it? and its colour.
+function ns.StatusLook(txt, tv)
+    local grey = (txt ~= "" or (tv ~= nil and tv[4] == true)) and true or false
+    if tv then return grey, tv[1], tv[2], tv[3] end
+    return grey, 1, 1, 1
+end
+-- Puts a step's status on an icon's picture and its timer text.
+function ns.PaintStatus(tex, timer, s, now)
+    local txt, tv = ns.StepStatus(s, now)
+    if timer then timer:SetText(txt) end
+    local grey, r, g, b = ns.StatusLook(txt, tv)
+    tex:SetDesaturated(grey)
+    tex:SetVertexColor(r, g, b)
+    return txt, tv
+end
+
 -- The buff timer: when Flow suggests re-casting a buff that's still on but
 -- running out, the seconds it has left (under 30), in aqua (BUFF_TIMER: the
 -- mana wait is blue). "" when it's gone, lasts longer, or never runs out.
@@ -638,17 +679,8 @@ end
 -- press it now: gold, pulsing), "held" (its modifier is down: green), nil.
 local function drawSlot(slot, e, now, state)
     slot.tex:SetTexture(stepIcon(e) or "Interface\\Icons\\INV_Misc_QuestionMark")
-    local txt = ""
-    if e.spell then
-        local start, dur = A.CooldownRaw(e.spell)
-        txt = ns.CooldownText(start, dur, now)
-    end
-    slot.timer:SetText(txt)
-    -- Grey: cooling down, or can't be cast now; red: out of range.
-    local okT, tint = pcall(tintOf, e)
-    local tv = okT and TINT[tint] or nil
-    slot.tex:SetDesaturated((txt ~= "" or (tv and tv[4])) and true or false)
-    if tv then slot.tex:SetVertexColor(tv[1], tv[2], tv[3]) else slot.tex:SetVertexColor(1, 1, 1) end
+    -- Its cooldown; grey: cooling down, can't be cast now, or none left; red: out of range.
+    ns.PaintStatus(slot.tex, slot.timer, e, now)
     if state ~= slot.state then
         slot.state = state
         if state == "advised" then
