@@ -674,3 +674,44 @@ function M.MenuItems()
     end
     return items
 end
+
+-------------------------------------------------------------------------------
+-- What the game reports around a taunt (0.35.274)
+-------------------------------------------------------------------------------
+-- "If Growl sets my threat to the same as whoever has aggro, it isn't
+-- reflected in our threat meter, and it should be." The meter shows the
+-- game's own figure for you on your target and adds nothing to it, so the
+-- question is what the game says after a taunt: your share at the moment of
+-- the cast and again a moment later go in the log (the diagnostics), with
+-- whether the game let Flow read it. Then the cause can be seen, not guessed.
+M.TAUNTS = { Growl = true, Taunt = true, ["Mocking Blow"] = true, ["Challenging Shout"] = true,
+             ["Challenging Roar"] = true, ["Righteous Defense"] = true, ["Hand of Reckoning"] = true }
+-- Pure: your threat on your target, in words. entry: your row of
+-- M.ReadThreat's list (nil: you're not on its list); readable: the numbers
+-- can be read; why: the reason there's no list.
+function M.ThreatNote(entry, readable, why)
+    if not entry then return why and ("no figure: " .. why) or "you're not on its threat list" end
+    local on = entry.tank and "on you" or "not on you"
+    if not readable or entry.value == nil then return "hidden by the game (" .. on .. ")" end
+    return string.format("%d%% of whoever it's on (%s)", math.floor(entry.value + 0.5), on)
+end
+function M.MyThreat()
+    local list, readable, why = M.ReadThreat()
+    for _, e in ipairs(list or {}) do
+        if e.me then return e, readable, why end
+    end
+    return nil, readable, why
+end
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" then return end
+    local name = A.SpellInfo(A.Safe(spellID) or 0)
+    if not (name and M.TAUNTS[name]) then return end
+    local okB, before = pcall(function() return M.ThreatNote(M.MyThreat()) end)
+    ns:Log("meters", string.format("%s cast: your threat right then: %s", name, okB and before or "unreadable"))
+    if C_Timer then
+        C_Timer.After(1.5, function()
+            local okA, after = pcall(function() return M.ThreatNote(M.MyThreat()) end)
+            ns:Log("meters", string.format("%s, 1.5 s later: %s", name, okA and after or "unreadable"))
+        end)
+    end
+end)

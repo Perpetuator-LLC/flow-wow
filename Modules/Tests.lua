@@ -12407,3 +12407,18 @@ ns:Register("test", "threat on nameplates: raised, and coloured by your share wh
     t:ok(P.COLORS.mid[1] > 0.9 and P.COLORS.mid[2] > 0.8, "mid is yellow")
     t:ok(P.COLORS.calm[2] > P.COLORS.calm[1], "calm is green")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.274: what the game reports around a taunt goes in the log.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: your threat around a taunt is noted in words", function(t)
+    local M = ns.meters
+    t:ok(M.TAUNTS.Growl and M.TAUNTS.Taunt, "Growl and Taunt are taunts")
+    t:eq(M.ThreatNote({ value = 40.4, me = true }, true), "40% of whoever it's on (not on you)", "a readable share, not on you")
+    t:eq(M.ThreatNote({ value = 100, me = true, tank = true }, true), "100% of whoever it's on (on you)", "after it lands: on you")
+    t:eq(M.ThreatNote({ me = true, tank = true }, false), "hidden by the game (on you)", "numbers hidden: says so")
+    t:eq(M.ThreatNote(nil, true), "you're not on its threat list", "not on its list")
+    t:eq(M.ThreatNote(nil, false, "no enemy targeted"), "no figure: no enemy targeted", "nothing targeted")
+    t:ok(pcall(M.MyThreat), "reading your own row runs")
+end)

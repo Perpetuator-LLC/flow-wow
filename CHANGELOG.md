@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.274
+- Flow Meters: when you cast a taunt (Growl), your threat as the game reports it is noted in
+  the diagnostics, at the cast and a moment later, to find out why the meter didn't show the
+  jump.
+
 ## 0.35.273
 - **Every small icon shows its cooldown and whether it can be cast.** The buff button's four
   icons (Shift, Ctrl, Alt, C+S) had neither; Flow's own showed it for spells only. All of
