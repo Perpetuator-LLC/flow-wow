@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.234
+- **Vendor materials are bought when you can use them.** Flow sent you to buy Shiny Red
+  Apples for a stew whose recipe you couldn't learn yet, and you carried them for levels. A
+  "Buy ..." stop for something a vendor sells now comes only once its craft is otherwise
+  ready: you know the recipe and the other materials are in your bags (or bank). Until
+  then there's no stop for it.
+
 ## 0.35.233
 - **One sign for "press this".** The glow on your action bar, the ring round a modifier's
   icon, the small icon in the corner, the heal prompt and the buff button's edge all meant

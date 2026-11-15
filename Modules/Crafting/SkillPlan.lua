@@ -824,6 +824,18 @@ function SP.RecipeDue(learn, rank, ahead)
     return rank >= learn - (ahead or SP.BUY_AHEAD)
 end
 
+-- Pure: buy a craft's vendor materials now? Only when the craft is
+-- otherwise ready: you know the recipe and nothing else is missing.
+--   recipeKnown: you can make it; shorts: { [itemID] = how many you lack };
+--   fromVendor(id) -> true for what a vendor sells.
+function SP.BuyNow(recipeKnown, shorts, fromVendor)
+    if not recipeKnown then return false end
+    for id, short in pairs(shorts or {}) do
+        if short > 0 and not fromVendor(id) then return false end
+    end
+    return true
+end
+
 -- Pure: why a "Make X" stop waits on its recipe, in a few words. A recipe
 -- you own (bags or bank) never reads "buy ... first" ("I bought it, and Flow
 -- tells me to buy the recipe", 0.35.205).
@@ -1468,12 +1480,28 @@ local function planProfession(prof, t, out)
         -- The crafts that wait for more: set aside what you have for them,
         -- gather the rest (ore for what smelts).
         if planned > n then
+            local shorts = {}
             for _, id in ipairs(ids) do
-                local r = stock:Take(id, (planned - n) * s.mats[id])
-                if r.short > 0 then
+                shorts[id] = stock:Take(id, (planned - n) * s.mats[id]).short
+            end
+            -- Things a vendor sells are bought when the craft is otherwise
+            -- ready, not carried for levels ("you had me buy apples and carry
+            -- them while levelling for a future profession item: we could buy
+            -- those right when we need them", 0.35.234).
+            local function fromVendor(id)
+                local sr = src(id)
+                return (sr and sr.vendor) and true or false
+            end
+            local buyNow = SP.BuyNow(not (known and not known[s.recipe]), shorts, fromVendor)
+            for _, id in ipairs(ids) do
+                local short = shorts[id]
+                if short > 0 and not (fromVendor(id) and not buyNow) then
                     local sm = smeltOf(id)
-                    if sm then raw[sm.from] = (raw[sm.from] or 0) + r.short * sm.n
-                    else raw[id] = (raw[id] or 0) + r.short end
+                    if sm then raw[sm.from] = (raw[sm.from] or 0) + short * sm.n
+                    else raw[id] = (raw[id] or 0) + short end
+                elseif short > 0 then
+                    SP.buyLater = SP.buyLater or {}
+                    SP.buyLater[id] = (SP.buyLater[id] or 0) + short
                 end
             end
         end
@@ -1789,6 +1817,7 @@ ns:Register("navGoal", "skillplan", {
         SP.lastFromFish = 0
         SP.lastUpgrades = {}
         SP.lastWaiting = {}
+        SP.buyLater = {}      -- (vendor materials left for when their craft is ready: SP.BuyNow)
         SP.ForgetFarmable()   -- (you may have moved zone since the last gather)
         -- (Each profession's time is listed under "gather: skillplan" in
         -- /flow perf, so a slow gather says which profession costs.)

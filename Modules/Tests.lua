@@ -11039,3 +11039,20 @@ ns:Register("test", "route: a stop spread all over the area comes after the exac
         t:ok(true, "(no map for the test zone here: the stops have no places to count)")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.234: vendor materials are bought when their craft is ready.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: what a vendor sells is bought just before the craft, not carried for levels", function(t)
+    local SP = ns.skillPlan
+    local vendor = { [4536] = true }                      -- Shiny Red Apple
+    local function fromVendor(id) return vendor[id] == true end
+    t:ok(SP.BuyNow(true, { [4536] = 5, [5469] = 0 }, fromVendor), "you know the recipe and only the apples are missing: buy them now")
+    t:ok(not SP.BuyNow(false, { [4536] = 5, [5469] = 0 }, fromVendor), "the recipe isn't learned yet (it's in the bank, or your skill is too low): not yet")
+    t:ok(not SP.BuyNow(true, { [4536] = 5, [5469] = 22 }, fromVendor), "the meat is still to be looted: the apples wait")
+    t:ok(SP.BuyNow(true, { [4536] = 0, [5469] = 0 }, fromVendor), "nothing missing: nothing in the way")
+    t:ok(SP.BuyNow(true, { [4536] = 5, [2678] = 3 }, function() return true end), "everything missing is a vendor's: buy it all")
+    t:ok(not SP.BuyNow(nil, {}, fromVendor), "whether you know the recipe isn't known: not yet")
+    t:ok(SP.buyLater == nil or type(SP.buyLater) == "table", "what's left for later is kept for the plan's report")
+end)
