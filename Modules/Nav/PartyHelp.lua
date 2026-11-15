@@ -172,6 +172,14 @@ function H.ToDo(prog)
 end
 
 function H.Progress(name) return progress[name] end
+-- Forget someone's progress (a name that turned out to be you).
+function H.Drop(name)
+    if not name then return end
+    progress[name], joinedBy[name], buffers[name] = nil, nil, nil
+    -- (You were following "just their quests", which were your own: back to your route.)
+    if scope == "theirs" and focus == name and H.SetScope then pcall(H.SetScope, H, "mine") end
+    if H.RefreshToggle then pcall(H.RefreshToggle, H) end
+end
 function H.All() return progress end   -- name -> progress (QuestShare.lua reads who has what)
 function H:Scope() return scope, focus end
 function H:Joined() return scope == "combined" end

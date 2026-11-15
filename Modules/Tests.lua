@@ -12282,3 +12282,26 @@ ns:Register("test", "bags: a leftover with no quest known is kept, not destroyed
     t:ok(rule ~= nil and rule.order < 30, "asked before the plain 'not gear: keep'")
     t:eq(rule.check({ gear = {}, link = "x" }), nil, "gear is left to the gear rules")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.271: your own party messages, signed with a name Flow isn't given.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "party: your own message come back under your full name is you, not a party member", function(t)
+    local P, H = ns.party, ns.partyHelp
+    t:ok(P.IsEcho("Sooth Tao", "Sooth", 100, 101), "the same words a second later, signed with a name that starts with yours: you")
+    t:ok(P.IsEcho("Sooth", "Sooth", 100, 101), "signed with the name Flow knows: you")
+    t:ok(not P.IsEcho("Sooth Tao", "Sooth", nil, 101), "words Flow never sent: someone else's")
+    t:ok(not P.IsEcho("Sooth Tao", "Sooth", 100, 100 + P.ECHO_SECONDS + 1), "long after Flow sent them: someone else's")
+    t:ok(not P.IsEcho("Beryl Rattlewick", "Sooth", 100, 101), "another name: someone else")
+    t:ok(not P.IsEcho("Sooth Tao", "", 100, 101), "your name unknown: no guess")
+    -- Once learned, that name is you; the old checks are unchanged.
+    local was = P.aliases["Sooth Tao"]
+    P.aliases["Sooth Tao"] = true
+    t:ok(P.IsMe("Sooth Tao"), "the learned name is you from then on")
+    t:ok(not P.IsMe("Sooth Tao", "Sooth", "Realm"), "a plain comparison of two names is unchanged")
+    P.aliases["Sooth Tao"] = was
+    t:ok(P.IsMe("Bob-Realm", "Bob", "Realm") and not P.IsMe("Alice-Realm", "Bob", "Realm"), "names with realms as before")
+    t:ok(pcall(H.Drop, "Nobody By This Name"), "forgetting a name's progress runs")
+    t:ok(pcall(H.Drop, nil), "no name: nothing")
+end)

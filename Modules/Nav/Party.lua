@@ -42,8 +42,26 @@ local function myRealm()
     local r = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or ""
     return (r:gsub("[%s%-']", ""))
 end
+-- Your own messages, come back under a name the game doesn't give Flow
+-- (0.35.271). "In a party it shows Your own route, Join the party route, and
+-- Just Sooth Tao's quests: my route again." The game names you one way to
+-- Flow ("Sooth") and signs your messages another (with your second name), so
+-- Flow took its own messages for a party member's. It can't ask for that
+-- name, so it learns it: a message that comes back word for word within a
+-- few seconds of Flow sending it, signed with a name that starts with
+-- yours, is yours, and that name is remembered as you.
+P.ECHO_SECONDS = 5
+P.aliases = {}   -- [name the game signs your messages with] = true
+-- Pure: is this your own message come back? sentAt: when Flow sent the
+-- same words (nil: it didn't).
+function P.IsEcho(sender, myName, sentAt, now)
+    if type(sender) ~= "string" or type(myName) ~= "string" or myName == "" or not sentAt then return false end
+    if (now - sentAt) > P.ECHO_SECONDS then return false end
+    return sender:sub(1, #myName) == myName
+end
 function P.IsMe(sender, myName, realm)
     if type(sender) ~= "string" then return false end
+    if myName == nil and P.aliases[sender] then return true end
     myName, realm = myName or me(), realm or myRealm()
     if sender == myName then return true end
     local name, senderRealm = sender:match("^([^%-]+)%-(.+)$")
@@ -59,9 +77,13 @@ local function channel()
 end
 
 
+local sentAt = {}   -- [message] = when Flow sent it (to know its own, come back)
 local function send(msg)
     local ch = channel()
     if not ch then return end
+    local now = GetTime()
+    for text, at in pairs(sentAt) do if now - at > 30 then sentAt[text] = nil end end
+    sentAt[msg] = now
     if C_ChatInfo and C_ChatInfo.SendAddonMessage then
         C_ChatInfo.SendAddonMessage(PREFIX, msg, ch)
     elseif SendAddonMessage then
@@ -414,6 +436,13 @@ ns:On("CHAT_MSG_ADDON", function(prefix, msg, _, sender)
     if P.IsMe(sender) then return end   -- your own message, echoed back
     local name = Ambiguate and Ambiguate(sender, "none") or sender
     if P.IsMe(name) then return end
+    if P.IsEcho(name, me(), sentAt[msg], GetTime()) then
+        P.aliases[sender], P.aliases[name] = true, true
+        members[name] = nil
+        if ns.partyHelp and ns.partyHelp.Drop then pcall(ns.partyHelp.Drop, name) end
+        ns:Log("party", "your messages come back signed \"" .. name .. "\": that's you, not a party member")
+        return
+    end
     received(name, msg)
 end)
 

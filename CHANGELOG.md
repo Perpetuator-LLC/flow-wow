@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.271
+- **In a party, you're no longer listed as a party member.** The choices under the arrow showed
+  "Your own route", "Join the party route" and "Just <your name>'s quests", which was your
+  own route again. The game gives Flow one name for you and signs your messages with another
+  (with your second name), so Flow took its own messages for someone else's. It now
+  recognises a message of its own coming back and remembers that name as you.
+
 ## 0.35.270
 - **Flow no longer says "destroy" of a quest item it knows no quest for.** It said so of
   Sunscale Feathers, which a quest you get later uses. Flow now looks through every quest in
