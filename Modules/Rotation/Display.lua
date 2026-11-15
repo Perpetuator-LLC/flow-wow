@@ -462,6 +462,14 @@ function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
 end
 
+-- Is the buff button docked under Flow's icon and showing, with its own
+-- modifier icons (CareKeys.lua)? Then the two are drawn as one block.
+function ns.DockedNow()
+    local BB, K = ns.buffButton, ns.careKeys
+    return (BB ~= nil and BB.Docked ~= nil and BB.Docked() and BB.On() and BB.Shown()
+        and K ~= nil and K.Active ~= nil and K.Active()) and true or false
+end
+
 -- Pure: the auto-attack badge beside the icon: "on" while you swing, "off"
 -- (dim) in a fight or with an enemy targeted while you don't, nil otherwise.
 function ns.SwingBadge(shown, swinging, inCombat, hostile)
@@ -719,6 +727,23 @@ local function tick()
     end
     local fighting = icon:IsShown() and inCombat and true or false
     if fighting ~= icon.combat:IsShown() then icon.combat:SetShown(fighting) end
+    -- The badge wears the weapon in your main hand ("can the auto-attack icon
+    -- show the currently equipped weapon", 0.35.228).
+    local weapon = GetInventoryItemTexture and A.Safe(GetInventoryItemTexture("player", 16)) or nil
+    if weapon and weapon ~= icon.swing.weapon then
+        icon.swing.weapon = weapon
+        icon.swing.tex:SetTexture(weapon)
+    end
+    -- The buff button docked under this icon (BuffButton.lua): this icon's
+    -- spell name goes below both, and the modifier names are written once,
+    -- between the rows (the buff button's own).
+    local docked = ns.DockedNow()
+    if docked ~= icon.docked then
+        icon.docked = docked
+        icon.text:ClearAllPoints()
+        icon.text:SetPoint("TOP", icon, "BOTTOM", 0, docked and -(ns.buffButton.DOCK_GAP + 52 + 4) or -4)
+        for _, d in ipairs(icon.deck) do d.mod:SetShown(not docked) end
+    end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
     -- heal up, or while you hold a modifier (Q.Shows).
     local ctx = E.lastCtx

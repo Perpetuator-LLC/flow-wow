@@ -612,7 +612,8 @@ function C:KeyCommand() return keyCommand end
 -- harmless Start Attack).
 function C.HeldView(spell, cmd)
     if not spell or (C.IsAttack(spell) and cmd == "STARTATTACK") then return nil end
-    return { spell = spell, kind = "held", label = "key: " .. spell }
+    -- (Was "key: Wrath": "why does it say key:?" Just the spell's name now, 0.35.228.)
+    return { spell = spell, kind = "held", label = spell }
 end
 function C:Held() return C.HeldView(lockedSpell, keyCommand) end
 

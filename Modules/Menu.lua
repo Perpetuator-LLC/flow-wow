@@ -525,6 +525,11 @@ function Menu:RouteItemsRaw()
               BB.Set(not BB.On())
               if BB.On() and not BB.Key() then ns:Print("buff button on. It has no key yet: Flow menu, Keys, \"Set Flow's keys\" (or /flow buffkey <key>).") end
           end },
+        { text = "   Dock the buff button under the Flow icon", stay = true, disabled = InCombatLockdown(),
+          checked = ns.buffButton ~= nil and ns.buffButton.Docked ~= nil and ns.buffButton.Docked(),
+          tip = "The buff button sits right under Flow's icon, as one block: its little icons under Flow's, and Shift, Ctrl, Alt, C+S written once between the two rows.",
+          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.Docked() end,
+          func = function() if ns.buffButton and ns.buffButton.SetDock then ns.buffButton.SetDock(not ns.buffButton.Docked()) end end },
         -- Hover-to-bind mode (also in Flow Settings and /flow bind).
         { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
           func = function() if ns.bind then ns.bind:Start() end end },

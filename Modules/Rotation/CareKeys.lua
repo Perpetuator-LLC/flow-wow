@@ -246,8 +246,11 @@ local function paint()
                 ic.label:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
                 ic.label:SetText(K.LABEL[slot])
                 ic:ClearAllPoints()
-                if prevIcon then ic:SetPoint("BOTTOMRIGHT", prevIcon, "BOTTOMLEFT", -6, 0)
-                else ic:SetPoint("BOTTOMRIGHT", btn, "BOTTOMLEFT", -10, 0) end
+                -- (Docked under Flow's icon: hung from the top edge, so the
+                -- modifier names above them sit between the two rows.)
+                local edge = (BB.Docked and BB.Docked()) and "TOP" or "BOTTOM"
+                if prevIcon then ic:SetPoint(edge .. "RIGHT", prevIcon, edge .. "LEFT", -6, 0)
+                else ic:SetPoint(edge .. "RIGHT", btn, edge .. "LEFT", -10, 0) end
                 prevIcon = ic
                 ic:Show()
             else
@@ -320,6 +323,21 @@ function K.HealWanted()
         if s and (s.kind == "heal" or s.kind == "emergency") then return true end
     end
     return false
+end
+
+-- A modifier is held: what this key casts with it, for the buff button's
+-- icon (as Flow's icon shows its own). nil: none held, or nothing on it.
+function K.HeldStep(mod)
+    if not K.Active() then return nil end
+    if mod == nil and ns.queue and ns.queue.HeldMod then
+        mod = ns.queue.HeldMod(IsControlKeyDown(), IsShiftKeyDown(), IsAltKeyDown())
+    end
+    local s = mod and slotStep[mod]
+    if not s then return nil end
+    local out = {}
+    for k, v in pairs(s) do out[k] = v end
+    out.press = K.LABEL[mod] .. "+"
+    return out
 end
 
 -- The key's own spell for a fight (BuffButton asks at the pull): your

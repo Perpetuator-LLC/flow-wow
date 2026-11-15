@@ -342,7 +342,7 @@ end
 -- The button
 -------------------------------------------------------------------------------
 
-local btn, tex, label, keyText
+local btn, tex, label, keyText, timer
 local shownText          -- what the secure button is set to, to skip repeats
 local lastCast           -- the buff spell you last cast (held for fights)
 local buffSpells = {}    -- every buff spell this button has shown
@@ -410,7 +410,21 @@ local function paint(s, bright)
     if s and s.target then name = name .. " on " .. s.target end
     if s and s.later then name = name .. " (" .. BB.Left(s.left) .. ")" end
     label:SetText(name)
-    keyText:SetText(keyLabel())
+    keyText:SetText((s and s.press) or keyLabel())
+    -- Its cooldown counted down, and red when its target is out of reach (as
+    -- Flow's icon does it).
+    local cd, reach = "", true
+    if s and s.spell then
+        local okC, start, dur = pcall(A.CooldownRaw, s.spell)
+        if okC and ns.CooldownText then cd = ns.CooldownText(start, dur, GetTime()) or "" end
+        local unit = s.unit
+        if unit and unit ~= "player" and A.InRange then
+            local okR, inRange = pcall(A.InRange, s.spell, unit)
+            if okR then reach = inRange ~= false end
+        end
+    end
+    if timer then timer:SetText(cd) end
+    if reach then tex:SetVertexColor(1, 1, 1) else tex:SetVertexColor(1, 0.3, 0.3) end
 end
 
 local function fillTooltip(tt)
@@ -443,12 +457,27 @@ end
 -- The same size as Flow's icon (was 40: "make the buff button look much like
 -- the easy button", 0.35.209); its blue edge tells the two apart.
 BB.SIZE = 52
-local function build()
-    btn = CreateFrame("Button", "FlowBuffButton", UIParent, "SecureActionButtonTemplate")
-    btn:SetSize(BB.SIZE, BB.SIZE)
-    btn:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
-    -- Where you left it, or (never moved) just left of the Flow button.
+-- Docked: joined to Flow's icon, right under it, so the two read as one
+-- block ("an option to join or dock buff to easy", 0.35.228). The buff
+-- button's icons hang from its top edge, the modifier names sit once
+-- between the two rows, and both spell names go below the lot.
+BB.DOCK_GAP = 14     -- between the two rows: room for the modifier names
+function BB.Docked() return cfg().dock == true and _G.FlowCastButton ~= nil end
+-- Puts the button where it belongs: docked, where you left it, or (never
+-- moved) just left of the Flow button. Out of a fight only.
+function BB.Place()
+    if not btn or InCombatLockdown() then return false end
     local main = _G.FlowCastButton
+    btn:ClearAllPoints()
+    if label then label:ClearAllPoints() end
+    if BB.Docked() then
+        btn:SetScale(main:GetScale())
+        btn:SetPoint("TOP", main, "BOTTOM", 0, -BB.DOCK_GAP)
+        -- (Flow's own spell name is just under this button: Display.lua.)
+        if label then label:SetPoint("TOP", btn, "BOTTOM", 0, -18) end
+        return true
+    end
+    if label then label:SetPoint("TOP", btn, "BOTTOM", 0, -3) end
     if ns.RestorePlace and (cfg().point or not main) then
         ns.RestorePlace(btn, cfg(), -60, -160)
     elseif main then
@@ -457,6 +486,22 @@ local function build()
     else
         btn:SetPoint("CENTER", UIParent, "CENTER", -60, -160)
     end
+    return true
+end
+function BB.SetDock(on)
+    if InCombatLockdown() then return false end
+    cfg().dock = on and true or nil
+    BB.Place()
+    if ns.careKeys and ns.careKeys.Apply then pcall(ns.careKeys.Apply) end
+    return true
+end
+function BB.Shown() return btn ~= nil and btn:IsShown() end
+
+local function build()
+    btn = CreateFrame("Button", "FlowBuffButton", UIParent, "SecureActionButtonTemplate")
+    btn:SetSize(BB.SIZE, BB.SIZE)
+    btn:SetFrameStrata("MEDIUM")   -- (under the game's own windows: the game menu, Settings; 0.35.163)
+    -- (Placed at the end, once its texts exist: BB.Place.)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     bg:SetPoint("TOPLEFT", -3, 3); bg:SetPoint("BOTTOMRIGHT", 3, -3)
@@ -465,13 +510,18 @@ local function build()
     tex:SetAllPoints()
     tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetPoint("TOP", btn, "BOTTOM", 0, -3)
     label:SetWidth(110)
     label:SetTextColor(0.5, 0.8, 1)
     -- Its key above it, as on Flow's icon (same font and size).
     keyText = btn:CreateFontString(nil, "OVERLAY")
     keyText:SetFont(STANDARD_TEXT_FONT, (ns.cast and ns.cast.KEY_FONT) or 11, "OUTLINE")
     keyText:SetPoint("BOTTOM", btn, "TOP", 0, 2)
+    -- Its spell's cooldown, counted down on the icon as on Flow's (0.35.228).
+    timer = btn:CreateFontString(nil, "OVERLAY")
+    timer:SetFont(STANDARD_TEXT_FONT, 18, "THICKOUTLINE")
+    timer:SetPoint("CENTER", 0, 0)
+    timer:SetTextColor(1, 0.95, 0.7)
+    BB.Place()
     btn:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_LEFT")
         pcall(fillTooltip, GameTooltip)
@@ -535,6 +585,13 @@ local function tick(_, dt)
     if not btn then return end
     if not BB.On() then
         if not InCombatLockdown() and btn:IsShown() then btn:Hide() end
+        return
+    end
+    -- A modifier held: the icon becomes what that press casts ("holding
+    -- modifiers should update the buff button as well", 0.35.228).
+    local heldStep = ns.careKeys and ns.careKeys.HeldStep and ns.careKeys.HeldStep() or nil
+    if heldStep and btn:IsShown() then
+        paint(heldStep, true)
         return
     end
     local live = fresh()
@@ -676,6 +733,17 @@ if ns.settings and ns.settings.AddCheck then
             .. "shows your heal; otherwise it stays away, like Flow's icon. On: it is always there, with the buff that runs out first and its time left.",
         get = function() return cfg().always == true end,
         set = function(on) cfg().always = on and true or nil end,
+    })
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "Dock the buff button under the Flow icon",
+        note = "(the two as one block)",
+        tip = "The buff button sits right under Flow's icon, its little icons under Flow's, with Shift, Ctrl, Alt and C+S written once between the two rows. Off: it stands where you put it.",
+        get = function() return cfg().dock == true end,
+        set = function(on) BB.SetDock(on) end,
     })
 end
 

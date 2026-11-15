@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.228
+- **Dock the buff button under the Flow icon.** A tick in the Flow menu (Keys) and in Flow
+  Settings joins the two into one block: the buff button right under Flow's icon, its
+  little icons under Flow's, with Shift, Ctrl, Alt and C+S written once between the two
+  rows, and both spell names below. Untick it and the buff button goes back where it stood.
+- **The buff button shows what a held modifier casts**, like Flow's icon: hold Shift, Ctrl,
+  Alt or Ctrl + Shift and its icon and name become that press's spell or item.
+- **The buff button counts down its spell's cooldown** on the icon, and turns red when its
+  target is out of reach.
+- **The auto-attack badge wears your main-hand weapon.**
+- The name under Flow's icon in a fight no longer starts with "key:": just the spell.
+- Not seen in game yet.
+
 ## 0.35.227
 - **No spell on two presses.** Bash could sit on two of the easy button's modifiers: the
   druid had one list for the pull and another for a change of form, and they disagreed.

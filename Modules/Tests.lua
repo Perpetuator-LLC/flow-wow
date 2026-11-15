@@ -10730,3 +10730,50 @@ ns:Register("test", "click: the icons beside the Flow icon and the auto-attack b
     t:ok(type(S.Lines()) == "table", "it can say what each is set to")
     t:ok(issecurevariable("SecureActionButton_OnClick") ~= false, "the game's own click handler stays untainted")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.228: the buff button docks under Flow's icon; it shows the held
+-- modifier's spell, its cooldown and reach; the badge wears your weapon.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the buff button docks under the Flow icon and comes off again", function(t)
+    local BB = ns.buffButton
+    t:ok(type(BB.SetDock) == "function" and type(BB.Docked) == "function" and type(BB.Place) == "function", "it can be docked")
+    t:ok(BB.DOCK_GAP >= 12, "the gap between the rows has room for the modifier names")
+    local b, main = _G.FlowBuffButton, _G.FlowCastButton
+    if not (b and main) or InCombatLockdown() then return end
+    ns.db.buffButton = ns.db.buffButton or {}
+    local was = ns.db.buffButton.dock
+    local ok, err = pcall(BB.SetDock, true)
+    t:ok(ok and BB.Docked(), "docking runs" .. (ok and "" or (": " .. tostring(err))))
+    local point, rel, relPoint, _, y = b:GetPoint(1)
+    t:ok(point == "TOP" and rel == main and relPoint == "BOTTOM", "docked: its top hangs from the Flow button's bottom")
+    t:near(y or 0, -BB.DOCK_GAP, 0.01, "with the gap between")
+    t:near(b:GetScale(), main:GetScale(), 0.001, "at the Flow button's own size")
+    ok, err = pcall(BB.SetDock, false)
+    t:ok(ok and not BB.Docked(), "undocking runs" .. (ok and "" or (": " .. tostring(err))))
+    point, rel = b:GetPoint(1)
+    t:ok(not (point == "TOP" and rel == main), "undocked: back where it stood")
+    ns.db.buffButton.dock = was
+    pcall(BB.Place)
+    t:ok(type(ns.DockedNow()) == "boolean", "Flow's icon can ask whether the two are one block")
+    -- The menu and the settings have the switch.
+    local okM, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    local found = false
+    for _, it in ipairs(okM and items or {}) do
+        if type(it.text) == "string" and it.text:find("Dock the buff button", 1, true) then found = true end
+    end
+    t:ok(found, "the Flow menu's Keys section has the dock tick")
+end)
+
+ns:Register("test", "buff button: a held modifier shows what that press casts", function(t)
+    local K = ns.careKeys
+    local c = ns.db.buffButton or {}
+    with(c, "enabled", false, function()
+        t:eq(K.HeldStep("shift"), nil, "the second key off: nothing to show")
+    end)
+    t:eq(K.HeldStep(false), nil, "no modifier held: nothing")
+    t:ok(pcall(K.HeldStep), "asking with the keys as they are runs")
+    local held = ns.cast.HeldView("Wrath", nil)
+    t:eq(held and held.label, "Wrath", "the held spell is named by itself (no 'key:' before it)")
+end)
