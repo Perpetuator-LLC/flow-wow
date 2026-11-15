@@ -647,7 +647,8 @@ local function build()
         end
     end)
     -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
-    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg }) end
+    -- (Docked it goes where Flow's icon goes: no handle of its own, one note under both.)
+    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg, off = function() return BB.Docked() end }) end
     btn:Hide()
 end
 

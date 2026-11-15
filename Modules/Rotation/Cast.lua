@@ -445,7 +445,19 @@ local function build(cfg)
     end
     -- Ctrl: drag to move, mouse wheel to resize (the icon too).
     C.handle = ns:MoveHandle(btn, { name = "the Flow button", save = function() return ns.db.rotation end,
-        also = function() return { E.icon } end })
+        also = function() return { E.icon } end,
+        -- Docked: the one note goes under the buff button too (0.35.247).
+        noteUnder = function() return C.NoteUnder() end })
+end
+
+-------------------------------------------------------------------------------
+-- The frame the move note goes under: the buff button when it's docked under
+-- Flow's icon and showing, else nil (Flow's own button).
+function C.NoteUnder()
+    local BB = ns.buffButton
+    local b = _G.FlowBuffButton
+    if BB and BB.Docked and BB.Docked() and b and b:IsShown() then return b end
+    return nil
 end
 
 -------------------------------------------------------------------------------

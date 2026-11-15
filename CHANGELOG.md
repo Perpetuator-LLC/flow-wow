@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.247
+- **Docked: one "drag to move · wheel to resize" note, under both buttons.** Holding Ctrl
+  showed it twice, once under Flow's icon and once under the buff button. Docked, the buff
+  button goes where Flow's icon goes, so it has no handle of its own now, and the one note
+  sits under the pair. Undocked, each button keeps its own.
+
 ## 0.35.246
 - **"A more powerful spell is already active": Flow moves on.** When someone already has a
   stronger buff than yours (a higher rank, or one Flow can't see), the game refuses your cast,

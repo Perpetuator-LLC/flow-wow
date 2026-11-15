@@ -30,6 +30,14 @@ end
 -- opts.save: table (or function returning it) where .point and .scale go.
 -- opts.also: function returning frames that resize along with it.
 -- opts.onDone: called after each move or resize.
+-- opts.off: function, true while something else moves this button (the buff
+--   button docked under Flow's icon): then it has no handle of its own.
+-- opts.noteUnder: function returning the frame the note goes under (the
+--   docked buff button: one note, under both), or nil for the button itself.
+-- Pure: does a handle show?
+function ns.HandleWanted(keyDown, inCombat, shown, off)
+    return (keyDown and not inCombat and shown and not off) and true or false
+end
 local handles = {}
 function ns:MoveHandle(target, opts)
     local h = CreateFrame("Frame", nil, UIParent)
@@ -73,10 +81,14 @@ function ns:MoveHandle(target, opts)
     end
     -- Show while Ctrl is held (out of combat, button on screen).
     function h:Refresh()
-        local want = ns.MoveKeyDown() and not InCombatLockdown() and target:IsShown()
+        local want = ns.HandleWanted(ns.MoveKeyDown(), InCombatLockdown(), target:IsShown(), opts.off and opts.off())
         if want then
             self:ClearAllPoints()
             self:SetAllPoints(target)
+            local under = opts.noteUnder and opts.noteUnder() or self
+            self.noteUnder = under
+            self.text:ClearAllPoints()
+            self.text:SetPoint("TOP", under, "BOTTOM", 0, -(ns.MOVE_NOTE_DROP))
             self:Label()
             self:Show()
         elseif not self.moving then

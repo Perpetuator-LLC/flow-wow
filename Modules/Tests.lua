@@ -11457,3 +11457,35 @@ ns:Register("test", "buffs for others: one the game refuses as weaker is skipped
         t:eq(pick and pick.spell, "Thorns", "the next buff comes up")
     end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.247: docked, one "drag to move" note under both buttons.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "move handle: docked, the buff button has none and the one note goes under both", function(t)
+    t:ok(ns.HandleWanted(true, false, true, false), "Ctrl held, no fight, on screen: the handle shows")
+    t:ok(not ns.HandleWanted(true, false, true, true), "moved by something else (docked): no handle of its own")
+    t:ok(not ns.HandleWanted(false, false, true, false), "no Ctrl: none")
+    t:ok(not ns.HandleWanted(true, true, true, false), "in a fight: none")
+    t:ok(not ns.HandleWanted(true, false, false, false), "the button hidden: none")
+    local C, BB = ns.cast, ns.buffButton
+    local buff = _G.FlowBuffButton
+    with(BB, "Docked", function() return false end, function()
+        t:eq(C.NoteUnder(), nil, "on its own: the note under Flow's button")
+    end)
+    if buff then
+        with(BB, "Docked", function() return true end, function()
+            t:eq(C.NoteUnder(), buff:IsShown() and buff or nil, "docked: under the buff button when it shows")
+        end)
+    end
+    -- The real handles: refreshing runs, and the buff button's stays hidden when docked.
+    local hb = BB.handle
+    if hb and not InCombatLockdown() then
+        with(BB, "Docked", function() return true end, function()
+            t:ok(pcall(hb.Refresh, hb), "refresh runs")
+            t:ok(not hb:IsShown(), "docked: the buff button's handle stays hidden")
+        end)
+        pcall(hb.Refresh, hb)
+    end
+    if C.handle then t:ok(pcall(C.handle.Refresh, C.handle), "Flow's handle refreshes") end
+end)
