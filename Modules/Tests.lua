@@ -12162,3 +12162,36 @@ ns:Register("test", "bags: a leftover quest item gets one answer: keep for a que
     t:ok(pcall(L.Lines), "the diagnostics lines build")
     t:ok(pcall(L.Related, 5075), "asking the quest data about an item runs")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.267: how many you have, on item tooltips.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tooltips: an item's tooltip says how many you have, in bags and bank", function(t)
+    local H = ns.haveCount
+    t:eq(H.Text(12, 40), "You have 52: 12 in your bags, 40 in your bank", "both: the total and the split")
+    t:eq(H.Text(12, 0), "You have 12 (in your bags)", "only in your bags")
+    t:eq(H.Text(0, 40), "You have 40, all in your bank", "only in your bank")
+    t:eq(H.Text(0, 0), nil, "none: no line")
+    t:eq(H.Text(nil, nil), nil, "unknown: no line")
+    t:eq(H.Text(-3, 2), "You have 2, all in your bank", "a wrong count below zero is taken as none")
+    local ok, bags, bank = pcall(H.Counts, 6948)
+    t:ok(ok and type(bags) == "number" and type(bank) == "number", "counting an item runs")
+    -- The line goes on the tooltip, and not when the setting is off.
+    local lines = {}
+    local fake = { AddLine = function(_, text) lines[#lines + 1] = text end }
+    with(H, "Counts", function() return 3, 7 end, function()
+        H._addLine(fake, 1)
+        t:eq(lines[1], "You have 10: 3 in your bags, 7 in your bank", "the line is added")
+        ns.db.settings = ns.db.settings or {}
+        local was = ns.db.settings.haveCount
+        ns.db.settings.haveCount = false
+        H._addLine(fake, 1)
+        t:eq(#lines, 1, "turned off: no line")
+        ns.db.settings.haveCount = was
+    end)
+    with(H, "Counts", function() return 0, 0 end, function()
+        H._addLine(fake, 1)
+        t:eq(#lines, 1, "you have none: no line")
+    end)
+end)

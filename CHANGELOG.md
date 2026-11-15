@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.267
+- **Item tooltips say how many you have.** One line on every item's tooltip, wherever it's
+  shown (your bags, a vendor, a quest reward, the auction house, a chat link): "You have 52:
+  12 in your bags, 40 in your bank". Nothing when you have none. The bank's count is from the
+  last time you had it open. Flow Settings, Loot and selling: "How many you have, on item
+  tooltips".
+
 ## 0.35.266
 - **A leftover quest item now reads the same in your bags and in Flow Improvements.** The bags
   said "quest item: keep" for anything of the game's Quest kind without looking at your log,

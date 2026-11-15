@@ -263,6 +263,8 @@ Flow for WoW is a separate project from Flow Engine.
   each enemy's nameplate: your threat as a share of whoever it's attacking, coloured by where
   you stand (tanking: green yours, orange losing it, red lost; otherwise red means it's on
   you). `/flow threat on|off`.
+- **How many you have**: every item's tooltip says how many you have, split between your bags
+  and your bank.
 - **Flow Auctions**: at the auction house, what Flow would post and at what price; one click
   posts each. What keeps coming back unsold becomes a vendor item.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
