@@ -63,6 +63,19 @@ local function toMap(pt, mapID)
         end
     end
 end
+-- The same, wherever it falls: beside the map too (x or y under 0 or over 1).
+-- For a line that leaves the map towards a stop in the next zone.
+local function toMapRaw(pt, mapID)
+    if not pt then return nil end
+    if pt.map == mapID and pt.x then return pt.x, pt.y end
+    if pt.wx and pt.cont and C_Map.GetMapPosFromWorldPos and CreateVector2D then
+        local ok, _, pos = pcall(C_Map.GetMapPosFromWorldPos, pt.cont, CreateVector2D(pt.wx, pt.wy), mapID)
+        if ok and pos then
+            local x, y = pos:GetXY()
+            if x and y then return x, y end
+        end
+    end
+end
 
 -- Route lines and pins live one frame strata above the map, so the map's own
 -- objects (lake, town art, other pins) can't cover them; frame levels alone
@@ -795,6 +808,44 @@ function M.LegChain(sx, sy, ex, ey, mids, place)
     return chain
 end
 
+-- Your next stop is on another map than the one shown (0.35.245: "currently
+-- there is nothing if the next stop is in a different zone"): the line still
+-- starts at you and goes the way you'd walk, through the gate when it's on
+-- this map, and stops at the map's edge. Looking at the stop's own map, it
+-- comes in from the edge (or the gate) to the stop. Pure:
+--   where a line from a spot on the map (ix, iy) to one beside it leaves it.
+function M.ClipToMap(ix, iy, ox, oy)
+    local t = 1
+    local dx, dy = ox - ix, oy - iy
+    if ox > 1 then t = math.min(t, (1 - ix) / dx) elseif ox < 0 then t = math.min(t, (0 - ix) / dx) end
+    if oy > 1 then t = math.min(t, (1 - iy) / dy) elseif oy < 0 then t = math.min(t, (0 - iy) / dy) end
+    return ix + dx * t, iy + dy * t
+end
+local function onMap(p) return p[1] >= 0 and p[1] <= 1 and p[2] >= 0 and p[2] <= 1 end
+--   the stretches of a leg through pts ({ x, y } each, on the map or beside
+--   it) that are on the map, in walking order: { x1, y1, x2, y2, from = k }.
+--   A stretch between two points that are both off the map isn't drawn.
+function M.LegParts(pts)
+    local out = {}
+    for k = 1, #pts - 1 do
+        local a, b = pts[k], pts[k + 1]
+        local ain, bin = onMap(a), onMap(b)
+        if ain and bin then
+            out[#out + 1] = { a[1], a[2], b[1], b[2], from = k }
+        elseif ain then
+            local cx, cy = M.ClipToMap(a[1], a[2], b[1], b[2])
+            out[#out + 1] = { a[1], a[2], cx, cy, from = k }
+        elseif bin then
+            local cx, cy = M.ClipToMap(b[1], b[2], a[1], a[2])
+            out[#out + 1] = { cx, cy, b[1], b[2], from = k }
+        end
+    end
+    return out
+end
+--   does the leg to your next stop cross the map's edge? (You on it and the
+--   stop not, or the stop on it and you not.)
+function M.CrossesEdge(youOn, stopOn) return (youOn and true or false) ~= (stopOn and true or false) end
+
 local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     if not plan then return end
     local you = ns.nav:PlayerPos()
@@ -811,6 +862,26 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
         -- character, or where you used to be). It's listed, not placed.
         local x, y
         if not M.FollowsYou(s) then x, y = toMap(s.point, mapID) end
+        -- Your next stop, on another map than you: the part of the way that's on this one.
+        if i == 1 and alpha == nil and not pinsOnly and you and not M.FollowsYou(s)
+            and s.point and s.point.cont == you.cont and M.CrossesEdge(px, x) and ns.nav:StopVisible(i, false) then
+            local pts = {}
+            local function add(pt)
+                local rx, ry = toMapRaw(pt, mapID)
+                if rx then pts[#pts + 1] = { rx, ry } end
+            end
+            add(you)
+            local okV, list = pcall(ns.nav.LegVia, you, s.point, true)
+            for _, m in ipairs(okV and list or {}) do add(m) end
+            add(s.point)
+            for _, part in ipairs(M.LegParts(pts)) do
+                legs[#legs + 1] = { part[1], part[2], part[3], part[4],
+                                    color = theme().route, live = M.LegLive(true, nil), alpha = FIRST_ALPHA }
+                if px and part.from == 1 then addLink(links, nil, legs[#legs]) end
+            end
+            -- (No line from you to a later stop on this map: you aren't going there next.)
+            px, fromYou, prevPt = nil, false, nil
+        end
         local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
         -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
         local beyond = not ns.nav:StopVisible(i, false)

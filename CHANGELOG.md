@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.245
+- **The world map shows the way to a stop in another zone.** With your next stop on another map
+  than you, there was no line at all. Now the dotted line (with its dots walking the way you
+  go) leaves from you, bends through the gate when Flow knows one on this map, and runs to the
+  map's edge towards the stop. Looking at the stop's own map, it comes in from the edge or the
+  gate to the stop. And there's no longer a line from you to a later stop that happens to be
+  on your map when the next one isn't.
+
 ## 0.35.244
 - **Flow's key buffs your party again, with the buff button on.** Out of a fight, with nothing
   else to press and no enemy targeted, Flow's key casts your buffs on whoever in your group is

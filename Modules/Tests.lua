@@ -11393,3 +11393,35 @@ ns:Register("test", "group buffs: on Flow's key with the buff button on; the rea
     local ok, lines = pcall(E.GroupWhy, E, ctx, { groupBuffs = list })
     t:ok(ok and type(lines) == "table", "the diagnostics lines build")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.245: your next stop on another map: the line still leaves from you.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map: the way to a stop in another zone is drawn to the map's edge, through the gate", function(t)
+    local M = ns.mapOverlay
+    local x, y = M.ClipToMap(0.5, 0.5, 1.5, 0.5)
+    t:near(x, 1, 0.001, "east: ends on the right edge"); t:near(y, 0.5, 0.001, "level")
+    x, y = M.ClipToMap(0.5, 0.5, 0.5, -1.5)
+    t:near(x, 0.5, 0.001, "north: straight up"); t:near(y, 0, 0.001, "ends on the top edge")
+    x, y = M.ClipToMap(0.5, 0.5, 2.5, 1.5)
+    t:near(x, 1, 0.001, "a slant: the edge it meets first"); t:near(y, 0.75, 0.001, "at the right height")
+    -- You (on the map), the gate (on the map), the stop (in the next zone).
+    local parts = M.LegParts({ { 0.2, 0.5 }, { 0.9, 0.5 }, { 1.8, 0.5 } })
+    t:eq(#parts, 2, "you to the gate, the gate to the edge")
+    t:ok(parts[1][1] == 0.2 and parts[1][3] == 0.9 and parts[1].from == 1, "first from you to the gate (so the dots walk that way)")
+    t:near(parts[2][3], 1, 0.001, "then on to the edge, towards the stop")
+    -- No gate known: straight from you to the edge.
+    parts = M.LegParts({ { 0.2, 0.5 }, { 1.8, 0.5 } })
+    t:eq(#parts, 1, "no gate: one line"); t:near(parts[1][3], 1, 0.001, "to the edge")
+    -- Looking at the stop's map: in from the edge (you're beside the map), through the gate, to the stop.
+    parts = M.LegParts({ { -0.6, 0.5 }, { 0.1, 0.5 }, { 0.7, 0.5 } })
+    t:eq(#parts, 2, "the edge to the gate, the gate to the stop")
+    t:near(parts[1][1], 0, 0.001, "it comes in at the edge"); t:eq(parts[2][3], 0.7, "and ends at the stop")
+    -- A map neither you nor the stop is on, and a point missing: nothing, no error.
+    t:eq(#M.LegParts({ { -1, 0.5 }, { 2, 0.5 } }), 0, "both beside the map: no line")
+    t:eq(#M.LegParts({ { 0.5, 0.5 } }), 0, "one point: no line")
+    t:ok(M.CrossesEdge(0.3, nil) and M.CrossesEdge(nil, 0.3), "you on the map and the stop not, or the other way round")
+    t:ok(not M.CrossesEdge(0.3, 0.4) and not M.CrossesEdge(nil, nil), "both on it (the usual line) or neither: not this")
+    t:ok(pcall(M.Redraw, M), "the map still draws")
+end)
