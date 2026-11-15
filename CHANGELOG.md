@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.260
+- **Ask your group in chat for a dungeon's quests.** On a dungeon run's menu (the arrow's
+  Dungeons list, and the "Dungeon route" line under the arrow): "Ask my group in chat who has
+  its quests". It says one line in party or raid chat, the quests you still need ("... Can
+  anyone share them?"), or the ones you can share when you have them all. Anyone can read it,
+  with Flow or without. Nothing is said unless you click it.
+
 ## 0.35.259
 - **An empty herb or ore spot no longer holds you.** Flow knows where herbs can grow, not
   which ones are up right now (the game doesn't tell add-ons; its own Find Herbs dots are the

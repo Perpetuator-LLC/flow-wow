@@ -11901,3 +11901,31 @@ ns:Register("test", "route: standing at an empty herb spot moves the arrow on", 
     t:ok(not N.SpotEmpty(40, 90, 100), "not at the spot: no")
     t:ok(not N.SpotEmpty(nil, 90, 100), "no spot: no")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.260: ask your group in chat for a dungeon's quests.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: a dungeon run can ask your group in chat for its quests", function(t)
+    local D = ns.dungeons
+    t:eq(D.AskText("Ragefire Chasm", { "Hidden Enemies", "Testing an Enemy's Strength" }, { "Searching for the Lost Satchel" }),
+        "Ragefire Chasm quests I still need: Hidden Enemies, Testing an Enemy's Strength. Can anyone share them?", "what you still need")
+    t:eq(D.AskText("Ragefire Chasm", {}, { "Hidden Enemies" }), "Ragefire Chasm quests I can share: Hidden Enemies. Say if you need one.",
+        "nothing missing: what you can share")
+    t:eq(D.AskText("Ragefire Chasm", {}, {}), nil, "nothing either way: nothing to say")
+    local long = {}
+    for i = 1, 40 do long[i] = "A Quest With A Long Name " .. i end
+    local text = D.AskText("Blackrock Depths", long, {})
+    t:ok(#text <= D.ASK_MAX and text:sub(-3) == "...", "a long list is cut to what the chat box takes")
+    t:eq(D.AskChannel(true, true), "RAID", "in a raid: raid chat")
+    t:eq(D.AskChannel(false, true), "PARTY", "in a party: party chat")
+    t:eq(D.AskChannel(false, false), nil, "alone: not said")
+    -- The menu has it. (The click itself isn't made here: it would speak in your party's chat.)
+    local was, wasOnly = ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    ns.db.nav.dungeonRun = { key = "no-such-run", name = "Test" }
+    local ok, items = pcall(D.ModeItems, D)
+    t:ok(ok and type(items) == "table", "the route's menu builds")
+    ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, wasOnly
+    t:ok(type(D.AskParty) == "function", "asking is there")
+    t:eq(D:AskParty(nil), false, "no run: nothing said")
+end)

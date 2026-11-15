@@ -1521,6 +1521,9 @@ function D:ModeItems()
         items[#items + 1] = { text = "Back on the dungeon route (only this run's steps)",
             func = function() D:SetRunOnly(key); D:RefreshToggle() end }
     end
+    if run then
+        items[#items + 1] = { text = "Ask my group in chat who has its quests", func = function() D:AskParty(run) end }
+    end
     items[#items + 1] = { text = "Cancel this run", func = function() D:Cancel(); D:RefreshToggle() end }
     return items
 end
@@ -1556,6 +1559,53 @@ function D:RefreshToggle()
 end
 if C_Timer and C_Timer.NewTicker then
     C_Timer.NewTicker(2, function() pcall(D.RefreshToggle, D) end)
+end
+
+-- Ask your group in chat (0.35.260): "join parties and ask them if they
+-- have those quests". Sharing through Flow only reaches members who run
+-- Flow; this is one line of party chat anyone can read, sent when you click.
+D.ASK_MAX = 250   -- the chat box takes 255 letters
+-- Pure: the line. missing, have: quest names.
+function D.AskText(name, missing, have, max)
+    max = max or D.ASK_MAX
+    local text
+    if #missing > 0 then
+        text = string.format("%s quests I still need: %s. Can anyone share them?", name, table.concat(missing, ", "))
+    elseif #have > 0 then
+        text = string.format("%s quests I can share: %s. Say if you need one.", name, table.concat(have, ", "))
+    else
+        return nil
+    end
+    if #text > max then text = text:sub(1, max - 3) .. "..." end
+    return text
+end
+-- Pure: where it's said: your raid, your party, or nowhere (alone).
+function D.AskChannel(inRaid, inGroup)
+    if inRaid then return "RAID" end
+    if inGroup then return "PARTY" end
+    return nil
+end
+function D:AskParty(run)
+    if not run then return false end
+    local function names(ids)
+        local out = {}
+        for _, id in ipairs(ids or {}) do
+            local i = D.QuestInfo(id)
+            if i and i.name then out[#out + 1] = i.name end
+        end
+        return out
+    end
+    local need = names(run.pickups)
+    for _, st in ipairs(run.leadIns or {}) do
+        local i = D.QuestInfo(st.id)
+        if i and i.name then need[#need + 1] = i.name end
+    end
+    local text = D.AskText(run.name, need, names(run.ready))
+    local channel = D.AskChannel(IsInRaid and IsInRaid(), IsInGroup and IsInGroup())
+    if not text then ns:Print("nothing to ask about for " .. run.name) return false end
+    if not channel then ns:Print("you're not in a group. The line would be: " .. text) return false end
+    SendChatMessage(text, channel)
+    return true
 end
 
 -- What the game offers for joining a dungeon group (for the diagnostics:
@@ -1679,6 +1729,7 @@ local function runMenu(run)
             D.dirty = true
             if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("dungeon lead-in choice") end
         end }
+    items[#items + 1] = { text = "Ask my group in chat who has its quests", func = function() D:AskParty(run) end }
     local missing = D:PartyMissing(run)
     if #missing > 0 then
         items[#items + 1] = { text = string.format("Share quests (%d)", #missing), func = function() D:ShareMissing(run) end }
