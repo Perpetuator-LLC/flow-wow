@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.231
+- **A second key for the buff button.** Like Flow's own key, the buff button can have two
+  keys: Flow Settings has a "Buff button's second key" row (with the same check of what the
+  key already does), or `/flow buffkey2 <key>`. Both keys press the button, and Shift,
+  Ctrl, Alt and Ctrl + Shift with either cast its heals and potion. The button shows both
+  ("E / R").
+
 ## 0.35.230
 - **Auto attack starts whichever press you open with.** Flow already made the first press of
   your key at a new enemy the game's Start Attack (your opener comes with the next press),

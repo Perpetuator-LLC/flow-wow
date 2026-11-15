@@ -10833,3 +10833,37 @@ ns:Register("test", "auto-attack badge: a click toggles your swing by the bar sl
     t:ok(pcall(S.AttackSlot), "your own bars are read without error")
     if S.swing then t:ok(S.swing.set ~= nil, "the badge's button says how it's set: " .. tostring(S.swing.set)) end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.231: two keys for the buff button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buff button: two keys, each with the same modifier presses", function(t)
+    local BB, S = ns.buffButton, ns.settings
+    local keys = BB.KeysOf({ key = "E", key2 = "R" })
+    t:ok(#keys == 2 and keys[1] == "E" and keys[2] == "R", "both keys")
+    t:eq(#BB.KeysOf({ key = "E" }), 1, "one key: one")
+    t:eq(#BB.KeysOf({ key2 = "R" }), 1, "only the second set: it works by itself")
+    t:eq(#BB.KeysOf({ key = "E", key2 = "E" }), 1, "the same key twice: once")
+    t:eq(#BB.KeysOf({}), 0, "none set: none")
+    t:eq(#BB.KeysOf(nil), 0, "no settings: none")
+    t:eq(S.FlowSlotOf("R", { "BUTTON5", "Q", "E", "R" }), 4, "the settings page knows the buff button's second key")
+    t:eq(S.SLOT_NAME[4], "the buff button's second key", "and names it")
+    local f = S._Build and S._Build()
+    if f then t:ok(f.key4Value ~= nil and f.set4 ~= nil and f.clear4 ~= nil, "Flow Settings has a row for it") end
+    t:ok(type(ns.commands.buffkey2) == "function", "/flow buffkey2 sets it too")
+    if InCombatLockdown() then return end
+    -- Set and cleared again, with your own keys put back.
+    ns.db.buffButton = ns.db.buffButton or {}
+    local c = ns.db.buffButton
+    local key, key2, enabled = c.key, c.key2, c.enabled
+    local ok, err = pcall(BB.SetKey, "F11", 2)
+    t:ok(ok and BB.Key(2) == "F11", "the second key is set" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(BB.Key(), key, "the first key is untouched")
+    pcall(BB.SetKey, nil, 2)
+    t:eq(BB.Key(2), nil, "and cleared")
+    c.key, c.key2, c.enabled = key, key2, enabled
+    pcall(BB.SetKey, key, 1)
+    c.enabled = enabled
+    if ns.careKeys and ns.careKeys.Apply then pcall(ns.careKeys.Apply) end
+end)

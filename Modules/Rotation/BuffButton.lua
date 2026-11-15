@@ -255,7 +255,7 @@ end
 -- this button has a key of its own: sitting is the game's Sit/Stand on that
 -- key (a button can't sit you: macro buttons are ignored on Forever), so
 -- with no key they stay on Flow's key, which sits you the same way.
-function BB.TakesCamp() return BB.On() and cfg().key ~= nil end
+function BB.TakesCamp() return BB.On() and (cfg().key ~= nil or cfg().key2 ~= nil) end
 local campGet
 do
     local a = ns:Get("action", "buff:camp")
@@ -307,7 +307,7 @@ end
 local function pickFish(ctx)
     local X = ns.actions
     if not (ctx and X and X.EquipStep and X.LureStep and X.ReelStep and X.CastStep) then return nil end
-    local steps = { X.EquipStep, X.LureStep, cfg().key and X.ReelStep or nil, X.CastStep }
+    local steps = { X.EquipStep, X.LureStep, (cfg().key or cfg().key2) and X.ReelStep or nil, X.CastStep }
     for i = 1, 4 do
         if steps[i] then
             local ok, s = pcall(steps[i], ctx)
@@ -391,11 +391,22 @@ local function setAction(s)
     end
 end
 
+-- Its keys: one, or two ("we should support 2 key binds for the buff bar
+-- too", 0.35.231), as Flow's own key has. Pure: from its saved settings.
+function BB.KeysOf(c)
+    local out = {}
+    if c and c.key then out[#out + 1] = c.key end
+    if c and c.key2 and c.key2 ~= c.key then out[#out + 1] = c.key2 end
+    return out
+end
+function BB.Keys() return BB.KeysOf(cfg()) end
 local function keyLabel()
-    local key = cfg().key
-    if not key then return "" end
     local short = ns.cast and ns.cast.ShortKey
-    return short and short(key, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end) or key
+    local parts = {}
+    for _, key in ipairs(BB.Keys()) do
+        parts[#parts + 1] = short and short(key, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end) or key
+    end
+    return table.concat(parts, " / ")
 end
 
 local function paint(s, bright)
@@ -553,8 +564,7 @@ local function applyKey()
     if InCombatLockdown() then pendingKey = true return end
     pendingKey = false
     ClearOverrideBindings(owner)
-    local key = cfg().key
-    if key and BB.On() then
+    for _, key in ipairs(BB.On() and BB.Keys() or {}) do
         -- By a campfire with sitting the step: the key is the game's own
         -- Sit/Stand (as Flow's key does it); reeling in: the game's Interact;
         -- else it clicks this button.
@@ -695,10 +705,10 @@ function BB.Set(on)
 end
 -- Its key, set from Flow Settings and the Flow menu (nil clears it). Giving
 -- it a key turns the button on: a key for a button that's off does nothing.
-function BB.Key() return cfg().key end
-function BB.SetKey(key)
+function BB.Key(slot) if slot == 2 then return cfg().key2 end return cfg().key end
+function BB.SetKey(key, slot)
     if InCombatLockdown() then return false end
-    cfg().key = key
+    if slot == 2 then cfg().key2 = key else cfg().key = key end
     if key then cfg().enabled = true end
     applyKey()
     return true
@@ -777,4 +787,24 @@ ns.commands.buffkey = function(arg)
     end
     applyKey()
     ns:Print("buff button key: " .. (cfg().key or "none"))
+end
+
+-- /flow buffkey2 <KEY>: a second key for the buff button (off: clear it).
+-- Flow Settings has the same, with what the key already does.
+ns.commands.buffkey2 = function(arg)
+    arg = (arg or ""):gsub("%s+", ""):upper()
+    if arg == "" then
+        ns:Print("buff button's second key: " .. (cfg().key2 or "none") .. "  (/flow buffkey2 R sets it, /flow buffkey2 off clears it)")
+        return
+    end
+    if InCombatLockdown() then ns:Print("key bindings can't change in a fight") return end
+    if arg == "OFF" then
+        BB.SetKey(nil, 2)
+    else
+        for _, k in ipairs(ns.cast and ns.cast.KeysOf and ns.cast.KeysOf(ns.db.cast) or {}) do
+            if k == arg then ns:Print(arg .. " is already Flow's main key: pick another") return end
+        end
+        BB.SetKey(arg, 2)
+    end
+    ns:Print("buff button's second key: " .. (cfg().key2 or "none"))
 end

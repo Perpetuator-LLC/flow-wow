@@ -111,6 +111,9 @@ local function refresh()
     local buffKey = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key() or nil
     frame.key3Value:SetText(label(buffKey) .. ((buffKey and ns.buffButton and not ns.buffButton.On()) and "  |cff888888(buff button off)|r" or ""))
     frame.clear3:SetEnabled(buffKey ~= nil)
+    local buffKey2 = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key(2) or nil
+    frame.key4Value:SetText(label(buffKey2))
+    frame.clear4:SetEnabled(buffKey2 ~= nil)
     for _, c in ipairs(frame.checks or {}) do
         local ok, on = pcall(c.get)
         c:SetChecked(ok and on and true or false)
@@ -170,24 +173,24 @@ function S.Notice(f, kind)
 end
 
 -- Which of Flow's own keys already has this key: 1, 2 (the easy key's) or 3
--- (the buff button's); nil: none. Pure: keys = { key1, key2, buffKey }.
+-- or 4 (the buff button's two); nil: none. Pure: keys = { key1, key2, buffKey, buffKey2 }.
 function S.FlowSlotOf(key, keys)
-    for slot = 1, 3 do
+    for slot = 1, 4 do
         if key and keys[slot] == key then return slot end
     end
     return nil
 end
-S.SLOT_NAME = { "Flow's key", "Flow's second key", "the buff button's key" }
+S.SLOT_NAME = { "Flow's key", "Flow's second key", "the buff button's key", "the buff button's second key" }
 -- Sets one of Flow's three keys (3: the buff button's).
 local function setSlotKey(key, slot)
-    if slot == 3 then
-        if ns.buffButton and ns.buffButton.SetKey then ns.buffButton.SetKey(key) end
+    if slot == 3 or slot == 4 then
+        if ns.buffButton and ns.buffButton.SetKey then ns.buffButton.SetKey(key, slot == 4 and 2 or 1) end
     else
         ns.cast:SetKey(key, slot)
     end
 end
 local function doneText(key, slot)
-    if slot == 3 then
+    if slot == 3 or slot == 4 then
         return "|cff66ff66" .. label(key) .. " now presses the buff button; with Shift, Ctrl, Alt or Ctrl + Shift: your heals and potion.|r"
     end
     return "|cff66ff66" .. label(key) .. " now casts Flow's suggestion.|r"
@@ -211,7 +214,8 @@ local function choose(key)
     stopCapture()
     -- One of Flow's own keys already: it moves (one key can't press two buttons).
     local buffKey = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key() or nil
-    local mine = S.FlowSlotOf(key, { ns.db.cast.key, ns.db.cast.key2, buffKey })
+    local buffKey2 = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key(2) or nil
+    local mine = S.FlowSlotOf(key, { ns.db.cast.key, ns.db.cast.key2, buffKey, buffKey2 })
     local moved = ""
     if mine and mine ~= frame.slot then
         setSlotKey(nil, mine)
@@ -418,7 +422,18 @@ local function build(parent)
     f.clear3 = button(f, "Clear", 80)
     f.clear3:SetPoint("LEFT", set3, "RIGHT", 8, 0)
     f.set3 = set3
-    y = y - 56
+    -- And a second key for it, as Flow's own key has (0.35.231).
+    local name4 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    name4:SetPoint("TOPLEFT", 16, y - 88)
+    name4:SetText("Buff button's second key:")
+    f.key4Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.key4Value:SetPoint("LEFT", name4, "RIGHT", 12, 0)
+    local set4 = button(f, "Set key", 90)
+    set4:SetPoint("TOPLEFT", 250, y - 84)
+    f.clear4 = button(f, "Clear", 80)
+    f.clear4:SetPoint("LEFT", set4, "RIGHT", 8, 0)
+    f.set4 = set4
+    y = y - 84
     local help = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     help:SetPoint("TOPLEFT", 16, y - 32)
     help:SetWidth(WIDTH - 40)
@@ -781,6 +796,12 @@ local function build(parent)
         cap:Show()
     end
     f.set3:SetScript("OnClick", function() startCapture(3) end)
+    f.set4:SetScript("OnClick", function() startCapture(4) end)
+    f.clear4:SetScript("OnClick", function()
+        setSlotKey(nil, 4)
+        f.status:SetText("The buff button's second key cleared; that key does what it did before.")
+        refresh()
+    end)
     f.clear3:SetScript("OnClick", function()
         setSlotKey(nil, 3)
         f.status:SetText("The buff button's key cleared; that key does what it did before.")

@@ -50,7 +50,7 @@ local function cfg()
 end
 function K.Wanted() return cfg().care ~= false end
 -- On: the buff button is on, has a key, and this isn't switched off.
-function K.Active() return BB.On() and cfg().key ~= nil and K.Wanted() end
+function K.Active() return BB.On() and #BB.Keys() > 0 and K.Wanted() end
 
 -- The heal and the potion have left Flow's own key (0.35.207: "yes, move
 -- them"): Shift + Flow's key and Alt + Flow's key are attacks, and looking
@@ -159,11 +159,12 @@ local function clearSlot(btn, slot)
     for _, a in ipairs({ "type", "spell", "item", "unit" }) do btn:SetAttribute("*" .. a .. "-" .. K.BUTTON[slot], nil) end
 end
 
+local function keysText() return K.Active() and table.concat(BB.Keys(), "+") or nil end
 local function bind()
     ClearOverrideBindings(owner)
-    local key = K.Active() and cfg().key or nil
     local set = {}
-    if key then
+    -- (Each of the button's keys, one or two, gets the same modifier presses.)
+    for _, key in ipairs(K.Active() and BB.Keys() or {}) do
         for _, slot in ipairs(K.SLOTS) do
             local modKey = slotText[slot] and K.KeyFor(key, slot)
             if modKey then
@@ -172,7 +173,7 @@ local function bind()
             end
         end
     end
-    boundKey, boundSet = key, table.concat(set, ",")
+    boundKey, boundSet = keysText(), table.concat(set, ",")
 end
 
 local function texOf(s)
@@ -282,8 +283,7 @@ function K.Apply()
         end
         slotStep[slot] = kind and plan[slot] or nil
     end
-    local key = K.Active() and cfg().key or nil
-    if changed or key ~= boundKey or boundSet == nil then bind() end
+    if changed or keysText() ~= boundKey or boundSet == nil then bind() end
     paint()
     return true
 end
@@ -312,7 +312,7 @@ function K.PressFor(advice, words)
     local slot = K.SlotOf(advice.item or advice.spell)
     if not slot and K.Moved() and (advice.kind == "heal" or advice.kind == "emergency") and advice.spell then slot = "key" end
     if not slot then return nil end
-    local key = cfg().key
+    local key = BB.Keys()[1]
     local label = (ns.cast and ns.cast.ShortKey and ns.cast.ShortKey(key, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end)) or key
     return K.PressText(slot, label, words) .. (words and "" or ":")
 end
@@ -368,15 +368,15 @@ function K.Lines()
         out[1] = "the second key is off: /flow buffbutton on, then /flow buffkey <key> (heals and potions go on its modifiers)"
         return out
     end
-    if not cfg().key then
+    if #BB.Keys() == 0 then
         out[1] = "the buff button has no key yet: /flow buffkey <key> (heals and potions go on its modifiers)"
         return out
     end
     if not K.Wanted() then out[1] = "heals and potions on the buff key: off" return out end
     local plan = K.plan or {}
-    out[1] = string.format("buff key %s in a fight: %s", tostring(cfg().key), nameOf(plan.key))
+    out[1] = string.format("buff key %s in a fight: %s", table.concat(BB.Keys(), " / "), nameOf(plan.key))
     for _, slot in ipairs(K.SLOTS) do
-        local modKey = K.KeyFor(cfg().key, slot)
+        local modKey = K.KeyFor(BB.Keys()[1], slot)
         out[#out + 1] = string.format("  %s (%s): %s%s", K.NAME[slot], tostring(modKey), nameOf(plan[slot]),
             slotText[slot] and (" [set as " .. slotText[slot] .. "]") or "")
     end
