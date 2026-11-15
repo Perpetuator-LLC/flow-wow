@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.262
+- **A material your skill has moved past is let go.** Linen Cloth was kept "for First Aid:
+  Heavy Linen Bandage" although First Aid 80 is on Wool Bandage. Once you're at the end of
+  every recipe in Flow's guide that takes a material, that profession no longer claims it:
+  it's sold, or goes to the auction house when the price there is worth it, with the reason
+  "your First Aid is past it (Heavy Linen Bandage)".
+- **Spare bags.** A bag lying in your bags that's no bigger than any bag you wear is marked to
+  sell ("spare 8-slot bag"). One that's bigger than a bag you wear, or when a bag slot is
+  empty, says "put it on".
+- The diagnostics now carry the game's own "Use:" line for things Flow can't place (the
+  scrolls), so a rule can be written for them.
+- Fixed a self-test of the meters' headings that failed on every reload.
+
 ## 0.35.261
 - **Flow Meters menu: Show and Rows.** Right-click: under "Show", pick "Show in combat",
   "Show in group" (the usual; a training dummy counts) or "Always show". Under "Rows", 2, 5 or

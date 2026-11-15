@@ -11588,10 +11588,8 @@ ns:Register("test", "meters: each list's heading has the Flow title bar look", f
         for _, name in ipairs({ "threat", "damage" }) do
             local l = f[name]
             t:ok(l.bar ~= nil and l.accent ~= nil, name .. ": a bar and an accent")
-            local r, g, b = l.bar:GetVertexColor()
-            t:ok(math.abs(r - th.BAR[1]) < 0.02 and math.abs(g - th.BAR[2]) < 0.02 and math.abs(b - th.BAR[3]) < 0.02, name .. ": the title bars' dark colour")
-            r, g, b = l.accent:GetVertexColor()
-            t:ok(math.abs(r - th.arrow[1]) < 0.02 and math.abs(g - th.arrow[2]) < 0.02 and math.abs(b - th.arrow[3]) < 0.02, name .. ": the orange accent")
+            t:ok(l.barColor == th.BAR, name .. ": the title bars' dark colour")
+            t:ok(l.accentColor == th.arrow, name .. ": the orange accent")
             t:near(l.bar:GetHeight(), M.HEAD_H, 0.5, name .. ": as tall as the heading")
             local _, _, _, x = l.head:GetPoint(1)
             t:ok(x > M.HEAD_ACCENT, name .. ": the title clear of the accent")
@@ -11987,4 +11985,37 @@ ns:Register("test", "tooltips: one Flow opens has room for its sentences, and gi
     t:eq(#set, 3, "opened again: widened again")
     t:eq(ns.WidenTip({}), false, "a tooltip that can't be widened: left alone")
     t:eq(ns.WidenTip(nil), false, "none: nothing")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.262: materials your skill is past; spare bags.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: a material your skill has moved past is no longer kept for that profession", function(t)
+    local D = ns.disposition
+    local guide = { steps = {
+        { recipe = "Linen Bandage", mats = { [2589] = 1 }, use = { 1, 40 }, grey = 60 },
+        { recipe = "Heavy Linen Bandage", mats = { [2589] = 2 }, use = { 40, 80 }, grey = 100 },
+        { recipe = "Wool Bandage", mats = { [2592] = 1 }, use = { 80, 115 }, grey = 150 },
+    } }
+    t:ok(D.StepPast(guide.steps[2], 80), "Heavy Linen Bandage at 80: behind you")
+    t:ok(not D.StepPast(guide.steps[2], 79), "at 79: still the one to make")
+    t:ok(D.StepPast({ grey = 100 }, 100) and not D.StepPast({ grey = 100 }, 99), "no range given: when it goes grey")
+    t:ok(not D.StepPast({}, 300), "nothing known about it: never past")
+    t:eq(D.OutgrownBy(2589, 80, guide), "Heavy Linen Bandage", "Linen Cloth at First Aid 80: past it")
+    t:eq(D.OutgrownBy(2589, 60, guide), nil, "at 60: Heavy Linen Bandage still wants it")
+    t:eq(D.OutgrownBy(2592, 80, guide), nil, "Wool Cloth at 80: wanted now")
+    t:eq(D.OutgrownBy(9999, 80, guide), nil, "something the guide never uses: not this rule's")
+    t:eq(D.OutgrownBy(2589, 80, nil), nil, "no guide: not this rule's")
+    t:eq(D.OutgrownText({ ["First Aid"] = "Heavy Linen Bandage" }), "your First Aid is past it (Heavy Linen Bandage)", "said in words")
+    t:eq(D.OutgrownText(nil), nil, "nothing outgrown: nothing said")
+    -- Spare bags.
+    t:eq(D.BagSize({ { left = "Brown Leather Satchel" }, { left = "8 Slot Bag" } }), 8, "the tooltip's size")
+    t:eq(D.BagSize({ { left = "Linen Cloth" } }), nil, "not a bag: no size")
+    t:eq(D.SpareBag(8, { 8, 8, 10, 8 }), "spare", "every bag you wear is as big or bigger: a spare")
+    t:eq(D.SpareBag(8, { 8, 6, 10, 8 }), "wear", "bigger than one you wear: put it on")
+    t:eq(D.SpareBag(6, { 8, 0, 10, 8 }), "wear", "an empty bag slot: put it on")
+    t:eq(D.SpareBag(nil, { 8, 8, 8, 8 }), nil, "size unknown: left alone")
+    local ok, worn = pcall(D.WornBags)
+    t:ok(ok and #worn == 4, "your four bag slots are read")
 end)

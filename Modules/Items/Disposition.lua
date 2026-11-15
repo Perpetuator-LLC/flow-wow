@@ -283,9 +283,33 @@ reg("classKeep", 7, function(i)
     end
 end)
 
+-- A material your skill has moved past (0.35.262). "I have Linen Cloth,
+-- which says to keep for First Aid, but I'm past that and on the wool: it
+-- should tell me to auction or vendor it." A levelling guide's step says the
+-- skill range it's made in (use = { from, to }); once you're at the end of
+-- every step that takes the item, that profession no longer wants it.
+-- Pure: is this step behind you? (No range given: when it goes grey.)
+function D.StepPast(step, rank)
+    local to = (step.use and step.use[2]) or step.grey
+    return to ~= nil and (rank or 0) >= to
+end
+-- Pure: the recipe that used to take the item, when every step of the guide
+-- that takes it is behind you; nil while one still wants it, or none does.
+function D.OutgrownBy(itemId, rank, guide)
+    local last
+    for _, step in ipairs((guide and guide.steps) or {}) do
+        if step.mats and step.mats[itemId] then
+            if not D.StepPast(step, rank) then return nil end
+            last = step.recipe
+        end
+    end
+    return last
+end
+
 -- Materials your professions use: exact recipes once you've opened that
 -- profession's window, otherwise by kind of material.
 reg("professionMaterial", 25, function(i)
+    i.outgrown = nil
     -- Every profession you have that uses it (recipes you've seen in a
     -- profession window, Flow's levelling guides, then by kind of material).
     local found, order, planned = {}, {}, {}
@@ -293,6 +317,12 @@ reg("professionMaterial", 25, function(i)
     local function add(prof, what)
         -- Professions you have, and ones in your plan you haven't learned yet.
         if not (ns.api.Skill(prof) or planned[prof]) or found[prof] then return end
+        local past = D.OutgrownBy(i.id, ns.api.Skill(prof) or 0, ns:Get("profGuide", prof))
+        if past then
+            i.outgrown = i.outgrown or {}
+            i.outgrown[prof] = past
+            return
+        end
         found[prof] = what or true
         order[#order + 1] = prof
     end
@@ -439,8 +469,17 @@ end
 -- or planned, use: sell the plain ones; the better ones go to the auction
 -- house on a price that's worth it, else to the vendor too (auctionOrVendor).
 -- Quest and class-quest needs were checked before this.
+-- Pure: "your First Aid is past it (Heavy Linen Bandage)".
+function D.OutgrownText(outgrown)
+    local parts = {}
+    for prof, recipe in pairs(outgrown or {}) do parts[#parts + 1] = string.format("your %s is past it (%s)", prof, recipe) end
+    table.sort(parts)
+    return #parts > 0 and table.concat(parts, "; ") or nil
+end
 reg("unusedMaterial", 27, function(i)
     if i.classID ~= 7 or i.sellPrice <= 0 then return nil end
+    local past = D.OutgrownText(i.outgrown)
+    if past then return auctionOrVendor(i, past) end
     if (i.quality or 1) >= 2 then
         return auctionOrVendor(i, "crafting material none of your professions use")
     end
@@ -519,6 +558,42 @@ reg("outgrownConsumable", 22, function(i)
     local best = D:BestConsumableTier(kind)
     if best and (i.minLevel or 0) + TIER_STEP <= best then
         return { action = "sell", reason = string.format("outgrown: you carry %d+ better %s", KEEP_BETTER, kind) }
+    end
+end)
+
+-- A bag in your bags (0.35.262): worth putting on when it's bigger than one
+-- you wear (or a bag slot is empty); else it's a spare taking a slot.
+-- Pure: how many slots a bag's tooltip says ("8 Slot Bag").
+function D.BagSize(lines)
+    for _, l in ipairs(lines or {}) do
+        local n = type(l.left) == "string" and l.left:match("(%d+) Slot")
+        if n then return tonumber(n) end
+    end
+    return nil
+end
+-- Pure: "wear" (bigger than your smallest, or a slot is empty: worn sizes
+-- with 0 for an empty slot), else "spare".
+function D.SpareBag(size, worn)
+    if not size then return nil end
+    for _, w in ipairs(worn or {}) do
+        if w < size then return "wear" end
+    end
+    return "spare"
+end
+function D.WornBags()
+    local out = {}
+    for bag = 1, 4 do out[#out + 1] = (numSlots and numSlots(bag)) or 0 end
+    return out
+end
+reg("spareBag", 28, function(i)
+    if i.classID ~= 1 or not i.link or not (ns.gear and ns.gear.TooltipLines) then return nil end
+    local ok, lines = pcall(ns.gear.TooltipLines, ns.gear, i.link)
+    local size = ok and D.BagSize(lines) or nil
+    local what = D.SpareBag(size, D.WornBags())
+    if what == "wear" then
+        return { action = "keep", reason = string.format("a %d-slot bag, bigger than one you wear (or a bag slot is empty): put it on", size) }
+    elseif what == "spare" and (i.sellPrice or 0) > 0 then
+        return { action = "sell", reason = string.format("spare %d-slot bag: every bag you wear is as big or bigger", size) }
     end
 end)
 
@@ -673,6 +748,23 @@ ns.commands.inventory = function()
     local head, value = D.InventorySummary(rows, used, total)
     ns:Print("inventory: " .. head .. (value > 0 and (", " .. money(value) .. " at a vendor") or ""))
     for _, r in ipairs(rows) do print("  " .. D.InventoryLine(r, money)) end
+    -- What the game says the things Flow can't place are for (their "Use:" line),
+    -- so a rule can be written for them from the game's own words.
+    local said = {}
+    D:EachBagItem(function(bag, slot, link)
+        local name = link:match("%[(.-)%]")
+        if not name or said[name] then return end
+        local okV, v = pcall(D.Decide, D, bag, slot, link)
+        if not (okV and type(v) == "table" and v.rule == "notGear") then return end
+        local okL, lines = pcall(ns.gear.TooltipLines, ns.gear, link)
+        for _, l in ipairs(okL and lines or {}) do
+            if type(l.left) == "string" and l.left:find("^Use:") then
+                said[name] = true
+                print(string.format("  what it's for, in the game's words: %s: %s", name, l.left:sub(1, 160)))
+                break
+            end
+        end
+    end)
     -- Which auction house this client has (Flow's price scan needs the classic one).
     print(string.format("  auction house: classic search %s, newer one %s; Flow knows a price for %d item(s) here",
         (QueryAuctionItems and GetAuctionItemInfo) and "yes" or "no", C_AuctionHouse and "yes" or "no",
