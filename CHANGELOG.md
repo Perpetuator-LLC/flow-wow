@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.257
+- **The dungeon route shows.** While a dungeon run is prepared there's a line under the arrow,
+  like the party route's: "Dungeon route: Ragefire Chasm, 3 to pick up", then "... 5 quests
+  ready: go in". Click it for the run's quests and three choices: leave the dungeon route
+  (your usual route; the run is kept), go back on it, or cancel the run. `/flow dungeons
+  <name>` now puts you on the dungeon route; `/flow dungeons leave`, `back` and `off`.
+- **Dungeon lists say what you've done.** Each run reads "5 quests: 2 in your log, 3 to get;
+  1 done", in the arrow menu and in `/flow dungeons`, and a dungeon whose quests you've all
+  done is listed as "all done".
+- **Flow Meters: flat bars.** A plain colour, no gloss.
+
 ## 0.35.256
 - **Flow's icon and the buff button are the same size, with the same edge.** Flow's coloured
   edge was drawn over the outer 3 pixels of its picture, the buff button's blue edge round its

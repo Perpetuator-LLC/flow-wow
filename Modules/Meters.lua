@@ -40,6 +40,7 @@ end
 M.ROW_H = 13
 M.WIDTH = 150
 M.HEAD_H, M.HEAD_ACCENT = 12, 3   -- each list's heading bar, and its orange accent
+M.BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"   -- a plain colour: flat bars (0.35.257: "more flat")
 M.ROWS = { 3, 5, 10 }
 
 ns:OnLoad(function(saved) saved.meters = saved.meters or {} end)
@@ -336,7 +337,7 @@ local function row(l, i)
     r.bar = CreateFrame("StatusBar", nil, r)
     r.bar:SetPoint("TOPLEFT", 0, -1)
     r.bar:SetPoint("BOTTOMRIGHT", 0, 0)
-    r.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    r.bar:SetStatusBarTexture(M.BAR_TEXTURE)
     r.bar:SetMinMaxValues(0, 1)
     r.bar:SetValue(1)
     r.text = CreateFrame("Frame", nil, r)

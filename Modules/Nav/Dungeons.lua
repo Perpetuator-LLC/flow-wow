@@ -202,14 +202,14 @@ function D.CutRuns(entries, level, floor)
             run = { key = key, dungeon = e.dungeon, wing = e.wing,
                     name = e.wingTitle or ((e.dungeonName or "?") .. (e.wing and (" " .. e.wing) or "")),
                     ready = {}, pickups = {}, inside = {}, followups = {}, unlocks = {}, leadIns = {}, breadcrumbs = {},
-                    quests = {}, levels = {}, next = 0, skipped = {}, toolong = {}, count = 0 }
+                    quests = {}, levels = {}, next = 0, skipped = {}, toolong = {}, count = 0, done = 0 }
             runs[key] = run
             order[#order + 1] = run
         end
         local lv = e.level or 0
         local s = e.state
         if s == "done" then
-            -- nothing
+            run.done = run.done + 1   -- (said beside the run: "2 done")
         elseif s == "notforyou" then
             local why = e.info or "not for you"
             run.skipped[why] = (run.skipped[why] or 0) + 1
@@ -247,7 +247,12 @@ function D.CutRuns(entries, level, floor)
         if a.count ~= b.count then return a.count > b.count end
         return a.key < b.key
     end)
-    return out
+    -- (Second: dungeons at your level whose quests you've all done.)
+    local finished = {}
+    for _, run in ipairs(order) do
+        if run.count == 0 and run.done > 0 then finished[#finished + 1] = { name = run.name, done = run.done } end
+    end
+    return out, finished
 end
 
 -- The dungeon a quest's objectives are in. tops: one entry per objective,
@@ -898,7 +903,8 @@ local function compute()
             end
         end
     end
-    local out = D.CutRuns(entries, level, level - D.FLOOR)
+    local out, finished = D.CutRuns(entries, level, level - D.FLOOR)
+    D.finished = finished
     local rate, estimated = D.QuestingRate()
     local here = ns.nav and ns.nav:PlayerPos()
     local from = here and { cont = here.cont, wx = here.wx, wy = here.wy }
@@ -1466,6 +1472,111 @@ end
 -- /flow dungeons <name> prepares that run (its pickups go on the route, then
 -- the entrance); /flow dungeons off cancels it. Also in the diagnostics.
 
+-- Pure: a run's quests at a glance ("5 quests: 2 in your log, 3 to get; 1
+-- done"), so it's plain what you have done already and what's left.
+function D.CountText(run)
+    local n = run.count or 0
+    local have = #(run.ready or {})
+    local get = #(run.pickups or {}) + #(run.leadIns or {})
+    local parts = {}
+    if have > 0 then parts[#parts + 1] = have .. " in your log" end
+    if get > 0 then parts[#parts + 1] = get .. " to get" end
+    local inside = #(run.inside or {}) + #(run.followups or {})
+    if inside > 0 then parts[#parts + 1] = inside .. " inside" end
+    local text = string.format("%d quest%s", n, n == 1 and "" or "s")
+    if #parts > 0 then text = text .. ": " .. table.concat(parts, ", ") end
+    if (run.done or 0) > 0 then text = text .. "; " .. run.done .. " done" end
+    return text
+end
+
+-- The dungeon route (0.35.257). "If I enter that mode, it's not clear I'm in
+-- it: it keeps looking like standard questing. Show it like the party route:
+-- a dungeon route you can leave or go back into." A line under the arrow
+-- while a run is prepared; a click opens its few choices.
+-- Pure: the line. name: the run; on: you're on the dungeon route (only its
+-- steps); get: quests still to pick up; have: in your log.
+function D.ModeText(name, on, have, get)
+    if not name then return nil end
+    if not on then return string.format("%s prepared (your usual route)", name) end
+    if get > 0 then return string.format("Dungeon route: %s, %d to pick up", name, get) end
+    return string.format("Dungeon route: %s, %d quest%s ready: go in", name, have, have == 1 and "" or "s")
+end
+function D:ModeItems()
+    local key = self:Prepared()
+    local run = key and self:Run(key)
+    local name = key and ns.db.nav.dungeonRun.name or "Dungeon run"
+    local items = { { title = true, text = name } }
+    local function grey(text) return { text = "|cff999999" .. text .. "|r", disabled = true } end
+    if run then
+        items[#items + 1] = grey(D.CountText(run))
+        items[#items + 1] = grey(D.HaveLine(run))
+        local ok, lines = pcall(D.QuestLines, run, D.QuestInfo)
+        for _, l in ipairs(ok and lines or {}) do items[#items + 1] = grey(l) end
+        items[#items + 1] = { sep = true }
+    end
+    if self:RunOnly() then
+        items[#items + 1] = { text = "Leave the dungeon route (back to your usual route; the run is kept)",
+            func = function() D:SetRunOnly(false); D:RefreshToggle() end }
+    else
+        items[#items + 1] = { text = "Back on the dungeon route (only this run's steps)",
+            func = function() D:SetRunOnly(key); D:RefreshToggle() end }
+    end
+    items[#items + 1] = { text = "Cancel this run", func = function() D:Cancel(); D:RefreshToggle() end }
+    return items
+end
+function D:RefreshToggle()
+    local arrow = _G.FlowNavArrow
+    if not arrow then return end
+    local key = self:Prepared()
+    if not key then
+        if self.toggle then self.toggle:Hide() end
+        return
+    end
+    if not self.toggle then
+        local t = CreateFrame("Button", nil, arrow)
+        t:SetSize(260, 16)
+        t.text = t:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        t.text:SetAllPoints()
+        t:SetScript("OnClick", function() ns.menu:Open(D:ModeItems()) end)
+        self.toggle = t
+    end
+    -- Under the party line when that one shows, else in its place.
+    local party = ns.partyHelp and ns.partyHelp.toggle
+    self.toggle:ClearAllPoints()
+    if party and party:IsShown() then self.toggle:SetPoint("TOP", party, "BOTTOM", 0, -2)
+    else self.toggle:SetPoint("TOP", arrow, "BOTTOM", 0, -50) end
+    local run = self:Run(key)
+    local have = run and #run.ready or 0
+    local get = run and (#run.pickups + #run.leadIns) or 0
+    local on = self:RunOnly()
+    local c = ns.theme.user
+    self.toggle.text:SetText(string.format("|cff%s%s|r  |cff888888(click: change)|r", on and c.hex or "ffffff",
+        D.ModeText(ns.db.nav.dungeonRun.name or "the run", on, have, get)))
+    self.toggle:Show()
+end
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(2, function() pcall(D.RefreshToggle, D) end)
+end
+
+-- What the game offers for joining a dungeon group (for the diagnostics:
+-- nothing is joined from here).
+function D.QueueLines()
+    local names = { "C_LFGList", "C_LFGInfo", "LFGListFrame", "PVEFrame", "LFDParentFrame", "LFGParentFrame",
+                    "JoinLFG", "JoinSingleLFG", "SetLFGRoles", "GetLFGRoles", "GetNumRFDungeons", "GetLFDChoiceEnabledState",
+                    "C_PartyInfo", "LFGBrowseFrame", "GroupFinderFrame" }
+    local there = {}
+    for _, n in ipairs(names) do if _G[n] ~= nil then there[#there + 1] = n end end
+    local out = { "  the game's group finder, as this client has it: " .. (#there > 0 and table.concat(there, ", ") or "none of the ones Flow knows") }
+    if GetLFGRoles then
+        local ok, leader, tank, healer, dps = pcall(GetLFGRoles)
+        if ok then
+            out[#out + 1] = string.format("  your roles there: tank %s, healer %s, damage %s, leader %s",
+                tostring(ns.api.Safe(tank)), tostring(ns.api.Safe(healer)), tostring(ns.api.Safe(dps)), tostring(ns.api.Safe(leader)))
+        end
+    end
+    return out
+end
+
 -- Pure: "do I have them all?" for one run.
 function D.HaveLine(run)
     local have = #(run.ready or {})
@@ -1494,25 +1605,40 @@ function D.Lines()
     local prepared = D:Prepared()
     for i, run in ipairs(list) do
         if i > 6 then break end
-        out[#out + 1] = string.format("%s%s: %d quest%s", prepared == run.key and "* " or "", run.name, run.count, run.count == 1 and "" or "s")
+        out[#out + 1] = string.format("%s%s: %s", prepared == run.key and "* " or "", run.name, D.CountText(run))
         out[#out + 1] = "  " .. D.HaveLine(run)
         local ok, lines = pcall(D.QuestLines, run, D.QuestInfo)
         for _, l in ipairs(ok and lines or {}) do out[#out + 1] = "    " .. l end
     end
+    for _, f in ipairs(D.finished or {}) do
+        out[#out + 1] = string.format("%s: all done (%d quest%s)", f.name, f.done, f.done == 1 and "" or "s")
+    end
+    local okQ, q = pcall(D.QueueLines)
+    for _, l in ipairs(okQ and q or {}) do out[#out + 1] = l end
     return out
 end
 ns.commands.dungeons = function(arg)
     arg = arg or ""
+    if arg:lower() == "leave" or arg:lower() == "back" then
+        if not D:Prepared() then ns:Print("no dungeon run prepared (/flow dungeons lists them)") return end
+        D:SetRunOnly(arg:lower() == "back" and D:Prepared() or false)
+        D:RefreshToggle()
+        ns:Print(arg:lower() == "back" and "back on the dungeon route" or "your usual route again; the run is kept (/flow dungeons back)")
+        return
+    end
     if arg:lower() == "off" then
         D:Cancel()
+        D:RefreshToggle()
         ns:Print("dungeon run cancelled: back to your usual route")
         return
     end
     if arg ~= "" then
         local run = D.Find(D:Runs(), arg)
         if not run then ns:Print("no dungeon run at your level called \"" .. arg .. "\" (/flow dungeons lists them)") return end
-        D:Prepare(run.key)
-        ns:Print(run.name .. " prepared: its quests to pick up are on your route, then the entrance. " .. D.HaveLine(run))
+        D:SetRunOnly(run.key)
+        D:RefreshToggle()
+        ns:Print("you're on the dungeon route for " .. run.name .. ": only its steps, then the entrance. " .. D.HaveLine(run)
+            .. " (/flow dungeons leave: your usual route; /flow dungeons off: cancel)")
         return
     end
     for i, l in ipairs(D.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
@@ -1574,7 +1700,7 @@ function D:MenuItems()
         for i, run in ipairs(list) do
             if i > 6 then break end
             items[#items + 1] = {
-                text = string.format("%s: %d quest%s, %s", run.name, run.count, run.count > 1 and "s" or "", ratioText(run)),
+                text = string.format("%s: %s, %s", run.name, D.CountText(run), ratioText(run)),
                 checked = prepared == run.key,
                 func = function() C_Timer.After(0.05, function() runMenu(run) end) end,
             }

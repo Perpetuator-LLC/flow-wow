@@ -11766,3 +11766,68 @@ ns:Register("test", "easy and buff buttons: the same size, the same edge round t
         end
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.257: flat meter bars; the dungeon route shows, and says what's done.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: the bars are a plain colour (flat)", function(t)
+    local M = ns.meters
+    t:ok(M.BAR_TEXTURE:find("WHITE8X8", 1, true) ~= nil, "a plain texture, no gloss")
+    t:ok(M.BAR_TEXTURE:find("\\", 1, true) ~= nil, "its path kept its backslashes")
+    t:ok(pcall(M.Update), "the meters draw")
+end)
+
+ns:Register("test", "click: the dungeon route shows under the arrow, with what's done and what's left", function(t)
+    local D = ns.dungeons
+    -- What's done is counted, and a dungeon you've finished is named.
+    local runs, finished = D.CutRuns({
+        { id = 1, name = "A", level = 15, dungeon = 100, dungeonName = "Ragefire Chasm", state = "ready" },
+        { id = 2, name = "B", level = 15, dungeon = 100, dungeonName = "Ragefire Chasm", state = "pickup" },
+        { id = 3, name = "C", level = 15, dungeon = 100, dungeonName = "Ragefire Chasm", state = "done" },
+        { id = 4, name = "D", level = 15, dungeon = 200, dungeonName = "Old Cave", state = "done" },
+        { id = 5, name = "E", level = 15, dungeon = 200, dungeonName = "Old Cave", state = "done" },
+    }, 15, 10)
+    t:eq(#runs, 1, "one run still has quests")
+    t:eq(runs[1].done, 1, "and one of its quests is done")
+    t:eq(D.CountText(runs[1]), "2 quests: 1 in your log, 1 to get; 1 done", "said at a glance")
+    t:ok(#finished == 1 and finished[1].name == "Old Cave" and finished[1].done == 2, "a dungeon with everything done is named as done")
+    t:eq(D.CountText({ count = 1, ready = {}, pickups = {}, leadIns = {}, inside = { 9 } }), "1 quest: 1 inside", "one that starts inside")
+    -- The line under the arrow.
+    t:eq(D.ModeText("Ragefire Chasm", true, 2, 3), "Dungeon route: Ragefire Chasm, 3 to pick up", "on it, quests still to get")
+    t:eq(D.ModeText("Ragefire Chasm", true, 5, 0), "Dungeon route: Ragefire Chasm, 5 quests ready: go in", "on it, all in your log")
+    t:eq(D.ModeText("Ragefire Chasm", false, 2, 3), "Ragefire Chasm prepared (your usual route)", "left it: the run is kept")
+    t:eq(D.ModeText(nil, true, 0, 0), nil, "no run: no line")
+    -- Its menu: leave, or back, and cancel; each click runs.
+    local was, wasOnly = ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    with(ns, "Print", function() end, function()
+    with(ns.nav, "Collect", function() end, function()
+        ns.db.nav.dungeonRun = { key = "100:", dungeon = 100, name = "Ragefire Chasm" }
+        ns.db.nav.dungeonOnly = true
+        local items = D:ModeItems()
+        local leave, cancel
+        for _, it in ipairs(items) do
+            if it.text and it.text:find("^Leave the dungeon route") then leave = it end
+            if it.text == "Cancel this run" then cancel = it end
+        end
+        t:ok(leave ~= nil and cancel ~= nil, "on the route: Leave and Cancel")
+        t:ok(pcall(leave.func), "a click on Leave runs")
+        t:ok(not D:RunOnly() and D:Prepared() == "100:", "you're off the dungeon route and the run is kept")
+        local back
+        for _, it in ipairs(D:ModeItems()) do if it.text and it.text:find("^Back on the dungeon route") then back = it end end
+        t:ok(back ~= nil, "then: Back on the dungeon route")
+        t:ok(pcall(D.RefreshToggle, D), "the line under the arrow draws")
+        if D.toggle then
+            t:ok(D.toggle:IsShown(), "and shows while a run is prepared")
+            t:ok(pcall(D.toggle:GetScript("OnClick"), D.toggle), "a click on it opens its menu")
+            if ns.menu.Close then pcall(ns.menu.Close, ns.menu) end
+        end
+        t:ok(pcall(cancel.func), "a click on Cancel runs")
+        t:eq(D:Prepared(), nil, "no run prepared")
+        if D.toggle then t:ok(not D.toggle:IsShown(), "and the line is gone") end
+    end) end)
+    ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, wasOnly
+    pcall(D.RefreshToggle, D)
+    local ok, lines = pcall(D.QueueLines)
+    t:ok(ok and #lines >= 1, "what the game's group finder offers is listed")
+end)
