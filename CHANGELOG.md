@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.265
+- **A form's new spell goes on that form's bar.** The game drops a new spell into the first
+  empty slot of whichever bar is showing: learn Maul in caster form and it lands on your
+  caster bar. Flow now moves it to the first empty slot of the bar that form shows (Bear Form,
+  Cat Form, a warrior's stances, stealth). Which form a spell needs is read from its tooltip
+  ("Requires Bear Form"). Out of a fight only; a full bar is left alone and Flow says so.
+  Flow Settings, New spells and professions: "Put a form's new spells on that form's bar".
+
 ## 0.35.264
 - **Flow's minimap marker no longer covers the game's icon.** The (o) sat on the step's spot
   and hid the game's own icon there, with its little arrow for "above you" or "below you". It

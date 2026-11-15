@@ -12086,3 +12086,38 @@ ns:Register("test", "minimap: in view the step's marker is a ring round the spot
     t:ok(pin.ring:IsShown() and pin.dot:IsShown() and not pin.around[1].dot:IsShown(), "dot: the solid marker, no ring of dots")
     if was then pin:SetLook(was) end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.265: a form's new spell goes on that form's bar.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bars: a new spell that needs a form goes to the first empty slot of that form's bar", function(t)
+    local AP = ns.autopush
+    local first, last = AP.FormSlots(3)
+    t:ok(first == 97 and last == 108, "bear (the game's bar 3): slots 97 to 108")
+    first, last = AP.FormSlots(1)
+    t:ok(first == 73 and last == 84, "cat (bar 1): slots 73 to 84")
+    t:eq(AP.FormSlots(0), nil, "no form bar: none")
+    t:eq(AP.FormSlots(nil), nil, "unknown: none")
+    local forms = { "Bear Form", "Cat Form", "Dire Bear Form", "Travel Form" }
+    t:eq(AP.FormOf({ { left = "Maul" }, { left = "Requires Bear Form" } }, forms), "Bear Form", "the tooltip says the form")
+    t:eq(AP.FormOf({ { left = "Requires Cat Form" } }, forms), "Cat Form", "cat")
+    t:eq(AP.FormOf({ { left = "Requires Dire Bear Form" } }, forms), "Dire Bear Form", "the longer name wins over Bear Form")
+    t:eq(AP.FormOf({ { left = "Requires Level 20" } }, forms), nil, "another requirement: no form")
+    t:eq(AP.FormOf({ { left = "Turns you into Bear Form." } }, forms), nil, "a mention that isn't a requirement: no")
+    t:eq(AP.FormOf({ { left = "Requires Bear Form" } }, {}), nil, "you have no forms: no")
+    t:eq(AP.FirstEmpty(97, 108, function(s) return s < 100 end), 100, "the first empty slot")
+    t:eq(AP.FirstEmpty(97, 108, function() return true end), nil, "a full bar: none")
+    t:ok(AP.OnBar(100, 97, 108) and not AP.OnBar(5, 97, 108), "already on the form's bar, or not")
+    t:eq(AP.KNOWN_BARS.DRUID["Bear Form"], 3, "a druid's bars are known from the start")
+    -- The setting's box.
+    local was = ns.db.autopush.formBars
+    ns.db.autopush.formBars = false
+    t:eq(AP.On(), false, "off when you turn it off")
+    t:eq(AP:Move(1, 1, "Test"), "off", "and then nothing is moved")
+    ns.db.autopush.formBars = was
+    t:eq(AP.On(), was ~= false, "on unless turned off")
+    -- A spell with no form stays where the game put it (nothing is picked up).
+    local ok, what = pcall(AP.Move, AP, 0, 1, "No such spell")
+    t:ok(ok and (what == "no form" or what == "off"), "a spell that needs no form is left alone")
+end)
