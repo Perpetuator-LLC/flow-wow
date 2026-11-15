@@ -1,7 +1,7 @@
 -- Buff items on the Flow key: elixirs, scrolls and flasks you carry, a
 -- sharpening stone / weightstone / oil for your weapon, and food that makes
 -- you Well Fed. All of them only when you're about to kill a lot: at a kill
--- or loot stop (quest mobs, farming meat or cloth), or right after a fight,
+-- or loot step (quest mobs, farming meat or cloth), or right after a fight,
 -- and only when that buff isn't on you already (a stone or oil: when your
 -- weapon has none). Always out of combat and not in inns or cities.
 -- Also WoW: Forever's campfires: near one without its buffs, sit (below),
@@ -163,7 +163,7 @@ local function carried()
     return out
 end
 
--- About to kill a lot: at a kill / loot stop, or just after a fight.
+-- About to kill a lot: at a kill / loot step, or just after a fight.
 function BI.Killing(ctx, now)
     if IsResting and IsResting() then return false end
     local g = ctx and ctx.goal

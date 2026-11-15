@@ -1,4 +1,4 @@
--- Profession skill plans as route stops. For each profession you need to
+-- Profession skill plans as route steps. For each profession you need to
 -- raise (a quest such as "Raise your blacksmithing skill to 20", or a planned
 -- profession that's behind your level) it works out, from what you have NOW:
 --   what to make     cheapest skill-ups per material at your skill (Guides.lua,
@@ -6,10 +6,10 @@
 --   what that needs  materials, minus what's in your bags and your bank
 --   how to get them  take them out of the bank, smelt the ore you have, mine
 --                    veins / kill mobs on this map, buy from a vendor
--- and hands the route planner the stops: gather, smelt, craft, learn, buy.
+-- and hands the route planner the steps: gather, smelt, craft, learn, buy.
 -- The planner mixes them with your quests by distance, so you mine the veins
 -- that are on the way. Bags change -> plan changes (re-planned live).
--- Stops that can't happen yet (no Mining, no hammer, skill too low) are
+-- Steps that can't happen yet (no Mining, no hammer, skill too low) are
 -- listed as blocked, with the reason, instead of disappearing.
 
 local _, ns = ...
@@ -23,7 +23,7 @@ local function count(id) return A.Count(id) end
 
 local SIMPLE_WOOD = 4470                                  -- Basic Campfire uses one
 local BAG_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
--- A profession's own icon (its spell), for the arrow when you're at its stop.
+-- A profession's own icon (its spell), for the arrow when you're at its step.
 local function profIcon(prof)
     local _, icon = A.SpellInfo(prof)
     return icon
@@ -137,7 +137,7 @@ local function npcPoints(names)
 end
 
 -- What an item costs at a vendor (copper): the price you last saw there,
--- else the guide's estimate. Buy stops carry it as `cost`, so the route
+-- else the guide's estimate. Buy steps carry it as `cost`, so the route
 -- lists them as blocked until you can pay (Nav.lua).
 function SP.Price(id)
     local seen = ns.db.prices and ns.db.prices[id]
@@ -512,7 +512,7 @@ function SP.Pace(prof, level)
     return marks[#marks][2]
 end
 function SP:Targets()
-    -- Professions switched off (map list, arrow menu): no profession stops at all,
+    -- Professions switched off (map list, arrow menu): no profession steps at all,
     -- not even for quests that ask for a skill, nor tools to buy.
     if not ns.nav:Includes("professions") then return {} end
     local out = {}
@@ -530,7 +530,7 @@ function SP:Targets()
             local g = ns:Get("profGuide", p.name)
             local rank = A.Skill(p.name)
             local want = SP.Pace(p.name, level)
-            -- Gathering behind your level is the errands' optional skill-up stop.
+            -- Gathering behind your level is the errands' optional skill-up step.
             -- A craft plan starts when you're 10+ behind and then holds until
             -- you reach its target (it used to vanish once you were within
             -- 10, halfway through crafting, so you didn't know when to stop).
@@ -551,7 +551,7 @@ function SP:Targets()
     return out
 end
 
--- Professions whose stops come from here (Goals.lua skips its own skill-up).
+-- Professions whose steps come from here (Goals.lua skips its own skill-up).
 local handled = {}
 function SP:Handles(prof)
     if handled[prof] then return true end
@@ -560,7 +560,7 @@ function SP:Handles(prof)
 end
 
 -------------------------------------------------------------------------------
--- Stops
+-- Steps
 -------------------------------------------------------------------------------
 
 local function why(t, prof, rank)
@@ -592,7 +592,7 @@ local TIER_QUEST = { Cooking = { 6610 }, ["First Aid"] = { 6622, 6624 }, Fishing
 -- A tier has a PRICE, and that was the trouble behind "Journeyman Skinning
 -- ... I don't have it, but it is taking me there": the skill was there (58),
 -- the 5 silver wasn't (2s 30c), and Flow sent the route to the trainer
--- anyway. The stop now carries the price (SP.TierCost), so the route waits
+-- anyway. The step now carries the price (SP.TierCost), so the route waits
 -- until you can pay, as it does for your class trainer. (0.35.173 blamed the
 -- profession list and 0.35.174 a level rule; both were wrong.)
 --   seen: { cap, level, skill, cost, category, atLevel, atRank } as read at
@@ -653,10 +653,10 @@ local function questGiver(id)
     return spawnPoints({ npc.spawns }), npc.name, q
 end
 
--- The route stop that learns the next tier (key "train:<prof>"), once you
+-- The route step that learns the next tier (key "train:<prof>"), once you
 -- can: the trainer, the book (buy it, then read it) or the quest's giver.
 -- nil while you can't yet, or while the quest is already in your log.
--- deps: the craft stops past your cap wait for it.
+-- deps: the craft steps past your cap wait for it.
 function SP.TierGoal(prof, level, optional)
     local rank, max = A.Skill(prof)
     local tier = SP.Tier(prof, rank, max, level, SP.TierSeen(prof, max))
@@ -720,8 +720,8 @@ function SP.TierGoal(prof, level, optional)
 end
 
 -- The tool a profession needs (guide `tool`: Mining Pick, Blacksmith Hammer,
--- Fishing Pole) when you don't have one: a "Buy a X" stop, and X's name so
--- the stops that need it can say "needs a X". Nothing when you have it.
+-- Fishing Pole) when you don't have one: a "Buy a X" step, and X's name so
+-- the steps that need it can say "needs a X". Nothing when you have it.
 -- Also used for the optional skill-ups in Goals.lua.
 function SP:ToolGoal(prof)
     local g = ns:Get("profGuide", prof)
@@ -795,7 +795,7 @@ function SP.FishAlternative(steps, id)
 end
 
 -- A recipe that's a quest's reward (step `quest = { id, npc }`): accept the
--- quest at its giver. Nothing once it's in your log (the quest's own stops
+-- quest at its giver. Nothing once it's in your log (the quest's own steps
 -- take over) or done.
 local function questRecipeStop(s)
     local Q, id = ns.quests, s.quest.id
@@ -836,7 +836,7 @@ function SP.BuyNow(recipeKnown, shorts, fromVendor)
     return true
 end
 
--- Pure: why a "Make X" stop waits on its recipe, in a few words. A recipe
+-- Pure: why a "Make X" step waits on its recipe, in a few words. A recipe
 -- you own (bags or bank) never reads "buy ... first" ("I bought it, and Flow
 -- tells me to buy the recipe", 0.35.205).
 function SP.RecipeWait(inBags, inBank, fromQuest, name, prof, learn, rank)
@@ -867,7 +867,7 @@ local function recipeStop(prof, s, known, rank, banked)
     end
     -- In your bank: you own it. ("I bought the recipe, Flow told me to put it
     -- in the bank, and now Flow tells me to stop and buy it", 0.35.203.)
-    -- Nothing until you can learn it, then a stop at the bank to fetch it.
+    -- Nothing until you can learn it, then a step at the bank to fetch it.
     banked = banked or SP.BankCount(s.recipeItem)
     if banked > 0 then
         if not SP.RecipeDue(s.learn, rank, 0) then return nil end
@@ -1091,7 +1091,7 @@ function SP.BankCount(id)
     return n
 end
 
--- What's on hand for a plan, shared by its stops so nothing is counted
+-- What's on hand for a plan, shared by its steps so nothing is counted
 -- twice: your bags first, then your bank, then bars smelted from the ore in
 -- either. bagsOf / bankOf(id) -> count; smeltOf(id) -> { from, n } or nil.
 function SP.Stock(bagsOf, bankOf, smeltOf)
@@ -1247,7 +1247,7 @@ function SP.FarmableHere(id)
 end
 function SP.ForgetFarmable() wipe(farmMemo) end
 
--- How sure Flow is of your bank, for the bank stop: seenAt = when Flow last
+-- How sure Flow is of your bank, for the bank step: seenAt = when Flow last
 -- read it (nil: never). Never read, or read days ago, is said as such: the
 -- counts are what Flow last knew, not what is certainly there.
 SP.BANK_STALE = 3 * 24 * 3600
@@ -1300,7 +1300,7 @@ local function planProfession(prof, t, out)
             for _, p in ipairs(ns:ProfessionPlan() or {}) do if p.name == prof then planned = true end end
         end
         local tg, tier = SP.TierGoal(prof, UnitLevel("player"), t.optional)
-        -- (Planned professions get theirs from the errands, which skip a stop Flow
+        -- (Planned professions get theirs from the errands, which skip a step Flow
         -- can't place: then it is listed here, blocked with the reason, not lost.)
         if tg and (not planned or not (tg.points and #tg.points > 0)) then out[#out + 1] = tg end
         local after = tier and tier.name and (tier.name .. " " .. prof) or "the next tier"
@@ -1311,7 +1311,7 @@ local function planProfession(prof, t, out)
         end
         if rank >= max then
             -- Capped and the next tier can't be learned yet: say why. (When it
-            -- can, the "train:" stop above is the next step.)
+            -- can, the "train:" step above is the next step.)
             if tier and not tier.ready then
                 add({ key = "skillplan:cap:" .. prof, kind = "skill", points = { playerPoint() }, anywhere = true,
                       text = string.format("%s is capped at %d: %s next", prof, max, after),
@@ -1373,7 +1373,7 @@ local function planProfession(prof, t, out)
     end
 
     -- One stock for the whole plan: bags, then bank, then smelting. What it
-    -- takes from the bank becomes a bank stop, what it smelts a smelt stop;
+    -- takes from the bank becomes a bank step, what it smelts a smelt step;
     -- the crafts that need them come after (deps).
     local bankPts, bankNames = SP.BankerPoints()
     local bankYards = SP.YardsTo(bankPts)
@@ -1505,7 +1505,7 @@ local function planProfession(prof, t, out)
                 end
             end
         end
-        -- Nothing to make it from yet: no stop, but the profession window
+        -- Nothing to make it from yet: no step, but the profession window
         -- still names it and what to gather (CraftHint.lua).
         if n == 0 and planned > 0 then
             SP.lastWaiting = SP.lastWaiting or {}
@@ -1576,10 +1576,10 @@ local function planProfession(prof, t, out)
     end
 
     -- Gear you can make that's an upgrade for you. When the plan already
-    -- makes it, its craft stop says so. Otherwise, with everything it needs
-    -- on hand (bags, bank, smelting), it's an extra, optional stop: the route
+    -- makes it, its craft step says so. Otherwise, with everything it needs
+    -- on hand (bags, bank, smelting), it's an extra, optional step: the route
     -- takes it only when it's on the way and it never changes what the plan
-    -- makes. Missing materials: not a stop at all, only listed in the
+    -- makes. Missing materials: not a step at all, only listed in the
     -- profession window (SP.lastUpgrades), so it never steers you.
     local lacking = {}
     SP.lastUpgrades = SP.lastUpgrades or {}
@@ -1624,7 +1624,7 @@ local function planProfession(prof, t, out)
                 for _, line in ipairs(sourceLines(takes)) do details[#details + 1] = line end
                 local blocked = (toolMissing and ("needs a " .. toolMissing))
                     or ((not pts or #pts == 0) and ("no known " .. (u.station or "spot"))) or depBlocked
-                -- Only a stop you can actually make sets its materials aside.
+                -- Only a step you can actually make sets its materials aside.
                 if not blocked then
                     for _, tk in ipairs(takes) do pull(stock:Take(tk.id, tk.r.need), tk.id, true) end
                 end
@@ -1639,7 +1639,7 @@ local function planProfession(prof, t, out)
         end
     end
 
-    -- Smelt stops: bars from the ore you have (bags or bank), at a forge,
+    -- Smelt steps: bars from the ore you have (bags or bank), at a forge,
     -- before the crafts that use them.
     for _, id in ipairs(sortedIds(smeltWant)) do
         local sm, n = smeltOf(id), smeltWant[id]
@@ -1647,7 +1647,7 @@ local function planProfession(prof, t, out)
         local bar = itemName(id)
         add({ key = "smelt:" .. prof .. ":" .. id, kind = "craft", points = pts, extra = "smelt",
               -- (weight 1: a far forge counts as far; at 0.5 the route would
-              -- cross the zone to smelt before the stops on the way)
+              -- cross the zone to smelt before the steps on the way)
               optional = not smeltNeeded[id] or nil, weight = smeltNeeded[id] and 1 or 1.5,
               deps = smeltBankOre[id] and { "bank:" .. prof } or nil,
               icon = profIcon("Mining"), station = "forge",
@@ -1661,7 +1661,7 @@ local function planProfession(prof, t, out)
               blockedBy = smeltBlocked(id) })
     end
 
-    -- Bank stop: what the plan takes out of your bank, first.
+    -- Bank step: what the plan takes out of your bank, first.
     local fromBank = {}
     for _, id in ipairs(sortedIds(bankPull)) do
         local n = math.min(bankPull[id], SP.BankCount(id))
@@ -1677,7 +1677,7 @@ local function planProfession(prof, t, out)
               blockedBy = bankBlocked })
     end
 
-    -- Still short: group by where it comes from: one stop per node type / mob group.
+    -- Still short: group by where it comes from: one step per node type / mob group.
     local nodes = {}
     for id, n in pairs(raw) do
         watched[id] = true
@@ -1690,7 +1690,7 @@ local function planProfession(prof, t, out)
             nd.items[#nd.items + 1] = string.format("%d %s", n, name)
             nd.count = math.max(nd.count, math.ceil(n / (s.yield or 1)))
         elseif s and s.fished then
-            -- Comes from your Fishing stop; nothing to farm for it.
+            -- Comes from your Fishing step; nothing to farm for it.
             watched[id] = true
         elseif s and s.drops then
             -- Fish you'll catch levelling Fishing anyway cook just as well:
@@ -1731,11 +1731,11 @@ local function planProfession(prof, t, out)
                 table.insert(details, 1, prof .. " isn't needed for a quest: loot these as you quest. No need to stop just for this.")
             end
             if fromFish > 0 then
-                details[#details + 1] = string.format("%d fewer than without fishing: about %d %s from your Fishing stop cook just as well.",
+                details[#details + 1] = string.format("%d fewer than without fishing: about %d %s from your Fishing step cook just as well.",
                     fromFish, fromFish, itemName(fishId))
             end
             add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
-                  -- Optional (no quest needs it): never a stop of its own; loot the
+                  -- Optional (no quest needs it): never a step of its own; loot the
                   -- mobs your quests and travel bring you to (Nav.lua: alongGoals).
                   along = t.optional or nil,
                   -- Progress like a quest objective: what you carry / what the plan uses.
@@ -1828,12 +1828,12 @@ ns:Register("navGoal", "skillplan", {
             if not ok then ns:Log("skillplan", prof .. ": " .. tostring(err)) end
             if t0 then addPart("gather: skillplan", prof, clock() - t0) end
         end
-        -- Drop stops with no place at all, unless blocked (those are listed, not routed).
+        -- Drop steps with no place at all, unless blocked (those are listed, not routed).
         local kept, seen = {}, {}
         for _, g in ipairs(out) do
             g.points = g.points or {}
             if seen[g.key] then
-                -- Two professions want the same stop (e.g. Copper Veins): one stop, both reasons.
+                -- Two professions want the same step (e.g. Copper Veins): one step, both reasons.
                 for _, d in ipairs(g.details or {}) do table.insert(seen[g.key].details, d) end
             elseif #g.points > 0 or g.blockedBy then
                 kept[#kept + 1] = g; seen[g.key] = g
@@ -1884,7 +1884,7 @@ function SP:Explain()
     end
     if not any then ns:Print("no profession needs raising right now.") end
     for _, g in ipairs(SP.lastStops or {}) do
-        print(string.format("  stop: %s%s", g.text or g.key, g.blockedBy and ("  [blocked: " .. g.blockedBy .. "]") or ""))
+        print(string.format("  step: %s%s", g.text or g.key, g.blockedBy and ("  [blocked: " .. g.blockedBy .. "]") or ""))
     end
 end
 

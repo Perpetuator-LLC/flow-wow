@@ -1,6 +1,6 @@
 -- Login intro, played on Flow's arrow (it replaced a separate title card):
 -- the ring's pillars stand tall and spin fast around a deep gold FLOW,
--- slowing to a stop, while the text under it says "Flow (unfettered)", the
+-- slowing to a step, while the text under it says "Flow (unfettered)", the
 -- version and what Flow has to work with. Then the arrow appears over the
 -- now-still pillars and goes back to pointing the way.
 -- /flow splash replays it; Options > AddOns > Flow turns it off.
@@ -49,12 +49,12 @@ function I.Status()
     local src = ns.quests and ns.quests:Source()
     bits[#bits + 1] = I.QuestWords(src and src.label == "Questie", I.QuestieInstalled())
     local plan = ns.nav and ns.nav.plan
-    if plan and #plan > 0 then bits[#bits + 1] = #plan .. " stops planned" end
+    if plan and #plan > 0 then bits[#bits + 1] = #plan .. " steps planned" end
     return table.concat(bits, "  ·  ")
 end
 
 -- The ring's turn t seconds into the intro: very fast at first, easing out
--- to a stop after TURNS full turns (so it ends where it started).
+-- to a step after TURNS full turns (so it ends where it started).
 function I.SpinAngle(t)
     local u = math.min(math.max(t / SPIN, 0), 1)
     return (1 - (1 - u) ^ 3) * TURNS * 2 * math.pi

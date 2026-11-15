@@ -1,19 +1,19 @@
 -- Hearthstone, as part of the levelling route (no pop-ups). When you're in a
 -- zone with a known inn and your hearthstone is set somewhere else, the route
--- gets a stop: "Set hearthstone: Innkeeper Farley (Goldshire)". Hide it like
--- any stop (right-click it on the map) if you don't want it.
+-- gets a step: "Set hearthstone: Innkeeper Farley (Goldshire)". Hide it like
+-- any step (right-click it on the map) if you don't want it.
 -- Innkeepers are data (registry kind "innkeeper"); more zones can be added
 -- without touching this file. The NPC ID is checked against the name.
 --
 -- Which inn (0.35.178, "should you have told me to set my hearthstone ...
 -- right when I got into Thunder Bluff? ... hearth set to Bloodhoof Village"):
 --   * a city beats a village: in Thunder Bluff with your home in Bloodhoof
---     Village, the stop is offered (H.Offer);
+--     Village, the step is offered (H.Offer);
 --   * a village near your city home isn't offered back (no flip-flop);
---   * a stop a travel spell away (Teleport: Moonglade) waits for the "Set
---     hearthstone" stop where you are (H.BeforeTrips): home first, then go.
+--   * a step a travel spell away (Teleport: Moonglade) waits for the "Set
+--     hearthstone" step where you are (H.BeforeTrips): home first, then go.
 -- Until 0.35.178 only Alliance inns were listed, so a Horde character never
--- got the stop at all.
+-- got the step at all.
 
 local _, ns = ...
 local H = {}
@@ -21,7 +21,7 @@ ns.hearth = H
 
 -- Levelling towns and cities (classic names and IDs). city: a capital.
 -- also: other names the game may give for the same home (a city's district).
--- A wrong name here only means no stop is offered: Flow also learns the
+-- A wrong name here only means no step is offered: Flow also learns the
 -- game's own wording when you set your home at an innkeeper it knows.
 for key, inn in pairs({
     -- Alliance
@@ -109,7 +109,7 @@ end
 -- Pure: offer "Set hearthstone" at the inn `here`? home: the inn you're
 -- bound to (nil: not one Flow knows); yards: between the two (nil: unknown).
 H.CITY_REACH = 1500   -- a city home this close to a village's inn: keep the city
--- work: { here = n, home = n }: how many of your quests' stops (objectives
+-- work: { here = n, home = n }: how many of your quests' steps (objectives
 -- and turn-ins in your log) are nearer this inn, and nearer your home. With
 -- more of them round your home, it stays: "I'm questing in the Crossroads
 -- and just came to Orgrimmar for a dungeon; it tells me to set my hearth
@@ -124,7 +124,7 @@ function H.Offer(here, home, yards, work)
     return true                                            -- another zone's inn, your home far away
 end
 
--- Pure: of these stops, how many are nearer each inn. dist(inn, point) ->
+-- Pure: of these steps, how many are nearer each inn. dist(inn, point) ->
 -- yards or nil (can't tell: counted for neither).
 function H.Nearer(goals, here, home, dist)
     local out = { here = 0, home = 0 }
@@ -139,7 +139,7 @@ function H.Nearer(goals, here, home, dist)
     end
     return out
 end
--- Your quests' stops right now (the route's and the ones not on this plan).
+-- Your quests' steps right now (the route's and the ones not on this plan).
 function H.Work(here, home)
     local N = ns.nav
     if not (N and N.Goals) then return nil end
@@ -148,10 +148,10 @@ function H.Work(here, home)
     return H.Nearer(goals, here, home, function(inn, pt) return H.Between(inn, pt) end)
 end
 
--- A stop that's a travel spell away waits for the "Set hearthstone" stop,
+-- A step that's a travel spell away waits for the "Set hearthstone" step,
 -- when the route has one: set your home before you're cast far from it.
 --   isTrip(point) -> true when the spot is a cast away from where you are
--- -> how many stops now wait for it
+-- -> how many steps now wait for it
 function H.BeforeTrips(goals, isTrip)
     local key
     for _, g in ipairs(goals) do
@@ -307,7 +307,7 @@ ns:Register("navGoal", "hearth", {
                             here.city and (here.town .. " is a city: your trainers and the bank are here, and it's the place to come back to from a far trip.")
                                 or ("Questing around " .. here.town .. "?")),
                         "talk to the innkeeper and choose \"Make this inn your home\".",
-                        "Right-click this stop on the map to hide it." },
+                        "Right-click this step on the map to hide it." },
         } }
     end,
 })
@@ -348,7 +348,7 @@ end
 
 ns:OnLoad(function(saved) saved.hearth = saved.hearth or {} end)
 
--- Setting it removes the stop. (The innkeeper you're talking to tells Flow
+-- Setting it removes the step. (The innkeeper you're talking to tells Flow
 -- what the game calls this home.)
 ns:On("HEARTHSTONE_BOUND", function()
     local bind = GetBindLocation and GetBindLocation()
@@ -363,9 +363,9 @@ ns.commands.hearth = function(arg)
     if arg == "on" or arg == "off" then
         ns.db.hearth.off = (arg == "off")
         if ns.nav then ns.nav:Collect() end
-        ns:Print("hearthstone stops on the route " .. arg)
+        ns:Print("hearthstone steps on the route " .. arg)
     else
-        ns:Print("hearthstone: " .. tostring(GetBindLocation()) .. ". Route stops "
+        ns:Print("hearthstone: " .. tostring(GetBindLocation()) .. ". Route steps "
             .. (ns.db.hearth.off and "off" or "on") .. ". /flow hearth on|off")
     end
 end

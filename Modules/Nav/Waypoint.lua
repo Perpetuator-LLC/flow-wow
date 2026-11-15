@@ -1,11 +1,11 @@
--- Your own waypoint. It is NOT a stop on the route: while it's set the arrow
+-- Your own waypoint. It is NOT a step on the route: while it's set the arrow
 -- points there (Nav.lua, N.WaypointChoice; green with the route colours), the map draws a green
 -- line to it and the Flow Router a green line above the route, and the
 -- route itself carries on unchanged. It clears itself when you arrive.
 --   Set:   paste coordinates (/flow way or /way, or right-click the arrow: Set a
 --          waypoint), Ctrl-click the world map (the game's own map pin, on clients that
 --          have it), Alt-click the world map, /flow way <x> <y> [note], or
---          "Point the arrow here" on any stop
+--          "Point the arrow here" on any step
 --   Clear: /flow way clear, the X in the Flow Router, the arrow or map menu, or arrive
 -- PLACEHOLDER: a custom multi-point path (ticketed).
 
@@ -32,7 +32,7 @@ function W:Get()
 end
 
 function W:Set(map, x, y, note)
-    -- On a shared party route, a waypoint becomes a shared stop at the front.
+    -- On a shared party route, a waypoint becomes a shared step at the front.
     if ns.party and ns.party:Following() then
         ns.party:AddFront(map, x, y, note or "Waypoint", nil, "waypoint")
         ns:Print(string.format("added %.1f, %.1f to the front of the shared route", x * 100, y * 100))

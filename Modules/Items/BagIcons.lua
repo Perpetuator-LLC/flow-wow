@@ -1,5 +1,5 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
---   (o) target (top left)     = your current route stop wants you to use this item
+--   (o) target (top left)     = your current route step wants you to use this item
 --   top right                 = gold coin = sell, AH, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
 --   bottom row (gear)         = one icon per spec, with a mark above: green arrow up = better
@@ -12,7 +12,7 @@ local D = ns.disposition
 local B = {}
 ns.bagIcons = B
 
--- The item your current route stop wants you to use (a recipe to learn...).
+-- The item your current route step wants you to use (a recipe to learn...).
 function B.FocusItem()
     local c = ns.nav and ns.nav.current
     return c and c.goal and c.goal.useItem or nil
@@ -55,7 +55,7 @@ local function marks(button)
     m.keep:SetPoint("TOPRIGHT", -1, -1)
     m.keep:Hide()
     -- Flow's target marker (o) in the route colour, top-left: this is the
-    -- item your current stop wants you to use ("Learn Brilliant Smallfish:
+    -- item your current step wants you to use ("Learn Brilliant Smallfish:
     -- use the recipe in your bags").
     local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
     m.focus = CreateFrame("Frame", nil, m)
@@ -191,7 +191,7 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current stop uses this. $ sell, AH auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. $ sell, AH auction house, DE disenchant.")
     end
 end
 

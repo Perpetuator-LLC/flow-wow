@@ -572,11 +572,11 @@ ns.commands.sell = function(arg)
 end
 
 -------------------------------------------------------------------------------
--- Merchant stop on the route, only when it's worth it:
+-- Merchant step on the route, only when it's worth it:
 --   what Flow would sell is worth at least ~5 silver per character level, or
 --   your bags are nearly full (3 or fewer free slots) and there's something
 --   to sell.
--- It's an optional stop, so the planner only keeps it when a merchant is
+-- It's an optional step, so the planner only keeps it when a merchant is
 -- roughly on your way (and drops it otherwise). Merchants come from the ones
 -- you've visited (Flow remembers where) and the innkeepers it knows.
 -------------------------------------------------------------------------------
@@ -611,7 +611,7 @@ ns:Register("navGoal", "merchant", {
             for _, pt in ipairs(ns.places:Points(inn.name)) do points[#points + 1] = pt end
         end
         if #points == 0 then return nil end
-        -- Bags full (1 slot or none): loot is being lost, so it's a real stop,
+        -- Bags full (1 slot or none): loot is being lost, so it's a real step,
         -- planned even with a detour. Otherwise only when you pass a merchant.
         local full = free <= 1
         return { {

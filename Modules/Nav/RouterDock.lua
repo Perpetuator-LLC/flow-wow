@@ -8,7 +8,7 @@
 --
 -- (A new file on purpose: WoW: Forever reloads every file on /reload,
 -- including ones added while the game runs. Its self-test, "core: a file
--- added while the game runs loads on /reload", fails if that ever stops.)
+-- added while the game runs loads on /reload", fails if that ever steps.)
 
 local _, ns = ...
 local D = {}

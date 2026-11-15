@@ -1,13 +1,13 @@
 -- XP-first route sorting (the default; "Shortest path" switches it off).
 -- The planner minimises sum(distance x weight). This scales each quest
--- stop's weight by how much it's worth to you right now:
+-- step's weight by how much it's worth to you right now:
 --   more XP              -> lighter (worth walking further for)
 --   quest above you      -> heavier (slower kills, more deaths): 3+ levels up
 --                           costs a lot, so level-appropriate quests come first
 --   quest about to grey  -> a little lighter (do it before its XP drops)
--- Same stops, same shortest-path planner: it just stops treating a level-10
+-- Same steps, same shortest-path planner: it just stops treating a level-10
 -- quest at level 7 the same as a level-6 one next door.
--- Every quest stop's tooltip gets an XP line.
+-- Every quest step's tooltip gets an XP line.
 
 local _, ns = ...
 local X = {}
@@ -45,8 +45,8 @@ end
 -- What the route optimises for: a registry, so the route can aim at anything
 -- (most XP, shortest walk, or one day "fishing only", "first to 300 Mining").
 -- The planner itself never changes: it minimises sum(distance x weight) over
--- the stops it's given. An objective only (1) scales each stop's weight and
--- (2) optionally says which stops count at all.
+-- the steps it's given. An objective only (1) scales each step's weight and
+-- (2) optionally says which steps count at all.
 --
 --   ns:Register("routeObjective", "<key>", {
 --       label = "Most XP", tip = "shown on hover",
@@ -57,7 +57,7 @@ end
 --   })
 --   ctx = { level = your level, ref = typical quest XP at your level }
 -- Goals already carry what an objective needs: key, kind, prof (gathering /
--- fishing stops), xp, level, levelsAbove, share, optional, milestone...
+-- fishing steps), xp, level, levelsAbove, share, optional, milestone...
 -- Pick one with /flow nav sort <key> (or the Flow Router's radios for the
 -- built-in ones). Example, not built in:
 --   ns:Register("routeObjective", "fishing", { label = "Fishing only",
@@ -82,12 +82,12 @@ ns:Register("routeObjective", "xp", {
     end,
 })
 ns:Register("routeObjective", "distance", {
-    label = "Shortest", tip = "Shortest path: nearest stops first, XP ignored.",
+    label = "Shortest", tip = "Shortest path: nearest steps first, XP ignored.",
 })
 
 -- Route states (map list, arrow right-click, /flow nav xp|distance|custom|sort):
 --   any routeObjective key ("distance" by default, "xp", ...): optimised
---   "custom"  Custom route: you picked the next stop (its ^ in the Flow Router,
+--   "custom"  Custom route: you picked the next step (its ^ in the Flow Router,
 --             or "Go here first"). The route goes there first, then carries on
 --             planned with your last objective ("base"), and stays Custom
 --             (orange) until you pick an objective again. ("selected" is its
@@ -116,9 +116,9 @@ end
 function X:On() return (self:Objective()) == "xp" end
 function X:SetMode(m)
     if m == "custom" or m == "selected" then
-        -- Custom route starts by picking a stop; the radio alone can't.
+        -- Custom route starts by picking a step; the radio alone can't.
         if not self:IsCustom() then
-            ns:Print("Custom route: pick your next stop with its ^ in the Flow Router (or right-click a stop: Go here next).")
+            ns:Print("Custom route: pick your next step with its ^ in the Flow Router (or right-click a step: Go here next).")
         end
         return
     end
@@ -129,8 +129,8 @@ function X:SetMode(m)
 end
 function X:Set(on) self:SetMode(on and "xp" or "distance") end  -- older callers
 
--- Adds XP to quest stops (tooltips), then lets the objective weigh and pick
--- stops. Returns the stops to route (all of them unless it has `keep`).
+-- Adds XP to quest steps (tooltips), then lets the objective weigh and pick
+-- steps. Returns the steps to route (all of them unless it has `keep`).
 function X:Apply(goals)
     local me = UnitLevel("player")
     local ref = X.Estimate(me)

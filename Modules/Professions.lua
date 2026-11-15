@@ -2,7 +2,7 @@
 -- Mining + Blacksmithing, for a druid Herbalism + Skinning, plus First Aid
 -- and Cooking, Fishing optional), but you choose: from level 3 the advice
 -- list offers "Choose your professions", and /flow setup has a row for it
--- (/flow professions too). The plan decides which trainers and skill-up stops
+-- (/flow professions too). The plan decides which trainers and skill-up steps
 -- appear on the route, and a short reminder card (below) says what to learn
 -- or train next, now and then.
 
@@ -174,12 +174,12 @@ ns:Register("setupItem", "professions", {
 -- Reminder card: what to do next for your professions, for a few seconds
 --
 --   [book]  Professions: Flow suggests Herbalism + Skinning
---           - Learn Herbalism: stop 4 on your route (Komin Winterhoof, Thunder Bluff, 1240 yd)
---           - Learn Skinning: stop 6 on your route (Mooranta, Thunder Bluff, 1260 yd)
---           Trainers are stops on your optimal route. To go to one next, click its ^ in the Flow Router.
+--           - Learn Herbalism: step 4 on your route (Komin Winterhoof, Thunder Bluff, 1240 yd)
+--           - Learn Skinning: step 6 on your route (Mooranta, Thunder Bluff, 1260 yd)
+--           Trainers are steps on your optimal route. To go to one next, click its ^ in the Flow Router.
 --   [Add to my route]  [Choose others...]  [Not now]      stop reminding
 --
--- The trainers are never a waypoint: they're stops the route plans in with
+-- The trainers are never a waypoint: they're steps the route plans in with
 -- everything else (Goals.lua "errands"), however many there are. "Add to my
 -- route" shows only when your route leaves professions out (the Professions
 -- tick in the route menu is off), and turns it on.
@@ -266,7 +266,7 @@ local function mapName(map)
 end
 
 -- Where a profession's trainer stands on your route:
---   "planned", n   stop n of the route
+--   "planned", n   step n of the route
 --   "off"          your route leaves professions out (not ticked in the route menu)
 --   "later"        on the route's list, not planned in yet (blocked or optional)
 --   "unplaced"     Flow doesn't know where a trainer stands yet
@@ -285,7 +285,7 @@ end
 
 local STATUS_TEXT = {
     off = "not on your route (it leaves trainers out)",
-    later = "on your route, after the stops nearer you",
+    later = "on your route, after the steps nearer you",
     unplaced = "Flow doesn't know where a trainer stands yet (talk to one once and it remembers)",
 }
 
@@ -312,7 +312,7 @@ local function buildCard()
     f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.hint:SetPoint("TOPLEFT", f.body, "BOTTOMLEFT", 0, -6)
     f.hint:SetWidth(396); f.hint:SetJustifyH("LEFT")
-    f.hint:SetText("Trainers are stops on your optimal route. To go to one next, click its ^ in the Flow Router.")
+    f.hint:SetText("Trainers are steps on your optimal route. To go to one next, click its ^ in the Flow Router.")
     local function button(text, w)
         local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
         b:SetSize(w, 22); b:SetText(text)
@@ -339,7 +339,7 @@ local function buildCard()
     -- Your route with trainers in it: professions on.
     f.add:SetScript("OnClick", function()
         ns.nav:SetKind("professions", true)
-        ns:Print("route: professions on. Your trainers are stops on it now.")
+        ns:Print("route: professions on. Your trainers are steps on it now.")
         -- (Show where they landed once the route is planned again.)
         C_Timer.After(1.5, function() if f:IsShown() then P:ShowReminder() end end)
     end)

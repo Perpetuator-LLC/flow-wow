@@ -313,10 +313,10 @@ end
 
 -------------------------------------------------------------------------------
 -- Advice panel (click the ! button). Each row has two icons on its right:
---   * the link icon (and a click on the row) opens what it's about: the stop
+--   * the link icon (and a click on the row) opens what it's about: the step
 --     (its card: where it is, go here next, point the arrow here), the spell
 --     (place it or bind a key), the item, the profession picker, the talent
---     plan. A stop is found on the route, among the locked ones (a trainer
+--     plan. A step is found on the route, among the locked ones (a trainer
 --     you can't pay yet) and among those you hid, so training always leads to
 --     your trainer and a class quest to its giver.
 --   * the hide icon puts the row under "Hidden" at the bottom (collapsed);
@@ -326,11 +326,11 @@ end
 local panel
 local ROWS = 16
 
--- Pure: the stop with this key, wherever it is: on the route, locked (no
+-- Pure: the step with this key, wherever it is: on the route, locked (no
 -- money for the trainer yet, no known place), or hidden by you. A locked or
--- hidden stop still has a card to open, and still says where to go.
---   ...: the lists to look in, in order (route stops, locked stops, hidden
---        stops); one that isn't there is skipped
+-- hidden step still has a card to open, and still says where to go.
+--   ...: the lists to look in, in order (route steps, locked steps, hidden
+--        steps); one that isn't there is skipped
 function Adv.FindGoal(key, ...)
     if not key then return nil end
     for i = 1, select("#", ...) do
@@ -347,11 +347,11 @@ local function goalFor(key)
 end
 
 -- What a row's link opens: kind ("open", "goal", "spell", "item") and a label,
--- or nil when there's nothing to open. goalOf(key) -> the route stop or nil.
+-- or nil when there's nothing to open. goalOf(key) -> the route step or nil.
 function Adv.LinkOf(item, goalOf)
     if item.onClick or item.open then return "open", item.openLabel or "it" end
     local g = item.goalKey and goalOf(item.goalKey)
-    if g then return "goal", "the stop on your route: " .. tostring(g.text or g.title or item.goalKey) end
+    if g then return "goal", "the step on your route: " .. tostring(g.text or g.title or item.goalKey) end
     if item.spell then return "spell", item.spell .. " (put it on a bar or bind a key)" end
     local link = tostring(item.text or ""):match("(|c%x+|Hitem:.-|h.-|h|r)")
     if link then return "item", link end
@@ -368,7 +368,7 @@ function Adv.Open(item, anchor)
         if g and g.points and #g.points > 0 then
             ns.nav:OpenStop(g, anchor)   -- its card: where it is, go here next, point the arrow here
         elseif g then
-            ns:Print((g.text or g.title or "that stop") .. ": " .. (g.blockedBy or "Flow doesn't know where it is yet"))
+            ns:Print((g.text or g.title or "that step") .. ": " .. (g.blockedBy or "Flow doesn't know where it is yet"))
         end
     elseif kind == "spell" then
         if ns.newSpell and ns.newSpell.Offer then ns.newSpell:Offer(item.spell) end

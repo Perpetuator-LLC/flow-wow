@@ -20,7 +20,7 @@ ns:Register("classSpells", "DRUID", {
     { level = 8,  spell = "Entangling Roots",      improves = { "Control" } },
     -- Bear Form comes from a class quest chain, not the trainer; its last
     -- turn-in ("Body and Heart": 6001 Alliance, 6002 Horde in Classic) teaches
-    -- it (Needs.lua: the training stop goes after it on the route).
+    -- it (Needs.lua: the training step goes after it on the route).
     { level = 10, spell = "Bear Form",             improves = { "Survival", "Threat" }, note = "class quest",
       quest = { 6001, 6002 }, questName = "Body and Heart" },
     { level = 10, spell = "Demoralizing Roar",     improves = { "Survival" }, needs = "Bear Form" },

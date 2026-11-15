@@ -9,27 +9,27 @@
 -- route uses now: profession materials, trade goods you told Flow never to
 -- sell. What never goes: quest items, tools, recipes, your
 -- hearthstone, food, water, bandages, potions, scrolls and anything to
--- equip; and any material a crafting stop on your route asks for (those you
+-- equip; and any material a crafting step on your route asks for (those you
 -- need now or soon).
 --
 --   * At a bank: the Flow Banker window lists them; "Deposit" puts them in,
 --     a stack at a time. Nothing moves until you click.
 --   * On the route: "Bank: put N stacks away" when a banker is close to the
---     way you're going and there's enough to make it worth the stop
+--     way you're going and there's enough to make it worth the step
 --     (B.MIN_STACKS). Its own tick under Route includes.
 --   * /flow banker: the list, in chat (also in the diagnostics).
 --   * Away from a bank: the window's "In your bank" view lists what Flow saw
 --     there last time it was open, and "Auction prices" what Flow last saw at
 --     the auction house. A "Flow Banker" tab on your bags opens it (0.35.203).
 --
--- Not built yet: fetching things back as a stop before the crafting that
+-- Not built yet: fetching things back as a step before the crafting that
 -- needs them (the profession plan already reads what's in your bank).
 
 local _, ns = ...
 local B = {}
 ns.banker = B
 
-B.MIN_STACKS = 4    -- a bank stop on the route is worth it from this many stacks
+B.MIN_STACKS = 4    -- a bank step on the route is worth it from this many stacks
 B.ROWS = 14         -- lines in the window
 B.NOTE_GAP = 8      -- between the words at the top and the first line under them
 B.STEP = 0.25       -- seconds between two stacks going in
@@ -48,7 +48,7 @@ end
 
 -- Pure: bank this row of the inventory? row: D.InventoryRows' ({ id, name,
 -- action, rule, kind, count, stacks }); needed: { [itemID] = true } for what
--- a stop on your route uses. -> true / false, and why.
+-- a step on your route uses. -> true / false, and why.
 -- rules: your own choices, { [itemID] = "bank" | "carry" } (Flow sets the
 -- default, you can change it: click an item in the window, 0.35.216).
 function B.Banks(row, needed, rules)
@@ -56,7 +56,7 @@ function B.Banks(row, needed, rules)
     local mine = rules and row.id and rules[row.id]
     if mine == "carry" then return false, "you chose to carry it" end
     if mine == "bank" then return true, "you chose to bank it" end
-    if needed and row.id and needed[row.id] then return false, "a stop on your route uses it" end
+    if needed and row.id and needed[row.id] then return false, "a step on your route uses it" end
     if stays(row.kind) then return false, "you carry it" end
     if B.LATER_RULES[row.rule or ""] then return true, "kept for later" end
     local kind = row.kind or ""
@@ -82,7 +82,7 @@ function B.Stacks(rows)
     return n
 end
 
--- Pure: item IDs the stops ask for. goals: stops with .reagents, either
+-- Pure: item IDs the steps ask for. goals: steps with .reagents, either
 -- { [itemID] = count } or a list of { id = itemID }.
 function B.NeededBy(goals)
     local out = {}
@@ -98,7 +98,7 @@ function B.NeededBy(goals)
     return out
 end
 
--- What a stop on your route needs now (route, locked and hidden stops alike).
+-- What a step on your route needs now (route, locked and hidden steps alike).
 function B.Needed()
     local N = ns.nav
     if not N then return {} end
@@ -701,9 +701,9 @@ end)
 ns:OnLoad(function(saved) saved.banker = saved.banker or {} end)
 
 -------------------------------------------------------------------------------
--- On the route: a bank stop when one is on your way and it's worth it
+-- On the route: a bank step when one is on your way and it's worth it
 -------------------------------------------------------------------------------
--- Pure: worth a stop? stacks to put away; free: bag slots left (nil: unknown).
+-- Pure: worth a step? stacks to put away; free: bag slots left (nil: unknown).
 function B.WorthAStop(stacks, free, min)
     if (stacks or 0) >= (min or B.MIN_STACKS) then return true end
     return (stacks or 0) > 0 and free ~= nil and free <= 2
@@ -736,10 +736,10 @@ ns:Register("navGoal", "banker", {
 })
 ns:Register("routeKind", "banker", { order = 62, default = true,
     label = "The bank (when you pass one with things to put away)", short = "bank",
-    tip = "A stop at a banker that's close to your way, when your bags hold a few stacks Flow keeps for later and nothing on your route needs now.",
+    tip = "A step at a banker that's close to your way, when your bags hold a few stacks Flow keeps for later and nothing on your route needs now.",
     match = function(g) return g.provider == "banker" end })
 
--- /flow banker: the list (on|off: the window and the stop).
+-- /flow banker: the list (on|off: the window and the step).
 function B.Lines()
     local list = B.List()
     local out = { string.format("Flow Banker: %d stack(s) to put away%s", B.Stacks(list), ns.db.banker.off and " (off)" or "") }
@@ -761,7 +761,7 @@ ns.commands.banker = function(arg)
     print("  /flow banker show (the window)   /flow banker bank (what's in your bank)   /flow banker prices   /flow banker on|off")
 end
 ns:Register("help", "banker", { order = 58, title = "Flow Banker", lines = {
-    "At a bank, Flow Banker lists what you won't need soon (materials kept for later that no stop on your route uses) and deposits it at a click.",
+    "At a bank, Flow Banker lists what you won't need soon (materials kept for later that no step on your route uses) and deposits it at a click.",
     "Away from a bank, its \"In your bank\" view lists what was there when you last opened it, and \"Auction prices\" what Flow last saw at the auction house. The Flow Banker tab on your bags opens it.",
     "/flow banker: the list. /flow banker show | bank | prices. /flow banker on|off.",
 } })

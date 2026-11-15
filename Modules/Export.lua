@@ -8,7 +8,7 @@
 --
 -- The lines go into the diagnostics snapshot (written at every /reload),
 -- where tools\route-check.ps1 reads them, plans a route of its own over the
--- same stops, and says where the two differ and what is missing.
+-- same steps, and says where the two differ and what is missing.
 --
 -- One line a record: E^<kind>^key=value^key=value ... (text last). The
 -- fields are split by "^": the game reads "|" in a chat line as the start of
@@ -18,9 +18,9 @@
 --   opt     how the route is set (order, what it includes)
 --   quest   a quest in your log;   obj  one of its objectives
 --   skill   a profession and its rank
---   goal    every stop Flow knows of: on the route, locked or hidden (state), its kind (stop), with
+--   goal    every step Flow knows of: on the route, locked or hidden (state), its kind (step), with
 --           its main spot (map and world yards) and what it waits for
---   plan    the route, in order: key, yards from the stop before, total
+--   plan    the route, in order: key, yards from the step before, total
 --   flight  a flight path you know;  fm  a flight master Flow can find
 --   gate    a way between maps you've learned;  ride  someone who carries you
 --   improve a line of Flow Improvements
@@ -156,7 +156,7 @@ function X.Lines()
         add("skill", { { "rank", pr.rank }, { "max", pr.max }, { "unsure", pr.unsure and true or nil }, { "name", pr.name } })
     end
 
-    -- Every stop Flow knows of.
+    -- Every step Flow knows of.
     local planned = {}
     for i, s in ipairs(N and N.plan or {}) do planned[s.goal.key] = { i = i, point = s.point } end
     local function goals(list, state)
@@ -238,5 +238,5 @@ end
 
 ns:Register("help", "export", { order = 95, title = "Export for checking the route", lines = {
     "/flow export: your quests, skills and the route Flow suggests, written into the diagnostics at the next /reload.",
-    "tools\\route-check.ps1 plans a route of its own over the same stops and says where the two differ.",
+    "tools\\route-check.ps1 plans a route of its own over the same steps and says where the two differ.",
 } })

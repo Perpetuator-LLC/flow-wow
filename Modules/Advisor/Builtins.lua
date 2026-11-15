@@ -16,11 +16,11 @@ end
 
 local T = {}
 ns.trainerAdvice = T
--- Pure: the route stop where you get a spell that another one waits for: its
--- class quest's stop, else your class trainer's. nil: Flow can't say (a
+-- Pure: the route step where you get a spell that another one waits for: its
+-- class quest's step, else your class trainer's. nil: Flow can't say (a
 -- spell with a note of its own: a talent, a book).
 --   spells: your class's list ({ spell, quest, note });
---   questKeyOf(spell) -> the key of that quest's stop on your route
+--   questKeyOf(spell) -> the key of that quest's step on your route
 function T.PrereqKey(spells, name, questKeyOf)
     for _, s in ipairs(spells or {}) do
         if s.spell == name then
@@ -119,7 +119,7 @@ ns:Register("advisor", "trainer", {
                     improves = s.improves,
                     waitsFor = waitFor,
                     -- Its link: where you get what it waits for (Maul waits for
-                    -- Bear Form: the Bear Form quest's stop).
+                    -- Bear Form: the Bear Form quest's step).
                     goalKey = T.PrereqKey(ns:Get("classSpells", classToken()), waitFor,
                         ns.quests and ns.quests.ClassQuestKey),
                 }
@@ -135,7 +135,7 @@ ns:Register("advisor", "trainer", {
                         s.spell, s.level, tostring(ns.db.trainer.npc), tostring(ns.db.trainer.seenAt)))
                 end
             elseif s.level <= level and not known[s.spell] and not listed[s.spell] then
-                -- A class quest teaches it: its link is the quest's stop on your route
+                -- A class quest teaches it: its link is the quest's step on your route
                 -- ("Accept: Heeding the Call"), and the text says which quest.
                 local questKey, questText
                 if s.quest and ns.quests and ns.quests.ClassQuestKey then questKey, questText = ns.quests.ClassQuestKey(s.spell) end
@@ -144,7 +144,7 @@ ns:Register("advisor", "trainer", {
                     text = string.format("Get %s (level %d%s)", s.spell, s.level,
                         questText and (", class quest: " .. questText) or (s.note and (", " .. s.note) or ", class trainer")),
                     improves = s.improves,
-                    goalKey = (not s.note and "train:class") or questKey,   -- (its link: the stop on your route)
+                    goalKey = (not s.note and "train:class") or questKey,   -- (its link: the step on your route)
                 }
             end
         end
@@ -361,7 +361,7 @@ ns:Register("advisor", "fightInsights", {
 
 -------------------------------------------------------------------------------
 -- Missed quests (see Modules/Quests/QuestData.lua). Needs Questie + QuestieDB.
--- Only the "install Questie" hint: the quests themselves are route stops.
+-- Only the "install Questie" hint: the quests themselves are route steps.
 -------------------------------------------------------------------------------
 
 ns:Register("advisor", "missedQuests", {

@@ -499,7 +499,7 @@ function E.RecoverBusy(ctx)
 end
 function E.Mounted() return (IsMounted and IsMounted()) and true or false end
 
--- Fights ahead (a kill stop, or just after a fight) and not Well Fed: food
+-- Fights ahead (a kill step, or just after a fight) and not Well Fed: food
 -- that makes you Well Fed comes first when you eat (one meal does both).
 function E.WantWellFed()
     local BI, X = ns.buffItems, ns.actions
@@ -721,7 +721,7 @@ E.BREAKERS = {
 -- Stopping a cast
 -------------------------------------------------------------------------------
 
--- Spells that stop your target's cast. near = it hits everything around you
+-- Spells that step your target's cast. near = it hits everything around you
 -- (War Stomp: 8 yards), so it needs the target close, not in spell range.
 -- Classes add theirs: table.insert(ns.rotation.INTERRUPTS, { spell = ... }).
 E.INTERRUPTS = {
@@ -1582,7 +1582,7 @@ local probes = { wounds = 0, readable = 0 }
 -- Full health, without reading it. Your health is hidden on Forever, but the
 -- game still says WHEN it changes (UNIT_HEALTH, no numbers needed). Out of a
 -- fight it regenerates in ticks, so it keeps changing until it's full, then
--- stops. A few quiet seconds out of a fight therefore mean: full. The
+-- steps. A few quiet seconds out of a fight therefore mean: full. The
 -- estimate goes to 0 and the "heal up" prompt clears ("after my health fills
 -- the 'cast a heal' doesn't clear": the estimate only counted down by the
 -- clock, 1 every 3 s, so a full bar could still read as hurt for a minute).

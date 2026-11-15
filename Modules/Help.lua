@@ -26,17 +26,17 @@ local topics = {
         "Plans your whole trip: objectives, turn-ins (after their objectives), quests to accept,",
         "trainers, and fishing/gathering when it is on the way. Click for the full plan.",
         "Left-click: details. Right-click: next goal. Learns trails as you walk.",
-        "Right-click a stop on the map or in the route list to hide it. To undo: tick \"Show hidden stops\" under the map list and click one, or /flow nav unhide (all of them; /flow nav hidden lists them).",
+        "Right-click a step on the map or in the route list to hide it. To undo: tick \"Show hidden steps\" under the map list and click one, or /flow nav unhide (all of them; /flow nav hidden lists them).",
         "World map: numbered checkpoints with levels \"3 [9]\", quest pickups \"!2\". Hover to preview",
         "  (yellow), click to choose. Advice list rows with an arrow do the same. /flow map on|off",
         "Waypoint: Ctrl- or Alt-click the world map, or /flow way <x> <y> [note]; /flow way clear",
         "/flow nav include all|none|<kind> on|off - what the route includes (the route menu's ticks); /flow nav quests|optimal|complete still work",
-        "/flow nav professions on|off - trainer and skill-up stops; /flow nav why - what the route is made of",
+        "/flow nav professions on|off - trainer and skill-up steps; /flow nav why - what the route is made of",
         "/flow prof plan - how Flow plans to raise your professions (what to make, materials, where from)",
         "/flow test [name] - run Flow's self-tests (also run on every /reload into the diagnostics)",
         "/flow copy - what Flow said in chat lately, in a box you can copy from (web addresses too)",
-        "/flow nav xp on|off - most XP first, or the shortest path (default); hover a quest stop for its XP",
-        "/flow nav stops 1|3|5|10|all - how many of your next stops the map and Flow Tracker show (also in the arrow menu)",
+        "/flow nav xp on|off - most XP first, or the shortest path (default); hover a quest step for its XP",
+        "/flow nav steps 1|3|5|10|all - how many of your next steps the map and Flow Tracker show (also in the arrow menu)",
         "Map: the square button above the game's quest log button opens and closes Flow's route list (one or the other, or neither)",
         "/flow nav on|off|learn|forget",
     } },
@@ -79,8 +79,8 @@ ns.commands.help = function()
 end
 
 -- The three words Flow uses for places (docs/ARCHITECTURE.md, "Words").
-ns:Register("help", "words", { order = 4, title = "Stops, objectives, waypoints", lines = {
-    "A stop: one place on your route where you do one thing (an objective, a turn-in, a quest to pick up, a trainer, a vendor).",
-    "An objective: one line of a quest, as the game writes it (\"0/7 Plainstrider Beak\"). Each unfinished one is a stop.",
+ns:Register("help", "words", { order = 4, title = "Steps, objectives, waypoints", lines = {
+    "A step: one place on your route where you do one thing (an objective, a turn-in, a quest to pick up, a trainer, a vendor).",
+    "An objective: one line of a quest, as the game writes it (\"0/7 Plainstrider Beak\"). Each unfinished one is a step.",
     "A waypoint: a spot you set yourself (Ctrl + click the map, /flow way). The arrow goes there first; it's not part of the route.",
 } })

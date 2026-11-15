@@ -94,7 +94,7 @@ ns:Register("itemSource", 10561, { name = "Mithril Casing", made = "Engineering"
 ns:Register("itemSource", 6338,  { name = "Silver Rod" })
 ns:Register("itemSource", 11128, { name = "Golden Rod" })
 ns:Register("itemSource", 11144, { name = "Truesilver Rod" })
--- The tools single steps need, by name: a stop then reads "needs a Runed
+-- The tools single steps need, by name: a step then reads "needs a Runed
 -- Copper Rod" (not "item 6218"), and one with another item ID on this
 -- client still counts as carried (SkillPlan matches by ID, else by name).
 ns:Register("itemSource", 6218,  { name = "Runed Copper Rod" })

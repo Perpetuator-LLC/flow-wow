@@ -11,7 +11,7 @@
 --   * a quest is handed in: where you stood is kept for its turn-in.
 --
 -- The next time that quest is in a log (another character of yours, or the
--- rest of an objective with several counts) the stop goes there, marked as
+-- rest of an objective with several counts) the step goes there, marked as
 -- learned. Kept for the whole account (not per character); only quest IDs
 -- and map spots, nothing about you. /flow spots lists them, and they're in
 -- the export for tools\route-check.ps1.
@@ -69,7 +69,7 @@ function LS.Moved(before, now)
     return out
 end
 
--- Is this stop one Flow couldn't place? (Only those are learned: a quest
+-- Is this step one Flow couldn't place? (Only those are learned: a quest
 -- the data places is already right.)
 local function unplaced(key)
     for _, g in ipairs(ns.nav and ns.nav.blockedGoals or {}) do
@@ -137,6 +137,6 @@ ns.commands.spots = function()
     for i, l in ipairs(LS.Lines()) do if i == 1 then ns:Print(l) else print("  " .. l) end end
 end
 ns:Register("help", "spots", { order = 59, title = "Learned quest spots", lines = {
-    "A quest Flow can't place (\"no known spot\") is learned where you do it: the next time, the stop goes there.",
+    "A quest Flow can't place (\"no known spot\") is learned where you do it: the next time, the step goes there.",
     "/flow spots: the list.",
 } })

@@ -107,7 +107,7 @@ local function with(tbl, key, value, fn)
     if not ok then error(err, 0) end
 end
 
--- Heal and recovery tests go through checks that stop when you're dead (a
+-- Heal and recovery tests go through checks that step when you're dead (a
 -- ghost needs no heal), and a test may not stand in for the game's own
 -- functions. Reloading as a ghost failed three of them (0.35.156); they now
 -- wait until you're alive: `if deadSkip(t) then return end` first.
@@ -121,7 +121,7 @@ end
 
 ns:Register("test", "core: each character has its own data", function(t)
     -- Old shared data, as saved before the split: a druid's trainer, fights
-    -- from both characters, recipes, a hidden stop and shared settings.
+    -- from both characters, recipes, a hidden step and shared settings.
     local account = {
         trainer = { npc = "Mardant Strongoak", services = { { name = "Moonfire" } } },
         profiler = { fights = { { casts = { Moonfire = 2 } }, { casts = { ["Holy Light"] = 1 } }, { casts = { Attack = 5 } } } },
@@ -136,7 +136,7 @@ ns:Register("test", "core: each character has its own data", function(t)
     t:eq(account.profiler and #account.profiler.fights, 1, "only the druid's fight (no Holy Light, no Attack-only)")
     t:eq(account.quests.notOffered, nil, "short-lived quest data starts fresh")
     t:eq(account.quests.enabled, true, "settings stay shared")
-    t:ok(account.nav.hidden and account.nav.hidden["7:1"], "stops hidden before stay hidden")
+    t:ok(account.nav.hidden and account.nav.hidden["7:1"], "steps hidden before stay hidden")
     t:ok(account.nav.graphs.trail, "learned trails stay shared")
     t:eq(account.crafting, nil, "recipes wait for login (professions)")
     account.crafting = {}   -- (what Recipes.lua's OnLoad does)
@@ -152,7 +152,7 @@ ns:Register("test", "core: each character has its own data", function(t)
     t:eq(account.trainer, nil, "logout: out of the shared data")
     t:eq(druid.data.trainer.npc, "Someone else", "into this character's own")
     t:eq(account.nav.arrowStyle, "3d", "shared settings untouched")
-    t:eq(account.nav.hidden, nil, "hidden stops are per character")
+    t:eq(account.nav.hidden, nil, "hidden steps are per character")
 
     -- Another character: its own share of the old data, nothing of the druid's.
     ns:SplitCharacterData(account, paladin, { class = "PALADIN" })
@@ -293,7 +293,7 @@ ns:Register("test", "planner: nearest first, turn-in after its objective", funct
     t:eq(plan and plan[1].goal.key, "1:1", "objective before its turn-in")
 end)
 
-ns:Register("test", "travel time: a stop's spot picked by the time to get there, flights counted", function(t)
+ns:Register("test", "travel time: a step's spot picked by the time to get there, flights counted", function(t)
     local P, N = ns.planner, ns.nav
     -- The planner: a forge 2000 yd away on foot, or one 3000 yd away by a
     -- flight that makes it 500 yd of running.
@@ -349,7 +349,7 @@ ns:Register("test", "travel time: forges and fires you've used count as station 
     t:eq(s and s.map, 1426, "learned with its map")
 end)
 
-ns:Register("test", "planner: near first, far stops and item drops wait", function(t)
+ns:Register("test", "planner: near first, far steps and item drops wait", function(t)
     local F = ns.nearFirst
     t:eq(F.Multiplier({}, 100), 1, "close: unchanged")
     t:near(F.Multiplier({}, 1000), 2, 0.001, "1,000 yd: 2x")
@@ -390,18 +390,18 @@ ns:Register("test", "planner: near first, far stops and item drops wait", functi
     end)
 end)
 
-ns:Register("test", "planner: plans 30 stops, the far end nearest-next", function(t)
+ns:Register("test", "planner: plans 30 steps, the far end nearest-next", function(t)
     local function goal(key, x, y, extra)
         local g = { key = key, text = key, points = { { cont = 0, wx = x, wy = y or 0 } } }
         for k, v in pairs(extra or {}) do g[k] = v end
         return g
     end
     local p = { cont = 0, wx = 0, wy = 0 }
-    -- 40 stops in a line, given out of order: the nearest 30 make the plan.
+    -- 40 steps in a line, given out of order: the nearest 30 make the plan.
     local goals = {}
     for k = 40, 1, -1 do goals[#goals + 1] = goal("g" .. k, k * 10) end
     local plan = ns.planner:Plan(p, goals, {})
-    t:eq(plan and #plan, 30, "30 stops planned (was 14)")
+    t:eq(plan and #plan, 30, "30 steps planned (was 14)")
     t:eq(plan and plan[1] and plan[1].goal.key, "g1", "nearest first")
     t:eq(plan and plan[30] and plan[30].goal.key, "g30", "the 30th nearest last")
     local inOrder = true
@@ -421,7 +421,7 @@ ns:Register("test", "planner: plans 30 stops, the far end nearest-next", functio
     t:ok(at["q:1"] and at["q:done"] and at["q:1"] < at["q:done"], "objective before its turn-in")
 end)
 
-ns:Register("test", "blocked stops: label and reason", function(t)
+ns:Register("test", "blocked steps: label and reason", function(t)
     local text, why = ns.nav:FormatBlocked({ text = "Buy a Mining Pick", blockedBy = "needs 16c (you have 6c)" })
     t:ok(text:find("Buy a Mining Pick", 1, true) ~= nil, "text kept")
     t:ok(why:find("needs 16c", 1, true) ~= nil, "reason shown")
@@ -464,7 +464,7 @@ ns:Register("test", "menu: one choice ticked per group", function(t)
     if ticked.Party then t:eq(ticked.Party, 1, "party: your route or the party route") end
 end)
 
-ns:Register("test", "tooltip: stop details render", function(t)
+ns:Register("test", "tooltip: step details render", function(t)
     local tt = _G.FlowTestTooltip or CreateFrame("GameTooltip", "FlowTestTooltip", UIParent, "GameTooltipTemplate")
     tt:SetOwner(UIParent, "ANCHOR_NONE")
     local ok, err = pcall(ns.nav.FillTooltip, ns.nav, tt,
@@ -494,7 +494,7 @@ ns:Register("test", "planner: a quest's turn-in comes along with its objectives"
     local plan = ns.planner:Plan(p, goals, {})
     local at = {}
     for i, s in ipairs(plan or {}) do at[s.goal.key] = i end
-    t:ok(at["7:done"] ~= nil, "turn-in planned although it's the farthest stop")
+    t:ok(at["7:done"] ~= nil, "turn-in planned although it's the farthest step")
     t:ok(at["7:1"] and at["7:done"] and at["7:1"] < at["7:done"], "after its objective")
 end)
 
@@ -509,11 +509,11 @@ ns:Register("test", "planner: finish the area you're in first", function(t)
             return g
         end
         local p = { cont = 0, wx = 0, wy = 0 }
-        -- Two stops around you, one behind you, two far ahead. The shortest
+        -- Two steps around you, one behind you, two far ahead. The shortest
         -- trip goes behind you first (2800 yd); finishing here first is 3200.
         local function line() return { goal("A", 100), goal("B", 200), goal("W", -600), goal("E", 1500), goal("E2", 1600) } end
         local plan = P:Plan(p, line(), { areaFirst = true })
-        t:eq(plan and plan[1].goal.key, "A", "the stops around you first")
+        t:eq(plan and plan[1].goal.key, "A", "the steps around you first")
         t:eq(plan and plan[2].goal.key, "B", "both of them, before the far ones")
         plan = P:Plan(p, line(), { areaFirst = false })
         t:eq(plan and plan[1].goal.key, "W", "rule off: the shortest trip goes the other way first")
@@ -531,7 +531,7 @@ ns:Register("test", "planner: finish the area you're in first", function(t)
         plan = P:Plan(p, { goal("pickup:9", 450, { weight = 1 }), goal("W", -350), goal("E", 3000) }, { areaFirst = true })
         t:eq(plan and plan[1].goal.key, "pickup:9", "a quest pickup 450 yd away is part of the area")
         plan = P:Plan(p, { goal("X", 450), goal("W", -350), goal("E", 3000) }, { areaFirst = true })
-        t:eq(plan and plan[1].goal.key, "W", "any other stop 450 yd away isn't")
+        t:eq(plan and plan[1].goal.key, "W", "any other step 450 yd away isn't")
     end)
     ns.db.nearFirst = saved
     t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
@@ -649,7 +649,7 @@ ns:Register("test", "arrow: anywhere in a quest's area counts as arrived", funct
     t:ok(ns.nav:InArea(goal, p), "near one of the spawns")
     goal.points[2].wx = 200
     t:ok(not ns.nav:InArea(goal, p), "far from all spawns")
-    t:ok(not ns.nav:InArea({ points = { { cont = 0, wx = 1, wy = 1 } } }, p), "single-spot stops use the normal arrival")
+    t:ok(not ns.nav:InArea({ points = { { cont = 0, wx = 1, wy = 1 } } }, p), "single-spot steps use the normal arrival")
 end)
 
 ns:Register("test", "ways to improve: no 'choose professions' once two are learned", function(t)
@@ -668,7 +668,7 @@ ns:Register("test", "cast key: the after-fight heal never becomes the fight's ke
     t:eq(def.pullLock({ spell = "Holy Light", kind = "heal" }, E), "Judgement", "heal at the pull: main attack")
 end)
 
-ns:Register("test", "lists: quest stops show a quest icon", function(t)
+ns:Register("test", "lists: quest steps show a quest icon", function(t)
     local s = ns.nav:FormatStop(1, { key = "60:1", kind = "collect", text = "Kobold Candles: 1/8 Large Candle" }, "1")
     t:ok(s:find("ActiveQuestIcon", 1, true) ~= nil, "objective: in-progress quest icon")
     s = ns.nav:FormatStop(1, { key = "pickup:85", kind = "accept", text = "Accept: Lost Necklace" }, "!1")
@@ -833,14 +833,14 @@ ns:Register("test", "cooking: meat you carry is used first, either meat will do"
     t:eq(#SP.Alternatives(g.steps, 99999), 1, "unknown item: just itself")
 end)
 
-ns:Register("test", "profession route: map path skips 'anywhere' stops, capped", function(t)
+ns:Register("test", "profession route: map path skips 'anywhere' steps, capped", function(t)
     local M = ns.mapOverlay
     if not (M and M.ProfStops) then t:ok(false, "map overlay loaded") return end
     local pt = { map = 1, x = 0.5, y = 0.5 }
     local plan = { { goal = { key = "a", anywhere = true }, point = pt } }
     for i = 1, 8 do plan[#plan + 1] = { goal = { key = "s" .. i }, point = pt } end
     local out = M.ProfStops(plan, 5)
-    t:eq(#out, 5, "five stops on the map")
+    t:eq(#out, 5, "five steps on the map")
     t:eq(out[1].goal.key, "s1", "'do it where you stand' left off")
     t:eq(#M.ProfStops(nil), 0, "no profession route: nothing")
     t:ok(ns.minimapPin.UpdateProf ~= nil, "minimap has a profession dot")
@@ -946,7 +946,7 @@ ns:Register("test", "map areas: patches and their borders", function(t)
     t:eq(#edge, 4, "a square's border has 4 corners (the middle point is inside)")
 end)
 
-ns:Register("test", "stop card: tooltip text and route patch", function(t)
+ns:Register("test", "step card: tooltip text and route patch", function(t)
     local tt = ns.nav._textTooltip()
     ns.nav:FillTooltip(tt, { key = "test:card", title = "A Quest", text = "A Quest: Kill 5 Wolves", details = { "XP: 120" } })
     t:ok(#tt.lines >= 3, "card body has lines")
@@ -959,17 +959,17 @@ ns:Register("test", "stop card: tooltip text and route patch", function(t)
     t:eq(ns.mapOverlay._routePatch(groups, nil, nil), nil, "no route spot: all patches")
 end)
 
-ns:Register("test", "route: picking the next stop makes an orange Custom route until you optimise", function(t)
+ns:Register("test", "route: picking the next step makes an orange Custom route until you optimise", function(t)
     local N, db, X = ns.nav, ns.db.nav, ns.xpValue
     if ns.party and ns.party:Following() then t:ok(true, "(on a party route)") return end
     local goals = N:Goals() or {}
     local g = goals[#goals]
-    if not g then t:ok(true, "(no stops to try)") return end
+    if not g then t:ok(true, "(no steps to try)") return end
     local saved = { sel = N.selection, key = db.selectedKey, sorter = db.sorter, base = db.baseSorter }
     local ok, err = pcall(function()
         db.sorter, db.baseSorter = "distance", "distance"
         N:Select(g.key)
-        t:eq(N.selection and N.selection.first, g.key, "your pick is the next stop")
+        t:eq(N.selection and N.selection.first, g.key, "your pick is the next step")
         t:eq(X:Mode(), "custom", "Custom route")
         t:eq(ns.theme.route.hex, ns.theme:ModeColor("custom").hex, "the route is orange")
         t:eq((X:Objective()), "distance", "the rest is planned with your last objective")
@@ -990,7 +990,7 @@ ns:Register("test", "route: picking the next stop makes an orange Custom route u
     N.planDirty = true
 end)
 
-ns:Register("test", "map: the stop you're heading to has a white ring, the rest black", function(t)
+ns:Register("test", "map: the step you're heading to has a white ring, the rest black", function(t)
     local c = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
     if not c then t:ok(true, "(no map canvas)") return end
     local stop = { goal = { key = "test:pin", text = "test" } }
@@ -1003,7 +1003,7 @@ ns:Register("test", "map: the stop you're heading to has a white ring, the rest 
     t:ok(a and a < 0.6, "the white ring is faint")
     p = ns.mapOverlay._pin(c, 0.6, 0.6, "2", ns.theme.route, stop, nil, false)
     r, g, b = p.edge:GetVertexColor()
-    t:ok(r < 0.01 and g < 0.01 and b < 0.01, "other stops: black ring")
+    t:ok(r < 0.01 and g < 0.01 and b < 0.01, "other steps: black ring")
     p:Hide()
     if WorldMapFrame:IsShown() then ns.mapOverlay:Redraw() end
 end)
@@ -1027,17 +1027,17 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
         pos.x = 0.45
         t:ok(not M._changed(st, canvas, 1429, nil), "you walking: no redraw (only your lines move)")
         ns.nav.plan[2].point.x = 0.7
-        t:ok(M._changed(st, canvas, 1429, nil), "a stop moved: redraw")
+        t:ok(M._changed(st, canvas, 1429, nil), "a step moved: redraw")
         ns.nav.plan[1].goal.text = "t:a 1/6"
-        t:ok(M._changed(st, canvas, 1429, nil), "a stop's progress changed: redraw")
-        t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a stop: redraw")
+        t:ok(M._changed(st, canvas, 1429, nil), "a step's progress changed: redraw")
+        t:ok(M._changed(st, canvas, 1429, "t:b"), "pointing at a step: redraw")
         t:ok(M._changed(st, canvas, 1430, "t:b"), "another map: redraw")
-        -- (a different choice of stops from yours, whatever yours is: the
+        -- (a different choice of steps from yours, whatever yours is: the
         -- area when you show numbers, a number when you show the area)
         local area = ns.nav:AreaMode()
         with(ns.db.nav, "stopsArea", not area, function()
         with(ns.db.nav, "stopsShown", ns.nav:StopsShown() == 3 and 1 or 3, function()
-            t:ok(M._changed(st, canvas, 1430, "t:b"), "other stops on the map: redraw")
+            t:ok(M._changed(st, canvas, 1430, "t:b"), "other steps on the map: redraw")
             t:ok(not M._changed(st, canvas, 1430, "t:b"), "then no redraw again")
         end)
         end)
@@ -1082,7 +1082,7 @@ ns:Register("test", "map: the 0.5 s tick only redraws when something changed", f
     end) end) end)
 end)
 
-ns:Register("test", "waypoint: your own is a green path, not a route stop", function(t)
+ns:Register("test", "waypoint: your own is a green path, not a route step", function(t)
     t:ok(ns:Get("navGoal", "userWaypoint") == nil, "not a route goal any more")
     local p = ns.nav:PlayerPos()
     if not p then t:ok(true, "(no position)") return end
@@ -1178,7 +1178,7 @@ ns:Register("test", "router: Custom route button greyed out on Most XP or Shorte
     t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
 end)
 
-ns:Register("test", "recipes: learning one at a trainer clears its stop", function(t)
+ns:Register("test", "recipes: learning one at a trainer clears its step", function(t)
     local R = ns.recipes
     local p = R._patternFrom("You have learned how to create a new item: %s.")
     t:eq(("You have learned how to create a new item: Heavy Linen Bandage."):match(p), "Heavy Linen Bandage", "chat line parsed")
@@ -1221,7 +1221,7 @@ ns:Register("test", "planner: a milestone always makes the cut", function(t)
     local plan = P:Plan(p, goals, {})
     local found
     for _, s in ipairs(plan) do if s.goal.key == "train:class" then found = true end end
-    t:ok(found, "class training is planned even though 20 stops are nearer")
+    t:ok(found, "class training is planned even though 20 steps are nearer")
 end)
 
 ns:Register("test", "mount: save, then riding, then the mount", function(t)
@@ -1263,7 +1263,7 @@ ns:Register("test", "fishing: a pole comes first", function(t)
         t:eq(goal, nil, "you have a pole: nothing to buy")
     else
         t:eq(goal and goal.text, "Buy a Fishing Pole", "no pole: buy one")
-        t:eq(missing, "Fishing Pole", "and the fishing stop says why")
+        t:eq(missing, "Fishing Pole", "and the fishing step says why")
     end
     t:eq((ns.skillPlan:ToolGoal("Cooking")), nil, "no tool for Cooking")
 end)
@@ -1326,7 +1326,7 @@ end)
 ns:Register("test", "class training fits into the route, after the quests where you are", function(t)
     -- 0.35.98 put training first when the trainer was close: it pulled Yang
     -- away mid-quest. The planner fits it in where it costs least again.
-    t:eq(ns.nav.GoFirstKey, nil, "no stop jumps the queue")
+    t:eq(ns.nav.GoFirstKey, nil, "no step jumps the queue")
     local ok, goals = pcall(ns:Get("navGoal", "errands").collect)
     t:ok(ok, "errands collect")
     for _, g in ipairs(ok and goals or {}) do
@@ -1339,9 +1339,9 @@ ns:Register("test", "actions: fishing steps on the Flow key", function(t)
     t:ok(X.IsPole(6256), "Fishing Pole is a pole")
     t:ok(not X.IsPole(2901), "Mining Pick is not a pole")
     local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
-    -- Not at the fishing stop: no fishing steps.
+    -- Not at the fishing step: no fishing steps.
     t:eq(get("fish:cast", { fishing = false, prof = "Fishing", pole = true }), nil, "no cast away from the spot")
-    t:eq(get("fish:equip", { at = true, prof = "Mining", pole = false }), nil, "no pole at a mining stop")
+    t:eq(get("fish:equip", { at = true, prof = "Mining", pole = false }), nil, "no pole at a mining step")
     -- At the spot with the pole on: cast (when you know Fishing and aren't fishing yet).
     if ns.api.SpellInfo("Fishing") and not (UnitChannelInfo and UnitChannelInfo("player")) then
         local s = get("fish:cast", { fishing = true, atFish = true, prof = "Fishing", pole = true })
@@ -1382,7 +1382,7 @@ end)
 
 ns:Register("test", "skillplan: the guides' recipes to 300", function(t)
     local SP = ns.skillPlan
-    -- Every bought recipe has a source, so its stop knows what it is and roughly costs.
+    -- Every bought recipe has a source, so its step knows what it is and roughly costs.
     for prof, g in ns:Each("profGuide") do
         for _, s in ipairs(g.steps or {}) do
             if s.recipeItem and not s.quest then
@@ -1440,11 +1440,11 @@ ns:Register("test", "skillplan: the guides' recipes to 300", function(t)
     local ok, err = pcall(function()
         if ns.api.Count(bracers.recipeItem) > 0 then return end   -- (you have the plans: it says "use")
         local r = SP._recipeStop("Blacksmithing", bracers, {})
-        t:eq(r and r.kind, "accept", "quest plans: an accept stop")
+        t:eq(r and r.kind, "accept", "quest plans: an accept step")
         t:eq(r and r.key, "recipequest:7655", "quest plans: keyed by the quest")
         t:ok(r and r.text:find("Derotain Mudsipper", 1, true), "quest plans: names the giver")
         state.inLog = true
-        t:eq(SP._recipeStop("Blacksmithing", bracers, {}), nil, "quest in your log: its own stops take over")
+        t:eq(SP._recipeStop("Blacksmithing", bracers, {}), nil, "quest in your log: its own steps take over")
         state.inLog, state.done = false, true
         t:eq(SP._recipeStop("Blacksmithing", bracers, {}), nil, "quest done: nothing")
         t:eq(SP._recipeStop("Blacksmithing", bracers, { ["Imperial Plate Bracers"] = true }), nil, "recipe known: nothing")
@@ -1495,7 +1495,7 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     t:eq(P.stats["test: wrapped"].calls, 1, "call counted")
     P.stats["test: wrapped"] = nil
     t:ok(P.stats["arrow + minimap (10/s)"] ~= nil, "route arrow timed")
-    t:ok(P.stats["route: order stops"] ~= nil, "planner timed")
+    t:ok(P.stats["route: order steps"] ~= nil, "planner timed")
     for _, name in ipairs({ "rotation: choosing the spell", "flow actions", "status icons (1/s)", "rotation: showing it (10/s)" }) do
         t:ok(P.stats[name] ~= nil, name .. ": timed apart from drawing the key")
     end
@@ -1506,12 +1506,12 @@ ns:Register("test", "perf: Flow's update loops are timed", function(t)
     t:ok(ns.nav.Busy() == true or ns.nav.Busy() == false, "tracker can tell when the route is being redone")
 end)
 
-ns:Register("test", "perf: route refresh gathers one stop source at a time", function(t)
+ns:Register("test", "perf: route refresh gathers one step source at a time", function(t)
     local N, P = ns.nav, ns.perf
     local list = { "already here" }
     N._gatherFrom("test: src", { collect = function() return { { key = "k1", text = "a" } } end }, list)
-    t:eq(#list, 2, "one source's stops added to the list being built")
-    t:eq(list[2].provider, "test: src", "stop tagged with its source")
+    t:eq(#list, 2, "one source's steps added to the list being built")
+    t:eq(list[2].provider, "test: src", "step tagged with its source")
     N._gatherFrom("test: bad", { collect = function() error("boom") end }, list)
     t:eq(#list, 2, "a failing source adds nothing and doesn't stop the refresh")
     P.stats["gather: test: src"], P.stats["gather: test: bad"] = nil, nil
@@ -1534,7 +1534,7 @@ ns:Register("test", "perf: a timed entry names its costliest parts", function(t)
     P.PartsLabel("test: parts", "refreshed after")
     t:ok((P.PartsLine(P.stats["test: parts"], 10) or ""):find("^      refreshed after: ") ~= nil, "or in the row's own words")
     -- The route says what asks it to refresh (0.35.152).
-    local st = P.stats["route: gather stops"]
+    local st = P.stats["route: gather steps"]
     t:eq(st and st.partsLabel, "refreshed after", "route refreshes listed by cause")
     P.stats["test: parts"] = nil
 end)
@@ -1631,9 +1631,9 @@ ns:Register("test", "perf: a timed call inside another counts once", function(t)
     t:ok(P.stats["minimap areas"] ~= nil, "minimap areas timed apart")
 end)
 
-ns:Register("test", "planner: each stop goes to its nearest spot from the last one", function(t)
+ns:Register("test", "planner: each step goes to its nearest spot from the last one", function(t)
     local PL = ns.planner
-    local seed = 7   -- the same "random" stops every run
+    local seed = 7   -- the same "random" steps every run
     local function rnd() seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 end
     local p = { cont = 0, wx = 0, wy = 0 }
     local goals = {}
@@ -1643,8 +1643,8 @@ ns:Register("test", "planner: each stop goes to its nearest spot from the last o
         goals[k] = { key = "s" .. k, text = "s" .. k, points = pts }
     end
     local plan = PL:Plan(p, goals, {})
-    t:eq(plan and #plan, 12, "every stop planned")
-    -- Each leg: the stop's nearest spot from where the last leg ended
+    t:eq(plan and #plan, 12, "every step planned")
+    -- Each leg: the step's nearest spot from where the last leg ended
     -- (worked out here the slow way, every spot).
     local from, right, legsRight = p, true, true
     for _, s in ipairs(plan or {}) do
@@ -1658,7 +1658,7 @@ ns:Register("test", "planner: each stop goes to its nearest spot from the last o
         if math.abs(d - s.leg) > 1e-6 then legsRight = false end
         from = s.point
     end
-    t:ok(right, "every stop: its nearest spot")
+    t:ok(right, "every step: its nearest spot")
     t:ok(legsRight, "and the legs add up")
     -- No longer than going nearest-next.
     local left, order, at = {}, {}, p
@@ -1692,13 +1692,13 @@ ns:Register("test", "nav: map spots turn into world spots like the game does", f
     t:ok(worst < 0.05, string.format("same spot (off by %.4f yd at most)", worst))
 end)
 
-ns:Register("test", "actions: any fishing stop counts, not just the quest's", function(t)
+ns:Register("test", "actions: any fishing step counts, not just the quest's", function(t)
     local P = ns.actions.GoalProf
     t:eq(P({ key = "skill:Fishing", text = "Fish at the lake (Fishing 20, aim for 58)" }), "Fishing", "skill errand (no prof field)")
-    t:eq(P({ key = "skill:Fishing", prof = "Fishing", text = "Fish: 1 -> 20" }), "Fishing", "skill planner stop")
+    t:eq(P({ key = "skill:Fishing", prof = "Fishing", text = "Fish: 1 -> 20" }), "Fishing", "skill planner step")
     t:eq(P({ key = "123:1", kind = "collect", text = "Catch 5 Raw Brilliant Smallfish" }), "Fishing", "fishing quest objective")
     t:eq(P({ key = "buy:6256", kind = "merchant", text = "Buy a Fishing Pole" }), nil, "buying the pole isn't fishing")
-    t:eq(P({ key = "gather:Copper Vein", prof = "Mining" }), "Mining", "mining stop")
+    t:eq(P({ key = "gather:Copper Vein", prof = "Mining" }), "Mining", "mining step")
     t:eq(P({ key = "99128:1", text = "Slimy Menace: 0 -> 7 Murloc slain" }), nil, "a kill quest isn't fishing")
 end)
 
@@ -1707,10 +1707,10 @@ ns:Register("test", "skillplan: fishing suggests a lure", function(t)
     t:eq(g.lure, 6529, "Shiny Bauble is Fishing's lure")
     local stop = ns.skillPlan:LureGoal("Fishing")
     if stop then
-        t:eq(stop.key, "buy:6529", "buy stop for the bauble")
+        t:eq(stop.key, "buy:6529", "buy step for the bauble")
         t:ok(stop.optional, "optional: only when it's on the way")
     else
-        t:ok(true, "no stop: you carry a lure, or no known vendor")
+        t:ok(true, "no step: you carry a lure, or no known vendor")
     end
     t:eq(ns.skillPlan:LureGoal("Mining"), nil, "no lure for Mining")
 end)
@@ -1726,7 +1726,7 @@ end)
 ns:Register("test", "crafting: make exactly enough, and say what's next", function(t)
     local H = ns.craftHint
     t:ok(type(H.Craft) == "function", "Make N button can craft")
-    t:eq(#H.CraftStops("No Such Profession"), 0, "no stops for an unknown profession")
+    t:eq(#H.CraftStops("No Such Profession"), 0, "no steps for an unknown profession")
     for _, g in ipairs(ns.skillPlan.lastStops or {}) do
         if g.recipe then
             t:ok(g.makeCount and g.makeCount > 0, g.recipe .. ": has a count")
@@ -1780,15 +1780,15 @@ ns:Register("test", "skillplan: the bank Flow saw counts, an upgrade with an unr
     t:ok(lines[2]:find("open this window again", 1, true), "and when Flow couldn't read the materials")
     for _, g in ipairs(SP.lastStops or {}) do
         t:ok(not (g.key or ""):find("^upgrade:") or not g.blockedBy or not g.blockedBy:find("^needs %d"),
-            (g.recipe or g.key) .. ": an upgrade missing materials is never a stop")
+            (g.recipe or g.key) .. ": an upgrade missing materials is never a step")
     end
 end)
 
-ns:Register("test", "crafting: the window shows the arrow's stop, materials and the upgrades fold-out", function(t)
+ns:Register("test", "crafting: the window shows the arrow's step, materials and the upgrades fold-out", function(t)
     local H = ns.craftHint
     local a = { key = "craft:X:A", recipe = "A" }
     local b = { key = "upgrade:X:B", recipe = "B" }
-    t:eq(H.Pick({ b, a }, { goal = { key = "craft:X:A" } }), a, "the faint arrow's stop wins")
+    t:eq(H.Pick({ b, a }, { goal = { key = "craft:X:A" } }), a, "the faint arrow's step wins")
     t:eq(H.Pick({ b, a }, nil, { { goal = { key = "craft:X:A" } } }), a, "else the profession route's first")
     t:eq(H.Pick({ b, a }), b, "else the first")
     local lines, now = H.MaterialLines({ reagents = { [2840] = 2 } }, 4,
@@ -1916,10 +1916,10 @@ ns:Register("test", "router: the (o) is the route colour, your waypoint's green"
     h:Hide()
 end)
 
-ns:Register("test", "stop card: drag by the title, opens where you left it", function(t)
+ns:Register("test", "step card: drag by the title, opens where you left it", function(t)
     local saved = ns.db.nav.cardPoint
     ns.db.nav.cardPoint = { "TOPLEFT", "TOPLEFT", 100, -100 }
-    ns.nav:ShowStop({ key = "test:card", text = "Test stop", points = {} })
+    ns.nav:ShowStop({ key = "test:card", text = "Test step", points = {} })
     local card = _G.FlowStopCard
     t:ok(card and card:IsMovable(), "card can be moved")
     local a, _, _, x = card:GetPoint()
@@ -1961,7 +1961,7 @@ ns:Register("test", "actions: no endless casts where there's no water", function
     if ns.nav:PlayerPos() then
         local ctx = X:Context()
         t:ok(ctx.noWater, "here counts as no water now")
-        t:ok(ctx.atFish or not ctx.fishing, "off a fishing stop: not fishing here any more")
+        t:ok(ctx.atFish or not ctx.fishing, "off a fishing step: not fishing here any more")
     end
     ns.db.actions.dryAt = saved
 end)
@@ -2075,7 +2075,7 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
     local X = ns.xpValue
     t:ok(ns:Get("routeObjective", "xp") and ns:Get("routeObjective", "distance"), "built-in objectives registered")
     local saved = { s = ns.db.nav.sorter, b = ns.db.nav.baseSorter }
-    -- A test objective: only stops whose key starts with "keep:", each half weight.
+    -- A test objective: only steps whose key starts with "keep:", each half weight.
     if not ns:Get("routeObjective", "test-only") then
         ns:Register("routeObjective", "test-only", { label = "Test",
             keep = function(g) return g.key:find("^keep:") ~= nil end,
@@ -2085,7 +2085,7 @@ ns:Register("test", "route: what it optimises is pluggable", function(t)
     with(ns.db.nav, "kinds", {}, function()   -- (the default ticks: no low-level quests)
         ns.db.nav.sorter, ns.db.nav.baseSorter = "test-only", "test-only"
         local out = X:Apply({ { key = "keep:1", weight = 1 }, { key = "drop:1", weight = 1 } })
-        t:eq(#out, 1, "keep picks the stops")
+        t:eq(#out, 1, "keep picks the steps")
         t:eq(out[1] and out[1].weight, 0.5, "weigh scales the weight")
         ns.db.nav.sorter, ns.db.nav.baseSorter = "nonsense", nil
         t:eq((X:Objective()), "distance", "unknown objective falls back to the default, the shortest path")
@@ -2180,7 +2180,7 @@ ns:Register("test", "modern arrow: turns, colours, ring and beam when you arrive
     t:ok(a.halo:IsShown() and a.beam:IsShown() and a.ripple:IsShown(), "arrived: ring, ripple and beam")
     t:ok(a.beamDown and a.beamDown:IsShown(), "and the beam mirrored below the ring: it fades down as it fades up")
     a:SetCenterIcon("Interface\\Icons\\INV_Misc_Food_15")
-    t:ok(a.icon:IsShown(), "the stop's icon in the ring")
+    t:ok(a.icon:IsShown(), "the step's icon in the ring")
     a:SetWave(true)
     t:ok(a.wave, "on the spot: the ripples speed up")
     a:SetArrived(false)
@@ -2247,8 +2247,8 @@ ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon"
     local get = function(k, ctx) return ns:Get("action", k).get(ctx) end
     local stop = { key = "craft:Cooking:Test", recipe = "Roasted Boar Meat", prof = "Cooking",
                    station = "fire", anywhere = true, icon = "Interface\\Icons\\INV_Misc_Food_15" }
-    -- Not at a craft stop: none of the craft steps.
-    t:eq(get("craft:open", { goal = { key = "88:1" } }), nil, "no craft steps at a quest stop")
+    -- Not at a craft step: none of the craft steps.
+    t:eq(get("craft:open", { goal = { key = "88:1" } }), nil, "no craft steps at a quest step")
     -- Cooking needs a fire first: "open" waits until there is one.
     if not ns.actions.FireNear() then
         t:eq(get("craft:open", { goal = stop, at = true }), nil, "no opening Cooking without a fire")
@@ -2264,7 +2264,7 @@ ns:Register("test", "craft here: campfire, open, make; the arrow shows the icon"
         t:eq(fa and fa.spell, "First Aid", "opens First Aid")
     end
     t:eq(ns.cast._describe({ type = "click", label = "Make 4 x Roasted Boar Meat" }), "/click Make 4 x Roasted Boar Meat", "click step described")
-    -- The 3D arrow shows the stop's icon instead of the ball when you're there.
+    -- The 3D arrow shows the step's icon instead of the ball when you're there.
     if ns.db.nav.arrowStyle ~= "flat" then
         local a = ns.nav:MakeArrow3D(UIParent)
         a:SetCenterIcon(stop.icon); a:SetArrived(true)
@@ -2336,9 +2336,9 @@ ns:Register("test", "craft station: the profession button by an anvil, forge or 
     end
 end)
 
-ns:Register("test", "actions: 'Learn Brilliant Smallfish' isn't a fishing stop", function(t)
+ns:Register("test", "actions: 'Learn Brilliant Smallfish' isn't a fishing step", function(t)
     local P = ns.actions.GoalProf
-    t:eq(P({ key = "use:6325", kind = "craft", text = "Learn Brilliant Smallfish: use the recipe in your bags" }), nil, "recipe stop")
+    t:eq(P({ key = "use:6325", kind = "craft", text = "Learn Brilliant Smallfish: use the recipe in your bags" }), nil, "recipe step")
     t:eq(P({ key = "craft:Cooking:Brilliant Smallfish", prof = "Cooking", text = "Make 32 x Brilliant Smallfish" }), "Cooking", "cooking fish is Cooking")
     t:eq(P({ key = "123:1", text = "Catch 5 Raw Brilliant Smallfish" }), "Fishing", "a fishing quest objective still is")
 end)
@@ -2351,8 +2351,8 @@ ns:Register("test", "look: action borders, bag focus, pillars, router header", f
     -- Item step: the item's quality colour (Fishing Pole: common = white).
     local w = ns.ActionColor({ type = "item", item = "item:6256" })
     t:ok(w[1] > 0.9 and w[2] > 0.9, "common item: white border")
-    -- The bag focus: the current stop's item.
-    t:ok(type(ns.bagIcons.FocusItem) == "function", "bags know the stop's item")
+    -- The bag focus: the current step's item.
+    t:ok(type(ns.bagIcons.FocusItem) == "function", "bags know the step's item")
     -- Pillars: small when arrived, bouncing up for the change.
     if ns.db.nav.arrowStyle ~= "flat" then
         local a = ns.nav:MakeArrow3D(UIParent)
@@ -2387,7 +2387,7 @@ ns:Register("test", "cooking: a campfire needs Simple Wood and Flint and Tinder"
     end
 end)
 
-ns:Register("test", "quests: pickup stops say escort, cave, and what the giver wants first", function(t)
+ns:Register("test", "quests: pickup steps say escort, cave, and what the giver wants first", function(t)
     -- The Longwalkers: an escort from the back of a gnoll cave; Perith was
     -- away walking another player out (0.35.129; 0.35.128 wrongly blamed a
     -- fishing pole).
@@ -2402,10 +2402,10 @@ ns:Register("test", "quests: pickup stops say escort, cave, and what the giver w
     t:eq(Q.EscortNote({ triggerEnd = { "Cleanse the Thunderhorn Water Well", {} } }, "X"), nil, "another event isn't an escort")
     t:eq(Q.EscortNote({}, "X"), nil, "a quest with no event")
     t:eq(Q.EscortNote(nil, "X"), nil, "no Questie data")
-    -- The stop.
+    -- The step.
     local g = Q.ApplyNeed({ key = "pickup:98430", text = "Accept: The Longwalkers", details = { "Level 8 quest." } },
         need, nil, nil, escort)
-    t:eq(g.text, "Accept: The Longwalkers (escort, deep in Palemane Rock)", "the stop's name says both")
+    t:eq(g.text, "Accept: The Longwalkers (escort, deep in Palemane Rock)", "the step's name says both")
     t:eq(g.details[1], need.note, "the cave note first")
     t:eq(g.details[2], escort, "then the escort note")
     t:eq(g.details[3], "Level 8 quest.", "then the usual ones")
@@ -2448,8 +2448,8 @@ ns:Register("test", "tooltips: opening a Flow window hides the hover tooltip", f
     GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
     GameTooltip:AddLine("test")
     GameTooltip:Show()
-    ns.nav:ShowStop({ key = "test:tip", text = "Test stop", points = {} })
-    t:ok(not GameTooltip:IsShown(), "stop card replaced the tooltip")
+    ns.nav:ShowStop({ key = "test:tip", text = "Test step", points = {} })
+    t:ok(not GameTooltip:IsShown(), "step card replaced the tooltip")
     if _G.FlowStopCard then _G.FlowStopCard:Hide() end
 end)
 
@@ -2624,17 +2624,17 @@ ns:Register("test", "minimap cloud: one smooth shape per area", function(t)
     t:near(s[2][1], 5, 0.01, "shrunk towards the middle")
 end)
 
-ns:Register("test", "minimap dot: on the stop, in the arrow's colour", function(t)
+ns:Register("test", "minimap dot: on the step, in the arrow's colour", function(t)
     local N, P = ns.nav, ns.minimapPin
     local A, B = { wx = 0, wy = 0 }, { wx = 30, wy = 0 }
     local spot = { key = "test:spot" }
-    t:eq(N.DotPoint({ goal = spot, point = A }, false), A, "on the way: the stop's spot")
+    t:eq(N.DotPoint({ goal = spot, point = A }, false), A, "on the way: the step's spot")
     t:eq(N.DotPoint({ goal = spot, point = A }, true), A, "arrived: the spot you reached")
     t:eq(N.DotPoint({ goal = spot, point = B }, true), A, "walking around there: the dot stays put")
-    t:eq(N.DotPoint({ goal = spot, point = B }, false), B, "left the stop: back on its spot")
+    t:eq(N.DotPoint({ goal = spot, point = B }, false), B, "left the step: back on its spot")
     t:eq(N.DotPoint({ goal = { key = "test:area", area = true }, point = A }, true), nil, "in a quest's area: no dot, the area shows")
-    t:eq(N.DotPoint({ goal = { key = "test:any", anywhere = true }, point = A }, false), nil, "a do-it-anywhere stop: no dot")
-    t:eq(N.DotPoint(nil), nil, "no stop: no dot")
+    t:eq(N.DotPoint({ goal = { key = "test:any", anywhere = true }, point = A }, false), nil, "a do-it-anywhere step: no dot")
+    t:eq(N.DotPoint(nil), nil, "no step: no dot")
     local p = N:PlayerPos()
     if not (Minimap and p and p.wx) then t:ok(true, "(no minimap or position)") return end
     local col = { 0.1, 0.6, 0.3 }
@@ -2723,7 +2723,7 @@ ns:Register("test", "route: ready turn-ins near you are part of the hub's busine
     local turnins = 0
     for k in pairs(keys) do if k:find(":done$") then turnins = turnins + 1 end end
     t:ok(turnins >= 0, "turn-ins counted with pickups")
-    t:ok(type(ns.mapOverlay.PointHere) == "function", "point the arrow at any stop")
+    t:ok(type(ns.mapOverlay.PointHere) == "function", "point the arrow at any step")
 end)
 
 ns:Register("test", "seller and lite mode", function(t)
@@ -2746,7 +2746,7 @@ ns:Register("test", "waypoint: the game's map pin reads as a table or a vector",
     t:ok(okM, "the arrow's menu builds")
 end)
 
-ns:Register("test", "crafts wait while their materials stop is off the route", function(t)
+ns:Register("test", "crafts wait while their materials step is off the route", function(t)
     local N = ns.nav
     local bank = { key = "bank:Cooking", kind = "collect", text = "Get from your bank: 2 Stringy Wolf Meat" }
     local cook = { key = "step:1", kind = "craft", deps = { "bank:Cooking" }, text = "Make 2 x Charred Wolf Meat" }
@@ -2754,16 +2754,16 @@ ns:Register("test", "crafts wait while their materials stop is off the route", f
     local free = { key = "step:3", kind = "craft", deps = { "smelt:done" }, text = "Make 1 x Herb Baked Egg" }
     local all = { [bank.key] = bank, [cook.key] = cook, [after.key] = after, [free.key] = free }
     local kept, held = N.HoldCrafts({ bank, cook, after, free }, all)
-    t:eq(#kept, 4, "bank stop on the route: every craft stays")
+    t:eq(#kept, 4, "bank step on the route: every craft stays")
     t:eq(#held, 0, "nothing held")
     kept, held = N.HoldCrafts({ cook, after, free }, all)
-    t:ok(#kept == 1 and kept[1] == free, "bank stop off the route: only the craft that doesn't need it stays")
+    t:ok(#kept == 1 and kept[1] == free, "bank step off the route: only the craft that doesn't need it stays")
     t:eq(#held, 2, "the craft needing the bank, and the one needing that craft, wait")
     t:ok(held[1].blockedBy and held[1].blockedBy:find("Stringy Wolf Meat", 1, true) ~= nil, "it says what it waits for: " .. tostring(held[1].blockedBy))
     t:eq(cook.blockedBy, nil, "the original goal isn't changed")
 end)
 
-ns:Register("test", "faint profession arrow: which stops, and when it shows", function(t)
+ns:Register("test", "faint profession arrow: which steps, and when it shows", function(t)
     local N = ns.nav
     t:ok(N.IsProfessionStop({ key = "step:1", provider = "skillplan" }), "a skill-up step")
     t:ok(N.IsProfessionStop({ key = "train:Mining", provider = "errands" }), "profession training")
@@ -2775,11 +2775,11 @@ ns:Register("test", "faint profession arrow: which stops, and when it shows", fu
     quest, prof = N.SplitProfessions({ q, m }, false)
     t:ok(#quest == 2 and #prof == 0, "off: everything on the main arrow")
     quest, prof = N.SplitProfessions({ m }, true)
-    t:ok(#quest == 1 and #prof == 0, "only profession stops left: they stay on the main arrow")
+    t:ok(#quest == 1 and #prof == 0, "only profession steps left: they stay on the main arrow")
     local cfg = ns.db.nav
     local arrow, kinds = cfg.profArrow, cfg.kinds
     cfg.profArrow, cfg.kinds = nil, {}
-    t:ok(not N:ProfPointerOn(), "never ticked: off (0.35.143: on, it took profession stops off the Flow key's route)")
+    t:ok(not N:ProfPointerOn(), "never ticked: off (0.35.143: on, it took profession steps off the Flow key's route)")
     cfg.profArrow = true
     t:ok(N:ProfPointerOn(), "on: with Professions on the route")
     cfg.kinds = { professions = false }
@@ -2793,16 +2793,16 @@ ns:Register("test", "faint profession arrow: which stops, and when it shows", fu
     t:ok(c and c[1] < 0.5 and c[2] < 0.5 and c[3] < 0.5, "dark grey")
 end)
 
-ns:Register("test", "profession arrow: off at the main stop, a faint ring at its own", function(t)
+ns:Register("test", "profession arrow: off at the main step, a faint ring at its own", function(t)
     local N = ns.nav
     t:eq(N.ProfArrowMode(false, false, true), "arrow", "on the way: it points")
-    t:eq(N.ProfArrowMode(true, false, true), "off", "at the main stop: no second arrow")
-    t:eq(N.ProfArrowMode(false, true, true), "ring", "at the profession stop: the ring")
+    t:eq(N.ProfArrowMode(true, false, true), "off", "at the main step: no second arrow")
+    t:eq(N.ProfArrowMode(false, true, true), "ring", "at the profession step: the ring")
     t:eq(N.ProfArrowMode(true, true, true), "ring", "at both: the ring")
     t:eq(N.ProfArrowMode(false, false, nil), "off", "can't tell which way you face: off")
-    -- The main stop's "here" passed in is the point, not the whole area:
+    -- The main step's "here" passed in is the point, not the whole area:
     -- in a big area quest the profession arrow keeps pointing.
-    t:ok(N.AtStopPoint(5), "on the main stop's point: off")
+    t:ok(N.AtStopPoint(5), "on the main step's point: off")
     t:ok(not N.AtStopPoint(200), "elsewhere in its area: still points")
     t:ok(not N.AtStopPoint(nil), "no distance: not there")
     local f = N.arrowFrame
@@ -2978,44 +2978,44 @@ ns:Register("test", "click: every route menu entry is well formed", function(t)
     end
 end)
 
-ns:Register("test", "route: Stops on the map", function(t)
+ns:Register("test", "route: Steps on the map", function(t)
     local N = ns.nav
-    t:ok(ns:Get("charData", "nav.stopsShown") ~= nil, "each character has its own (a new one starts at Next stop only)")
+    t:ok(ns:Get("charData", "nav.stopsShown") ~= nil, "each character has its own (a new one starts at Next step only)")
     t:ok(ns:Get("charData", "nav.stopsArea") ~= nil, "the area choice too")
     -- (The numbers, with the area choice off; restored after.)
     with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.nav, "stopsShown", nil, function()
     with(ns, "Print", function() end, function()
-        t:eq(N:StopsShown(), 1, "default: next stop only")
-        t:ok(not N:StopVisible(2, false), "default: stop 2 doesn't show")
+        t:eq(N:StopsShown(), 1, "default: next step only")
+        t:ok(not N:StopVisible(2, false), "default: step 2 doesn't show")
         N:SetStopsShown(nil)
-        t:eq(N:StopsShown(), nil, "all stops, when chosen")
-        t:ok(N:StopVisible(25, false), "all: stop 25 shows")
-        t:eq(N:StopsShownLabel(), "All stops", "label: all")
+        t:eq(N:StopsShown(), nil, "all steps, when chosen")
+        t:ok(N:StopVisible(25, false), "all: step 25 shows")
+        t:eq(N:StopsShownLabel(), "All steps", "label: all")
         N:SetStopsShown(1)
-        t:eq(N:StopsShown(), 1, "next stop only")
-        t:ok(N:StopVisible(1, false), "the next stop shows")
+        t:eq(N:StopsShown(), 1, "next step only")
+        t:ok(N:StopVisible(1, false), "the next step shows")
         t:ok(not N:StopVisible(2, false), "the one after doesn't")
         t:ok(N:StopVisible(2, true), "unless you point at it (Flow Router)")
-        t:eq(N:StopsShownLabel(), "Next stop only", "label: next only")
-        t:eq(N:StopsShownLabel(5), "Next 5 stops", "label: next 5")
+        t:eq(N:StopsShownLabel(), "Next step only", "label: next only")
+        t:eq(N:StopsShownLabel(5), "Next 5 steps", "label: next 5")
         N:SetStopsShown(0)
         t:eq(N:StopsShown(), nil, "0 = all")
-        ns.commands.nav("stops 3")
-        t:eq(N:StopsShown(), 3, "/flow nav stops 3")
-        ns.commands.nav("stops bogus")
+        ns.commands.nav("steps 3")
+        t:eq(N:StopsShown(), 3, "/flow nav steps 3")
+        ns.commands.nav("steps bogus")
         t:eq(N:StopsShown(), 3, "a typo changes nothing")
-        ns.commands.nav("stops all")
-        t:eq(N:StopsShown(), nil, "/flow nav stops all")
-        ns.commands.nav("stops area")
-        t:ok(N:AreaMode(), "/flow nav stops area")
+        ns.commands.nav("steps all")
+        t:eq(N:StopsShown(), nil, "/flow nav steps all")
+        ns.commands.nav("steps area")
+        t:ok(N:AreaMode(), "/flow nav steps area")
     end)
     end)
     end)
     if ns.routeTracker then pcall(ns.routeTracker.Refresh, ns.routeTracker) end
 end)
 
-ns:Register("test", "route: the Flow Tracker shows your Stops on the map", function(t)
+ns:Register("test", "route: the Flow Tracker shows your Steps on the map", function(t)
     local frame = _G.FlowTracker
     if not (frame and frame.rows and ns.db.tracker) then t:ok(true, "(no Flow Tracker yet)") return end
     local function stop(key) return { goal = { key = key, text = key }, point = { map = 1429, x = 0.5, y = 0.5 } } end
@@ -3024,7 +3024,7 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
         for _, r in ipairs(frame.rows) do if r:IsShown() then n = n + 1 end end
         return n
     end
-    -- (The tracker's "next stops, as on the map" mode; since 0.35.108 the
+    -- (The tracker's "next steps, as on the map" mode; since 0.35.108 the
     -- default is "everything here", tested on its own.)
     with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.tracker, "enabled", true, function()
@@ -3034,19 +3034,19 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
         with(ns.db.nav, "stopsShown", 2, function()
             ns.routeTracker:Refresh()
             t:eq(rowsShown(), 2, "next 2: two rows")
-            t:eq(frame.rows[2].key, "t:2", "the second stop")
+            t:eq(frame.rows[2].key, "t:2", "the second step")
         end)
         with(ns.db.nav, "stopsShown", 1, function()
             ns.routeTracker:Refresh()
-            t:eq(rowsShown(), 1, "next stop only: one row")
+            t:eq(rowsShown(), 1, "next step only: one row")
         end)
         with(ns.db.nav, "stopsShown", 0, function()
             ns.routeTracker:Refresh()
-            t:eq(rowsShown(), 6, "all: 5 stops and the blocked one")
+            t:eq(rowsShown(), 6, "all: 5 steps and the blocked one")
         end)
         with(ns.db.nav, "stopsShown", nil, function()
             ns.routeTracker:Refresh()
-            t:eq(rowsShown(), 1, "default: next stop only")
+            t:eq(rowsShown(), 1, "default: next step only")
         end)
     end)
     end)
@@ -3056,27 +3056,27 @@ ns:Register("test", "route: the Flow Tracker shows your Stops on the map", funct
     ns.routeTracker:Refresh()   -- back to your real route
 end)
 
-ns:Register("test", "click: Stops on the map in the menu and on the settings page", function(t)
+ns:Register("test", "click: Steps on the map in the menu and on the settings page", function(t)
     -- (Both restored after: the menu entries change your real setting.)
     with(ns.db.nav, "stopsArea", nil, function()
     with(ns.db.nav, "stopsShown", nil, function()
         local area, next1, all
         for _, it in ipairs(ns.menu:RouteItems()) do
             if it.text == ns.nav.AREA_LABEL then area = it end
-            if it.text == "Next stop only" then next1 = it end
-            if it.text and it.text:find("^All stops %(") then all = it end
+            if it.text == "Next step only" then next1 = it end
+            if it.text and it.text:find("^All steps %(") then all = it end
         end
-        t:ok(area and next1 and all, "the menu has the area, Next stop only and All stops")
+        t:ok(area and next1 and all, "the menu has the area, Next step only and All steps")
         if next1 then pcall(next1.func) end
-        t:eq(ns.nav:StopsShown(), 1, "Next stop only: one stop")
+        t:eq(ns.nav:StopsShown(), 1, "Next step only: one step")
         t:ok(not ns.nav:AreaMode(), "a number turns the area choice off")
         if all then pcall(all.func) end
-        t:eq(ns.nav:StopsShown(), nil, "All stops: all of them")
+        t:eq(ns.nav:StopsShown(), nil, "All steps: all of them")
         if area then pcall(area.func) end
         t:ok(ns.nav:AreaMode(), "the area choice back on")
         local row
         for _, r in ipairs(ns.settings:Choices()) do
-            if r.label and r.label:GetText() == "Stops on the map" then row = r end
+            if r.label and r.label:GetText() == "Steps on the map" then row = r end
         end
         if not row then t:ok(true, "(settings page not built yet: open /flow settings once)") return end
         local function click(value)
@@ -3107,10 +3107,10 @@ ns:Register("test", "click: Flow Tracker rows open the menu on right-click", fun
     t:ok(menuShown(), "menu on screen")
     local hideEntry, oldName = false, false
     for _, it in ipairs(ns.menu.items or {}) do
-        if it.text == "Hide this stop" then hideEntry = true end
+        if it.text == "Hide this step" then hideEntry = true end
         if it.text and it.text:find("^Move on") then oldName = true end
     end
-    t:ok(hideEntry, "it has \"Hide this stop\"")
+    t:ok(hideEntry, "it has \"Hide this step\"")
     t:ok(not oldName, "no \"Move on\" entry")
     closeMenu()
 end)
@@ -3341,10 +3341,10 @@ ns:Register("test", "party help: quest progress is shared and read back", functi
     t:eq(H.ToDo(back), 1, "one quest left to do (the other is ready to hand in)")
 end)
 
-ns:Register("test", "party quests: just theirs keeps their stops, without doubling yours", function(t)
+ns:Register("test", "party quests: just theirs keeps their steps, without doubling yours", function(t)
     local H = ns.partyHelp
     local mine = { [86] = { objectives = { { finished = false }, { finished = true } } } }
-    t:ok(H.Skip("help:86:1", mine), "an objective you still need too: your own stop covers it")
+    t:ok(H.Skip("help:86:1", mine), "an objective you still need too: your own step covers it")
     t:ok(not H.Skip("help:86:2", mine), "one you've finished but they haven't: theirs is added")
     t:ok(H.Skip("help:86:done", mine), "a quest you both have: your own turn-in")
     t:ok(not H.Skip("help:90:1", mine), "a quest only they have: added")
@@ -3353,12 +3353,12 @@ ns:Register("test", "party quests: just theirs keeps their stops, without doubli
                    { key = "77:1" }, { key = "pickup:5" }, { key = "party:x1" } }
     local kept = {}
     for _, g in ipairs(H.Keep(list, their)) do kept[g.key] = true end
-    t:ok(kept["help:90:1"] and kept["86:1"] and kept["86:done"], "their stops, and yours where they need the same")
+    t:ok(kept["help:90:1"] and kept["86:1"] and kept["86:done"], "their steps, and yours where they need the same")
     t:ok(not kept["86:2"] and not kept["77:1"] and not kept["pickup:5"], "not what they've done, nor your other quests or pickups")
-    t:ok(kept["party:x1"], "party-route stops stay")
+    t:ok(kept["party:x1"], "party-route steps stay")
 end)
 
-ns:Register("test", "party quests: a stop you've done yourself says so", function(t)
+ns:Register("test", "party quests: a step you've done yourself says so", function(t)
     local H = ns.partyHelp
     local mineE = { complete = false, objectives = { { finished = true }, { finished = false } } }
     t:ok(H.DoneForYou("help:86:1", mineE, false), "your objective 1 is finished: done for you")
@@ -3366,10 +3366,10 @@ ns:Register("test", "party quests: a stop you've done yourself says so", functio
     t:ok(H.DoneForYou("help:86:2", { complete = true, objectives = {} }, false), "your quest is ready to hand in: done")
     t:ok(H.DoneForYou("help:90:done", nil, true), "a quest you handed in before: done")
     t:ok(not H.DoneForYou("help:90:1", nil, false), "a quest you've never had: no mark")
-    t:ok(not H.DoneForYou("86:1", mineE, false), "only their stops get the mark")
+    t:ok(not H.DoneForYou("86:1", mineE, false), "only their steps get the mark")
 end)
 
-ns:Register("test", "party help: a member's quest becomes stops with their name on", function(t)
+ns:Register("test", "party help: a member's quest becomes steps with their name on", function(t)
     local db = {
         GetQuest = function(id)
             if id == 500 then return { name = "Wolves", level = 5, ObjectiveData = { { Type = "monster", Id = 1 } },
@@ -3389,7 +3389,7 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
         t:eq(goals[2].key, "help:500:1", "their objective")
         t:ok(goals[2].text:find("Wolf") and goals[2].text:find("3") and goals[2].helping == "Bob", "Kill Wolf 3/10, marked as helping Bob")
     else
-        t:ok(true, "(no map for the test zone here: objective stop not placed)")
+        t:ok(true, "(no map for the test zone here: objective step not placed)")
     end
     local skipped = {}
     ns.quests.QuestGoals(db, q, skipped, { prefix = "help:", who = "Bob", skip = function(k) return k == "help:500:1" end })
@@ -3397,13 +3397,13 @@ ns:Register("test", "party help: a member's quest becomes stops with their name 
     -- A level-5 quest at level 2 (3 above you): hard, planned after the easy ones.
     local hardGoals = {}
     ns.quests.QuestGoals(db, q, hardGoals, { level = 2 })
-    if hardGoals[2] and not hardGoals[2].blockedBy then   -- (a stop with no place is listed, locked: 0.35.174)
+    if hardGoals[2] and not hardGoals[2].blockedBy then   -- (a step with no place is listed, locked: 0.35.174)
         t:ok(hardGoals[2].hard and hardGoals[2].weight == 1.6, "3 levels above you: hard, planned later")
         local easy = {}
         ns.quests.QuestGoals(db, q, easy, { level = 3 })
         t:ok(easy[2] and not easy[2].hard, "2 above: not hard")
     else
-        t:ok(true, "(no map for the test zone here: objective stop not placed)")
+        t:ok(true, "(no map for the test zone here: objective step not placed)")
     end
     t:eq(ns.quests.HARD_ABOVE, 3, "quests 3+ levels up are the hard ones (not offered to pick up)")
 end)
@@ -3428,7 +3428,7 @@ ns:Register("test", "map: the quest log and the Flow Router are separate; the Ro
     t:eq(D.Spot(nil, 1920, 302, false), "inside", "map not placed yet: inside")
 end)
 
-ns:Register("test", "nearby: ore and herbs around you and your next stop", function(t)
+ns:Register("test", "nearby: ore and herbs around you and your next step", function(t)
     local NB = ns.nearby
     local spots = {
         { name = "Iron Deposit", prof = "Mining", skill = 125, cont = 0, wx = 10, wy = 0 },
@@ -3440,7 +3440,7 @@ ns:Register("test", "nearby: ore and herbs around you and your next stop", funct
     local ranks = { Mining = 140, Herbalism = 300 }
     local you, stop = { cont = 0, wx = 0, wy = 0 }, { cont = 0, wx = 500, wy = 0 }
     local c = NB.Count(spots, { you, stop }, 120, ranks)
-    t:eq(#c, 2, "Iron near you, Kingsblood near the next stop; the far Copper isn't")
+    t:eq(#c, 2, "Iron near you, Kingsblood near the next step; the far Copper isn't")
     t:eq(c[1].name, "Iron Deposit", "most spots first")
     t:eq(c[1].n, 2, "only spots on your continent count")
     t:ok(c[1].skillUp and not c[2].skillUp, "+skill only while it still raises yours")
@@ -3659,7 +3659,7 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(BI.WeaponFirst(false, 100, 0, false), "max health 0 (not known): Flow's estimate")
     t:ok(BI.WeaponFirst(false, nil, nil), "health the client hides: counts as fine (no error)")
     t:ok(ns:Get("action", "buff:item").order < ns:Get("action", "bag:learn").order, "before learning a recipe in your bags")
-    t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill stop: yes")
+    t:ok(BI.Killing({ at = true, goal = { key = "500:1", kind = "kill" } }) or IsResting(), "at a kill step: yes")
     t:ok(not BI.Killing({ at = false, goal = { key = "500:done", kind = "turnin" } }, GetTime() + 1000), "walking to a turn-in, no fight lately: no")
 end)
 
@@ -3736,8 +3736,8 @@ ns:Register("test", "route: finish this zone before leaving it", function(t)
     local here, away = N.AreaSplit(list, 1, p, zoneOf)
     t:ok(here and here["10:1"] and here["11:1"], "this zone's quests hold you here")
     t:ok(not here["12:1"] and not here["13:1"], "too high or too low quests don't")
-    t:ok(away["20:1"], "the next zone's stop waits")
-    t:ok(not away["21:1"], "a stop just over the border doesn't wait (a short trip)")
+    t:ok(away["20:1"], "the next zone's step waits")
+    t:ok(not away["21:1"], "a step just over the border doesn't wait (a short trip)")
     t:ok(not away["train:class"], "your class trainer doesn't wait")
     t:ok(not here["14:done"] and away["14:done"], "a turn-in here that needs the next zone first can't hold you")
     local PL = ns.planner
@@ -3776,7 +3776,7 @@ ns:Register("test", "party route: everyone on it follows one planner's route", f
     t:eq(body, "83:1~1429~0.5000~0.2500,86:done~1429~0.1000~0.9000", "order and spots, whoever's quest")
     local back = H.ParseOrder(body)
     t:eq(#back, 2, "read back")
-    t:eq(back[1].key, "83:1", "same stop")
+    t:eq(back[1].key, "83:1", "same step")
     t:eq(back[2].map, 1429, "same place")
     local cov = H.Covered("combined", nil, { Zed = {}, Amy = {} }, { Zed = true })
     t:ok(cov and cov.Zed and not cov.Amy, "the party route has the quests of those who joined")
@@ -3794,14 +3794,14 @@ ns:Register("test", "party route: the menu says Join the party route", function(
     t:ok(ns.partyHelp:MenuItems()[1].text == "Your own route", "Your own route first")
 end)
 
-ns:Register("test", "nav: stops on the map and the stop card are separate", function(t)
+ns:Register("test", "nav: steps on the map and the step card are separate", function(t)
     local N = ns.nav
     t:ok(type(N.StopVisible) == "function" and type(N.ShowStop) == "function", "both exist")
     t:ok(N.StopVisible ~= N.ShowStop, "under different names (one used to replace the other)")
     with(ns.db.nav, "stopsArea", false, function()
     with(ns.db.nav, "stopsShown", 0, function()
         local ok, v = pcall(N.StopVisible, N, 3, false)
-        t:ok(ok and v == true, "all stops: stop 3 shows, no error")
+        t:ok(ok and v == true, "all steps: step 3 shows, no error")
     end)
     end)
     -- The area choice: no error either.
@@ -3809,7 +3809,7 @@ ns:Register("test", "nav: stops on the map and the stop card are separate", func
         local ok, err = pcall(N.StopVisible, N, 3, false)
         t:ok(ok, "the area: no error" .. (ok and "" or (": " .. tostring(err))))
     end)
-    -- "Is stop i in the area" and "are you in a quest's area" are two
+    -- "Is step i in the area" and "are you in a quest's area" are two
     -- functions; one name for both broke the area choice (0.35.123).
     t:ok(type(N.StopInArea) == "function" and N.StopInArea ~= N.InArea, "StopInArea is its own function")
     local function stop(x) return { goal = { key = "1:" .. x }, point = { cont = 1, wx = x, wy = 0 } } end
@@ -3818,10 +3818,10 @@ ns:Register("test", "nav: stops on the map and the stop card are separate", func
     with(N, "PlayerPos", function() return { cont = 1, wx = 5, wy = 0 } end, function()
     with(ns.db.nav, "stopsArea", true, function()
         local ok, v2 = pcall(N.StopVisible, N, 2, false)
-        t:ok(ok and v2 == true, "the area: the stop by you shows" .. (ok and "" or (": " .. tostring(v2))))
+        t:ok(ok and v2 == true, "the area: the step by you shows" .. (ok and "" or (": " .. tostring(v2))))
         local ok3, v3 = pcall(N.StopVisible, N, 3, false)
-        t:ok(ok3 and v3 == false, "the area: the far stop doesn't")
-        t:eq(N:StopVisible(3, true), true, "the area: the stop you point at always does")
+        t:ok(ok3 and v3 == false, "the area: the far step doesn't")
+        t:eq(N:StopVisible(3, true), true, "the area: the step you point at always does")
     end)
     end)
     end)
@@ -3860,13 +3860,13 @@ ns:Register("test", "follow: by name, typed or picked, even if the game hides th
     t:ok(F:Status():find("not following", 1, true) ~= nil, "status says when you aren't following")
 end)
 
-ns:Register("test", "nameplates: Flow's (o) over your stop's NPC", function(t)
+ns:Register("test", "nameplates: Flow's (o) over your step's NPC", function(t)
     local QM = ns.questMarks
     t:ok(type(QM._targetOf) == "function" and type(QM.Refresh) == "function", "marker hooks exist")
     QM.SetRouteTarget({ "Grull Hawkwind" })
-    t:ok(QM._routeNames["grull hawkwind"], "the stop's NPC is remembered by name")
+    t:ok(QM._routeNames["grull hawkwind"], "the step's NPC is remembered by name")
     QM.SetRouteTarget(nil)
-    t:ok(not next(QM._routeNames), "cleared with the stop")
+    t:ok(not next(QM._routeNames), "cleared with the step")
     if ns.nav and ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) end   -- (back to yours)
 end)
 
@@ -3935,7 +3935,7 @@ ns:Register("test", "cast key: a second key for the easy button", function(t)
     t:eq(#C.KeysOf({}), 0, "none set")
 end)
 
-ns:Register("test", "arrow: straight at the stop unless a trail really helps", function(t)
+ns:Register("test", "arrow: straight at the step unless a trail really helps", function(t)
     local N = ns.nav
     t:ok(not N.TrailWorthIt(400, 200, false), "a trail twice the straight line: no (it used to take up to 4x)")
     t:ok(N.TrailWorthIt(260, 200, false), "a trail a little longer, around something: yes")
@@ -3947,7 +3947,7 @@ ns:Register("test", "arrow: straight at the stop unless a trail really helps", f
         t:eq(N.TrailsOn(), true, "on unless you turn it off (0.35.172): a trail you've walked, when it's at most half again as long")
     end)
     with(ns.db.nav, "arrowPaths", false, function()
-        t:eq(N.TrailsOn(), false, "turned off: straight at the stop")
+        t:eq(N.TrailsOn(), false, "turned off: straight at the step")
     end)
 end)
 
@@ -4183,7 +4183,7 @@ ns:Register("test", "cleanse: curses and poisons off you and your group; break f
     t:ok(root and root.types.ROOT and root.form, "a druid's forms break roots")
 end)
 
-ns:Register("test", "profession trainers: stops on your route, never a waypoint", function(t)
+ns:Register("test", "profession trainers: steps on your route, never a waypoint", function(t)
     local P = ns.professions
     local nav = { professions = true,
         plan = { { goal = { key = "748:2" } }, { goal = { key = "train:Herbalism" } } },
@@ -4192,7 +4192,7 @@ ns:Register("test", "profession trainers: stops on your route, never a waypoint"
     function nav:Goals() return self.goals end
     local status, n = P.RouteStatus("Herbalism", nav)
     t:eq(status, "planned", "Herbalism's trainer is on the route")
-    t:eq(n, 2, "as stop 2")
+    t:eq(n, 2, "as step 2")
     t:eq(P.RouteStatus("Skinning", nav), "later", "Skinning: on the list, not planned in yet")
     t:eq(P.RouteStatus("Alchemy", nav), "unplaced", "no trainer Flow can place: says so")
     nav.professions = false
@@ -4321,7 +4321,7 @@ ns:Register("test", "improvements: click hides, Hidden lists them, links open th
     t:eq(#Adv.Rows(shown, hidden, true, 16), 4, "opened: the hidden one under it")
     t:eq(#Adv.Rows({ a, b, c }, {}, false, 2), 2, "never more rows than fit")
     local goal = function(k) return k == "train:class" and { text = "Train at Gennia" } or nil end
-    t:eq((Adv.LinkOf({ text = "x", goalKey = "train:class" }, goal)), "goal", "a route stop: its card")
+    t:eq((Adv.LinkOf({ text = "x", goalKey = "train:class" }, goal)), "goal", "a route step: its card")
     t:eq((Adv.LinkOf({ text = "x", spell = "Moonfire" }, goal)), "spell", "a spell: place or bind it")
     t:eq((Adv.LinkOf({ text = "Equip |cff1eff00|Hitem:123::|h[Sword]|h|r from your bags" }, goal)), "item", "an item: its tooltip")
     t:eq((Adv.LinkOf({ text = "x", onClick = function() end }, goal)), "open", "its own action")
@@ -4366,11 +4366,11 @@ ns:Register("test", "/claude opens a chat window with what you asked and the ans
     t:ok(lines[3]:find("and green?", 1, true) ~= nil and lines[4]:find("waiting", 1, true) ~= nil, "a message still waiting")
     -- Yang: five old unanswered tests pushed every answer out of the window.
     -- In time order, the newest answer is at the bottom whatever waits.
-    local old = { sent = { [26] = "why stop 8?" }, outbox = {} }
+    local old = { sent = { [26] = "why step 8?" }, outbox = {} }
     for i = 1, 5 do old.outbox[i] = { id = 14 + i, text = "test" .. i, at = 1000 + i } end
     local h = AC.History({ { id = 40, replyTo = 26, text = "Found it.", at = 5000 } }, old, 6)
     t:ok(h[#h]:find("Found it.", 1, true) ~= nil, "the newest answer is the last line, after older waiting ones")
-    t:ok(h[#h - 1]:find("why stop 8?", 1, true) ~= nil, "with what you asked above it")
+    t:ok(h[#h - 1]:find("why step 8?", 1, true) ~= nil, "with what you asked above it")
     -- And they leave the outbox after a day.
     local box2 = { { id = 1, at = 100 }, { id = 2, at = 100000 } }
     t:eq(AC.DropStale(box2, 100000 + 60), 1, "waiting over a day: dropped")
@@ -4790,7 +4790,7 @@ ns:Register("test", "spell ranks: a new rank replaces the old one on your bars",
     t:eq(#slots, 2, "both slots with the old Wrath"); t:eq(slots[1], 1, "slot 1"); t:eq(slots[2], 14, "and slot 14")
 end)
 
-ns:Register("test", "trainers: found by their title, the ones you've used, and the (o) on the next stops", function(t)
+ns:Register("test", "trainers: found by their title, the ones you've used, and the (o) on the next steps", function(t)
     local S = ns.services
     t:eq(S.TrainerKey("Cooking Trainer"), "Cooking", "Cooking Trainer -> Cooking")
     t:eq(S.TrainerKey("Druid Trainer"), "class:DRUID", "Druid Trainer -> your class trainer")
@@ -4804,11 +4804,11 @@ ns:Register("test", "trainers: found by their title, the ones you've used, and t
     local plan = { { goal = { key = "99411:1", npcs = { "Kyle" } } }, { goal = { key = "96661:1", npcs = { "Pyall Silentstride" } } },
                    { goal = { key = "96661:done", npcs = { "Pyall Silentstride" } } } }
     local names = ns.nav.NextStopNames(plan, "99411:1", 5)
-    t:eq(#names, 1, "the next stops' NPCs, once each"); t:eq(names[1], "Pyall Silentstride", "Pyall gets the smaller (o)")
+    t:eq(#names, 1, "the next steps' NPCs, once each"); t:eq(names[1], "Pyall Silentstride", "Pyall gets the smaller (o)")
     local QM = ns.questMarks
     QM.SetRouteTarget({ "Kyle" }, { "Pyall Silentstride" })
-    t:eq(QM._routeNames["kyle"], "current", "the current stop's NPC: the full (o)")
-    t:eq(QM._routeNames["pyall silentstride"], "next", "the next stop's: the smaller one")
+    t:eq(QM._routeNames["kyle"], "current", "the current step's NPC: the full (o)")
+    t:eq(QM._routeNames["pyall silentstride"], "next", "the next step's: the smaller one")
     if ns.nav.current and ns.nav.current.goal then QM.SetRouteTarget(ns.nav.current.goal.npcs) else QM.SetRouteTarget(nil) end
 end)
 
@@ -4833,7 +4833,7 @@ ns:Register("test", "tooltips and cards open where WoW shows its tooltips", func
     owner:Hide()
 end)
 
-ns:Register("test", "herbs in Kalimdor count for Herbalism stops; heals count for less", function(t)
+ns:Register("test", "herbs in Kalimdor count for Herbalism steps; heals count for less", function(t)
     local SP = ns.skillPlan
     local nodes = { Peacebloom = { prof = "Herbalism", skill = 1, objects = { 1618, 3724 } },
                     Earthroot = { prof = "Herbalism", skill = 15, objects = { 1619, 3726 } },
@@ -5002,50 +5002,50 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
         stop("364:done", 20, -30, { "Shadow Priest" }),    -- the turn-in, by the waypoint
     }
     local here = N.HereStops(plan, { cont = 1, wx = 5, wy = 5 })
-    t:eq(table.concat(here, ","), "1,2,4", "the waypoint and what's by it, in route order; not the far stop")
-    t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 890, wy = 890 }), ","), "1,2,3,4", "standing at the far stop: that too")
-    t:eq(table.concat(N.HereStops({ plan[3] }, nil), ","), "1", "the next stop is always there")
+    t:eq(table.concat(here, ","), "1,2,4", "the waypoint and what's by it, in route order; not the far step")
+    t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 890, wy = 890 }), ","), "1,2,3,4", "standing at the far step: that too")
+    t:eq(table.concat(N.HereStops({ plan[3] }, nil), ","), "1", "the next step is always there")
     t:eq(#N.HereStops({}, nil), 0, "no route: nothing")
     local names = N.HereNames(plan)
     t:eq(table.concat(names, ","), "Mindless Zombie,Wretched Zombie,Shadow Priest", "the waypoint's mobs and NPCs, for Flow's (o)")
-    -- The marks: every mob at the waypoint gets the (o), the current stop's first.
+    -- The marks: every mob at the waypoint gets the (o), the current step's first.
     local QM = ns.questMarks
     QM.SetRouteTarget({ "Mindless Zombie" }, { "Rattlecage Soldier" }, names)
-    t:eq(QM.RouteRank("Mindless Zombie"), "current", "the current stop's mob")
+    t:eq(QM.RouteRank("Mindless Zombie"), "current", "the current step's mob")
     t:eq(QM.RouteRank("Wretched Zombie"), "here", "the other mob at the waypoint: marked too")
-    t:eq(QM.RouteRank("Rattlecage Soldier"), "next", "a later stop's: the small mark")
+    t:eq(QM.RouteRank("Rattlecage Soldier"), "next", "a later step's: the small mark")
     QM.SetRouteTarget(nil, nil, nil)
     N.lastTargetKey = nil   -- (the route sends its real marks again on its next update)
-    -- Off by default since 0.35.225 (Next stop only is); it's the last choice
-    -- of Stops on the map (Yang: one menu, not a switch of the tracker's
+    -- Off by default since 0.35.225 (Next step only is); it's the last choice
+    -- of Steps on the map (Yang: one menu, not a switch of the tracker's
     -- own), in the title's menu too.
     with(ns.db.tracker, "here", nil, function()
     with(ns.db.nav, "stopsArea", nil, function()
     with(ns.db.nav, "stopsShown", nil, function()
-        t:ok(not RT.Here(), "next stop only is the default, not the area")
+        t:ok(not RT.Here(), "next step only is the default, not the area")
         local items = RT.MenuItems()
         t:eq(items[1].text, "Flow Tracker", "right-click the title: the tracker's menu")
         local area, next1
         for _, it in ipairs(items) do
             if it.text == N.AREA_LABEL then area = it end
-            if it.text == "Next stop only" then next1 = it end
+            if it.text == "Next step only" then next1 = it end
         end
-        t:ok(area and next1, "Stops on the map is in it, with " .. N.AREA_LABEL)
-        t:ok(next1 and next1.checked and not (area and area.checked), "Next stop only ticked")
-        t:eq(N.AREA_LABEL, "All stops in this area", "the area choice is worded in stops")
+        t:ok(area and next1, "Steps on the map is in it, with " .. N.AREA_LABEL)
+        t:ok(next1 and next1.checked and not (area and area.checked), "Next step only ticked")
+        t:eq(N.AREA_LABEL, "All steps in this area", "the area choice is worded in steps")
         local last
         for _, it in ipairs(items) do
-            if it.text == N.AREA_LABEL or it.text == "Next stop only" or (it.text and it.text:find("^Next %d+ stops")) or (it.text and it.text:find("^All stops %(")) then last = it end
+            if it.text == N.AREA_LABEL or it.text == "Next step only" or (it.text and it.text:find("^Next %d+ steps")) or (it.text and it.text:find("^All steps %(")) then last = it end
         end
         t:ok(last == area, "and it's the last of the choices")
         if area then area.func() end
-        t:ok(RT.Here(), "the area: the tracker and the map show the stops around you")
+        t:ok(RT.Here(), "the area: the tracker and the map show the steps around you")
         if next1 then next1.func() end
-        t:ok(not RT.Here(), "Next stop only: the tracker and the map show the next stop")
-        t:eq(N:StopsShownLabel(), "Next stop only", "and say so")
+        t:ok(not RT.Here(), "Next step only: the tracker and the map show the next step")
+        t:eq(N:StopsShownLabel(), "Next step only", "and say so")
         if area then area.func() end
         t:ok(RT.Here(), "and back to the area")
-        t:eq(N:StopsShownLabel(), N.AREA_LABEL, "named in the menu and /flow nav stops")
+        t:eq(N:StopsShownLabel(), N.AREA_LABEL, "named in the menu and /flow nav steps")
     end)
     end)
     end)
@@ -5054,7 +5054,7 @@ ns:Register("test", "Flow Tracker: everything around you and your waypoint", fun
             t:ok(not N:AreaMode(), "turned off with the old tracker switch: stays off")
         end)
         with(ns.db.tracker, "here", nil, function()
-            t:ok(not N:AreaMode(), "never chosen: off (next stop only)")
+            t:ok(not N:AreaMode(), "never chosen: off (next step only)")
         end)
     end)
     local f = _G.FlowTracker
@@ -5091,7 +5091,7 @@ ns:Register("test", "a hidden Flow window shows up in every Flow menu", function
 end)
 
 ns:Register("test", "route: right at your trainer, training is the hub's business", function(t)
-    -- Yang stood next to the trainer in town with training as stop 7. But
+    -- Yang stood next to the trainer in town with training as step 7. But
     -- 0.35.98's 300 yards pulled you off the mobs you were killing: only
     -- when you're right at it (N.TRAIN_NEAR).
     local N = ns.nav
@@ -5147,11 +5147,11 @@ ns:Register("test", "actions: quest NPCs to heal: the key targets one, then heal
         "none left to heal: nothing")
     t:eq(X.HealStep(goal, nil, nil, plates, {}), nil, "no heal spell: nothing")
     t:eq(X.HealStep(goal, "Holy Light", nil, { npc("nameplate2", "G3", { assist = false }) }, {}), nil, "not one you can heal: skipped")
-    t:ok(type(X.FriendPlates) == "function", "friendly nameplates come on at such a stop")
+    t:ok(type(X.FriendPlates) == "function", "friendly nameplates come on at such a step")
 end)
 
-ns:Register("test", "actions: the heal-NPC step only looks at stops that need healing", function(t)
-    -- 0.35.153: it checked every stop of the route around you, ten times a
+ns:Register("test", "actions: the heal-NPC step only looks at steps that need healing", function(t)
+    -- 0.35.153: it checked every step of the route around you, ten times a
     -- second (2.2 ms a second, the Flow key's biggest cost).
     local X, N = ns.actions, ns.nav
     local heal = { key = "90902:1", text = "Injured Deathguard healed", npcs = { "Injured Deathguard" },
@@ -5161,7 +5161,7 @@ ns:Register("test", "actions: the heal-NPC step only looks at stops that need he
         { goal = { key = "500:1", points = { { cont = 1, wx = 50, wy = 0 } } }, point = { cont = 1, wx = 50, wy = 0 } },
         { goal = heal, point = { cont = 1, wx = 2000, wy = 2000 } },
     }
-    t:eq(table.concat(X.HealStopsOf(plan), ","), "3", "the one heal stop, by its place on the route")
+    t:eq(table.concat(X.HealStopsOf(plan), ","), "3", "the one heal step, by its place on the route")
     t:eq(#X.HealStopsOf({ plan[1], plan[2] }), 0, "a route without one: none")
     with(N, "current", nil, function()
         with(N, "plan", plan, function()
@@ -5169,14 +5169,14 @@ ns:Register("test", "actions: the heal-NPC step only looks at stops that need he
                 t:eq(X.HealGoalHere(), nil, "far from it: nothing")
             end)
             with(N, "PlayerPos", function() return { cont = 1, wx = 1990, wy = 2000 } end, function()
-                t:eq(X.HealGoalHere(), heal, "by it: that stop")
+                t:eq(X.HealGoalHere(), heal, "by it: that step")
             end)
         end)
     end)
-    t:ok(N.IsHere(plan, 1, nil), "the next stop is always here")
-    t:ok(not N.IsHere(plan, 3, { cont = 1, wx = 10, wy = 0 }), "a stop far from you and the next one isn't")
-    t:ok(N.IsHere(plan, 2, { cont = 1, wx = 2000, wy = 2000 }), "one by the next stop is")
-    t:ok(not N.IsHere(plan, 9, nil), "no such stop: no")
+    t:ok(N.IsHere(plan, 1, nil), "the next step is always here")
+    t:ok(not N.IsHere(plan, 3, { cont = 1, wx = 10, wy = 0 }), "a step far from you and the next one isn't")
+    t:ok(N.IsHere(plan, 2, { cont = 1, wx = 2000, wy = 2000 }), "one by the next step is")
+    t:ok(not N.IsHere(plan, 9, nil), "no such step: no")
     -- Not needed and Flow didn't turn friendly nameplates on: left alone.
     with(ns.db.actions, "friendPlatesByFlow", nil, function()
         t:ok(pcall(X.FriendPlates, false), "nothing to undo: no error, nothing read")
@@ -5342,7 +5342,7 @@ ns:Register("test", "dungeons: worth it, XP rate, run times, gathering", functio
     t:eq(D.LearnTime(rec, 3), rec, "a 3-minute peek doesn't count")
     t:eq(D.LearnTime(rec, 300), rec, "a night away doesn't count")
     local from, ent = { cont = 1, wx = 0, wy = 0 }, { cont = 1, wx = 840, wy = 0 }
-    t:near(D.GatherMinutes(from, { { cont = 1, wx = 420, wy = 0 } }, ent), 4, 0.01, "one stop on the way: 2 + 2 min")
+    t:near(D.GatherMinutes(from, { { cont = 1, wx = 420, wy = 0 } }, ent), 4, 0.01, "one step on the way: 2 + 2 min")
     t:near(D.GatherMinutes(from, {}, ent), 2, 0.01, "straight there: 2 min")
     t:ok(D.GatherMinutes(from, { { cont = 2, wx = 0, wy = 0 } }, nil) > 5, "another continent: a long trip")
     local order = D.GatherMinutes(from, { { cont = 1, wx = 840, wy = 0 }, { cont = 1, wx = 420, wy = 0 } }, nil)
@@ -5384,7 +5384,7 @@ ns:Register("test", "dungeons: placed by objectives, wings by bosses, breadcrumb
         { id = 3, at = { cont = 2, wx = 0, wy = 0 } },
         { id = 4 },
     }, stops, 150)
-    t:eq(#near, 1, "only the breadcrumb near a stop")
+    t:eq(#near, 1, "only the breadcrumb near a step")
     t:eq(near[1] and near[1].id, 1, "the one 100 yards away")
     local runs = D.CutRuns({
         { id = 1, level = 58, dungeon = 1583, dungeonName = "Blackrock Spire", wing = "Upper",
@@ -5394,7 +5394,7 @@ ns:Register("test", "dungeons: placed by objectives, wings by bosses, breadcrumb
     t:eq(runs[1] and runs[1].breadcrumbs and #runs[1].breadcrumbs, 0, "no breadcrumbs until the route adds them")
 end)
 
-ns:Register("test", "dungeon runs: only quests you can take now; party stops stay inside", function(t)
+ns:Register("test", "dungeon runs: only quests you can take now; party steps stay inside", function(t)
     local D = ns.dungeons
     -- 0.35.126: a later part of a chain waits until the part before it is
     -- turned in (the giver doesn't offer it yet).
@@ -5486,7 +5486,7 @@ ns:Register("test", "dungeon key: the quests to get and who gives them are liste
     t:ok(okI and type(qi) == "table" and type(qi.name) == "string", "an unknown quest still gives a name")
 end)
 
-ns:Register("test", "dungeon run route: only the run's stops, and where the far ones are", function(t)
+ns:Register("test", "dungeon run route: only the run's steps, and where the far ones are", function(t)
     local D = ns.dungeons
     local run = { key = "9:", name = "Test Caverns", quests = { 10, 11 }, leadIns = { { id = 12 } },
         unlocks = { { id = 11, steps = { { id = 13, inLog = true } } } }, breadcrumbs = { { id = 14 } } }
@@ -5498,7 +5498,7 @@ ns:Register("test", "dungeon run route: only the run's stops, and where the far 
     t:ok(D.KeepForRun({ key = "13:turnin" }, ids), "an unlock quest in your log stays")
     t:ok(D.KeepForRun({ key = "pickup:14" }, ids), "an on-the-way pickup stays")
     t:ok(not D.KeepForRun({ key = "99:obj1" }, ids), "another quest goes")
-    t:ok(not D.KeepForRun({ key = "prof:mining", provider = "skill" }, ids), "a profession stop goes")
+    t:ok(not D.KeepForRun({ key = "prof:mining", provider = "skill" }, ids), "a profession step goes")
     t:ok(D.KeepForRun({ key = "user:wp" }, ids) and D.KeepForRun({ key = "party:x" }, ids), "waypoint and party stay")
 
     local nav = ns.db.nav
@@ -5514,17 +5514,17 @@ ns:Register("test", "dungeon run route: only the run's stops, and where the far 
     local ok, err = pcall(function()
         nav.dungeonOnly = nil
         t:eq(#D:FilterOnly(list), 4, "off: the route is untouched")
-        t:eq(#D:AwayGoals(list, 0), 1, "off: only the run's own stop counts as away")
+        t:eq(#D:AwayGoals(list, 0), 1, "off: only the run's own step counts as away")
         nav.dungeonOnly = true
         t:ok(D:RunOnly(), "on with a prepared run")
         local only = D:FilterOnly(list)
-        t:eq(#only, 2, "on: only the run's stops")
+        t:eq(#only, 2, "on: only the run's steps")
         local away = D:AwayGoals(only, 0)
-        t:eq(#away, 2, "both run stops are on the other continent")
+        t:eq(#away, 2, "both run steps are on the other continent")
         t:eq(away[1].cont, 1, "and say which")
         t:eq(#D:AwayGoals(only, 1), 0, "nothing away on their own continent")
         local text, sub = D:AwayHint(only, 0, "Horde")
-        t:eq(text, "Test Caverns: 2 stops in Kalimdor", "the arrow says where")
+        t:eq(text, "Test Caverns: 2 steps in Kalimdor", "the arrow says where")
         t:ok(sub and sub:find("Zeppelin to Orgrimmar", 1, true), "and how to get there")
         t:eq(D:AwayHint(only, 1, "Horde"), nil, "no hint when they're here")
         nav.dungeonRun = {}
@@ -5537,11 +5537,11 @@ ns:Register("test", "dungeon run route: only the run's stops, and where the far 
     t:eq(D.TravelHint(5, "Horde"), nil, "an unknown continent: no hint")
 end)
 
-ns:Register("test", "map: the trail to your next stop takes the arrow's colour", function(t)
+ns:Register("test", "map: the trail to your next step takes the arrow's colour", function(t)
     local M = ns.mapOverlay
     -- 0.35.127: `x and false or nil` is always nil, so it never did.
-    t:eq(M.LegLive(true, nil), false, "your next stop: the arrow's colour (by distance)")
-    t:eq(M.LegLive(false, nil), nil, "a later stop: its own route colour")
+    t:eq(M.LegLive(true, nil), false, "your next step: the arrow's colour (by distance)")
+    t:eq(M.LegLive(false, nil), nil, "a later step: its own route colour")
     t:eq(M.LegLive(true, 0.5), nil, "a preview (alpha given): its own colour")
 end)
 
@@ -5847,7 +5847,7 @@ ns:Register("test", "buff button: buffs off the main icon, onto their own button
     t:ok(not BB.Bright(band, false) and not BB.Bright(sit, false), "no fight near: bandage and campfire are faded too")
     t:ok(BB.Bright(band, true), "a fight near (just after one): the bandage lights up")
     t:ok(not BB.Bright(BB.Idle(), true) and not BB.Bright(nil, true), "nothing due: never bright")
-    -- Fishing (pole to equip at a fishing stop, or a lure for it): after healing
+    -- Fishing (pole to equip at a fishing step, or a lure for it): after healing
     -- up, lit with no fight near.
     local lure = { item = "item:6529", fish = true }
     t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, nil, nil, lure).item, "item:6529",
@@ -5855,7 +5855,7 @@ ns:Register("test", "buff button: buffs off the main icon, onto their own button
     t:eq(BB.Pick(nil, nil, { label = "Bandage" }, nil, lure).label, "Bandage", "hurt with the pole on: heal first, then the lure")
     t:ok(BB.Bright(lure, false), "the lure is lit with no fight near")
     local X = ns.actions
-    t:ok(X.EquipStep({ atFish = false, pole = false }) == nil, "away from a fishing stop: no pole equip")
+    t:ok(X.EquipStep({ atFish = false, pole = false }) == nil, "away from a fishing step: no pole equip")
     t:ok(X.EquipStep({ atFish = true, pole = true }) == nil, "pole already on: no pole equip")
     t:ok(X.CastStep({ fishing = false, pole = true }) == nil, "not at the water: no cast")
     t:ok(X.CastStep({ fishing = true, pole = false }) == nil, "no pole on: no cast")
@@ -6120,32 +6120,32 @@ ns:Register("test", "click: the arrow drawer's X closes it", function(t)
     d:Hide()
 end)
 
-ns:Register("test", "map: a make-it-where-you-stand stop gets no pin", function(t)
+ns:Register("test", "map: a make-it-where-you-stand step gets no pin", function(t)
     -- The player saw a waypoint on their character: a "Make 1 x Charred Wolf
-    -- Meat" stop follows you, and the map pinned it where you stood when the
+    -- Meat" step follows you, and the map pinned it where you stood when the
     -- route was planned (on you, or somewhere you used to be).
     local M = ns.mapOverlay
     t:ok(M.FollowsYou({ goal = { key = "craft:Cooking:Charred Wolf Meat", anywhere = true }, point = { cont = 1, wx = 0, wy = 0 } }),
-        "a stop that follows you: not drawn")
+        "a step that follows you: not drawn")
     t:ok(not M.FollowsYou({ goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } }), "a quest objective: drawn")
     t:ok(not M.FollowsYou(nil), "nothing: no")
 end)
 
-ns:Register("test", "map and arrow agree: area stops by every spawn; one spot per stop", function(t)
+ns:Register("test", "map and arrow agree: area steps by every spawn; one spot per step", function(t)
     local N = ns.nav
-    -- 0.35.140: "in this area" on the map and Flow Tracker went by a stop's
+    -- 0.35.140: "in this area" on the map and Flow Tracker went by a step's
     -- one route spot; the arrow by every spawn of its objective.
     local wolves = { key = "500:1", points = { { cont = 1, wx = 900, wy = 900 }, { cont = 1, wx = 20, wy = 10 } } }
     local plan = {
-        { goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } },   -- your next stop
+        { goal = { key = "400:1" }, point = { cont = 1, wx = 0, wy = 0 } },   -- your next step
         { goal = wolves, point = { cont = 1, wx = 900, wy = 900 } },         -- route spot far off
         { goal = { key = "600:1", points = { { cont = 1, wx = 3000, wy = 3000 } } }, point = { cont = 1, wx = 3000, wy = 3000 } },
     }
     t:eq(table.concat(N.HereStops(plan, { cont = 1, wx = 5, wy = 5 }), ","), "1,2",
         "wolves whose spawns are here count, though their route spot is across the zone")
     t:ok(N._stopNear(plan[2], { cont = 1, wx = 25, wy = 10 }, 150), "near one of its spawns")
-    t:ok(not N._stopNear(plan[3], { cont = 1, wx = 25, wy = 10 }, 150), "a stop far away isn't")
-    -- 0.35.150: a box around each objective's spawns rules a far stop out
+    t:ok(not N._stopNear(plan[3], { cont = 1, wx = 25, wy = 10 }, 150), "a step far away isn't")
+    -- 0.35.150: a box around each objective's spawns rules a far step out
     -- at once; a list that grows, or spawns on two continents, still count.
     local pts = { { cont = 1, wx = 100, wy = 100 }, { cont = 1, wx = 300, wy = 50 } }
     local b = N.SpawnBox(pts)
@@ -6159,7 +6159,7 @@ ns:Register("test", "map and arrow agree: area stops by every spawn; one spot pe
     local both = { goal = { points = { { cont = 1, wx = 0, wy = 0 }, { cont = 2, wx = 500, wy = 500 } } } }
     t:ok(N._stopNear(both, { cont = 2, wx = 510, wy = 500 }, 150), "spawns on two continents: each still counts")
     t:ok(not N._stopNear({ goal = { points = {} } }, { cont = 1, wx = 0, wy = 0 }, 150), "no spawns, no spot: not here")
-    -- One spot per stop: the route's when it's planned, else the spawn nearest you.
+    -- One spot per step: the route's when it's planned, else the spawn nearest you.
     with(N, "plan", plan, function()
         t:eq(N:Spot(wolves, { cont = 1, wx = 5, wy = 5 }), plan[2].point, "on the route: its route spot (the arrow's)")
     end)
@@ -6196,7 +6196,7 @@ ns:Register("test", "/flow keys: spells bound straight to a key, sorted", functi
     t:ok(ns.commands.keys ~= nil, "/flow keys")
 end)
 
-ns:Register("test", "needs: a stop goes after what provides it, or waits with the reason", function(t)
+ns:Register("test", "needs: a step goes after what provides it, or waits with the reason", function(t)
     local N = ns.nav
     -- 0.35.142: Demoralizing Roar needs Bear Form, from a class quest; Flow
     -- sent a level-10 druid to train it anyway.
@@ -6219,7 +6219,7 @@ ns:Register("test", "needs: a stop goes after what provides it, or waits with th
     t:eq(lone.blockedBy, "needs Bear Form first", "nothing provides it: a hard need blocks, with the reason")
     t:eq(soft.blockedBy, nil, "a soft need never blocks")
     t:eq(soft.deps, nil, "and with no provider, no order either")
-    -- Two stops that would wait on each other: no loop.
+    -- Two steps that would wait on each other: no loop.
     local a = { key = "a", provides = { "spell:A" }, needs = { { "spell:B", soft = true } } }
     local b = { key = "b", provides = { "spell:B" }, needs = { { "spell:A", soft = true } } }
     N.ResolveNeeds({ a, b }, met, label)
@@ -6248,7 +6248,7 @@ ns:Register("test", "trainer: spells that wait for another don't send you to tra
     t:eq(need, "Bear Form", "the druid data says Demoralizing Roar needs Bear Form")
 end)
 
-ns:Register("test", "needs: the town's errands don't pull a stop ahead of what it waits for", function(t)
+ns:Register("test", "needs: the town's errands don't pull a step ahead of what it waits for", function(t)
     local N = ns.nav
     local train = { key = "train:class", deps = { "6002:done" } }
     t:eq(N.HubBusiness(train, 10, { ["6002:done"] = true }, false), nil,
@@ -6423,13 +6423,13 @@ ns:Register("test", "choices: your casts set beside Flow's advice", function(t)
     t:ok(type(ns.commands.choices) == "function", "/flow choices")
 end)
 
-ns:Register("test", "route kinds: one tick per kind of stop", function(t)
+ns:Register("test", "route kinds: one tick per kind of step", function(t)
     -- 0.35.157: in place of Quests only / Optimal / Completionist + Professions.
     local N = ns.nav
     local keys = {}
     for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
     t:ok(table.concat(keys, ","):find("^quests,newQuests,lowQuests,training,professions,town") ~= nil, "the kinds, in menu order (later ones, the bank and flight paths, after them)")
-    -- Which kind a stop is (you're level 20 here).
+    -- Which kind a step is (you're level 20 here).
     t:eq(N.KindOf({ key = "748:2", provider = "questie" }, 20), "quests", "a quest objective: current quests")
     t:eq(N.KindOf({ key = "748:done" }, 20), "quests", "its turn-in too")
     t:eq(N.KindOf({ key = "pickup:5", level = 18, provider = "pickups" }, 20), "newQuests", "a quest to pick up at your level")
@@ -6437,11 +6437,11 @@ ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     t:eq(N.KindOf({ key = "train:class", provider = "errands" }, 20), "training", "class trainer")
     t:eq(N.KindOf({ key = "weapon:Staves", provider = "weaponskill" }, 20), "training", "weapon master")
     t:eq(N.KindOf({ key = "train:Mining", provider = "errands" }, 20), "professions", "profession trainer")
-    t:eq(N.KindOf({ key = "skill:Fishing", provider = "skillplan" }, 20), "professions", "skill-up stop")
+    t:eq(N.KindOf({ key = "skill:Fishing", provider = "skillplan" }, 20), "professions", "skill-up step")
     t:eq(N.KindOf({ key = "repair", provider = "repair" }, 20), "town", "repair")
     t:eq(N.KindOf({ key = "run:WC", provider = "dungeon" }, 20), nil, "a dungeon run you prepared: always on")
-    t:eq(N.KindOf({ key = "party:1", provider = "party" }, 20), nil, "party stops: always on")
-    -- Only ticked kinds stay; stops no kind claims always do.
+    t:eq(N.KindOf({ key = "party:1", provider = "party" }, 20), nil, "party steps: always on")
+    -- Only ticked kinds stay; steps no kind claims always do.
     local list = {
         { key = "748:2", provider = "questie" }, { key = "pickup:5", level = 18 }, { key = "pickup:6", level = 12 },
         { key = "train:Mining", provider = "errands" }, { key = "run:WC", provider = "dungeon" },
@@ -6451,7 +6451,7 @@ ns:Register("test", "route kinds: one tick per kind of stop", function(t)
     local got = {}
     for _, g in ipairs(out) do got[#got + 1] = g.key end
     t:eq(table.concat(got, ","), "748:2,pickup:6,run:WC", "current + low-level quests ticked; the dungeon run stays")
-    t:eq(list[4].routeKind, "professions", "each stop is tagged with its kind")
+    t:eq(list[4].routeKind, "professions", "each step is tagged with its kind")
     -- The Router's "Route: ..." line.
     -- (Kinds added since, the bank and flight paths, count as ticked here.)
     local base = { quests = true, newQuests = true, lowQuests = true, training = true, professions = true, town = true }
@@ -6578,14 +6578,14 @@ ns:Register("test", "quests not offered: only quests you could take now are judg
     end)
 end)
 
-ns:Register("test", "map: the path drifts toward the next stop, and its opacity is yours", function(t)
+ns:Register("test", "map: the path drifts toward the next step, and its opacity is yours", function(t)
     local M = ns.mapOverlay
     -- "make the dots between waypoints slowly move in the direction the path indicates"
     local still = M._dotSpots(100, 12, 9)
     local moving, step = M._dotSpots(100, 12, 9, true)
     t:eq(#moving, #still - 1, "moving: the last dot is left out (each drifts on to the next one's place)")
-    t:near(moving[1], 9, 1e-6, "the first starts at the near stop's edge")
-    t:near(moving[#moving] + step, 91, 1e-6, "the last drifts up to the far stop's edge, no further")
+    t:near(moving[1], 9, 1e-6, "the first starts at the near step's edge")
+    t:near(moving[#moving] + step, 91, 1e-6, "the last drifts up to the far step's edge, no further")
     t:eq(#M._dotSpots(20, 12, 9, true), 0, "two points side by side: still no dots")
     with(ns.db.nav, "pathMotion", nil, function()
         local lite = ns.Lite and ns.Lite() and true or false
@@ -6604,7 +6604,7 @@ ns:Register("test", "map: the path drifts toward the next stop, and its opacity 
     end }
     M._drift(d, 3, 4)
     t:eq(plays, 1, "a dot with a step drifts")
-    t:eq(offset, "3,4", "by that step, toward the next stop")
+    t:eq(offset, "3,4", "by that step, toward the next step")
     M._drift(d, 3, 4)
     t:eq(plays, 1, "drawn again with the same step: it carries on, not started over")
     M._drift(d, 5, 0)
@@ -6907,7 +6907,7 @@ ns:Register("test", "heal: a full health bar clears the heal prompt", function(t
 end)
 
 local mapOpenLink   -- (made once: a test may not make a new frame every run)
-ns:Register("test", "click: stop card links open the map through the game's own button", function(t)
+ns:Register("test", "click: step card links open the map through the game's own button", function(t)
     -- "can the select on map and select quest links open the map if it is not open?"
     local O = ns.mapOpen
     if not O then t:ok(false, "MapOpen.lua not loaded") return end
@@ -7038,7 +7038,7 @@ ns:Register("test", "pathing: between regions the way goes by a gate (Thunder Bl
         t:eq(G.Via(below, { cont = 1, wx = 1, wy = 1, map = 1999 }), nil, "two open zones with no gate known: a straight line, as before")
         local city = G.Via(below, { cont = 1, wx = 3000, wy = 3000, map = 1454 })
         t:ok(city and city.unknown and #city.points == 0, "a walled city Flow has never walked into: it says it doesn't know the way")
-        -- The planner: stops on the bluff cost the lift ride, so they're done together.
+        -- The planner: steps on the bluff cost the lift ride, so they're done together.
         local walk = G.PlanWalk()
         t:ok(type(walk) == "function", "the planner gets the walk by gate")
         if walk then
@@ -7139,7 +7139,7 @@ ns:Register("test", "professions: a recipe isn't bought long before you can lear
     t:eq(SP.RecipeDue(50, nil), true, "skill not looked at: as before")
     local step = { recipe = "Flow Test Fish", recipeItem = 99999001, learn = 50, mats = {} }
     local ok, early = pcall(SP._recipeStop, "Cooking", step, {}, 32)
-    t:ok(ok and early == nil, "the buy stop at 32: none")
+    t:ok(ok and early == nil, "the buy step at 32: none")
     local ok2, due = pcall(SP._recipeStop, "Cooking", step, {}, 45)
     t:ok(ok2 and due and due.key == "buy:99999001", "at 45: Buy Recipe is on the route")
     local ok3, asBefore = pcall(SP._recipeStop, "Cooking", step, {})
@@ -7185,7 +7185,7 @@ ns:Register("test", "professions: a third profession the game's two slots leave 
     local tier = SP.Tier("Skinning", 22, 75, 12)
     t:ok(tier and tier.name == "Journeyman" and tier.skill == 50 and not tier.ready, "Journeyman Skinning needs skill 50: at 22 it isn't on the route")
     t:ok(SP.Tier("Skinning", 50, 75, 12).ready, "at 50 it is")
-    t:eq(SP.Tier("Blacksmithing", 0, 0, 12), nil, "a skill Flow can't read: no tier stop at all")
+    t:eq(SP.Tier("Blacksmithing", 0, 0, 12), nil, "a skill Flow can't read: no tier step at all")
     local text = table.concat(A.ProfessionLines({ { "slots", slots }, { "spells", spells } }), "\n")
     t:ok(text:find("slots: Herbalism 13/75, Cooking 32/75", 1, true) ~= nil, "/flow skills lists each source: " .. text)
     t:ok(text:find("Blacksmithing (you have it; skill not readable here)", 1, true) ~= nil, "and says when a skill can't be read")
@@ -7234,7 +7234,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     local g = byKey(goals)["758:1"]
     if g and not g.blockedBy then
         t:ok(#g.points > 0 and g.text:find("Cleanse the Thunderhorn Water Well", 1, true) ~= nil,
-            "an event objective is a stop at the place Questie has for it")
+            "an event objective is a step at the place Questie has for it")
         local turn = byKey(goals)["758:done"]
         t:ok(turn and turn.deps[1] == "758:1", "and its turn-in waits for it")
     else
@@ -7246,7 +7246,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
         objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = none })
     g = byKey(goals)["76160:1"]
-    t:ok(g ~= nil, "an objective Flow can't place is still a stop on the list")
+    t:ok(g ~= nil, "an objective Flow can't place is still a step on the list")
     t:ok(g and g.blockedBy and g.blockedBy:find("Questie has no spot for Pine Salve", 1, true) ~= nil, "with the reason: " .. tostring(g and g.blockedBy))
     t:eq(g and g.blockedShort, ns.nav.NO_SPOT, "and a few words of it for its row (0.35.177)")
     t:ok(g and g.text:find("Stalk With The Earthmother", 1, true) ~= nil, "and the quest's name")
@@ -7255,7 +7255,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
         objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = marker })
     g = byKey(goals)["76160:wp"]
-    t:ok(g and g.points[1] and g.points[1].map == 1412 and not g.blockedBy, "the game marks the quest: the stop goes there")
+    t:ok(g and g.points[1] and g.points[1].map == 1412 and not g.blockedBy, "the game marks the quest: the step goes there")
     t:eq(byKey(goals)["76160:1"], nil, "and it isn't listed twice")
     local turnIn = byKey(goals)["76160:done"]
     t:ok(turnIn and turnIn.deps[1] == "76160:wp", "its turn-in waits for it")
@@ -7263,7 +7263,7 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     goals = {}
     ns.quests.QuestGoals(db, { id = 76160, title = "Stalk With The Earthmother", complete = false,
         objectives = { { text = "Pine Salve: 0/1", finished = false } } }, goals, { waypoint = marker, prefix = "help:", who = "Bob" })
-    t:eq(byKey(goals)["help:76160:wp"], nil, "a party member's unplaceable objective: no stop of yours")
+    t:eq(byKey(goals)["help:76160:wp"], nil, "a party member's unplaceable objective: no step of yours")
 
     -- A finished quest with no known place to hand it in.
     goals = {}
@@ -7287,11 +7287,11 @@ ns:Register("test", "route: a quest in your log is always on the route, even whe
     goals = {}
     ns.quests.QuestGoals(db, { id = 99999, title = "A Forever Quest", complete = true, objectives = {} }, goals, { waypoint = marker })
     g = byKey(goals)["99999:wp"]
-    t:ok(g and #g.points == 1 and g.text == "Turn in: A Forever Quest", "the game marks it: a stop there")
+    t:ok(g and #g.points == 1 and g.text == "Turn in: A Forever Quest", "the game marks it: a step there")
     t:ok(type(ns.quests.GameWaypoint) == "function" and (pcall(ns.quests.GameWaypoint, 99999)), "the game's marker reads without error")
 end)
 
-ns:Register("test", "route: the class quest for a spell is always a stop (Bear Form)", function(t)
+ns:Register("test", "route: the class quest for a spell is always a step (Bear Form)", function(t)
     -- "Flow Improvements shows I need Bear Form, the level 10 druid quest,
     -- but the Flow Tracker isn't having me go there"
     local Q = ns.quests
@@ -7313,7 +7313,7 @@ ns:Register("test", "route: the class quest for a spell is always a stop (Bear F
     s, q = state({ [5928] = true }, {})
     t:ok(s == "accept" and q and q.id == 5922, "the first part done: the next one")
     s, q = state({ [5928] = true }, { [5922] = true })
-    t:ok(s == "inlog" and q and q.id == 5922, "a part in your log: its own stops take you on")
+    t:ok(s == "inlog" and q and q.id == 5922, "a part in your log: its own steps take you on")
     s, q = state({ [5928] = true, [5922] = true, [5930] = true, [5932] = true }, {})
     t:ok(s == "accept" and q and q.id == 6002, "all but the last done: the quest that teaches the spell")
     s = state({ [6002] = true }, {})
@@ -7329,16 +7329,16 @@ ns:Register("test", "route: the class quest for a spell is always a stop (Bear F
         function(x) return x.raw.side == "H" end)
     t:ok(s == "accept" and q and q.id == 12, "of two ways in, the one for your side")
 
-    -- On the route: a stop of its own when the pickups didn't have it...
+    -- On the route: a step of its own when the pickups didn't have it...
     local goals = {}
     local onMap = function() return { { map = 1412, x = 0.4, y = 0.6 } } end
     local nowhere = function() return {} end
     Q.AddClassQuests(goals, { { spell = "Bear Form", state = "accept", quest = chain[5928] } }, onMap)
-    t:eq(#goals, 1, "the class quest's first part is a stop")
+    t:eq(#goals, 1, "the class quest's first part is a step")
     t:eq(goals[1] and goals[1].key, "pickup:5928", "under the pickup's own key")
     t:ok(goals[1] and goals[1].text == "Accept: Heeding the Call (Bear Form)" and goals[1].details[1]:find("leads to Bear Form", 1, true) ~= nil,
         "named, and saying what it leads to")
-    -- ...and the same stop, marked, when they did.
+    -- ...and the same step, marked, when they did.
     goals = { { key = "pickup:5928", weight = 0.9, details = { "Level 10 quest." } } }
     Q.AddClassQuests(goals, { { spell = "Bear Form", state = "accept", quest = chain[5928] } }, nowhere)
     t:ok(#goals == 1 and goals[1].classQuest == "Bear Form" and goals[1].weight == 0.7, "already among the pickups: marked, not added twice")
@@ -7351,7 +7351,7 @@ ns:Register("test", "route: the class quest for a spell is always a stop (Bear F
     t:eq(#goals, 0, "in your log, or unknown to the data: no pickup")
     -- Flow Improvements links to it, and /flow nav why says where it stands.
     local key, text = Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "accept", quest = chain[5928] } })
-    t:eq(key, "pickup:5928", "the improvement's link is the stop")
+    t:eq(key, "pickup:5928", "the improvement's link is the step")
     t:eq(text, "Heeding the Call from Turak Runetotem", "and it says which quest, from whom")
     t:eq((Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "inlog", quest = chain[5922] } })), nil, "nothing to pick up: no link")
     t:eq(Q.ClassQuestLine({ spell = "Bear Form", state = "accept", quest = chain[5928] }),
@@ -7460,7 +7460,7 @@ end)
 
 ns:Register("test", "route: a class quest in your log comes first, and a travel spell makes it near", function(t)
     -- "Flow Improvements shows I need Bear Form, but the Flow Tracker isn't
-    -- having me go there": "Moonglade" was in the log, its stop thousands of
+    -- having me go there": "Moonglade" was in the log, its step thousands of
     -- yards north, so the route left it for last.
     local Q, TS = ns.quests, ns.travelSpells
     local goals = {
@@ -7468,7 +7468,7 @@ ns:Register("test", "route: a class quest in your log comes first, and a travel 
         { key = "758:1", details = {} },
     }
     Q.MarkClassQuests(goals, { { spell = "Bear Form", state = "inlog", quest = { id = 5922 } } })
-    t:ok(goals[1].milestone and goals[1].classQuest == "Bear Form" and goals[1].weight == 0.6, "the class quest's stop is a milestone, weighted to come early")
+    t:ok(goals[1].milestone and goals[1].classQuest == "Bear Form" and goals[1].weight == 0.6, "the class quest's step is a milestone, weighted to come early")
     t:ok(goals[1].details[1]:find("leads to Bear Form", 1, true) ~= nil, "and says what it leads to")
     t:ok(not goals[2].milestone, "other quests are left as they are")
     local plain = { { key = "5922:done", weight = 0.8, details = {} } }
@@ -7481,12 +7481,12 @@ ns:Register("test", "route: a class quest in your log comes first, and a travel 
     local function zoneOf(m) return m end
     local mulgore, moonglade = { map = 1412 }, { map = 1450 }
     local s = TS.Fits(mulgore, moonglade, spells, zoneOf, "DRUID")
-    t:eq(s and s.name, "Teleport: Moonglade", "a stop in Moonglade from Mulgore: one cast away")
+    t:eq(s and s.name, "Teleport: Moonglade", "a step in Moonglade from Mulgore: one cast away")
     t:eq(TS.Fits(moonglade, moonglade, spells, zoneOf, "DRUID"), nil, "already in Moonglade: walk")
-    t:eq(TS.Fits(mulgore, { map = 1413 }, spells, zoneOf, "DRUID"), nil, "a stop elsewhere: the spell doesn't go there")
+    t:eq(TS.Fits(mulgore, { map = 1413 }, spells, zoneOf, "DRUID"), nil, "a step elsewhere: the spell doesn't go there")
     t:eq(TS.Fits(mulgore, moonglade, spells, zoneOf, "PALADIN"), nil, "another class: not theirs")
     t:eq(TS.Fits(mulgore, {}, spells, zoneOf, "DRUID"), nil, "a spot with no map: nothing")
-    -- The planner measures such a stop as near.
+    -- The planner measures such a step as near.
     local a = { cont = 1, wx = 0, wy = 0, map = 1412 }
     local b = { cont = 1, wx = 9000, wy = 0, map = 1450 }
     local port = function(x, y) return TS.Fits(x, y, spells, zoneOf, "DRUID") and TS.YARDS or nil end
@@ -7500,7 +7500,7 @@ end)
 ns:Register("test", "professions: the next tier waits until you can pay for it", function(t)
     -- "journeyman skinning ... I don't have it, but it is taking me there":
     -- Skinning was 58 (enough), the price 5 silver, the purse 2s 30c. The
-    -- stop had no price, so the route went to the trainer anyway.
+    -- step had no price, so the route went to the trainer anyway.
     local SP = ns.skillPlan
     t:eq(SP.TierCost("Skinning", 75, nil), 500, "Journeyman: 5 silver (read at a WoW: Forever trainer)")
     t:eq(SP.TierCost("Skinning", 75, { Herbalism = { cap = 75, cost = 450 } }), 450, "what another profession's trainer charged for the same tier")
@@ -7567,8 +7567,8 @@ end)
 ns:Register("test", "menu: sections after the first fold into one row each", function(t)
     local M = ns.menu
     local items = {
-        { title = true, text = "This stop" },
-        { text = "Open it" }, { text = "Hide this stop" },
+        { title = true, text = "This step" },
+        { text = "Open it" }, { text = "Hide this step" },
         { sep = true },
         { title = true, text = "Order" },
         { text = "Most XP", radio = true, checked = false },
@@ -7581,8 +7581,8 @@ ns:Register("test", "menu: sections after the first fold into one row each", fun
         { title = true, text = "Nothing in it" },
     }
     local shown = M.Fold(items)
-    t:eq(#shown, 7, "the stop's own entries, a line, and one row per later section")
-    t:ok(shown[1].title and shown[2].text == "Open it" and shown[3].text == "Hide this stop", "the first section stays open")
+    t:eq(#shown, 7, "the step's own entries, a line, and one row per later section")
+    t:ok(shown[1].title and shown[2].text == "Open it" and shown[3].text == "Hide this step", "the first section stays open")
     t:ok(shown[4].sep, "a line under it")
     t:ok(shown[5].section and shown[5].text == "Order" and #shown[5].sub == 2, "Order: one row, two entries inside")
     t:ok(shown[6].section and shown[6].text == "Route includes" and #shown[6].sub == 3, "Route includes: one row")
@@ -7691,10 +7691,10 @@ ns:Register("test", "drink: low on mana where the game hides it; water by any wo
     t:ok(ok and type(line) == "string" and line:find("^Drink: ") ~= nil, "/flow rot why says where drinking stands: " .. tostring(line))
 end)
 
-ns:Register("test", "blocked stops: a few words in the row, the whole reason in the tooltip", function(t)
+ns:Register("test", "blocked steps: a few words in the row, the whole reason in the tooltip", function(t)
     local N = ns.nav
     local long = "Flow doesn't know where: Questie has no spot for Fish Chunks. Your quest log says how."
-    t:eq(N.ShortBlocked({ blockedBy = long, blockedShort = N.NO_SPOT }), "no known spot", "a stop's own short form")
+    t:eq(N.ShortBlocked({ blockedBy = long, blockedShort = N.NO_SPOT }), "no known spot", "a step's own short form")
     t:eq(N.ShortBlocked({ blockedBy = long }), "no known spot", "without one: from how the reason starts")
     t:eq(N.ShortBlocked({ blockedBy = "Flow doesn't know who sells Fishing Pole" }), "no known seller", "nobody known to sell it")
     t:eq(N.ShortBlocked({ blockedBy = "Flow doesn't know where Wool Cloth comes from (Auction House?)" }), "no known source", "no known source")
@@ -7709,7 +7709,7 @@ ns:Register("test", "blocked stops: a few words in the row, the whole reason in 
         t:ok(#N.ShortBlocked({ blockedBy = s }) <= N.BLOCKED_MAX, "never longer than a row has room for: " .. s)
     end
     local text, why = N:FormatBlocked({ text = "Stalk With The Earthmother: 0/1 Fish Chunks", blockedBy = long, blockedShort = N.NO_SPOT })
-    t:ok(text:find("Fish Chunks", 1, true) ~= nil, "the row: what the stop is")
+    t:ok(text:find("Fish Chunks", 1, true) ~= nil, "the row: what the step is")
     t:ok(why:find("no known spot", 1, true) ~= nil and not why:find("Questie", 1, true), "and a few words of why")
     -- The tooltip keeps the whole sentence.
     local tt = _G.FlowTestTooltip or CreateFrame("GameTooltip", "FlowTestTooltip", UIParent, "GameTooltipTemplate")
@@ -7726,12 +7726,12 @@ ns:Register("test", "blocked stops: a few words in the row, the whole reason in 
     t:ok(ok and whole, "its tooltip says all of it")
 end)
 
-ns:Register("test", "router: a locked stop's reason stays inside the Flow Router", function(t)
+ns:Register("test", "router: a locked step's reason stays inside the Flow Router", function(t)
     local M = ns.mapOverlay
     t:eq(M.ReasonWidth(40), 42, "a short reason: as wide as its words")
     t:eq(M.ReasonWidth(900), M.REASON_W, "a long one: never wider than its column")
     t:eq(M.ReasonWidth(nil), 2, "no words: no room taken")
-    t:ok(M.REASON_W <= 150, "the column leaves at least half of the Router's 300 to the stop's name")
+    t:ok(M.REASON_W <= 150, "the column leaves at least half of the Router's 300 to the step's name")
     local rows = M._ListRows()
     local r = rows and rows[1]
     if not (r and r.leg) then t:ok(true, "(the Flow Router isn't built yet)") return end
@@ -7750,11 +7750,11 @@ ns:Register("test", "rides: the way out of Moonglade is the druids' flight maste
                     { name = "Silva Fil'naveth", from = 1450, class = "DRUID", faction = "Alliance" } }
     local a, b = { map = 1450 }, { map = 1456 }
     local fit = R.Fits(a, b, rides, zoneOf, "DRUID", "Horde")
-    t:eq(fit and fit.name, "Bunthen Plainswind", "a Horde druid in Moonglade, the stop in Thunder Bluff")
+    t:eq(fit and fit.name, "Bunthen Plainswind", "a Horde druid in Moonglade, the step in Thunder Bluff")
     fit = R.Fits(a, b, rides, zoneOf, "DRUID", "Alliance")
     t:eq(fit and fit.name, "Silva Fil'naveth", "an Alliance druid: Silva Fil'naveth")
     t:eq(R.Fits(a, b, rides, zoneOf, "WARRIOR", "Horde"), nil, "not a druid: no ride")
-    t:eq(R.Fits(a, { map = 9999 }, rides, zoneOf, "DRUID", "Horde"), nil, "the stop is in Moonglade too: no ride")
+    t:eq(R.Fits(a, { map = 9999 }, rides, zoneOf, "DRUID", "Horde"), nil, "the step is in Moonglade too: no ride")
     t:eq(R.Fits({ map = 1412 }, b, rides, zoneOf, "DRUID", "Horde"), nil, "you aren't in Moonglade: no ride")
     t:near(R.Cost(100, 9000, 50, 4.5, 40), 100 + 40 + 2000 + 50, 0.01, "its cost: to them, the talk, the flight, and on from the landing")
 
@@ -7765,19 +7765,19 @@ ns:Register("test", "rides: the way out of Moonglade is the druids' flight maste
     local you = { map = 1450, cont = 1, wx = 0, wy = 0 }
     local far = { map = 1456, cont = 1, wx = 9100, wy = 0 }
     local way = R.Way(you, far, "DRUID", "Horde", spotOf, landOf)
-    t:ok(way and way.name == "Bunthen Plainswind", "a stop in Thunder Bluff from Moonglade: by his flight")
+    t:ok(way and way.name == "Bunthen Plainswind", "a step in Thunder Bluff from Moonglade: by his flight")
     t:near(way and way.toNpc or 0, 100, 0.01, "100 yd to him")
     t:ok(way and way.yards > 100 and way.yards < 9100, "the whole way costs less than the straight line: " .. tostring(way and way.yards))
     t:ok(way and way.point == npc, "the arrow's point is where he stands")
     t:eq(R.Text(way), "100 yd to Bunthen Plainswind: he flies druids to Thunder Bluff, free", "the arrow's line")
-    -- A stop next door (Felwood): walking beats a flight to Thunder Bluff and back.
+    -- A step next door (Felwood): walking beats a flight to Thunder Bluff and back.
     local near = { map = 1448, cont = 1, wx = 600, wy = 0 }
-    t:eq((R.Way(you, near, "DRUID", "Horde", spotOf, landOf)), nil, "a stop next door: on foot, not the flight")
+    t:eq((R.Way(you, near, "DRUID", "Horde", spotOf, landOf)), nil, "a step next door: on foot, not the flight")
     -- Nobody knows where he stands: not measured, but still named.
     local none, named = R.Way(you, far, "DRUID", "Horde", function() return nil end, landOf)
     t:ok(none == nil and named and named.name == "Bunthen Plainswind", "his spot unknown: named, not measured")
     t:eq((R.Way(you, far, "MAGE", "Horde", spotOf, landOf)), nil, "a mage: nothing")
-    t:eq((R.Way(you, { map = 1456, cont = 2, wx = 9100, wy = 0 }, "DRUID", "Horde", spotOf, landOf)), nil, "a stop on another continent: not measured")
+    t:eq((R.Way(you, { map = 1456, cont = 2, wx = 9100, wy = 0 }, "DRUID", "Horde", spotOf, landOf)), nil, "a step on another continent: not measured")
 
     t:ok(ns:Get("ride", "Bunthen Plainswind") and ns:Get("ride", "Silva Fil'naveth"), "both are registered")
     local ok, lines = pcall(R.Lines)
@@ -7803,7 +7803,7 @@ ns:Register("test", "planner and arrow: a leg out of Moonglade costs the ride", 
     local how = N.HowText("ride", nil, { name = "Bunthen Plainswind", how = "he flies druids to Thunder Bluff, free" })
     t:ok(how:find("Bunthen Plainswind", 1, true) ~= nil and how:find("Thunder Bluff", 1, true) ~= nil, "the panel says who and where to: " .. how)
     t:ok(N.HowText("path", nil, nil):find("trail", 1, true) ~= nil, "no ride: as before")
-    -- The stop after the ride comes before one that's truly far.
+    -- The step after the ride comes before one that's truly far.
     local function goal(key, map, x)
         return { key = key, text = key, points = { { map = map, cont = 1, wx = x, wy = 0 } } }
     end
@@ -7843,7 +7843,7 @@ ns:Register("test", "hearthstone: a city beats a village; home first, then a far
         t:ok(not H.Learn("Lower Rise", "Some Vendor"), "not an innkeeper: nothing learned")
     end)
 
-    -- A stop a travel spell away waits for "Set hearthstone".
+    -- A step a travel spell away waits for "Set hearthstone".
     local goals = {
         { key = "hearth:thunderbluff", points = { { map = 1456 } } },
         { key = "q:moonglade", points = { { map = 1450 } }, deps = { "q:other" } },
@@ -7852,14 +7852,14 @@ ns:Register("test", "hearthstone: a city beats a village; home first, then a far
     }
     local had = goals[2].deps
     local isTrip = function(pt) return pt.map == 1450 end
-    t:eq(H.BeforeTrips(goals, isTrip), 1, "one stop is a cast away")
+    t:eq(H.BeforeTrips(goals, isTrip), 1, "one step is a cast away")
     t:ok(goals[2].deps[1] == "q:other" and goals[2].deps[2] == "hearth:thunderbluff", "it waits for Set hearthstone, and for what it waited for before")
     t:eq(#had, 1, "the list it had isn't changed (it may be shared)")
-    t:eq(goals[3].deps, nil, "a stop here doesn't wait")
+    t:eq(goals[3].deps, nil, "a step here doesn't wait")
     H.BeforeTrips(goals, isTrip)
     t:eq(#goals[2].deps, 2, "asked twice: not added twice")
-    t:eq(H.BeforeTrips({ goals[2], goals[3] }, function() return true end), 0, "no Set hearthstone stop on the route: nothing waits")
-    -- And the planner keeps that order, even with the far stop "one cast away".
+    t:eq(H.BeforeTrips({ goals[2], goals[3] }, function() return true end), 0, "no Set hearthstone step on the route: nothing waits")
+    -- And the planner keeps that order, even with the far step "one cast away".
     local function goal(key, map, x, deps)
         return { key = key, text = key, deps = deps, points = { { map = map, cont = 1, wx = x, wy = 0 } } }
     end
@@ -7874,7 +7874,7 @@ ns:Register("test", "hearthstone: a city beats a village; home first, then a far
     t:ok(okL and type(line) == "string" and line:find("^hearthstone: set to ") ~= nil, "/flow nav why says where your home is: " .. tostring(line))
     local provider = ns:Get("navGoal", "hearth")
     local okC, res = pcall(provider.collect)
-    t:ok(okC and (res == nil or type(res) == "table"), "the stop's source runs" .. (okC and "" or (": " .. tostring(res))))
+    t:ok(okC and (res == nil or type(res) == "table"), "the step's source runs" .. (okC and "" or (": " .. tostring(res))))
 end)
 
 -------------------------------------------------------------------------------
@@ -7994,7 +7994,7 @@ ns:Register("test", "flights: the arrow says where you're flying and when you la
     title, sub = N.FlightWords(nil, nil, nil)
     t:ok(title == "On a flight" and sub == "landing time not known yet", "a flight Flow knows nothing of: still says it's one")
 
-    -- The ride that leaves from where you are, whatever the stop.
+    -- The ride that leaves from where you are, whatever the step.
     local rides = { { name = "Bunthen Plainswind", from = 1450, toName = "Thunder Bluff", class = "DRUID", faction = "Horde" } }
     local same = function(m) return m end
     local r = R.From(1450, rides, same, "DRUID", "Horde")
@@ -8161,7 +8161,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     t:eq(twice, nil, "no section and no entry twice")
     t:eq(titles[1], "Order", "Order first")
     t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
-        and seen["Stops on the map"] and seen.Arrow and seen.Keys and seen["Flow windows"], "the sections every Flow menu has")
+        and seen["Steps on the map"] and seen.Arrow and seen.Keys and seen["Flow windows"], "the sections every Flow menu has")
     t:ok(texts["Flow Settings"] and texts["Flow Improvements"], "Flow's windows are a click away")
     t:ok(texts["Flat lines"] and texts["Colour by distance"], "the arrow's look is a section of it")
     -- Folded: one row a section, none of them the catch-all.
@@ -8177,7 +8177,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     -- A section that is one switch says on or off beside its name.
     t:eq(M.SectionState({ { text = "x", checked = true } }), "on", "one tick, on")
     t:eq(M.SectionState({ { text = "x", checked = false } }), "off", "one tick, off")
-    -- The arrow's own menu: the stop, then the same sections (its look isn't listed a second time).
+    -- The arrow's own menu: the step, then the same sections (its look isn't listed a second time).
     local arrow = ns.nav:ArrowMenuItems()
     local ticked = 0
     for _, it in ipairs(arrow) do if it.radio and it.checked then ticked = ticked + 1 end end
@@ -8248,7 +8248,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.183: Flow Improvements rows: a link icon and a hide icon; the link
--- opens the stop (trainer, quest giver) even when it's locked or hidden.
+-- opens the step (trainer, quest giver) even when it's locked or hidden.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "click: an improvement's row and its link icon open what it's about", function(t)
@@ -8280,12 +8280,12 @@ ns:Register("test", "click: an improvement's row and its link icon open what it'
     end) end)
     Adv:Refresh()
 
-    -- The stop an improvement is about is found wherever it is.
+    -- The step an improvement is about is found wherever it is.
     local route, locked, hid = { { key = "a" } }, { { key = "train:class", blockedBy = "needs 8s" } }, { { key = "h" } }
     t:eq(Adv.FindGoal("a", route, locked, hid), route[1], "on the route")
     t:eq(Adv.FindGoal("train:class", route, locked, hid), locked[1], "locked (no money for the trainer yet): still found")
     t:eq(Adv.FindGoal("h", route, locked, hid), hid[1], "hidden by you: still found")
-    t:eq(Adv.FindGoal("zzz", route, locked, hid), nil, "not a stop at all: nothing")
+    t:eq(Adv.FindGoal("zzz", route, locked, hid), nil, "not a step at all: nothing")
     t:eq(Adv.FindGoal(nil, route), nil, "no key: nothing")
     t:eq(Adv.FindGoal("h", route, nil, hid), hid[1], "a list that isn't there is skipped")
     local goalOf = function(k) return Adv.FindGoal(k, route, locked, hid) end
@@ -8296,9 +8296,9 @@ ns:Register("test", "click: an improvement's row and its link icon open what it'
     local T = ns.trainerAdvice
     local spells = { { spell = "Bear Form", quest = true }, { spell = "Maul" }, { spell = "Swiftmend", note = "a talent" } }
     local questKey = function(name) return "pickup:5926", name end
-    t:eq(T.PrereqKey(spells, "Bear Form", questKey), "pickup:5926", "waits for a quest's spell: that quest's stop (its giver)")
+    t:eq(T.PrereqKey(spells, "Bear Form", questKey), "pickup:5926", "waits for a quest's spell: that quest's step (its giver)")
     t:eq(T.PrereqKey(spells, "Maul", questKey), "train:class", "waits for a trainer's spell: your class trainer")
-    t:eq(T.PrereqKey(spells, "Swiftmend", questKey), nil, "waits for a talent: no stop to send you to")
+    t:eq(T.PrereqKey(spells, "Swiftmend", questKey), nil, "waits for a talent: no step to send you to")
     t:eq(T.PrereqKey(spells, "Unheard Of", questKey), nil, "not in your class's list: nothing")
     t:eq(T.PrereqKey(spells, "Bear Form", nil), nil, "no quest lookup: nothing")
 end)
@@ -8363,11 +8363,11 @@ end)
 
 ns:Register("test", "quest items: which item a quest has you use, and on which row", function(t)
     local QI = ns.questItems
-    t:eq(QI.QuestOf("758:1"), 758, "an objective's stop: its quest")
+    t:eq(QI.QuestOf("758:1"), 758, "an objective's step: its quest")
     t:eq(QI.QuestOf("6002:done"), 6002, "its turn-in too")
     t:eq(QI.QuestOf("pickup:5926"), nil, "a quest you haven't accepted: none")
     t:eq(QI.QuestOf("help:758:1"), nil, "a party member's: none")
-    t:eq(QI.QuestOf("train:class"), nil, "not a quest stop: none")
+    t:eq(QI.QuestOf("train:class"), nil, "not a quest step: none")
     t:eq(QI.QuestOf(nil), nil, "no key: none")
 
     local bags = { [15710] = 1, [4702] = 2 }
@@ -8398,7 +8398,7 @@ end)
 ns:Register("test", "click: the quest item sits on its Flow Tracker row", function(t)
     local QI = ns.questItems
     if InCombatLockdown() then t:ok(true, "(in a fight: the buttons can't be placed now)") return end
-    -- Rows as the tracker's are (their place on screen, their stop's key).
+    -- Rows as the tracker's are (their place on screen, their step's key).
     local function row(key, bottom)
         return { key = key, IsVisible = function() return true end, GetRight = function() return 500 end,
                  GetBottom = function() return bottom end, GetHeight = function() return 16 end,
@@ -8434,18 +8434,18 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.186: the Flow Tracker's title fits (a lock and a number for the
--- locked stops).
+-- locked steps).
 -------------------------------------------------------------------------------
 
-ns:Register("test", "tracker: its title says the locked stops in a lock and a number", function(t)
+ns:Register("test", "tracker: its title says the locked steps in a lock and a number", function(t)
     local RT = ns.routeTracker
-    local title, locked = RT.Title("1 here, 29 stops", false, 9)
-    t:ok(title:find("Flow Tracker", 1, true) ~= nil and title:find("1 here, 29 stops", 1, true) ~= nil, "its name and the count")
+    local title, locked = RT.Title("1 here, 29 steps", false, 9)
+    t:ok(title:find("Flow Tracker", 1, true) ~= nil and title:find("1 here, 29 steps", 1, true) ~= nil, "its name and the count")
     t:ok(locked:find("LockButton", 1, true) ~= nil and locked:find("9|r", 1, true) ~= nil, "a lock and the number, in a text of their own")
     t:ok(not title:find("|T", 1, true) and not title:find("blocked", 1, true), "none of it in the title, where it was cut off (\"9...\", \"|...\")")
-    t:eq(select(2, RT.Title("3 stops", false, 0)), "", "nothing locked: no lock")
-    t:ok((RT.Title("3 stops", true, 0)):find("updating route", 1, true) ~= nil, "while the route is worked out it says so")
-    t:ok(select(2, RT.Title("3 stops", true, 11)):find("11|r", 1, true) ~= nil, "and the locked stops are still told")
+    t:eq(select(2, RT.Title("3 steps", false, 0)), "", "nothing locked: no lock")
+    t:ok((RT.Title("3 steps", true, 0)):find("updating route", 1, true) ~= nil, "while the route is worked out it says so")
+    t:ok(select(2, RT.Title("3 steps", true, 11)):find("11|r", 1, true) ~= nil, "and the locked steps are still told")
     local hdr = _G.FlowTracker and _G.FlowTracker.header
     if hdr then t:ok(hdr.locked ~= nil and hdr.locked:GetNumPoints() == 1, "the header has that second text, at its right") end
     t:ok(pcall(RT.Title, nil, false, nil), "nothing to count: still a title")
@@ -8460,35 +8460,35 @@ ns:Register("test", "tracker: its title says the locked stops in a lock and a nu
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.187: the Flow key uses the quest's item at its stop.
+-- 0.35.187: the Flow key uses the quest's item at its step.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: the quest's item at its stop", function(t)
+ns:Register("test", "easy button: the quest's item at its step", function(t)
     local X = ns.actions
-    t:ok(X.QuestItemNow("6002:1", true, 15710, 1, false, false, nil), "at the stop, the item in your bags, nothing targeted: use it")
-    t:ok(not X.QuestItemNow("6002:1", false, 15710, 1, false, false, nil), "not at the stop yet: no")
+    t:ok(X.QuestItemNow("6002:1", true, 15710, 1, false, false, nil), "at the step, the item in your bags, nothing targeted: use it")
+    t:ok(not X.QuestItemNow("6002:1", false, 15710, 1, false, false, nil), "not at the step yet: no")
     t:ok(not X.QuestItemNow("6002:1", true, nil, 0, false, false, nil), "the quest has no item to use: no")
     t:ok(not X.QuestItemNow("6002:1", true, 15710, 0, false, false, nil), "it isn't in your bags (used up): no")
     t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, true, false, nil), "an enemy is targeted: the key is for the fight")
     t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, false, true, nil), "mounted: no")
     t:ok(not X.QuestItemNow("6002:done", true, 15710, 1, false, false, nil), "at the quest's turn-in: nothing to use there")
     t:ok(not X.QuestItemNow("6002:1", true, 15710, 1, false, false, false), "switched off in Flow Settings: no")
-    t:ok(not X.QuestItemNow(nil, true, 15710, 1, false, false, nil), "no stop: no")
+    t:ok(not X.QuestItemNow(nil, true, 15710, 1, false, false, nil), "no step: no")
     local action = ns:Get("action", "quest:item")
     t:ok(action and type(action.get) == "function", "it's one of the Flow key's actions")
     if not action then return end
-    -- The action itself: a step that uses the item, at the stop only.
+    -- The action itself: a step that uses the item, at the step only.
     local QI = ns.questItems
     with(QI, "ItemFor", function(q) return q == 6002 and 15710 or nil end, function()
     with(ns.db.actions, "questItem", nil, function()
         local ok, step = pcall(action.get, { goal = { key = "6002:1", text = "Body and Heart" }, at = false })
-        t:ok(ok and step == nil, "away from the stop: nothing" .. (ok and "" or (": " .. tostring(step))))
+        t:ok(ok and step == nil, "away from the step: nothing" .. (ok and "" or (": " .. tostring(step))))
         ok, step = pcall(action.get, { goal = { key = "train:class" }, at = true })
-        t:ok(ok and step == nil, "a stop that isn't a quest's: nothing")
+        t:ok(ok and step == nil, "a step that isn't a quest's: nothing")
         ok, step = pcall(action.get, { goal = nil, at = true })
-        t:ok(ok and step == nil, "no stop: nothing")
+        t:ok(ok and step == nil, "no step: nothing")
         ok, step = pcall(action.get, { goal = { key = "6002:1", text = "Body and Heart" }, at = true })
-        t:ok(ok, "at the stop: runs" .. (ok and "" or (": " .. tostring(step))))
+        t:ok(ok, "at the step: runs" .. (ok and "" or (": " .. tostring(step))))
         -- (Whether it offers the item now depends on your bags and your target: both are yours, not the test's.)
         if ok and step then
             t:eq(step.type, "item", "a step that uses an item")
@@ -8841,19 +8841,19 @@ ns:Register("test", "move handle: its note sits below the button, faint", functi
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.195: the arrow follows a trail only while it heads toward the stop.
+-- 0.35.195: the arrow follows a trail only while it heads toward the step.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "arrow: a trail is followed only while it heads toward the stop", function(t)
+ns:Register("test", "arrow: a trail is followed only while it heads toward the step", function(t)
     local N = ns.nav
-    -- You at 0, 0; the stop due east at 400, 0.
-    t:ok(N.TrailHeadingOk(0, 0, 30, 5, 400, 0), "a trail that sets off toward the stop: followed")
+    -- You at 0, 0; the step due east at 400, 0.
+    t:ok(N.TrailHeadingOk(0, 0, 30, 5, 400, 0), "a trail that sets off toward the step: followed")
     t:ok(N.TrailHeadingOk(0, 0, 20, 25, 400, 0), "bending 50 degrees off: still followed")
     t:ok(not N.TrailHeadingOk(0, 0, 5, 30, 400, 0), "80 degrees off to one side: not followed")
     t:ok(not N.TrailHeadingOk(0, 0, -30, 0, 400, 0), "leading backwards: not followed (the arrow pointed the wrong way)")
     t:ok(N.TrailHeadingOk(0, 0, -3, 0, 400, 0), "a trail point right at your feet says nothing about a heading")
     t:ok(N.TrailHeadingOk(0, 0, 0, 30, 400, 0, 100), "a wider allowance when asked for")
-    t:ok(N.TrailHeadingOk(0, 0, 30, 0, 0, 0), "standing on the stop: nothing to compare")
+    t:ok(N.TrailHeadingOk(0, 0, 30, 0, 0, 0), "standing on the step: nothing to compare")
     t:eq(N.TRAIL_HEADING, 60, "60 degrees at most")
 end)
 
@@ -8895,10 +8895,10 @@ ns:Register("test", "export: your quests, skills and the route as lines a script
     t:eq(bad, nil, "every line is a record, with nothing the game's chat would read as a code")
     t:ok(you and tonumber(you.level) == UnitLevel("player"), "it says who you are")
     t:ok(kinds.opt == 1, "and how the route is set")
-    -- (A stop's own kind is the field "stop": "kind" is the record's.)
-    t:ok((kinds.goal or 0) + (kinds.plan or 0) >= 0, "stops and the route are records of their own")
+    -- (A step's own kind is the field "step": "kind" is the record's.)
+    t:ok((kinds.goal or 0) + (kinds.plan or 0) >= 0, "steps and the route are records of their own")
     local plan = ns.nav and ns.nav.plan or {}
-    t:eq(kinds.plan or 0, #plan, "one plan record for every stop on the route")
+    t:eq(kinds.plan or 0, #plan, "one plan record for every step on the route")
     -- Flight masters on your continent, for "you pass one you haven't learned".
     local S = ns.services
     local okS, list = pcall(S.All, S, "flight", 5)
@@ -9013,8 +9013,8 @@ ns:Register("test", "planner: an errand you can run on foot isn't sent through a
     local ported = function(pt) return pt.map == 1450 end
     local kept = P.OnFoot({ near, moon }, ported)
     t:ok(#kept == 1 and kept[1] == near, "a spot on foot and one a teleport away: only the one on foot")
-    t:eq(#P.OnFoot({ moon, moon2 }, ported), 2, "a stop that's only there keeps its spots")
-    t:eq(#P.OnFoot({ near }, ported), 1, "a stop with no teleport spot: as it is")
+    t:eq(#P.OnFoot({ moon, moon2 }, ported), 2, "a step that's only there keeps its spots")
+    t:eq(#P.OnFoot({ near }, ported), 1, "a step with no teleport spot: as it is")
     -- The whole planner: full bags, a merchant 400 yd away and one in Moonglade "one cast away".
     local you = { map = 1412, cont = 1, wx = 0, wy = 0 }
     local port = function(a, b) if b.map == 1450 and a.map ~= 1450 then return 120 end end
@@ -9022,16 +9022,16 @@ ns:Register("test", "planner: an errand you can run on foot isn't sent through a
     local plan = P:Plan(you, { merchant }, { port = port })
     t:ok(plan and plan[1] and plan[1].point == near, "the merchant you can walk to, not the one 10,000 yards off by teleport")
     t:near(plan and plan[1] and plan[1].leg or 0, 400, 1, "400 yards")
-    -- A stop that is only in Moonglade (the class quest) is still a cast away.
+    -- A step that is only in Moonglade (the class quest) is still a cast away.
     local quest = { key = "5926:1", text = "class quest", points = { moon } }
     plan = P:Plan(you, { quest }, { port = port })
-    t:ok(plan and plan[1] and plan[1].point == moon, "a stop that's only there: still planned there")
+    t:ok(plan and plan[1] and plan[1].point == moon, "a step that's only there: still planned there")
     -- Without the spell: nothing changes.
     plan = P:Plan(you, { merchant }, {})
     t:ok(plan and plan[1] and plan[1].point == near, "no travel spell: the nearest, as always")
 end)
 
-ns:Register("test", "flight paths: a stop for each one you don't have, when you pass it", function(t)
+ns:Register("test", "flight paths: a step for each one you don't have, when you pass it", function(t)
     local FP = ns.flightPaths
     local kelsuwa = { name = "Kelsuwa", map = 1413, x = 0.44, y = 0.59, cont = 1, wx = -2300, wy = -1950 }
     local sikwa = { name = "Sikwa", map = 1413, x = 0.51, y = 0.30, cont = 1, wx = -430, wy = -2600 }
@@ -9041,21 +9041,21 @@ ns:Register("test", "flight paths: a stop for each one you don't have, when you 
     t:ok(not FP.Learned(kelsuwa, {}, { ["Crossroads"] = { cont = 1, wx = -430, wy = -2600 } }), "a flight point somewhere else: not theirs")
     t:ok(not FP.Learned(kelsuwa, {}, { ["Elsewhere"] = { cont = 0, wx = -2300, wy = -1950 } }), "the same spot on another continent: not theirs")
     local goals = FP.Goals({ kelsuwa, sikwa, kelsuwa }, { Sikwa = true }, {})
-    t:eq(#goals, 1, "one stop for the one you don't have (a name once)")
+    t:eq(#goals, 1, "one step for the one you don't have (a name once)")
     local g = goals[1]
     t:eq(g and g.key, "flightpath:Kelsuwa", "its key")
     t:eq(g and g.text, "Learn the flight path: Kelsuwa", "what it says")
     t:ok(g and g.optional == true, "optional: only when it's close to the way you're going")
-    t:ok(g and g.kind == "flight" and ns.theme.kinds.flight ~= nil, "its own kind of stop, with an icon")
+    t:ok(g and g.kind == "flight" and ns.theme.kinds.flight ~= nil, "its own kind of step, with an icon")
     t:ok(g and g.points[1].map == 1413, "where they stand")
-    t:eq(#FP.Goals({}, {}, {}), 0, "no flight masters known: no stops")
-    -- On the route: its own kind, on by default; and the stop's source runs.
+    t:eq(#FP.Goals({}, {}, {}), 0, "no flight masters known: no steps")
+    -- On the route: its own kind, on by default; and the step's source runs.
     local kind = ns:Get("routeKind", "flightpaths")
     t:ok(kind and kind.default == true and kind.match({ provider = "flightpath" }) and not kind.match({ provider = "questie" }), "a kind of its own to untick")
     FP._Forget()
     local ok, res = pcall(ns:Get("navGoal", "flightpath").collect)
-    t:ok(ok and (res == nil or type(res) == "table"), "the stops' source runs" .. (ok and "" or (": " .. tostring(res))))
-    -- Talking to one: remembered (per character), and its stop goes.
+    t:ok(ok and (res == nil or type(res) == "table"), "the steps' source runs" .. (ok and "" or (": " .. tostring(res))))
+    -- Talking to one: remembered (per character), and its step goes.
     with(ns.db, "flightTalked", {}, function()
         with(ns.nav, "Collect", function() end, function()
             t:ok(FP.Talked("Kelsuwa"), "you opened Kelsuwa's flight map")
@@ -9064,7 +9064,7 @@ ns:Register("test", "flight paths: a stop for each one you don't have, when you 
         end)
     end)
     FP._Forget()
-    -- The planner takes an optional stop only when it's nearly on the way.
+    -- The planner takes an optional step only when it's nearly on the way.
     local P = ns.planner
     local you = { map = 1413, cont = 1, wx = 0, wy = 0 }
     local quest = { key = "1:1", text = "quest", points = { { map = 1413, cont = 1, wx = 1000, wy = 0 } } }
@@ -9114,9 +9114,9 @@ ns:Register("test", "leaving a zone: what's still to train or level is said once
     t:eq(#list, 2, "only the training and the professions")
     t:eq(list[1], "Train Revive at your class trainer", "in Flow Improvements' order")
     t:eq(#L.Checklist({ { text = "Train A" }, { text = "Train B" }, { text = "Train C" } }, 2), 2, "never more lines than asked")
-    t:ok(L.Due(1412, 1413, nil), "your next stop is in another zone: say it")
+    t:ok(L.Due(1412, 1413, nil), "your next step is in another zone: say it")
     t:ok(not L.Due(1412, 1413, 1412), "already said for this zone: not again")
-    t:ok(not L.Due(1412, 1412, nil), "the next stop is here: nothing to say")
+    t:ok(not L.Due(1412, 1412, nil), "the next step is here: nothing to say")
     t:ok(not L.Due(nil, 1413, nil), "no zone known: nothing")
     with(ns, "Print", function() end, function()
         L._Forget()
@@ -9153,7 +9153,7 @@ ns:Register("test", "banker: what goes to the bank and what stays with you", fun
     t:ok(B.Banks(row("Light Leather", 2318, "professionMaterial", "Trade Goods: Leather"), {}), "a profession material nothing uses now: to the bank")
     t:ok(B.Banks(row("Ruined Leather Scraps", 2934, "neverSell", "Trade Goods: Leather"), {}), "something you told Flow never to sell: to the bank")
     t:ok(not B.Banks(row("Recipe: Longjaw Mud Snapper", 6328, "notGear", "Recipe: Cooking"), {}), "a recipe: stays (a banked one was asked for again, 0.35.203)")
-    t:ok(not B.Banks(row("Stringy Wolf Meat", 2672, "professionMaterial", "Trade Goods: Cooking"), { [2672] = true }), "a material a stop on your route uses: stays")
+    t:ok(not B.Banks(row("Stringy Wolf Meat", 2672, "professionMaterial", "Trade Goods: Cooking"), { [2672] = true }), "a material a step on your route uses: stays")
     t:ok(not B.Banks(row("Refreshing Spring Water", 159, "professionMaterial", "Consumable: Food & Drink"), {}), "water: stays, whatever it's also a material for")
     t:ok(not B.Banks(row("Linen Bandage", 1251, "professionMaterial", "Consumable: Bandages"), {}), "bandages: stay")
     t:ok(not B.Banks(row("Cenarion Lunardust", 15710, "unsellable", "Quest"), {}), "a quest item: stays")
@@ -9170,19 +9170,19 @@ ns:Register("test", "banker: what goes to the bank and what stays with you", fun
     t:eq(#list, 2, "two of the four go")
     t:eq(list[1].name, "Ruined Leather Scraps", "what takes the most room first")
     t:eq(B.Stacks(list), 6, "six stacks in all")
-    -- What the route's stops need.
+    -- What the route's steps need.
     local need = B.NeededBy({ { reagents = { [2672] = 6 } }, { reagents = { { id = 765 } } }, { useItem = 6328 }, {} })
-    t:ok(need[2672] and need[765] and need[6328], "a stop's materials, either way they're written, and an item it uses")
+    t:ok(need[2672] and need[765] and need[6328], "a step's materials, either way they're written, and an item it uses")
     t:eq(need[2318], nil, "nothing else")
-    -- A stop on the route: only when it's worth it.
-    t:ok(B.WorthAStop(4, 10), "four stacks: worth a stop")
+    -- A step on the route: only when it's worth it.
+    t:ok(B.WorthAStop(4, 10), "four stacks: worth a step")
     t:ok(not B.WorthAStop(2, 10), "two, with room in your bags: not yet")
     t:ok(B.WorthAStop(2, 1), "two, and your bags nearly full: yes")
     t:ok(not B.WorthAStop(0, 0), "nothing to put away: never")
     local kind = ns:Get("routeKind", "banker")
     t:ok(kind and kind.match({ provider = "banker" }), "its own kind on the route to untick")
     local ok, res = pcall(ns:Get("navGoal", "banker").collect)
-    t:ok(ok and (res == nil or type(res) == "table"), "the stop's source runs" .. (ok and "" or (": " .. tostring(res))))
+    t:ok(ok and (res == nil or type(res) == "table"), "the step's source runs" .. (ok and "" or (": " .. tostring(res))))
     local okL, lines = pcall(B.Lines)
     t:ok(okL and type(lines) == "table" and #lines >= 1, "/flow banker lists them" .. (okL and "" or (": " .. tostring(lines))))
 end)
@@ -9210,7 +9210,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.201: no sitting by fires unless asked; not-a-flight-master; the map
--- lights a stop pointed at in the Flow Tracker; Flow Banker moves.
+-- lights a step pointed at in the Flow Tracker; Flow Banker moves.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "camp: Flow asks you to sit by a fire only when you've ticked it", function(t)
@@ -9233,9 +9233,9 @@ ns:Register("test", "flight paths: someone with no flight path for you isn't off
     with(ns.db, "flightTalked", {}, function()
     with(ns, "Print", function() end, function()
     with(ns.nav, "Collect", function() end, function()
-        t:ok(not FP.Learned(seikwa, ns.db.flightTalked, {}), "taken for a flight master: a stop")
+        t:ok(not FP.Learned(seikwa, ns.db.flightTalked, {}), "taken for a flight master: a step")
         t:ok(FP.NoPath("Seikwa"), "you talked to them and no flight map came")
-        t:ok(FP.Learned(seikwa, ns.db.flightTalked, {}), "no stop for them again")
+        t:ok(FP.Learned(seikwa, ns.db.flightTalked, {}), "no step for them again")
         t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 0, "and none on the route")
         ns.db.flightTalked.Kelsuwa = true
         t:ok(not FP.NoPath("Kelsuwa"), "one whose flight map did open: not marked")
@@ -9244,15 +9244,15 @@ ns:Register("test", "flight paths: someone with no flight path for you isn't off
     FP._Forget()
 end)
 
-ns:Register("test", "route: kinds added later follow the older routes; the map lights a tracker row's stop", function(t)
+ns:Register("test", "route: kinds added later follow the older routes; the map lights a tracker row's step", function(t)
     local N, M = ns.nav, ns.mapOverlay
     local q = N.ModeKinds("quests", true)
-    t:ok(q.quests and q.banker == false and q.flightpaths == false, "quests only: no bank or flight path stops either")
+    t:ok(q.quests and q.banker == false and q.flightpaths == false, "quests only: no bank or flight path steps either")
     local o = N.ModeKinds("optimal", true)
     t:ok(o.banker == true and o.flightpaths == true and not o.lowQuests, "optimal: with them")
     local was = M._HoverKey()
     M.Hover("test:hover")
-    t:eq(M._HoverKey(), "test:hover", "pointing at a row: its stop is the one the map lights")
+    t:eq(M._HoverKey(), "test:hover", "pointing at a row: its step is the one the map lights")
     M.Hover(nil)
     t:eq(M._HoverKey(), nil, "pointing away: none")
     M.Hover(was)
@@ -9327,9 +9327,9 @@ ns:Register("test", "flight paths: no path yet waits one level, then they're off
         FP.NoPath("Seikwa")
         local rec = ns.db.flightNone.Seikwa
         t:ok(type(rec) == "table" and rec.level == FP.Level(), "the note keeps your level")
-        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 0, "no stop at this level")
+        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 0, "no step at this level")
         rec.level = FP.Level() - 1
-        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 1, "a level on: the stop is back")
+        t:eq(#FP.Goals({ seikwa }, ns.db.flightTalked, {}), 1, "a level on: the step is back")
     end) end) end) end)
     FP._Forget()
 end)
@@ -9405,7 +9405,7 @@ ns:Register("test", "click: the Flow Banker tab on your bags opens and closes it
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.204: map labels move further out; pointing at a stop in a list shows
+-- 0.35.204: map labels move further out; pointing at a step in a list shows
 -- it alone; the quest log link clicks the quest's own line.
 -------------------------------------------------------------------------------
 
@@ -9430,10 +9430,10 @@ ns:Register("test", "map labels: no room by the point, the label moves further o
     t:ok(k ~= 1, "a neighbour 1 away: not squeezed in beside it")
     k = M.PickLabel(0, 0, 5, { { 30, 10 } }, boxes, 1, 0)
     t:eq(k, 1, "with no room asked for, it would have fitted")
-    t:ok(M.HOVER_SIZE <= 12, "the stop you point at is no bigger than a point with its ring")
+    t:ok(M.HOVER_SIZE <= 12, "the step you point at is no bigger than a point with its ring")
 end)
 
-ns:Register("test", "map: pointing at a stop in a list shows it alone, between its neighbours", function(t)
+ns:Register("test", "map: pointing at a step in a list shows it alone, between its neighbours", function(t)
     local M = ns.mapOverlay
     local plan = { { goal = { key = "a" } }, { goal = { key = "b" } }, { goal = { key = "c" } }, { goal = { key = "d" } } }
     t:eq(M.SoloAt(plan, "c"), 3, "found on the route")
@@ -9442,15 +9442,15 @@ ns:Register("test", "map: pointing at a stop in a list shows it alone, between i
     local s = M.SoloStops(4, 3)
     t:ok(#s == 3 and s[1] == 2 and s[2] == 3 and s[3] == 4, "the one before, itself, the one after")
     s = M.SoloStops(4, 1)
-    t:ok(#s == 2 and s[1] == 1 and s[2] == 2, "the first stop: itself and the next")
+    t:ok(#s == 2 and s[1] == 1 and s[2] == 2, "the first step: itself and the next")
     s = M.SoloStops(4, 4)
-    t:ok(#s == 2 and s[1] == 3 and s[2] == 4, "the last stop: the one before and itself")
+    t:ok(#s == 2 and s[1] == 3 and s[2] == 4, "the last step: the one before and itself")
     t:ok(M.SOLO_FADE < 1, "the neighbours are muted")
     -- The tracker's hover and back, with the map as it is: nothing errors.
     local was = M._HoverKey()
     local key = ns.nav.plan and ns.nav.plan[1] and ns.nav.plan[1].goal.key or "none"
     local ok, err = pcall(M.Hover, key)
-    t:ok(ok, "pointing at a stop from the tracker" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(ok, "pointing at a step from the tracker" .. (ok and "" or (": " .. tostring(err))))
     ok, err = pcall(M.Hover, nil)
     t:ok(ok, "and away again" .. (ok and "" or (": " .. tostring(err))))
     M.Hover(was)
@@ -9482,7 +9482,7 @@ ns:Register("test", "quest marks: /flow quest lists the nameplates and what each
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.205: nameplates-off note, stops with no spot (learned, dungeon,
+-- 0.35.205: nameplates-off note, steps with no spot (learned, dungeon,
 -- battleground), a lingering heal, the key follows your form.
 -------------------------------------------------------------------------------
 
@@ -9496,7 +9496,7 @@ ns:Register("test", "quest marks: says once when enemy nameplates are off", func
     t:ok(not P(true, true, nil, false), "the game won't say: nothing")
 end)
 
-ns:Register("test", "quest spots: learned where you did it; dungeon and battleground stops say so", function(t)
+ns:Register("test", "quest spots: learned where you did it; dungeon and battleground steps say so", function(t)
     local LS = ns.learnedSpots
     local list = {}
     t:ok(LS.Add(list, 1413, 0.50, 0.30), "a first spot is kept")
@@ -9515,16 +9515,16 @@ ns:Register("test", "quest spots: learned where you did it; dungeon and battlegr
         t:eq(LS.Points(76240, 1), nil, "nothing learned yet")
         t:ok(LS.Note(76240, 1, 1412, 0.41, 0.52), "noted")
         local pts = LS.Points(76240, 1)
-        t:ok(pts and #pts == 1 and pts[1].map == 1412, "read back for the stop")
+        t:ok(pts and #pts == 1 and pts[1].map == 1412, "read back for the step")
         t:ok(LS.Note(76240, "done", 1412, 0.47, 0.58) and LS.Points(76240, "done") ~= nil, "a turn-in too")
         t:ok(type(LS.Lines()) == "table" and LS.Lines()[1]:find("2 quest spot", 1, true) ~= nil, "/flow spots counts them")
     end)
-    -- The stop for an objective the quest data doesn't place.
+    -- The step for an objective the quest data doesn't place.
     local function stop() return { key = "1:1", points = {}, details = {} } end
     local m = { text = "0/1 Fish Chunks", why = "Questie has no spot for Fish Chunks" }
     local g = stop()
     t:eq(ns.quests.Unplaced(g, 1, 1, m, { { map = 1412, x = 0.4, y = 0.5 } }, false), "learned", "a learned spot: used")
-    t:ok(#g.points == 1 and g.blockedBy == nil, "the stop is on the route, at that spot")
+    t:ok(#g.points == 1 and g.blockedBy == nil, "the step is on the route, at that spot")
     g = stop()
     t:eq(ns.quests.Unplaced(g, 1, 1, { text = "0/8 Ragefire Trogg slain", why = "x" }, false, "Ragefire Chasm"), "dungeon", "a dungeon's quest")
     t:eq(g.blockedShort, "in Ragefire Chasm", "the row says where, not 'no known spot'")
@@ -9816,7 +9816,7 @@ ns:Register("test", "map: with your own waypoint set, Flow's route stays off the
     t:ok(M.WaypointOnly(true, true, false), "a waypoint of yours: only it")
     t:ok(not M.WaypointOnly(false, true, false), "no waypoint: the route as usual")
     t:ok(not M.WaypointOnly(true, false, false), "switched off in the menu: the route as usual")
-    t:ok(not M.WaypointOnly(true, true, true), "pointing at a stop in a list: that stop shows")
+    t:ok(not M.WaypointOnly(true, true, true), "pointing at a step in a list: that step shows")
     -- The menu's tick flips the setting and the map draws either way.
     local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     local tick
@@ -9834,7 +9834,7 @@ ns:Register("test", "map: with your own waypoint set, Flow's route stays off the
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.211: Flow Meters; the first stop's way from you; a dungeon's quests
+-- 0.35.211: Flow Meters; the first step's way from you; a dungeon's quests
 -- when you walk in.
 -------------------------------------------------------------------------------
 
@@ -9921,11 +9921,11 @@ ns:Register("test", "hearthstone: your home stays where your quests are, city or
     local org = { name = "Innkeeper Gryshka", zone = "Orgrimmar", town = "Orgrimmar", city = true }
     local xr = { name = "Innkeeper Boorand Plainswind", zone = "The Barrens", town = "The Crossroads" }
     t:ok(H.Offer(org, xr, 3000), "no word on your quests: a city is offered, as before")
-    t:ok(not H.Offer(org, xr, 3000, { here = 1, home = 9 }), "nine stops round the Crossroads, one by Orgrimmar: keep the Crossroads")
-    t:ok(H.Offer(org, xr, 3000, { here = 6, home = 2 }), "most of your stops by the city now: offered")
-    t:ok(H.Offer(org, xr, 3000, { here = 0, home = 0 }), "no quest stops either way: as before")
+    t:ok(not H.Offer(org, xr, 3000, { here = 1, home = 9 }), "nine steps round the Crossroads, one by Orgrimmar: keep the Crossroads")
+    t:ok(H.Offer(org, xr, 3000, { here = 6, home = 2 }), "most of your steps by the city now: offered")
+    t:ok(H.Offer(org, xr, 3000, { here = 0, home = 0 }), "no quest steps either way: as before")
     t:ok(not H.Offer(xr, xr, 0, { here = 5, home = 0 }), "bound here already: no")
-    -- Counting: quest stops only, each to the nearer inn.
+    -- Counting: quest steps only, each to the nearer inn.
     local goals = {
         { key = "869:1", points = { { x = 10 } } }, { key = "844:done", points = { { x = 12 } } },
         { key = "5723:2", points = { { x = 95 } } }, { key = "pickup:812", points = { { x = 99 } } },
@@ -9933,12 +9933,12 @@ ns:Register("test", "hearthstone: your home stays where your quests are, city or
     }
     local inns = { here = 100, home = 0 }
     local n = H.Nearer(goals, "here", "home", function(inn, pt) return math.abs(inns[inn] - pt.x) end)
-    t:ok(n.home == 2 and n.here == 1, "two quest stops by your home, one by this inn; pickups and errands don't count")
+    t:ok(n.home == 2 and n.here == 1, "two quest steps by your home, one by this inn; pickups and errands don't count")
     n = H.Nearer(goals, "here", "home", function() return nil end)
     t:ok(n.home == 0 and n.here == 0, "distances unknown: counted for neither")
 end)
 
-ns:Register("test", "flight paths: the one in the town you're in is a stop of its own", function(t)
+ns:Register("test", "flight paths: the one in the town you're in is a step of its own", function(t)
     local FP = ns.flightPaths
     local here = { map = 1454, cont = 1, wx = 1700, wy = -4400 }
     local near = { name = "Flow Test Wind Rider", map = 1454, x = 0.7, y = 0.15, cont = 1, wx = 2133, wy = -4667 }
@@ -9948,7 +9948,7 @@ ns:Register("test", "flight paths: the one in the town you're in is a stop of it
     t:ok(not FP.IsHere(near, nil), "where you are isn't known: no")
     t:ok(not FP.IsHere(near, here, 300), "past the reach: no")
     local goals = FP.Goals({ near, far }, {}, {}, here)
-    t:eq(#goals, 2, "both are stops")
+    t:eq(#goals, 2, "both are steps")
     t:ok(goals[1].optional == nil and goals[2].optional == true, "the one here is on the route for itself; the far one only when it's on the way")
     goals = FP.Goals({ near }, {}, {})
     t:eq(goals[1].optional, true, "without where you are: as before")
@@ -10179,7 +10179,7 @@ ns:Register("test", "banker: your own choice beats Flow's, and a click sets it",
     ok, why = B.Banks(water, {}, { [159] = "bank" })
     t:ok(ok and why == "you chose to bank it", "you said bank it: it goes, whatever Flow thinks")
     ok = B.Banks(leather, { [2318] = true }, { [2318] = "bank" })
-    t:ok(ok, "your choice also beats 'a stop on your route uses it'")
+    t:ok(ok, "your choice also beats 'a step on your route uses it'")
     -- A click flips it; a right-click hands it back to Flow.
     t:eq(B.NextRule(true, nil, false), "carry", "it was going to the bank: a click keeps it with you")
     t:eq(B.NextRule(false, nil, false), "bank", "it was staying: a click banks it")
@@ -10494,20 +10494,20 @@ end)
 -- 0.35.223: a travel spell or the hearthstone in the arrow's place.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "arrow: a stop a cast or a hearthstone away shows that instead of the arrow", function(t)
+ns:Register("test", "arrow: a step a cast or a hearthstone away shows that instead of the arrow", function(t)
     local N = ns.nav
     local a = N.TravelAction("Teleport: Moonglade", nil, nil, false)
-    t:ok(a and a.kind == "spell" and a.text == "Cast Teleport: Moonglade", "a stop a cast away: the spell")
+    t:ok(a and a.kind == "spell" and a.text == "Cast Teleport: Moonglade", "a step a cast away: the spell")
     a = N.TravelAction(nil, 240, "The Crossroads", false)
     t:ok(a and a.kind == "hearth" and a.text == "Use your hearthstone (The Crossroads)", "clearly quicker by hearthstone: the stone, and where it's set")
     a = N.TravelAction("Teleport: Moonglade", 240, "The Crossroads", false)
     t:eq(a.kind, "spell", "both: the spell that lands you there")
     t:eq(N.TravelAction(nil, nil, nil, false), nil, "neither: the arrow as usual")
-    t:eq(N.TravelAction("Teleport: Moonglade", 240, "X", true), nil, "you chose to walk to this stop: the arrow as usual")
+    t:eq(N.TravelAction("Teleport: Moonglade", 240, "X", true), nil, "you chose to walk to this step: the arrow as usual")
     t:ok(N.TRAVEL_ARROW_SCALE < 1, "the arrow stays, smaller")
 end)
 
-ns:Register("test", "click: 'Walk there instead' in the Flow menu drops the travel icon for that stop", function(t)
+ns:Register("test", "click: 'Walk there instead' in the Flow menu drops the travel icon for that step", function(t)
     local N = ns.nav
     local act, key, skip = N.travelAct, N.travelKey, N.travelSkip
     N.travelSkip = {}
@@ -10515,14 +10515,14 @@ ns:Register("test", "click: 'Walk there instead' in the Flow menu drops the trav
     local items = N.TravelMenuItems()
     t:ok(#items == 1 and items[1].text:find("Walk there instead", 1, true) ~= nil, "the menu offers walking: " .. tostring(items[1] and items[1].text))
     local ok, err = pcall(items[1].func)
-    t:ok(ok and N.travelSkip["flowtest:1"] == true, "a click remembers it for that stop" .. (ok and "" or (": " .. tostring(err))))
+    t:ok(ok and N.travelSkip["flowtest:1"] == true, "a click remembers it for that step" .. (ok and "" or (": " .. tostring(err))))
     items = N.TravelMenuItems()
     t:ok(#items == 1 and items[1].text:find("again", 1, true) ~= nil, "then the menu offers it back")
     pcall(items[1].func)
     t:eq(N.travelSkip["flowtest:1"], nil, "and that brings it back")
     N.travelAct, N.travelKey = nil, nil
-    t:eq(#N.TravelMenuItems(), 0, "no stop like that: no entry")
-    -- On the real arrow, with a stop that's a cast away: the icon shows and goes again.
+    t:eq(#N.TravelMenuItems(), 0, "no step like that: no entry")
+    -- On the real arrow, with a step that's a cast away: the icon shows and goes again.
     local frame = N.arrowFrame
     if frame and frame.arrow and not InCombatLockdown() then
         local port = N.port
@@ -10544,15 +10544,15 @@ end)
 -- 0.35.224: the teleport or hearthstone on your Flow key and the tracker.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy key: it casts the teleport or hearthstone to your next stop, when nothing else is on", function(t)
+ns:Register("test", "easy key: it casts the teleport or hearthstone to your next step, when nothing else is on", function(t)
     local N = ns.nav
     local port = { kind = "spell", spell = "Teleport: Moonglade", text = "Cast Teleport: Moonglade" }
     local stone = { kind = "hearth", text = "Use your hearthstone (The Crossroads)" }
-    t:ok(N.TravelOnKey(port, "5723:1", "5723:1", false, false, true, 1), "the stop the arrow leads to is a cast away: the key takes it")
+    t:ok(N.TravelOnKey(port, "5723:1", "5723:1", false, false, true, 1), "the step the arrow leads to is a cast away: the key takes it")
     t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", true, false, true, 1), "an enemy targeted: the fight comes first")
     t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", false, true, true, 1), "in a fight: no")
     t:ok(not N.TravelOnKey(port, "5723:1", "5723:1", false, false, false, 1), "switched off: no")
-    t:ok(not N.TravelOnKey(port, "844:done", "5723:1", false, false, true, 1), "the travel step is for another stop: no")
+    t:ok(not N.TravelOnKey(port, "844:done", "5723:1", false, false, true, 1), "the travel step is for another step: no")
     t:ok(not N.TravelOnKey(nil, "5723:1", "5723:1", false, false, true, 1), "nothing to cast: no")
     t:ok(N.TravelOnKey(stone, "a", "a", false, false, true, 1), "the hearthstone, with one in your bags: yes")
     t:ok(not N.TravelOnKey(stone, "a", "a", false, false, true, 0), "no hearthstone in your bags: no")
@@ -10565,12 +10565,12 @@ ns:Register("test", "easy key: it casts the teleport or hearthstone to your next
     N.travelAct, N.travelKey = was, key
 end)
 
-ns:Register("test", "tracker: the teleport or hearthstone is a button on its stop's row", function(t)
+ns:Register("test", "tracker: the teleport or hearthstone is a button on its step's row", function(t)
     local QI = ns.questItems
     local port = { kind = "spell", spell = "Teleport: Moonglade", text = "Cast Teleport: Moonglade" }
     local rows = { { key = "844:done", shown = true }, { key = "5723:1", shown = true }, { key = "870:1", shown = false } }
     local plan = QI.WithTravel({ { row = 1, item = 5087 } }, rows, port, "5723:1")
-    t:ok(#plan == 2 and plan[2].row == 2 and plan[2].travel == port, "on the row of the stop it takes you to, beside the quest items")
+    t:ok(#plan == 2 and plan[2].row == 2 and plan[2].travel == port, "on the row of the step it takes you to, beside the quest items")
     plan = QI.WithTravel({ { row = 2, item = 5087 } }, rows, port, "5723:1")
     t:eq(#plan, 1, "a row with a quest item keeps that: one button a row")
     t:eq(#QI.WithTravel({}, rows, port, "870:1"), 0, "its row isn't showing: no button")
@@ -10585,49 +10585,49 @@ ns:Register("test", "tracker: the teleport or hearthstone is a button on its sto
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.225: next stop only is the default; the area choice is last and is
--- worded in stops; what the area shows is unchanged.
+-- 0.35.225: next step only is the default; the area choice is last and is
+-- worded in steps; what the area shows is unchanged.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "stops on the map: next stop only by default; the area choice still means the stops around you", function(t)
+ns:Register("test", "steps on the map: next step only by default; the area choice still means the steps around you", function(t)
     local N = ns.nav
     with(ns.db.nav, "stopsArea", nil, function()
     with(ns.db.nav, "stopsShown", nil, function()
         t:ok(not N:AreaMode(), "nothing chosen: not the area")
-        t:eq(N:StopsShown(), 1, "nothing chosen: one stop")
-        t:eq(N:StopsShownLabel(), "Next stop only", "which the menu calls Next stop only")
-        t:ok(N:StopVisible(1, false) and not N:StopVisible(2, false), "the map and tracker show the first stop, not the second")
-        t:ok(N:StopVisible(2, true), "a stop you point at always shows")
+        t:eq(N:StopsShown(), 1, "nothing chosen: one step")
+        t:eq(N:StopsShownLabel(), "Next step only", "which the menu calls Next step only")
+        t:ok(N:StopVisible(1, false) and not N:StopVisible(2, false), "the map and tracker show the first step, not the second")
+        t:ok(N:StopVisible(2, true), "a step you point at always shows")
     end) end)
-    -- The area rule itself (N.IsHere): the next stop, and the stops near you or near it.
+    -- The area rule itself (N.IsHere): the next step, and the steps near you or near it.
     local plan = {
         { point = { cont = 1, wx = 0, wy = 0 }, goal = { key = "a", points = {} } },
         { point = { cont = 1, wx = 60, wy = 0 }, goal = { key = "b", points = {} } },
         { point = { cont = 1, wx = 5000, wy = 0 }, goal = { key = "c", points = {} } },
     }
     local here = N.HereStops(plan, { cont = 1, wx = 10, wy = 0 }, 150)
-    t:ok(#here == 2 and here[1] == 1 and here[2] == 2, "the next stop and the one 60 yards on are 'in this area'; the one 5,000 yards off isn't")
+    t:ok(#here == 2 and here[1] == 1 and here[2] == 2, "the next step and the one 60 yards on are 'in this area'; the one 5,000 yards off isn't")
     here = N.HereStops({ plan[1], plan[3] }, { cont = 1, wx = 10, wy = 0 }, 150)
-    t:eq(#here, 1, "nothing else nearby: the area is just your next stop (it then looks like Next stop only)")
-    t:eq(N.AREA_LABEL, "All stops in this area", "worded in stops, not objectives")
+    t:eq(#here, 1, "nothing else nearby: the area is just your next step (it then looks like Next step only)")
+    t:eq(N.AREA_LABEL, "All steps in this area", "worded in steps, not objectives")
     local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     local order = {}
     for _, it in ipairs(ok and items or {}) do
-        if it.text == "Next stop only" then order[#order + 1] = "next" end
+        if it.text == "Next step only" then order[#order + 1] = "next" end
         if it.text == N.AREA_LABEL then order[#order + 1] = "area" end
-        if type(it.text) == "string" and it.text:find("^All stops %(") then order[#order + 1] = "all" end
+        if type(it.text) == "string" and it.text:find("^All steps %(") then order[#order + 1] = "all" end
     end
-    t:eq(table.concat(order, ","), "next,all,area", "in the menu: Next stop only first, the area choice last")
+    t:eq(table.concat(order, ","), "next,all,area", "in the menu: Next step only first, the area choice last")
     local found = false
     for _, topic in ns:Each("help") do
-        if topic.title == "Stops, objectives, waypoints" then found = true end
+        if topic.title == "Steps, objectives, waypoints" then found = true end
     end
-    t:ok(found, "/flow help says what a stop, an objective and a waypoint are")
+    t:ok(found, "/flow help says what a step, an objective and a waypoint are")
 end)
 
 -------------------------------------------------------------------------------
 -- 0.35.226: Route includes: the dungeon key's tick, and lines above Select
--- all and Unhide all stops.
+-- all and Unhide all steps.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "click: Route includes has the dungeon key's tick and its two lines", function(t)
@@ -10645,13 +10645,13 @@ ns:Register("test", "click: Route includes has the dungeon key's tick and its tw
     local at = {}
     for i, it in ipairs(sec) do
         if it.text == "Select all" then at.select = i end
-        if type(it.text) == "string" and it.text:find("^Unhide all stops") then at.unhide = i end
+        if type(it.text) == "string" and it.text:find("^Unhide all steps") then at.unhide = i end
         if type(it.text) == "string" and it.text:find("^Dungeon key above the Flow Tracker") then at.key = i end
     end
     t:ok(at.select and sec[at.select - 1] and sec[at.select - 1].rule == true, "a line above Select all")
-    t:ok(at.unhide and sec[at.unhide - 1] and sec[at.unhide - 1].rule == true, "a line above Unhide all stops")
+    t:ok(at.unhide and sec[at.unhide - 1] and sec[at.unhide - 1].rule == true, "a line above Unhide all steps")
     -- A line inside a section doesn't cut the section in two when the menu folds.
-    local folded = M.Fold({ { title = true, text = "This stop" }, { text = "Open it" }, { sep = true },
+    local folded = M.Fold({ { title = true, text = "This step" }, { text = "Open it" }, { sep = true },
         { title = true, text = "Route includes" }, { text = "Quests", checked = true }, { rule = true }, { text = "Select all" } })
     local route
     for _, it in ipairs(folded) do if it.section and it.text == "Route includes" then route = it end end
@@ -10887,7 +10887,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.232: meter rows are bars, in the order that matters, with whole
--- numbers; a stop says its mobs' levels and drop chances.
+-- numbers; a step says its mobs' levels and drop chances.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "meters: bars; the group first, then players against the top one; threat by who it's on", function(t)
@@ -10935,7 +10935,7 @@ ns:Register("test", "meters: bars; the group first, then players against the top
     t:ok(pcall(M.Update), "the meters draw")
 end)
 
-ns:Register("test", "quests: a stop says how high its mobs are and how often they drop the item", function(t)
+ns:Register("test", "quests: a step says how high its mobs are and how often they drop the item", function(t)
     local Q = ns.quests
     local lines = Q.MobLines({
         { name = "Ornery Plainstrider", min = 11, max = 12, rate = 1.74 },
@@ -10964,7 +10964,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.233: one orange beat for what's suggested; cast time on the buttons'
--- edge; key binds to the right, names bottom left; spread-out stops later.
+-- edge; key binds to the right, names bottom left; spread-out steps later.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "suggested: one colour and one beat for everything Flow asks you to press", function(t)
@@ -11014,12 +11014,12 @@ ns:Register("test", "buttons: key binds to the right, names from the bottom left
     if b then t:near(b:GetWidth(), ns.buffButton.SIZE, 0.5, "the buff button is there") end
 end)
 
-ns:Register("test", "route: a stop spread all over the area comes after the exact ones", function(t)
+ns:Register("test", "route: a step spread all over the area comes after the exact ones", function(t)
     local Q = ns.quests
     t:ok(Q.IsSpread(80) and Q.IsSpread(20), "80 spots (or 20): spread out")
     t:ok(not Q.IsSpread(19) and not Q.IsSpread(1) and not Q.IsSpread(nil), "a handful, or one exact place: not")
-    t:ok(Q.SPREAD_WEIGHT > 1 and Q.SPREAD_WEIGHT < 1.6, "a little heavier than a normal stop, lighter than an elite one")
-    -- Through the stop builder: a mob with many spawns, and one with a single place.
+    t:ok(Q.SPREAD_WEIGHT > 1 and Q.SPREAD_WEIGHT < 1.6, "a little heavier than a normal step, lighter than an elite one")
+    -- Through the step builder: a mob with many spawns, and one with a single place.
     local many, one = {}, { { 50, 50 } }
     for i = 1, 30 do many[i] = { 20 + i, 30 + (i % 7) } end
     local db = {
@@ -11052,7 +11052,7 @@ ns:Register("test", "route: a stop spread all over the area comes after the exac
         for _, d in ipairs(wide.details) do if d == "Wide Mob, level 11-12" then levels = true end end
         t:ok(levels, "and how high its mobs are")
     else
-        t:ok(true, "(no map for the test zone here: the stops have no places to count)")
+        t:ok(true, "(no map for the test zone here: the steps have no places to count)")
     end
 end)
 
@@ -11100,11 +11100,11 @@ ns:Register("test", "crafting: the batch bar never stays up, and says how long i
     with(ns, "Log", function() end, function()
         CB.Start("Flow Test Bandage", 5, nil)
         CB.Step("Flow Test Bandage", true)
-        t:ok(CB.Stop("a fight started"), "a fight starts: the batch stops")
+        t:ok(CB.Stop("a fight started"), "a fight starts: the batch steps")
         t:ok(CB.Current() and CB.Current().stopped and CB.Text(CB.Current()):find("^Stopped: Flow Test Bandage 1/5") ~= nil, "it says where it stopped")
         t:ok(not CB.Stop("again"), "stopping twice does nothing")
         CB.Start("Flow Test Bandage", 5, nil)
-        t:ok(CB.Stop("an interruption the game didn't name"), "an interruption with no name: stops too")
+        t:ok(CB.Stop("an interruption the game didn't name"), "an interruption with no name: steps too")
         CB.Start("Flow Test Bandage", 1, nil)   -- (one: no bar, and the test batch is gone)
     end)
     t:eq(CB.Current(), nil, "nothing left of the test batch")
@@ -11241,9 +11241,9 @@ ns:Register("test", "route: a hand-in whose objective you hid leaves the route w
     t:eq(#kept, 2, "the hand-in and what follows it are off the route")
     t:ok(kept[1] == other and kept[2] == free, "the rest stays, in order (a hand-in whose objective is done or not hidden too)")
     t:eq(#held, 2, "both are listed as waiting")
-    t:ok(held[1].key == "855:done" and held[1].blockedBy:find("Centaur Bracers: 10 %-> 15", 1) ~= nil, "the reason names the hidden stop")
-    t:ok(held[1].blockedBy:find("you hid that stop", 1, true) ~= nil, "and says you hid it")
-    t:ok(held[1] ~= turnIn and turnIn.blockedBy == nil, "the stop itself isn't marked (a copy is)")
+    t:ok(held[1].key == "855:done" and held[1].blockedBy:find("Centaur Bracers: 10 %-> 15", 1) ~= nil, "the reason names the hidden step")
+    t:ok(held[1].blockedBy:find("you hid that step", 1, true) ~= nil, "and says you hid it")
+    t:ok(held[1] ~= turnIn and turnIn.blockedBy == nil, "the step itself isn't marked (a copy is)")
     t:eq(held[2].key, "x:after", "down the chain")
     kept, held = N.HoldForHidden({ turnIn, free }, {})
     t:ok(#kept == 2 and #held == 0, "nothing hidden: nothing waits")
@@ -11395,10 +11395,10 @@ ns:Register("test", "group buffs: on Flow's key with the buff button on; the rea
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.245: your next stop on another map: the line still leaves from you.
+-- 0.35.245: your next step on another map: the line still leaves from you.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "map: the way to a stop in another zone is drawn to the map's edge, through the gate", function(t)
+ns:Register("test", "map: the way to a step in another zone is drawn to the map's edge, through the gate", function(t)
     local M = ns.mapOverlay
     local x, y = M.ClipToMap(0.5, 0.5, 1.5, 0.5)
     t:near(x, 1, 0.001, "east: ends on the right edge"); t:near(y, 0.5, 0.001, "level")
@@ -11406,22 +11406,22 @@ ns:Register("test", "map: the way to a stop in another zone is drawn to the map'
     t:near(x, 0.5, 0.001, "north: straight up"); t:near(y, 0, 0.001, "ends on the top edge")
     x, y = M.ClipToMap(0.5, 0.5, 2.5, 1.5)
     t:near(x, 1, 0.001, "a slant: the edge it meets first"); t:near(y, 0.75, 0.001, "at the right height")
-    -- You (on the map), the gate (on the map), the stop (in the next zone).
+    -- You (on the map), the gate (on the map), the step (in the next zone).
     local parts = M.LegParts({ { 0.2, 0.5 }, { 0.9, 0.5 }, { 1.8, 0.5 } })
     t:eq(#parts, 2, "you to the gate, the gate to the edge")
     t:ok(parts[1][1] == 0.2 and parts[1][3] == 0.9 and parts[1].from == 1, "first from you to the gate (so the dots walk that way)")
-    t:near(parts[2][3], 1, 0.001, "then on to the edge, towards the stop")
+    t:near(parts[2][3], 1, 0.001, "then on to the edge, towards the step")
     -- No gate known: straight from you to the edge.
     parts = M.LegParts({ { 0.2, 0.5 }, { 1.8, 0.5 } })
     t:eq(#parts, 1, "no gate: one line"); t:near(parts[1][3], 1, 0.001, "to the edge")
-    -- Looking at the stop's map: in from the edge (you're beside the map), through the gate, to the stop.
+    -- Looking at the step's map: in from the edge (you're beside the map), through the gate, to the step.
     parts = M.LegParts({ { -0.6, 0.5 }, { 0.1, 0.5 }, { 0.7, 0.5 } })
-    t:eq(#parts, 2, "the edge to the gate, the gate to the stop")
-    t:near(parts[1][1], 0, 0.001, "it comes in at the edge"); t:eq(parts[2][3], 0.7, "and ends at the stop")
-    -- A map neither you nor the stop is on, and a point missing: nothing, no error.
+    t:eq(#parts, 2, "the edge to the gate, the gate to the step")
+    t:near(parts[1][1], 0, 0.001, "it comes in at the edge"); t:eq(parts[2][3], 0.7, "and ends at the step")
+    -- A map neither you nor the step is on, and a point missing: nothing, no error.
     t:eq(#M.LegParts({ { -1, 0.5 }, { 2, 0.5 } }), 0, "both beside the map: no line")
     t:eq(#M.LegParts({ { 0.5, 0.5 } }), 0, "one point: no line")
-    t:ok(M.CrossesEdge(0.3, nil) and M.CrossesEdge(nil, 0.3), "you on the map and the stop not, or the other way round")
+    t:ok(M.CrossesEdge(0.3, nil) and M.CrossesEdge(nil, 0.3), "you on the map and the step not, or the other way round")
     t:ok(not M.CrossesEdge(0.3, 0.4) and not M.CrossesEdge(nil, nil), "both on it (the usual line) or neither: not this")
     t:ok(pcall(M.Redraw, M), "the map still draws")
 end)
@@ -11599,4 +11599,27 @@ ns:Register("test", "meters: each list's heading has the Flow title bar look", f
     end
     ns.db.meters.always = was
     pcall(M.Update)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.251: Flow's word for one thing on the route is "step" (it was "stop").
+-------------------------------------------------------------------------------
+
+ns:Register("test", "words: the route is made of steps; /flow nav steps and the old /flow nav stops both work", function(t)
+    local N = ns.nav
+    local was, wasArea = ns.db.nav.stopsShown, ns.db.nav.stopsArea
+    with(ns, "Print", function() end, function()
+        N:SetArea(false)
+        t:ok(pcall(ns.commands.nav, "steps 5"), "/flow nav steps 5 runs")
+        t:eq(N:StopsShown(), 5, "and shows your next five")
+        t:ok(pcall(ns.commands.nav, "stops 3"), "the old word still runs")
+        t:eq(N:StopsShown(), 3, "and does the same")
+        -- What a player reads says "step".
+        t:eq(N:StopsShownLabel(), "Next 3 steps", "the count is in steps")
+        N:SetStopsShown(1)
+        t:eq(N:StopsShownLabel(), "Next step only", "one: the next step")
+    end)
+    ns.db.nav.stopsShown, ns.db.nav.stopsArea = was, wasArea
+    pcall(N.SetArea, N, wasArea and true or false)
+    ns.db.nav.stopsArea = wasArea
 end)

@@ -10,7 +10,7 @@
 --                  binding is untouched and comes back if you clear Flow's
 --                  key) or pick another. Movement keys get an extra warning.
 --                  Then what the key does with Shift and Alt, and at
---                  fishing and gathering stops.
+--                  fishing and gathering steps.
 --   In a group     Ctrl + key on a friend, group buffs, sharing quests, invites.
 --   Finding your way
 --                  The arrow, the order of the route, the path on the map.
@@ -535,7 +535,7 @@ local function build(parent)
             function() return ns.db.cast.altItem ~= false end,
             function(on) ns.db.cast.altItem = on; if ns.cast and ns.cast._setEmergency then ns.cast._setEmergency() end end)
         _, y = check(f, y, "Flow key does fishing and gathering steps", "(/flow action)",
-            "Out of combat at a fishing or gathering stop, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
+            "Out of combat at a fishing or gathering step, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
             function() return ns.db.actions.enabled ~= false end,
             function(on) ns.db.actions.enabled = on end)
     end
@@ -568,20 +568,20 @@ local function build(parent)
             function() return ns.nav:ArrowStyle() end,
             function(v) ns.nav:SetArrowStyle(v) end)
         _, y = check(f, y, "Arrow colour by distance", "(off = the route's colour)",
-            "Grey while the stop is in another zone, red when it's far away turning yellow then green as you close in, blue once you're in its area. Off: the route's colour (purple / blue / orange), green for your own waypoint.",
+            "Grey while the step is in another zone, red when it's far away turning yellow then green as you close in, blue once you're in its area. Off: the route's colour (purple / blue / orange), green for your own waypoint.",
             function() return ns.nav:ArrowColorMode() == "distance" end,
             function(on) ns.nav:SetArrowColorMode(on and "distance" or "route") end)
-        _, y = check(f, y, "Arrow follows paths you've walked", "(off = straight at the stop)",
-            "On (default): the arrow follows a path you've walked before when that's at most half again as long as the straight line (round a cliff, along a road), and the world map's dotted path bends with it. Into caves and buildings, and into places with their own way in (up Thunder Bluff by its lifts, into the next zone by its pass), it always takes the way you've used. Off: straight at the stop, except those.",
+        _, y = check(f, y, "Arrow follows paths you've walked", "(off = straight at the step)",
+            "On (default): the arrow follows a path you've walked before when that's at most half again as long as the straight line (round a cliff, along a road), and the world map's dotted path bends with it. Into caves and buildings, and into places with their own way in (up Thunder Bluff by its lifts, into the next zone by its pass), it always takes the way you've used. Off: straight at the step, except those.",
             function() return ns.db.nav.arrowPaths ~= false end,
             function(on) ns.db.nav.arrowPaths = on end)
         _, y = check(f, y, "Finish a zone before leaving it", "(quests too low or high don't count)",
-            "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a stop just over the border or your class trainer can come any time. Waiting stops say \"(Westfall, after this zone)\".",
+            "The route does this zone's quests before heading to the next zone. Quests too low (less XP) or 3+ levels above you don't hold you here, and a step just over the border or your class trainer can come any time. Waiting steps say \"(Westfall, after this zone)\".",
             function() return ns.db.nav.zoneFirst ~= false end,
             function(on) ns.db.nav.zoneFirst = on; if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end end)
-        -- 0 = all (nil can't sit in the options list); "area" = all stops in this area.
-        f.stopsRow, y = choices(f, y, "Stops on the map",
-            "Which stops the world map and the Flow Tracker show: your next 1 (the usual), 3, 5, 10, or all of them. Area: every stop around you and around your next stop (they drop off as you finish them). The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav stops.",
+        -- 0 = all (nil can't sit in the options list); "area" = all steps in this area.
+        f.stopsRow, y = choices(f, y, "Steps on the map",
+            "Which steps the world map and the Flow Tracker show: your next 1 (the usual), 3, 5, 10, or all of them. Area: every step around you and around your next step (they drop off as you finish them). The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav steps.",
             { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 }, { "Area", "area", 48 } },
             function() return ns.nav:AreaMode() and "area" or ns.nav:StopsShown() or 0 end,
             function(v) if v == "area" then ns.nav:SetArea(true) else ns.nav:SetStopsShown(v) end end)
@@ -589,25 +589,25 @@ local function build(parent)
             function() return ns.db.nav.mapLines ~= false end,
             function(on) ns.db.nav.mapLines = on end)
         f.pathAlpha, y = slider(f, y, "Path opacity",
-            "How strongly the dotted path between your stops is drawn on the world map. 50% is the usual look (the stretch to your next stop a little stronger than the rest); 100% is solid, 10% barely there. Also /flow map opacity 10-100.",
+            "How strongly the dotted path between your steps is drawn on the world map. 50% is the usual look (the stretch to your next step a little stronger than the rest); 100% is solid, 10% barely there. Also /flow map opacity 10-100.",
             0.1, 1, 0.05,
             function() return ns.mapOverlay and ns.mapOverlay.PathAlpha() or 0.5 end,
             function(v) if ns.mapOverlay then ns.mapOverlay:SetPathAlpha(v) end end,
             function(v) return string.format("%d%%", v * 100 + 0.5) end)
-        _, y = check(f, y, "Path moves along the route", "(the dots drift toward your next stops)",
-            "The dots of the path on the world map drift slowly from each stop toward the next, so you can see which way the route goes. Off: they stand still. (The game moves them; it costs Flow nothing while they drift.)",
+        _, y = check(f, y, "Path moves along the route", "(the dots drift toward your next steps)",
+            "The dots of the path on the world map drift slowly from each step toward the next, so you can see which way the route goes. Off: they stand still. (The game moves them; it costs Flow nothing while they drift.)",
             function() return ns.db.nav.pathMotion ~= false end,
             function(on) ns.db.nav.pathMotion = on; if ns.mapOverlay then ns.mapOverlay.PathChanged() end end)
-        _, y = check(f, y, "Stop areas on the minimap", nil,
-            "The area of the stop the arrow points at, on the minimap (and the stop you hover in the Flow Tracker).",
+        _, y = check(f, y, "Step areas on the minimap", nil,
+            "The area of the step the arrow points at, on the minimap (and the step you hover in the Flow Tracker).",
             function() return ns.db.nav.minimapAreas ~= false end,
             function(on) ns.db.nav.minimapAreas = on; if ns.minimapPin then ns.minimapPin:Hide() end end)
         _, y = check(f, y, "Profession nodes near you", "(minimap clouds, Flow Tracker line)",
-            "Where ore and herbs your professions can gather spawn around you and your next stop: tan (ore) and green (herb) clouds on the minimap, and \"Nearby: Iron Deposit x3\" under the Flow Tracker's stops (+skill when it still raises your skill).",
+            "Where ore and herbs your professions can gather spawn around you and your next step: tan (ore) and green (herb) clouds on the minimap, and \"Nearby: Iron Deposit x3\" under the Flow Tracker's steps (+skill when it still raises your skill).",
             function() return ns.db.nav.nearbyNodes ~= false end,
             function(on) ns.db.nav.nearbyNodes = on; if ns.minimapPin then ns.minimapPin:Hide() end end)
         _, y = check(f, y, "Colour-blind route colours", "(safer colours)",
-            "The arrow (and the trail to your next stop) is coloured by distance: grey = in another zone, orange to green = closing in, blue = you're in the area. The route's colour shows its state: blue = Shortest path, purple = Most XP first, orange = Custom route (you picked the next stop), green = your own waypoint (the arrow too, with \"Arrow colour by distance\" off). On: the same roles in colours that stay apart for the common kinds of colour blindness.",
+            "The arrow (and the trail to your next step) is coloured by distance: grey = in another zone, orange to green = closing in, blue = you're in the area. The route's colour shows its state: blue = Shortest path, purple = Most XP first, orange = Custom route (you picked the next step), green = your own waypoint (the arrow too, with \"Arrow colour by distance\" off). On: the same roles in colours that stay apart for the common kinds of colour blindness.",
             function() return ns.theme:ColorBlind() end, function(on) ns.theme:SetColorBlind(on) end)
     end
 
@@ -673,8 +673,8 @@ local function build(parent)
         end
         -- (After the ticks other files add: the trackers, Flow's buttons.)
         return function()
-            _, y = check(f, y, "Tooltips where WoW shows them", "(and the stop card)",
-                "Flow's tooltips and its stop card open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A stop card you dragged somewhere stays there. (The arrow's drawer opens beside the arrow, or where you Ctrl-dragged it.)",
+            _, y = check(f, y, "Tooltips where WoW shows them", "(and the step card)",
+                "Flow's tooltips and its step card open where WoW shows its own tooltips (the spot you set in Edit Mode or the interface options). Off: next to what you hover or click. A step card you dragged somewhere stays there. (The arrow's drawer opens beside the arrow, or where you Ctrl-dragged it.)",
                 function() return ns.TipsAtGameSpot() end,
                 function(on) ns.db.settings.tipsBeside = not on end)
             _, y = check(f, y, "Intro on the arrow when you log in", "(/flow splash replays it)",

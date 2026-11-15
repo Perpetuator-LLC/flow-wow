@@ -390,7 +390,7 @@ ns.commands.places = function(arg)
     for _ in pairs(P.Shared().npcs) do nShared = nShared + 1 end
     print(string.format("  from other players (comes with Flow): %d NPCs, %d mailboxes", nShared, #P.Shared().mailboxes))
     local s = ns.db.share
-    print(s and string.format("  you're sharing: %d spots (listed %s). /flow places share refreshes it, /flow places share off stops.", #(s.places or {}), tostring(s.at))
+    print(s and string.format("  you're sharing: %d spots (listed %s). /flow places share refreshes it, /flow places share off steps.", #(s.places or {}), tostring(s.at))
         or "  share yours with every Flow player: /flow places share (NPCs only, nothing about you)")
 end
 

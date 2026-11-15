@@ -1,9 +1,9 @@
 -- Flow Actions: what your Flow key does out of combat when there's no spell
--- to suggest, based on the route stop you're at. One press per step:
+-- to suggest, based on the route step you're at. One press per step:
 --
---   at a fishing stop:  equip your Fishing Pole -> put a lure on it ->
+--   at a fishing step:  equip your Fishing Pole -> put a lure on it ->
 --                       cast Fishing -> (while fishing) reel in the bobber
---   at a mining/herb stop: turn on Find Minerals / Find Herbs -> gather
+--   at a mining/herb step: turn on Find Minerals / Find Herbs -> gather
 --   after you leave:    put your weapons back (main hand, then off hand)
 --
 -- Each step is a registration (ns:Register("action", key, { order, get })),
@@ -23,7 +23,7 @@ local X = {}
 ns.actions = X
 
 local MAIN, OFF = 16, 17
-local NEAR = 45   -- yards from the stop: "you're there"
+local NEAR = 45   -- yards from the step: "you're there"
 
 -------------------------------------------------------------------------------
 -- Items
@@ -145,7 +145,7 @@ end
 
 local function near(goal, p, yards)
     if not (goal and p and ns.nav) then return false end
-    -- Nowhere near the box around the stop's spawns: no need to measure each
+    -- Nowhere near the box around the step's spawns: no need to measure each
     -- one (this runs up to three times a tick; the route's spots are in yards).
     local pts = goal.points
     local box = pts and p.wx and ns.nav.SpawnBox and ns.nav.SpawnBox(pts)
@@ -162,15 +162,15 @@ local function near(goal, p, yards)
     return false
 end
 
--- Which profession a stop is for. Stops from the skill planner say so
+-- Which profession a step is for. Steps from the skill planner say so
 -- (goal.prof); others are recognised by their key ("skill:Fishing") or, for
--- quest stops like "catch 5 fish", by their text.
+-- quest steps like "catch 5 fish", by their text.
 function X.GoalProf(goal)
     if not goal then return nil end
     if goal.prof then return goal.prof end
     local p = goal.key and goal.key:match("^skill:(.+)$")
     if p then return p end
-    -- Quest objectives only ("Catch 5 Raw Brilliant Smallfish"): Flow's own stops
+    -- Quest objectives only ("Catch 5 Raw Brilliant Smallfish"): Flow's own steps
     -- say what they are, and "Learn Brilliant Smallfish" isn't fishing.
     if goal.key and goal.key:find("^%d+:%d+$") and goal.kind ~= "merchant" and type(goal.text) == "string"
         and (goal.text:find("[Ff]ish[^i]") or goal.text:find("[Ff]ish$") or goal.text:find("[Cc]atch ")) then
@@ -179,7 +179,7 @@ function X.GoalProf(goal)
 end
 
 -- Where you last fished. Fishing goes on wherever the pole is on and you've
--- been casting, not just at Flow's own stop (any lake, any fishing quest),
+-- been casting, not just at Flow's own step (any lake, any fishing quest),
 -- until you walk away from it.
 local FISH_NEAR, FISH_LEFT = 120, 60
 local function dist(p, at)
@@ -210,8 +210,8 @@ end
 function X:Context()
     local p = ns.nav and ns.nav:PlayerPos()
     local choice = ns.nav and ns.nav.current
-    -- With the faint profession arrow on, profession stops have a route of
-    -- their own (N.profChoice): standing at that stop, the key does its steps
+    -- With the faint profession arrow on, profession steps have a route of
+    -- their own (N.profChoice): standing at that step, the key does its steps
     -- (make the bars at the forge, fish, gather), as it does on the main route.
     local pc = ns.nav and ns.nav.profChoice
     if pc and pc.goal and near(pc.goal, p, NEAR) and not (choice and choice.goal and near(choice.goal, p, NEAR)) then
@@ -223,7 +223,7 @@ function X:Context()
     local atFish = prof == "Fishing" and near(goal, p, FISH_NEAR) or false
     local spot = ns.db.actions.fishedAt
     -- The game said "didn't land in fishable water" here: no water in front
-    -- of you. Off a fishing stop that means stop offering Fishing (weapons
+    -- of you. Off a fishing step that means stop offering Fishing (weapons
     -- back instead); at one, it means turn to face the water.
     local dry = ns.db.actions.dryAt
     local noWater = dry and dist(p, dry) < 15 or false
@@ -231,9 +231,9 @@ function X:Context()
         p = p, goal = goal, prof = prof, pole = pole,
         at = goal and near(goal, p, NEAR) or false,
         atFish = atFish, noWater = noWater,
-        -- Fishing now: at a fishing stop, or the pole is on and you're still
+        -- Fishing now: at a fishing step, or the pole is on and you're still
         -- where you put it on / last cast (a pole on with no known spot, away
-        -- from a fishing stop, isn't fishing: weapons back instead), and
+        -- from a fishing step, isn't fishing: weapons back instead), and
         -- the last cast here didn't miss the water.
         fishing = atFish or (pole and not noWater and spot and dist(p, spot) < FISH_LEFT) or false,
     }
@@ -261,7 +261,7 @@ ns:On("UI_ERROR_MESSAGE", function(_, msg) X.NoteDry(A.Safe(msg)) end)
 -- The steps
 -------------------------------------------------------------------------------
 
--- Fishing: equip the pole, at a fishing stop (Flow key and buff button).
+-- Fishing: equip the pole, at a fishing step (Flow key and buff button).
 -- before: remember your weapons, so they go back on when you leave.
 function X.EquipStep(ctx)
     if not (ctx and ctx.atFish) or ctx.pole then return nil end
@@ -326,7 +326,7 @@ function X.CastStep(ctx)
 end
 ns:Register("action", "fish:cast", { order = 40, get = X.CastStep })
 
--- Crafting where you stand (a "Make 4 x Roasted Boar Meat" stop that follows
+-- Crafting where you stand (a "Make 4 x Roasted Boar Meat" step that follows
 -- you): the key makes a campfire if the recipe needs one, opens the
 -- profession, then presses Flow's "Make N" button for exactly the right amount.
 local fireAt   -- where and when your last Basic Campfire went up
@@ -704,9 +704,9 @@ local function enemyTargeted()
 end
 
 -- The quest's own item (QuestItems.lua: the one on its Flow Tracker row), at
--- the stop where it's used: the key uses it ("can that become part of the
+-- the step where it's used: the key uses it ("can that become part of the
 -- easy button to cast the quest item too?", 0.35.187). Pure:
---   key: the stop's key; at: you're standing at it; item: the quest's item
+--   key: the step's key; at: you're standing at it; item: the quest's item
 --   (nil: none); have: how many are in your bags; enemy: a living enemy is
 --   targeted (then the key is for the fight); mounted; on: the setting
 -- Not at the quest's turn-in ("758:done"): nothing is used there.
@@ -726,9 +726,9 @@ ns:Register("action", "quest:item", { order = 43, get = function(ctx)
     return { type = "item", item = "item:" .. item, icon = itemIcon(item), label = "Use " .. name }
 end })
 if ns.settings and ns.settings.AddCheck then
-    ns.settings:AddCheck{ group = "quests", label = "The Flow key uses a quest's item at its stop",
+    ns.settings:AddCheck{ group = "quests", label = "The Flow key uses a quest's item at its step",
         note = "(the totem at the well, the dust at the stone)",
-        tip = "Standing at a quest's stop, out of a fight and with no enemy targeted, your Flow key uses the item the quest gave you. The same item is on the quest's row in the Flow Tracker: click it there any time.",
+        tip = "Standing at a quest's step, out of a fight and with no enemy targeted, your Flow key uses the item the quest gave you. The same item is on the quest's row in the Flow Tracker: click it there any time.",
         get = function() return ns.db.actions.questItem ~= false end,
         set = function(on) ns.db.actions.questItem = on and true or false end }
 end
@@ -976,22 +976,22 @@ end
 
 -------------------------------------------------------------------------------
 -- Quest NPCs to heal ("Injured Deathguard healed: 0/5", Yang couldn't find
--- them): around such a stop the key targets the next one you can see (its
+-- them): around such a step the key targets the next one you can see (its
 -- nameplate), then casts your heal on it, and again until the objective is
 -- done; ones you've healed are skipped. Friendly nameplates come on while
--- you're at such a stop (Flow's marker sits on nameplates) and go back as
+-- you're at such a step (Flow's marker sits on nameplates) and go back as
 -- they were when you leave.
 -------------------------------------------------------------------------------
 
--- A stop whose objective is healing NPCs (names in goal.npcs).
+-- A step whose objective is healing NPCs (names in goal.npcs).
 function X.HealGoal(goal)
     if not (goal and type(goal.npcs) == "table" and #goal.npcs > 0 and type(goal.text) == "string") then return false end
     local t = goal.text
     return (t:find("[Hh]ealed") or t:find("^[Hh]eal ")) ~= nil
 end
 
--- The plan's heal-NPC stops, worked out once per plan: most routes have none,
--- so the step costs nothing. (Checking every stop of the route around you,
+-- The plan's heal-NPC steps, worked out once per plan: most routes have none,
+-- so the step costs nothing. (Checking every step of the route around you,
 -- ten times a second, was the Flow key's biggest cost: 2.2 ms a second.)
 local healStops = setmetatable({}, { __mode = "k" })
 function X.HealStopsOf(plan)
@@ -1005,7 +1005,7 @@ function X.HealStopsOf(plan)
     return list
 end
 
--- The heal-NPC stop around you (the current stop or one right by it), or nil.
+-- The heal-NPC step around you (the current step or one right by it), or nil.
 function X.HealGoalHere()
     local N = ns.nav
     if not N then return nil end
@@ -1074,7 +1074,7 @@ function X.HealStep(goal, spell, target, plates, healed)
     end
 end
 
--- Friendly nameplates on while a heal-NPC stop is around you; back off when
+-- Friendly nameplates on while a heal-NPC step is around you; back off when
 -- it isn't (only if Flow turned them on). Out of combat only.
 function X.FriendPlates(needed)
     -- Not needed and Flow never turned them on: nothing to do (asked ten
@@ -1199,7 +1199,7 @@ ns.commands.action = function(arg)
     local ctx = X:Context()
     local s = X:Current()
     ns:Print(string.format("Flow Action now: %s", s and (s.label .. " [" .. s.key .. "]") or "nothing"))
-    print(string.format("  stop %s (%s), at it: %s, fishing here: %s, pole on: %s, interact key reaches objects: %s",
+    print(string.format("  step %s (%s), at it: %s, fishing here: %s, pole on: %s, interact key reaches objects: %s",
         tostring(ctx.goal and ctx.goal.key), tostring(ctx.prof), tostring(ctx.at), tostring(ctx.fishing), tostring(ctx.pole), tostring(X.CanInteract())))
 
     print("  /flow action on|off   /flow action loot on|off (the key loots your kills)")

@@ -1,5 +1,5 @@
--- Your current route stop on the minimap: a dot in the route colour (with
--- the stop type's icon on hover). At the edge of the minimap when it's
+-- Your current route step on the minimap: a dot in the route colour (with
+-- the step type's icon on hover). At the edge of the minimap when it's
 -- further away than the minimap shows.
 
 local _, ns = ...
@@ -34,7 +34,7 @@ local function makePin(name)
     pin:SetScript("OnEnter", function(self)
         if not self.goal then return end
         ns.Tip(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Flow: " .. (self.goal.text or self.goal.title or "next stop"), 1, 1, 1, true)
+        GameTooltip:AddLine("Flow: " .. (self.goal.text or self.goal.title or "next step"), 1, 1, 1, true)
         if self.yards then GameTooltip:AddLine(string.format("%d yd", self.yards), 0.8, 0.8, 0.8) end
         GameTooltip:Show()
     end)
@@ -81,9 +81,9 @@ end
 
 -------------------------------------------------------------------------------
 -- Areas on the minimap: the same areas as the world map, as soft clouds
--- for the stop the arrow points at, and, while you hover a row in
--- the Flow Tracker, for that stop in the hover colour. So you can tell at a
--- glance whether you're standing in this stop's area, the next one's, or both.
+-- for the step the arrow points at, and, while you hover a row in
+-- the Flow Tracker, for that step in the hover colour. So you can tell at a
+-- glance whether you're standing in this step's area, the next one's, or both.
 -------------------------------------------------------------------------------
 
 -- Drawn as one cloud like the game's own quest areas, not a pile of circles:
@@ -163,7 +163,7 @@ function P.Spans(pts, r, y, radius)
 end
 
 local xs_, ys_, spans_ = {}, {}, {}
--- yards: cloud radius around each spot (default the stop areas' 45 yd;
+-- yards: cloud radius around each spot (default the step areas' 45 yd;
 -- profession nodes use a smaller one, Crafting/Nearby.lua).
 local function drawAreaMini(p, goal, color, strong, yards)
     if not (goal and goal.area and goal.points) then return end
@@ -274,7 +274,7 @@ end
 
 -- Redraw only when something you'd see changed: you moved a pixel's worth
 -- (at least 2 yards; zoomed out a pixel is ~3 yards, so less often there),
--- turned (rotating minimap), zoomed, or the stop / hovered stop changed.
+-- turned (rotating minimap), zoomed, or the step / hovered step changed.
 local lastAreas, lastSig = 0, nil
 local function signature(p, goal)
     local rot = GetCVar and GetCVar("rotateMinimap") == "1"
@@ -327,8 +327,8 @@ function P:SetHover(goal)
     P:UpdateAreas(P.lastP, P.lastGoal, true)
 end
 
--- p: player position (Nav:PlayerPos), pt: the stop's point (nil: no dot),
--- goal: the stop, col: the arrow's colour { r, g, b } (the dot matches it),
+-- p: player position (Nav:PlayerPos), pt: the step's point (nil: no dot),
+-- goal: the step, col: the arrow's colour { r, g, b } (the dot matches it),
 -- here: you've arrived.
 function P:Update(p, pt, goal, col, here)
     if not Minimap then return end
@@ -357,7 +357,7 @@ end
 
 function P.Pin() return pin end   -- (tests)
 
--- The profession stop the faint arrow points at: its own dot in the
+-- The profession step the faint arrow points at: its own dot in the
 -- profession arrow's colour (plain smoked glass: no outline, no
 -- centre). pt nil: no dot.
 function P:UpdateProf(p, pt, goal)

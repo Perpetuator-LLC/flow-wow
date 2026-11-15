@@ -3,18 +3,18 @@
 -- first, or go to the trainers first?" and "grab that quest before heading
 -- out so I don't have to come back".
 --
--- Stops: every goal with a location on your continent (quest objectives,
+-- Steps: every goal with a location on your continent (quest objectives,
 -- turn-ins, quests to pick up, trainers, gathering/fishing). Rules:
 --   * a quest's turn-in comes after that quest's objectives (goal.deps)
---   * optional stops (goal.optional) stay only if they cost less than
+--   * optional steps (goal.optional) stay only if they cost less than
 --     OPTIONAL_DETOUR extra yards, i.e. they're roughly on the way
---   * a stop with many possible spots (mob spawns) uses whichever spot is
+--   * a step with many possible spots (mob spawns) uses whichever spot is
 --     closest to where you'll be at that point in the trip
---   * finish this zone before leaving it: stops in another zone wait until
+--   * finish this zone before leaving it: steps in another zone wait until
 --     this zone's are done (Nav.lua decides which: quests too low or too
---     high for you don't hold you here, and a stop just over the border or
+--     high for you don't hold you here, and a step just over the border or
 --     your class trainer is a short trip that doesn't wait)
--- Method: greedy nearest-first, then improved by moving single stops and
+-- Method: greedy nearest-first, then improved by moving single steps and
 -- reversing segments while the trip gets shorter (and still obeys the rules).
 -- This is a travelling-salesman problem with ordering rules, solved with a
 -- standard heuristic (nearest neighbour, then relocate and 2-opt moves).
@@ -25,15 +25,15 @@ local P = {}
 ns.planner = P
 
 local MAX_STOPS = 30          -- nearest goals considered per plan
--- Only the first stops get the slow polish (improve() costs ~n^3); the rest
+-- Only the first steps get the slow polish (improve() costs ~n^3); the rest
 -- of the trip is nearest-next from there. It's planned again as you go, so
 -- the far end gets polished by the time you reach it. 14 = what the whole
 -- plan used to be, so a plan costs no more than before (/flow perf).
 local IMPROVE_HEAD = 14
-local MAX_POINTS = 25         -- spots per stop considered (nearest to you)
-local OPTIONAL_DETOUR = 250   -- yards an optional stop may add
+local MAX_POINTS = 25         -- spots per step considered (nearest to you)
+local OPTIONAL_DETOUR = 250   -- yards an optional step may add
 local MAX_PASSES = 6
--- Finish this area: stops within AREA yards of you come before the rest,
+-- Finish this area: steps within AREA yards of you come before the rest,
 -- unless going elsewhere first saves at least AREA_SAVE yards or
 -- AREA_SAVE_FRAC of the trip (whichever is more). Quests to pick up count
 -- as the area out to AREA_PICKUP: their objectives are usually close by.
@@ -47,19 +47,19 @@ local function dist(ax, ay, bx, by)
 end
 
 -- Options for the plan being built (set by P:Plan):
---   first = goal key that must be the first stop (your choice)
---   tour  = { [key] = true } stops that must all come before anything else
+--   first = goal key that must be the first step (your choice)
+--   tour  = { [key] = true } steps that must all come before anything else
 --           (e.g. "pick up all these quests first")
---   here  = { [key] = true } this zone's stops you should finish first
---   away  = { [key] = true } stops in another zone: they wait until every
---           `here` stop is done
+--   here  = { [key] = true } this zone's steps you should finish first
+--   away  = { [key] = true } steps in another zone: they wait until every
+--           `here` step is done
 --   near  = { [key] = true } the area around you (set by P:Plan): the rest
 --           waits until these are done
 --   areaFirst = true/false: the area rule on or off (nil: Flow's setting, off unless ticked)
 --   air   = function(a, b) -> yards: the trip from spot a to spot b by
 --           flight (the walks to and from the flight masters plus the
 --           flight, as the yards you'd run in that time), nil if none.
---           Stops are then picked by the time they take, not the straight
+--           Steps are then picked by the time they take, not the straight
 --           line (Nav sets it: N.TravelYards).
 --   port  = function(a, b) -> yards: spot b is one cast away from spot a (a
 --           travel spell you know: TravelSpells.lua), nil when it isn't.
@@ -108,20 +108,20 @@ function P._Far(a, b, opts)
     return d
 end
 
--- Finish the zone first: an away stop may not come while a here stop is left.
+-- Finish the zone first: an away step may not come while a here step is left.
 local function waits(key, hereLeft)
     return hereLeft and OPT.away and OPT.away[key] and not (OPT.tour and OPT.tour[key]) and key ~= OPT.first
 end
 
 local function forced(key) return OPT.first == key or (OPT.tour and OPT.tour[key]) end
 
--- Finish the area first: a stop outside it waits while an area stop is left
+-- Finish the area first: a step outside it waits while an area step is left
 -- (your own pick and milestones like class training never wait).
 local function waitsArea(s, nearLeft)
     return nearLeft and OPT.near and not OPT.near[s.key] and not forced(s.key) and not s.goal.milestone
 end
 
--- The nearest spot of stop s from `from` (you, or a spot of another stop),
+-- The nearest spot of step s from `from` (you, or a spot of another step),
 -- and how far. The polish below asks this same question thousands of times
 -- per plan (every order it tries walks the whole trip), so each answer is
 -- worked out once per plan and kept. Same answer as looking every time.
@@ -156,12 +156,12 @@ local function byPort(a, b)
     return ok and type(t) == "number" and t < dist(a.wx, a.wy, b.wx, b.wy)
 end
 
--- Pure: of a stop's spots, the ones to consider. A spot that's only near by
+-- Pure: of a step's spots, the ones to consider. A spot that's only near by
 -- a travel spell is no place for an errand that can be done on foot: with
 -- full bags, the "nearest" merchant was the one in Moonglade, one cast away
 -- and 10,000 yards from everything else on the route (found by
--- tools\route-check.ps1, 0.35.198). So when some of a stop's spots are
--- reached on foot, the ones reached only by the spell are left out. A stop
+-- tools\route-check.ps1, 0.35.198). So when some of a step's spots are
+-- reached on foot, the ones reached only by the spell are left out. A step
 -- whose every spot is there (the class quest in Moonglade) keeps them.
 --   pts: the spots; ported(pt) -> it's near only by a travel spell
 function P.OnFoot(pts, ported)
@@ -176,7 +176,7 @@ end
 local function candidates(p, goals)
     local stops = {}
     for _, g in ipairs(goals) do
-        -- This stop's spots on your continent, nearest first, at most MAX_POINTS.
+        -- This step's spots on your continent, nearest first, at most MAX_POINTS.
         local pts, n = {}, 0
         for _, pt in ipairs(g.points or NONE) do
             if pt.wx and pt.cont == p.cont then
@@ -197,7 +197,7 @@ local function candidates(p, goals)
             stops[#stops + 1] = { goal = g, key = g.key, points = pts, near = near }
         end
     end
-    -- Chosen stops always make the cut, then milestones (class training: it
+    -- Chosen steps always make the cut, then milestones (class training: it
     -- changes every fight after it), then the rest by (weighted) nearness.
     -- A milestone is never dropped as "too far", but it doesn't jump the
     -- queue either: its weight puts it where it costs the least detour.
@@ -230,9 +230,9 @@ local function candidates(p, goals)
             if all then kept[#kept + 1] = s; keptKeys[s.key] = true; extra = extra + 1 end
         end
     end
-    -- A chosen stop or a milestone (class training) that needs another stop
-    -- first (Needs.lua: train after the Bear Form quest) pulls that stop in,
-    -- rather than being left out for it: a few extra at most, and the stops
+    -- A chosen step or a milestone (class training) that needs another step
+    -- first (Needs.lua: train after the Bear Form quest) pulls that step in,
+    -- rather than being left out for it: a few extra at most, and the steps
     -- those need in turn. (0.35.142: training could vanish from the route
     -- when the quest it waits for was too far for the cut.)
     local byKey = {}
@@ -292,7 +292,7 @@ local function cost(p, order)
     return total
 end
 
-local posOf = {}   -- (valid: each stop's place in the order; reused)
+local posOf = {}   -- (valid: each step's place in the order; reused)
 local function valid(order)
     local pos = posOf
     for k in pairs(pos) do pos[k] = nil end
@@ -309,7 +309,7 @@ local function valid(order)
         end
     end
     if lastTour >= firstOther then return false end
-    -- This zone's stops before the next zone's.
+    -- This zone's steps before the next zone's.
     if OPT.here and OPT.away then
         local lastHere, firstAway = 0, math.huge
         for i, s in ipairs(order) do
@@ -349,7 +349,7 @@ local function greedy(p, stops)
         for i, s in ipairs(remaining) do
             local ready = true
             for _, dep in ipairs(s.goal.deps or {}) do if left[dep] then ready = false end end
-            -- Your chosen stop first, then the rest of the tour, then the others.
+            -- Your chosen step first, then the rest of the tour, then the others.
             if firstLeft and s.key ~= OPT.first then ready = false end
             if tourLeft and not (OPT.tour[s.key] or s.key == OPT.first) then ready = false end
             if waits(s.key, hereLeft) then ready = false end   -- this zone first
@@ -382,7 +382,7 @@ local function improve(p, order)
     local n = #order
     for _ = 1, MAX_PASSES do
         local improved = false
-        -- Move one stop elsewhere.
+        -- Move one step elsewhere.
         for i = 1, n do
             for j = 1, n do
                 if i ~= j then
@@ -415,7 +415,7 @@ local function improve(p, order)
 end
 P._cost = function(p, order) nearPt, nearD = {}, {}; return cost(p, order) end   -- (tests)
 
--- Drop optional stops that add more than OPTIONAL_DETOUR yards.
+-- Drop optional steps that add more than OPTIONAL_DETOUR yards.
 local function prune(p, order)
     local dropped = {}
     local i = 1
@@ -442,8 +442,8 @@ local function prune(p, order)
     return order, dropped
 end
 
--- The area around you (OPT.near): stops within AREA yards (quest pickups
--- AREA_PICKUP) that aren't in another zone. A stop whose quest objectives
+-- The area around you (OPT.near): steps within AREA yards (quest pickups
+-- AREA_PICKUP) that aren't in another zone. A step whose quest objectives
 -- are outside the area isn't in it (it can't be finished here). nil when
 -- the area is empty or is everything (no rule needed).
 local function areaSet(stops)
@@ -481,7 +481,7 @@ end
 local function build(p, stops)
     local order = greedy(p, stops)
     if #order > IMPROVE_HEAD then
-        -- Polish the near part, then carry on nearest-next from its last stop.
+        -- Polish the near part, then carry on nearest-next from its last step.
         local head, rest = {}, {}
         for i, s in ipairs(order) do
             if i <= IMPROVE_HEAD then head[#head + 1] = s else rest[#rest + 1] = s end
@@ -510,7 +510,7 @@ function P:Plan(p, goals, opts)
     -- plan one that doesn't, and keep that unless it costs a lot more.
     local areaFirst = OPT.areaFirst
     -- Off unless you tick it: the arrow follows the shortest whole trip, not
-    -- whatever is closest (on by default, it sent you to the near stops first).
+    -- whatever is closest (on by default, it sent you to the near steps first).
     if areaFirst == nil then areaFirst = (ns.db and ns.db.nav and ns.db.nav.areaFirst == true) or false end
     if areaFirst then
         OPT.near = areaSet(stops)
@@ -533,4 +533,4 @@ function P:Plan(p, goals, opts)
 end
 
 -- Timed for /flow perf.
-P.Plan = ns.perf.Wrap("route: order stops", P.Plan)
+P.Plan = ns.perf.Wrap("route: order steps", P.Plan)

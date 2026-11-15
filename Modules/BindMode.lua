@@ -259,7 +259,7 @@ local function addOverlays()
 end
 
 -------------------------------------------------------------------------------
--- Start / save / stop
+-- Start / save / step
 -------------------------------------------------------------------------------
 
 -- Is hover-to-bind mode on? (Flow's button on the spellbook lights up with it.)

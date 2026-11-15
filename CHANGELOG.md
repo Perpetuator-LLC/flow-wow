@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.251
+- **"Stop" is now "step" everywhere.** One thing the route has you do was called a stop, which
+  read oddly for things that aren't a place ("skip this stop" for making bandages). It's a
+  step now, in every message, menu, tooltip, setting, the help and the docs: "Next step only",
+  "Hide this step", "12 steps". `/flow nav steps 3` is the command; the old `/flow nav stops 3`
+  still works. A quest's own lines stay objectives, and a spot you set yourself stays a waypoint.
+
 ## 0.35.250
 - **Flow Meters: each list's heading looks like a Flow title bar.** "Threat" and "DPS" (or
   Damage, HPS, Healing) now sit on the same dark bar with the orange accent as the Flow

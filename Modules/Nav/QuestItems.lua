@@ -24,7 +24,7 @@ ns.questItems = QI
 QI.MAX = 8      -- buttons (the tracker has no more rows than this with an item at once)
 QI.KEEP = 2     -- seconds a quest's answer is kept (the tracker refreshes often)
 
--- Pure: the quest a stop belongs to, from its key ("758:1", "6002:done",
+-- Pure: the quest a step belongs to, from its key ("758:1", "6002:done",
 -- "6002:wp"). Not a pickup, not a party member's.
 function QI.QuestOf(key)
     return type(key) == "string" and tonumber(key:match("^(%d+):")) or nil
@@ -52,7 +52,7 @@ function QI.ItemOf(special, quest, has, usable)
 end
 
 -- Pure: which buttons go where. rows: the tracker's rows in order, each
--- { key = stop key or nil, shown = bool }; itemFor(questID) -> item ID or nil.
+-- { key = step key or nil, shown = bool }; itemFor(questID) -> item ID or nil.
 -- -> { { row = i, item = id, quest = questID } }, one per row with an item,
 -- at most `max`; an item already on an earlier row isn't shown twice.
 function QI.Plan(rows, itemFor, max)
@@ -117,9 +117,9 @@ function QI.ItemFor(questID)
 end
 function QI._Forget() cache = {} end   -- (tests)
 
--- Pure: the plan with the travel step on its stop's row. rows: { key,
+-- Pure: the plan with the travel step on its step's row. rows: { key,
 -- shown }; act: N.travelAct ({ kind = "spell", spell } or { kind = "hearth" });
--- key: the stop it takes you to. A row that already has a quest item keeps
+-- key: the step it takes you to. A row that already has a quest item keeps
 -- that (one button a row).
 function QI.WithTravel(plan, rows, act, key)
     if not (act and key) then return plan end
@@ -166,7 +166,7 @@ local function build(i)
         if self.travel then
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             GameTooltip:AddLine(self.travel.text, 1, 0.82, 0)
-            GameTooltip:AddLine("It takes you to this stop. Click to cast it (or press your Flow key).", 1, 1, 1, true)
+            GameTooltip:AddLine("It takes you to this step. Click to cast it (or press your Flow key).", 1, 1, 1, true)
             GameTooltip:Show()
             return
         end
@@ -212,7 +212,7 @@ local function apply(plan)
 end
 
 -- Called by the Flow Tracker each time it fills its rows.
---   rows: its row frames (each .key = its stop's key, or nil), in order
+--   rows: its row frames (each .key = its step's key, or nil), in order
 --   visible: the tracker's body is open and on screen
 -- -> { [row index] = item ID } for the rows that carry an item (the tracker
 --    leaves room at their right end)
@@ -223,8 +223,8 @@ function QI:Layout(rows, visible)
         list[i] = { key = r.key, shown = visible and r:IsVisible() and true or false }
     end
     wanted = QI.Plan(list, QI.ItemFor, QI.MAX)
-    -- And the teleport or hearthstone that takes you to a stop, on that
-    -- stop's row (Nav/TravelIcon.lua), the same way.
+    -- And the teleport or hearthstone that takes you to a step, on that
+    -- step's row (Nav/TravelIcon.lua), the same way.
     local N = ns.nav
     if N and N.TravelOnTracker and N.TravelOnTracker() then
         wanted = QI.WithTravel(wanted, list, N.travelAct, N.travelKey)

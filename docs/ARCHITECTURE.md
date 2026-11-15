@@ -10,12 +10,12 @@ Three words, each with one meaning, in the code's comments and in everything a p
 
 | Word | Means | Example |
 |---|---|---|
-| **stop** | One place on your route where you do one thing. Flow's own word, and the one to use for anything Flow plans, lists, counts or draws. | "Turn in: Plainstrider Menace", "Learn the flight path: Devrak", "Train 5 spells" |
-| **objective** | The game's word: one line of a quest. Only ever said of a quest. An unfinished objective becomes a stop; so do turn-ins, pickups, trainers and vendors, which are not objectives. | "0/7 Plainstrider Beak" |
+| **step** | One thing your route has you do, usually at one place (it was "stop" until 0.35.251; code names such as `StopKind` still say so). Flow's own word, and the one to use for anything Flow plans, lists, counts or draws. | "Turn in: Plainstrider Menace", "Learn the flight path: Devrak", "Train 5 spells" |
+| **objective** | The game's word: one line of a quest. Only ever said of a quest. An unfinished objective becomes a step; so do turn-ins, pickups, trainers and vendors, which are not objectives. | "0/7 Plainstrider Beak" |
 | **waypoint** | A spot you set yourself. The arrow goes there first, and it isn't part of the planned route. | Ctrl + click on the map, `/flow way 52 30` |
 
-So: "Stops on the map", "Next stop only", "All stops in this area", "30 stops"; never "objectives"
-for those. In code a stop is a *goal* (`navGoal` providers return goals; the planner puts them in
+So: "Steps on the map", "Next step only", "All steps in this area", "30 steps"; never "objectives"
+for those. In code a step is a *goal* (`navGoal` providers return goals; the planner puts them in
 order): "goal" stays out of player-facing text.
 
 ## Registries
@@ -41,7 +41,7 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `profGuide` | profession name | `{ kind = "craft"|"gather", tool, steps = { {recipe, item, learn, yellow, green, grey, mats, station} }, nodes }` | Skill planner (`Modules/Crafting/SkillPlan.lua`) |
 | `itemSource` | item ID | `{ name, gather, objects, node, skill, yield }` or `{ smelt = {from, n, skill} }` or `{ drops = {npc names} }` or `{ vendor = true }` | Skill planner: where materials come from |
 | (perf) | `ns.perf.Wrap(name, fn)` | timed function | `/flow perf`, diagnostics snapshot |
-| `weaponMaster` | NPC name | `{ skills = { [itemSubclassID] = true } }` | Weapon master stops when an upgrade needs a weapon skill (`Modules/Gear/WeaponSkills.lua`) |
+| `weaponMaster` | NPC name | `{ skills = { [itemSubclassID] = true } }` | Weapon master steps when an upgrade needs a weapon skill (`Modules/Gear/WeaponSkills.lua`) |
 | `routeObjective` | e.g. `xp`, `distance` | `{ label, tip, color, weigh = fn(goal, ctx) -> multiplier, keep = fn(goal, ctx) -> bool }` | What the route optimises (`Modules/Nav/XpValue.lua`); `/flow nav sort <key>` |
 | `test` | "area: what it checks" | `fn(t)` with `t:ok`, `t:eq`, `t:near` | `/flow test`, diagnostics snapshot |
 | `charData` | a path in `ns.db`: `"trainer"` or `"quests.notOffered"` | `{ adopt = fn(old, ctx) -> value, later = bool }`; register with `ns:PerCharacter(path, def)` | Per-character saved data (`Core.lua`): kept in `FlowCharDB`, at its usual place in `ns.db` while you play. `adopt` sorts data saved before the split (shared by all characters); `later` runs it at login as `adopt(old, ctx, current)`, `false` = try next login |
@@ -50,20 +50,20 @@ for key, value in ns:Each(kind) do ... end   -- all of a kind, in load order
 | `mountRule` | `default` | `{ level, ridingCost, mountCost, saveFrom, classMount = { CLASS = spell } }` | Mount milestone: when to save, learn and buy |
 | `action` | any | `{ order, get = fn(ctx) -> { type = "spell" or "item" or "interact" or "sit" or "wait", spell, item, targetSlot, icon, label, urgent, before } }` | Flow Actions: what the key does out of combat (`Modules/Rotation/Actions.lua`, `BuffItems.lua`). `urgent` shows ahead of the rotation's own suggestion |
 | `status` | any | `{ order, get = fn() -> { icon, text, color, tip } or nil }` | Status icons in a row above the Flow key, between fights (`Modules/Rotation/Display.lua`): things to sort out, instead of chat lines. Turned off from the key's right-click menu |
-| `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs, deps, needs, provides}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a stop off the route but listed with its reason. `deps` (keys) must come first. `needs` / `provides` (tokens like `"spell:Bear Form"`, see `need`) are turned into `deps`, `after` or `blockedBy` before each plan (`Modules/Nav/Needs.lua`) |
-| `routeKind` | any | `{ order, label, short, tip, default, match = fn(goal, yourLevel) -> bool }` | A kind of stop you can tick in the route menu's "Route includes" (`Modules/Nav/Goals.lua` registers `quests`, `newQuests`, `lowQuests`, `training`, `professions`, `town`). A stop takes the first kind that matches (lowest `order`); one no kind claims is always on the route. `N:Includes(key)`, `N:SetKind(key, on)`, `N.KindOf(goal)` in `Modules/Nav/Nav.lua`; a new `navGoal` source registers its own kind to get a tick |
+| `navGoal` | any | `{ collect = fn() -> { {key, points, text, kind, weight, optional, cost, blockedBy, anywhere, milestone, along, area, npcs, deps, needs, provides}, ... } }` | Route: `cost` (copper) or `blockedBy` (text) keeps a step off the route but listed with its reason. `deps` (keys) must come first. `needs` / `provides` (tokens like `"spell:Bear Form"`, see `need`) are turned into `deps`, `after` or `blockedBy` before each plan (`Modules/Nav/Needs.lua`) |
+| `routeKind` | any | `{ order, label, short, tip, default, match = fn(goal, yourLevel) -> bool }` | A kind of step you can tick in the route menu's "Route includes" (`Modules/Nav/Goals.lua` registers `quests`, `newQuests`, `lowQuests`, `training`, `professions`, `town`). A step takes the first kind that matches (lowest `order`); one no kind claims is always on the route. `N:Includes(key)`, `N:SetKind(key, on)`, `N.KindOf(goal)` in `Modules/Nav/Nav.lua`; a new `navGoal` source registers its own kind to get a tick |
 | `talentBuild` | class token (`DRUID`) | `{ name, role, trees = { names, left to right }, order = { { "Talent name", points, why = "..." }, ... } }` | Flow Talents (`Modules/Talents.lua`, `/flow talents`): the levelling build laid over the trees the game shows (`T.Read`), one point a level from 10. Talents go by their name in the game; `T.Check(build, nodes)` says what doesn't fit (a self-test runs it against the druid trees). Write a class's build from `/flow talents dump` (in the diagnostics: each talent's place, ranks, text and what it leads to) |
 | `gameButton` | any | `{ order, frames = { "PlayerSpellsFrame.TalentsFrame", ... }, label = "Flow Talents", tip, click = fn, isOpen = fn, x, y }` | A small Flow button in the title bar of one of the game's own windows that opens the Flow view that goes with it (`Modules/GameButtons.lua`: talents, spellbook, professions, character). `frames`: the first that exists; dots walk into a window's parts, so a button can sit on one tab only. The button is a child of that frame (the game shows and hides it); Flow never touches the window itself. `/flow buttons` lists them and the windows they found; "Flow buttons on WoW's windows" in Flow Settings turns them off |
 | `noAutoAttack` | an enemy's name | `{ why }` | An enemy the pull's "Start attacking" press is left out for (`E:EngageStep`, `Modules/Rotation/Engine.lua`): a boss whose shield hurts whoever hits it, one you mustn't wake. Everyone else: the first press at a new enemy, before the fight, turns auto attack on (the game's Start Attack), unless "Start auto attack at the pull" is off |
 | `walledMap` | uiMapID | `{ why, lift = true }` | A map you can't walk into in a straight line: a city on a mesa or behind walls (`Modules/Nav/Gates.lua` registers the six capitals). A spot on it is its own region; into or out of it the arrow, the planner and the map's path go by a gate. A gate into one is learned only on the way in; with `lift = true` (Thunder Bluff) only when a lift carried you (you stood still as the map changed), not when the map flipped as you walked its rim |
 | `navGate` | any | `{ cont, wx, wy, a = uiMapID, b = uiMapID }` | A way between two regions (a lift, a city gate, a pass between zones) shipped with Flow. The ones you walk through yourself are learned and saved (`ns.db.nav.gates`); `G.Via(a, b)` answers with the gates between two spots, the planner's `walk` option and `N.LegVia` use it. `/flow gates` |
-| `travelSpell` | spell name | `{ map = uiMapID, class = "DRUID", from = "where you learn it" }` | A spell that takes you to a far zone (`Modules/Nav/TravelSpells.lua`: a druid's Teleport: Moonglade). A stop on that map, while you're elsewhere and know the spell, is one cast away: the planner's `port` option counts it so, the arrow says "cast ...". One way only |
-| `ride` | NPC name | `{ from = uiMapID, to = uiMapID, land = { x, y }, toName, class, faction, how = "he flies druids to Thunder Bluff, free" }` | Someone who carries you out of a far zone (`Modules/Nav/Rides.lua`: the druids' flight masters in Moonglade). While you're in `from` and the stop is outside it, the leg costs: to the NPC, the flight, on from `land` (the planner's `ride` option), and the arrow leads to the NPC and names them. Where the NPC stands is looked up like any NPC's (`ns.places:Points`). `/flow rides`. |
-| `innkeeper` | any | `{ name, id, town, inn, zone = GetZoneText(), city = true, also = { "a city's district" } }` | An inn for the route's "Set hearthstone" stop (`Modules/Hearth.lua`). `H.Offer(here, home, yards)` decides: a city beats a village, a village near your city home isn't offered back. `H.BeforeTrips` makes a stop that's a travel spell away wait for it. The game's own name for a home is learned when you set it at a listed innkeeper. |
+| `travelSpell` | spell name | `{ map = uiMapID, class = "DRUID", from = "where you learn it" }` | A spell that takes you to a far zone (`Modules/Nav/TravelSpells.lua`: a druid's Teleport: Moonglade). A step on that map, while you're elsewhere and know the spell, is one cast away: the planner's `port` option counts it so, the arrow says "cast ...". One way only |
+| `ride` | NPC name | `{ from = uiMapID, to = uiMapID, land = { x, y }, toName, class, faction, how = "he flies druids to Thunder Bluff, free" }` | Someone who carries you out of a far zone (`Modules/Nav/Rides.lua`: the druids' flight masters in Moonglade). While you're in `from` and the step is outside it, the leg costs: to the NPC, the flight, on from `land` (the planner's `ride` option), and the arrow leads to the NPC and names them. Where the NPC stands is looked up like any NPC's (`ns.places:Points`). `/flow rides`. |
+| `innkeeper` | any | `{ name, id, town, inn, zone = GetZoneText(), city = true, also = { "a city's district" } }` | An inn for the route's "Set hearthstone" step (`Modules/Hearth.lua`). `H.Offer(here, home, yards)` decides: a city beats a village, a village near your city home isn't offered back. `H.BeforeTrips` makes a step that's a travel spell away wait for it. The game's own name for a home is learned when you set it at a listed innkeeper. |
 | `classReagent` | item name | `{ MAGE = true, PRIEST = true }` | A spell reagent and the classes whose spells use it (`Modules/Items/Disposition.lua`). In the bags of any other class it's sold (rule `otherClassReagent`, after the profession rules, so a reagent one of your recipes uses stays) |
-| `need` | a token kind: `spell`, `level`, `quest`, `item` | `{ met = fn(arg) -> bool, label = fn(arg) -> text }` | Whether you meet a need like `"spell:Bear Form"` or `"level:20"`, and how to name it (`Modules/Nav/Needs.lua`). A stop's unmet need goes after a stop that `provides` it, or blocks it (hard) / only orders it (`{ token, soft = true }`) when nothing does |
-| `needProvider` | any | `{ provides = fn(goal) -> { tokens } }` | What a stop provides without saying so itself: `classQuest` says a class quest's turn-in teaches its spell (classSpells `quest = { ids }`, `questName`: Bear Form from "Body and Heart") |
-| `questNeed` | quest ID | `{ where = "deep in Palemane Rock", note, tool = "Fishing", item = id }` | What's worth knowing before walking to a quest's giver, which Questie doesn't say (`Modules/Quests/QuestNeeds.lua`): `where` and `note` go on its pickup stop; `tool`/`item` (what the giver wants you to carry first) keep the pickup waiting, with that reason, until you have it. Escort quests get their own note from Questie's data, no entry needed |
+| `need` | a token kind: `spell`, `level`, `quest`, `item` | `{ met = fn(arg) -> bool, label = fn(arg) -> text }` | Whether you meet a need like `"spell:Bear Form"` or `"level:20"`, and how to name it (`Modules/Nav/Needs.lua`). A step's unmet need goes after a step that `provides` it, or blocks it (hard) / only orders it (`{ token, soft = true }`) when nothing does |
+| `needProvider` | any | `{ provides = fn(goal) -> { tokens } }` | What a step provides without saying so itself: `classQuest` says a class quest's turn-in teaches its spell (classSpells `quest = { ids }`, `questName`: Bear Form from "Body and Heart") |
+| `questNeed` | quest ID | `{ where = "deep in Palemane Rock", note, tool = "Fishing", item = id }` | What's worth knowing before walking to a quest's giver, which Questie doesn't say (`Modules/Quests/QuestNeeds.lua`): `where` and `note` go on its pickup step; `tool`/`item` (what the giver wants you to carry first) keep the pickup waiting, with that reason, until you have it. Escort quests get their own note from Questie's data, no entry needed |
 
 Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcommands:
 `ns.commands.name = fn(args)` gives `/flow name`.
@@ -98,10 +98,10 @@ Advisor <--- trainer data, class spells, bags, skills, talents, profiler insight
 
 ### Route weights
 
-The planner (`Modules/Nav/Planner.lua`) minimises sum(distance x weight). A stop's weight is
-set when the route is collected: by the stop itself (`navGoal`) and by the route objective
+The planner (`Modules/Nav/Planner.lua`) minimises sum(distance x weight). A step's weight is
+set when the route is collected: by the step itself (`navGoal`) and by the route objective
 (`routeObjective`, `Modules/Nav/XpValue.lua`). `Modules/Nav/NearFirst.lua` adds a weight that
-depends on where you stand, so it is applied on every plan, not at collect: stops beyond 300 yd
+depends on where you stand, so it is applied on every plan, not at collect: steps beyond 300 yd
 get up to 3x heavier, item drops not within 150 yd 1.5x more, milestones are left alone. The
 goals get their own weights back after each plan. `/flow nearfirst on|off`. Not on the
 "Shortest" objective (or with low-level quests ticked, which plans by distance): that stays the
@@ -110,7 +110,7 @@ shortest path.
 ### Route refresh
 
 A refresh reads one `navGoal` source per frame, then plans in the next (`collectSpread` in
-`Modules/Nav/Nav.lua`), so no frame does all of it. The new stops replace the old in one step at
+`Modules/Nav/Nav.lua`), so no frame does all of it. The new steps replace the old in one step at
 the end. A change that arrives while it gathers, or a direct `N:Collect()`, makes it go once more.
 
 ### Dungeon runs

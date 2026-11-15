@@ -3,22 +3,22 @@ local _, ns = ...
 -------------------------------------------------------------------------------
 -- Near first: the route finishes what's around you before it sends you far.
 --
--- The planner minimises sum(distance x weight). On its own a stop 2,000 yd
+-- The planner minimises sum(distance x weight). On its own a step 2,000 yd
 -- away and one 50 yd away cost the same per yard, so a tight cluster of kills
--- next to you can be split up by one far stop, or by an item drop whose mobs
+-- next to you can be split up by one far step, or by an item drop whose mobs
 -- are spread over the zone. Each time the route is planned, this scales a
--- stop's weight by how far it is from where you stand now:
+-- step's weight by how far it is from where you stand now:
 --   * up to 300 yd away: unchanged
 --   * beyond that: +1x per 700 yd more, at most 3x
---   * item-drop stops (kind "collect") not within 150 yd: another
+--   * item-drop steps (kind "collect") not within 150 yd: another
 --     1.5x. They are still planned (their quest can't be turned in without
 --     them), just after the kills near you.
 --   * milestones (class training, your mount) are left alone.
 --   * not on the "Shortest" route (or the completionist one): that's
 --     already distance only, and should stay the shortest.
 -- The planner re-plans as you move, so "near" always means near you. The
--- stops get their own weights back after each plan (their weight is set once
--- per collect, by the stop itself and the route objective in XpValue.lua).
+-- steps get their own weights back after each plan (their weight is set once
+-- per collect, by the step itself and the route objective in XpValue.lua).
 --   /flow nearfirst on|off     (on by default)
 -------------------------------------------------------------------------------
 
@@ -41,7 +41,7 @@ function F.Applies(objective)
     return objective ~= "distance"
 end
 
--- How many times heavier a stop `d` yards away (nil: not on your continent,
+-- How many times heavier a step `d` yards away (nil: not on your continent,
 -- or no spot) counts.
 function F.Multiplier(goal, d)
     if goal.milestone then return 1 end
@@ -51,7 +51,7 @@ function F.Multiplier(goal, d)
     return m
 end
 
--- Yards from you to the stop's nearest spot on your continent.
+-- Yards from you to the step's nearest spot on your continent.
 function F.Nearest(p, goal)
     local best
     for _, pt in ipairs(goal.points or {}) do
@@ -85,6 +85,6 @@ ns.commands.nearfirst = function(arg)
     arg = (arg or ""):lower()
     local set = arg == "on" or arg == "off"
     if set then ns.db.nearFirst = (arg == "on") end
-    ns:Print("route finishes stops near you first: " .. (F.On() and "on" or "off") .. " (/flow nearfirst on|off)")
+    ns:Print("route finishes steps near you first: " .. (F.On() and "on" or "off") .. " (/flow nearfirst on|off)")
     if set and ns.nav and ns.nav.Collect then ns.nav:Collect() end
 end

@@ -1,7 +1,7 @@
 -- On the profession window: how many to make to reach the skill that's right
 -- for you, and a "Make N" button that crafts exactly that many. When the
--- skill gets there, Flow says so (stop crafting) and names your next stop.
--- It shows the stop the faint profession arrow points to, where each
+-- skill gets there, Flow says so (stop crafting) and names your next step.
+-- It shows the step the faint profession arrow points to, where each
 -- material comes from (bags, bank, smelting), and a fold-out list of the
 -- upgrades you could make once you have their materials.
 --
@@ -41,7 +41,7 @@ local function openProfession()
     return prof, frame
 end
 
--- The plan's craft stops for a profession (from the skill planner).
+-- The plan's craft steps for a profession (from the skill planner).
 function H.CraftStops(prof)
     local out = {}
     for _, g in ipairs(ns.skillPlan and ns.skillPlan.lastStops or {}) do
@@ -50,7 +50,7 @@ function H.CraftStops(prof)
     return out
 end
 
--- Which of this window's stops to show: the one the faint profession arrow
+-- Which of this window's steps to show: the one the faint profession arrow
 -- points to, else the first one on the profession route, else the main
 -- route, else the first. `choice`: { goal }; `profPlan`, `plan`: { { goal } }.
 function H.Pick(stops, choice, profPlan, plan)
@@ -67,7 +67,7 @@ function H.Pick(stops, choice, profPlan, plan)
     return stops[1]
 end
 
--- Where each material for `left` more of a stop comes from, one line each,
+-- Where each material for `left` more of a step comes from, one line each,
 -- and how many you can make right now from your bags.
 -- bagsOf / bankOf(id) -> count (tests); defaults: your bags and bank.
 function H.MaterialLines(g, left, bagsOf, bankOf)
@@ -215,7 +215,7 @@ function H.ToggleUpgrades()
     if panel and panel:IsShown() then H:Refresh() end
 end
 
--- The first route stop that isn't this one: "then go here".
+-- The first route step that isn't this one: "then go here".
 function H.NextStop(exceptKey)
     for _, s in ipairs(ns.nav and ns.nav.plan or {}) do
         if s.goal.key ~= exceptKey and not (s.goal.key or ""):find("^craft:") then
@@ -552,7 +552,7 @@ function H:Refresh()
     if layout(upLines, ups, cheap, nowRows) then panel:Show() else panel:Hide() end
 end
 
--- The skill reached its target while you craft: say stop, and where next.
+-- The skill reached its target while you craft: say step, and where next.
 local function checkReached()
     for prof, t in pairs(ns.skillPlan and ns.skillPlan.lastTargets or {}) do
         local rank = A.Skill(prof)

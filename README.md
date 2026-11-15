@@ -41,18 +41,18 @@ Flow for WoW is a separate project from Flow Engine.
   (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
   target, with a Make N button for exactly that many, and tells you when to stop.
-- **Flow Actions** (same key, out of combat, at your route stop): at a fishing spot it equips
+- **Flow Actions** (same key, out of combat, at your route step): at a fishing spot it equips
   your Fishing Pole, puts on your best lure, casts, then reels in when the bobber splashes; at a
-  mining or herb stop it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
+  mining or herb step it turns on Find Minerals / Find Herbs and gathers; when you leave it puts
   your weapons back. Upgrades in your bags: it equips them (first, when you target an enemy).
   A kill you have targeted: it loots it, then skins it when the game says it's skinnable and
   you have Skinning (or gathers from it, where Herbalism, Mining or Engineering can). A dead
-  friend targeted: it casts your resurrection. A quest's item at its stop: it uses it.
+  friend targeted: it casts your resurrection. A quest's item at its step: it uses it.
   A living friendly player targeted (in your group or not): your buffs for others, then a
   heal when they're hurt or in a fight, with mana to spare.
   Crafting: campfire, open the profession, make exactly enough; by an anvil, forge or cooking
   fire with something to make, it opens Blacksmithing, Smelting or Cooking. Things to learn in your bags
-  (recipes, scrolls): it learns them. About to fight (a kill stop, or just
+  (recipes, scrolls): it learns them. About to fight (a kill step, or just
   after a fight): elixirs and scrolls, a stone or oil on your weapon, then food that makes you Well
   Fed. By a WoW: Forever campfire: place the camp objects you carry (a tent, a lute...), then sit
   for the camp buffs (the key sits you down; stay a minute); party members running Flow say which
@@ -68,7 +68,7 @@ Flow for WoW is a separate project from Flow Engine.
   what your group can add to the camp. Hover for details.
 - **Auto-repair** at vendors who repair (Options, on by default), after Flow sells your junk.
 - **Worn gear**: under 20% durability an anvil shows above the Flow key (hover: the item and the
-  nearest repair vendor Flow knows) and the route gets a Repair stop. When a service is far away,
+  nearest repair vendor Flow knows) and the route gets a Repair step. When a service is far away,
   Flow says if your hearthstone then a run looks clearly quicker (an estimate; it never uses it
   for you).
 - **Buffs while questing**: keeps your seal, blessing and aura up; quiet in cities and inns.
@@ -94,63 +94,63 @@ Flow for WoW is a separate project from Flow Engine.
 
 ### Questing and navigation
 - **Route planner and arrow**: plans the whole trip (quest objectives, turn-ins after their
-  objectives, quests to pick up, trainers you can afford, and profession stops) and points you
+  objectives, quests to pick up, trainers you can afford, and profession steps) and points you
   along it. It learns trails as you walk, follows them around hills and rivers, and learns cave
-  entrances so it sends you in through the door, not over the top. A quest stop says when it's
+  entrances so it sends you in through the door, not over the top. A quest step says when it's
   an escort (its giver may be away walking another player out, for a few minutes) or when the
   giver is deep in a cave (The Longwalkers). A quest in your log is always on the route: where
-  the quest data has no place for an objective, the stop goes to the game's own marker for the
+  the quest data has no place for an objective, the step goes to the game's own marker for the
   quest, or is listed with a lock and the reason. A class quest that teaches a spell (Bear Form)
-  is always a stop, whatever zone it starts in. Profession trainers are read when you open
+  is always a step, whatever zone it starts in. Profession trainers are read when you open
   them, so the next tier is only on the route once that trainer says you can learn it. Distances come with a travel time (by air when a
   flight is quicker; Flow learns flight masters as you fly). Optional, off by default: a faint
-  profession arrow (profession stops on a route of their own, behind the main arrow), and
+  profession arrow (profession steps on a route of their own, behind the main arrow), and
   "Finish the area you're in first". Profession plans use what's in your bags and bank and smelt
-  ore into bars. A stop that needs something first goes after the
-  stop that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
+  ore into bars. A step that needs something first goes after the
+  step that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
   Roar and Maul comes after the class quest that teaches Bear Form.
 - **Ways between maps**: Flow learns where you cross from one map into another on foot or by
-  lift (up Thunder Bluff, through a pass into the next zone). A stop in another part of the
+  lift (up Thunder Bluff, through a pass into the next zone). A step in another part of the
   map goes by the way you've used: the arrow leads to the lift, the route counts the ride (so
-  stops on the bluff are done together), and the map's dotted path bends through it. Capital
+  steps on the bluff are done together), and the map's dotted path bends through it. Capital
   cities are walled: where Flow knows no way in yet, it says so. `/flow gates`. Flight paths
   count as ways too (`/flow gates` lists them): with no way known on foot, the arrow leads to
   the flight master and says where to fly. A druid's
-  Teleport: Moonglade counts as travel too: a stop in Moonglade is one cast away.
+  Teleport: Moonglade counts as travel too: a step in Moonglade is one cast away.
   And the way back is a person: in Moonglade a druid's arrow leads to Bunthen Plainswind
   (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
   to. `/flow rides`.
   On any flight the arrow says where you're flying, when you land and what comes after.
 - **Hearthstone**: in a town with an inn, when your stone is set somewhere else, the route
-  gets a "Set hearthstone" stop (Horde and Alliance towns and cities). A city beats a
+  gets a "Set hearthstone" step (Horde and Alliance towns and cities). A city beats a
   village (in Thunder Bluff with your home in Bloodhoof Village, you're told to set it
-  there), a village near your city home isn't offered back, and a stop that's a teleport
+  there), a village near your city home isn't offered back, and a step that's a teleport
   away waits until you've set your home. `/flow hearth on|off`.
 - **The route's colour tells you its state** (arrow, route and waypoints): **Shortest path**
   (rare blue, the default) and **Most XP first** (epic purple) are optimised; **Custom route**
-  (legendary orange) means you picked the next stop yourself with its ^ in the Flow Router (or
+  (legendary orange) means you picked the next step yourself with its ^ in the Flow Router (or
   "Go here next"). It goes there first and stays orange until you choose Most XP or Shortest
   again. The top row's (o) is where you're heading (a white ring on the map). Tooltips show
-  each stop's XP.
+  each step's XP.
 - **Dungeon runs** (with Questie): the arrow menu's Dungeons section lists the dungeon runs at
   your level (one wing, the quests you can do this trip; later parts wait for the next run) and
   how each compares to your questing XP per hour. Prepare a run and the pickups and short
   lead-in quests go on the route (plus any breadcrumb whose giver is next to one of those
-  stops), then the entrance; inside, the route shows only that dungeon's quests. Wings are
+  steps), then the entrance; inside, the route shows only that dungeon's quests. Wings are
   told apart by their bosses. In a group, "Share quests" shares the run quests party members
   lack.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
-  here") isn't a stop on the route: the arrow turns green and points there along a green line
+  here") isn't a step on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.
-- **Near first**: the route finishes the stops around you before it sends you far; far stops
+- **Near first**: the route finishes the steps around you before it sends you far; far steps
   and item drops whose mobs are spread out wait (`/flow nearfirst on|off`).
 - **Hub business first**: in a quest hub the route turns in every finished quest there and
   picks up the quests on offer before heading out, like a walkthrough.
 - **Quest areas**: in an objective area the arrow shows a glowing ring, a beam of light and
   ripples (they speed up when you're right on the spot); hover it to see every quest there. A
-  "do it here" stop (crafting, a recipe to learn) shows its own icon bouncing in the ring.
+  "do it here" step (crafting, a recipe to learn) shows its own icon bouncing in the ring.
 - **Arrow**: a glossy metal chevron that glides as it turns and floats over its own shadow. Its
-  colour says how close you are: grey while the stop is in another zone, then orange (far) through
+  colour says how close you are: grey while the step is in another zone, then orange (far) through
   yellow to green (close), and blue once you're in its area (`/flow nav arrowcolor route` gives
   it the route's colour instead). Right-click it to pick Modern, 3D (pillars) or Flat lines
   (`/flow nav arrow modern|3d|flat`). It turns with your character. (The game doesn't tell
@@ -159,50 +159,50 @@ Flow for WoW is a separate project from Flow Engine.
 - **Corpse arrow**: when you die the arrow turns red and points to your corpse.
 - **Milestones**: class training and your mount always make the route and fit around the
   quests on the way. Flow tells you to start saving for your mount 5 levels early.
-- **Route includes**: one tick per kind of stop, in the route menu (the Flow Router's "Route:"
+- **Route includes**: one tick per kind of step, in the route menu (the Flow Router's "Route:"
   dropdown, or right-click the arrow): current quests, new quests, low-level quests (every
   quest in the zones you're questing in, any level), class trainer / weapon skills / riding,
   professions (on the route, or on their own faint arrow), and repair / selling / hearthstone
-  stops. "Select all" and "Clear all" set them in one click; the ticks stay open while you
+  steps. "Select all" and "Clear all" set them in one click; the ticks stay open while you
   choose. Right under them: send the arrow to the nearest repairer, vendor, flight master,
   innkeeper, mailbox or banker.
 - **Along the way**: optional farming (meat for Cooking) is never a detour; loot it as you go.
-- **Blocked stops**: stops you can't do yet stay listed, greyed, with the reason ("needs
+- **Blocked steps**: steps you can't do yet stay listed, greyed, with the reason ("needs
   1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
 - **Flow Router** (the square button above the world map's quest log button): the route list,
   just right of the map (and so of the quest log; either or both can be open),
-  with a "Route:" dropdown (what the route includes, and the order). Hover a stop for details, click it for its stop card, use the
-  `^` handle to route from that stop (it stays marked red), right-click to hide it or "Point
+  with a "Route:" dropdown (what the route includes, and the order). Hover a step for details, click it for its step card, use the
+  `^` handle to route from that step (it stays marked red), right-click to hide it or "Point
   the arrow here". A button above it shows or hides the route on the map.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
-  to your next stop, and that stop's dot, in the arrow's colour). The dots drift slowly toward
-  the next stop, so you see which way the route goes, and "Path opacity" in the settings makes
+  to your next step, and that step's dot, in the arrow's colour). The dots drift slowly toward
+  the next step, so you see which way the route goes, and "Path opacity" in the settings makes
   the trail stronger or fainter. The stretch from you follows the way the arrow takes (a
   trail you've walked, a gate, a cave's entrance), not a straight line; numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
-  with borders; the minimap shows your current stop's area the same way, and the (o) marker.
-- **Stop card**: Flow's view of a stop (drag it by its title). Its "Show on map" and "Select in
+  with borders; the minimap shows your current step's area the same way, and the (o) marker.
+- **Step card**: Flow's view of a step (drag it by its title). Its "Show on map" and "Select in
   quest log" links open the map when it's closed (the game opens its own window: Flow passes
   your click to the game's own button, so its code never runs the map). The arrow's own panel is a drawer
   beside the arrow: click the arrow to open it, click again or its X to close it.
 - **Flow Tracker**: the route under Questie's tracker, opening downward (a faint rail shows the
   order). It and Questie's tracker open and fold on their own: either or both. Click a row for
-  its stop card; hover it to see its area on the minimap; Ctrl-drag the header to move it.
+  its step card; hover it to see its area on the minimap; Ctrl-drag the header to move it.
   A quest that gives you an item to use shows it at the right end of its row: click the icon
-  to use it (it's placed out of a fight; `/flow questitems`). Standing at that quest's stop,
+  to use it (it's placed out of a fight; `/flow questitems`). Standing at that quest's step,
   your Flow key uses the item too.
   Its right-click menu (and Flow Settings) shows or hides the other two quest lists: Questie's
   tracker and WoW's own (which comes back at a /reload once Questie's is off).
-- **Stops on the map**: the route plans up to 30 stops ahead. Choose how many the world map and
-  the Flow Tracker show: just the next stop, the next 3, 5 or 10, or all of them (/flow settings,
-  the arrow's right-click menu, or `/flow nav stops 1|3|5|10|all`). The Flow Router always lists
+- **Steps on the map**: the route plans up to 30 steps ahead. Choose how many the world map and
+  the Flow Tracker show: just the next step, the next 3, 5 or 10, or all of them (/flow settings,
+  the arrow's right-click menu, or `/flow nav steps 1|3|5|10|all`). The Flow Router always lists
   the whole route.
 - **Lite mode**: in dungeons, raids and boss fights Flow eases off route planning and map
   updates so it never adds lag; the rotation and the Flow key run as normal.
-- **The Flow menu**: right-click the arrow, the Flow Tracker or a stop. The thing you clicked
+- **The Flow menu**: right-click the arrow, the Flow Tracker or a step. The thing you clicked
   is shown open; under it the same sections everywhere, in one order, each a row that pops
   out when you point at it or click it ("Order  Shortest path"): Order, Route includes, Go to
-  the nearest..., Your waypoint, Dungeons, Party, Stops on the map, Arrow, Keys, Extras
+  the nearest..., Your waypoint, Dungeons, Party, Steps on the map, Arrow, Keys, Extras
   (NPCs read aloud: text-to-speech), Flow windows.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
@@ -238,12 +238,12 @@ Flow for WoW is a separate project from Flow Engine.
   the best one to sell.
 - **Upgrades at vendors**: the same badge on gear a vendor sells, and one line in chat when
   something for sale is better for the spec you level as, with its price.
-- **Bag icons**: spec marks per role, the (o) marker on an item your current stop wants you to
+- **Bag icons**: spec marks per role, the (o) marker on an item your current step wants you to
   use, gold coin to sell, AH, DE, a quest "!" for items your quests need, and profession icons
   for materials and tools. The tooltip lists every reason to keep an item (e.g. "Linen for
   First Aid").
 - **Weapon skills**: Flow knows which weapon skills you've trained; an upgrade that needs one
-  puts a weapon master stop on the route. Weapons your class can never use are marked to sell.
+  puts a weapon master step on the route. Weapons your class can never use are marked to sell.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
   auction house, keep), why and which rule said so, the vendor price and the last auction
   price. Saved with the diagnostics.
@@ -265,8 +265,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Flow Auctions**: at the auction house, what Flow would post and at what price; one click
   posts each. What keeps coming back unsold becomes a vendor item.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
-  later that no stop on your route uses) and deposits it at a click; the route adds a bank
-  stop when one is on your way. Away from a bank its "In your bank" view shows what was there
+  later that no step on your route uses) and deposits it at a click; the route adds a bank
+  step when one is on your way. Away from a bank its "In your bank" view shows what was there
   when you last opened it, and "Auction prices" what Flow last saw at the auction house. A
   Flow Banker tab on your bags opens it (`/flow banker`).
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
@@ -276,7 +276,7 @@ Flow for WoW is a separate project from Flow Engine.
   the listing fee; with none known they're vendored (rare gear is always held). Ammunition
   your class can't shoot and other classes' spell reagents are sold too. Buy any item back with one click, and
   Flow then never sells it again. Auto-sell has its own switch on the drawer and in Options.
-  With full bags a "sell at a merchant" stop goes on the route.
+  With full bags a "sell at a merchant" step goes on the route.
 - **Skill books**: tells you to hold "+N skill" items until the last points before a cap.
 
 ### Progress advice
@@ -303,7 +303,7 @@ Flow for WoW is a separate project from Flow Engine.
 
 ### Quality of life
 - **Each character keeps its own**: fights, trainer, recipes, profession plan, role, hidden
-  stops and the like are saved per character, so "Ways to improve" and the route are about the
+  steps and the like are saved per character, so "Ways to improve" and the route are about the
   character you're on. Settings, learned trails and NPC places are shared by all of them.
 - **Options > AddOns > Flow**: Flow's options, grouped by when you use them (your easy key, in
   a group, finding your way, quests, loot and selling, new spells and professions, what's on
@@ -345,7 +345,7 @@ Flow for WoW is a separate project from Flow Engine.
 ## Commands
 `/flow help` lists everything. The main ones: `/flow settings`, `/flow rot why`,
 `/flow action`, `/flow advice`, `/flow way` (`repair`, `vendor`, `clear`), `/flow map`,
-`/flow nav xp|distance|northup|unhide|sort|stops`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
+`/flow nav xp|distance|northup|unhide|sort|steps`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
 `/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`.
 
@@ -373,8 +373,8 @@ talk to Claude from inside the game and get updates by themselves:
   window, on your own machine) so an AI assistant can check how something looks while you play.
 - **Checking the route:** `/flow export` (and every diagnostics snapshot) writes your quests,
   skills and the route as lines a script reads; `tools/route-check.ps1` plans the shortest
-  walk through the same stops by itself and says where Flow's order differs, what the
-  hearthstone would save and what has no stop at all.
+  walk through the same steps by itself and says where Flow's order differs, what the
+  hearthstone would save and what has no step at all.
 - **Dev install:** the game's `Interface\AddOns\Flow` is a junction to this repo, so `/reload`
   picks up changes.
 - **`/reload` is enough, always (people and AI assistants: don't ask for a game restart).**

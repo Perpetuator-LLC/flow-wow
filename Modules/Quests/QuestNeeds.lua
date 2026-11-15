@@ -8,8 +8,8 @@
 --     may be away walking another player out, for a few minutes.
 --
 --   ns:Register("questNeed", <quest ID>, {
---       where = "deep in Palemane Rock", -- shown after the stop's name
---       note  = "...",                   -- first line of the stop's details
+--       where = "deep in Palemane Rock", -- shown after the step's name
+--       note  = "...",                   -- first line of the step's details
 --       tool  = "Fishing",               -- carry that profession's tool (any fishing pole)
 --       item  = 1234,                    -- or carry this item
 --   })
@@ -52,7 +52,7 @@ function Q.NeedMissing(need, has)
     return nil
 end
 
--- A pickup stop with what's worth knowing: "(escort, deep in Palemane Rock)"
+-- A pickup step with what's worth knowing: "(escort, deep in Palemane Rock)"
 -- after its name, the notes first in its details, and blockedBy while
 -- something it needs is missing. `escort` is Q.EscortNote's text or nil.
 function Q.ApplyNeed(goal, need, missing, sellers, escort)
@@ -92,7 +92,7 @@ local gameHas = {
 }
 
 -- Pickups waiting for something: looked at again when your bags or gear
--- change, so the stop comes back as soon as you have it.
+-- change, so the step comes back as soon as you have it.
 local waiting = {}
 -- `raw` is Questie's quest (for the escort check), `giver` its giver's name.
 function Q:PickupNeed(goal, id, raw, giver)

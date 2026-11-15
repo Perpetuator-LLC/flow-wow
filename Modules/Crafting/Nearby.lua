@@ -1,6 +1,6 @@
 -- Profession nodes near you: where ore and herbs you can gather spawn around
--- you and your next stop. So "mine Iron while you're in this quest's area"
--- is right there, without making it a stop of its own:
+-- you and your next step. So "mine Iron while you're in this quest's area"
+-- is right there, without making it a step of its own:
 --   * soft clouds on the minimap where they spawn (Mining tan, Herbalism green)
 --   * a line in the Flow Tracker: "Nearby: Iron Deposit x3, Kingsblood x2"
 -- Only professions you've learned, and only nodes your skill can gather;
@@ -13,7 +13,7 @@ local _, ns = ...
 local NB = {}
 ns.nearby = NB
 
-NB.RADIUS = 120          -- yards around you (and around your next stop) for the Tracker line
+NB.RADIUS = 120          -- yards around you (and around your next step) for the Tracker line
 NB.MINIMAP_YARDS = 15    -- cloud size around each spawn spot on the minimap
 NB.COLOR = { Mining = { 0.85, 0.65, 0.35 }, Herbalism = { 0.35, 0.9, 0.4 } }
 NB.ICON = { Mining = "Interface\\Icons\\Trade_Mining", Herbalism = "Interface\\Icons\\Trade_Herbalism" }
@@ -179,7 +179,7 @@ function NB.Line(counts, max, drop)
 end
 
 -------------------------------------------------------------------------------
--- Now: around you and your next stop (refreshed every 2 s at most)
+-- Now: around you and your next step (refreshed every 2 s at most)
 -------------------------------------------------------------------------------
 
 local last = { at = -10 }

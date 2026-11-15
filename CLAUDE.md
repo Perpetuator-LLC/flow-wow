@@ -23,7 +23,7 @@ registry first, or add one.
 | `Classes/<Class>/` | Class data, trainer spells, rotation. Paladin and Druid so far: adding a class is a great first contribution. |
 | `Modules/Rotation/` | Rotation engine, cast button/key, the Forever API shims (`Compat.lua`, `ns.api`). |
 | `Modules/Nav/` | Route: goals (`Goals.lua`), planner, arrow and panels (`Nav.lua`), world map (`MapOverlay.lua`), tracker. |
-| `Modules/Crafting/` | Profession guides, recorded recipes, skill plans that become route stops. |
+| `Modules/Crafting/` | Profession guides, recorded recipes, skill plans that become route steps. |
 | `Modules/Gear/`, `Modules/Items/` | Gear scores per role, bag icons, selling, keep reasons. |
 | `Modules/Advisor/` | The advice list. |
 | `Modules/Tests.lua` | Self-tests. |
@@ -74,22 +74,22 @@ halves a whole-window picture.
 ## Checking the route against a plan of your own
 
 Every diagnostics snapshot carries an export (`Modules/Export.lua`, the `E^...` lines): the
-player's quests and objectives, professions, every stop Flow knows of (on the route, locked,
+player's quests and objectives, professions, every step Flow knows of (on the route, locked,
 hidden) with its place, the route in order, flight paths, nearby flight masters, and Flow
 Improvements. After the player reloads:
 
     powershell -ExecutionPolicy Bypass -File tools\route-check.ps1
 
-It plans the shortest walk through Flow's own stops (keeping what must come first), prints
+It plans the shortest walk through Flow's own steps (keeping what must come first), prints
 both orders side by side with their straight-line yards, says what one use of the hearthstone
-would save, and lists what has no stop at all (a quest in the log, a flight master on the way,
+would save, and lists what has no step at all (a quest in the log, a flight master on the way,
 an improvement). Use it whenever the player asks whether the route is right, and before
 changing the planner: where Flow is longer, find the rule that made it so (a class quest
 first, the zone first, a hub's quests picked up before leaving) and decide whether the rule
 or the route is wrong. It doesn't weigh XP or know terrain; say so when you report.
-Its last section, "Stops Flow can't place", sorts every locked stop into expected ones (a
+Its last section, "Steps Flow can't place", sorts every locked step into expected ones (a
 dungeon, a battleground, waiting for another step) and `TO FIX` / `CHECK` ones: each time
-you run it, fix those (a missing source, a reason that reads wrong, a new kind of stop) in
+you run it, fix those (a missing source, a reason that reads wrong, a new kind of step) in
 the same change, without being asked.
 `-From file.txt` runs it on a file of export lines; `-Dump` prints the lines.
 
@@ -191,7 +191,7 @@ If anything is there, fix it before other work, even if nobody mentioned it:
   profession tier's line whenever a profession trainer is open (`TR.ReadTier`, kept in
   `ns.db.prof.tierSeen`), and `SP.Tier(..., SP.TierSeen(prof, max))` and `SP.TierCost` go by
   that. Read on Forever (2026-11-13): Journeyman asks for skill 50, no level, 5 silver, as in
-  classic. A stop at a trainer must carry its price (`goal.cost`), or the route sends a
+  classic. A step at a trainer must carry its price (`goal.cost`), or the route sends a
   player who can't pay.
 - **Don't explain a player's report from memory of how the game works: get the game to say.**
   "Journeyman Skinning needs 50 and I don't have it, but it's taking me there" was blamed on
@@ -236,10 +236,10 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 
 ## Style
 
-- **Stop, objective, waypoint** each mean one thing (docs/ARCHITECTURE.md, "Words"): a *stop* is
-  one place on the route where you do one thing (Flow's word, for everything Flow plans or
-  shows); an *objective* is a line of a quest (the game's word, only for quests); a *waypoint*
-  is a spot the player set themself. Never "objectives" for stops.
+- **Step, objective, waypoint** each mean one thing (docs/ARCHITECTURE.md, "Words"): a *step* is
+  one thing the route has you do, usually at one place (Flow's word, for everything Flow plans
+  or shows; it was "stop" until 0.35.251, and code names such as `StopKind` still say so); an *objective* is a line of a quest (the game's word, only for quests); a *waypoint*
+  is a spot the player set themself. Never "objectives" for steps.
 - Comments explain *why* and what the player sees, in plain English.
 - Player-facing text is short, plain and specific ("Loot Stringy Wolf Meat 9/66"), never
   jargon.

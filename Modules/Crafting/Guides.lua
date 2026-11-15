@@ -1,7 +1,7 @@
 -- Profession levelling data: what to make at each skill, what it takes, and
 -- where those materials come from. The planner (SkillPlan.lua) works from
 -- this plus what you have right now (skill, bags, quests, position) to put
--- gather / smelt / craft stops on the route.
+-- gather / smelt / craft steps on the route.
 --
 -- `use` is the path the public levelling guides take: at each skill, which
 -- recipe they make. The planner sticks to it, so it never grinds a recipe on
@@ -230,7 +230,7 @@ ns:Register("profGuide", "First Aid", {
 })
 
 -- One path per side from 40 to 130 (the recipes and meats differ), then the
--- same for both. Fish from your Fishing stops levels Cooking as well as the
+-- same for both. Fish from your Fishing steps levels Cooking as well as the
 -- meat it matches (same colours), so the fish recipes have no path of their
 -- own: they stand in for meat you'd otherwise farm. Past 250 the guides cook
 -- fish, so there the fish recipes are the path. (Giant Egg and Tender Wolf
@@ -271,7 +271,7 @@ ns:Register("profGuide", "Cooking", {
         { recipe = "Tender Wolf Steak", item = 18045, learn = 225, yellow = 250, green = 262, grey = 275, mats = { [12208] = 1, [3713] = 1 },
           station = "fire", recipeItem = 18046, use = { 225, 250 } },
         { recipe = "Spotted Yellowtail", item = 6887, learn = 225, yellow = 250, green = 262, grey = 275, mats = { [4603] = 1 },
-          station = "fire", recipeItem = 13939 },   -- (not on the path: its one fished material made it beat Tender Wolf Steak and Monster Omelet every time, and fished materials get no stop)
+          station = "fire", recipeItem = 13939 },   -- (not on the path: its one fished material made it beat Tender Wolf Steak and Monster Omelet every time, and fished materials get no step)
         { recipe = "Nightfin Soup", item = 13931, learn = 250, yellow = 275, green = 285, grey = 295, mats = { [13759] = 1, [159] = 1 },
           station = "fire", recipeItem = 13945, use = { 250, 285 } },
         { recipe = "Poached Sunscale Salmon", item = 13932, learn = 250, yellow = 275, green = 285, grey = 295, mats = { [13760] = 1 },

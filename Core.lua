@@ -86,7 +86,7 @@ end
 -------------------------------------------------------------------------------
 -- Per-character data. FlowDB is shared by every character on the account
 -- (settings, learned trails, NPC places). Anything about one character (its
--- fights, class trainer, recipes, hidden stops...) is declared per character
+-- fights, class trainer, recipes, hidden steps...) is declared per character
 -- by the module that owns it, next to its ns:OnLoad:
 --   ns:PerCharacter("trainer")                 a whole section of ns.db
 --   ns:PerCharacter("quests.notOffered")       one field of a section
@@ -245,7 +245,7 @@ function ns.Tip(owner, anchor, tooltip)
     return tooltip
 end
 
--- Put a Flow card (the stop card, the arrow's drawer) where WoW puts its
+-- Put a Flow card (the step card, the arrow's drawer) where WoW puts its
 -- tooltips. False when there's no fixed spot (tooltips at the cursor) or the
 -- setting is off: the caller places it its own way.
 function ns.PlaceAtTipSpot(frame, owner)

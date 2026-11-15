@@ -13,8 +13,8 @@
 --     that guess can be made.
 --   * /flow party share shares your route by hand.
 --
--- Editing: anyone following the party route can choose stops (map
--- checkpoints, trip list, advice rows), add waypoints, and clears a stop by
+-- Editing: anyone following the party route can choose steps (map
+-- checkpoints, trip list, advice rows), add waypoints, and clears a step by
 -- reaching it. Every edit is numbered and sent to everyone; the newest edit
 -- wins (ties: the later name), so nobody owns it.
 
@@ -27,7 +27,7 @@ local MAX_STOPS = 15
 
 local state = { joined = false, following = false, clock = 0, editor = "", stops = {} }
 local offer          -- latest route shared by someone while you're not joined
-local incoming = {}  -- sender -> { clock, total, stops }
+local incoming = {}  -- sender -> { clock, total, steps }
 local members = {}   -- name -> { quests = { [id] = true } }
 local counter = 0
 local inGroup = false
@@ -96,7 +96,7 @@ end
 
 -------------------------------------------------------------------------------
 -- Messages
---   B|clock|n  S|clock|i|stop  E|clock   whole route (begin / stop / end)
+--   B|clock|n  S|clock|i|step  E|clock   whole route (begin / step / end)
 --   Q|0                                  "send me your route" (just joined)
 --   L|part|parts|id,id,...               my quest log (for the party guess)
 -------------------------------------------------------------------------------
@@ -149,7 +149,7 @@ local function received(sender, msg)
                 state.stops, state.clock, state.editor = stops, inc.clock, sender
                 changed()
                 if state.following then
-                    ns:Print(sender .. " updated the party route (" .. #stops .. " stops)")
+                    ns:Print(sender .. " updated the party route (" .. #stops .. " steps)")
                 end
             end
         else
@@ -239,13 +239,13 @@ end
 
 local function questOf(key) return tonumber(key:match("^(%d+):")) end
 
--- Stops for a party route, and why: quests party members share come first.
+-- Steps for a party route, and why: quests party members share come first.
 function P:EstimateStops()
     local p = ns.nav:PlayerPos()
     if not p then return {}, "no position" end
     local goals = {}
     for _, g in ipairs(ns.nav:Goals()) do
-        -- (not party stops, and not a friend's quests you're helping with: only your own)
+        -- (not party steps, and not a friend's quests you're helping with: only your own)
         if not g.key:find("^party:") and not g.key:find("^help:") and g.key ~= "user:wp" then goals[#goals + 1] = g end
     end
     local counts = {}
@@ -291,7 +291,7 @@ function P:Share(auto)
         wipe(st)
         for _, s in ipairs(stops) do st[#st + 1] = s end
     end)
-    ns:Print(string.format("%s the party route: %d stops; %s. Anyone can edit it.",
+    ns:Print(string.format("%s the party route: %d steps; %s. Anyone can edit it.",
         auto and "made" or "shared", #stops, why))
 end
 
@@ -315,7 +315,7 @@ function P:Leave(quiet)
 end
 
 -------------------------------------------------------------------------------
--- Navigation: party stops are goals only while you follow the party route.
+-- Navigation: party steps are goals only while you follow the party route.
 -------------------------------------------------------------------------------
 
 ns:Register("navGoal", "party", {
@@ -327,9 +327,9 @@ ns:Register("navGoal", "party", {
             out[#out + 1] = {
                 key = key, weight = 0.5, level = s.level,
                 points = { { map = s.map, x = s.x, y = s.y } },
-                title = s.label, text = "Party: " .. (s.label or "stop " .. i),
-                details = { "Party route stop " .. i .. " of " .. #state.stops .. ".",
-                            "Anyone following it can move it, add stops, or reach it to clear it." },
+                title = s.label, text = "Party: " .. (s.label or "step " .. i),
+                details = { "Party route step " .. i .. " of " .. #state.stops .. ".",
+                            "Anyone following it can move it, add steps, or reach it to clear it." },
                 deps = prev and { prev } or nil,
             }
             prev = key
@@ -373,7 +373,7 @@ function P:ShowPrompt(sender, n)
         mine:SetScript("OnClick", function() P:Join(false) end)
         self.prompt = f
     end
-    self.prompt.text:SetText(string.format("%s's party route: %d stops.\nFollow it? You can switch back to your own any time.", sender, n))
+    self.prompt.text:SetText(string.format("%s's party route: %d steps.\nFollow it? You can switch back to your own any time.", sender, n))
     self.prompt:Show()
 end
 
@@ -470,7 +470,7 @@ ns.commands.party = function(arg)
         if ns.follow then ns.follow:Command(arg:match("^follow%s+(.*)$")) end
     else
         if state.joined then
-            ns:Print(string.format("party route: %d stops, last edit by %s. You're following %s.",
+            ns:Print(string.format("party route: %d steps, last edit by %s. You're following %s.",
                 #state.stops, state.editor, state.following and "the party route" or "your own route"))
         elseif offer then
             ns:Print(offer.editor .. " shared a party route: /flow party join")
@@ -485,7 +485,7 @@ end
 
 ns:Register("help", "party", { order = 45, title = "Party route", lines = {
     "Flow players in a group share how far they are on each quest (only what changed, a few bytes at a time).",
-    "Join the party route: everyone on it gets one route for all their quests, the same route and the same next stop for all of you (one of you plans it).",
+    "Join the party route: everyone on it gets one route for all their quests, the same route and the same next step for all of you (one of you plans it).",
     "Or keep your own route, or do just one member's quests. Choose under the arrow or in the route menu (right-click the arrow).",
     "Follow a party member: the arrow points at them (route menu, or /flow follow <name>).",
     "/flow party join|leave, /flow party quests mine|<name>",

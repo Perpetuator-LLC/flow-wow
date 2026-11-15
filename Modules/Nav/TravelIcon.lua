@@ -7,7 +7,7 @@
 -- to walk. The user could skip them and go on to the next waypoint."
 -- (0.35.223)
 --
--- When your next stop is a cast away (TravelSpells.lua: N.port) or clearly
+-- When your next step is a cast away (TravelSpells.lua: N.port) or clearly
 -- quicker by hearthstone (Hearth.lua H:Saves), the spell's or the stone's
 -- icon stands where the arrow was, and the arrow, half its size, moves to
 -- its right and still points the way on foot. The words under it are the
@@ -15,7 +15,7 @@
 -- is about 4 min quicker").
 --
 -- Walking instead: Flow menu, Arrow, "Walk there instead" drops the icon for
--- that stop (the arrow is the arrow again); the same entry brings it back.
+-- that step (the arrow is the arrow again); the same entry brings it back.
 -- Since 0.35.224 your Flow key and a button on the Flow Tracker cast it too
 -- (the end of this file).
 
@@ -28,7 +28,7 @@ N.TRAVEL_ARROW_SCALE = 0.5
 N.travelSkip = {}   -- [stop key] = true: you chose to walk to it (this session)
 
 -- Pure: what to show in the arrow's place. port: the travel spell that
--- reaches the stop (nil: none); saving: seconds the hearthstone saves (nil:
+-- reaches the step (nil: none); saving: seconds the hearthstone saves (nil:
 -- not clearly quicker); bind: where it's set; skipped: you chose to walk.
 --   -> { kind = "spell" | "hearth", spell, text } or nil
 function N.TravelAction(port, saving, bind, skipped)
@@ -77,7 +77,7 @@ local function build(frame)
     return t
 end
 
--- Called at each arrow update with the stop it leads to. frame: the arrow's.
+-- Called at each arrow update with the step it leads to. frame: the arrow's.
 function N.ShowTravel(frame, key, pt, yards)
     if not (frame and frame.arrow) then return nil end
     local saving, bind = hearthSaving(key, pt, yards)
@@ -110,7 +110,7 @@ function N.ShowTravel(frame, key, pt, yards)
     return act
 end
 
--- You'd rather walk to this stop (or want the icon back).
+-- You'd rather walk to this step (or want the icon back).
 function N.SetTravelSkip(key, skip)
     if not key then return end
     N.travelSkip[key] = skip and true or nil
@@ -123,13 +123,13 @@ function N.TravelMenuItems()
     local key = N.travelKey
     if not key then return {} end
     if N.travelSkip[key] then
-        return { { text = "Show the teleport or hearthstone for this stop again",
+        return { { text = "Show the teleport or hearthstone for this step again",
             func = function() N.SetTravelSkip(key, false) end } }
     end
     local act = N.travelAct
     if not act then return {} end
-    return { { text = "Walk there instead (hide \"" .. act.text .. "\" for this stop)",
-        tip = "The arrow goes back to pointing the way on foot for this stop. Flow still plans the route as if you'd travel that way.",
+    return { { text = "Walk there instead (hide \"" .. act.text .. "\" for this step)",
+        tip = "The arrow goes back to pointing the way on foot for this step. Flow still plans the route as if you'd travel that way.",
         func = function() N.SetTravelSkip(key, true) end } }
 end
 
@@ -142,16 +142,16 @@ end
 -- else for the key to do, the key casts the travel spell (or uses the
 -- hearthstone) that the arrow shows. Both are ten-second casts: moving
 -- stops them, so a slip of the finger costs nothing. The same press is a
--- button on that stop's row of the Flow Tracker (QuestItems.lua).
--- "Walk there instead" (Flow menu, Arrow) takes it off both for that stop.
+-- button on that step's row of the Flow Tracker (QuestItems.lua).
+-- "Walk there instead" (Flow menu, Arrow) takes it off both for that step.
 -- "The Flow key casts your teleport or hearthstone" in Flow Settings
 -- (Finding your way) turns both off.
 
 function N.TravelKeyOn() return not (ns.db.actions and ns.db.actions.travel == false) end
 function N.TravelOnTracker() return N.TravelKeyOn() and N.travelAct ~= nil end
 
--- Pure: does the key take it now? act: N.travelAct; goalKey: the stop the
--- key's context is about; travelKey: the stop the travel step is for.
+-- Pure: does the key take it now? act: N.travelAct; goalKey: the step the
+-- key's context is about; travelKey: the step the travel step is for.
 function N.TravelOnKey(act, goalKey, travelKey, enemy, inCombat, on, stones)
     if on == false or not act or inCombat or enemy then return false end
     if not goalKey or goalKey ~= travelKey then return false end
@@ -170,17 +170,17 @@ ns:Register("action", "travel:go", { order = 80, get = function(ctx)
     if act.kind == "spell" then
         local _, tex = ns.api.SpellInfo(act.spell)
         return { type = "spell", spell = act.spell, unit = "player", icon = tex, label = act.text,
-                 reason = "Your next stop is a cast away: " .. act.spell .. " takes you there. (Flow menu, Arrow: walk there instead.)" }
+                 reason = "Your next step is a cast away: " .. act.spell .. " takes you there. (Flow menu, Arrow: walk there instead.)" }
     end
     return { type = "item", item = "item:6948", icon = ns.api.ItemIcon and ns.api.ItemIcon(6948) or nil, label = act.text,
-             reason = "Your hearthstone is clearly the quicker way to your next stop. (Flow menu, Arrow: walk there instead.)" }
+             reason = "Your hearthstone is clearly the quicker way to your next step. (Flow menu, Arrow: walk there instead.)" }
 end })
 
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "route", label = "The Flow key casts your teleport or hearthstone",
-        note = "(when it's the way to your next stop)",
-        tip = "When your next stop is a cast away (Teleport: Moonglade) or clearly quicker by hearthstone, your Flow key casts it, out of a fight "
-            .. "and with no enemy targeted, and the Flow Tracker shows a button for it on that stop. Off: only the icon by the arrow.",
+        note = "(when it's the way to your next step)",
+        tip = "When your next step is a cast away (Teleport: Moonglade) or clearly quicker by hearthstone, your Flow key casts it, out of a fight "
+            .. "and with no enemy targeted, and the Flow Tracker shows a button for it on that step. Off: only the icon by the arrow.",
         get = function() return N.TravelKeyOn() end,
         set = function(on)
             ns.db.actions = ns.db.actions or {}

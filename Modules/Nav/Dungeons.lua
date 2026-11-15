@@ -39,7 +39,7 @@ D.KILLS = 100          -- elites killed in a run (rough, any dungeon)
 D.PARTY_SHARE = 0.26   -- your part of a kill's XP in a group of 5 (with the group bonus)
 D.STOP_MINUTES = 2     -- each pickup: talk, read, accept
 D.RUN_SPEED = 7        -- yards per second on foot (mounts only make it better)
-D.BREADCRUMB_YARDS = 150 -- a breadcrumb is taken when its giver is this close to a stop you make anyway
+D.BREADCRUMB_YARDS = 150 -- a breadcrumb is taken when its giver is this close to a step you make anyway
 
 -- Wings Questie keeps as their own areas (only Dire Maul files its creatures
 -- under them; the others give a wing its own entrance).
@@ -309,7 +309,7 @@ function D.WingFor(objectives, wings, questLevel)
 end
 
 -- The breadcrumbs worth taking: those whose giver is within radius yards of
--- a stop you make anyway. cands: { { at = { cont, wx, wy }, ... } }.
+-- a step you make anyway. cands: { { at = { cont, wx, wy }, ... } }.
 function D.NearStops(cands, stops, radius)
     local out = {}
     for _, c in ipairs(cands or {}) do
@@ -324,7 +324,7 @@ function D.NearStops(cands, stops, radius)
 end
 
 -- Minutes to gather the pickups on foot, nearest first, ending at the
--- entrance. from, stops, entrance: { cont, wx, wy } (world yards); another
+-- entrance. from, steps, entrance: { cont, wx, wy } (world yards); another
 -- continent counts as a long trip.
 function D.GatherMinutes(from, stops, entrance)
     local function dist(a, b)
@@ -585,7 +585,7 @@ local function buildIndex()
         if coroutine.status(co) == "dead" then
             indexState = "ready"
             D.dirty = true
-            -- A run you prepared before the index was ready: its stops now.
+            -- A run you prepared before the index was ready: its steps now.
             if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("dungeon list ready") end
         else
             C_Timer.After(0, step)
@@ -1119,9 +1119,9 @@ local function questOf(key)
     return tonumber(key:match("^(%d+):") or key:match("^pickup:(%d+)$") or "")
 end
 
--- Does stop g stay on the route inside dungeon `here`? Its quests, your own
+-- Does step g stay on the route inside dungeon `here`? Its quests, your own
 -- waypoint, a party member's quests and the shared party route.
--- (A shared party stop's key is "party:<id>"; it has no kind.)
+-- (A shared party step's key is "party:<id>"; it has no kind.)
 function D.KeepInside(g, here, dungeonOf)
     local k = g.key or ""
     local id = questOf(k)
@@ -1146,7 +1146,7 @@ function D:FilterInside(list)
 end
 
 -------------------------------------------------------------------------------
--- Route: Dungeon run (the Route menu). Only the prepared run's stops: its
+-- Route: Dungeon run (the Route menu). Only the prepared run's steps: its
 -- pickups and entrance, the objectives and turn-ins of its quests in your log
 -- (with their unlock and on-the-way quests), your waypoint and the party's.
 -------------------------------------------------------------------------------
@@ -1173,7 +1173,7 @@ end
 
 -- Its tick in the Route menu, under what the route includes (Menu.lua); nil
 -- without Questie's dungeons. A tick, not one of several routes (the three
--- routes became ticks in 0.35.157): on, only the run's stops stay, whatever
+-- routes became ticks in 0.35.157): on, only the run's steps stay, whatever
 -- else is ticked; click it again for your ticks back.
 function D:RouteItem()
     if not self:Available() then return nil end
@@ -1187,7 +1187,7 @@ function D:RouteItem()
         return { text = "|cff777777Only the dungeon run (prepare one under Dungeons, below)|r", disabled = true }
     end
     return { text = "Only the dungeon run: " .. name, checked = self:RunOnly(),
-             tip = "Only this run's stops: its quests, then the entrance. Click again to go back to what you ticked above.",
+             tip = "Only this run's steps: its quests, then the entrance. Click again to go back to what you ticked above.",
              func = function() if self:RunOnly() then self:SetRunOnly(false) else self:SetRunOnly() end end }
 end
 
@@ -1204,7 +1204,7 @@ function D.RunIds(run)
     return ids
 end
 
--- Does stop g stay on Route: Dungeon run? ids = D.RunIds(run).
+-- Does step g stay on Route: Dungeon run? ids = D.RunIds(run).
 function D.KeepForRun(g, ids)
     if g.provider == "dungeon" then return true end
     local k = g.key or ""
@@ -1249,8 +1249,8 @@ function D.TravelHint(to, faction)
     end
 end
 
--- The run's stops with no spot on continent `cont`: { { goal, cont } }. With
--- Route: Dungeon run every stop counts (the route holds nothing else);
+-- The run's steps with no spot on continent `cont`: { { goal, cont } }. With
+-- Route: Dungeon run every step counts (the route holds nothing else);
 -- otherwise only the run's own (pickups, entrance).
 function D:AwayGoals(goals, cont)
     local out = {}
@@ -1270,19 +1270,19 @@ function D:AwayGoals(goals, cont)
 end
 
 -- What the arrow says when nothing on your continent is left but the run's
--- stops are elsewhere: text, sub; nil when that isn't so.
+-- steps are elsewhere: text, sub; nil when that isn't so.
 function D:AwayHint(goals, cont, faction)
     local away = self:AwayGoals(goals, cont)
     if #away == 0 then return nil end
     local to = away[1].cont
     local run = ns.db.nav.dungeonRun
-    return string.format("%s: %d stop%s in %s", (run and run.name) or "Dungeon run", #away,
+    return string.format("%s: %d step%s in %s", (run and run.name) or "Dungeon run", #away,
             #away > 1 and "s" or "", D.CONTINENTS[to] or "another continent"),
         D.TravelHint(to, faction) or "Travel there: they show on its map."
 end
 
 -------------------------------------------------------------------------------
--- Route stops for a prepared run
+-- Route steps for a prepared run
 -------------------------------------------------------------------------------
 
 -- Can you pick this quest up now? (ns.quests:Available; true when it can't tell.)
@@ -1311,7 +1311,7 @@ ns:Register("navGoal", "dungeon", {
             local pts = starterPoints(q)
             local g = starterNPC(q)
             if #pts == 0 then
-                -- (Questie doesn't place its giver: said on the entrance stop)
+                -- (Questie doesn't place its giver: said on the entrance step)
                 if not optional then
                     unplaced[#unplaced + 1] = (q.name or "quest") .. (g and g.name and (" from " .. g.name) or "")
                 end

@@ -2,9 +2,9 @@
 --   Skull   = kill it, with your count (e.g. 3/10)
 --   Diamond = it drops an item you need, with your count (e.g. 0/1)
 --   Star    = talk to / interact with it (an objective mentions its name)
---   (o)     = Flow's target marker: the unit your current stop is about (the
+--   (o)     = Flow's target marker: the unit your current step is about (the
 --             mob to kill or loot, the turn-in, quest giver or trainer), and
---             every mob or NPC of the other stops right by it (your waypoint's
+--             every mob or NPC of the other steps right by it (your waypoint's
 --             area), in the route colour (purple on Most XP), INSTEAD of the
 --             icons above (its count stays beside it); green on the party
 --             member you follow. Every other unit keeps its skull / diamond / star.
@@ -20,7 +20,7 @@
 local _, ns = ...
 
 local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
-local KIND_ICON = { kill = 8, item = 3, talk = 1 }   -- (the route stop's NPC gets Flow's (o): targetMark)
+local KIND_ICON = { kill = 8, item = 3, talk = 1 }   -- (the route step's NPC gets Flow's (o): targetMark)
 -- A yellow "!": this mob drops an item that starts a quest you can take
 -- (instead of Questie's "!" at every spawn on the map: QuestData.lua).
 local KIND_TEXTURE = { drop = "Interface\\GossipFrame\\AvailableQuestIcon" }
@@ -31,7 +31,7 @@ local items = {}       -- [lower item name] = "2/6"
 local dropsBy = {}     -- [lower mob name] = { [lower item name] = true } from Questie
 local texts = {}       -- { lower objective text, ... } for name mentions
 local plates = {}      -- [unit token] = true
-local routeNames = {}  -- [lower name] = true: NPCs of your current route stop
+local routeNames = {}  -- [lower name] = true: NPCs of your current route step
 
 local function db() return ns.db.quests end
 
@@ -133,7 +133,7 @@ local function classify(unit)
         end
     end
 
-    -- (The NPC your current route stop is about gets Flow's (o) on top: targetOf.)
+    -- (The NPC your current route step is about gets Flow's (o) on top: targetOf.)
 
     -- It drops an item that starts a quest you can take: a yellow "!".
     if dropStarts[lname] then marks[#marks + 1] = { kind = "drop" } end
@@ -148,11 +148,11 @@ end
 
 local MAX_MARKS = 3
 
--- Who wears Flow's (o): the NPC your current route stop is about (a turn-in,
+-- Who wears Flow's (o): the NPC your current route step is about (a turn-in,
 -- a quest giver, a trainer), in the route colour (purple on Most XP); the
--- NPCs of your next few stops, a smaller and fainter (o) (walking into a
+-- NPCs of your next few steps, a smaller and fainter (o) (walking into a
 -- camp, everyone you need there is marked: Pyall Silentstride, the cooking
--- trainer, was stop 2 and got no mark); or the party member you follow
+-- trainer, was step 2 and got no mark); or the party member you follow
 -- (Nav/Follow.lua), in your waypoint's green.
 -- Returns "route", "next", "follow" or nil.
 local function targetOf(unit)
@@ -166,11 +166,11 @@ local function targetOf(unit)
     end
     local rank = routeNames[lname]
     if not rank or UnitIsDead(unit) then return nil end
-    -- Units of the stops at your waypoint (mobs, and NPCs to heal or talk to:
-    -- Yang's Injured Deathguards were stop 2): the (o) too.
+    -- Units of the steps at your waypoint (mobs, and NPCs to heal or talk to:
+    -- Yang's Injured Deathguards were step 2): the (o) too.
     if rank == "here" then return "route" end
     if rank ~= "next" then return "route" end
-    -- Later stops: friendly NPCs only (mobs to kill keep their skull/diamond).
+    -- Later steps: friendly NPCs only (mobs to kill keep their skull/diamond).
     if UnitCanAttack("player", unit) then return nil end
     return "next"
 end
@@ -250,7 +250,7 @@ local function updateUnit(unit)
     local t = targetMark(m)
     if tgt then
         local c = tgt == "follow" and ns.theme.waypoint or ns.theme.route
-        local soon = tgt == "next"   -- a later stop: smaller, fainter
+        local soon = tgt == "next"   -- a later step: smaller, fainter
         t.ring:SetVertexColor(c[1], c[2], c[3], soon and 0.6 or 1)
         t.dot:SetVertexColor(c[1], c[2], c[3], soon and 0.6 or 1)
         t:SetSize(soon and 17 or 24, soon and 17 or 24)
@@ -421,8 +421,8 @@ ns.commands.quest = function(arg)
     end
 end
 
--- Called by the route (Nav.lua) when the current stop changes: the current
--- stop's NPCs, the NPCs of the next few stops, and the mobs of the stops at
+-- Called by the route (Nav.lua) when the current step changes: the current
+-- step's NPCs, the NPCs of the next few steps, and the mobs of the steps at
 -- your waypoint (names).
 ns.questMarks = ns.questMarks or {}
 function ns.questMarks.SetRouteTarget(names, nextNames, hereNames)

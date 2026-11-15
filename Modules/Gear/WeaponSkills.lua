@@ -1,6 +1,6 @@
 -- Weapon skills you can learn: when a weapon in your bags would be an upgrade
 -- for your levelling spec but you haven't trained its skill yet (a sword
--- before you've learned Swords), the route gets a stop at a weapon master who
+-- before you've learned Swords), the route gets a step at a weapon master who
 -- teaches it. Weapons your class can never use (guns for a paladin) never
 -- get one: the gear check marks those "your class can't use this".
 --

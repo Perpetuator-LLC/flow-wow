@@ -2,7 +2,7 @@
 -- at a time as you start to play, each fading in with one line saying what
 -- it is, so a new player isn't faced with everything at once:
 --   arrow    you walk a few steps        the arrow (and the minimap marks)
---   tracker  20 s later, or a quest      the Flow Tracker (your next stop)
+--   tracker  20 s later, or a quest      the Flow Tracker (your next step)
 --   icon     you target an enemy / fight the easy button's icon
 --   advice   you level up, or 10 minutes the "!" list of ways to improve
 -- Only on a fresh install: anyone who already used Flow sees it all at once.
@@ -17,8 +17,8 @@ local STAGES = { "arrow", "tracker", "icon", "advice" }
 R.STAGES = STAGES
 local FRAMES = { arrow = "FlowNavArrow", tracker = "FlowTracker", icon = "FlowRotationIcon", advice = "FlowAdviceButton" }
 local HINT = {
-    arrow = "this arrow points to your next stop. Follow it; right-click it for options.",
-    tracker = "the Flow Tracker (top right) shows your next stop. Click it to open the stop.",
+    arrow = "this arrow points to your next step. Follow it; right-click it for options.",
+    tracker = "the Flow Tracker (top right) shows your next step. Click it to open the step.",
     icon = "this icon shows what to press in a fight. Pick a key for it in /flow settings.",
     advice = "the ! button lists ways to improve your character. Hover it.",
 }

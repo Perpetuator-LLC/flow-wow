@@ -11,22 +11,22 @@ end
 -- and the arrow share one colour, and it tells you the route's state:
 --   Most XP first       epic purple   optimised
 --   Shortest path       rare blue     optimised
---   Custom route        legendary orange: you picked the next stop (a ^);
+--   Custom route        legendary orange: you picked the next step (a ^);
 --                       stays until you choose Most XP or Shortest again
 -- Your own waypoint is green (uncommon green), its own colour so it never
 -- reads as a Custom route: the arrow and a line on the map to it. Hovering a
--- ^ previews that route in orange. The stop under your mouse is red.
+-- ^ previews that route in orange. The step under your mouse is red.
 -- Colour-blind palette (/flow settings): Okabe-Ito equivalents that stay
 -- apart for the common kinds of colour blindness.
 local PALETTES = {
     standard = {
         modes    = { xp = rgb("A335EE"), distance = rgb("0070DD"), custom = rgb("FF8000"), selected = rgb("FF8000") },
-        proposed = rgb("FF8000"),  -- legendary orange: the route you'd follow if you pick the hovered stop
+        proposed = rgb("FF8000"),  -- legendary orange: the route you'd follow if you pick the hovered step
         waypoint = rgb("1EFF00"),  -- uncommon green: your own waypoint (arrow, map line, Router line)
         changed  = rgb("9A9A9A"),  -- grey: your route while previewing another
-        hover    = rgb("FF4A4A"),  -- red: the stop under your mouse
+        hover    = rgb("FF4A4A"),  -- red: the step under your mouse
         -- The modern arrow's colour by how close you are (Nav.lua, N.ArrowColor):
-        -- grey while the stop is in another zone, then red (far) through
+        -- grey while the step is in another zone, then red (far) through
         -- yellow to green (close), and blue once you're in its area.
         arrowAway = rgb("9EA0A8"),
         arrowFar  = rgb("FF8C1A"),  -- orange, not red: red reads as "can't", and the arrow says "go"
@@ -131,7 +131,7 @@ ns:OnLoad(function(saved)
     ns.theme:UsePalette(saved.colorblind and "colorblind" or "standard")
 end)
 
--- Stop types on the route: a colour AND an icon each, so colour is never
+-- Step types on the route: a colour AND an icon each, so colour is never
 -- the only cue. (Quests yellow, dailies blue, kills red were chosen by the
 -- player; the rest are picked to stay apart from those.)
 local R = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"

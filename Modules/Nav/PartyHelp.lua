@@ -7,9 +7,9 @@
 --                       to date as anyone's progress changes. Each spot is one
 --                       stop saying who it's for.
 --   Just <name>'s       only what they still need (kill credit is shared in a
---                       party), where they hand in, and your own stops only
+--                       party), where they hand in, and your own steps only
 --                       where they need the same thing
--- Their stops say whose they are ("Bob: ..."), and "(done for you)" when
+-- Their steps say whose they are ("Bob: ..."), and "(done for you)" when
 -- you've already finished that part yourself. Flow asks when a party member
 -- first shares (Join the party route / Just <name>'s / Not now) and when
 -- someone joins the party route. Change it any time: the line under the
@@ -287,7 +287,7 @@ end
 -------------------------------------------------------------------------------
 
 -- Leave out what your own quests already cover: an objective you still need
--- yourself (your own stop is there) and the turn-in of a quest you have too.
+-- yourself (your own step is there) and the turn-in of a quest you have too.
 function H.Skip(key, mine)
     local id, rest = key:match("^help:(%d+):(.+)$")
     local own = mine[tonumber(id)]
@@ -297,9 +297,9 @@ function H.Skip(key, mine)
     return o ~= nil and not o.finished
 end
 
--- A party member's stop that you've already done yourself: that objective
+-- A party member's step that you've already done yourself: that objective
 -- (or the whole quest) is finished in your log, or you handed the quest in
--- before. Their stop then says "(done for you)".
+-- before. Their step then says "(done for you)".
 function H.DoneForYou(key, mineE, doneBefore)
     local rest = key:match("^help:%d+:(.+)$")
     if not rest then return false end
@@ -343,7 +343,7 @@ ns:Register("navGoal", "partyhelp", {
             for _, g in ipairs(list) do
                 local had = byKey[g.key]
                 if had then
-                    had.forNames[#had.forNames + 1] = name   -- the same spot for two of them: one stop
+                    had.forNames[#had.forNames + 1] = name   -- the same spot for two of them: one step
                 else
                     g.forNames = { name }
                     byKey[g.key] = g
@@ -368,8 +368,8 @@ ns:Register("navGoal", "partyhelp", {
     end,
 })
 
--- "Just <name>'s": their stops, your own where they need the same objective
--- or you both hand in the same quest, and party-route stops. Nothing else.
+-- "Just <name>'s": their steps, your own where they need the same objective
+-- or you both hand in the same quest, and party-route steps. Nothing else.
 function H.Keep(list, their)
     local out = {}
     for _, g in ipairs(list) do
@@ -391,7 +391,7 @@ function H.Keep(list, their)
     return out
 end
 -- The party route is quests only (objectives, quest items, turn-ins), so
--- everyone on it plans from the same kind of stops: no one's own trainers,
+-- everyone on it plans from the same kind of steps: no one's own trainers,
 -- pickups or gathering. (Nav.lua, after collecting every provider's goals)
 function H.QuestsOnly(list)
     local out = {}
@@ -411,7 +411,7 @@ end
 -- One route for everyone on the party route
 --   The planner: the group leader if they're on it, otherwise whoever's name
 --   comes first. They plan as usual and send the order and spots of the next
---   8 stops in one short message when it changes:
+--   8 steps in one short message when it changes:
 --     O|key~map~x~y,key~map~x~y,...   key: "83:1", "86:done" (whoever's quest)
 --   Everyone else on the route follows that order and those spots, so you
 --   all head to the same place. No order for 90 s: plan for yourself.
@@ -451,7 +451,7 @@ end
 local function canon(key) return (key:gsub("^help:", "")) end
 H._canon = canon
 
--- The leader's next stops as a message body (nil if nothing to send).
+-- The leader's next steps as a message body (nil if nothing to send).
 function H.OrderBody(plan, n)
     local parts = {}
     for i, s in ipairs(plan or {}) do
@@ -471,7 +471,7 @@ function H.ParseOrder(body)
     return out
 end
 
--- Leader: send the order when its next stops change (at most every 2 s; the
+-- Leader: send the order when its next steps change (at most every 2 s; the
 -- same order again only every 30 s, for anyone who joined since).
 function H:Publish(plan)
     if not (scope == "combined" and ns.party and ns.party:InGroup() and #H.OnRoute() > 0 and self:IsRouteLeader()) then return end
@@ -500,7 +500,7 @@ end
 
 local function dist(ax, ay, bx, by) return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2) end
 
--- A stop on the leader's route that isn't one of your goals (their own
+-- A step on the leader's route that isn't one of your goals (their own
 -- quest you can't help with): still on your route, so you stay together.
 local function routeGoal(e, leader)
     local id, part = e.key:match("^(%d+):(.+)$")

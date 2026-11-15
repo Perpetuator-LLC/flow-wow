@@ -336,9 +336,9 @@ local function nearestPoint(goal, p)
     return best, bestD
 end
 
--- The one spot for a stop, the same everywhere (the arrow, "Point the arrow
--- here", the stop card, tooltips): its route spot when it's on the route
--- (the arrow's own for your next stop), else its spawn nearest you, else its
+-- The one spot for a step, the same everywhere (the arrow, "Point the arrow
+-- here", the step card, tooltips): its route spot when it's on the route
+-- (the arrow's own for your next step), else its spawn nearest you, else its
 -- first. (Off the route it used to be the first spawn Flow happened to keep,
 -- anywhere in the zone.)
 function N:Spot(goal, p)
@@ -358,8 +358,8 @@ function N:Coin(c)
     return GetCoinTextureString and GetCoinTextureString(c or 0) or ((c or 0) .. "c")
 end
 
-local timedProviders = {}   -- each stop source timed on its own in /flow perf
--- One stop source's goals, added to `list`.
+local timedProviders = {}   -- each step source timed on its own in /flow perf
+-- One step source's goals, added to `list`.
 local function gatherFrom(key, provider, list)
     local t = timedProviders[key]
     if not t or t.fn ~= provider.collect then
@@ -385,35 +385,35 @@ N._gatherFrom = gatherFrom  -- (tests)
 function N:Collect(gathered)
     local list = gathered
     -- Asked for directly while a spread-out refresh is still gathering: that
-    -- refresh would replace this list with older stops when it finishes, so
+    -- refresh would replace this list with older steps when it finishes, so
     -- it goes once more after (N.MarkAgain, below).
     if not gathered and N.MarkAgain then N.MarkAgain() end
     if not list then
         list = {}
         for key, provider in ns:Each("navGoal") do gatherFrom(key, provider, list) end
     end
-    -- Only the kinds of stop you ticked (the route menu's "Route includes":
-    -- current quests, new quests, training, professions...). Stops no kind
-    -- claims stay: a dungeon run you prepared, party stops. First of all, so
-    -- a stop never waits on (or is listed as blocked by) a kind you left out.
+    -- Only the kinds of step you ticked (the route menu's "Route includes":
+    -- current quests, new quests, training, professions...). Steps no kind
+    -- claims stay: a dungeon run you prepared, party steps. First of all, so
+    -- a step never waits on (or is listed as blocked by) a kind you left out.
     list = N.FilterKinds(list, function(kind) return N:Includes(kind) end, UnitLevel("player"))
-    -- "Only the dungeon run" (Dungeons.lua): just the prepared run's stops. Here
-    -- with the ticks, before the blocked stops are set apart, so a blocked
-    -- stop of another kind isn't listed either.
+    -- "Only the dungeon run" (Dungeons.lua): just the prepared run's steps. Here
+    -- with the ticks, before the blocked steps are set apart, so a blocked
+    -- step of another kind isn't listed either.
     if ns.dungeons and ns.dungeons.FilterOnly then list = ns.dungeons:FilterOnly(list) end
-    -- What stops need first (Needs.lua): after the stop that provides it, or
+    -- What steps need first (Needs.lua): after the step that provides it, or
     -- blocked with the reason when nothing on the route does.
     if N.ResolveNeeds then
         local okN, errN = pcall(N.ResolveNeeds, list)
         if not okN then ns:Log("nav", "needs: " .. tostring(errN)) end
     end
-    -- Blocked stops stay off the route but are listed (with a lock and the
+    -- Blocked steps stay off the route but are listed (with a lock and the
     -- reason) on the map list and the tracker:
     --   goal.blockedBy = "needs Mining"     set by the goal's provider
     --   goal.cost = copper                  blocked while you have less money
-    -- Money-blocked stops are remembered in ns.db.nav.deferred. When your
+    -- Money-blocked steps are remembered in ns.db.nav.deferred. When your
     -- money reaches the cost (PLAYER_MONEY below) they come back and are
-    -- planned like any other stop: by distance and weight, so a trainer you're
+    -- planned like any other step: by distance and weight, so a trainer you're
     -- standing near (say, after a hearth) goes to the top by itself.
     local money = GetMoney and GetMoney() or 0
     local deferred = ns.db.nav.deferred or {}
@@ -448,7 +448,7 @@ function N:Collect(gathered)
     if ns.partyHelp then list = ns.partyHelp:FilterGoals(list) end
     -- Inside a dungeon: only its quests (Dungeons.lua).
     if ns.dungeons then list = ns.dungeons:FilterInside(list) end
-    -- Stops you hid (right-click on the map) stay out of the route; they're
+    -- Steps you hid (right-click on the map) stay out of the route; they're
     -- kept in N.hiddenGoals so the map panel can list and unhide them.
     local hidden = ns.db.nav.hidden or {}
     local shown, hiddenGoals = {}, {}
@@ -456,15 +456,15 @@ function N:Collect(gathered)
         if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
     end
     N.hiddenGoals = hiddenGoals
-    -- A stop that waits for one you hid (a quest's hand-in, its objective
+    -- A step that waits for one you hid (a quest's hand-in, its objective
     -- hidden) can't be done yet either: off the route, with the reason
-    -- (0.35.240: "Turn in: Centaur Bracers" at 10/15, its collect stop hidden).
+    -- (0.35.240: "Turn in: Centaur Bracers" at 10/15, its collect step hidden).
     local waiting
     shown, waiting = N.HoldForHidden(shown, hiddenGoals)
     for _, g in ipairs(waiting) do blockedGoals[#blockedGoals + 1] = g end
     -- "Along the way" goals (loot meat for an optional profession): never a
-    -- stop of their own, so the route never sends you off to grind them.
-    -- They're listed in the arrow panel and stop cards, and their mobs are
+    -- step of their own, so the route never sends you off to grind them.
+    -- They're listed in the arrow panel and step cards, and their mobs are
     -- worth looting when you meet them anyway.
     local routed, along = {}, {}
     for _, g in ipairs(shown) do
@@ -474,17 +474,17 @@ function N:Collect(gathered)
     shown = routed
     -- XP-first sorting (XpValue.lua): weights by XP and quest level; also adds XP to tooltips.
     -- and the route objective (what the route optimises; XpValue.lua) weighs
-    -- the stops and may pick which ones count.
+    -- the steps and may pick which ones count.
     if ns.xpValue then
         local okA, picked = pcall(ns.xpValue.Apply, ns.xpValue, shown)
         if okA and picked then shown = picked end
     end
-    -- A craft whose materials come from a stop that's off the route (blocked,
+    -- A craft whose materials come from a step that's off the route (blocked,
     -- hidden, filtered out) can't be made yet: it waits, never "Here: Make".
     local held
     shown, held = N.HoldCrafts(shown, present)
     for _, g in ipairs(held) do blockedGoals[#blockedGoals + 1] = g end
-    -- Profession stops (training, skill-ups) get their own faint arrow when
+    -- Profession steps (training, skill-ups) get their own faint arrow when
     -- it's on, so the quest arrow never sends you off to them.
     local quest, prof = N.SplitProfessions(shown, N:ProfPointerOn())
     N.profGoals = prof
@@ -493,7 +493,7 @@ function N:Collect(gathered)
     N.planDirty = true
 end
 
--- A profession stop: a skill-up step (SkillPlan.lua) or a profession errand
+-- A profession step: a skill-up step (SkillPlan.lua) or a profession errand
 -- (train or skill up a profession). Class training is not one: it stays on
 -- the quest arrow.
 function N.IsProfessionStop(g)
@@ -504,14 +504,14 @@ end
 
 -- The faint profession arrow: off unless you tick it (arrow menu, Options,
 -- /flow nav profarrow on, or under Professions in the route menu), and only with Professions on the route. (On by
--- default it moved profession stops off the main route, where the Flow key
--- does their steps: at a forge stop the key no longer made the bars.)
+-- default it moved profession steps off the main route, where the Flow key
+-- does their steps: at a forge step the key no longer made the bars.)
 function N:ProfPointerOn()
     local cfg = ns.db.nav
     return cfg.profArrow == true and self:Includes("professions")
 end
 
--- Craft stops whose deps (bank, smelting, an earlier craft) are stops that
+-- Craft steps whose deps (bank, smelting, an earlier craft) are steps that
 -- exist (all: key -> goal) but aren't in `shown` can't be made yet. They come
 -- out of the route, blocked with the reason; repeats so a craft that needs a
 -- held craft waits too. A dep that isn't in `all` is done and doesn't hold.
@@ -545,7 +545,7 @@ function N.HoldCrafts(shown, all)
     end
 end
 
--- Pure: stops that come after a stop you hid (goal.deps) leave the route
+-- Pure: steps that come after a step you hid (goal.deps) leave the route
 -- too, blocked with the reason; and so on down the chain. Returns kept, held.
 function N.HoldForHidden(shown, hiddenGoals)
     local off = {}
@@ -562,8 +562,8 @@ function N.HoldForHidden(shown, hiddenGoals)
             if wait then
                 local c = {}
                 for k, v in pairs(g) do c[k] = v end
-                c.blockedBy = "first: " .. (wait.text or wait.title or wait.key) .. " (you hid that stop: unhide it in the Flow Router)"
-                c.blockedShort = "its stop is hidden"
+                c.blockedBy = "first: " .. (wait.text or wait.title or wait.key) .. " (you hid that step: unhide it in the Flow Router)"
+                c.blockedShort = "its step is hidden"
                 held[#held + 1] = c
                 off[g.key] = c
                 changed = true
@@ -576,8 +576,8 @@ function N.HoldForHidden(shown, hiddenGoals)
     end
 end
 
--- Splits the stops into quest stops and profession stops. Off, or with
--- nothing but profession stops left, everything stays on the main arrow.
+-- Splits the steps into quest steps and profession steps. Off, or with
+-- nothing but profession steps left, everything stays on the main arrow.
 function N.SplitProfessions(list, on)
     if not on then return list, {} end
     local quest, prof = {}, {}
@@ -607,14 +607,14 @@ function N:Unhide(key)
 end
 
 -------------------------------------------------------------------------------
--- What the route is made of: one tick per kind of stop (0.35.157), in place
+-- What the route is made of: one tick per kind of step (0.35.157), in place
 -- of the three routes (Quests only / Optimal / Completionist) and their
 -- Professions switch. Each kind is a registration (Goals.lua has Flow's):
 --   ns:Register("routeKind", key, { order, label, short, tip, default,
 --       match = function(goal, yourLevel) return true or false end })
--- A stop takes the first kind that matches it (lowest order first). A stop
+-- A step takes the first kind that matches it (lowest order first). A step
 -- no kind claims is always on the route: a dungeon run you prepared and
--- party stops are there because you asked for them.
+-- party steps are there because you asked for them.
 -- Your choice: ns.db.nav.kinds[key] (nothing saved: the kind's default).
 -------------------------------------------------------------------------------
 N.LOW_QUEST_BELOW = 4   -- a quest this many levels under you is "low-level" (grey soon)
@@ -653,7 +653,7 @@ function N:SetAllKinds(on)
     ns.db.nav.professions = on and true or false   -- (its older saved name)
     self:Collect()
 end
--- The stops whose kind is ticked (includes(kind) -> bool); each stop is
+-- The steps whose kind is ticked (includes(kind) -> bool); each step is
 -- tagged with its kind (goal.routeKind) for the map and menus.
 function N.FilterKinds(list, includes, level)
     local out = {}
@@ -777,7 +777,7 @@ function N:MakeHudArrow(parent)
     end
     function a:SetRotation(r) self.angle = r or 0; draw() end
     function a:SetVertexColor(r, g, b) self.r, self.g, self.b = r, g, b; draw() end
-    -- The stop's own icon in the middle instead of the dot (cooking, a bag...).
+    -- The step's own icon in the middle instead of the dot (cooking, a bag...).
     function a:SetCenterIcon(tex)
         if tex == self.iconTex then return end
         self.iconTex = tex
@@ -935,7 +935,7 @@ function N:MakeArrow3D(parent)
         self.ballBody:SetPoint("CENTER", self, "CENTER", -0.8, lift + 0.8)
         self.ballHi:SetPoint("CENTER", self, "CENTER", -2.4, lift + 2.6)
     end
-    -- The stop's own icon in place of the ball (the cooking icon at "Make 4 x
+    -- The step's own icon in place of the ball (the cooking icon at "Make 4 x
     -- Roasted Boar Meat", a bag for something to use from your bags):
     -- round, on a dark disc, bouncing over its shadow.
     a.icon = a:CreateTexture(nil, "OVERLAY", nil, 4)
@@ -1117,9 +1117,9 @@ end
 -- Modern arrow (the default look): a glossy, bevelled chevron with a dark
 -- outline and a soft shadow, drawn from pictures that tools/make-arrow-art.py
 -- renders (128 turns, one picture each, in Modules/Nav/Art). Its colour
--- tells you how close you are (N.ArrowColor): grey while the stop is in
+-- tells you how close you are (N.ArrowColor): grey while the step is in
 -- another zone, red far away through yellow to green close by, blue in the
--- stop's area. It floats over its shadow and a pool of its own light. When
+-- step's area. It floats over its shadow and a pool of its own light. When
 -- you've arrived it gives way to a glowing ring on the ground with ripples
 -- running out of it and a beam of light rising from the middle.
 -------------------------------------------------------------------------------
@@ -1137,9 +1137,9 @@ function N.ArrowCell(angle)
     return i, col / ART_COLS, (col + 1) / ART_COLS, row / ART_ROWS, (row + 1) / ART_ROWS
 end
 
--- How the arrow should be coloured for this stop: "here" (you're in its
+-- How the arrow should be coloured for this step: "here" (you're in its
 -- area), "away" (it's in another zone or on another continent) or "zone"
--- (same zone: by distance). p = N:PlayerPos(), pt = the stop's point.
+-- (same zone: by distance). p = N:PlayerPos(), pt = the step's point.
 function N.ArrowState(p, pt, here)
     if here then return "here" end
     if p and pt then
@@ -1219,7 +1219,7 @@ function N:MakeArrowModern(parent)
     a.beamDown = tex("ArrowBeam", "ARTWORK", 3, "ADD")
     a.beamDown:SetTexCoord(N.BeamCoords(true))
     a.beamDown:SetPoint("TOP", a, "CENTER", 0, HALO_Y)
-    -- The stop's own icon (craft here, use from your bags) bouncing in the
+    -- The step's own icon (craft here, use from your bags) bouncing in the
     -- ring: round, on a dark disc.
     local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
     a.disc = a:CreateTexture(nil, "OVERLAY", nil, 1)
@@ -1418,7 +1418,7 @@ N.PROF_WID = N.MAIN_WID * N.ON_NEEDLE_SCALE * N.PROF_WID_K
 N.PROF_LEN = N.MAIN_LEN * N.ON_NEEDLE_SCALE * N.PROF_LEN_K
 N.PROF_ARROW_W = 64 * N.PROF_WID / N.ART0_W
 N.PROF_ARROW_H = 64 * N.PROF_LEN / N.ART0_H
-N.PROF_RING_ALPHA = 0.35   -- the faint ring at the profession stop
+N.PROF_RING_ALPHA = 0.35   -- the faint ring at the profession step
 function N:MakeProfArrow(holder)
     local a = CreateFrame("Frame", nil, holder)
     a:SetAllPoints(holder)
@@ -1528,19 +1528,19 @@ function N.TravelSuffix(yd, speed)
     return t ~= "" and (" " .. t) or ""
 end
 
--- Shared look for route stops (trip plan, world map pins, map list):
---   label "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
+-- Shared look for route steps (trip plan, world map pins, map list):
+--   label "3 [9]" = 3rd step, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colour: route colour (green) = where the arrow points now, blue = quest pickup,
 --           sky blue = your waypoint, bluish green = the rest of the route
--- A blocked stop for lists: lock (or coin) icon, greyed text, and the reason.
+-- A blocked step for lists: lock (or coin) icon, greyed text, and the reason.
 local LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
--- A few words for a locked stop's row: its own short form (blockedShort),
--- else its reason cut to size. The whole reason is in the stop's tooltip and
+-- A few words for a locked step's row: its own short form (blockedShort),
+-- else its reason cut to size. The whole reason is in the step's tooltip and
 -- on its card. (The Flow Router's rows are 300 wide: "Flow doesn't know
 -- where: Questie has no spot for Fish Chunks. Your quest log says how." ran
 -- out of the Router and over the quest log beside it.)
 N.BLOCKED_MAX = 26
-N.NO_SPOT = "no known spot"   -- (a quest stop neither the quest data nor the game's marker places)
+N.NO_SPOT = "no known spot"   -- (a quest step neither the quest data nor the game's marker places)
 -- Reasons that start the same way, in two or three words.
 local SHORT_REASONS = {
     { "^Flow doesn't know who sells", "no known seller" },
@@ -1573,7 +1573,7 @@ function N:FormatBlocked(goal)
            "|cffff7070" .. N.ShortBlocked(goal) .. "|r"
 end
 
--- The NPC names of the next `n` stops after the current one (currentKey), for
+-- The NPC names of the next `n` steps after the current one (currentKey), for
 -- the smaller (o) over their nameplates (QuestMarks.lua). Nameplates only
 -- show near you, so these are the ones around you.
 function N.NextStopNames(plan, currentKey, n)
@@ -1590,21 +1590,21 @@ function N.NextStopNames(plan, currentKey, n)
     return out
 end
 
--- Everything to do around you (the Flow Tracker): the next stop, and every
--- stop on the route within N.HERE_YARDS of you or of that stop, in route
+-- Everything to do around you (the Flow Tracker): the next step, and every
+-- step on the route within N.HERE_YARDS of you or of that step, in route
 -- order. `p` (where you are) may be nil. Returns plan indices.
 N.HERE_YARDS = 150
 local function within(a, b, yards)
     return a and b and a.cont == b.cont and a.wx and b.wx and dist(a.wx, a.wy, b.wx, b.wy) <= yards or false
 end
--- Is any of stop s's spots near `at`? Its route spot first, then every spawn
+-- Is any of step s's spots near `at`? Its route spot first, then every spawn
 -- of its objective (goal.points), as the arrow's "in the area" does: a kill
 -- objective whose wolves roam right here counts even when its one route spot
 -- is across the zone (0.35.140: the map and Flow Tracker went by that one
 -- spot only, the arrow by every spawn, so they disagreed).
--- (Each objective's spawns get a box around them, worked out once: a stop
+-- (Each objective's spawns get a box around them, worked out once: a step
 -- nowhere near you is ruled out at once instead of spawn by spawn. Checking
--- up to 80 spawns of every stop, twice a second, doubled the Flow Tracker's
+-- up to 80 spawns of every step, twice a second, doubled the Flow Tracker's
 -- cost in 0.35.140.)
 -- (Keyed by the spawn list itself and its length, so a list that is
 -- replaced or grows gets a new box.)
@@ -1626,7 +1626,7 @@ local function boxOf(points)
     boxes[points] = b
     return b
 end
-N.SpawnBox = boxOf   -- (Actions.lua's "at the stop" check; tests)
+N.SpawnBox = boxOf   -- (Actions.lua's "at the step" check; tests)
 local function stopNear(s, at, yards)
     if not at then return false end
     if within(s.point, at, yards) then return true end
@@ -1643,8 +1643,8 @@ local function stopNear(s, at, yards)
     return false
 end
 N._stopNear = stopNear   -- (tests)
--- Is stop i of the plan "here": the next stop, or near you, or near the
--- next stop? (One stop at a time, for a caller that only cares about a few.)
+-- Is step i of the plan "here": the next step, or near you, or near the
+-- next step? (One step at a time, for a caller that only cares about a few.)
 function N.IsHere(plan, i, p, yards)
     local s = plan and plan[i]
     if not s then return false end
@@ -1660,9 +1660,9 @@ function N.HereStops(plan, p, yards)
     return out
 end
 
--- The mobs and NPCs of the stops at your waypoint (the next stop and those
+-- The mobs and NPCs of the steps at your waypoint (the next step and those
 -- right by it): Flow's (o) goes over every mob there, not just the first
--- stop's (QuestMarks.lua). Names, each once.
+-- step's (QuestMarks.lua). Names, each once.
 function N.HereNames(plan, yards)
     local out, seen = {}, {}
     for _, i in ipairs(N.HereStops(plan, nil, yards)) do
@@ -1684,11 +1684,11 @@ function N:PlanLabels(plan)
     return out
 end
 
--- Stops on the map: how many upcoming stops the world map and the Flow
+-- Steps on the map: how many upcoming steps the world map and the Flow
 -- Tracker show. Returns the number, or nil for all of them. Saved: nothing
--- = 1, just the next stop (the default); 0 = all.
--- The whole trip is still planned (the next stop depends on everything after
--- it), and the Flow Router still lists all of it so you can pick any stop.
+-- = 1, just the next step (the default); 0 = all.
+-- The whole trip is still planned (the next step depends on everything after
+-- it), and the Flow Router still lists all of it so you can pick any step.
 N.STOP_CHOICES = { 1, 3, 5, 10 }
 function N:StopsShown()
     local saved = ns.db.nav.stopsShown
@@ -1697,15 +1697,15 @@ function N:StopsShown()
     if n and n >= 1 then return math.floor(n) end
     return nil
 end
--- "All stops in this area", the last choice of Stops on the map (per
--- character): the map and the Flow Tracker show the stops around you and
--- around your next stop (N.HereStops: within N.HERE_YARDS) instead of your
--- next N. Somewhere with nothing else nearby that is just your next stop.
--- Off unless you choose it (0.35.225: "make 'next stop only' the default";
+-- "All steps in this area", the last choice of Steps on the map (per
+-- character): the map and the Flow Tracker show the steps around you and
+-- around your next step (N.HereStops: within N.HERE_YARDS) instead of your
+-- next N. Somewhere with nothing else nearby that is just your next step.
+-- Off unless you choose it (0.35.225: "make 'next step only' the default";
 -- until then it was on unless you had picked a number). Called "All
--- objectives in this area" before: a stop is Flow's word, an objective is a
+-- objectives in this area" before: a step is Flow's word, an objective is a
 -- line of a quest (docs/ARCHITECTURE.md, "Words").
-N.AREA_LABEL = "All stops in this area"
+N.AREA_LABEL = "All steps in this area"
 function N:AreaMode()
     return ns.db.nav.stopsArea == true
 end
@@ -1717,7 +1717,7 @@ function N:SetArea(on)
     ns.db.nav.stopsArea = on and true or false
     stopsChanged()
 end
--- Is stop i one of the area's? (Worked out at most twice a second.)
+-- Is step i one of the area's? (Worked out at most twice a second.)
 -- (Named StopInArea: it was InArea too, the same name as "are you in a
 -- quest's area" further down, which replaced it, so with "All objectives in
 -- this area" on every map and Flow Tracker check failed with "attempt to
@@ -1731,9 +1731,9 @@ function N:StopInArea(i)
     end
     return areaCache.set[i] == true
 end
--- Is stop i drawn? Past your limit (or outside the area) only the stop you
+-- Is step i drawn? Past your limit (or outside the area) only the step you
 -- point at is.
--- (Named StopVisible: it was ShowStop too, the same name as the stop card
+-- (Named StopVisible: it was ShowStop too, the same name as the step card
 -- below, and the card's later definition replaced it, so every map and
 -- Tracker call failed with "attempt to index local 'goal' (a number)".)
 function N:StopVisible(i, pointed)
@@ -1742,7 +1742,7 @@ function N:StopVisible(i, pointed)
     local limit = self:StopsShown()
     return limit == nil or i <= limit
 end
--- Your next n stops (nil: all of them); this turns the area choice off.
+-- Your next n steps (nil: all of them); this turns the area choice off.
 function N:SetStopsShown(n)
     n = tonumber(n)
     ns.db.nav.stopsShown = (n and n >= 1) and math.floor(n) or 0   -- (0 = all; nothing saved = 1)
@@ -1752,12 +1752,12 @@ end
 function N:StopsShownLabel(n)
     if n == nil and self:AreaMode() then return N.AREA_LABEL end
     if n == nil then n = self:StopsShown() end
-    if not n or n < 1 then return "All stops" end
-    if n == 1 then return "Next stop only" end
-    return string.format("Next %d stops", n)
+    if not n or n < 1 then return "All steps" end
+    if n == 1 then return "Next step only" end
+    return string.format("Next %d steps", n)
 end
 
--- The kind of a stop (accept, turnin, kill, collect, ...): set by the goal's
+-- The kind of a step (accept, turnin, kill, collect, ...): set by the goal's
 -- provider, or worked out from its key for older goals.
 function N:StopKind(goal)
     if goal.kind then return goal.kind end
@@ -1774,48 +1774,48 @@ function N:StopKind(goal)
     return "kill"
 end
 
--- Colour for a stop: by its kind (see Theme.lua kinds).
+-- Colour for a step: by its kind (see Theme.lua kinds).
 function N:StopColor(i, goal)
     local kinds = ns.theme.kinds
     local k = kinds[self:StopKind(goal)]
     return k and k.color or ns.theme.current
 end
 
--- "icon number text" for lists: the number is in the route colour for the stop the arrow
+-- "icon number text" for lists: the number is in the route colour for the step the arrow
 -- points at now, grey for the rest; the text takes the kind's colour.
 function N:FormatStop(i, goal, label)
     local kindName = self:StopKind(goal)
     local kind = ns.theme.kinds[kindName]
     local path = kind and kind.icon
-    -- Profession stops show that profession's own icon (pickaxe, anvil...).
+    -- Profession steps show that profession's own icon (pickaxe, anvil...).
     local prof = goal.key:match("^train:(.+)$") or goal.key:match("^skill:(.+)$")
     if prof and ns.disposition and ns.disposition.PROF_ICON[prof] then path = ns.disposition.PROF_ICON[prof] end
     local icon = path and string.format("|T%s:13:13|t ", path) or ""
     -- Objectives of a quest you're on: the game's in-progress "?" (grey) first,
-    -- so every quest stop shows a quest icon (accept "!" and turn-in "?" already do).
+    -- so every quest step shows a quest icon (accept "!" and turn-in "?" already do).
     if goal.key:find("^%d+:%d+$") then
         icon = "|TInterface\\GossipFrame\\ActiveQuestIcon:13:13:0:0:16:16:0:16:0:16:150:150:150|t" .. icon
     end
     local numColor = (i == 1) and ns.theme.route.hex or "999999"
     local textColor = kind and kind.color.hex or "ffffff"
-    -- A stop in another zone, waiting until this zone is done: says where.
+    -- A step in another zone, waiting until this zone is done: says where.
     local where = goal.awayZone and string.format(" |cff888888(%s, after this zone)|r", goal.awayZone) or ""
-    -- A stop that goes after another (Needs.lua): "after Bear Form".
+    -- A step that goes after another (Needs.lua): "after Bear Form".
     if goal.after then where = where .. string.format(" |cff888888(after %s)|r", goal.after) end
     return string.format("%s|cff%s%s|r |cff%s%s|r%s", icon, numColor, label or tostring(i),
         textColor, goal.text or goal.title or "?", where)
 end
 
 -------------------------------------------------------------------------------
--- Finish a zone before leaving it. Quest stops in your zone come before
--- stops in another zone, except:
+-- Finish a zone before leaving it. Quest steps in your zone come before
+-- steps in another zone, except:
 --   * quests too low (reduced XP) or too high (3+ levels above) for you: they
 --     don't hold you here
---   * a stop just over the border (within BRIEF yards of you) and your class
+--   * a step just over the border (within BRIEF yards of you) and your class
 --     trainer (a milestone): short trips that don't wait
---   * a stop here that needs one over there first (its objectives are in the
+--   * a step here that needs one over there first (its objectives are in the
 --     next zone) can't hold you here either
--- The waiting stops say "(Westfall, after this zone)", and the Flow Router and
+-- The waiting steps say "(Westfall, after this zone)", and the Flow Router and
 -- Tracker say "Finishing Elwynn Forest first". Setting: /flow settings.
 -------------------------------------------------------------------------------
 
@@ -1848,7 +1848,7 @@ N.ZoneNameOf = zoneName
 -------------------------------------------------------------------------------
 -- Travel by air: the flight masters this character can fly to (read when
 -- you open a flight map), how long each flight took (for the whole account),
--- and the time to a stop by air when that beats going on foot.
+-- and the time to a step by air when that beats going on foot.
 -- Assumes the flight masters you know on a continent connect, which is how
 -- the game's flight network works for the paths you have learned.
 -------------------------------------------------------------------------------
@@ -1946,7 +1946,7 @@ end
 -- Running yards from spot a to spot b by flight: the walk to the flight
 -- master nearest a, the flight (the yards you'd run in its seconds) and the
 -- walk on from the one nearest b. nil without a flight between them. The
--- route picks stops by this when it beats the straight line (Planner: air).
+-- route picks steps by this when it beats the straight line (Planner: air).
 -- memo (optional): { [from] = { [to] = seconds or false } }, flight times
 -- already worked out in this plan.
 function N.TravelYards(a, b, speed, memo)
@@ -2050,7 +2050,7 @@ function N._TaxiReset(seen) N.taxiTrip, groundSeen = nil, seen and true or false
 
 -- On a flight you can't steer, so the arrow's two lines are the flight's.
 --   to: where it lands (nil: Flow doesn't know); left: seconds to landing
---   (nil: not learned yet); nextText: your next stop
+--   (nil: not learned yet); nextText: your next step
 function N.FlightWords(to, left, nextText)
     local title = to and ("Flying to " .. to) or "On a flight"
     local sub = left and ("landing in " .. N.FormatSeconds(left)) or "landing time not known yet"
@@ -2097,7 +2097,7 @@ function N.TaxiLeft()
     return math.max(1, total - (GetTime() - trip.start)), trip.to
 end
 
--- The walk to a stop crosses into another zone: yards to that zone's edge
+-- The walk to a step crosses into another zone: yards to that zone's edge
 -- along the arrow's line, and the zone's map (nil: it stays in this zone).
 -- at(yd) -> the zone at that distance along the line.
 function N.FirstChange(len, at, step)
@@ -2146,9 +2146,9 @@ local function zoneAtWorld(cont, contMap, wx, wy)
     return info and N.ZoneOf(info.mapID)
 end
 
--- Yards to the next zone on the way to a stop in another zone, and its
+-- Yards to the next zone on the way to a step in another zone, and its
 -- name. Worked out again only after you've moved a bit, one answer kept per
--- stop (a single shared one missed every time with two stops in other
+-- step (a single shared one missed every time with two steps in other
 -- zones: ~100 zone lookups a call, several calls a second).
 local borderCache = setmetatable({}, { __mode = "k" })
 function N.NextZone(p, pt)
@@ -2171,11 +2171,11 @@ function N.NextZone(p, pt)
     return yd, c.name
 end
 
--- The time part of a stop's distance line (with a space in front, or ""):
+-- The time part of a step's distance line (with a space in front, or ""):
 --   on a flight: "~1m 10s (landing at Sentinel Hill in ~50s)"
 --   quicker by air: "~2m 10s by air"
---   on foot: "~3m 40s", and, for a stop in another zone, "(Westfall in ~40s)".
--- (Each stop's text is kept a second: the arrow, its drawer and the
+--   on foot: "~3m 40s", and, for a step in another zone, "(Westfall in ~40s)".
+-- (Each step's text is kept a second: the arrow, its drawer and the
 -- profession arrow ask ten times a second each.)
 local travelCache = setmetatable({}, { __mode = "k" })
 function N.TravelText(p, pt, yd)
@@ -2209,7 +2209,7 @@ local function isQuestStop(key)
     return key:find("^%d+:") ~= nil or key:find("^pickup:") ~= nil or key:find("^help:") ~= nil
 end
 
--- Which stops hold you in `zone` (here) and which wait (away); nil, nil when
+-- Which steps hold you in `zone` (here) and which wait (away); nil, nil when
 -- there's nothing to hold you or nowhere else to go.
 function N.AreaSplit(list, zone, p, zoneOf)
     local here, away, byKey = {}, {}, {}
@@ -2246,11 +2246,11 @@ end
 
 -------------------------------------------------------------------------------
 -- Choosing the route. N.selection = { first = goal key, tour = { [key] = true } }
---   first : the next stop you picked (its ^ in the Flow Router, "Go here
---           first"). That makes it a Custom route (orange): this stop first,
+--   first : the next step you picked (its ^ in the Flow Router, "Go here
+--           first"). That makes it a Custom route (orange): this step first,
 --           with the (o), the rest planned after it. It stays Custom until you
 --           pick Most XP or Shortest again (or click the (o) of your pick).
---   tour  : stops that must all come before anything else (picking one of the
+--   tour  : steps that must all come before anything else (picking one of the
 --           "!" quest pickups puts all pickups first: !3 -> the other pickups
 --           -> then the normal plan)
 -- Your own waypoint (Waypoint.lua) is NOT part of the route: see
@@ -2272,7 +2272,7 @@ end
 
 -- Training is hub business too, but only when you're right at the trainer
 -- (in town, N.TRAIN_NEAR yards): Yang stood next to the trainer with
--- training as stop 7. Wider (0.35.98's 300 yards) pulled you off the mobs
+-- training as step 7. Wider (0.35.98's 300 yards) pulled you off the mobs
 -- you were killing for a quest. Not when you can't pay for any of it (cost),
 -- nor when your trainer, seen at this level, has nothing left to learn (a
 -- spell Flow lists that the trainer doesn't have would keep you there).
@@ -2293,7 +2293,7 @@ end
 -- trainer has nothing left for you (N.TrainerHasSomething).
 function N.HubBusiness(g, d, present, nothingToLearn, radius)
     if not d then return nil end
-    -- (Not while a stop it goes after is still on the route: training after
+    -- (Not while a step it goes after is still on the route: training after
     -- the Bear Form quest, Needs.lua. The town's errands go first and would
     -- otherwise pull it ahead of what it waits for.)
     if g.key:find("^train:") then
@@ -2336,7 +2336,7 @@ end
 
 function N:Select(key)
     -- On a shared party route, choosing edits the shared route instead:
-    -- a shared stop moves to the front; anything else is added at the front.
+    -- a shared step moves to the front; anything else is added at the front.
     if key and ns.party and ns.party:Following() then
         local id = key:match("^party:(.+)$")
         if id then
@@ -2352,7 +2352,7 @@ function N:Select(key)
     if key and key:find("^pickup:") then tour = self:PickupKeys() end
     self.selection = key and { first = key, tour = tour } or nil
     ns.db.nav.selectedKey = key  -- kept across /reload
-    -- Picking a stop: Custom route (orange). Clearing it: back to optimised
+    -- Picking a step: Custom route (orange). Clearing it: back to optimised
     -- (your last objective).
     if key then
         ns.db.nav.sorter = "custom"
@@ -2366,9 +2366,9 @@ end
 
 function N:ClearSelection() self:Select(nil) end
 
--- Open what a stop is about, without changing the route (tracker clicks,
+-- Open what a step is about, without changing the route (tracker clicks,
 -- arrow menu): a quest in your log opens in the quest log; anything else
--- opens the world map on that stop, highlighted.
+-- opens the world map on that step, highlighted.
 local function questLogIndex(id)
     if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then return C_QuestLog.GetLogIndexForQuestID(id) end
     if GetQuestLogIndexByID then
@@ -2377,11 +2377,11 @@ local function questLogIndex(id)
     end
 end
 
--- One readable tooltip for any stop (map pins, map list, tracker, minimap):
---   title (gold) with the stop type icon and level
+-- One readable tooltip for any step (map pins, map list, tracker, minimap):
+--   title (gold) with the step type icon and level
 --   WHAT TO DO: the objective or task, large and white
 --   quest objectives with progress (done ones green), the quest text (short)
---   details from the stop's provider, XP, blocked reason
+--   details from the step's provider, XP, blocked reason
 --   footer hint (grey)
 local function questText(id)
     local q = ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", id)
@@ -2447,7 +2447,7 @@ function N:FillTooltip(tt, goal, footer)
     if footer then tt:AddLine(" "); tt:AddLine(footer, 0.55, 0.55, 0.55, true) end
 end
 
--- Clicking a stop (Flow Router row or pin, tracker row, map area) opens
+-- Clicking a step (Flow Router row or pin, tracker row, map area) opens
 -- Flow's own card for it next to what you clicked (N:ShowStop, below). The
 -- game's quest log, which folds the Flow Router away, is a link on the card.
 function N:OpenStop(goal, anchor)
@@ -2456,12 +2456,12 @@ function N:OpenStop(goal, anchor)
     return N:OpenInGame(goal)
 end
 
--- A stop in the game's own windows, WITHOUT calling the game's map or
+-- A step in the game's own windows, WITHOUT calling the game's map or
 -- quest-log functions from Flow's code (QuestMapFrame_OpenToQuestDetails,
 -- ToggleWorldMap, SetMapID...): those run the map from add-on code and taint
 -- it, and in a later fight the map's own buttons get blocked (0.35.47). So:
 -- the quest is selected in your log (you open it with L or M, so the game
--- runs its own window), and Flow's map layer highlights the stop for the
+-- runs its own window), and Flow's map layer highlights the step for the
 -- next 20 seconds.
 function N:OpenInGame(goal)
     if not goal then return end
@@ -2485,7 +2485,7 @@ function N:Options(sel)
         if not next(tour) then tour = nil end
     end
     -- (Not in the first seconds after login: quest data may not be in yet, and
-    -- a stop chosen before the reload would be dropped too early.)
+    -- a step chosen before the reload would be dropped too early.)
     -- Your pick is done: the route carries on from here, still a Custom route
     -- (orange) until you choose Most XP or Shortest again.
     if not first and not tour and self.selection and GetTime() - (N.loadedAt or 0) > 20 then
@@ -2498,7 +2498,7 @@ function N:Options(sel)
         tour = self:PickupKeys()
     end
     -- A dungeon run you prepared (the key): its pickups, then its entrance,
-    -- come first, unless you picked a stop yourself.
+    -- come first, unless you picked a step yourself.
     if not sel.first and not sel.tour and ns.dungeons and ns.dungeons:Prepared() then
         for _, g in ipairs(goals) do
             if g.provider == "dungeon" and not g.optional then   -- (not the "only if you pass by" ones)
@@ -2508,9 +2508,9 @@ function N:Options(sel)
         end
     end
     -- (Party members' quests, PartyHelp.lua, need no order of their own:
-    -- "Combined" is one optimal route over everyone's stops, and "Just
+    -- "Combined" is one optimal route over everyone's steps, and "Just
     -- <name>'s" leaves only theirs on the route.)
-    -- Shared party route: its stops come first, in the shared order (their
+    -- Shared party route: its steps come first, in the shared order (their
     -- deps chain), before your own goals.
     if ns.party and ns.party:Following() then
         local partyFirst
@@ -2538,8 +2538,8 @@ function N:Options(sel)
         g.awayZone = awayZone
     end
     N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
-    -- Set your home before a spell casts you far from it: a stop that's a
-    -- travel spell away waits for the "Set hearthstone" stop here (Hearth.lua).
+    -- Set your home before a spell casts you far from it: a step that's a
+    -- travel spell away waits for the "Set hearthstone" step here (Hearth.lua).
     if p and ns.hearth and ns.hearth.BeforeTrips and ns.travelSpells then
         pcall(ns.hearth.BeforeTrips, goals, function(pt) return ns.travelSpells.Spell(p, pt) ~= nil end)
     end
@@ -2548,7 +2548,7 @@ function N:Options(sel)
              ride = ns.rides and ns.rides.PlanRide() or nil }
 end
 
--- A plan as if you had picked this stop (for previews on the map / advice list).
+-- A plan as if you had picked this step (for previews on the map / advice list).
 -- Previews are cached until the main route is re-planned (goals changed or
 -- every few seconds), so hovering checkpoints doesn't re-plan every frame.
 local previewCache, previewVersion = {}, -1
@@ -2572,9 +2572,9 @@ end
 -- change, and every few seconds as you move.
 local plan, planAt = nil, 0
 
--- Every stop by (weighted) distance from you. Only needed for a stop you
+-- Every step by (weighted) distance from you. Only needed for a step you
 -- pinned, or when there's no plan: not on every arrow tick (it was ~90
--- stops x up to 80 spots, 10 times a second).
+-- steps x up to 80 spots, 10 times a second).
 local function rank(p)
     local ranked = {}
     for _, goal in ipairs(goals) do
@@ -2585,8 +2585,8 @@ local function rank(p)
     return ranked
 end
 
--- Is any stop on your continent at all? (Else there's nothing to plan.)
--- Known again when the stops are gathered, you change continent, or after 5 s.
+-- Is any step on your continent at all? (Else there's nothing to plan.)
+-- Known again when the steps are gathered, you change continent, or after 5 s.
 local reach = { at = -10 }
 local function anyReachable(p)
     if reach.goals == goals and reach.cont == p.cont and GetTime() - reach.at < 5 then return reach.yes end
@@ -2602,8 +2602,8 @@ local function anyReachable(p)
     return yes
 end
 
--- The arrow's words when nothing here is left but a dungeon run's stops are
--- on another continent (worked out at most every 2 s: it reads every stop).
+-- The arrow's words when nothing here is left but a dungeon run's steps are
+-- on another continent (worked out at most every 2 s: it reads every step).
 local away = { at = -10 }
 local function awayHint(p)
     if not (ns.dungeons and ns.dungeons.AwayHint) then return nil end
@@ -2615,7 +2615,7 @@ local function awayHint(p)
 end
 
 local function choose(p)
-    -- "Do it where you stand" stops (e.g. crafting with no station) follow you.
+    -- "Do it where you stand" steps (e.g. crafting with no station) follow you.
     for _, goal in ipairs(goals) do
         if goal.anywhere then goal.points = { { cont = p.cont, wx = p.wx, wy = p.wy, map = p.map, x = p.x, y = p.y } } end
     end
@@ -2650,7 +2650,7 @@ local function choose(p)
         local s = plan[1]
         return { goal = s.goal, point = s.point, d = dist(p.wx, p.wy, s.point.wx, s.point.wy) }
     end
-    -- No plan (no planner, or it failed): the nearest stop.
+    -- No plan (no planner, or it failed): the nearest step.
     local ranked = rank(p)
     if #ranked == 0 then return nil end
     -- Sticky: don't flip between goals unless the new one is clearly closer.
@@ -2665,7 +2665,7 @@ local function choose(p)
     return ranked[1]
 end
 
--- The profession stops' own route (N.profGoals), planned like the quest
+-- The profession steps' own route (N.profGoals), planned like the quest
 -- route: again when something changed, or every 8 s once you've moved.
 -- Returns { goal, point, d } for the faint arrow, or nil.
 local profPlan, profPlanAt = nil, 0
@@ -2691,12 +2691,12 @@ local function chooseProf(p)
     return { goal = s.goal, point = s.point, d = dist(p.wx, p.wy, s.point.wx, s.point.wy) }
 end
 
--- Where the minimap dot goes. It marks the stop, never you:
+-- Where the minimap dot goes. It marks the step, never you:
 --  * in a quest's area the dot goes away and the area itself shows (Flow's
 --    cloud on the minimap, or the game's own quest zone when that's off);
---  * a "do it where you stand" stop has no dot (its spot is wherever you are);
---  * once you're at a stop the dot stays on the spot you reached, even if a
---    nearer spot of the same stop turns up as you walk around.
+--  * a "do it where you stand" step has no dot (its spot is wherever you are);
+--  * once you're at a step the dot stays on the spot you reached, even if a
+--    nearer spot of the same step turns up as you walk around.
 -- choice: from choose(); here: arrived. Returns the point, or nil (no dot).
 N.dotHeld = {}
 function N.DotPoint(choice, here)
@@ -2710,7 +2710,7 @@ function N.DotPoint(choice, here)
 end
 
 -- Your own waypoint (Waypoint.lua: Ctrl/Alt-click the map, /way, "Point the
--- arrow here"). It isn't a route stop: while it's set the arrow points at it,
+-- arrow here"). It isn't a route step: while it's set the arrow points at it,
 -- in the waypoint green, the map draws a green line to it, and the route
 -- carries on unchanged underneath. It clears itself when you get there.
 -- Returns { goal, point, d, waypoint = true } like choose(), or nil (none set,
@@ -2768,12 +2768,12 @@ local function entranceNear(cont, wx, wy)
 end
 
 -- Trails you've walked are used only where they help:
---   * always for a stop inside a cave or building while you're outside
+--   * always for a step inside a cave or building while you're outside
 --     (straight at it leads on top of the cave): the trail in, or the entrance
 --   * outdoors only with "Arrow follows paths you've walked" on, and only a
 --     trail at most 1.5x the straight line (it used to take one up to 4x
 --     longer, so the arrow wandered off along an old detour)
--- Otherwise the arrow points straight at the stop.
+-- Otherwise the arrow points straight at the step.
 local PATH_DETOUR = 1.5
 local LOOKAHEAD = 35   -- yards: point at the furthest trail point this close, not the next one
 function N.TrailWorthIt(trail, direct, inside)
@@ -2791,16 +2791,16 @@ function N.Carrot(pts, idx, px, py, ahead)
     return best
 end
 
--- A trail is followed only while it heads roughly where the stop is. A trail
+-- A trail is followed only while it heads roughly where the step is. A trail
 -- up to half again as long as the straight line may set off well to one
 -- side, or backwards to its nearest point, before it bends round: "the arrow
 -- will point the wrong way for some time and then all of a sudden flip to
 -- being right" (0.35.195; trails had become the default that day). In open
 -- country the straight line is right; Flow can't see cliffs, so a trail that
 -- leads off at a wide angle is more often an old wander than a way round.
--- Stops inside a cave keep their trail whatever its heading.
---   p: you; c: the trail point the arrow would lead to; t: the stop
-N.TRAIL_HEADING = 60   -- degrees between "along the trail" and "at the stop", at most
+-- Steps inside a cave keep their trail whatever its heading.
+--   p: you; c: the trail point the arrow would lead to; t: the step
+N.TRAIL_HEADING = 60   -- degrees between "along the trail" and "at the step", at most
 N.TRAIL_NEAR = 8       -- a trail point this close says nothing about a heading
 function N.TrailHeadingOk(px, py, cx, cy, tx, ty, maxDeg)
     local ax, ay, bx, by = cx - px, cy - py, tx - px, ty - py
@@ -2820,7 +2820,7 @@ function N.TrailsOn() return ns.db.nav.arrowPaths ~= false end
 
 -- Where to walk now to reach one place (pt: { wx, wy }): along a trail
 -- you've walked, by a cave's entrance, or straight. key: what the trail is
--- for (a stop, or the gate on the way to it), so it's planned again when
+-- for (a step, or the gate on the way to it), so it's planned again when
 -- that changes.
 local function steerTo(p, pt, direct, key, inside)
     if not inside and not N.TrailsOn() then route = nil return pt.wx, pt.wy, "direct", direct end
@@ -2878,8 +2878,8 @@ local function steerTo(p, pt, direct, key, inside)
     end
     local ahead = route.idx + N.Carrot(pts, 1, p.wx, p.wy, LOOKAHEAD) - 1
     n = route.nodes[ahead] or n
-    -- Leading well away from where the stop is: not this trail. Straight at
-    -- the stop, and the trail isn't tried again for a while.
+    -- Leading well away from where the step is: not this trail. Straight at
+    -- the step, and the trail isn't tried again for a while.
     if not inside and not N.TrailHeadingOk(p.wx, p.wy, g.x[n], g.y[n], pt.wx, pt.wy) then
         if trailOff.key ~= key then
             ns:Log("nav", string.format("a trail to %s (%d yd, %d straight) leads off at a wide angle: pointing straight at it",
@@ -2892,16 +2892,16 @@ local function steerTo(p, pt, direct, key, inside)
     return g.x[n], g.y[n], "path", route.length
 end
 
--- Where the arrow points for this stop. Returns wx, wy, how, yards:
---   "direct"    straight at the stop
+-- Where the arrow points for this step. Returns wx, wy, how, yards:
+--   "direct"    straight at the step
 --   "path"      along a trail you've walked
---   "entrance"  to the way into the cave or building the stop is in
+--   "entrance"  to the way into the cave or building the step is in
 --   "gate"      to the way into another region (Gates.lua: the lift up
 --               Thunder Bluff, the pass into the next zone), then on
 local function steer(p, choice)
     local pt = choice.point
     local direct = choice.d
-    -- A stop a cast away (Teleport: Moonglade): the panel and the arrow say so.
+    -- A step a cast away (Teleport: Moonglade): the panel and the arrow say so.
     local TS = ns.travelSpells
     if TS then
         local spell = TS.Spell(p, pt)
@@ -2919,7 +2919,7 @@ local function steer(p, choice)
         if how == "path" then return wx, wy, "path", len end
         return wx, wy, "ride", way.toNpc
     end
-    -- The stop is in another region: by a gate you've used, never straight
+    -- The step is in another region: by a gate you've used, never straight
     -- through the cliff. The gate is where to walk to until you're through.
     local via = ns.gates and ns.gates.Via(p, pt) or nil
     -- A walled place with no way known on foot: a flight path is a way too.
@@ -2941,7 +2941,7 @@ local function steer(p, choice)
             return wx, wy, how == "path" and "path" or "gate", via.yards
         end
     end
-    -- A stop inside a cave while you're outside: never straight at it (that
+    -- A step inside a cave while you're outside: never straight at it (that
     -- leads on top of the cave). Follow a trail in, or head for the entrance.
     local inside = not (IsIndoors and IsIndoors()) and N:Inside(p.cont, pt.wx, pt.wy)
     return steerTo(p, pt, direct, choice.goal.key, inside)
@@ -2950,7 +2950,7 @@ end
 -- The places a leg of the route passes between its two ends ({ cont, wx,
 -- wy } each), or nil when it's a straight line. For the world map's dotted
 -- path, which follows the way you'd really walk (0.35.172).
---   live: the leg from you to your next stop: the arrow's own way now (the
+--   live: the leg from you to your next step: the arrow's own way now (the
 --         trail it follows, the gate it heads for). Other legs: their gates.
 N.LEG_POINTS = 60   -- at most this many trail points a leg (a long trail is thinned)
 function N.LegVia(a, b, live)
@@ -2997,7 +2997,7 @@ function N.LegVia(a, b, live)
 end
 
 -- ". Hearthstone (Thunder Bluff) is about 4 min quicker": beside the arrow's
--- distance when the stone is ready and clearly the quicker way to this stop
+-- distance when the stone is ready and clearly the quicker way to this step
 -- (Hearth.lua H:Saves). Asked every few seconds, not every update.
 local hearthCue = { key = nil, at = 0, text = "" }
 function N.HearthCue(key, pt, yards, now)
@@ -3065,7 +3065,7 @@ local frame, panel
 
 -- The arrow's panel (left-click the arrow). Built so your eyes land on the
 -- task first:
---   [hero]  a band in the route colour: stop icon, TYPE in small caps,
+--   [hero]  a band in the route colour: step icon, TYPE in small caps,
 --           the task in large white text, distance and direction on the right
 --   then    quest name, objectives, details (small), the trip plan (smaller)
 local function buildPanel(name)
@@ -3110,7 +3110,7 @@ local function buildPanel(name)
     return f
 end
 
--- Drag a panel (arrow panel, stop card) by its title band. Once moved it
+-- Drag a panel (arrow panel, step card) by its title band. Once moved it
 -- opens where you left it (saved as ns.db.nav[key]); right-click the title
 -- to put it back where it opens by default (`home`, said in chat).
 function N.Draggable(f, key, home)
@@ -3142,7 +3142,7 @@ function N.Draggable(f, key, home)
     h:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- The coloured band at the top of the arrow panel and the stop card.
+-- The coloured band at the top of the arrow panel and the step card.
 local function fillHero(p, g, distText)
     local h = p.hero
     local c = ns.theme.route
@@ -3150,9 +3150,9 @@ local function fillHero(p, g, distText)
     h.bar:SetColorTexture(c[1], c[2], c[3], 1)
     local kind = ns.theme.kinds[N:StopKind(g)]
     h.icon:SetTexture(kind and kind.icon or "Interface\\Icons\\INV_Misc_Map_01")
-    h.label:SetText(((kind and kind.label) or "Next stop"):upper())
+    h.label:SetText(((kind and kind.label) or "Next step"):upper())
     h.label:SetTextColor(c[1] + (1 - c[1]) * 0.5, c[2] + (1 - c[2]) * 0.5, c[3] + (1 - c[3]) * 0.5)
-    local task = g.text or g.title or "Next stop"
+    local task = g.text or g.title or "Next step"
     if g.title and task:sub(1, #g.title + 2) == g.title .. ": " then task = task:sub(#g.title + 3) end
     h.task:SetText(task)
     h.dist:SetText(distText or "")
@@ -3163,11 +3163,11 @@ end
 -- The arrow's panel is a drawer beside the arrow (below it, a lip joins it
 -- to the arrow's text). Click the arrow to open it, click again or its X to
 -- close it; it opens and closes at once (no slide), follows your current
--- stop, and stays open after a /reload until you close it. It opens on
+-- step, and stays open after a /reload until you close it. It opens on
 -- whichever side of the arrow has room (N.DrawerSide): below, above near the
 -- bottom of the screen, to the right or left at a screen edge. Ctrl-drag it
 -- to give it a place of its own (the arrow's right-click menu puts it back).
--- (The stop card, shared by the Flow Tracker and Router, is a separate window.)
+-- (The step card, shared by the Flow Tracker and Router, is a separate window.)
 
 -- Which side of the arrow the drawer opens on. Arrow at ax, ay (left,
 -- bottom) of size aw x ah on a screen sw x sh; the drawer is dw x dh.
@@ -3211,7 +3211,7 @@ local function makeDrawer(f)
     -- An X closes it, top right as on Flow's other views; a click on the
     -- arrow opens and closes it too. (0.35.139: no more pin, hover-open, pull
     -- tab or slide: it opens and closes at once, and stays open, following
-    -- your stops and across a /reload, until you close it.)
+    -- your steps and across a /reload, until you close it.)
     f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f.close:SetPoint("TOPRIGHT", 2, 2)
     f.close:SetScript("OnClick", function() f:Fold(true) end)
@@ -3279,7 +3279,7 @@ local function showPanel()
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
         lines[#lines + 1] = " "
-        lines[#lines + 1] = string.format("|cffffd200Then|r |cff888888(%d stops, about %d yd)|r",
+        lines[#lines + 1] = string.format("|cffffd200Then|r |cff888888(%d steps, about %d yd)|r",
             #N.plan - 1, N.plan[#N.plan].cum or 0)
         local labels = N:PlanLabels(N.plan)
         for i, s in ipairs(N.plan) do
@@ -3310,7 +3310,7 @@ local function showPanel()
 end
 
 -------------------------------------------------------------------------------
--- Stop card: Flow's small view of one stop, opened by clicking it anywhere.
+-- Step card: Flow's small view of one step, opened by clicking it anywhere.
 -- Same look as the arrow panel; it stays where it is (the Flow Router stays
 -- open), and has links for the rarer things you might want instead.
 -------------------------------------------------------------------------------
@@ -3454,16 +3454,16 @@ local function buildArrow()
     if p then f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
     -- The faint profession needle sits under the main arrow (a lower frame
-    -- level, a little see-through), its stop name and distance in small grey
+    -- level, a little see-through), its step name and distance in small grey
     -- text above, opposite the main arrow's text.
     f.prof = CreateFrame("Frame", nil, f)
     f.prof:SetAllPoints(f)
     f.prof:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
     f.prof:SetAlpha(0.85)
     f.prof.arrow = N:MakeProfArrow(f.prof)
-    -- At the profession stop: a faint see-through ring where the arrow was,
+    -- At the profession step: a faint see-through ring where the arrow was,
     -- with none of the main arrow's beam or bouncing icon (those mean "your
-    -- main stop").
+    -- main step").
     f.prof.ring = f.prof:CreateTexture(nil, "BACKGROUND", nil, 2)
     f.prof.ring:SetTexture(ART .. "ArrowRing")
     f.prof.ring:SetBlendMode("ADD")
@@ -3494,7 +3494,7 @@ local function buildArrow()
     end)
     f:SetScript("OnClick", function(_, button)
         if button == "RightButton" then
-            -- Menu: this stop, then route and order choices, unhide all.
+            -- Menu: this step, then route and order choices, unhide all.
             local items = {}
             if current and current.follow then
                 -- Following a party member (Follow.lua).
@@ -3502,7 +3502,7 @@ local function buildArrow()
                 items[#items + 1] = { text = "Stop following (back to the route)", func = function() ns.follow:Stop() end }
                 items[#items + 1] = { sep = true }
             elseif current and current.waypoint then
-                -- Following your own waypoint (not a route stop).
+                -- Following your own waypoint (not a route step).
                 items[#items + 1] = { title = true, text = current.goal.text or "Your waypoint" }
                 items[#items + 1] = { text = "Clear it (back to the route)", func = function()
                     if ns.waypoint then ns.waypoint:Clear() end
@@ -3511,9 +3511,9 @@ local function buildArrow()
                 items[#items + 1] = { sep = true }
             elseif current then
                 local g = current.goal
-                items[#items + 1] = { title = true, text = g.text or g.title or "This stop" }
+                items[#items + 1] = { title = true, text = g.text or g.title or "This step" }
                 items[#items + 1] = { text = "Open it", func = function() N:OpenStop(g) end }
-                items[#items + 1] = { text = "Hide this stop", func = function() N:Hide(g.key) end }
+                items[#items + 1] = { text = "Hide this step", func = function() N:Hide(g.key) end }
                 items[#items + 1] = { sep = true }
             end
             -- (The arrow's look is the Flow menu's "Arrow" section: N:ArrowMenuItems.)
@@ -3528,19 +3528,19 @@ local function buildArrow()
             ns.db.nav.drawerOpen = true
         end
     end)
-    -- The text under the arrow (stop name, distance) clicks like the arrow:
+    -- The text under the arrow (step name, distance) clicks like the arrow:
     -- left = this panel, right = the menu.
     f.textHit = CreateFrame("Button", nil, f)
     f.textHit:SetPoint("TOP", f, "BOTTOM", 0, 0)
     f.textHit:SetSize(240, 34)
     f.textHit:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f.textHit:SetScript("OnClick", function(_, button) f:GetScript("OnClick")(f, button) end)
-    -- Hover the arrow (or ring, or its text): the stop's details, e.g. quest progress.
+    -- Hover the arrow (or ring, or its text): the step's details, e.g. quest progress.
     local function tip(owner)
         if not current or (panel and panel:IsShown()) then return end   -- the drawer already shows it
         ns.Tip(owner, "ANCHOR_BOTTOM")
         N:FillTooltip(GameTooltip, current.goal, not N.arrived and "Click: details and the trip. Right-click: options." or nil)
-        -- In an area: every other quest stop you're in the area for, with progress.
+        -- In an area: every other quest step you're in the area for, with progress.
         if N.arrived then
             local p = N:PlayerPos()
             local first = true
@@ -3565,7 +3565,7 @@ local function buildArrow()
     f:SetScript("OnLeave", leave)
     f.textHit:SetScript("OnEnter", function() tip(f) end)
     f.textHit:SetScript("OnLeave", leave)
-    -- The faint arrow's text: left-click opens that stop, right-click the
+    -- The faint arrow's text: left-click opens that step, right-click the
     -- arrow's menu, hover its details.
     f.prof.hit = CreateFrame("Button", nil, f.prof)
     f.prof.hit:SetPoint("BOTTOM", f, "TOP", 0, N.NeedleClearance(f) - 2)
@@ -3578,7 +3578,7 @@ local function buildArrow()
     f.prof.hit:SetScript("OnEnter", function(self)
         if not N.profChoice then return end
         ns.Tip(self, "ANCHOR_TOP")
-        N:FillTooltip(GameTooltip, N.profChoice.goal, "Profession stop (the faint arrow). Click: open it. Right-click: options.")
+        N:FillTooltip(GameTooltip, N.profChoice.goal, "Profession step (the faint arrow). Click: open it. Right-click: options.")
         GameTooltip:Show()
     end)
     f.prof.hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -3587,7 +3587,7 @@ local function buildArrow()
 end
 
 -- In a quest's area: within AREA yards of any of its spawn points (objective
--- stops only; a vendor or trainer is one spot).
+-- steps only; a vendor or trainer is one spot).
 local AREA = 45
 function N:InArea(goal, p)
     if not (goal and goal.area and p) then return false end
@@ -3597,7 +3597,7 @@ function N:InArea(goal, p)
     return false
 end
 
--- The nearest spot in a stop's area where its thing spawns (a Bundle of
+-- The nearest spot in a step's area where its thing spawns (a Bundle of
 -- Wood, a Prowler), skipping spots you looted in the last few minutes (the
 -- arrow moves on to the next one). Returns the point and yards, or nil.
 local SPOT_ON = 7                 -- yards: "you're on it" (ring)
@@ -3629,7 +3629,7 @@ ns:On("LOOT_OPENED", function()
     if p and current and current.goal then N.ClearSpotNear(p, current.goal) end
 end)
 
--- A nameplate on screen for one of the stop's mobs / NPCs (goal.npcs): the
+-- A nameplate on screen for one of the step's mobs / NPCs (goal.npcs): the
 -- one nearest the middle of the screen. Returns { x, y (screen pixels), name }.
 function N:VisibleTarget(goal)
     -- Forever doesn't let addons measure nameplates ("restricted regions"):
@@ -3687,11 +3687,11 @@ function N:ShowCorpse(p)
     return true
 end
 
--- The faint profession arrow: points straight at its stop (no trails),
+-- The faint profession arrow: points straight at its step (no trails),
 -- dark grey behind the main arrow, with its text above. Hidden at the
--- stop (the text says "Here:"), and when it's off or nothing is due.
--- What the profession arrow shows: "ring" at its stop, "off" while you are
--- on the main stop's point (one thing to look at there) or it can't point,
+-- step (the text says "Here:"), and when it's off or nothing is due.
+-- What the profession arrow shows: "ring" at its step, "off" while you are
+-- on the main step's point (one thing to look at there) or it can't point,
 -- else "arrow". Anywhere else in a main quest's area it still points.
 function N.ProfArrowMode(mainHere, profHere, canPoint)
     if profHere then return "ring" end
@@ -3699,7 +3699,7 @@ function N.ProfArrowMode(mainHere, profHere, canPoint)
     return "arrow"
 end
 
--- Standing on a stop's point (not just inside its area).
+-- Standing on a step's point (not just inside its area).
 function N.AtStopPoint(d)
     return d ~= nil and d < ARRIVED * 2
 end
@@ -3715,7 +3715,7 @@ local function updateProf(p)
     end
     if not choice then holder:Hide(); N.SetOverNeedle(frame, false) return end
     local g, pt = choice.goal, choice.point
-    local name = g.text or g.title or "Profession stop"
+    local name = g.text or g.title or "Profession step"
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
     local b = bearing(p, pt.wx, pt.wy)
     local facing = N.ArrowFacing()
@@ -3774,15 +3774,15 @@ local function update()
     choice = (ns.follow and ns.follow.Choice(p)) or N.WaypointChoice(p) or choice
     current = choice
     N.current = choice  -- for Flow Actions (Modules/Rotation/Actions.lua)
-    -- (With a stop, the minimap dot is drawn below, once the arrow's colour is known.)
+    -- (With a step, the minimap dot is drawn below, once the arrow's colour is known.)
     if ns.minimapPin and not choice then pcall(ns.minimapPin.Update, ns.minimapPin, p, nil, nil) end
     local tk = choice and choice.goal.key
     local planKey = N.plan and #N.plan > 0 and (N.plan[1].goal.key .. ":" .. #N.plan) or ""
     if tk ~= N.lastTargetKey or planKey ~= N.lastPlanKey then
         N.lastTargetKey, N.lastPlanKey = tk, planKey
-        -- Mark the NPC of the new stop above its nameplate, every mob of the
-        -- stops right by it (your waypoint's area), and (smaller) the NPCs of
-        -- the next stops.
+        -- Mark the NPC of the new step above its nameplate, every mob of the
+        -- steps right by it (your waypoint's area), and (smaller) the NPCs of
+        -- the next steps.
         if ns.questMarks and ns.questMarks.SetRouteTarget then
             local onRoute = N.plan and N.plan[1] and N.plan[1].goal.key == tk
             pcall(ns.questMarks.SetRouteTarget, choice and choice.goal.npcs, N.NextStopNames(N.plan, tk, 5),
@@ -3790,7 +3790,7 @@ local function update()
         end
     end
     if not choice then
-        -- Nothing on this continent, but the dungeon run's stops are on the
+        -- Nothing on this continent, but the dungeon run's steps are on the
         -- other one: say where, and how to get there (Dungeons.lua).
         local hint, sub = awayHint(p)
         if hint then
@@ -3827,24 +3827,24 @@ local function update()
         ns.waypoint:Clear()
         ns:Print("arrived at your waypoint")
     end
-    -- Reaching a shared stop clears it for the whole party.
+    -- Reaching a shared step clears it for the whole party.
     local partyId = g.key:match("^party:(.+)$")
     if partyId and choice.d < 15 and ns.party then
         ns.party:Done(partyId)
-        ns:Print("reached a shared stop: " .. (g.title or "?"))
+        ns:Print("reached a shared step: " .. (g.title or "?"))
     end
     frame.text:SetText(g.text or g.title or "Next goal")
-    -- A stop with its own icon (craft here: the profession; use from your
+    -- A step with its own icon (craft here: the profession; use from your
     -- bags: a bag) shows it bouncing in the ring when you're there.
     if frame.arrow.SetCenterIcon then frame.arrow:SetCenterIcon(g.icon) end
-    -- Arrived: at the stop, or anywhere in a quest's area (near any spawn of
+    -- Arrived: at the step, or anywhere in a quest's area (near any spawn of
     -- its mobs / objects, not just the one point the route picked). Then the
     -- arrow is a pulsing ring - unless one of the quest's mobs or NPCs has a
     -- nameplate on screen: then the arrow points straight at it.
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
     N.arrived = here
-    -- On the stop's own point, not just somewhere in its area. A big area
-    -- quest can have a profession stop inside it (a node, a forge); that
+    -- On the step's own point, not just somewhere in its area. A big area
+    -- quest can have a profession step inside it (a node, a forge); that
     -- arrow should still point while you roam the area.
     N.arrivedSpot = N.AtStopPoint(choice.d)
     -- In the area it's the ring. (Pointing at the nearest Questie spawn spot
@@ -3869,7 +3869,7 @@ local function update()
             frame.sub:SetText(choice.d < ARRIVED * 2 and "You're here" or "You're in the area")
         end
     elseif N.ride then
-        -- Who to talk to and how far they are (not the stop's own distance:
+        -- Who to talk to and how far they are (not the step's own distance:
         -- that's a flight away).
         frame.sub:SetText(ns.rides.Text(N.ride, how == "path" and length or N.ride.toNpc))
         frame.arrow:SetArrived(false)
@@ -3891,10 +3891,10 @@ local function update()
         frame.text:SetText(flyTitle)
         frame.sub:SetText(flySub)
     end
-    -- A stop that's a cast or a hearthstone away: that icon in the arrow's
+    -- A step that's a cast or a hearthstone away: that icon in the arrow's
     -- place, the arrow small beside it (TravelIcon.lua).
     if N.ShowTravel then pcall(N.ShowTravel, frame, g.key, choice.point, choice.d) end
-    -- Right on the spot (on a spawn spot, or at the stop itself): the pillars
+    -- Right on the spot (on a spawn spot, or at the step itself): the pillars
     -- run a wave.
     if frame.arrow.SetWave then
         frame.arrow:SetWave(here and frame.arrow.arrived and ((spotD and spotD <= SPOT_ON) or choice.d < ARRIVED * 2))
@@ -3912,13 +3912,13 @@ local function update()
     local ac = N.arrowColor
     if not (ac and ac[1] == col[1] and ac[2] == col[2] and ac[3] == col[3]) then N.arrowColor = col end
     N.arrowWaypoint = choice.waypoint and true or false
-    -- The minimap dot: the arrow's colour, on the stop (not on you).
+    -- The minimap dot: the arrow's colour, on the step (not on you).
     if ns.minimapPin then pcall(ns.minimapPin.Update, ns.minimapPin, p, N.DotPoint(choice, here), g, col, here) end
     updateProf(p)
     frame:Show()
     if panel and panel:IsShown() then showPanel()
     elseif ns.db.nav.drawerOpen and not N.drawerRestored then
-        -- Open before the /reload: open again, once, now there's a stop.
+        -- Open before the /reload: open again, once, now there's a step.
         N.drawerRestored = true
         showPanel()
     end
@@ -3931,7 +3931,7 @@ end
 -- busy: something changed (quest, level, item...) and the route is being
 -- redone; the Flow Tracker spins its icon meanwhile. The quiet refresh every
 -- 10 s doesn't count, or it would spin all the time.
--- The refresh gathers one stop source per frame (~15 frames, a quarter
+-- The refresh gathers one step source per frame (~15 frames, a quarter
 -- second), then plans in the frame after: all in one frame, a busy refresh
 -- could take 30+ ms, a hitch you can see. A change that comes in while it
 -- gathers gets one more refresh straight after.
@@ -3960,7 +3960,7 @@ local function collectSpread()
         local s = sources[i]
         if s then
             -- gatherFrom pcalls the source; this catches the rest, so a bad
-            -- stop can't leave the refresh stuck (no route updates ever again).
+            -- step can't leave the refresh stuck (no route updates ever again).
             local ok, err = pcall(gatherFrom, s.key, s.provider, list)
             if not ok and ns.db.rotation.debug then ns:Print("nav goal " .. s.key .. ": " .. tostring(err)) end
             if t0 then spent = spent + clock() - t0 end
@@ -3969,7 +3969,7 @@ local function collectSpread()
         end
         pcall(N.Collect, N, list)
         if t0 then spent = spent + clock() - t0 end
-        if ns.perf and ns.perf.AddPart then ns.perf.AddPart("route: gather stops", why, spent) end
+        if ns.perf and ns.perf.AddPart then ns.perf.AddPart("route: gather steps", why, spent) end
         finishRefresh()
     end
     step()
@@ -3990,8 +3990,8 @@ local function scheduleCollect(why) collectSoon(false, why) end
 -- Other modules: re-plan soon (throttled). `why` names the cause in /flow perf.
 function N.RequestCollect(why) collectSoon(false, type(why) == "string" and why or "another part of Flow") end
 
--- Money changed: re-plan only when it crosses a skipped stop's cost (so it
--- comes back) or drops below a planned stop's cost (so it's skipped).
+-- Money changed: re-plan only when it crosses a skipped step's cost (so it
+-- comes back) or drops below a planned step's cost (so it's skipped).
 ns:On("PLAYER_MONEY", function()
     local money = GetMoney()
     for _, d in pairs(ns.db.nav.deferred or {}) do
@@ -4002,14 +4002,14 @@ ns:On("PLAYER_MONEY", function()
     end
 end)
 
--- Per character: the stops you hid, money-blocked stops, your Custom route
+-- Per character: the steps you hid, money-blocked steps, your Custom route
 -- pick. (Trails, cave entrances and settings stay shared: they're the same
--- for everyone.) Stops hidden before the split stay hidden for everyone.
+-- for everyone.) Steps hidden before the split stay hidden for everyone.
 ns:PerCharacter("nav.hidden", { adopt = function(old) return old end })
 ns:PerCharacter("nav.deferred")
 ns:PerCharacter("nav.selectedKey")
--- How many stops the map and the Flow Tracker show: each character's own, so
--- a new character always starts with "Next stop only" (nothing saved = 1),
+-- How many steps the map and the Flow Tracker show: each character's own, so
+-- a new character always starts with "Next step only" (nothing saved = 1),
 -- simple, whatever your other characters chose.
 ns:PerCharacter("nav.stopsShown")
 ns:PerCharacter("nav.stopsArea")
@@ -4023,7 +4023,7 @@ ns:OnLoad(function(saved)
     -- the older name of "custom").
     N.loadedAt = GetTime()
     if saved.nav.sorter == "selected" then saved.nav.sorter = "custom" end
-    -- 0.35.157: the three routes became one tick per kind of stop. Once: your
+    -- 0.35.157: the three routes became one tick per kind of step. Once: your
     -- saved route (Quests only / Optimal / Completionist, professions on or
     -- off) becomes the same ticks.
     if saved.nav.kinds == nil then saved.nav.kinds = N.ModeKinds(saved.nav.mode or "optimal", saved.nav.professions) end
@@ -4129,24 +4129,24 @@ ns.commands.nav = function(arg)
             for _, o in ipairs(ns.xpValue:List()) do print("  " .. o.key .. " - " .. o.label) end
             print("  /flow nav sort <key>")
         end
-    elseif arg:find("^stops") then
-        -- How many upcoming stops the map and the Flow Tracker show.
-        local v = arg:match("^stops%s+(%S+)")
+    elseif arg:find("^st[eo]ps") then
+        -- How many upcoming steps the map and the Flow Tracker show.
+        local v = arg:match("^st[eo]ps%s+(%S+)")
         local n = v and tonumber(v)
         if v == "area" then
             N:SetArea(true)
-            ns:Print("stops on the map and in the Flow Tracker: " .. N:StopsShownLabel())
+            ns:Print("steps on the map and in the Flow Tracker: " .. N:StopsShownLabel())
         elseif v == "all" or (n and n >= 1) then
             N:SetStopsShown(n)
-            ns:Print("stops on the map and in the Flow Tracker: " .. N:StopsShownLabel())
+            ns:Print("steps on the map and in the Flow Tracker: " .. N:StopsShownLabel())
         else
-            ns:Print("stops shown: " .. N:StopsShownLabel() .. ". /flow nav stops area|1|3|5|10|all (any number works)")
+            ns:Print("steps shown: " .. N:StopsShownLabel() .. ". /flow nav steps area|1|3|5|10|all (any number works)")
         end
     elseif arg == "xp" or arg == "xp on" or arg == "xp off" or arg == "distance" then
         ns.xpValue:Set(arg ~= "xp off" and arg ~= "distance")
         ns:Print("route sorting: " .. (ns.xpValue:On() and "most XP first" or "shortest path"))
     elseif arg == "unhide" or arg == "hidden" then
-        -- Bring back every stop you hid (right-click), or list them.
+        -- Bring back every step you hid (right-click), or list them.
         local n = 0
         for _ in pairs(cfg.hidden or {}) do n = n + 1 end
         if arg == "hidden" then
@@ -4230,7 +4230,7 @@ ns.commands.nav = function(arg)
         local p = N:PlayerPos()
         if p then print(string.format("  you: map %d at %.1f, %.1f", p.map, p.x * 100, p.y * 100)) end
         -- Objectives in your log that didn't make this plan (it takes the 14
-        -- nearest stops): how far their nearest known spot is, and how many
+        -- nearest steps): how far their nearest known spot is, and how many
         -- spots Flow kept of the ones Questie knows.
         if p then
             local onRoute = {}
@@ -4265,8 +4265,8 @@ ns.commands.nav = function(arg)
 end
 
 -- Timed for /flow perf.
-N.Collect = ns.perf.Wrap("route: gather stops", N.Collect)
-ns.perf.PartsLabel("route: gather stops", "refreshed after", 8)   -- (each cause: collectSpread)
+N.Collect = ns.perf.Wrap("route: gather steps", N.Collect)
+ns.perf.PartsLabel("route: gather steps", "refreshed after", 8)   -- (each cause: collectSpread)
 
 -- A Flow window you can switch off (/flow nav off): the menus offer it back (Menu.lua).
 -- The Flow menu's "Arrow" section: its style (one of three), its colour,
@@ -4307,17 +4307,17 @@ if ns.settings and ns.settings.AddCheck then
         group = "route",
         label = "Faint profession arrow",
         note = "(with Professions on the route)",
-        tip = "Profession stops (training, skill-ups) get their own route and a faint dark grey arrow behind "
+        tip = "Profession steps (training, skill-ups) get their own route and a faint dark grey arrow behind "
             .. "the main one, with their name above it. The main arrow then only takes you to quests. "
-            .. "Off (default): profession stops stay on the main arrow's route, where the Flow key does their steps.",
+            .. "Off (default): profession steps stay on the main arrow's route, where the Flow key does their steps.",
         get = function() return ns.db.nav.profArrow == true end,
         set = function(on) N:SetProfArrow(on) end,
     })
     ns.settings:AddCheck({
         group = "route",
         label = "Finish the area you're in first",
-        note = "(stops within 300 yd)",
-        tip = "Off (default): the arrow follows the shortest whole trip. On: the route clears the stops "
+        note = "(steps within 300 yd)",
+        tip = "Off (default): the arrow follows the shortest whole trip. On: the route clears the steps "
             .. "around you before it sends you the other way, unless going the other way first saves a lot "
             .. "of walking. Quests to pick up nearby count as part of the area.",
         get = function() return ns.db.nav.areaFirst == true end,

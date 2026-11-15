@@ -1,7 +1,7 @@
 -- Someone who carries you far: the druids' flight masters in Moonglade.
 --
 -- A level 12 druid cast Teleport: Moonglade for the Bear Form quest, and the
--- next stop was back in Thunder Bluff: "how do I get back now? where do I go
+-- next step was back in Thunder Bluff: "how do I get back now? where do I go
 -- from Moonglade?" (0.35.178). Flow knew the way in (TravelSpells.lua) and no
 -- way out, so the arrow pointed across the whole of Kalimdor. The way out is
 -- a person: Bunthen Plainswind flies druids to Thunder Bluff, free. So:
@@ -10,7 +10,7 @@
 --       land = { x, y } on the `to` map, toName = "...", class = "DRUID",
 --       faction = "Horde", how = "he flies druids to Thunder Bluff, free" })
 --
--- While you're in the `from` zone and your next stop is outside it, the way
+-- While you're in the `from` zone and your next step is outside it, the way
 -- is: to that NPC, the flight, and on from where you land. The planner
 -- measures legs so (opts.ride), and the arrow leads to the NPC and says who
 -- to talk to. Where the NPC stands is read like any NPC's (your own visits,
@@ -36,7 +36,7 @@ function R.Cost(toNpc, flight, onward, speedup, talk)
 end
 
 -- Pure: the ride out of the zone spot a is in, for you, or nil. b in the
--- same zone: no ride (you don't fly out of the zone your stop is in).
+-- same zone: no ride (you don't fly out of the zone your step is in).
 --   rides: { { name, from, class, faction } }; zoneOf(map) -> its zone
 function R.Fits(a, b, rides, zoneOf, class, faction)
     if not (a and b and a.map and b.map) then return nil end
@@ -150,7 +150,7 @@ function R.Way(a, b, class, faction, spotOf, landOf)
     if b.cont and land.cont and b.cont ~= land.cont then return nil, r end
     local toNpc = dist(a, npc)
     local cost = R.Cost(toNpc, dist(npc, land), dist(land, b))
-    if cost >= dist(a, b) then return nil end   -- (a stop next door: walk)
+    if cost >= dist(a, b) then return nil end   -- (a step next door: walk)
     return { name = r.name, how = r.how, toName = r.toName, point = npc, toNpc = toNpc, yards = cost }
 end
 

@@ -8,7 +8,7 @@
 --
 --   ns:Register("travelSpell", "<spell name>", { map = uiMapID, class = "DRUID" })
 --
--- A stop on that map, while you're somewhere else and know the spell, counts
+-- A step on that map, while you're somewhere else and know the spell, counts
 -- as one cast away: the planner measures it so (opts.port), the arrow and its
 -- panel say "cast Teleport: Moonglade". When you don't know the spell yet,
 -- the panel says where it comes from. One way only: the way back is on foot,
@@ -67,7 +67,7 @@ function TS.Spell(a, b)
     return nil, s
 end
 
--- The planner's answer for one plan: a stop a cast away counts as near.
+-- The planner's answer for one plan: a step a cast away counts as near.
 -- nil when you know no travel spell (then the planner needn't ask).
 function TS.PlanPort()
     local _, class = UnitClass("player")
@@ -81,7 +81,7 @@ function TS.PlanPort()
     end
 end
 
--- A line for the arrow's panel, or nil: how to get to a far stop.
+-- A line for the arrow's panel, or nil: how to get to a far step.
 function TS.Hint(a, b)
     local s, unknown = TS.Spell(a, b)
     if s then return "It's a long way: cast " .. s.name .. " to get there." end

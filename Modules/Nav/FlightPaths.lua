@@ -1,20 +1,20 @@
 -- Flight paths to learn as you pass.
 --
 -- tools\route-check.ps1 (0.35.198) on a level 13 druid's route: five flight
--- masters within 160 yards of a stop, none of them learned, and no stop for
--- any ("flight path not learned, 43 yd from a stop on your route"). A flight
+-- masters within 160 yards of a step, none of them learned, and no step for
+-- any ("flight path not learned, 43 yd from a step on your route"). A flight
 -- path costs nothing but the few steps to its master, and every later trip
 -- through that town is shorter for it.
 --
 -- So the route gets "Learn the flight path: <name>" for each flight master
 -- Flow can find on your continent whose path you don't have. They're
--- optional stops: the planner takes one only when it's close to the way
+-- optional steps: the planner takes one only when it's close to the way
 -- you're going anyway (its usual detour limit), never as a trip of its own.
 -- A path counts as learned once you've opened that master's flight map (Flow
 -- remembers who you talked to, per character), or when one of the flight
 -- points you know lies where they stand.
 --
--- Its own kind of stop on the route ("Flight paths to learn"): untick it in
+-- Its own kind of step on the route ("Flight paths to learn"): untick it in
 -- the Flow menu, Route includes.
 
 local _, ns = ...
@@ -23,13 +23,13 @@ ns.flightPaths = FP
 
 FP.SAME = 250    -- yards: a flight point you know this close to a flight master is theirs
 FP.MAX = 30      -- flight masters looked at (the nearest)
-FP.KEEP = 5      -- seconds the list is kept (stops are collected often)
+FP.KEEP = 5      -- seconds the list is kept (steps are collected often)
 
 -- Pure: is this flight master's path one you have? talked: [name] = true for
 -- the ones whose map you've opened; known: your flight points ({ cont, wx,
 -- wy } each); fm: { name, cont, wx, wy }.
 function FP.Level() return UnitLevel and tonumber(UnitLevel("player")) or 0 end
--- Pure: is this "no flight path here" note still holding the stop back? rec:
+-- Pure: is this "no flight path here" note still holding the step back? rec:
 -- { level = your level when they had none } (true: an older note, from before
 -- Flow kept the level: it no longer holds, so they are asked once more).
 function FP.Waits(rec, level)
@@ -53,13 +53,13 @@ function FP.Learned(fm, talked, known, same)
     return false
 end
 
--- Pure: the stops for a list of flight masters (S:All: { name, map, x, y,
+-- Pure: the steps for a list of flight masters (S:All: { name, map, x, y,
 -- cont, wx, wy }): one for each not learned, a name once.
 -- here: where you are ({ map, cont, wx, wy }); a flight master on your map
--- within FP.HERE yards is a stop in its own right, not only "when it's on
+-- within FP.HERE yards is a step in its own right, not only "when it's on
 -- the way": "I'm in Orgrimmar and it isn't telling me to learn the flight
 -- path while I'm here, and I think it should" (0.35.212; it stood 440 yd
--- off, past the 250 yd an optional stop may add).
+-- off, past the 250 yd an optional step may add).
 FP.HERE = 800
 function FP.IsHere(fm, here, reach)
     if not (here and fm.map and fm.map == here.map and fm.cont == here.cont and fm.wx and here.wx) then return false end
@@ -115,7 +115,7 @@ ns:Register("navGoal", "flightpath", {
 
 ns:Register("routeKind", "flightpaths", { order = 65, default = true,
     label = "Flight paths to learn (when you pass one)", short = "flight paths",
-    tip = "A stop at a flight master whose path you don't have, when it's close to the way you're going anyway. Free, and it shortens every later trip.",
+    tip = "A step at a flight master whose path you don't have, when it's close to the way you're going anyway. Free, and it shortens every later trip.",
     match = function(g) return g.provider == "flightpath" end })
 
 -- You opened a flight master's map: you have their path now.
@@ -135,7 +135,7 @@ ns:On("TAXIMAP_OPENED", function()
 end)
 -- You talked to someone Flow took for a flight master and no flight map
 -- opened within a few seconds: they have no flight path for you yet. Their
--- stop goes until you've gained a level, then it's offered again ("Seikwa
+-- step goes until you've gained a level, then it's offered again ("Seikwa
 -- only becomes the flight master after some quests or events, so don't
 -- remove her entirely": Flow can't see which quest opens her, so it asks
 -- once per level; per character).

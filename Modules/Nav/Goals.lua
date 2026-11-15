@@ -137,7 +137,7 @@ local function questGoals(db, q, goals, opts)
     end
     local title = q.title or quest.name
     -- Where the quest is handed in. For unfinished quests this is a later
-    -- stop that the planner puts after the objectives (deps), so it can
+    -- step that the planner puts after the objectives (deps), so it can
     -- decide "finish, then turn in on the way".
     local turnSpawns, who = {}, nil
     local fin = ns.quests.FinisherOf(quest)
@@ -317,8 +317,8 @@ local function questGoals(db, q, goals, opts)
         turnIn.points = {}
     end
 end
--- A stop whose mobs or items are spread all over an area (many spots) is
--- planned a little later than a stop at one exact place nearby: "you have
+-- A step whose mobs or items are spread all over an area (many spots) is
+-- planned a little later than a step at one exact place nearby: "you have
 -- me focus on ones that are all over the area first; wouldn't it be better
 -- to go to the specific ones, and on the way I'll probably get the others?"
 -- (0.35.233) Its legs cost more, so the planner puts it where you're
@@ -336,7 +336,7 @@ function ns.quests.DropRate(db, itemId, npcId)
     if ok and type(r) == "table" and tonumber(r[1]) then return tonumber(r[1]) end
     return nil
 end
--- Pure: the lines for a stop's mobs: each one's level, and for a drop how
+-- Pure: the lines for a step's mobs: each one's level, and for a drop how
 -- often it gives the item, best first ("can we show the percent drops per
 -- level ... what levels are in what areas for my objective", 0.35.232).
 --   mobs: { { name, min, max, rate } }; drops: it's an item they drop.
@@ -377,7 +377,7 @@ function ns.quests.MobLines(mobs, drops, max)
     return out
 end
 
--- A stop the quest data doesn't place: where you did it before (LearnedSpots),
+-- A step the quest data doesn't place: where you did it before (LearnedSpots),
 -- else off the route with the reason: inside a dungeon, a battleground's
 -- reward, or simply not known. index: the objective's; m: { text, why }.
 -- Pure but for the two lookups, which the tests can pass in.
@@ -406,7 +406,7 @@ end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 
 -- A class quest in your log that leads to a spell you don't have (Bear Form,
--- "Moonglade"): its stops are milestones, so the route doesn't leave them
+-- "Moonglade"): its steps are milestones, so the route doesn't leave them
 -- for last because they're far or in another zone ("the Flow Tracker isn't
 -- having me go there", 0.35.175). Pure: marks the goals of those quests.
 --   steps: Q:ClassQuestSteps() ({ spell, state, quest = { id } })
@@ -453,9 +453,9 @@ end
 -- Quests you haven't picked up yet that are still worth doing (from the
 -- missed-quests scan: zones you've quested in, doable, not done).
 -- Class quests that teach a spell (Bear Form): the part of the chain you can
--- pick up now is always a stop, whatever the zone and level rules below say
+-- pick up now is always a step, whatever the zone and level rules below say
 -- about it (QuestData.lua Q:ClassQuestSteps). Pure: adds to `goals` (or marks
--- the stop that's there). points(spawns) -> map points.
+-- the step that's there). points(spawns) -> map points.
 local function addClassQuests(goals, steps, points)
     for _, e in ipairs(steps or {}) do
         local q = e.quest
@@ -549,8 +549,8 @@ ns:Register("navGoal", "errands", {
         local out = {}
         -- The next tier of a profession you have: on the route from 25 below
         -- the cap (when the trainer, book or quest can teach it), not only
-        -- once you're stuck. SkillPlan builds the stop; it skips the
-        -- professions planned here so there's one "train:" stop each.
+        -- once you're stuck. SkillPlan builds the step; it skips the
+        -- professions planned here so there's one "train:" step each.
         local SP = ns.skillPlan
         local level = UnitLevel("player")
         for _, p in ipairs(includeProfs and ns:ProfessionPlan() or {}) do
@@ -587,7 +587,7 @@ ns:Register("navGoal", "errands", {
         end
 
         -- Skill-ups: gathering/fishing for planned professions that are behind
-        -- your level. Optional stops, so the planner only routes you there
+        -- your level. Optional steps, so the planner only routes you there
         -- when it's on the way (or nothing else is left).
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         local db = ns.quests.QuestieDB and ns.quests.QuestieDB()
@@ -643,7 +643,7 @@ ns:Register("navGoal", "errands", {
         -- known class trainers for your class (Places.lua data + Questie).
         -- Cost: what you can pay for, cheapest first. If you can't afford any
         -- of it, the goal carries `cost` and the route skips it until you can
-        -- (Nav.lua remembers skipped stops and brings them back by itself).
+        -- (Nav.lua remembers skipped steps and brings them back by itself).
         local waiting, costs, unknownCost = 0, {}, false
         local ok, items = pcall(ns:Get("advisor", "trainer").check)
         -- Only spells you can train now count (0.35.142): a spell waiting on
@@ -689,7 +689,7 @@ ns:Register("navGoal", "errands", {
                 out[#out + 1] = {
                     -- A milestone: new ranks make every fight after it faster, so it
                     -- always makes the route and costs half as much "distance" as a
-                    -- quest stop. It still fits around the quests on the way there.
+                    -- quest step. It still fits around the quests on the way there.
                     key = "train:class", weight = 0.5, milestone = true, points = points,
                     npcs = names,
                     title = "Class training",
@@ -700,7 +700,7 @@ ns:Register("navGoal", "errands", {
                                 #costs > 0 and ("Cost: " .. coin(total) .. (unknownCost and " plus spells Flow hasn't seen priced" or "")) or nil },
                 }
                 local g = out[#out]
-                -- The ones that wait: say so, and when a stop on the route
+                -- The ones that wait: say so, and when a step on the route
                 -- teaches what they wait for (the Bear Form quest), train after
                 -- it so one trip does it all (soft: never blocks training).
                 for need, list in pairs(later) do
@@ -742,9 +742,9 @@ ns:Register("navGoal", "native", {
 })
 
 -------------------------------------------------------------------------------
--- The kinds of stop you can tick in the route menu ("Route includes";
--- Nav.lua: N.Kinds, N:Includes). A stop takes the first kind that matches,
--- lowest order first. Add a kind for a new stop source the same way.
+-- The kinds of step you can tick in the route menu ("Route includes";
+-- Nav.lua: N.Kinds, N:Includes). A step takes the first kind that matches,
+-- lowest order first. Add a kind for a new step source the same way.
 -------------------------------------------------------------------------------
 
 local function pickup(g) return type(g.key) == "string" and g.key:find("^pickup:") ~= nil end
@@ -761,7 +761,7 @@ ns:Register("routeKind", "quests", { order = 10, default = true,
     label = "Current quests", short = "current quests",
     tip = "The quests in your log: their objectives, then their turn-ins.",
     match = function(g)
-        return g.provider == "questie" or g.provider == "native"   -- (no source: a quest stop made by hand, as tests do)
+        return g.provider == "questie" or g.provider == "native"   -- (no source: a quest step made by hand, as tests do)
             or (g.provider == nil and type(g.key) == "string" and g.key:find("^%d+:") ~= nil)
     end })
 

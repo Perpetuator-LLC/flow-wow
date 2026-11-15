@@ -114,7 +114,7 @@ end
 -- Folded sections (0.35.177): "collapse each of the sections of the Flow
 -- context menu, so that their options pop out if hovered over or clicked".
 -- A menu is a flat list: a title, its entries, a separator, the next title...
--- The first section is the thing you clicked (a stop, the arrow, the
+-- The first section is the thing you clicked (a step, the arrow, the
 -- tracker) and stays open: its entries are one click away, as before. Every
 -- later section is one row, "Order   Shortest path  >", and its entries pop
 -- out beside the menu when you point at the row or click it.
@@ -314,7 +314,7 @@ end
 -- (Tests) the rows of the menu and of its pop-out.
 function Menu._Rows() return rows, flyRows end
 
--- "Route includes": one tick per kind of stop (Nav.lua N.Kinds; Goals.lua
+-- "Route includes": one tick per kind of step (Nav.lua N.Kinds; Goals.lua
 -- registers Flow's), all or none in one click, and under Professions whether
 -- they ride on the route or on their own faint arrow. The ticks stay open so
 -- you can set several.
@@ -333,8 +333,8 @@ function Menu.KindItems()
                 it.disabled = not nav:Includes("professions")
             end
             local own = { text = "      on their own faint arrow", stay = true, func = function() nav:SetProfArrow(ns.db.nav.profArrow ~= true) end,
-                tip = "Ticked: profession stops get a route of their own and a faint arrow behind the main one, which then only takes you to the rest. "
-                    .. "Not ticked: they're stops on the one route, where the Flow key does their steps.",
+                tip = "Ticked: profession steps get a route of their own and a faint arrow behind the main one, which then only takes you to the rest. "
+                    .. "Not ticked: they're steps on the one route, where the Flow key does their steps.",
                 refresh = sub }
             sub(own)
             items[#items + 1] = own
@@ -347,17 +347,17 @@ function Menu.KindItems()
 end
 
 -- The Flow menu: the entries every Flow menu shares (the arrow, the Flow
--- Tracker, a stop on the map, the Flow Router's Route button). One section
+-- Tracker, a step on the map, the Flow Router's Route button). One section
 -- for each thing you'd come here to do, always in this order (0.35.182:
 -- "it needs to be better organized, cleaner sections"):
 --
 --   Order                 how the route is sorted
---   Route includes        which kinds of stops are on it; unhide what you hid
+--   Route includes        which kinds of steps are on it; unhide what you hid
 --   Go to the nearest...  repair, vendor, flight master, inn, mailbox, bank
 --   Your waypoint         set one, follow someone, clear it
 --   Dungeons              (when a run fits your level)
 --   Party                 (in a group)
---   Stops on the map      how many the map and the Flow Tracker show
+--   Steps on the map      how many the map and the Flow Tracker show
 --   Arrow                 its look
 --   Keys                  binding them, listing them
 --   Extras                NPCs read aloud (text-to-speech)
@@ -367,7 +367,7 @@ end
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
 Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
-                  "Stops on the map", "Arrow", "Keys", "Extras", "Flow windows" }
+                  "Steps on the map", "Arrow", "Keys", "Extras", "Flow windows" }
 
 function Menu:RouteItemsRaw()
     local nav = ns.nav
@@ -394,18 +394,18 @@ function Menu:RouteItemsRaw()
     section("Order", {
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
-        -- On while you've picked the next stop yourself (a ^ / Go here next);
+        -- On while you've picked the next step yourself (a ^ / Go here next);
         -- the two above put you back on an optimised route.
         { text = sort == "custom" and ns.theme:ModeText("custom", "Custom route (your pick)")
-                or "|cff777777Custom route (pick a stop: its ^ or Go here next)|r",
+                or "|cff777777Custom route (pick a step: its ^ or Go here next)|r",
           radio = true, checked = sort == "custom", disabled = sort ~= "custom",
           func = function() ns.xpValue:SetMode("custom") end },
         { text = "Finish the area you're in first", checked = ns.db.nav.areaFirst == true,
           func = function() ns.db.nav.areaFirst = (ns.db.nav.areaFirst ~= true); nav.planDirty = true end },
     })
 
-    -- Route includes: the kinds of stops, the dungeon run on its own
-    -- (Dungeons.lua, pull request 20), and the stops you hid.
+    -- Route includes: the kinds of steps, the dungeon run on its own
+    -- (Dungeons.lua, pull request 20), and the steps you hid.
     local includes = {}
     for i, it in ipairs(Menu.KindItems()) do
         if i > 1 then includes[#includes + 1] = it end   -- (its own title: the section's)
@@ -426,8 +426,8 @@ function Menu:RouteItemsRaw()
     end
     local nHidden = 0
     for _ in pairs(ns.db.nav.hidden or {}) do nHidden = nHidden + 1 end
-    includes[#includes + 1] = { rule = true }   -- (and above Unhide all stops)
-    includes[#includes + 1] = { text = string.format("Unhide all stops (%d)", nHidden), disabled = nHidden == 0,
+    includes[#includes + 1] = { rule = true }   -- (and above Unhide all steps)
+    includes[#includes + 1] = { text = string.format("Unhide all steps (%d)", nHidden), disabled = nHidden == 0,
         func = function() ns.commands.nav("unhide") end }
     section("Route includes", includes)
 
@@ -450,7 +450,7 @@ function Menu:RouteItemsRaw()
     end
     way[#way + 1] = { text = "On the map, show only my waypoint while one is set", stay = true,
         checked = ns.db.nav.mapWaypointOnly ~= false,
-        tip = "While you have a waypoint of your own, the world map leaves out Flow's route, stops and areas and shows the waypoint alone. Clear the waypoint and the route is back. Pointing at a stop in the Flow Router or Flow Tracker still shows that stop.",
+        tip = "While you have a waypoint of your own, the world map leaves out Flow's route, steps and areas and shows the waypoint alone. Clear the waypoint and the route is back. Pointing at a step in the Flow Router or Flow Tracker still shows that step.",
         refresh = function(it) it.checked = ns.db.nav.mapWaypointOnly ~= false end,
         func = function()
             ns.db.nav.mapWaypointOnly = (ns.db.nav.mapWaypointOnly == false)
@@ -481,30 +481,30 @@ function Menu:RouteItemsRaw()
         if H then for _, it in ipairs(safe(H.MenuItems, H)) do party[#party + 1] = it end end
         -- (A hand-made route someone shared with /flow party share.)
         if P:Active() then
-            party[#party + 1] = { text = "Shared stops from " .. (P:Editor() or "the party"), radio = true, checked = P:Following(),
+            party[#party + 1] = { text = "Shared steps from " .. (P:Editor() or "the party"), radio = true, checked = P:Following(),
                 func = function() P:SetFollowing(true) end }
-            party[#party + 1] = { text = "Drop the shared stops", func = function() P:Leave() end }
+            party[#party + 1] = { text = "Drop the shared steps", func = function() P:Leave() end }
         end
         section("Party", party)
     end
 
-    -- Which stops the map and the Flow Tracker show (the Flow Router always
+    -- Which steps the map and the Flow Tracker show (the Flow Router always
     -- lists them all): everything in this area, or your next N.
     local shown, area = nav:StopsShown(), nav:AreaMode()
-    -- (Next stop only first: the default. The area choice last, 0.35.225.)
+    -- (Next step only first: the default. The area choice last, 0.35.225.)
     local stops = {}
     for _, n in ipairs(nav.STOP_CHOICES) do
         stops[#stops + 1] = { text = nav:StopsShownLabel(n), radio = true, checked = not area and shown == n,
             func = function() nav:SetStopsShown(n) end }
     end
-    stops[#stops + 1] = { text = string.format("All stops (%d on the route now)", nav.plan and #nav.plan or 0),
+    stops[#stops + 1] = { text = string.format("All steps (%d on the route now)", nav.plan and #nav.plan or 0),
         radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
     stops[#stops + 1] = { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end,
-        tip = "The stops around you and around your next stop, instead of a fixed number. Where nothing else is nearby, that's just your next stop." }
-    section("Stops on the map", stops)
+        tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
+    section("Steps on the map", stops)
 
     -- The arrow's look (Nav.lua).
-    -- (First: walking to a stop Flow would have you teleport or hearth to.)
+    -- (First: walking to a step Flow would have you teleport or hearth to.)
     local arrowItems = safe(nav.TravelMenuItems)
     for _, it in ipairs(safe(nav.ArrowMenuItems, nav)) do arrowItems[#arrowItems + 1] = it end
     section("Arrow", arrowItems)

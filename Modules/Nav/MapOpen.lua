@@ -4,14 +4,14 @@
 -- Flow never calls the game's map or quest-log functions (ToggleWorldMap,
 -- ShowUIPanel, QuestMapFrame_OpenToQuestDetails...): run from add-on code
 -- they taint the map, and in a later fight the map's own buttons are blocked
--- (0.35.47). So "Show on map" on a stop card could only say "press M".
+-- (0.35.47). So "Show on map" on a step card could only say "press M".
 --
 -- The way round it: the game has its own buttons that open those windows
 -- (the zone name over the minimap opens the map; the Quest Log button on the
 -- menu bar opens the log). A secure button of Flow's, laid exactly over the
 -- link while the mouse is on it, passes your click on to that button
 -- (type = "click"), so the game opens its window itself, untainted. Flow's
--- part (select the quest, highlight the stop) runs before and after.
+-- part (select the quest, highlight the step) runs before and after.
 --
 -- The secure button is never a child of the card nor anchored to it (that
 -- would make the card protected, and it couldn't open or close in a fight):

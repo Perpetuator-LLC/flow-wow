@@ -2,21 +2,21 @@
 .SYNOPSIS
   A second opinion on Flow's route. Reads Flow's export (your quests, skills
   and the route Flow suggests, written into the diagnostics at every /reload:
-  Modules\Export.lua), plans a route of its own over the same stops, and
+  Modules\Export.lua), plans a route of its own over the same steps, and
   says where the two differ and what looks missing.
 
 .USAGE
   powershell -ExecutionPolicy Bypass -File tools\route-check.ps1 [-Stops 30] [-Dump]
-    -Stops N   how many of Flow's stops to compare (default 30: what Flow plans ahead)
+    -Stops N   how many of Flow's steps to compare (default 30: what Flow plans ahead)
     -Dump      also print the export lines themselves
 
   /reload in game first (twice for a change made since the last reload): the
   saved file holds the session before the reload.
 
 .WHAT IT DOES
-  Its own plan is the shortest walk through the same stops from where you
+  Its own plan is the shortest walk through the same steps from where you
   stand, keeping what must come first (a turn-in after its objectives:
-  "deps"), found by nearest-first and then improved by moving stops and
+  "deps"), found by nearest-first and then improved by moving steps and
   reversing runs (or-opt, 2-opt) until nothing shortens it. Distances are
   straight lines in yards on one continent, the same for both routes, so the
   comparison is fair even though neither knows the terrain. One use of the
@@ -75,12 +75,12 @@ $improve = @($rec | Where-Object { $_.kind -eq 'improve' })
 Write-Output ("=== Route check (export v{0}, Flow {1}) ===" -f $head.v, $head.flow)
 Write-Output ("{0}, level {1} {2}, {3}: at {4:N1}, {5:N1} on map {6}; order: {7}; {8}" -f `
     $you.name, $you.level, $you.class, $you.zone, (Num $you.x), (Num $you.y), $you.map, $opt.order, $opt.note)
-Write-Output ("quests in your log: {0}; stops Flow knows: {1} ({2} on the route); hearthstone: {3}{4}" -f `
+Write-Output ("quests in your log: {0}; steps Flow knows: {1} ({2} on the route); hearthstone: {3}{4}" -f `
     $quests.Count, $goals.Count, $plan.Count, $you.hearth, $(if ((Num $you.hearthleft) -eq 0) { ' (ready)' } elseif ($null -ne (Num $you.hearthleft)) { " (ready in $([int]((Num $you.hearthleft) / 60)) min)" } else { '' }))
 
 if ($plan.Count -eq 0) { Write-Output "Flow has no route right now: nothing to compare."; exit 0 }
 
-# --- the stops to compare: Flow's first N, with a place on your continent -----
+# --- the steps to compare: Flow's first N, with a place on your continent -----
 $cont = $you.cont
 $nodes = New-Object System.Collections.ArrayList
 foreach ($s in ($plan | Select-Object -First $Stops)) {
@@ -101,7 +101,7 @@ function Length($order) {
     foreach ($i in $order) { $sum += (Dist $at $nodes[$i]); $at = $nodes[$i] }
     return $sum
 }
-# deps: a stop may not come before a stop it waits for (when that one is among these).
+# deps: a step may not come before a step it waits for (when that one is among these).
 $index = @{}
 for ($i = 0; $i -lt $n; $i++) { $index[$nodes[$i].key] = $i }
 function Valid($order) {
@@ -138,7 +138,7 @@ $len = Length $order
 $improved = $true; $rounds = 0
 while ($improved -and $rounds -lt 60) {
     $improved = $false; $rounds++
-    # or-opt: move one stop somewhere else
+    # or-opt: move one step somewhere else
     for ($a = 0; $a -lt $n; $a++) {
         for ($b = 0; $b -lt $n; $b++) {
             if ($a -eq $b) { continue }
@@ -162,7 +162,7 @@ while ($improved -and $rounds -lt 60) {
 }
 
 Write-Output ""
-Write-Output ("--- The same {0} stops, two ways (straight-line yards from where you stand) ---" -f $n)
+Write-Output ("--- The same {0} steps, two ways (straight-line yards from where you stand) ---" -f $n)
 Write-Output ("Flow's order:   {0,7:N0} yd" -f $flowLen)
 Write-Output ("shortest found: {0,7:N0} yd  ({1:N0} yd, {2:P0} shorter)" -f $len, ($flowLen - $len), $(if ($flowLen -gt 0) { ($flowLen - $len) / $flowLen } else { 0 }))
 $firstDiff = -1
@@ -170,7 +170,7 @@ for ($k = 0; $k -lt $n; $k++) { if ($order[$k] -ne $flow[$k]) { $firstDiff = $k;
 if ($firstDiff -lt 0) {
     Write-Output "The two orders are the same."
 } else {
-    Write-Output ("They part at stop {0}: Flow goes to ""{1}"", the shortest walk to ""{2}""." -f ($firstDiff + 1), $nodes[$flow[$firstDiff]].text, $nodes[$order[$firstDiff]].text)
+    Write-Output ("They part at step {0}: Flow goes to ""{1}"", the shortest walk to ""{2}""." -f ($firstDiff + 1), $nodes[$flow[$firstDiff]].text, $nodes[$order[$firstDiff]].text)
     # why Flow may differ, where it can be told
     $f = $nodes[$flow[$firstDiff]]
     if ($f.milestone) { Write-Output ("  (Flow's choice is a milestone: a class quest or training isn't put off for being far.)") }
@@ -203,7 +203,7 @@ if ($null -ne $hx -and $you.hcont -eq $cont -and (Num $you.hearthleft) -eq 0) {
     Write-Output ""
     if ($bestAt -ge 0 -and $bestSave -gt 300) {
         Write-Output ("--- Hearthstone ({0}, ready) ---" -f $you.hearth)
-        Write-Output ("Using it before stop {0} (""{1}"") saves about {2:N0} yd of walking on Flow's route." -f ($bestAt + 1), $nodes[$flow[$bestAt]].text, $bestSave)
+        Write-Output ("Using it before step {0} (""{1}"") saves about {2:N0} yd of walking on Flow's route." -f ($bestAt + 1), $nodes[$flow[$bestAt]].text, $bestSave)
         Write-Output "Flow's planner doesn't count the hearthstone as a way to travel (it only gives an estimate on the arrow's panel)."
     } else {
         Write-Output ("--- Hearthstone ({0}, ready): no leg of Flow's route is clearly shorter by it. ---" -f $you.hearth)
@@ -219,24 +219,24 @@ foreach ($q in $quests) {
     if ($onRoute -eq 0) {
         $why = @($rec | Where-Object { $_.kind -eq 'goal' -and $_.key -like ($q.id + ':*') -and $_.blocked }) | Select-Object -First 1
         $todo = @($objs | Where-Object { $_.quest -eq $q.id -and $_.done -ne '1' } | ForEach-Object { $_.text }) -join '; '
-        Write-Output ("quest in your log with no stop: {0} [{1}]{2}{3}" -f $q.title, $q.id, $(if ($q.complete -eq '1') { ' (complete: hand it in)' } elseif ($todo) { " ($todo)" } else { '' }), $(if ($why) { " - Flow: $($why.blocked)" } else { ' - Flow has no stop for it at all' }))
+        Write-Output ("quest in your log with no step: {0} [{1}]{2}{3}" -f $q.title, $q.id, $(if ($q.complete -eq '1') { ' (complete: hand it in)' } elseif ($todo) { " ($todo)" } else { '' }), $(if ($why) { " - Flow: $($why.blocked)" } else { ' - Flow has no step for it at all' }))
         $missing++
     }
 }
 $locked = @($rec | Where-Object { $_.kind -eq 'goal' -and $_.state -eq 'locked' -and $_.key -notmatch '^\d+:' })
 foreach ($g in $locked) { Write-Output ("held back: {0} - {1}" -f $g.text, $g.blocked); $missing++ }
-# Every stop Flow lists but can't put on the route, by the kind of reason, so
+# Every step Flow lists but can't put on the route, by the kind of reason, so
 # each check shows which ones are Flow's to fix ("fix all of these no known
 # spot issues ... add these into it so they're folded in as we go", 0.35.205).
 $unplaced = @($rec | Where-Object { $_.kind -eq 'goal' -and $_.state -eq 'locked' })
 if ($unplaced.Count -gt 0) {
     Write-Output ""
-    Write-Output ("--- Stops Flow can't place ({0}) ---" -f $unplaced.Count)
+    Write-Output ("--- Steps Flow can't place ({0}) ---" -f $unplaced.Count)
     foreach ($g in $unplaced) {
         $b = [string]$g.blocked
         $class = if ($b -match '^Inside |^Handed in inside ') { 'dungeon (expected: the dungeon run handles it)' }
             elseif ($b -match 'battleground') { 'battleground (expected)' }
-            elseif ($b -match 'you hid that stop') { 'waits for a stop the player hid (expected)' }
+            elseif ($b -match 'you hid that st[eo]p') { 'waits for a step the player hid (expected)' }
             elseif ($b -match "doesn't know where it's handed in") { 'TO FIX: turn-in with no place (learned when handed in once)' }
             elseif ($b -match "has no spot for|a kind Flow can't place") { 'TO FIX: objective with no place in the quest data (learned when done once)' }
             elseif ($b -match "doesn't know where .* comes from|doesn't know who sells") { 'TO FIX: no source known for the item' }
@@ -253,7 +253,7 @@ foreach ($f in $fms) {
     $near = $null; $nearD = [double]::MaxValue
     foreach ($p in $routePts) { $d = Dist $fp $p; if ($d -lt $nearD) { $nearD = $d; $near = $p } }
     if ($nearD -le 250) {
-        Write-Output ("flight path not learned, {0:N0} yd from a stop on your route (""{1}""): {2}" -f $nearD, $near.text, $f.name)
+        Write-Output ("flight path not learned, {0:N0} yd from a step on your route (""{1}""): {2}" -f $nearD, $near.text, $f.name)
         $missing++
     }
 }
@@ -262,8 +262,8 @@ foreach ($it in $improve) {
     $on = @($plan | Where-Object { $_.key -eq $it.goal }).Count
     if ($on -eq 0) {
         $g = $goals[$it.goal]
-        Write-Output ("improvement with no stop on the route: {0}{1}" -f $it.text, $(if ($g -and $g.blocked) { " - held back: $($g.blocked)" } elseif ($g) { " - Flow knows the stop ($($g.state))" } else { ' - Flow has no stop for it' }))
+        Write-Output ("improvement with no step on the route: {0}{1}" -f $it.text, $(if ($g -and $g.blocked) { " - held back: $($g.blocked)" } elseif ($g) { " - Flow knows the step ($($g.state))" } else { ' - Flow has no step for it' }))
         $missing++
     }
 }
-if ($missing -eq 0) { Write-Output "nothing: every quest in your log, every improvement with a place and every flight master on the way has a stop." }
+if ($missing -eq 0) { Write-Output "nothing: every quest in your log, every improvement with a place and every flight master on the way has a step." }

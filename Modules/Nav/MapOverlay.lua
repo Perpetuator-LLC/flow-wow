@@ -1,19 +1,19 @@
 -- World map overlay: your route as numbered checkpoints and lines.
---   checkpoint label: "3 [9]" = 3rd stop, quest level 9; "!2 [8]" = 2nd quest pickup
+--   checkpoint label: "3 [9]" = 3rd step, quest level 9; "!2 [8]" = 2nd quest pickup
 --   colours (Theme.lua): the route and arrow colour shows the order mode
 --     (purple = Most XP first, blue = Shortest path); hovering a ^ shows only
 --     the route you'd follow, in legendary orange. Your own waypoint is a
 --     green line and (o) of its own. /flow settings has a colour-blind palette.
---   The stop you're heading to (route stop 1) has a white ring, the rest black.
---   Click a stop: open it. The ^ in the Flow Router: go there first.
+--   The step you're heading to (route step 1) has a white ring, the rest black.
+--   Click a step: open it. The ^ in the Flow Router: go there first.
 
 local _, ns = ...
 local M = {}
 ns.mapOverlay = M
 
--- The trail's `live` flag: false = your next stop (the arrow's colour, by
+-- The trail's `live` flag: false = your next step (the arrow's colour, by
 -- its distance), nil = a plain route leg (its own colour). Written out:
--- `x and false or nil` is always nil in Lua, which kept the next stop's
+-- `x and false or nil` is always nil in Lua, which kept the next step's
 -- trail in the route colour (0.35.127).
 function M.LegLive(first, alpha)
     if first and alpha == nil then return false end
@@ -24,19 +24,19 @@ local host           -- frame on the map canvas holding lines
 local lines, pins = {}, {}
 local nLines, nPins = 0, 0
 local previewKey, hoverKey
--- Pointing at a stop in a list (the Flow Router's rows, the Flow Tracker):
--- the map shows that stop alone, between the stop before and the one after
+-- Pointing at a step in a list (the Flow Router's rows, the Flow Tracker):
+-- the map shows that step alone, between the step before and the one after
 -- (drawSolo). Pointing at a pin on the map itself doesn't: the pins stay.
 local hoverSolo = false
-local focusKey, focusUntil = nil, 0   -- a stop opened from the tracker / arrow menu
+local focusKey, focusUntil = nil, 0   -- a step opened from the tracker / arrow menu
 
 local function theme() return ns.theme end
 
--- "Point the arrow here": your own waypoint at this stop (the arrow goes there
+-- "Point the arrow here": your own waypoint at this step (the arrow goes there
 -- first; the planned route stays as it is and carries on after).
 function M.PointHere(goal)
     if not (goal and ns.waypoint) then return end
-    local pt = ns.nav:Spot(goal)   -- (the same spot the arrow and the stop card use)
+    local pt = ns.nav:Spot(goal)   -- (the same spot the arrow and the step card use)
     if pt and pt.map and pt.x then ns.waypoint:Set(pt.map, pt.x, pt.y, goal.text or goal.title) end
 end
 
@@ -64,7 +64,7 @@ local function toMap(pt, mapID)
     end
 end
 -- The same, wherever it falls: beside the map too (x or y under 0 or over 1).
--- For a line that leaves the map towards a stop in the next zone.
+-- For a line that leaves the map towards a step in the next zone.
 local function toMapRaw(pt, mapID)
     if not pt then return nil end
     if pt.map == mapID and pt.x then return pt.x, pt.y end
@@ -89,7 +89,7 @@ local function aboveMap()
     return "DIALOG"
 end
 
--- The stop you're heading to (set by pin, recoloured by keepUp) and the
+-- The step you're heading to (set by pin, recoloured by keepUp) and the
 -- arrow's colour (arrowColor, below); declared here for pin().
 local targetPin, arrowColor
 
@@ -108,14 +108,14 @@ local function line(c, x1, y1, x2, y2, color, alpha)
     l:Show()
 end
 
--- target: the stop you're heading to (route stop 1), drawn as Flow's target
--- marker (o) with a faint white ring; the other stops have black rings.
+-- target: the step you're heading to (route step 1), drawn as Flow's target
+-- marker (o) with a faint white ring; the other steps have black rings.
 M.TARGET_SIZE = 12          -- was 16: the heading-there pin drowned the map
 M.TARGET_RING_ALPHA = 0.45
--- The stop you point at: was 18, a red blot over its neighbours ("make the
+-- The step you point at: was 18, a red blot over its neighbours ("make the
 -- red dot smaller, so it looks like it fills the centre of the point").
 M.HOVER_SIZE = 12
--- top: the stop under your mouse (bigger, in the hover colour, on top).
+-- top: the step under your mouse (bigger, in the hover colour, on top).
 local function pin(c, x, y, label, color, stop, top, target)
     nPins = nPins + 1
     local p = pins[nPins]
@@ -138,7 +138,7 @@ local function pin(c, x, y, label, color, stop, top, target)
         p.bg:SetTexture(CIRCLE)
         p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         p.text:SetPoint("LEFT", p, "RIGHT", 3, 0)
-        -- Like a row in the Flow Router list: hover = the stop's details (and
+        -- Like a row in the Flow Router list: hover = the step's details (and
         -- it's highlighted), click = open it, right-click = menu. Previewing
         -- and changing the route is only the ^ handle in the list.
         p:SetScript("OnEnter", function(self)
@@ -169,11 +169,11 @@ local function pin(c, x, y, label, color, stop, top, target)
             local g = self.stop.goal
             if button == "RightButton" then
                 local items = {
-                    { title = true, text = g.text or g.title or "This stop" },
+                    { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
@@ -188,7 +188,7 @@ local function pin(c, x, y, label, color, stop, top, target)
     p:SetAlpha(1)
     p.isTarget, p.color = (target and not top) and true or false, color
     p:SetParent(c)
-    -- The hovered stop: bigger, white ring, above every other pin and line.
+    -- The hovered step: bigger, white ring, above every other pin and line.
     -- Relative to the map canvas: fixed numbers could end up under the map's own
     -- art (lakes, towns) when the canvas itself sits at a high level.
     local base = math.min(c:GetFrameLevel() + 1000, 9000)
@@ -204,9 +204,9 @@ local function pin(c, x, y, label, color, stop, top, target)
     p.bg:ClearAllPoints()
     p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -2, 2); p.edge:SetPoint("BOTTOMRIGHT", 2, -2)
     if target and not top then
-        -- (o), the stop you're heading to: a thin, faint white ring, a dark
+        -- (o), the step you're heading to: a thin, faint white ring, a dark
         -- gap, the dot in the arrow's colour. Kept small so it marks the spot
-        -- without drowning the map. Every other stop has a black ring.
+        -- without drowning the map. Every other step has a black ring.
         p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -1, 1); p.edge:SetPoint("BOTTOMRIGHT", 1, -1)
         p.edge:SetVertexColor(1, 1, 1, M.TARGET_RING_ALPHA)
         p.hole:ClearAllPoints(); p.hole:SetPoint("TOPLEFT", 0, 0); p.hole:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -233,19 +233,19 @@ end
 M._pin = pin   -- (tests)
 
 -- Draws one route as a faint dotted trail through round points, like a
--- treasure map: it shows the way without covering the map. Stops on another
+-- treasure map: it shows the way without covering the map. Steps on another
 -- map are skipped, and the trail joins the ones on this map. Each point's
--- label carries the stop's type icon and number ("[icon] 3 [9]"). The trail
--- from you to the stop you're heading to wears the arrow's colour (and the
--- stop's dot too), a little stronger; the rest of the route is fainter.
+-- label carries the step's type icon and number ("[icon] 3 [9]"). The trail
+-- from you to the step you're heading to wears the arrow's colour (and the
+-- step's dot too), a little stronger; the rest of the route is fainter.
 -- Legs are kept from the last draw; the dots are drawn again only when you
 -- move or the arrow's colour changes. The dots drift slowly toward the next
--- stop, so the trail shows which way it goes (0.35.170): the game moves them
+-- step, so the trail shows which way it goes (0.35.170): the game moves them
 -- (a looping animation on each dot), so still nothing of Flow's runs per frame.
 local legs, dots, nDots = {}, {}, 0
 local DOT_GAP = 12     -- screen pixels between dots
 local DOT_SIZE = 4     -- screen pixels across
-local DOT_CLEAR = 9    -- no dots this close to either end (under the stops' points)
+local DOT_CLEAR = 9    -- no dots this close to either end (under the steps' points)
 local DOT_CYCLE = 2    -- seconds a dot takes to drift to the next dot's place (6 pixels a second)
 local FIRST_ALPHA, REST_ALPHA = 0.8, 0.45
 local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
@@ -258,7 +258,7 @@ function M.PathMoves()
 end
 
 -- "Path opacity" (Flow Settings, /flow map opacity): 0.1 to 1. The default,
--- 0.5, is the look the trail always had (the leg to your next stop at 0.8,
+-- 0.5, is the look the trail always had (the leg to your next step at 0.8,
 -- the rest at 0.45); 1 doubles that, up to fully solid.
 M.PATH_ALPHA = 0.5
 function M.PathAlpha()
@@ -277,7 +277,7 @@ function M.LegAlpha(alpha, setting)
 end
 
 -- The arrow's colour right now (Nav sets it each time it turns the arrow),
--- for the trail to where it points: the route's first stop (waypoint false)
+-- for the trail to where it points: the route's first step (waypoint false)
 -- or your waypoint (true). nil: the arrow points somewhere else.
 function arrowColor(waypoint)
     local N = ns.nav
@@ -301,7 +301,7 @@ local function dotSpots(len, gap, clear, moving)
 end
 M._dotSpots = dotSpots   -- (tests)
 
--- Lines that start at you (to the first stop, to your waypoint). Between
+-- Lines that start at you (to the first step, to your waypoint). Between
 -- route changes only these move, so the 0.5 s map tick moves just them
 -- (followPlayer) instead of drawing everything again. l: a line, or nil (a
 -- dotted trail: only its leg moves).
@@ -325,7 +325,7 @@ local function dot()
 end
 
 -- A dot drifts one step (ox, oy) to the next dot's place, then starts again,
--- over and over: the trail seems to flow toward the stop. The game moves it
+-- over and over: the trail seems to flow toward the step. The game moves it
 -- (a looping Translation). No ox: it stands still.
 local canDrift = true   -- false once this client refused the animation
 local function drift(d, ox, oy)
@@ -403,18 +403,18 @@ end
 -- Timed apart from the redraws so /flow perf shows it.
 local drawDotsTimed = ns.perf.Wrap("world map (route dots)", drawDots)
 
--- The stop you moved to the front (the ^ handle, "Go here first"). The route
--- is planned from it, so it's stop 1 and wears the (o) like any first stop;
+-- The step you moved to the front (the ^ handle, "Go here first"). The route
+-- is planned from it, so it's step 1 and wears the (o) like any first step;
 -- no other mark. It stays first until it's done or you click its (o).
 function M.IsChosen(key)
     local sel = ns.nav and ns.nav.selection
     return key ~= nil and sel ~= nil and sel.first == key
 end
 
--- Areas: a stop that's a whole area (mobs to kill, things to loot, a farm
--- stop) shows where its mobs live as soft discs in the route colour, under
+-- Areas: a step that's a whole area (mobs to kill, things to loot, a farm
+-- step) shows where its mobs live as soft discs in the route colour, under
 -- the lines, instead of only the one point the route passes. Drawn for the
--- next stop and the one you're pointing at.
+-- next step and the one you're pointing at.
 local blobs, nBlobs = {}, 0
 local AREA_YARDS = 45                       -- same radius as the arrow's ring (Nav.lua)
 local function blobRadius(c, mapID)
@@ -426,8 +426,8 @@ local function blobRadius(c, mapID)
     local frac = (w and w > 0) and (AREA_YARDS / w) or 0.015
     return math.max(6, math.min(frac * c:GetWidth(), 60))
 end
--- Hovering a disc: every disc of that stop lights up, and the tooltip says
--- which stop it is and what you need there (Loot Stringy Wolf Meat 9/66).
+-- Hovering a disc: every disc of that step lights up, and the tooltip says
+-- which step it is and what you need there (Loot Stringy Wolf Meat 9/66).
 local function blobEnter(self)
     for i = 1, nBlobs do
         local b = blobs[i]
@@ -449,11 +449,11 @@ local function blobClick(self, button)
     local g = self.goal
     if button == "RightButton" then
         local items = {
-            { title = true, text = g.text or g.title or "This stop" },
+            { title = true, text = g.text or g.title or "This step" },
             { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
             { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
             { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-            { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+            { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
         }
         ns.menu:Open(items)
         return
@@ -503,7 +503,7 @@ end
 M._hull, M._clusters = hull, clusters  -- (tests)
 
 -- The patch the route actually goes to: the group holding the point nearest
--- the route's spot for this stop (all of them when there's no route spot).
+-- the route's spot for this step (all of them when there's no route spot).
 local function routePatch(groups, rx, ry)
     if not rx then return nil end
     local best, bestD
@@ -520,7 +520,7 @@ M._routePatch = routePatch  -- (tests)
 -- An area's shape (its discs and the border round each patch) as flat lists
 -- of 0-1 map positions: discs = x1, y1, x2, y2...; edges = x1, y1, x2, y2 per
 -- border piece. Working it out is the slow part (grouping up to 80 spawns,
--- then a hull over 12 points round each), so it's kept per stop and map
+-- then a hull over 12 points round each), so it's kept per step and map
 -- and only worked out again when its spawns, its route spot, the map or
 -- the zoom change. Shapes not drawn in a full redraw are dropped.
 local shapes, shapesNext = {}, {}
@@ -573,8 +573,8 @@ local function areaShape(c, mapID, goal, routePt, allPatches)
 end
 M._areaShape = areaShape   -- (tests)
 
--- routePt: where the route goes for this stop. Only that patch is drawn,
--- unless allPatches (the stop you point at: every place its mobs live).
+-- routePt: where the route goes for this step. Only that patch is drawn,
+-- unless allPatches (the step you point at: every place its mobs live).
 local function drawArea(c, mapID, goal, color, strong, label, routePt, allPatches)
     if not (goal and goal.area and goal.points) then return end
     local s = areaShape(c, mapID, goal, routePt, allPatches)
@@ -618,7 +618,7 @@ end
 -- eight places around its point (right first, then left, above, below and
 -- the corners) and takes the first that doesn't cover another label or
 -- point. No room with its level ("3 [9]"): just the number ("3"). No room at
--- all: the place where it overlaps least. The stop you point at goes first,
+-- all: the place where it overlaps least. The step you point at goes first,
 -- then the route in order.
 local CANDS = {   -- anchor on the label, anchor on the point, x, y
     { "LEFT", "RIGHT", 3, 0 }, { "RIGHT", "LEFT", -3, 0 }, { "BOTTOM", "TOP", 0, 2 }, { "TOP", "BOTTOM", 0, -2 },
@@ -728,17 +728,17 @@ local function declutter()
 end
 
 -- Pure: does the map show only your own waypoint? has: one is set; on: the
--- setting; pointing: you point at a stop (in a list, on the tracker, a preview).
+-- setting; pointing: you point at a step (in a list, on the tracker, a preview).
 function M.WaypointOnly(has, on, pointing)
     return (has and on and not pointing) and true or false
 end
 
--- One stop alone ("as I hover over the waypoints in the Flow Router, hide
+-- One step alone ("as I hover over the waypoints in the Flow Router, hide
 -- all the other things and routes and show just that one objective; leave
 -- the previous and the next, without their area, a little muted, so I see
 -- the flow to it", 0.35.204).
 M.SOLO_FADE = 0.5
--- Pure: where in the plan the stop you point at is (nil: not on the route).
+-- Pure: where in the plan the step you point at is (nil: not on the route).
 function M.SoloAt(plan, key)
     if not key then return nil end
     for i, s in ipairs(plan or {}) do
@@ -746,7 +746,7 @@ function M.SoloAt(plan, key)
     end
     return nil
 end
--- Pure: the stops shown with it: the one before, itself, the one after.
+-- Pure: the steps shown with it: the one before, itself, the one after.
 function M.SoloStops(n, at)
     local out = {}
     for j = at - 1, at + 1 do
@@ -764,7 +764,7 @@ local function drawSolo(c, mapID, plan, at, T)
             if x then pts[#pts + 1] = { j = j, x = x, y = y, s = s } end
         end
     end
-    -- The first stop has no stop before it: the way there starts at you
+    -- The first step has no step before it: the way there starts at you
     -- ("the top one doesn't show me to the first objective", 0.35.211).
     if at == 1 and pts[1] and pts[1].j == 1 then
         local px, py = toMap(ns.nav:PlayerPos(), mapID)
@@ -787,9 +787,9 @@ local function drawSolo(c, mapID, plan, at, T)
     end
 end
 -- Draws one route as a dotted trail through round points, starting at you.
--- Stops on another map are skipped, and the trail joins the ones on this
--- map. Each point's label carries the stop's type icon and number.
--- A "make it where you stand" stop (crafting with no station): it follows
+-- Steps on another map are skipped, and the trail joins the ones on this
+-- map. Each point's label carries the step's type icon and number.
+-- A "make it where you stand" step (crafting with no station): it follows
 -- you, so the world map gives it no pin, area or line.
 function M.FollowsYou(s) return (s and s.goal and s.goal.anywhere) and true or false end
 -- The dotted path follows the way you'd really walk (0.35.172): the leg from
@@ -808,11 +808,11 @@ function M.LegChain(sx, sy, ex, ey, mids, place)
     return chain
 end
 
--- Your next stop is on another map than the one shown (0.35.245: "currently
--- there is nothing if the next stop is in a different zone"): the line still
+-- Your next step is on another map than the one shown (0.35.245: "currently
+-- there is nothing if the next step is in a different zone"): the line still
 -- starts at you and goes the way you'd walk, through the gate when it's on
--- this map, and stops at the map's edge. Looking at the stop's own map, it
--- comes in from the edge (or the gate) to the stop. Pure:
+-- this map, and stops at the map's edge. Looking at the step's own map, it
+-- comes in from the edge (or the gate) to the step. Pure:
 --   where a line from a spot on the map (ix, iy) to one beside it leaves it.
 function M.ClipToMap(ix, iy, ox, oy)
     local t = 1
@@ -842,8 +842,8 @@ function M.LegParts(pts)
     end
     return out
 end
---   does the leg to your next stop cross the map's edge? (You on it and the
---   stop not, or the stop on it and you not.)
+--   does the leg to your next step cross the map's edge? (You on it and the
+--   step not, or the step on it and you not.)
 function M.CrossesEdge(youOn, stopOn) return (youOn and true or false) ~= (stopOn and true or false) end
 
 local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
@@ -853,16 +853,16 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
     local labels = ns.nav:PlanLabels(plan)
     local hovered
     local fromYou = px ~= nil   -- the next line drawn starts at you
-    local broken = false        -- a hidden stop since the last one drawn
+    local broken = false        -- a hidden step since the last one drawn
     local prevPt = fromYou and you or nil   -- where the leg being drawn starts, in the world
     local function place(m) return toMap(m, mapID) end
     for i, s in ipairs(plan) do
-        -- A "make it where you stand" stop follows you: its spot is wherever you
+        -- A "make it where you stand" step follows you: its spot is wherever you
         -- stood when the route was planned, so it gets no pin (it sat on your
         -- character, or where you used to be). It's listed, not placed.
         local x, y
         if not M.FollowsYou(s) then x, y = toMap(s.point, mapID) end
-        -- Your next stop, on another map than you: the part of the way that's on this one.
+        -- Your next step, on another map than you: the part of the way that's on this one.
         if i == 1 and alpha == nil and not pinsOnly and you and not M.FollowsYou(s)
             and s.point and s.point.cont == you.cont and M.CrossesEdge(px, x) and ns.nav:StopVisible(i, false) then
             local pts = {}
@@ -879,19 +879,19 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
                                     color = theme().route, live = M.LegLive(true, nil), alpha = FIRST_ALPHA }
                 if px and part.from == 1 then addLink(links, nil, legs[#legs]) end
             end
-            -- (No line from you to a later stop on this map: you aren't going there next.)
+            -- (No line from you to a later step on this map: you aren't going there next.)
             px, fromYou, prevPt = nil, false, nil
         end
         local pointed = s.goal.key == hoverKey or (focusKey and s.goal.key == focusKey and GetTime() < focusUntil)
-        -- Stops on the map: past your limit only the stop you point at shows (a pin, no line).
+        -- Steps on the map: past your limit only the step you point at shows (a pin, no line).
         local beyond = not ns.nav:StopVisible(i, false)
-        -- A stop that isn't shown breaks the trail: no line from stop 2 to
-        -- stop 5 when 3 and 4 come between (the route doesn't go that way).
+        -- A step that isn't shown breaks the trail: no line from step 2 to
+        -- step 5 when 3 and 4 come between (the route doesn't go that way).
         if x and beyond then broken = true end
         if x and (not beyond or (pointed and withPins)) then
             if broken and not beyond then px = nil end   -- (a new stretch starts here)
             if px and not pinsOnly and not beyond then
-                -- From you to the first stop: the arrow's colour and stronger,
+                -- From you to the first step: the arrow's colour and stronger,
                 -- so it's clear where to go now; the rest fainter. (A preview,
                 -- alpha given, keeps its own colour.)
                 local first = (i == 1)
@@ -927,7 +927,7 @@ local function drawRoute(c, mapID, plan, color, withPins, alpha, pinsOnly)
             end
         end
     end
-    -- The stop you're pointing at (here or in the list) goes on top of everything.
+    -- The step you're pointing at (here or in the list) goes on top of everything.
     if hovered then
         pin(c, hovered[1], hovered[2], hovered[3], pinsOnly and color or theme().hover, hovered[4], true)
         pins[nPins].order = 0
@@ -964,7 +964,7 @@ local function makeWaypointPin()
         ns.Tip(self, "ANCHOR_RIGHT")
         local w = ns.waypoint and ns.waypoint:Get()
         GameTooltip:AddLine("Your waypoint" .. ((w and w.note) and (": " .. w.note) or ""))
-        GameTooltip:AddLine("Not a stop on the route: the arrow points here in green until you get there.", 1, 1, 1, true)
+        GameTooltip:AddLine("Not a step on the route: the arrow points here in green until you get there.", 1, 1, 1, true)
         GameTooltip:AddLine("Right-click: clear it.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
@@ -999,8 +999,8 @@ local function drawWaypoint(c, mapID)
 end
 M._drawWaypoint = drawWaypoint   -- (tests)
 
--- The profession route (the faint arrow's stops, Nav N.profPlan): a dotted
--- path from you through its next stops and a pin on the first, in the
+-- The profession route (the faint arrow's steps, Nav N.profPlan): a dotted
+-- path from you through its next steps and a pin on the first, in the
 -- profession arrow's colour (plain smoked glass: no outline, no centre).
 M.PROF_STOPS = 5
 local profPin
@@ -1017,14 +1017,14 @@ local function makeProfPin()
     p.text:SetPoint("LEFT", p, "RIGHT", 3, 0)
     p:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Profession: " .. (self.label or "next stop"))
-        GameTooltip:AddLine("Where the faint profession arrow points. The dotted path is your next profession stops.", 1, 1, 1, true)
+        GameTooltip:AddLine("Profession: " .. (self.label or "next step"))
+        GameTooltip:AddLine("Where the faint profession arrow points. The dotted path is your next profession steps.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     p:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return p
 end
--- Profession stops worth a line on the map: not "do it where you stand".
+-- Profession steps worth a line on the map: not "do it where you stand".
 function M.ProfStops(plan, max)
     local out = {}
     for _, s in ipairs(plan or {}) do
@@ -1067,7 +1067,7 @@ local function drawProf(c, mapID)
 end
 M.ProfPin = function() return profPin end   -- (tests)
 
--- A prepared dungeon run's stops on another continent: the route plans only
+-- A prepared dungeon run's steps on another continent: the route plans only
 -- the one you're on, so they get pins of their own on that continent's maps
 -- (the Barrens' quest givers while you're in Silverpine), in the route colour.
 local function awayStops()
@@ -1251,7 +1251,7 @@ local function place()
 end
 
 -- The row handle: a ^ chevron ("go here first"), or Flow's (o) target marker
--- on the active stop. Also drawn in the help legend, so they look the same.
+-- on the active step. Also drawn in the help legend, so they look the same.
 function M.MakeHandle(parent, size)
     local go = CreateFrame("Button", nil, parent)
     go:SetSize(size, size)
@@ -1333,7 +1333,7 @@ function M.MakeWaypointRow(f)
     w:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Your waypoint")
-        GameTooltip:AddLine("Not a stop on the route: the arrow points here in green, along the green line on the map, until you get there. Then it's back to the route below.", 1, 1, 1, true)
+        GameTooltip:AddLine("Not a step on the route: the arrow points here in green, along the green line on the map, until you get there. Then it's back to the route below.", 1, 1, 1, true)
         GameTooltip:AddLine("X or right-click: clear it.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
@@ -1387,7 +1387,7 @@ local function buildHelp(f)
     end
     line(-8, "go", "Go here next: a Custom route (orange) from it")
     line(-28, "active", "Where you're heading: always the top row")
-    line(-50, nil, "Click a stop's name to open it. Right-click to hide it or for more.")
+    line(-50, nil, "Click a step's name to open it. Right-click to hide it or for more.")
     pop:Hide()
     function q:Paint(hot)
         local c = theme().route
@@ -1491,7 +1491,7 @@ local function buildList()
     f.modeOptimal = choice(-48, "optimal", "Follow optimal path",
         "Everything worth doing nearby: your quests plus quests to pick up, trainers, and fishing or gathering when it's on the way.")
 
-    -- Include professions (trainers to learn/raise them, and skill-up stops).
+    -- Include professions (trainers to learn/raise them, and skill-up steps).
     local pc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     pc:SetSize(20, 20)
     pc:SetPoint("TOPLEFT", 26, -68)
@@ -1510,20 +1510,20 @@ local function buildList()
     pc:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.profs = pc
 
-    -- Show hidden stops (greyed out at the end of the list; click to unhide).
+    -- Show hidden steps (greyed out at the end of the list; click to unhide).
     local hc = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     hc:SetSize(20, 20)
     hc:SetPoint("TOPLEFT", 170, -92)
     hc.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     hc.label:SetPoint("LEFT", hc, "RIGHT", 2, 0)
-    hc.label:SetText("Show hidden stops")
+    hc.label:SetText("Show hidden steps")
     hc:SetScript("OnClick", function(self)
         ns.db.nav.showHidden = self:GetChecked() and true or false
         M:Redraw()
     end)
     hc:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Right-click any stop (here or on the map) to hide it. Tick this to see hidden ones and click one to bring it back.", 1, 1, 1, true)
+        GameTooltip:AddLine("Right-click any step (here or on the map) to hide it. Tick this to see hidden ones and click one to bring it back.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     hc:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1538,7 +1538,7 @@ local function buildList()
     rc.label:SetText("Show route on map")
     rc:SetScript("OnClick", function(self) ns.db.nav.mapLines = self:GetChecked() and true or false; M:Redraw() end)
     f.showLines = rc
-    hc:Hide(); hc.label:Hide()  -- hidden stops are always listed now
+    hc:Hide(); hc.label:Hide()  -- hidden steps are always listed now
 
     -- One dropdown for the route instead of the checkboxes above (which
     -- couldn't reach Completionist, and had professions as an odd sub-box):
@@ -1584,14 +1584,14 @@ local function buildList()
     f.routeDrop = dd
 
     -- Route state (XpValue.lua): one row of radios, each in its route colour.
-    -- Custom route (orange) is on while you've picked the next stop yourself
+    -- Custom route (orange) is on while you've picked the next step yourself
     -- (a ^ in the list below); Most XP or Shortest puts you back on an
     -- optimised route.
     f.sorts = {}
     local SORTS = {
-        { "distance", "Shortest", 6, "Shortest path (default): nearest stops first, XP ignored." },
+        { "distance", "Shortest", 6, "Shortest path (default): nearest steps first, XP ignored." },
         { "xp", "Most XP", 92, "Most XP first: the shortest path, but quests are weighed by XP and level. More XP is worth a longer walk; quests 3+ levels above you wait." },
-        { "custom", "Custom route", 172, "On when you pick the next stop yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again. Greyed out while you're on one of those." },
+        { "custom", "Custom route", 172, "On when you pick the next step yourself (its ^ below): the route goes there first and is orange, not optimised, until you choose Most XP or Shortest again. Greyed out while you're on one of those." },
     }
     for _, sdef in ipairs(SORTS) do
         local rb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -1617,16 +1617,16 @@ local function buildList()
     f.title:SetJustifyH("LEFT")
 
     -- Your own waypoint (Waypoint.lua), when you've set one: a green line
-    -- above the route, not a stop in it. The arrow follows it (orange) until
+    -- above the route, not a step in it. The arrow follows it (orange) until
     -- you get there or clear it; the route below carries on as it was.
     f.wp = M.MakeWaypointRow(f)
 
-    -- Each row: [^] handle, then the stop.
-    --   ^ handle    go here first: the route is re-planned from this stop,
+    -- Each row: [^] handle, then the step.
+    --   ^ handle    go here first: the route is re-planned from this step,
     --               which moves to the top and gets the (o); hovering it
     --               previews that route
-    --   (o)         the stop you're heading to, always the top row
-    --   row hover   the stop's details (quest objectives and text)
+    --   (o)         the step you're heading to, always the top row
+    --   row hover   the step's details (quest objectives and text)
     --   row click   open it (its card)
     --   right-click menu
     f.rows = {}
@@ -1648,11 +1648,11 @@ local function buildList()
             if self.active then
                 GameTooltip:AddLine("Where you're heading")
                 GameTooltip:AddLine(M.IsChosen(row.key) and "Your pick (Custom route). Click to go back to the optimised route."
-                    or "The next stop on your route.", 1, 1, 1, true)
+                    or "The next step on your route.", 1, 1, 1, true)
             else
                 M:Preview(row.key)
                 GameTooltip:AddLine("Go here next")
-                GameTooltip:AddLine("Makes it your next stop: a Custom route (orange) until you choose Most XP or Shortest again. The orange line on the map is that route.", 1, 1, 1, true)
+                GameTooltip:AddLine("Makes it your next step: a Custom route (orange) until you choose Most XP or Shortest again. The orange line on the map is that route.", 1, 1, 1, true)
             end
             GameTooltip:Show()
         end)
@@ -1708,17 +1708,17 @@ local function buildList()
                 ns.nav:Unhide(self.key)        -- either click brings it back
             elseif button == "RightButton" and g then
                 local items = {
-                    { title = true, text = g.text or g.title or "This stop" },
+                    { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Go here next (Custom route)", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
-                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
                 ns.menu:Open(items)
             elseif self.blocked then
-                ns:Print((g.text or "that stop") .. ": " .. (g.blockedBy or "blocked"))
+                ns:Print((g.text or "that step") .. ": " .. (g.blockedBy or "blocked"))
             elseif g then
                 ns.nav:OpenStop(g, self)
             end
@@ -1729,8 +1729,8 @@ local function buildList()
     return f
 end
 
--- A locked stop's reason in the Router's list: as wide as its words, never
--- wider than its column (the stop's name gets the rest of the 300).
+-- A locked step's reason in the Router's list: as wide as its words, never
+-- wider than its column (the step's name gets the rest of the 300).
 M.REASON_W = 130
 function M.ReasonWidth(textWidth) return math.min((textWidth or 0) + 2, M.REASON_W) end
 -- (Tests) the rows of the Router's list, once it's built.
@@ -1762,7 +1762,7 @@ local function updateList()
         rb:SetChecked(on)
         if rb.mode == "custom" then
             -- Greyed out on Most XP or Shortest: a Custom route starts by
-            -- picking a stop (its ^), not here. (Its tooltip still says how.)
+            -- picking a step (its ^), not here. (Its tooltip still says how.)
             rb:SetEnabled(on)
             rb.label:SetText(on and ns.theme:ModeText("custom", "Custom route") or "|cff777777Custom route|r")
         end
@@ -1784,7 +1784,7 @@ local function updateList()
     end
     local following = (ns.party and ns.party:Following()) or (ns.partyHelp and ns.partyHelp:Joined())
     local nBlocked = ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
-    list.title:SetText(string.format("%s: %d stops, about %d yd%s%s",
+    list.title:SetText(string.format("%s: %d steps, about %d yd%s%s",
         following and "Party route" or (ns.xpValue:IsCustom() and ns.theme:ModeText("custom", "Custom route")) or "Your route",
         #plan, plan[#plan] and plan[#plan].cum or 0,
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or "",
@@ -1792,11 +1792,11 @@ local function updateList()
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
     local labels = ns.nav:PlanLabels(plan)
     local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108 - (wpShown and ROW_H or 0)) / ROW_H))
-    -- Route stops first, then blocked stops (lock + reason), then (if
-    -- ticked) hidden stops, greyed out.
+    -- Route steps first, then blocked steps (lock + reason), then (if
+    -- ticked) hidden steps, greyed out.
     local blocked = ns.nav.blockedGoals or {}
     local hiddenGoals = ns.nav.hiddenGoals or {}  -- always listed, greyed out
-    -- One list of rows: route stops, then blocked, then hidden. Blocked and
+    -- One list of rows: route steps, then blocked, then hidden. Blocked and
     -- hidden rows always get room (up to half the list), so a full route
     -- can't push them out of sight.
     local entries = {}
@@ -1807,7 +1807,7 @@ local function updateList()
         entries[#entries + 1] = { stop = s, i = i }
     end
     for _, b in ipairs(blocked) do entries[#entries + 1] = { blocked = b } end
-    -- A dungeon run's stops on another continent (not on the route): where they are.
+    -- A dungeon run's steps on another continent (not on the route): where they are.
     local away = awayStops()
     for _, a in ipairs(away) do entries[#entries + 1] = { away = a } end
     if #plan == 0 and #away > 0 then
@@ -1822,8 +1822,8 @@ local function updateList()
             local s = e.stop
             r.key, r.isHidden, r.blocked = s.goal.key, false, nil
             r.goal = s.goal
-            -- The (o) is always the top row: the stop you're heading to. A
-            -- stop you moved first IS the top row, so it needs no other mark.
+            -- The (o) is always the top row: the step you're heading to. A
+            -- step you moved first IS the top row, so it needs no other mark.
             r.go.active = (e.i == 1)
             r.go:Paint(r.go:IsMouseOver())
             r.go:Show()
@@ -1865,8 +1865,8 @@ local function updateList()
 end
 M._updateList = function() updateList() end   -- (tests)
 
--- Pointing at a stop somewhere else (a row of the Flow Tracker): the map,
--- when it's open, lights that stop the way pointing at it in the Flow Router
+-- Pointing at a step somewhere else (a row of the Flow Tracker): the map,
+-- when it's open, lights that step the way pointing at it in the Flow Router
 -- does. nil: none.
 function M.Hover(key)
     if hoverKey == key then return end
@@ -1875,16 +1875,16 @@ function M.Hover(key)
 end
 function M._HoverKey() return hoverKey end
 
--- The stop you point at: under the mouse, opened from the tracker, or previewed.
+-- The step you point at: under the mouse, opened from the tracker, or previewed.
 local function pointedKey()
     return hoverKey or (focusKey and GetTime() < focusUntil and focusKey) or previewKey or nil
 end
 
 -- What the map drawing depends on, apart from where you stand: the map and
--- its zoom, the route (each stop, its spot, its text and how many spawns it
--- has), the stop you point at, the route colour, your waypoint and whether
+-- its zoom, the route (each step, its spot, its text and how many spawns it
+-- has), the step you point at, the route colour, your waypoint and whether
 -- you're on this map. The route's tables are made again every few seconds
--- with the same stops in them, so this compares what's in them, not which
+-- with the same steps in them, so this compares what's in them, not which
 -- table it is. st keeps the last values; true = something changed.
 local EMPTY = {}
 local function setv(st, k, v)
@@ -1921,7 +1921,7 @@ local function changed(st, c, mapID, pointed)
     local sp = st.plan or {}
     st.plan = sp
     d = setv(st, "stops", #plan) or d
-    d = setv(st, "limit", (ns.nav:AreaMode() and "area") or ns.nav:StopsShown() or false) or d   -- Stops on the map changed
+    d = setv(st, "limit", (ns.nav:AreaMode() and "area") or ns.nav:StopsShown() or false) or d   -- Steps on the map changed
     for i, s in ipairs(plan) do
         local g, pt, b = s.goal, s.point or EMPTY, (i - 1) * 6
         local key, text, n = g.key, g.text or g.title or false, g.points and #g.points or 0
@@ -1931,7 +1931,7 @@ local function changed(st, c, mapID, pointed)
             d = true
         end
     end
-    -- The faint profession arrow's stop (its pin and path): redraw when it
+    -- The faint profession arrow's step (its pin and path): redraw when it
     -- moves on too, not only when the main route does.
     local pc = ns.nav.profChoice
     local ppt = pc and pc.point or EMPTY
@@ -1990,7 +1990,7 @@ local function fullDraw()
         local plan = ns.nav.plan or {}
         local pointed = pointedKey()
         local labels = ns.nav:PlanLabels(plan)
-        -- Every area stop gets its own bordered patch: faint, the next stop
+        -- Every area step gets its own bordered patch: faint, the next step
         -- stronger, the one you point at in the hover colour. Drawn last = on top.
         local order = {}
         for i = #plan, 2, -1 do if plan[i].goal.key ~= pointed then order[#order + 1] = i end end
@@ -2000,20 +2000,20 @@ local function fullDraw()
         -- Your own waypoint is set: the map shows it alone, without Flow's route
         -- ("it gets super confusing ... should we hide Flow's objectives when
         -- one is selected? we are showing so much", 0.35.210). Pointing at a
-        -- stop in a list still shows that stop.
+        -- step in a list still shows that step.
         local wayOnly = M.WaypointOnly(ns.waypoint ~= nil and ns.waypoint:Get() ~= nil, ns.db.nav.mapWaypointOnly ~= false,
             pointed ~= nil)
         for _, i in ipairs(order) do
             local g = plan[i].goal
-            -- Only the patch the route goes to; the stop you point at shows
-            -- every place its mobs live. Past your Stops on the map limit,
-            -- only the stop you point at.
+            -- Only the patch the route goes to; the step you point at shows
+            -- every place its mobs live. Past your Steps on the map limit,
+            -- only the step you point at.
             if M.FollowsYou(plan[i]) or wayOnly then   -- (follows you: nowhere to draw; or only your waypoint shows)
-            elseif soloAt and i ~= soloAt then   -- (one stop alone: only its area)
+            elseif soloAt and i ~= soloAt then   -- (one step alone: only its area)
             elseif g.key == pointed then drawArea(c, mapID, g, T.hover, true, labels[i], plan[i].point, true)
             elseif ns.nav:StopVisible(i, false) then
-                -- Your next stop (the arrow's): every place its mobs live, as on
-                -- the minimap; later stops: the patch the route goes to.
+                -- Your next step (the arrow's): every place its mobs live, as on
+                -- the minimap; later steps: the patch the route goes to.
                 drawArea(c, mapID, g, T.route, i == 1, labels[i], plan[i].point, i == 1)
             end
         end
@@ -2022,7 +2022,7 @@ local function fullDraw()
             if profPin then profPin:Hide() end
         elseif previewKey then
             -- Only the route you'd follow, all in one colour: its lines, and the
-            -- stops as points (kept where they are so the one under the mouse
+            -- steps as points (kept where they are so the one under the mouse
             -- doesn't jump).
             drawRoute(c, mapID, ns.nav.plan, T.proposed, true, 0.95, true)
             drawRoute(c, mapID, ns.nav:PlanFor(previewKey), T.proposed, false, 0.95)
@@ -2067,7 +2067,7 @@ local function keepUp()
     local mapID = WorldMapFrame:GetMapID()
     if not host or changed(last, c, mapID, pointedKey()) then return true end
     local moved = followPlayer(links, c, mapID)
-    -- The arrow's colour changed (orange to green as you close in): the stop's
+    -- The arrow's colour changed (orange to green as you close in): the step's
     -- dot and the trail to it follow.
     local col = arrowColor(false)
     local recolor = false
@@ -2088,7 +2088,7 @@ function M:Tick()
     if keepUp() then M:Redraw() end
 end
 
--- Highlight one stop for a few seconds (opened from the tracker or arrow menu).
+-- Highlight one step for a few seconds (opened from the tracker or arrow menu).
 function M:Focus(key, secs)
     focusKey, focusUntil = key, GetTime() + (secs or 6)
     M:Redraw()
@@ -2131,7 +2131,7 @@ ns.commands.map = function(arg)
     if move then
         ns.db.nav.pathMotion = (move == "on")
         M.PathChanged()
-        ns:Print("the path on the map " .. (move == "on" and "moves toward your next stops" or "stands still"))
+        ns:Print("the path on the map " .. (move == "on" and "moves toward your next steps" or "stands still"))
         return
     end
     if arg == "on" or arg == "off" then

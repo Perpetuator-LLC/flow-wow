@@ -65,7 +65,7 @@ function Q.Attacks(def)
     return out
 end
 
--- The fight's second attack (Ctrl) and its hold-or-stop spell (Alt): the
+-- The fight's second attack (Ctrl) and its hold-or-step spell (Alt): the
 -- first of each list you know that isn't what the key itself casts.
 -- knows(spell) -> bool; keySpell: what the key holds (or will) in a fight.
 function Q.FightSpells(def, knows, keySpell, engine)

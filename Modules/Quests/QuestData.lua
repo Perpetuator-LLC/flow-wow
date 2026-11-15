@@ -333,7 +333,7 @@ local band = bit and bit.band
 --     missing again on a later visit, for a day (ns.db.quests.notOffered).
 --     Covers events Questie doesn't know about, and quests in Questie's data
 --     with no prerequisites listed (Forever's own quests: "Arugal's Folly"
---     98298 was an Accept stop at an NPC who never offered it). (It used to judge from any one conversation, even
+--     98298 was an Accept step at an NPC who never offered it). (It used to judge from any one conversation, even
 --     one with no quest list or while you were accepting, and hid quests the
 --     NPC did offer, for a week: 7 at once from one talk.)
 local HOLIDAY_SORTS = { [-22] = true, [-284] = true, [-364] = true, [-366] = true, [-369] = true,
@@ -600,7 +600,7 @@ end
 --   get(id) -> { id, name, raw = { preQuestGroup, preQuestSingle } } or nil
 --   isDone(id), isInLog(id) -> bool;  mine(q) -> bool (for your race / class)
 --   -> "accept", q    pick this one up: everything before it is done
---      "inlog", q     it's in your log already (its objectives are the stops)
+--      "inlog", q     it's in your log already (its objectives are the steps)
 --      "done", q      the teaching quest is done
 --      "unknown"      the quest data doesn't have the chain
 function Q.ChainStep(teach, get, isDone, isInLog, mine)
@@ -681,7 +681,7 @@ function Q.ClassQuestLine(e)
     return string.format("%s: Flow's quest data doesn't have its class quest here", e.spell)
 end
 
--- The route stop for a spell's class quest ("pickup:5928") and a few words
+-- The route step for a spell's class quest ("pickup:5928") and a few words
 -- about it ("Heeding the Call from Turak Runetotem"), from the last look
 -- (Goals.lua keeps it in Q.classSteps); nil when there's nothing to pick up.
 function Q.ClassQuestKey(spell, steps)
@@ -765,7 +765,7 @@ function Q:HereArea()
     end
 end
 
--- Zones whose quests count for "Accept:" stops: where you've finished
+-- Zones whose quests count for "Accept:" steps: where you've finished
 -- quests, where the quests in your log are, and the zone you're standing in.
 -- (Only the first used to count, so a brand-new character, who has finished
 -- nothing, got no pickups at all: no arrow to the first quest giver.)
@@ -876,7 +876,7 @@ local function scan(src)
         if coroutine.status(co) == "dead" then
             missedCache, running = result, false
             if ns.advisor then pcall(ns.advisor.Refresh, ns.advisor) end
-            -- The route's "Accept:" stops come from this list: re-plan now
+            -- The route's "Accept:" steps come from this list: re-plan now
             -- (it used to wait for the 30 s refresh).
             if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("quests to pick up worked out") end
         else

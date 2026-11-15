@@ -1,8 +1,8 @@
--- Worn gear: an early warning, and a stop at the nearest repair vendor.
+-- Worn gear: an early warning, and a step at the nearest repair vendor.
 -- When any item you wear is under 20% durability (items without durability
 -- don't count), a small status icon shows above Flow's key (hover: which
 -- item, how worn, the nearest vendor Flow knows) and the route gets a
--- "Repair" stop. No chat lines beyond one when it first happens.
+-- "Repair" step. No chat lines beyond one when it first happens.
 -- At the vendor, Vendor.lua repairs (after auto-sell, so the sale pays).
 
 local _, ns = ...
@@ -104,7 +104,7 @@ ns:Register("status", "repair", { order = 20, get = function()
     }
 end })
 
--- A stop on the route while you're under the threshold.
+-- A step on the route while you're under the threshold.
 ns:Register("navGoal", "repair", {
     collect = function()
         if not R:On() or (ns.db.sell and ns.db.sell.repairStop == false) then return nil end
@@ -117,13 +117,13 @@ ns:Register("navGoal", "repair", {
             title = "Repair",
             text = string.format("Repair: %s (worn gear at %d%%)", near.name, math.floor(st.pct * 100 + 0.5)),
             details = { "Something you wear is nearly broken: a broken item gives you nothing.",
-                        "Right-click this stop on the map to hide it." },
+                        "Right-click this step on the map to hide it." },
         } }
     end,
 })
 
 -- Crossing the threshold (either way): the route rebuilt. No chat line: the
--- anvil above the key and the route's Repair stop say it (the game's own
+-- anvil above the key and the route's Repair step say it (the game's own
 -- armour figure shows it too), and a line at every login while worn nagged.
 local wasLow
 local function check()
@@ -146,7 +146,7 @@ ns:On("PLAYER_LOGIN", function() if C_Timer then C_Timer.After(8, check) end end
 
 ns:Register("setupItem", "repairWarn", {
     order = 17.5, label = "Warn early when gear wears out",
-    why = "When anything you wear drops under 20% durability, an anvil shows above Flow's key and the route gets a stop at the nearest repair vendor Flow knows.",
+    why = "When anything you wear drops under 20% durability, an anvil shows above Flow's key and the route gets a step at the nearest repair vendor Flow knows.",
     isOn = function() return R:On() end,
     set = function(on) ns.db.sell.repairWarn = on; wasLow = nil; check() end,
 })

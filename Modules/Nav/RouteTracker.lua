@@ -1,9 +1,9 @@
 -- Flow Tracker: everything to do around you and your waypoint (objectives
 -- with counts, turn-ins, quests to accept, trainers...; they drop off as you
--- finish them), or your next stops as on the map (right-click its title).
--- Click a stop to open it (the quest, or the map at that stop); right-click a
--- stop for its menu (hide, route, order).
--- Changing the route itself is done on the world map (click a stop there).
+-- finish them), or your next steps as on the map (right-click its title).
+-- Click a step to open it (the quest, or the map at that step); right-click a
+-- step for its menu (hide, route, order).
+-- Changing the route itself is done on the world map (click a step there).
 --
 -- Open or fold it with its header. It and Questie's tracker are separate:
 -- either, both or neither can be open (0.35.154; it used to fold one when the
@@ -167,15 +167,15 @@ function RT:Open(which)
     self:Refresh()
 end
 
--- "All stops in this area" (Stops on the map; off unless chosen): the
--- tracker lists every stop around you and your waypoint, like the map; else
--- your next N stops. One setting for both (Nav.lua N:AreaMode).
+-- "All steps in this area" (Steps on the map; off unless chosen): the
+-- tracker lists every step around you and your waypoint, like the map; else
+-- your next N steps. One setting for both (Nav.lua N:AreaMode).
 function RT.Here() return ns.nav:AreaMode() end
 RT._Frame = function() return frame end   -- (tests)
 function RT:SetHere(on) ns.nav:SetArea(on) end
 
 -- Right-click on the title: the tracker's own options, then the route's
--- (Stops on the map among them).
+-- (Steps on the map among them).
 function RT.MenuItems()
     local items = {
         { title = true, text = "Flow Tracker" },
@@ -242,13 +242,13 @@ local function build()
     end
     h.pm = h:CreateTexture(nil, "ARTWORK")
     h.pm:SetSize(16, 16); h.pm:SetPoint("RIGHT", -6, 0)
-    -- The locked stops: a lock and their number, beside the +/- button, in a
+    -- The locked steps: a lock and their number, beside the +/- button, in a
     -- line of their own. (As the tail of the title they were the first thing
     -- cut off: "9 blocked" showed as "9...", and a cut through the lock's
     -- picture code as "|...".)
     h.locked = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     h.locked:SetPoint("RIGHT", h.pm, "LEFT", -4, 0)
-    -- The title ("Flow Tracker  3 here, 30 stops") stops short of them:
+    -- The title ("Flow Tracker  3 here, 30 steps") stops short of them:
     -- it's cut off with "..." rather than drawn over them.
     h.text:SetPoint("RIGHT", h.locked, "LEFT", -4, 0)
     h.text:SetJustifyH("LEFT")
@@ -265,7 +265,7 @@ local function build()
         GameTooltip:AddLine("Click: open or fold it. Right-click: its menu. Ctrl-drag: move it.", 0.8, 0.8, 0.8, true)
         local locked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
         if locked > 0 then
-            GameTooltip:AddLine(string.format("The lock: %d stop%s held back for now (no money for it yet, no known place...). The Flow Router lists them with the reason.",
+            GameTooltip:AddLine(string.format("The lock: %d step%s held back for now (no money for it yet, no known place...). The Flow Router lists them with the reason.",
                 locked, locked == 1 and " is" or "s are"), 1, 0.45, 0.45, true)
         end
         GameTooltip:Show()
@@ -307,7 +307,7 @@ local function build()
     f.body.bg = f.body:CreateTexture(nil, "BACKGROUND"); f.body.bg:SetAllPoints()
     f.body.bg:SetColorTexture(0, 0, 0, 0.45)
     -- A faint rail down the left edge with a small down chevron at the end:
-    -- the stops run top to bottom, 1 then 2 then 3.
+    -- the steps run top to bottom, 1 then 2 then 3.
     f.body.rail = f.body:CreateTexture(nil, "BORDER")
     f.body.rail:SetWidth(1)
     f.body.rail:SetPoint("TOPLEFT", 3, -6)
@@ -331,29 +331,29 @@ local function build()
         r.hl = r:CreateTexture(nil, "HIGHLIGHT"); r.hl:SetAllPoints(); r.hl:SetColorTexture(1, 1, 1, 0.08)
         r:SetScript("OnClick", function(self, button)
             if not self.goal then return end
-            -- Its area lights up on the minimap (hover colour), next to the current stop's.
+            -- Its area lights up on the minimap (hover colour), next to the current step's.
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
             if ns.mapOverlay and ns.mapOverlay.Hover then ns.mapOverlay.Hover(self.key) end   -- (and on the map, when it's open)
             local g = self.goal
             if button == "RightButton" then
                 local items = {
-                    { title = true, text = g.text or g.title or "This stop" },
+                    { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Point the arrow here (your waypoint)", func = function() if ns.mapOverlay then ns.mapOverlay.PointHere(g) end end },
-                    { text = "Hide this stop", func = function() ns.nav:Hide(g.key) end },
+                    { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
                 }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
                 ns.menu:Open(items)
             elseif self.blocked then
-                ns:Print((g.text or "that stop") .. ": " .. (self.blocked.blockedBy or "blocked"))
+                ns:Print((g.text or "that step") .. ": " .. (self.blocked.blockedBy or "blocked"))
             else
                 ns.nav:OpenStop(g, self)
             end
         end)
         r:SetScript("OnEnter", function(self)
             if not self.goal then return end
-            -- Its area lights up on the minimap (hover colour), next to the current stop's.
+            -- Its area lights up on the minimap (hover colour), next to the current step's.
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
             ns.Tip(self, "ANCHOR_LEFT")
             -- Clickable rows say so: hand cursor and an "open" hint.
@@ -370,8 +370,8 @@ local function build()
         end)
         f.rows[i] = r
     end
-    -- Under the stops: ore and herbs you can gather around you and your next
-    -- stop (Crafting/Nearby.lua). Not a stop, just "while you're here".
+    -- Under the steps: ore and herbs you can gather around you and your next
+    -- step (Crafting/Nearby.lua). Not a step, just "while you're here".
     local nb = CreateFrame("Button", nil, f.body)
     nb:SetHeight(16)
     nb.text = nb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -390,7 +390,7 @@ local function build()
             GameTooltip:AddDoubleLine(string.format("|T%s:14:14|t %s", ns.nearby.ICON[e.prof] or "", e.name),
                 string.format("%d spot(s)%s", e.n, e.skillUp and ", raises your skill" or ""), 1, 1, 1, 0.8, 0.8, 0.8)
         end
-        GameTooltip:AddLine("Where they spawn within " .. ns.nearby.RADIUS .. " yd of you and your next stop: the tan (ore) and green (herb) clouds on the minimap. Not a stop of its own.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Where they spawn within " .. ns.nearby.RADIUS .. " yd of you and your next step: the tan (ore) and green (herb) clouds on the minimap. Not a step of its own.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     nb:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -439,12 +439,12 @@ end
 RT.ITEM_ROOM = 18   -- room at a row's right end for its quest item
 
 -- The header's words: its title, and (a text of their own, at the right) the
--- locked stops as a lock and a number. "9 blocked" didn't fit beside "1 here,
--- 29 stops" and was cut to "9..." (0.35.186); as the title's tail the lock
+-- locked steps as a lock and a number. "9 blocked" didn't fit beside "1 here,
+-- 29 steps" and was cut to "9..." (0.35.186); as the title's tail the lock
 -- was still the first thing cut, through its picture code, while the route
 -- was being worked out: "|..." (0.35.189). The header's tooltip says what
 -- the lock means.
---   count: "1 here, 29 stops"; busy: the route is being worked out; nBlocked: locked stops
+--   count: "1 here, 29 steps"; busy: the route is being worked out; nBlocked: locked steps
 -- -> title, locked ("" when nothing is locked)
 RT.LOCK = "Interface\\Buttons\\LockButton-Locked-Up"
 function RT.Title(count, busy, nBlocked)
@@ -468,7 +468,7 @@ function RT:Refresh()
     local nBlocked = ns.nav and ns.nav.blockedGoals and #ns.nav.blockedGoals or 0
     local busy = ns.nav and ns.nav.Busy and ns.nav.Busy()
     local count = (RT.Here() and #plan > 0)
-        and string.format("%d here, %d stops", #ns.nav.HereStops(plan, ns.nav:PlayerPos()), #plan) or (#plan .. " stops")
+        and string.format("%d here, %d steps", #ns.nav.HereStops(plan, ns.nav:PlayerPos()), #plan) or (#plan .. " steps")
     local title, lockedText = RT.Title(count, busy, nBlocked)
     h.text:SetText(title)
     h.locked:SetText(lockedText)
@@ -483,7 +483,7 @@ function RT:Refresh()
     if open then
         local labels = ns.nav:PlanLabels(plan)
         local blocked = ns.nav.blockedGoals or {}
-        -- Which stops: everything to do here (the next stop and the stops
+        -- Which steps: everything to do here (the next step and the steps
         -- around you or it; they drop off as you finish them), or your next
         -- N as on the map, blocked ones after the route.
         local here = RT.Here()
@@ -529,7 +529,7 @@ function RT:Refresh()
         if okI and type(res) == "table" then items = res end
     end
     for i = 1, ROWS do frame.rows[i].open:SetPoint("RIGHT", items[i] and -(RT.ITEM_ROOM) or 0, 0) end
-    -- "Nearby: Iron Deposit x3 +skill" under the stops (not part of the rail).
+    -- "Nearby: Iron Deposit x3 +skill" under the steps (not part of the rail).
     local line, counts, drop
     if open and ns.nearby then line, counts, drop = ns.nearby.Now() end
     local nb = frame.nearby
@@ -556,7 +556,7 @@ function RT:Refresh()
         frame.zone:Hide()
     end
     frame.body:SetHeight(8 + shown * 17 + extra)
-    -- The order rail: as long as the list, chevron at the bottom (only with 2+ stops).
+    -- The order rail: as long as the list, chevron at the bottom (only with 2+ steps).
     local railLen = math.max(0, shown * 17 - 6)
     local rail = frame.body.rail
     rail:SetHeight(math.max(1, railLen))
@@ -617,15 +617,15 @@ ns.commands.tracker = function(arg)
         RT:Open(arg == "flow" and "flow" or "none")
     elseif arg == "here" or arg == "next" then
         RT:SetHere(arg == "here")
-        ns:Print("stops on the map and in the Flow Tracker: " .. ns.nav:StopsShownLabel())
+        ns:Print("steps on the map and in the Flow Tracker: " .. ns.nav:StopsShownLabel())
     else
         ns:Print("/flow tracker on|off|flow|fold|dock|undock|here|next")
     end
 end
 
 ns:Register("help", "tracker", { order = 42, title = "Flow Tracker", lines = {
-    "Everything to do around you and your waypoint (or your next stops: right-click its title), docked under Questie's tracker. Either or both can be open.",
-    "Click a stop to open it (quest log or map); right-click a stop or the title for a menu. Change the route on the world map.",
+    "Everything to do around you and your waypoint (or your next steps: right-click its title), docked under Questie's tracker. Either or both can be open.",
+    "Click a step to open it (quest log or map); right-click a step or the title for a menu. Change the route on the world map.",
     "Ctrl-drag its header to move it (undocks); drop it under Questie's tracker to dock again. /flow tracker on|off|flow|fold|dock|undock|here|next",
 } })
 

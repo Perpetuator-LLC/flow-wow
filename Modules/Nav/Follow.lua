@@ -6,7 +6,7 @@
 -- Where the game won't tell add-ons a party member's position, a Flow player
 -- sends theirs to whoever follows them (every 2 s while asked).
 --   Route menu (right-click the arrow): Follow <name> / Waypoint at <name>;
---   /flow follow <name>|off. "Following Bob (click: stop)" under the arrow.
+--   /flow follow <name>|off. "Following Bob (click: step)" under the arrow.
 --
 -- Messages (Party.lua's addon channel):
 --   W|<name>       "<name>, send me where you are" (re-sent every 4 s)
@@ -129,7 +129,7 @@ function F.Choice(p)
 end
 
 -------------------------------------------------------------------------------
--- Start / stop
+-- Start / step
 -------------------------------------------------------------------------------
 
 function F:Target() return target end
@@ -244,11 +244,11 @@ function F:RefreshToggle()
         self.toggle = t
     end
     if not target then self.toggle:Hide() return end
-    self.toggle.text:SetText(string.format("|cff%sFollowing %s|r  |cff888888(click: stop)|r", ns.theme.waypoint.hex, target))
+    self.toggle.text:SetText(string.format("|cff%sFollowing %s|r  |cff888888(click: step)|r", ns.theme.waypoint.hex, target))
     self.toggle:Show()
 end
 
--- They left the group, or you did: stop.
+-- They left the group, or you did: step.
 ns:On("GROUP_ROSTER_UPDATE", function()
     -- (After a moment: the roster settles first. Out of the group entirely,
     -- or no longer a member by name.)

@@ -6,7 +6,7 @@
 -- Crossroads and realise my Herbalism or Skinning wasn't high enough."
 -- (0.35.199)
 --
--- When your next stop is in another zone than the one you stand in, Flow
+-- When your next step is in another zone than the one you stand in, Flow
 -- says once, in chat, what Flow Improvements still lists about training and
 -- professions: spells to train, professions behind your level, a profession
 -- tier to buy. It says it again only after you've been somewhere else.
@@ -38,7 +38,7 @@ function L.Checklist(items, max)
     return out
 end
 
--- Pure: say it now? here / next: the zone you're in and your next stop's
+-- Pure: say it now? here / next: the zone you're in and your next step's
 -- (nil: unknown); said: the zone it was last said for.
 function L.Due(here, next, said)
     if not (here and next) or here == next then return false end
@@ -60,7 +60,7 @@ function L.Check()
     local ok, shown = pcall(function() return Adv and Adv.Shown and (Adv:Shown()) or {} end)
     local lines = L.Checklist(ok and shown or {})
     if #lines == 0 then return false end
-    ns:Print(string.format("your next stop is in %s. Still to do before you leave %s:", N.ZoneNameOf(next), N.ZoneNameOf(here)))
+    ns:Print(string.format("your next step is in %s. Still to do before you leave %s:", N.ZoneNameOf(next), N.ZoneNameOf(here)))
     for i, l in ipairs(lines) do print("  " .. i .. ". " .. l) end
     print("  (Flow Improvements has the link to each.)")
     return true

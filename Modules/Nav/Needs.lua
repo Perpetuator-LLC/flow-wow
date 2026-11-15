@@ -1,21 +1,21 @@
 local _, ns = ...
 
 -------------------------------------------------------------------------------
--- Stops that need something first (0.35.142).
+-- Steps that need something first (0.35.142).
 --
--- A stop says what it needs as tokens, "kind:arg":
+-- A step says what it needs as tokens, "kind:arg":
 --   goal.needs    = { "spell:Bear Form", { "level:20", soft = true } }
 --   goal.provides = { "spell:Bear Form" }   (or a needProvider below)
 -- Before each plan (N:Collect), N.ResolveNeeds goes through them:
 --   * a need you already meet: nothing to do;
---   * a stop on the route provides it: this stop goes after that one
+--   * a step on the route provides it: this step goes after that one
 --     (goal.deps, which the planner keeps; goal.after names it, "after Bear
 --     Form", on the map, the Flow Tracker and the arrow);
---   * nothing on the route provides it: a hard need blocks the stop, with
---     the reason (listed with a lock, like a stop you can't pay for yet); a
+--   * nothing on the route provides it: a hard need blocks the step, with
+--     the reason (listed with a lock, like a step you can't pay for yet); a
 --     soft need only orders, it never blocks.
 -- Example: Demoralizing Roar and Maul need Bear Form, which a druid gets from
--- a class quest, not the trainer. The training stop needs Bear Form softly:
+-- a class quest, not the trainer. The training step needs Bear Form softly:
 -- with the quest's turn-in on the route, training comes after it, so one
 -- trip trains everything.
 --
@@ -49,7 +49,7 @@ function N.NeedLabel(token)
     return arg or tostring(token)
 end
 
--- Everything stop g provides: its own `provides`, and what the providers say.
+-- Everything step g provides: its own `provides`, and what the providers say.
 function N.ProvidesOf(g)
     local out = {}
     for _, t in ipairs(g.provides or {}) do out[#out + 1] = t end
@@ -61,7 +61,7 @@ function N.ProvidesOf(g)
 end
 
 -- Does `from` (a goal) depend on `key`, directly or through its deps?
--- (A few steps deep: enough to keep two stops from waiting on each other.)
+-- (A few steps deep: enough to keep two steps from waiting on each other.)
 local function dependsOn(from, key, byKey, depth)
     if depth > 6 or not from then return false end
     for _, d in ipairs(from.deps or {}) do

@@ -12,7 +12,7 @@
 --   shows the next buff: the one due, else the one of yours (spell, stone,
 --   Well Fed, elixir) that runs out first, with its time left. All of it,
 --   bandage and campfire included, stays faded until a fight is near (an
---   enemy targeted, a kill stop, just after a fight), so you use it when you
+--   enemy targeted, a kill step, just after a fight), so you use it when you
 --   choose; "no buffs due" only when you have no buffs at all (hover: why).
 --   In a fight: WoW won't let addons change what a button casts, so it holds
 --   the buff spell due at the pull, else the one you last cast from it (press
@@ -96,7 +96,7 @@ end
 -- Not Well Fed and carrying the food for it: that food comes first, before
 -- the bandage (one meal heals you and buffs you; bandaging first would waste
 -- the bandage) and before your buff spells, a fight near or not.
--- Fishing (at a fishing stop without your pole on, or your pole on with no
+-- Fishing (at a fishing step without your pole on, or your pole on with no
 -- lure): equip the pole / put on the lure, right after healing up.
 function BB.Pick(spellBuff, itemBuff, recover, camp, fish)
     if fish then return recover or fish end
@@ -362,7 +362,7 @@ local function pickItem(ctx)
     return itemCache
 end
 
--- Fishing (Flow Actions), one press per step: at a fishing stop without your
+-- Fishing (Flow Actions), one press per step: at a fishing step without your
 -- pole on, equip it; pole on with no lure, the best lure you carry; line
 -- out, reel in (only with a buff key: the key is turned into Interact, a
 -- mouse click can't reach the bobber); else cast.
@@ -522,7 +522,7 @@ local function fillTooltip(tt)
     end
     if s and s.faded then
         tt:AddLine("Faded: no fight near yet. It lights up when you're about to fight "
-            .. "(an enemy targeted, a kill stop, or just after a fight). Press it whenever you like.", 0.5, 0.8, 1, true)
+            .. "(an enemy targeted, a kill step, or just after a fight). Press it whenever you like.", 0.5, 0.8, 1, true)
     end
     if s and s.reason then tt:AddLine("Why: " .. s.reason, 1, 1, 1, true) end
     if InCombatLockdown() then
@@ -843,7 +843,7 @@ if ns.settings and ns.settings.AddCheck then
             .. "separate blue button left of Flow's icon, so Flow's key only does your fight: damage, heals, "
             .. "cleanses, plus seals, shouts, shields and Hunter's Mark. Out of combat it's always there and "
             .. "shows your next buff (the one due, else the one running out first, with its time left), all of "
-            .. "it faded until a fight is near (an enemy targeted, a kill stop, just after "
+            .. "it faded until a fight is near (an enemy targeted, a kill step, just after "
             .. "a fight), so you can use it when you choose (hover it for why). Give it its own key with /flow buffkey Q. In a fight "
             .. "it keeps the buff you last cast from it and lights up when that buff runs out. Off: all of it "
             .. "goes back on Flow's icon and key.",

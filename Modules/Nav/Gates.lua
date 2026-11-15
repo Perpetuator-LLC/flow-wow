@@ -22,10 +22,10 @@
 -- can leave a mesa by falling off it).
 --
 -- Who uses it:
---   the arrow (Nav.lua steer)   a stop in another region: the trail you've
+--   the arrow (Nav.lua steer)   a step in another region: the trail you've
 --                               walked there, else the nearest gate, then on
 --   the planner (opts.walk)     the walk between two spots goes by the gate,
---                               so stops on the bluff are done together
+--                               so steps on the bluff are done together
 --   the world map (N.LegVia)    the dotted path bends through the gate
 --
 -- /flow gates lists what's known (also in the diagnostics).
@@ -328,7 +328,7 @@ end
 --   * /flow gates lists the flight masters Flow knows and the people who
 --     carry you (Rides.lua), beside the ways on foot.
 --   * A walled place with no way known on foot: when flying from a flight
---     master you know gets you nearer the stop, that flight master is the
+--     master you know gets you nearer the step, that flight master is the
 --     gate. The arrow leads there and says where to fly.
 -------------------------------------------------------------------------------
 

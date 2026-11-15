@@ -125,7 +125,7 @@ for _, ev in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIS
 end
 
 -- Learning a recipe at a trainer doesn't open the profession window, so the
--- record above wouldn't know until you next open it, and "Learn X" stops
+-- record above wouldn't know until you next open it, and "Learn X" steps
 -- stayed on the route. The game's chat line ("You have learned how to create
 -- a new item: Heavy Linen Bandage.") and NEW_RECIPE_LEARNED tell us at once.
 function R:MarkKnown(name)
