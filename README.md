@@ -253,7 +253,8 @@ Flow for WoW is a separate project from Flow Engine.
   healthstone or potion, and your bandage (`/flow carekeys`). Out of a fight the two keys
   split the same way: the buff button's key is for **you** (heal up, eat, drink, bandage, a
   cure for yourself, your buffs, fishing), Flow's key is for **your target** (attacks on an
-  enemy; heals, buffs and cures on a friendly player you target).
+  enemy; heals, buffs and cures on a friendly player you target) and for **your group** (their
+  buffs, cast straight on whoever is missing one).
 - **Flow Meters**: in a group and at training dummies, two small lists: threat on your
   target and damage per second (the top two and you), from the game's own counts.
 - **Flow Auctions**: at the auction house, what Flow would post and at what price; one click

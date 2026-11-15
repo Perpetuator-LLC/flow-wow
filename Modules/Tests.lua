@@ -11363,3 +11363,33 @@ ns:Register("test", "fight record: a target whose ID the game hides is not compa
         t:ok(not f.killed, "nor at the end")
     end)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.244: buffs for your group are Flow's key's, buff button on or off.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "group buffs: on Flow's key with the buff button on; the reason when held", function(t)
+    local E, BB = ns.rotation, ns.buffButton
+    local ctx = { inCombat = false, hostile = false, fightType = "normal" }
+    local list = {}
+    t:eq(E.GroupHeld(list, true, ctx, false, true), nil, "nothing in the way: Flow looks at your group")
+    t:ok(E.GroupHeld(nil, true, ctx, false, true):find("your class"), "no list for the class")
+    t:ok(E.GroupHeld(list, false, ctx, false, true):find("turned off"), "the setting off")
+    t:ok(E.GroupHeld(list, true, { inCombat = true }, false, true):find("fight"), "in a fight")
+    t:ok(E.GroupHeld(list, true, { hostile = true }, false, true):find("enemy"), "an enemy targeted")
+    t:ok(E.GroupHeld(list, true, ctx, true, true):find("city"), "in a city or an inn")
+    t:ok(E.GroupHeld(list, true, ctx, false, false):find("form"), "in a form that can't cast")
+    -- The buff button doesn't take them: its own pick never asks for the group.
+    local asked = 0
+    with(E, "GroupBuff", function() asked = asked + 1 return { spell = "Mark of the Wild", unit = "party1" } end, function()
+        local ok, s = pcall(BB._pickBuff, { priority = {} }, ctx)
+        t:ok(ok and s == nil, "the buff button offers no buff for the group")
+        t:eq(asked, 0, "and doesn't look for one")
+    end)
+    -- And choosing leaves the engine's own group buffs in place for Flow's key.
+    local before = E.GroupBuff
+    pcall(E.Choose, E)
+    t:ok(E.GroupBuff == before, "choosing doesn't swap group buffs out")
+    local ok, lines = pcall(E.GroupWhy, E, ctx, { groupBuffs = list })
+    t:ok(ok and type(lines) == "table", "the diagnostics lines build")
+end)

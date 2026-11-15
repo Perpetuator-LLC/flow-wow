@@ -1076,12 +1076,52 @@ function E.GroupCovered(u, rule, now, read)
     return m ~= nil and (now - m) < ((rule.minutes or 5) * 60 - rebuff)
 end
 
+-- Pure: why Flow isn't buffing your group right now (nil: it is looking).
+function E.GroupHeld(list, on, ctx, resting, canCast)
+    if not list then return "Flow has no buffs for others for your class yet" end
+    if on == false then return "turned off (Flow Settings: Easy button buffs your group)" end
+    if ctx.inCombat then return "you're in a fight" end
+    if ctx.hostile then return "an enemy is targeted" end
+    if resting then return "you're in a city or an inn (Flow doesn't buff there)" end
+    if canCast == false then return "you're in a form that can't cast them" end
+    return nil
+end
+
+-- For the diagnostics ("rot why"): what Flow sees of your group's buffs, a
+-- line for each person and buff. Only in a group.
+function E:GroupWhy(ctx, def)
+    if not (IsInGroup and IsInGroup()) then return {} end
+    local list = def and def.groupBuffs
+    local out = { "group buffs (on Flow's key, out of a fight, when nothing else is to press):" }
+    local held = E.GroupHeld(list, ns.db.rotation.groupBuffs, ctx, E.Resting(),
+        not (list and list.canCast) or (list.canCast() and true or false))
+    if held then out[#out + 1] = "  held: " .. held end
+    if not list then return out end
+    local units = E.GroupUnits()
+    local total = (GetNumGroupMembers and GetNumGroupMembers() or 1) - 1
+    out[#out + 1] = string.format("  %d other(s) in the group, %d near enough, alive and online", total, #units)
+    local now = GetTime()
+    for _, u in ipairs(units) do
+        for _, rule in ipairs(list) do
+            local state
+            if not self:Knows(rule.spell) then state = "you don't know it"
+            elseif not rule.who(u) then state = "not for them"
+            elseif E.GroupCovered(u, rule, now) then state = "has it"
+            elseif not self:Ready(rule.spell, u.unit) then state = "missing, can't cast now (range, mana or sight)"
+            else state = "MISSING: Flow's key gives it" end
+            out[#out + 1] = string.format("  %s (%s, %s) %s: %s", tostring(u.name), tostring(u.class), tostring(u.kind), rule.spell, state)
+        end
+    end
+    return out
+end
+
 local groupCache   -- { at, s }: reading 40 people's buffs 10 times a second is too much
 function E:GroupBuff(ctx, def, now)
     local list = def and def.groupBuffs
-    if not list or ns.db.rotation.groupBuffs == false then return nil end
-    if ctx.inCombat or ctx.hostile or E.Resting() then return nil end
-    if list.canCast and not list.canCast() then return nil end
+    if E.GroupHeld(list, ns.db.rotation.groupBuffs, ctx, E.Resting(),
+        not (list and list.canCast) or (list.canCast() and true or false)) then return nil end
+    -- (The self-tests pass a time of their own: nothing of theirs is logged.)
+    local testing = now ~= nil
     now = now or GetTime()
     if groupCache and now - groupCache.at < 1 then return groupCache.s end
     local units = E.GroupUnits()
@@ -1113,7 +1153,7 @@ function E:GroupBuff(ctx, def, now)
     -- For "is it buffing correctly in a group?": each new suggestion, once,
     -- with how many are in the group (the log is in the diagnostics). Only in
     -- a real group: the self-tests run this with made-up members.
-    local grouped = (IsInGroup and IsInGroup()) and true or false
+    local grouped = (not testing and IsInGroup and IsInGroup()) and true or false
     local what
     if grouped then what = s and (s.spell .. ">" .. tostring(s.target)) or (#units > 1 and "none" or nil) end
     if what and what ~= E.lastGroupLog then
@@ -1374,6 +1414,8 @@ function E:Explain()
         end
         out[#out + 1] = "  " .. rule.spell .. ": " .. state
     end
+    local okG, group = pcall(self.GroupWhy, self, ctx, def)
+    if okG then for _, l in ipairs(group) do out[#out + 1] = l end end
     return out
 end
 

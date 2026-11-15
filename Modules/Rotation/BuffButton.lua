@@ -4,7 +4,7 @@
 --
 --   Out of combat it shows a stone, weightstone, oil or buff item first
 --   (BuffItems.lua's "buff:item": a 3 s use that can't go on in a fight), then
---   the rotation's "buff" suggestions (auras, aspects, blessings, group buffs).
+--   the rotation's "buff" suggestions (auras, aspects, blessings on you).
 --   Seals, shouts, shields, Hunter's Mark and fight forms stay on Flow's icon
 --   with the fight (BB.OnAction). Before all of those, hurt after a fight:
 --   your bandage or food; after them, by a campfire: place your camp objects
@@ -187,11 +187,9 @@ local function pickBuff(def, ctx)
             return { spell = rule.spell, kind = "buff", reason = rule.reason or rule.spell }
         end
     end
-    if E.GroupBuff then
-        local ok, g = pcall(E.GroupBuff, E, ctx, def)
-        if ok and g then return g end
-    end
+    -- (Buffs for your group are Flow's key's: this button is for you, 0.35.244.)
 end
+BB._pickBuff = pickBuff  -- (tests)
 
 -- Your buff spells that are on you now, each with its time left.
 local function onSpells(def, ctx)
@@ -236,8 +234,6 @@ end
 -- Pure: healing up before the rest; a poison or curse on you first of all.
 function BB.MineFirst(cure, recover) return cure or recover end
 
-local function noGroupBuff() return nil end
-
 -- Healing up, all of it, as Flow's key did it (E:HealStep out of a fight):
 -- nothing above 80% but a drink; else your recovery order, then a drink.
 function BB.MineRecover(e, ctx, def)
@@ -247,17 +243,17 @@ function BB.MineRecover(e, ctx, def)
 end
 
 -- While the button is on, the rotation chooses from its lists without the
--- buffs (and without group buffs); what it would have buffed is worked out
--- beside it, for this button. The definition is put back whatever happens.
+-- buffs; what it would have buffed is worked out beside it, for this button.
+-- Buffs for your group stay with Flow's key ("Easy button buffs your group"). The definition is put back whatever happens.
 local origChoose = E.Choose
 function E:Choose()
     local def = BB.On() and self:Definition()
     if not def then return origChoose(self) end
-    local p, ps, gb = def.priority, def.priorities, self.GroupBuff
+    local p, ps = def.priority, def.priorities
     local hs, dp = self.HealStep, self.Dispel
     local mine = BB.TakesMine()
     local cure
-    def.priority, def.priorities, self.GroupBuff = BB.Strip(p), stripSet(ps), noGroupBuff
+    def.priority, def.priorities = BB.Strip(p), stripSet(ps)
     if mine then
         -- Healing yourself up and curing yourself, out of a fight: not Flow's
         -- key's any more (worked out for this button just below).
@@ -273,7 +269,7 @@ function E:Choose()
         end
     end
     local ok, s = pcall(origChoose, self)
-    def.priority, def.priorities, self.GroupBuff = p, ps, gb
+    def.priority, def.priorities = p, ps
     self.HealStep, self.Dispel = hs, dp
     if not ok then error(s, 0) end
     local ctx = self.lastCtx

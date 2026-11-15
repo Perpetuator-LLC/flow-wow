@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.244
+- **Flow's key buffs your party again, with the buff button on.** Out of a fight, with nothing
+  else to press and no enemy targeted, Flow's key casts your buffs on whoever in your group is
+  missing them (a druid's Mark of the Wild for everyone, Thorns for the tank), straight on
+  them: no targeting. Since the buff button came, those had moved to it; now the buff button
+  is for you and Flow's key is for the others. Not in a fight, a city or an inn, and for a
+  druid only in caster form.
+- The diagnostics say, for each person in your group and each buff, whether they have it and
+  why Flow isn't offering it when it isn't.
+
 ## 0.35.243
 - **No more red "Flow error (CHAT_MSG_SYSTEM)" line in a fight in a group.** There the game
   hides system messages and your target's ID from add-ons. Flow tried to read a hidden message
