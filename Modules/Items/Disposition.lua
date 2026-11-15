@@ -764,6 +764,15 @@ ns.commands.inventory = function()
                 break
             end
         end
+        -- No "Use:" line (the scrolls): everything its tooltip says, so it can be read.
+        if not said[name] then
+            said[name] = true
+            local parts = {}
+            for n, l in ipairs(okL and lines or {}) do
+                if n > 1 and n <= 8 and type(l.left) == "string" and l.left ~= "" then parts[#parts + 1] = l.left:sub(1, 120) end
+            end
+            if #parts > 0 then print(string.format("  what its tooltip says: %s: %s", name, table.concat(parts, " | "))) end
+        end
     end)
     -- Which auction house this client has (Flow's price scan needs the classic one).
     print(string.format("  auction house: classic search %s, newer one %s; Flow knows a price for %d item(s) here",

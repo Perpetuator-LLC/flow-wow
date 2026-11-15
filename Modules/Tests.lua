@@ -12121,3 +12121,44 @@ ns:Register("test", "bars: a new spell that needs a form goes to the first empty
     local ok, what = pcall(AP.Move, AP, 0, 1, "No such spell")
     t:ok(ok and (what == "no form" or what == "off"), "a spell that needs no form is left alone")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.266: a leftover quest item reads the same in the bags and in Improvements.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: a leftover quest item gets one answer: keep for a quest not done, sell, or destroy", function(t)
+    local L = ns.leftovers
+    local what, why = L.Advice({ { name = "Blood Shards of Agamaggan", level = 15, done = true },
+                                 { name = "Rage of Ages", level = 20, done = false } }, 25)
+    t:eq(what, "keep", "a quest you haven't done uses it: keep")
+    t:ok(why:find("Rage of Ages", 1, true) ~= nil and why:find("level 20", 1, true) ~= nil, "and it names the quest")
+    what, why = L.Advice({ { name = "Old Quest", level = 12, done = true } }, 25)
+    t:eq(what, "sell", "every quest that used it is done, and a vendor pays: sell")
+    t:ok(why:find("quest you've done", 1, true) ~= nil, "saying it's left over from a quest you've done")
+    what, why = L.Advice({ { name = "Old Quest", level = 12, done = true } }, 0)
+    t:eq(what, "destroy", "done, and vendors won't take it: destroy")
+    t:ok(why:find("destroy", 1, true) ~= nil, "in words")
+    what = L.Advice({}, 0)
+    t:eq(what, "destroy", "no quest known for it, no price: destroy")
+    what = L.Advice({}, 40)
+    t:eq(what, "sell", "no quest known for it, a price: sell")
+    what = L.Advice({ { name = "A", level = 30, done = false }, { name = "B", level = 18, done = false } }, 0)
+    t:eq(what, "keep", "two quests not done: keep")
+    -- The bags' rule and Flow Improvements go by the same function.
+    local rule = ns:Get("disposition", "leftover")
+    t:ok(rule ~= nil and rule.order < 2, "the bags ask before 'vendors won't buy it' and 'quest item'")
+    with(L, "For", function(id) if id == 5075 then return "sell", "left over from a quest you've done: sell it" end end, function()
+        local v = rule.check({ classID = 12, id = 5075, name = "Blood Shard", sellPrice = 25 })
+        t:ok(v and v.action == "sell" and v.reason:find("left over", 1, true) ~= nil, "the bags: sell, with the reason")
+        t:eq(L.ImproveText({ id = 5075, name = "Blood Shard", sell = 25 }), "Blood Shard in your bags: left over from a quest you've done: sell it.",
+            "Flow Improvements: the same words")
+        t:eq(rule.check({ classID = 12, id = 1, name = "Wanted", sellPrice = 0 }), nil, "a quest item your log uses: left to the usual rules")
+        t:eq(rule.check({ classID = 7, id = 5075, name = "Not a quest item", sellPrice = 5 }), nil, "not of the Quest kind: not this rule's")
+    end)
+    with(L, "For", function() return "destroy", "nothing uses it, and vendors won't take it: destroy it for the slot" end, function()
+        local v = rule.check({ classID = 12, id = 5165, name = "Sunscale Feather", sellPrice = 0 })
+        t:ok(v and v.action == "keep" and v.reason:find("destroy", 1, true) ~= nil, "to destroy: Flow keeps it (it never destroys) and says to")
+    end)
+    t:ok(pcall(L.Lines), "the diagnostics lines build")
+    t:ok(pcall(L.Related, 5075), "asking the quest data about an item runs")
+end)

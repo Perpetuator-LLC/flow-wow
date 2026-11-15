@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.266
+- **A leftover quest item now reads the same in your bags and in Flow Improvements.** The bags
+  said "quest item: keep" for anything of the game's Quest kind without looking at your log,
+  while Flow Improvements said it was left over. Both now go by one check, and by what the
+  quest data says the item is for:
+  - a quest you haven't done uses it: keep, and it names the quest;
+  - nothing left uses it and a vendor pays: sell;
+  - nothing left uses it and vendors won't take it: "destroy it for the slot" (Flow never
+    destroys anything itself).
+- The diagnostics list, for each leftover, the quests the quest data ties it to and whether
+  you've done them; and everything a tooltip says for things with no "Use:" line (the scrolls).
+
 ## 0.35.265
 - **A form's new spell goes on that form's bar.** The game drops a new spell into the first
   empty slot of whichever bar is showing: learn Maul in caster form and it lands on your
