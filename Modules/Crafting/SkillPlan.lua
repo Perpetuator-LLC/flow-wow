@@ -124,6 +124,43 @@ function SP.NodeObjects(prof, rank, nodes, skillUp)
     return ids, names
 end
 
+-- What this zone asks of a gathering skill (0.35.252).
+-- "I'm running around the Barrens, and there's Mageroyal all over, and I'm
+-- missing it because I'm not high enough. One of our aims was to be high
+-- enough to do everything in the next zone." The skill-up step was optional
+-- (only when on the way) and, on Kalimdor, had no spots at all, so nothing
+-- was planned. Now: a node that grows on the map you're on and that you
+-- can't gather yet sets a target, and reaching it is a step like any other,
+-- at the nodes here that you can gather and that still raise your skill.
+-- Pure: the easiest node here that's beyond you ({ name, skill }), or nil.
+function SP.ZoneNeed(rank, nodesHere)
+    local best
+    for _, n in ipairs(nodesHere or {}) do
+        if n.skill > rank and (not best or n.skill < best.skill) then best = n end
+    end
+    return best
+end
+-- The nodes of a profession that grow on the map you're on: { { name, skill } }.
+local nodesHereCache = {}
+function SP.NodesHere(prof)
+    local map = here()
+    if not map then return {} end
+    local key = prof .. ":" .. map
+    if nodesHereCache[key] then return nodesHereCache[key] end
+    local out = {}
+    for name, nd in ns:Each("gatherNode") do
+        if nd.prof == prof then
+            local names = {}
+            for i = 1, #(nd.objects or {}) do names[i] = name end
+            local ok, pts, onMap = pcall(objectPoints, nd.objects, names)
+            if ok and onMap and pts and #pts > 0 then out[#out + 1] = { name = name, skill = nd.skill or 1 } end
+        end
+    end
+    -- (Kept only once Questie's data is there to ask.)
+    if ns.quests.QuestieDB and ns.quests.QuestieDB() then nodesHereCache[key] = out end
+    return out
+end
+
 local function npcPoints(names)
     if ns.quests.NPCsByName then ns.quests:NPCsByName(names) end
     local map, mine, all = here(), {}, {}
@@ -536,6 +573,11 @@ function SP:Targets()
             -- 10, halfway through crafting, so you didn't know when to stop).
             local active = ns.db.crafting.active or {}
             ns.db.crafting.active = active
+            -- Gathering: what grows where you are and is beyond you.
+            if g and g.kind == "gather" and g.spots and rank and not out[p.name] then
+                local okN, need = pcall(function() return SP.ZoneNeed(rank, SP.NodesHere(p.name)) end)
+                if okN and need then out[p.name] = { target = need.skill, zone = need.name } end
+            end
             if g and g.kind == "craft" and rank and not out[p.name] then
                 if rank + 10 < want then
                     out[p.name] = { target = want, optional = true }
@@ -1352,8 +1394,10 @@ local function planProfession(prof, t, out)
         local lure = SP:LureGoal(prof)
         if lure then add(lure) end
         add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
-              text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target),
-              details = g.tip and { g.tip } or nil,
+              text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
+                  .. (t.zone and string.format(" (%s here needs %d)", t.zone, t.target) or ""),
+              details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target) })
+                  or (g.tip and { g.tip }) or nil,
               blockedBy = (missing and ("needs a " .. missing))
                   or (#points == 0 and ("no known " .. prof .. " spot on this map")) or nil })
         return

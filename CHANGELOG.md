@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.252
+- **A herb you can't pick yet now puts gathering on your route.** In the Barrens with
+  Herbalism 35, Mageroyal (50) was everywhere and out of reach, and Flow had planned nothing:
+  its skill-up step was optional, and on Kalimdor it found no herb spots at all. Now, when
+  something grows in the zone you're in that your skill can't gather, reaching that skill is
+  a step of its own ("Herbalism: 35 -> 50 (Mageroyal here needs 50)"), at the herbs here
+  that you can pick and that still raise your skill.
+
 ## 0.35.251
 - **"Stop" is now "step" everywhere.** One thing the route has you do was called a stop, which
   read oddly for things that aren't a place ("skip this stop" for making bandages). It's a

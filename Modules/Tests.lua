@@ -11623,3 +11623,37 @@ ns:Register("test", "words: the route is made of steps; /flow nav steps and the 
     pcall(N.SetArea, N, wasArea and true or false)
     ns.db.nav.stopsArea = wasArea
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.252: what grows in your zone sets the gathering skill to reach.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: a herb here that's beyond you sets Herbalism's target, as a step of its own", function(t)
+    local SP = ns.skillPlan
+    local barrens = { { name = "Peacebloom", skill = 1 }, { name = "Earthroot", skill = 15 },
+                      { name = "Mageroyal", skill = 50 }, { name = "Briarthorn", skill = 70 } }
+    local need = SP.ZoneNeed(35, barrens)
+    t:eq(need and need.name, "Mageroyal", "Herbalism 35 in the Barrens: Mageroyal is the next one beyond you")
+    t:eq(need and need.skill, 50, "so 50 is the skill to reach")
+    t:eq(SP.ZoneNeed(50, barrens).name, "Briarthorn", "at 50: Briarthorn next")
+    t:eq(SP.ZoneNeed(70, barrens), nil, "everything here in reach: no target from the zone")
+    t:eq(SP.ZoneNeed(35, {}), nil, "nothing grows here (or no data): none")
+    t:eq(SP.ZoneNeed(35, nil), nil, "no list: none")
+    local ok, list = pcall(SP.NodesHere, "Herbalism")
+    t:ok(ok and type(list) == "table", "asking what grows on this map runs")
+    ok, list = pcall(SP.NodesHere, "Fishing")
+    t:ok(ok and #list == 0, "a profession with no nodes: nothing")
+    -- The target it gives is a real one: not optional, and it names the herb.
+    with(SP, "NodesHere", function(prof) return prof == "Herbalism" and barrens or {} end, function()
+    with(ns, "ProfessionPlan", function() return { { name = "Herbalism" } } end, function()
+    with(ns.api, "Skill", function(name) if name == "Herbalism" then return 35, 75 end end, function()
+        local okT, targets = pcall(SP.Targets, SP)
+        local h = okT and targets.Herbalism
+        if ns.nav:Includes("professions") then
+            t:ok(h ~= nil, "Herbalism gets a target")
+            t:eq(h and h.target, 50, "of 50")
+            t:eq(h and h.zone, "Mageroyal", "because of Mageroyal")
+            t:ok(h and not h.optional, "and it isn't optional")
+        end
+    end) end) end)
+end)
