@@ -61,9 +61,11 @@ ns:Register("fightProbe", "killProxy", {
     tick = function(f)
         local Safe = A.Safe
         if UnitExists("target") and UnitCanAttack("player", "target") then
-            local guid = UnitGUID("target")
-            if not f.mainTarget then f.mainTarget = guid end
-            if guid == f.mainTarget then
+            -- (In a group the game hides the target's ID in a fight: comparing a
+            -- hidden value is an error, 0.35.243. No ID, nothing to note.)
+            local guid = Safe(UnitGUID("target"))
+            if guid and not f.mainTarget then f.mainTarget = guid end
+            if guid and guid == f.mainTarget then
                 local max = Safe(UnitHealthMax("target"))
                 if max and max > 0 then f.targetMaxHp = max end
                 if UnitIsDead("target") then f.killed = true end
@@ -73,7 +75,8 @@ ns:Register("fightProbe", "killProxy", {
         if n > f.maxAttackers then f.maxAttackers = n end
     end,
     finish = function(f)
-        if not f.killed and UnitExists("target") and UnitGUID("target") == f.mainTarget
+        local guid = UnitExists("target") and A.Safe(UnitGUID("target"))
+        if not f.killed and guid and guid == f.mainTarget
             and UnitIsDead("target") then
             f.killed = true
         end
@@ -99,8 +102,10 @@ ns:Register("fightProbe", "combatLog", {
         COMBAT_LOG_EVENT_UNFILTERED = function(f)
             local _, sub, _, src, _, _, _, dst, _, _, _,
                   a12, _, _, a15, a16 = CombatLogGetCurrentEventInfo()
-            playerGUID = playerGUID or UnitGUID("player")
-            local mine = src == playerGUID or src == UnitGUID("pet")
+            playerGUID = playerGUID or A.Safe(UnitGUID("player"))
+            src = A.Safe(src)
+            local pet = A.Safe(UnitGUID("pet"))
+            local mine = src ~= nil and (src == playerGUID or src == pet)
             if mine then
                 if sub == "SWING_DAMAGE" then
                     f.damage = f.damage + (a12 or 0)
@@ -175,7 +180,8 @@ ns:Register("fightProbe", "threat", {
     tick = function(f)
         if not UnitDetailedThreatSituation or not UnitExists("target") then return end
         local _, _, _, _, value = UnitDetailedThreatSituation("player", "target")
-        local guid = UnitGUID("target")
+        value = A.Safe(value)
+        local guid = A.Safe(UnitGUID("target"))
         if value and guid and value > (f.threatByMob[guid] or 0) then
             f.threatByMob[guid] = value
         end

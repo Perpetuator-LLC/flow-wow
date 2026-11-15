@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.243
+- **No more red "Flow error (CHAT_MSG_SYSTEM)" line in a fight in a group.** There the game
+  hides system messages and your target's ID from add-ons. Flow tried to read a hidden message
+  (looking for "You have learned...") and to compare a hidden target ID (the fight record), and
+  each try was an error. Both are now skipped when hidden.
+
 ## 0.35.242
 - **The small "press this instead" icon has its own place when docked.** In a fight, when
   Flow advises a spell your key doesn't hold, a small pulsing icon says which. Docked, it sat

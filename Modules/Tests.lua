@@ -11329,3 +11329,37 @@ ns:Register("test", "easy button: the advised-spell icon is in the open in both 
     t:eq(lock:GetNumPoints(), 1, "and only there")
     t:ok(lock:GetFrameLevel() > icon:GetFrameLevel() + 30, "drawn above the badge, the numbers and the click buttons")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.243: hidden system messages and target IDs (a fight in a group).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "recipes: a system message the game hides is skipped, not an error", function(t)
+    local R, A = ns.recipes, ns.api
+    local fmts = { "You have learned how to create a new item: %s.", "You have learned a new spell: %s." }
+    t:eq(R.LearnedName("You have learned how to create a new item: Light Leather.", fmts), "Light Leather", "a recipe line names its recipe")
+    t:eq(R.LearnedName("You have learned a new spell: Bash.", fmts), "Bash", "a spell line too")
+    t:eq(R.LearnedName("Sooth has died.", fmts), nil, "another line: nothing")
+    t:eq(R.LearnedName(nil, fmts), nil, "no message: nothing")
+    -- A stand-in secret: ns.api.Safe turns it into nil, as it does a real one.
+    local SECRET = {}
+    local realSafe = A.Safe
+    with(A, "Safe", function(v) if v == SECRET then return nil end return realSafe(v) end, function()
+        local ok, name = pcall(R.LearnedName, SECRET, fmts)
+        t:ok(ok and name == nil, "hidden: nothing, no error")
+    end)
+end)
+
+ns:Register("test", "fight record: a target whose ID the game hides is not compared", function(t)
+    -- Every ID the game hands back: nothing is read from it, so no error.
+    local A = ns.api
+    local realSafe = A.Safe
+    local probe = ns:Get("fightProbe", "killProxy")
+    with(A, "Safe", function(v) if type(v) == "string" then return nil end return realSafe(v) end, function()
+        local f = { maxAttackers = 0, mainTarget = "Creature-0-0-0-0-1-0" }
+        t:ok(pcall(probe.tick, f), "tick runs")
+        t:ok(not f.killed, "and doesn't call an unknown target the one that died")
+        t:ok(pcall(probe.finish, f), "finish runs")
+        t:ok(not f.killed, "nor at the end")
+    end)
+end)

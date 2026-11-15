@@ -158,12 +158,23 @@ local function patternFrom(fmt)
 end
 R._patternFrom = patternFrom  -- (tests)
 
-ns:On("CHAT_MSG_SYSTEM", function(msg)
-    for _, fmt in ipairs({ ERR_LEARN_RECIPE_S, ERR_LEARN_SPELL_S }) do
+-- The recipe a "You have learned..." line names, or nil. (In a fight in a group
+-- the game hides system messages: a hidden one is a string you can't read, and
+-- trying is an error, 0.35.243. Nothing learned from that one.)
+function R.LearnedName(msg, formats)
+    msg = ns.api.Safe(msg)
+    if type(msg) ~= "string" then return nil end
+    for _, fmt in ipairs(formats) do
         local p = patternFrom(fmt)
-        local name = p and type(msg) == "string" and msg:match(p)
-        if name then R:MarkKnown(name:gsub("^|c%x+|H.-|h%[?(.-)%]?|h|r$", "%1")) return end
+        local name = p and msg:match(p)
+        if name then return (name:gsub("^|c%x+|H.-|h%[?(.-)%]?|h|r$", "%1")) end
     end
+    return nil
+end
+
+ns:On("CHAT_MSG_SYSTEM", function(msg)
+    local name = R.LearnedName(msg, { ERR_LEARN_RECIPE_S, ERR_LEARN_SPELL_S })
+    if name then R:MarkKnown(name) end
 end)
 
 ns:On("NEW_RECIPE_LEARNED", function(recipeID)
