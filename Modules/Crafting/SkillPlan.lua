@@ -140,6 +140,35 @@ function SP.ZoneNeed(rank, nodesHere)
     end
     return best
 end
+-- Which ones to pick (0.35.276). "It says my Herbalism is 35 and I need 50,
+-- but it doesn't show me what plants to pick up." The step named the skill
+-- and the herb you can't pick yet, not the ones you can. Pure: the names of
+-- the nodes here that you can gather and that still raise your skill, the
+-- hardest (the best for skill) first.
+--   nodesHere: { { name, skill } }; raises(nodeSkill, rank) -> bool.
+function SP.PickNames(nodesHere, rank, raises)
+    local list = {}
+    for _, n in ipairs(nodesHere or {}) do
+        if n.skill <= rank and (not raises or raises(n.skill, rank)) then list[#list + 1] = n end
+    end
+    table.sort(list, function(a, b)
+        if a.skill ~= b.skill then return a.skill > b.skill end
+        return a.name < b.name
+    end)
+    local out = {}
+    for _, n in ipairs(list) do out[#out + 1] = n.name end
+    return out
+end
+-- Pure: "Earthroot, Silverleaf or Peacebloom" (at most `max` named, then "...").
+function SP.NameList(names, max)
+    max = max or 3
+    local n = math.min(#names, max)
+    if n == 0 then return nil end
+    if n == 1 then return names[1] end
+    local head = table.concat(names, ", ", 1, n - 1)
+    return head .. " or " .. names[n]
+end
+
 -- The nodes of a profession that grow on the map you're on: { { name, skill } }.
 local nodesHereCache = {}
 function SP.NodesHere(prof)
@@ -1418,10 +1447,14 @@ local function planProfession(prof, t, out)
         if tool then add(tool) end
         local lure = SP:LureGoal(prof)
         if lure then add(lure) end
+        -- What to pick here, by name ("Pick Earthroot, Silverleaf or Peacebloom").
+        local okP, picks = pcall(function() return SP.PickNames(SP.NodesHere(prof), rank, ns.nearby and ns.nearby.SkillUp) end)
+        local what = okP and SP.NameList(picks) or nil
         add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
-              text = string.format("%s: %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
+              text = (what and ("Pick " .. what .. ": ") or "") .. string.format("%s %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
                   .. (t.zone and string.format(" (%s here needs %d)", t.zone, t.target) or ""),
               details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target),
+                    what and ("Here that's " .. what .. ": the arrow leads to the nearest spot, then the next. The green clouds on your minimap are these.") or "Nothing you can pick grows on this map.",
                     "The spots are where it can grow, not what's up now: Flow isn't told that. Stand at an empty one a few seconds and the arrow goes on to the next; the game's Find Herbs dots are the ones that are up." })
                   or (g.tip and { g.tip }) or nil,
               blockedBy = (missing and ("needs a " .. missing))

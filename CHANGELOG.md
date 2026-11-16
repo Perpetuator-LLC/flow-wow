@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.276
+- **The gathering step says what to pick.** "Herbalism: 35 -> 50 (Mageroyal here needs 50)"
+  named the skill and the herb out of reach, not the ones to gather. It now reads "Pick
+  Earthroot, Peacebloom or Silverleaf: Herbalism 35 -> 50 (Mageroyal here needs 50)": the
+  herbs on this map you can pick that still raise your skill, the best first. The arrow leads
+  to the nearest spot and on to the next; once you're at 50 the step moves on to the next
+  herb this zone has beyond you.
+
 ## 0.35.275
 - **Loot rolls: the upgrade arrow on the roll window.** An item that's an upgrade for you now
   has the green arrow of your bag icons on its picture in the roll window, with how much

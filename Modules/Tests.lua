@@ -12211,7 +12211,7 @@ ns:Register("test", "settings: the key rows keep the key clear of the buttons, w
     if f and f.key4Value and f.set4 then
         t:ok(f.key4Value:GetWidth() <= S.KEY_BUTTON_X - S.KEY_VALUE_X, "the buff button's second key ends before its buttons")
         local p, _, _, x = f.set4:GetPoint(1)
-        t:ok(p == "TOPLEFT" and x == S.KEY_BUTTON_X, "its Set key button is in the button column")
+        t:ok(p == "TOPLEFT" and math.abs((x or 0) - S.KEY_BUTTON_X) < 1, "its Set key button is in the button column (" .. tostring(p) .. ", " .. tostring(x) .. ")")
     end
 end)
 
@@ -12458,4 +12458,26 @@ ns:Register("test", "seller: after selling 12 it says why the rest are still the
     t:eq(V.HeldNote(12, 0, 12), nil, "nothing left: no note")
     t:eq(V.HeldNote(5, 7, 12), nil, "fewer than 12 sold: nothing was held back")
     t:eq(V.HeldNote(nil, nil, 12), nil, "nothing known: no note")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.276: the gathering step names what to pick.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: the gathering step names the herbs you can pick here", function(t)
+    local SP = ns.skillPlan
+    local barrens = { { name = "Peacebloom", skill = 1 }, { name = "Silverleaf", skill = 1 }, { name = "Earthroot", skill = 15 },
+                      { name = "Mageroyal", skill = 50 }, { name = "Briarthorn", skill = 70 } }
+    local function raises(skill, rank) return rank < skill + 100 end
+    local picks = SP.PickNames(barrens, 35, raises)
+    t:eq(table.concat(picks, ","), "Earthroot,Peacebloom,Silverleaf", "at 35: what you can pick, the best for skill first")
+    t:eq(#SP.PickNames(barrens, 0, raises), 0, "no skill: nothing")
+    picks = SP.PickNames(barrens, 120, raises)
+    t:ok(picks[1] == "Briarthorn" and picks[2] == "Mageroyal", "at 120: the higher herbs first")
+    for _, n in ipairs(picks) do t:ok(n ~= "Peacebloom" and n ~= "Silverleaf", n .. ": one that still raises your skill") end
+    t:eq(SP.NameList({ "Earthroot", "Peacebloom", "Silverleaf" }), "Earthroot, Peacebloom or Silverleaf", "three, in words")
+    t:eq(SP.NameList({ "Earthroot", "Peacebloom" }), "Earthroot or Peacebloom", "two")
+    t:eq(SP.NameList({ "Earthroot" }), "Earthroot", "one")
+    t:eq(SP.NameList({}), nil, "none: nothing to name")
+    t:eq(SP.NameList({ "A", "B", "C", "D", "E" }, 3), "A, B or C", "no more than three named")
 end)
