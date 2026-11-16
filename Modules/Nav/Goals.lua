@@ -274,6 +274,52 @@ local function questGoals(db, q, goals, opts)
             end
         end
     end
+    -- Something the quest needs you to have before the rest can be done
+    -- (0.35.281). "Trial of the Lake asks me to find a Shrine Bauble in the
+    -- lake and take it to the shrine, and the arrow just takes me to the
+    -- shrine: it should take me to the lake first." The quest data lists such
+    -- an item apart from the objectives (its "required source items"), and
+    -- Flow planned only the objectives. Now, while you don't carry it, getting
+    -- it is a step of its own where it's found, and the quest's other steps
+    -- wait for it.
+    if not opts.who then
+        local needKeys = {}
+        for _, itemId in ipairs(ns.quests.SourceItems(quest)) do
+            if ns.quests.StillToGet(itemId, ns.api.Count and ns.api.Count(itemId) or 0) then
+                local item = call(db, "GetItem", itemId)
+                local spawns, targets = {}, {}
+                for _, npcId in ipairs(item and item.npcDrops or {}) do
+                    local dropper = npcSpawns(db, spawns, npcId)
+                    if dropper then targets[#targets + 1] = dropper end
+                end
+                for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
+                local points, known = pointsFrom(spawns)
+                local key = prefix .. q.id .. ":item:" .. itemId
+                local name = item and item.name or "what it needs"
+                if #points > 0 and not skip(key) then
+                    goals[#goals + 1] = {
+                        key = key, points = points, known = known, title = title, level = quest.level, kind = "collect", area = true,
+                        npcs = #targets > 0 and targets or nil, target = item and item.name,
+                        text = (title and (title .. ": ") or "") .. "Get " .. name,
+                        details = { "Quest: " .. (title or "?"),
+                            "You need " .. name .. " before the rest of this quest can be done: it's found here. The quest's other steps come after." },
+                    }
+                    needKeys[#needKeys + 1] = key
+                elseif #points == 0 then
+                    cant(string.format("it needs %s first, and Questie has no spot for where that's found", name))
+                end
+            end
+        end
+        if #needKeys > 0 then
+            local mine = prefix .. q.id .. ":"
+            for _, other in ipairs(goals) do
+                if type(other.key) == "string" and other.key:sub(1, #mine) == mine and not other.key:find(":item:", 1, true) then
+                    other.deps = other.deps or {}
+                    for _, k in ipairs(needKeys) do table.insert(other.deps, k) end
+                end
+            end
+        end
+    end
     -- Objectives Flow couldn't place still belong on your route ("I don't see
     -- Thunderhorn Cleansing in my route but I have it", 0.35.174): at the
     -- game's own marker for the quest where it has one, else listed with the

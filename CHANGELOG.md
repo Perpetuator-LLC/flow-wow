@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.281
+- **A quest that needs you to bring something sends you to fetch it first.** "Trial of the
+  Lake" wants a Shrine Bauble from the lake, then taken to the shrine; the arrow went
+  straight to the shrine. When the quest data says a quest needs an item that isn't one of
+  its objectives and you don't carry it, getting it is now a step of its own where it's
+  found ("Trial of the Lake: Get Shrine Bauble"), and the quest's other steps wait for it.
+- Three self-tests that still expected the old menu are put right.
+
 ## 0.35.280
 - **Flow Settings: the keys in one place, nothing twice.** The first group is "Easy keys", and
   its four keys are named by button: Target button key, Target button second key, Self button

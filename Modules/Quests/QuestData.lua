@@ -634,6 +634,21 @@ function Q.ChainStep(teach, get, isDone, isInLog, mine)
     return "accept", cur
 end
 
+-- Pure: the items a quest needs you to bring that aren't objectives (the
+-- quest data's "required source items"): a list of item ids.
+function Q.SourceItems(raw)
+    local out, seen = {}, {}
+    local list = type(raw) == "table" and raw.requiredSourceItems or nil
+    for _, id in ipairs(type(list) == "table" and list or {}) do
+        if type(id) == "number" and id > 0 and not seen[id] then seen[id] = true; out[#out + 1] = id end
+    end
+    return out
+end
+-- Pure: still to fetch? (You carry none.)
+function Q.StillToGet(itemId, have)
+    return itemId ~= nil and (tonumber(have) or 0) <= 0
+end
+
 -- Where a quest's chain stands for you: "accept" / "inlog" / "done" /
 -- "unknown" (as Q.ChainStep) and the quest to do now. For "what comes before
 -- this quest?" (a leftover item's quest that isn't on offer yet).

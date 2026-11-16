@@ -3896,11 +3896,12 @@ ns:Register("test", "new spells: the card asks only when it's useful", function(
 end)
 
 ns:Register("test", "keys: hover-to-bind is easy to find", function(t)
+    -- (0.35.277: it left the arrow's menu for Flow Settings, where it's a button with the keys.)
     local found
     for _, it in ipairs(ns.menu:RouteItems()) do
         if it.text and it.text:find("^Key bindings: hover") then found = it end
     end
-    t:ok(found ~= nil, "in the arrow's route menu")
+    t:ok(found == nil, "not in the arrow's route menu any more: it's with the keys in Flow Settings")
     t:ok(type(ns.bind.Start) == "function", "it opens hover-to-bind mode")
 end)
 
@@ -10024,11 +10025,12 @@ ns:Register("test", "meters: /flow meter keeps them shown, alone too", function(
     end)
     ns.db.meters.always, ns.db.meters.off = was, off
     pcall(M.Update)
+    -- (0.35.277: "always" is on the meters' own right-click menu, with in combat and in a group.)
     local found = false
-    for _, it in ipairs(M.MenuItems()) do
-        if it.text:find("always shown", 1, true) then found = true end
+    for _, it in ipairs(M.ContextItems()) do
+        if it.text == "Always show" then found = true end
     end
-    t:ok(found, "the Flow menu has the same switch")
+    t:ok(found, "the meters' own menu has the same switch")
 end)
 
 ns:Register("test", "auction: a long read says how far it is, but rarely", function(t)
@@ -10792,9 +10794,9 @@ ns:Register("test", "click: the self button docks under the Flow icon and comes 
     local okM, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     local found = false
     for _, it in ipairs(okM and items or {}) do
-        if type(it.text) == "string" and it.text:find("Dock the self button", 1, true) then found = true end
+        if type(it.text) == "string" and it.text:find("Dock it under", 1, true) then found = true end
     end
-    t:ok(found, "the Flow menu's Keys section has the dock tick")
+    t:ok(found, "the Flow menu's Buttons section has the dock tick")
 end)
 
 ns:Register("test", "self button: a held modifier shows what that press casts", function(t)
@@ -12623,4 +12625,21 @@ ns:Register("test", "settings: the keys are named by button, and no entry is the
             t:ok(not text:find("text-to-speech", 1, true), sec.title .. ": no second text-to-speech (" .. text:sub(1, 30) .. ")")
         end
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.281: something a quest needs you to bring is fetched first.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: an item a quest needs you to bring gets a step of its own, first", function(t)
+    local Q = ns.quests
+    local ids = Q.SourceItems({ requiredSourceItems = { 15877, 15877, 0, "x", 12345 } })
+    t:eq(table.concat(ids, ","), "15877,12345", "the quest data's required items, once each, real ids only")
+    t:eq(#Q.SourceItems({}), 0, "a quest that needs nothing brought: none")
+    t:eq(#Q.SourceItems(nil), 0, "no quest data: none")
+    t:eq(#Q.SourceItems({ requiredSourceItems = 5 }), 0, "an odd value: none")
+    t:ok(Q.StillToGet(15877, 0), "you carry none: still to get")
+    t:ok(not Q.StillToGet(15877, 1), "you have it: no step")
+    t:ok(Q.StillToGet(15877, nil), "count unknown: still to get")
+    t:ok(not Q.StillToGet(nil, 0), "no item: nothing to get")
 end)
