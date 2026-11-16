@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.294
+- **The professions card no longer pops up to train the next tier.** It appeared at login, on
+  a new level and in towns whenever a tier was ready ("Train the next Skinning tier"), with
+  "Choose others...". Training a tier is already a step on your route and a line in Flow
+  Improvements. The card now pops up only for a main profession you've still to learn while
+  you have fewer than two, and when what Flow suggests for your class changes (then the
+  picker opens). The Flow Professions button on the profession window still opens it any time.
+
 ## 0.35.293
 - **Your quests by zone, and leaving a zone out.** The Flow menu has a "Zones" section: each
   zone where you have quest steps, with how many and their levels ("Stonetalon Mountains: 6

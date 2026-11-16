@@ -400,10 +400,41 @@ function P:ShowReminder(steps)
     return true
 end
 
--- Should it open now? why: "login" | "level" | "change" | "town".
+-- When the card pops up (0.35.294). "There's a pop-up having me pick my
+-- professions when it's time to just train the next level: we shouldn't have
+-- that. If they're trained in two already, leave it as those two. If the
+-- recommendation changes, that's when it should pop." So:
+--   * never for training a tier (that's on your route and in Flow
+--     Improvements, where it belongs);
+--   * for a main profession still to learn, while you have fewer than two;
+--   * when what Flow suggests for your class changes.
+-- Pure: the first step that's worth the card: a main profession to learn,
+-- with fewer than two learned. primaries: how many main professions you have.
+function P.PopStep(steps, primaries)
+    if (primaries or 0) >= 2 then return nil end
+    for _, s in ipairs(steps or {}) do
+        if s.kind == "learn" and not s.optional and IS_PRIMARY[s.name] then return s end
+    end
+    return nil
+end
+-- Pure: what Flow suggests, as one word to compare ("Herbalism+Skinning").
+function P.SuggestKey(plan)
+    local names = {}
+    for _, p in ipairs(plan or {}) do
+        if IS_PRIMARY[p.name] then names[#names + 1] = p.name end
+    end
+    table.sort(names)
+    return table.concat(names, "+")
+end
+-- Pure: did the suggestion change since it was last noted? (Never noted: no.)
+function P.SuggestChanged(before, now)
+    return before ~= nil and before ~= "" and now ~= "" and before ~= now
+end
+-- Should it open now? why: "login" | "level" | "change" | "town" | "suggest".
 function P.ShouldRemind(why, steps, s)
-    if s.remind == false or s.level < 5 or not s.revealed or s.inCombat or #steps == 0 then return false end
-    if P.StepsKey(steps) == "" then return false end           -- only optional ones left
+    if s.remind == false or s.level < 5 or not s.revealed or s.inCombat then return false end
+    if why == "suggest" then return true end                    -- what Flow suggests has changed
+    if not P.PopStep(steps, s.primaries) then return false end  -- (a tier to train never pops it)
     if why == "town" then return true end                       -- a trainer you need is right here
     return not (s.snoozeLevel and s.level <= s.snoozeLevel)
 end
@@ -417,11 +448,27 @@ local function remind(why)
     local d = ns.db.prof
     if why == "change" and key == (d.lastKey or "") then return end
     if InCombatLockdown() then waiting = why return end
-    local ok = P.ShouldRemind(why, steps, { remind = d.remind, level = level, snoozeLevel = d.snoozeLevel,
+    -- How many main professions you have, and whether Flow's suggestion changed.
+    local primaries = 0
+    for _, name in ipairs(PRIMARY) do
+        if ns.api.Skill(name) then primaries = primaries + 1 end
+    end
+    local suggestKey = P.SuggestKey(suggested())
+    if P.SuggestChanged(d.suggestKey, suggestKey) then why = "suggest" end
+    d.suggestKey = suggestKey
+    local ok = P.ShouldRemind(why, steps, { remind = d.remind, level = level, snoozeLevel = d.snoozeLevel, primaries = primaries,
         revealed = not ns.reveal or ns.reveal:Shown("advice"), inCombat = false })
+    if ok and why == "suggest" then
+        -- The recommendation itself changed: the picker, so you can decide.
+        d.lastKey = key
+        ns:Print("Flow's suggested professions for your class have changed: " .. suggestKey:gsub("%+", " + ") .. ".")
+        P:Open()
+        return
+    end
+    local pop = P.PopStep(steps, primaries)
     if why == "town" then
-        -- Only when a trainer for the first step is on the map you just walked into.
-        local t = ok and P.NearestTrainer(steps[1].name)
+        -- Only when a trainer for the profession to learn is on the map you just walked into.
+        local t = ok and pop and P.NearestTrainer(pop.name)
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         ok = t ~= nil and t.map == here and not townsSeen[here]
         if ok then townsSeen[here] = true end

@@ -13008,3 +13008,30 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
     ns.db.nav.zonesOff = was
     N.planDirty = true
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.294: the professions card doesn't pop up for a tier to train.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: the card pops for a main profession to learn or a changed suggestion, never for a tier to train", function(t)
+    local P = ns.professions
+    local train = { { name = "Skinning", kind = "train" }, { name = "Herbalism", kind = "train" } }
+    local learn = { { name = "Skinning", kind = "train" }, { name = "Herbalism", kind = "learn" } }
+    local cook = { { name = "Cooking", kind = "learn" } }
+    local s = { level = 18, revealed = true, primaries = 2 }
+    t:ok(not P.ShouldRemind("level", train, s), "two main professions, a tier to train: no pop-up")
+    t:ok(not P.ShouldRemind("login", train, s), "nor at login")
+    t:ok(not P.ShouldRemind("town", train, s), "nor at the trainer's town")
+    t:ok(not P.ShouldRemind("change", learn, s), "you have two already: not for learning a third")
+    t:ok(P.ShouldRemind("level", learn, { level = 18, revealed = true, primaries = 1 }), "one main profession, another to learn: it pops")
+    t:ok(not P.ShouldRemind("level", cook, { level = 18, revealed = true, primaries = 0 }), "a secondary to learn: no pop-up (it's on the route)")
+    t:ok(P.ShouldRemind("suggest", train, s), "Flow's suggestion changed: it pops")
+    t:ok(not P.ShouldRemind("suggest", train, { level = 18, revealed = true, primaries = 2, remind = false }), "reminders off: never")
+    t:eq(P.PopStep(learn, 1).name, "Herbalism", "the step that's worth the card")
+    t:eq(P.PopStep(learn, 2), nil, "two main professions: none")
+    t:eq(P.PopStep(train, 0), nil, "only tiers to train: none")
+    t:eq(P.SuggestKey({ { name = "Skinning" }, { name = "Herbalism" }, { name = "Cooking" } }), "Herbalism+Skinning", "the suggestion as one word: the main ones, in order")
+    t:ok(P.SuggestChanged("Herbalism+Skinning", "Alchemy+Herbalism"), "a different pair: changed")
+    t:ok(not P.SuggestChanged("Herbalism+Skinning", "Herbalism+Skinning"), "the same pair: not changed")
+    t:ok(not P.SuggestChanged(nil, "Herbalism+Skinning"), "never noted before: not a change")
+end)
