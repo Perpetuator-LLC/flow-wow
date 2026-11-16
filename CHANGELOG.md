@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.284
+- **Flow windows, Flow Meters: the tick means "always shown".** It's just "Flow Meters" now
+  (no "(right-click...)"). Tick it and the meters are on and always shown, also if they were
+  hidden or off. Untick it and they show as before (in a group, or in combat). "In combat"
+  and "in a group" are chosen by right-clicking the meters themselves, and with those the
+  tick is off.
+
 ## 0.35.283
 - **Before you leave a zone, the next one counts for your gathering skill.** When your next
   step is in another zone and something grows there that your skill can't gather, reaching

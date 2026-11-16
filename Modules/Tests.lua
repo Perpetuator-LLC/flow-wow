@@ -9891,14 +9891,16 @@ end)
 ns:Register("test", "click: Flow Meters in the Flow menu turns them on and off, and sets the rows", function(t)
     local M = ns.meters
     local items = M.MenuItems()
-    t:ok(#items == 1, "one tick: shown or not (the rest is on the meters' own menu)")
-    local was, rows = ns.db.meters.off, ns.db.meters.rows
+    t:ok(#items == 1, "one tick: always shown or not (the rest is on the meters' own menu)")
+    local c = ns.db.meters
+    local was, rows, always, when, before = c.off, c.rows, c.always, c.when, c.whenBefore
+    c.off, c.always, c.when = nil, nil, "combat"
     local ok, err = pcall(items[1].func)
     t:ok(ok, "the tick runs" .. (ok and "" or (": " .. tostring(err))))
-    t:eq(M.On(), was == true, "and flips them")
+    t:eq(M.WhenKey(c), "always", "a tick: always shown")
     ok = pcall(items[1].func)
-    t:ok(ok, "and back")
-    ns.db.meters.off, ns.db.meters.rows = was, rows
+    t:ok(ok and M.WhenKey(c) == "combat", "unticked: back to in combat, as it was")
+    c.off, c.rows, c.always, c.when, c.whenBefore = was, rows, always, when, before
     pcall(M.Update)
 end)
 
@@ -12682,4 +12684,29 @@ ns:Register("test", "professions: before you leave a zone, what grows in the nex
         t:ok(need and need.name == "Mageroyal" and need.skill == 50, "what's beyond you there is the target")
         t:eq(SP.ZoneNeed(35, SP.NodesHere("Herbalism")), nil, "and nothing here was")
     end)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.284: the Flow menu's Flow Meters tick means "always shown".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: Flow windows, Flow Meters: ticked is always shown; a click turns always on or back", function(t)
+    local M = ns.meters
+    t:ok(M.MenuTicked(true, "always"), "on and always: ticked")
+    t:ok(not M.MenuTicked(true, "combat"), "showing only in combat: not ticked")
+    t:ok(not M.MenuTicked(true, "group"), "showing only in a group: not ticked")
+    t:ok(not M.MenuTicked(false, "always"), "turned off: not ticked")
+    t:eq(M.MenuClick(false, "combat"), "always", "a click when unticked: always")
+    t:eq(M.MenuClick(true, "combat"), "combat", "a click when ticked: back to in combat, if that's what it was")
+    t:eq(M.MenuClick(true, nil), "group", "nothing remembered: back to in a group")
+    local item = M.MenuItems()[1]
+    t:eq(item.text, "Flow Meters", "just its name")
+    -- Turned off on the meters' own menu, then ticked here: on, and always.
+    local c = ns.db.meters
+    local off, always, when, before = c.off, c.always, c.when, c.whenBefore
+    c.off, c.always, c.when = true, nil, nil
+    t:ok(pcall(item.func), "a click runs")
+    t:ok(M.On() and M.WhenKey(c) == "always", "off before: now on, always")
+    c.off, c.always, c.when, c.whenBefore = off, always, when, before
+    pcall(M.Update)
 end)

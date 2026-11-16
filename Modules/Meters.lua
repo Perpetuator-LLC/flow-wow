@@ -657,13 +657,27 @@ function M.ContextItems()
 end
 
 -- The Flow menu's entries (Menu.lua puts them under Flow windows).
+-- The Flow menu's tick (0.35.284): ticked means "always shown". A tick turns
+-- the meters on, always; unticking goes back to when they showed before (in a
+-- group, unless you'd picked in combat). In combat or in a group only is
+-- chosen on the meters' own right-click menu, so with those the tick is off.
+-- Pure: is the tick on?
+function M.MenuTicked(on, when) return (on and when == "always") and true or false end
+-- Pure: what a click on it does: the "when" to set.
+function M.MenuClick(ticked, before)
+    if not ticked then return "always" end
+    return (before == "combat") and "combat" or "group"
+end
 function M.MenuItems()
-    -- One tick (0.35.277): shown or not. When, and how many rows, are on the
-    -- meters' own right-click menu.
-    return { { text = "Flow Meters (right-click them for when they show, and rows)", stay = true, checked = M.On(),
-        tip = "Two small lists: threat on your target, and damage or healing. Right-click the meters themselves to choose when they show (in combat, in a group, always), how many rows, and what they count.",
-        refresh = function(it) it.checked = M.On() end,
-        func = function() cfg().off = M.On() or nil; pcall(M.Update) end } }
+    return { { text = "Flow Meters", stay = true, checked = M.MenuTicked(M.On(), M.WhenKey(cfg())),
+        tip = "Ticked: the meters are always shown. Untick and they show as before (in a group, or in combat). Right-click the meters themselves for in combat, in a group, the rows and what they count.",
+        refresh = function(it) it.checked = M.MenuTicked(M.On(), M.WhenKey(cfg())) end,
+        func = function()
+            local when = M.WhenKey(cfg())
+            local ticked = M.MenuTicked(M.On(), when)
+            if not ticked and when ~= "always" then cfg().whenBefore = when end
+            M.SetWhen(M.MenuClick(ticked, cfg().whenBefore))
+        end } }
 end
 
 -------------------------------------------------------------------------------
