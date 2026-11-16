@@ -1450,7 +1450,10 @@ local function planProfession(prof, t, out)
         -- What to pick here, by name ("Pick Earthroot, Silverleaf or Peacebloom").
         local okP, picks = pcall(function() return SP.PickNames(SP.NodesHere(prof), rank, ns.nearby and ns.nearby.SkillUp) end)
         local what = okP and SP.NameList(picks) or nil
-        add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points,
+        -- (An area, as a kill step is: the world map draws where its spots are,
+        -- and inside it the arrow goes from spot to spot. 0.35.279: "I really
+        -- wish it would show me where I needed to go to get these herbs".)
+        add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points, area = (#points > 1) or nil,
               text = (what and ("Pick " .. what .. ": ") or "") .. string.format("%s %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
                   .. (t.zone and string.format(" (%s here needs %d)", t.zone, t.target) or ""),
               details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target),

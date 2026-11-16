@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.279
+- **Aquatic Form links to its quest.** "Get Aquatic Form (level 16, class quest)" had no step
+  to open. It's a quest chain, and Flow now knows it: the line says where you are in it
+  ("class quest: "A Lesson to Learn" is in your log") and opens that quest's step on your
+  route, or the step to accept its first part.
+- **Cure Poison is no longer advised once a trainer has shown it isn't there.** Flow had
+  noted that no trainer listed it, but asked again each time you gained a level.
+- **A leftover's quest says what comes first.** "…one you haven't done does: The Angry
+  Scytheclaws (level 17); it comes after "Echeyakee", in your log". (There's no Accept step
+  for it until then: the game doesn't offer it.)
+- **The gathering step shows its area on the world map**, as a kill step does, and inside it
+  the arrow goes from spot to spot.
+- **Flow Router: room under a title that takes two lines.** The first row no longer runs into it.
+
 ## 0.35.278
 - **The two buttons are now the target button and the self button.** What was the "easy
   button" is the target button (attacks on an enemy; heals, buffs and cures on a friendly

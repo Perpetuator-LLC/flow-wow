@@ -145,6 +145,16 @@ end
 --   destroy  nothing left uses it and vendors won't take it (Flow never
 --            destroys anything: it says so and leaves it to you)
 
+-- Pure: when the quest opens ("; it comes after Echeyakee, in your log").
+-- q.now: where its chain stands ("accept": you can pick it up; "inlog": an
+-- earlier part is in your log), q.first: that earlier quest's name.
+function L.AfterText(q)
+    if q.now == "accept" and q.first and q.first ~= q.name then return "; first pick up \"" .. q.first .. "\"" end
+    if q.now == "accept" then return "; you can pick it up now" end
+    if q.now == "inlog" and q.first then return "; it comes after \"" .. q.first .. "\", in your log" end
+    return ""
+end
+
 -- Pure: what to do with a leftover. related: { { name, level, done } } the
 -- quests the quest data ties the item to (none known: {}); price: copper a
 -- vendor pays (0: won't buy).
@@ -154,8 +164,8 @@ function L.Advice(related, price)
         if not q.done and (not open or (q.level or 99) < (open.level or 99)) then open = q end
     end
     if open then
-        return "keep", string.format("no quest in your log uses it, but one you haven't done does: %s%s",
-            tostring(open.name), open.level and string.format(" (level %d)", open.level) or "")
+        return "keep", string.format("no quest in your log uses it, but one you haven't done does: %s%s%s",
+            tostring(open.name), open.level and string.format(" (level %d)", open.level) or "", L.AfterText(open))
     end
     -- No quest known for it at all: Flow doesn't know enough to say sell or
     -- destroy (0.35.270: it said "destroy" of Sunscale Feathers, which a quest
@@ -227,8 +237,13 @@ function L.Related(itemId)
     for _, qid in pairs(ids) do
         if type(qid) == "number" then
             local raw = Q:QuestieGet("GetQuest", qid)
-            out[#out + 1] = { id = qid, name = raw and raw.name or ("quest " .. qid), level = raw and tonumber(raw.level) or nil,
-                              done = Q.IsCompleted and Q:IsCompleted(qid) and true or false }
+            local entry = { id = qid, name = raw and raw.name or ("quest " .. qid), level = raw and tonumber(raw.level) or nil,
+                            done = Q.IsCompleted and Q:IsCompleted(qid) and true or false }
+            if not entry.done and Q.ChainNow then
+                local okC, state, first = pcall(Q.ChainNow, Q, qid)
+                if okC then entry.now, entry.first = state, type(first) == "table" and first.name or nil end
+            end
+            out[#out + 1] = entry
         end
     end
     return out

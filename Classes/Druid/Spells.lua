@@ -32,7 +32,13 @@ ns:Register("classSpells", "DRUID", {
     { level = 14, spell = "Bash",                  improves = { "Control" }, needs = "Bear Form" },
     { level = 14, spell = "Cure Poison",           improves = { "Survival" } },
     { level = 16, spell = "Swipe",                 improves = { "DPS", "Threat" }, needs = "Bear Form" },
-    { level = 16, spell = "Aquatic Form",          improves = { "Travel" }, note = "class quest" },
+    -- Aquatic Form: a class quest chain too ("A Lesson to Learn", "Trial of the
+    -- Lake", "Trial of the Sea Lion"); its last quest, "Aquatic Form" (5061
+    -- Alliance, 31 Horde in Classic), teaches it. With the quest named, Flow
+    -- finds where you are in the chain and links the step (0.35.279: "it's
+    -- been telling me to get Aquatic Form since level 16 and not showing where").
+    { level = 16, spell = "Aquatic Form",          improves = { "Travel" }, note = "class quest",
+      quest = { 5061, 31 }, questName = "Aquatic Form" },
     { level = 18, spell = "Faerie Fire",           improves = { "DPS" } },
     { level = 18, spell = "Hibernate",             improves = { "Control" } },
     { level = 20, spell = "Cat Form",              improves = { "DPS" } },

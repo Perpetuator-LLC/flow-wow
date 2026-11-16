@@ -634,6 +634,18 @@ function Q.ChainStep(teach, get, isDone, isInLog, mine)
     return "accept", cur
 end
 
+-- Where a quest's chain stands for you: "accept" / "inlog" / "done" /
+-- "unknown" (as Q.ChainStep) and the quest to do now. For "what comes before
+-- this quest?" (a leftover item's quest that isn't on offer yet).
+function Q:ChainNow(id)
+    local src = self:Source()
+    if not (src and src.get and id) then return "unknown" end
+    local ok, state, quest = pcall(Q.ChainStep, id, src.get, done, function(x) return inLog[x] == true end,
+        function(x) return forMe(x.raw) end)
+    if not ok then return "unknown" end
+    return state, quest
+end
+
 -- Each spell a class quest teaches that you don't know yet (and are old
 -- enough for): { spell, state, quest }. state as Q.ChainStep, or
 -- "notOffered" (its giver didn't offer it when you last talked), "level"
@@ -686,6 +698,10 @@ end
 -- (Goals.lua keeps it in Q.classSteps); nil when there's nothing to pick up.
 function Q.ClassQuestKey(spell, steps)
     for _, e in ipairs(steps or Q.classSteps or {}) do
+        -- In your log already (a part of the chain): its turn-in's step.
+        if e.spell == spell and e.state == "inlog" and e.quest and e.quest.id then
+            return tostring(e.quest.id) .. ":done", "\"" .. (e.quest.name or "its quest") .. "\" is in your log"
+        end
         if e.spell == spell and e.state == "accept" and e.quest and e.quest.id then
             local who = e.quest.starter and e.quest.starter.name
             return "pickup:" .. e.quest.id, (e.quest.name or "its quest") .. (who and (" from " .. who) or "")

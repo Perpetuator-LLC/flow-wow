@@ -12561,3 +12561,45 @@ ns:Register("test", "words: Flow's two buttons are the target button and the sel
     end
     t:eq(said, nil, "nor easy button")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.279: Aquatic Form's quest, Cure Poison, what comes before a quest,
+-- the herb area, the Router's title.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "class quests: Aquatic Form has its quest; a part already in your log links to its step", function(t)
+    local Q = ns.quests
+    local aquatic
+    for _, s in ipairs(ns:Get("classSpells", "DRUID") or {}) do
+        if s.spell == "Aquatic Form" then aquatic = s end
+    end
+    t:ok(aquatic and type(aquatic.quest) == "table" and #aquatic.quest == 2, "Aquatic Form names the quest that teaches it, for each faction")
+    local key, text = Q.ClassQuestKey("Aquatic Form", { { spell = "Aquatic Form", state = "inlog", quest = { id = 27, name = "A Lesson to Learn" } } })
+    t:eq(key, "27:done", "a part of the chain in your log: its turn-in's step")
+    t:eq(text, "\"A Lesson to Learn\" is in your log", "and it says so")
+    key = Q.ClassQuestKey("Aquatic Form", { { spell = "Aquatic Form", state = "accept", quest = { id = 27, name = "A Lesson to Learn" } } })
+    t:eq(key, "pickup:27", "not picked up yet: the step to accept it, as before")
+    t:eq(Q.ClassQuestKey("Aquatic Form", { { spell = "Aquatic Form", state = "done" } }), nil, "done: no step")
+    t:ok(pcall(Q.ChainNow, Q, 905), "asking where a quest's chain stands runs")
+end)
+
+ns:Register("test", "bags: a leftover's quest says what comes before it", function(t)
+    local L = ns.leftovers
+    t:eq(L.AfterText({ name = "The Angry Scytheclaws", now = "inlog", first = "Echeyakee" }),
+        "; it comes after \"Echeyakee\", in your log", "an earlier part is in your log")
+    t:eq(L.AfterText({ name = "The Angry Scytheclaws", now = "accept", first = "The Angry Scytheclaws" }), "; you can pick it up now", "on offer now")
+    t:eq(L.AfterText({ name = "The Angry Scytheclaws", now = "accept", first = "Prowlers of the Barrens" }),
+        "; first pick up \"Prowlers of the Barrens\"", "an earlier part to pick up first")
+    t:eq(L.AfterText({ name = "X", now = "unknown" }), "", "the chain isn't in the quest data: nothing added")
+    local what, why = L.Advice({ { name = "The Angry Scytheclaws", level = 17, done = false, now = "inlog", first = "Echeyakee" } }, 0)
+    t:eq(what, "keep", "kept")
+    t:ok(why:find("comes after \"Echeyakee\"", 1, true) ~= nil, "and it says what to finish first")
+end)
+
+ns:Register("test", "router: the rows start under a title that takes two lines", function(t)
+    local M = ns.mapOverlay
+    t:eq(M.TitleExtra(12, 13), 0, "one line: as before")
+    t:eq(M.TitleExtra(26, 13), 13 + M.TITLE_PAD, "two lines: a line lower, and a little room")
+    t:eq(M.TitleExtra(nil, 13), 0, "unknown height: as before")
+    t:ok(M.TITLE_PAD >= 3, "some room under it")
+end)

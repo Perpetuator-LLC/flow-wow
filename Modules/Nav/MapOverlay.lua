@@ -786,6 +786,15 @@ local function drawSolo(c, mapID, plan, at, T)
         end
     end
 end
+-- Pure: how much lower the Router's rows start when its title wraps: the
+-- height past one line, and a little room under it.
+M.TITLE_LINE, M.TITLE_PAD = 13, 4
+function M.TitleExtra(height, line)
+    line = line or M.TITLE_LINE
+    if type(height) ~= "number" or height <= line * 1.4 then return 0 end
+    return math.ceil(height - line) + M.TITLE_PAD
+end
+
 -- Draws one route as a dotted trail through round points, starting at you.
 -- Steps on another map are skipped, and the trail joins the ones on this
 -- map. Each point's label carries the step's type icon and number.
@@ -1790,8 +1799,20 @@ local function updateList()
         nBlocked > 0 and string.format("  |cffff7070(%d blocked, listed below)|r", nBlocked) or "",
         ns.nav.zoneNote and ("  |cff888888" .. ns.nav.zoneNote .. "|r") or ""))
     if #plan == 0 then list.title:SetText("Nothing on this route right now. Try Route: Optimal (above).") end
+    -- The title can take two lines ("... (4 blocked, listed below)  Finish the
+    -- Barrens first"): the rows start under it, with a little room (0.35.279:
+    -- "it runs into the first line under it").
+    local extra = M.TitleExtra(list.title:GetStringHeight(), M.TITLE_LINE)
+    if extra > 0 then
+        for i = 1, MAX_ROWS do
+            local r = list.rows[i]
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", 8, top - extra - (i - 1) * ROW_H)
+            r:SetPoint("TOPRIGHT", -8, top - extra - (i - 1) * ROW_H)
+        end
+    end
     local labels = ns.nav:PlanLabels(plan)
-    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108 - (wpShown and ROW_H or 0)) / ROW_H))
+    local fit = math.min(MAX_ROWS, math.floor((list:GetHeight() - 108 - extra - (wpShown and ROW_H or 0)) / ROW_H))
     -- Route steps first, then blocked steps (lock + reason), then (if
     -- ticked) hidden steps, greyed out.
     local blocked = ns.nav.blockedGoals or {}
