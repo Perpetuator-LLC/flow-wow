@@ -116,7 +116,7 @@ prompt that `/si` shows in game:
    - `UPDATE ...`: Flow was updated from GitHub (or an update is waiting). Nothing to do; the
      player was told in game.
    - `DEATH <id> | <who> | <summary> || <findings>`: the player died. Do a **post-mortem**: how
-     could the easy button have prevented it? Read `tools\read-diag.ps1` (the `[death]` lines
+     could the target button have prevented it? Read `tools\read-diag.ps1` (the `[death]` lines
      for that death, which list what Flow suggested and what was cast, plus the `[heal]` and
      `[cast]` lines of that fight). Look for a heal that came late or not at all, a pull the key
      was locked to badly, a missing warning (too many mobs, an elite, out of mana), or a spell

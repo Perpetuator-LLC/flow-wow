@@ -3,7 +3,7 @@
 -- it is, so a new player isn't faced with everything at once:
 --   arrow    you walk a few steps        the arrow (and the minimap marks)
 --   tracker  20 s later, or a quest      the Flow Tracker (your next step)
---   icon     you target an enemy / fight the easy button's icon
+--   icon     you target an enemy / fight the target button's icon
 --   advice   you level up, or 10 minutes the "!" list of ways to improve
 -- Only on a fresh install: anyone who already used Flow sees it all at once.
 -- Seen once per account. /flow reveal all shows everything now; /flow reveal

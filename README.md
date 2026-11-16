@@ -36,7 +36,7 @@ Flow for WoW is a separate project from Flow Engine.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
   Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it.
-- **Buff button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
+- **Self button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
   items move to their own blue button left of the icon, so the Flow key is only your fight
   (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
@@ -248,11 +248,11 @@ Flow for WoW is a separate project from Flow Engine.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
   auction house, keep), why and which rule said so, the vendor price and the last auction
   price. Saved with the diagnostics.
-- **A second key for heals and potions**: turn on the buff button and give it a key
+- **A second key for heals and potions**: turn on the self button and give it a key
   (`/flow buffbutton on`, `/flow buffkey <key>`). In a fight that key is your quickest heal;
   Shift, Ctrl, Alt and Ctrl + Shift with it cast your heal over time, your other heal, your
   healthstone or potion, and your bandage (`/flow carekeys`). Out of a fight the two keys
-  split the same way: the buff button's key is for **you** (heal up, eat, drink, bandage, a
+  split the same way: the self button's key is for **you** (heal up, eat, drink, bandage, a
   cure for yourself, your buffs, fishing), Flow's key is for **your target** (attacks on an
   enemy; heals, buffs and cures on a friendly player you target) and for **your group** (their
   buffs, cast straight on whoever is missing one).
@@ -287,7 +287,7 @@ Flow for WoW is a separate project from Flow Engine.
   to equip, professions behind your level, talents and habits from your best fights. Rows that
   are places route you there.
 - **Your choices** (`/flow choices`): every spell you cast in a fight is set beside what the
-  easy button advised at that moment: cast as advised, your key while the advice was a bar
+  target button advised at that moment: cast as advised, your key while the advice was a bar
   spell, or your own pick. For the differences Flow notes the situation (moving, the enemy on
   you, the advice out of range...) and compares kill speed in fights with and without that
   choice. The rotation is tuned from this report: a pattern with a reason becomes a rule.

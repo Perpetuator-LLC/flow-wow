@@ -1539,7 +1539,7 @@ ns:Register("test", "perf: a timed entry names its costliest parts", function(t)
     P.stats["test: parts"] = nil
 end)
 
-ns:Register("test", "easy button: up as soon as you target an enemy, red while it's out of range", function(t)
+ns:Register("test", "target button: up as soon as you target an enemy, red while it's out of range", function(t)
     local E = ns.rotation
     local list = {
         { spell = "Mark of the Wild", kind = "buff", target = true },
@@ -1561,7 +1561,7 @@ ns:Register("test", "easy button: up as soon as you target an enemy, red while i
     end)
 end)
 
-ns:Register("test", "easy button: counts down to Well Fed while you eat the food it gave you", function(t)
+ns:Register("test", "target button: counts down to Well Fed while you eat the food it gave you", function(t)
     local E = ns.rotation
     local w = E._wellFed
     local saved = { w.at, w.lastShown, w.item, w.icon }
@@ -1588,7 +1588,7 @@ ns:Register("test", "easy button: counts down to Well Fed while you eat the food
     w.at, w.lastShown, w.item, w.icon = saved[1], saved[2], saved[3], saved[4]
 end)
 
-ns:Register("test", "easy button: a gold \"Heal: SHIFT+\" when a heal is advised in a fight", function(t)
+ns:Register("test", "target button: a gold \"Heal: SHIFT+\" when a heal is advised in a fight", function(t)
     -- Death 6: Flow advised a heal 65 times in an 80 s fight; Shift + key
     -- (which casts it) was pressed 0 times. The corner icon was too quiet.
     local heal = { spell = "Rejuvenation", kind = "heal" }
@@ -3520,7 +3520,7 @@ ns:Register("test", "follow: the arrow follows a party member only while you fol
     t:ok(type(F:MenuItems()) == "table", "menu items build")
 end)
 
-ns:Register("test", "easy button: hover says what, why, and what's coming", function(t)
+ns:Register("test", "target button: hover says what, why, and what's coming", function(t)
     local L = ns.cast.TooltipLines({ spell = "Judgement", reason = "Judge the seal" }, "Judgement",
         { { spell = "Holy Strike", reason = "Holy Strike" }, { spell = "Seal of Righteousness", reason = "No seal, or running out" } }, false)
     t:ok(L[1][1]:find("Judgement", 1, true), "what Flow suggests")
@@ -3929,7 +3929,7 @@ ns:Register("test", "first time: Flow's pieces come in one at a time", function(
     end)
 end)
 
-ns:Register("test", "cast key: a second key for the easy button", function(t)
+ns:Register("test", "cast key: a second key for the target button", function(t)
     local C = ns.cast
     t:eq(#C.KeysOf({ key = "`" }), 1, "one key")
     local both = C.KeysOf({ key = "`", key2 = "F" })
@@ -4019,7 +4019,7 @@ ns:Register("test", "professions: what to do next, and when the reminder opens",
     t:ok(d and d.leveling.professions[2].name == "Skinning", "a druid levels with Herbalism + Skinning")
 end)
 
-ns:Register("test", "easy button: buffs your group, the right buff for each person", function(t)
+ns:Register("test", "target button: buffs your group, the right buff for each person", function(t)
     local E = ns.rotation
     t:eq(E.UnitKind("WARRIOR", "NONE"), "melee", "a warrior: melee")
     t:eq(E.UnitKind("WARRIOR", "TANK"), "tank", "the group's tank")
@@ -4128,9 +4128,9 @@ ns:Register("test", "shift + easy key: your heal on you, even in a fight", funct
         function(s) return s == "Holy Light" and 2500 or 1500 end), "Flash of Light", "paladin: Flash of Light")
 end)
 
-ns:Register("test", "easy button: hidden yes/no answers from the game don't stop it", function(t)
+ns:Register("test", "target button: hidden yes/no answers from the game don't stop it", function(t)
     -- Forever hid UnitInRange's "checked" from Flow, and testing it errored:
-    -- out of a fight in a group, the easy button chose nothing (0.35.123).
+    -- out of a fight in a group, the target button chose nothing (0.35.123).
     -- A stand-in secret: ns.api.Safe turns it into nil, as it does a real one.
     local E, A = ns.rotation, ns.api
     local SECRET = {}
@@ -4302,7 +4302,7 @@ ns:Register("test", "route: quests Flow can't place are listed with the reason",
     t:ok(all:find("can't place (event)", 1, true) ~= nil, "an event objective: said")
 end)
 
-ns:Register("test", "easy button: short key names in its corner", function(t)
+ns:Register("test", "target button: short key names in its corner", function(t)
     local C = ns.cast
     local text = function(k) return ({ ["`"] = "`", F = "F", BUTTON5 = "Mouse Button 5", F12 = "F12" })[k] end
     t:eq(C.ShortKey("BUTTON5", text), "MB5", "Mouse Button 5 -> MB5")
@@ -4463,7 +4463,7 @@ ns:Register("test", "new spells: spotted from your spellbook, the card even if t
     t:eq(NS.SlotName(5), "Action Bar 1, slot 5", "says where the game put it")
 end)
 
-ns:Register("test", "easy button: your buffs on you, Ctrl + key on your target", function(t)
+ns:Register("test", "target button: your buffs on you, Ctrl + key on your target", function(t)
     local C = ns.cast
     t:eq(C.UnitFor({ spell = "Mark of the Wild", kind = "buff" }), "player", "your own buff: on you, even with a friend targeted")
     t:eq(C.UnitFor({ spell = "Mark of the Wild", kind = "buff", unit = "party1" }), "party1", "a group buff: on them")
@@ -4588,7 +4588,7 @@ ns:Register("test", "queue: modifier presses are set so the game finds them", fu
         end
     end
     t:eq(b:GetAttribute("ctrl-type1"), "macro", "Ctrl + click with the mouse still only moves the button")
-    t:ok(type(ns.perf.stats["easy button: queue"]) == "table", "the queue's upkeep is timed (/flow perf)")
+    t:ok(type(ns.perf.stats["target button: queue"]) == "table", "the queue's upkeep is timed (/flow perf)")
 end)
 
 ns:Register("test", "taint: the distance question is asked in a fight only about an enemy", function(t)
@@ -4955,7 +4955,7 @@ ns:Register("test", "actions: after a kill the Flow key loots the corpse", funct
     end)
 end)
 
-ns:Register("test", "easy button: Attack only ever turns auto attack on", function(t)
+ns:Register("test", "target button: Attack only ever turns auto attack on", function(t)
     -- Yang: with nothing to press, the key turned auto attack off. It was
     -- left on the Attack spell, which toggles: pressed mid-swing, it stops.
     local C = ns.cast
@@ -5073,7 +5073,7 @@ ns:Register("test", "a hidden Flow window shows up in every Flow menu", function
     local M = ns.menu
     local names = {}
     for _, w in ns:Each("window") do names[w.name] = w end
-    for _, n in ipairs({ "Flow Arrow", "Flow Tracker", "Flow easy button" }) do
+    for _, n in ipairs({ "Flow Arrow", "Flow Tracker", "Flow target button" }) do
         t:ok(names[n] ~= nil, n .. " can be hidden and brought back")
     end
     with(ns.db.tracker, "enabled", true, function()
@@ -5594,7 +5594,7 @@ ns:Register("test", "recovery: one order for every way of being hurt; fight heal
             set(nil, nil, nil, nil)
             t:eq(pick(ctx), "Bandage", name .. ": default order starts with the bandage, not the heal spell")
             local onBuff = E:Recover(ctx, def, "items")
-            t:eq(onBuff and onBuff.label, "Bandage", name .. ": the buff button gets the bandage")
+            t:eq(onBuff and onBuff.label, "Bandage", name .. ": the self button gets the bandage")
             t:ok(E:Recover(ctx, def, "heal") == nil, name .. ": Flow's key holds the heal spell back while the bandage is first")
             have.bandage = false
             t:eq(pick(ctx), "Food", name .. ": no bandage: food")
@@ -5618,11 +5618,11 @@ ns:Register("test", "recovery: one order for every way of being hurt; fight heal
             t:eq(pick(ctx), nil, name .. ": eating or casting: nothing")
             have.busy, have.mounted = false, true
             t:ok(isSpell(ctx), name .. ": mounted: no bandage or food, a heal spell")
-            -- Cannibalize (a usable corpse targeted) comes first, on the buff button.
+            -- Cannibalize (a usable corpse targeted) comes first, on the self button.
             have = { bandage = true, food = true, spell = true, corpse = true }
             t:eq(pick(ctx), "Cannibalize", name .. ": a fitting corpse: Cannibalize before the bandage")
             local onBtn = E:Recover(ctx, def, "items")
-            t:eq(onBtn and onBtn.spell, "Cannibalize", name .. ": it shows on the buff button")
+            t:eq(onBtn and onBtn.spell, "Cannibalize", name .. ": it shows on the self button")
             t:ok(E:Recover(ctx, def, "heal") == nil, name .. ": and Flow's key holds the heal spell back")
         end
         -- Lightly hurt (estimate only): bandage or heal, but not food.
@@ -5667,7 +5667,7 @@ ns:Register("test", "recovery: one order for every way of being hurt; fight heal
         set(nil, nil, nil, nil)
         have = { bandage = true, food = true, spell = true, corpse = true, stone = true, potion = true }
         t:eq(pick({ inCombat = false, maxHp = 100, hp = 85, hpPct = 0.85 }), nil, "85% health shown, out of a fight: no heal, bandage, food or Cannibalize")
-        t:eq(E:Recover({ inCombat = false, maxHp = 100, hp = 85, hpPct = 0.85 }, def, "items"), nil, "85%: nothing on the buff button either")
+        t:eq(E:Recover({ inCombat = false, maxHp = 100, hp = 85, hpPct = 0.85 }, def, "items"), nil, "85%: nothing on the self button either")
         t:eq(pick({ inCombat = true, maxHp = 100, hp = 85, hpPct = 0.85 }), nil, "85% health shown, in a fight: no heal")
         t:ok(pick({ inCombat = false, maxHp = 100, hp = 75, hpPct = 0.75 }) ~= nil, "75%: the recovery order runs")
         t:ok(E.HealthFine({ maxHp = 100, hpPct = 0.81 }) and not E.HealthFine({ maxHp = 100, hpPct = 0.8 })
@@ -5802,7 +5802,7 @@ ns:Register("test", "hearthstone: an estimate only when it clearly saves time", 
     t:eq(H.AdviceText(nil, "x"), nil, "no estimate: nothing said")
 end)
 
-ns:Register("test", "buff button: buffs off the main icon, onto their own button", function(t)
+ns:Register("test", "self button: buffs off the main icon, onto their own button", function(t)
     local BB = ns.buffButton
     local list = { { spell = "Aspect", kind = "buff" }, { spell = "Strike" }, { spell = "Aura", kind = "buff" }, { spell = "Heal", kind = "heal" } }
     local out = BB.Strip(list)
@@ -5813,7 +5813,7 @@ ns:Register("test", "buff button: buffs off the main icon, onto their own button
     t:eq(#list, 4, "the rotation's own list is untouched")
     local pally = BB.Strip({ { spell = "Seal of Righteousness", kind = "buff" }, { spell = "Devotion Aura", kind = "buff" },
                              { spell = "Judgement" } })
-    t:eq(#pally, 2, "a paladin: the aura moves to the buff button")
+    t:eq(#pally, 2, "a paladin: the aura moves to the self button")
     t:eq(pally[1].spell, "Seal of Righteousness", "the seal stays on Flow's icon, with the fight")
     for _, name in ipairs({ "Seal of Fury", "Battle Shout", "Commanding Shout", "Lightning Shield",
                             "Power Word: Shield", "Hunter's Mark", "Bear Form", "Moonkin Form" }) do
@@ -5821,7 +5821,7 @@ ns:Register("test", "buff button: buffs off the main icon, onto their own button
     end
     for _, name in ipairs({ "Blessing of Might", "Devotion Aura", "Aspect of the Hawk", "Mark of the Wild",
                             "Travel Form", "Trueshot Aura" }) do
-        t:ok(not BB.OnAction({ spell = name }), name .. ": on the buff button")
+        t:ok(not BB.OnAction({ spell = name }), name .. ": on the self button")
     end
     t:ok(not BB.OnAction({}) and not BB.OnAction(nil), "no spell: not on the action button")
     t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }).item, "item:2862", "out of combat: the weapon stone before a buff spell")
@@ -5933,7 +5933,7 @@ ns:Register("test", "worn gear and hearthstone: run without errors, no red, no c
     t:eq(ns.vendor.RepairDecision(true, 500, 1000, false), "off", "auto-repair off: Flow repairs nothing")
 end)
 
-ns:Register("test", "easy button: War Stomp stops a cast close by; Roots opens on a melee mob", function(t)
+ns:Register("test", "target button: War Stomp stops a cast close by; Roots opens on a melee mob", function(t)
     local E = ns.rotation
     -- 0.35.135: nothing ever suggested an interrupt or Entangling Roots.
     local fight = { inCombat = true, hostile = true, fightType = "normal" }
@@ -5970,7 +5970,7 @@ ns:Register("test", "easy button: War Stomp stops a cast close by; Roots opens o
     end
 end)
 
-ns:Register("test", "easy button: drink when low on mana; Well Fed food first when fights are ahead", function(t)
+ns:Register("test", "target button: drink when low on mana; Well Fed food first when fights are ahead", function(t)
     if deadSkip(t) then return end
     local E, BI = ns.rotation, ns.buffItems
     -- 0.35.136: Flow ate but never drank.
@@ -6029,7 +6029,7 @@ ns:Register("test", "easy button: drink when low on mana; Well Fed food first wh
     E.EatingNow = eatingNow
 end)
 
-ns:Register("test", "easy button: the icon shows what the key casts; Shift swaps in your heal", function(t)
+ns:Register("test", "target button: the icon shows what the key casts; Shift swaps in your heal", function(t)
     -- 0.35.137: in a fight the icon showed the advice (Moonfire) while the
     -- key cast Wrath, with Wrath tucked in the corner. Now the other way.
     local held = { spell = "Wrath", kind = "held", label = "key: Wrath" }
@@ -6376,7 +6376,7 @@ ns:Register("test", "click: /flow talents opens Flow Talents; its X closes it", 
 end)
 
 ns:Register("test", "choices: your casts set beside Flow's advice", function(t)
-    -- The player: compare what the easy button advised with what was cast,
+    -- The player: compare what the target button advised with what was cast,
     -- and find the reason for the differences before changing the rotation.
     local C, E = ns.choices, ns.rotation
     if not C then t:ok(false, "Choices.lua not loaded") return end
@@ -6547,8 +6547,8 @@ ns:Register("test", "dungeon key: a gold key badge atop the quest list", functio
     end
 end)
 
-ns:Register("test", "buff button: campfire steps only with a key of its own; its key sits you", function(t)
-    -- 0.35.147 (pull request 13): the buff button sat you with a "/sit"
+ns:Register("test", "self button: campfire steps only with a key of its own; its key sits you", function(t)
+    -- 0.35.147 (pull request 13): the self button sat you with a "/sit"
     -- macro, and macro buttons are ignored on Forever. Now its key is the
     -- game's Sit/Stand for that step, so the campfire moves there only when
     -- it has a key; else it stays on Flow's key (which sits you the same way).
@@ -6659,7 +6659,7 @@ ns:Register("test", "settings: options are grouped by when you use them; WoW's o
     t:ok(inGroup("Show WoW's quest tracker", "screen"), "WoW's quest tracker: On your screen")
     t:ok(inGroup("Flow buttons on WoW's windows", "screen"), "Flow's buttons on WoW's windows: On your screen")
     t:ok(inGroup("Finish the area you're in first", "route"), "the area-first tick: Finding your way")
-    t:ok(inGroup("Buff button beside Flow's icon", "key"), "the buff button: Your easy key")
+    t:ok(inGroup("Self button beside Flow's icon", "key"), "the self button: Your easy key")
     with(S, "extraChecks", { { label = "x", group = "nowhere" }, { label = "y" } }, function()
         t:eq(#S.ExtrasFor("more"), 2, "a tick with no group, or one Flow doesn't know: under More")
         t:eq(#S.ExtrasFor("route"), 0, "and nowhere else")
@@ -6899,7 +6899,7 @@ ns:Register("test", "rotation: the first press at a new enemy starts auto attack
 end)
 
 ns:Register("test", "heal: a full health bar clears the heal prompt", function(t)
-    -- "after my health fills the 'cast a heal' in the easy button doesn't clear"
+    -- "after my health fills the 'cast a heal' in the target button doesn't clear"
     local E = ns.rotation
     t:eq(E.FULL_QUIET, 6, "six quiet seconds (regen ticks come every 2 s)")
     t:eq(E.HealthSettled(100, 90, 80, 0), false, "never saw your health change out of a fight: not trusted")
@@ -7911,12 +7911,12 @@ ns:Register("test", "modern arrow: the beam and its mirror meet with no crack", 
     a:Hide()
 end)
 
-ns:Register("test", "easy button: its key bind is written to the right of the icon", function(t)
+ns:Register("test", "target button: its key bind is written to the right of the icon", function(t)
     local C, E = ns.cast, ns.rotation
     local key = C._KeyText()
     if not (key and E.icon) then t:ok(true, "(the Flow key isn't built yet)") return end
     local point, rel, relPoint, x, y = key:GetPoint(1)
-    -- (On its own: above the icon. With the buff button docked under it: at
+    -- (On its own: above the icon. With the self button docked under it: at
     -- the middle of the icon's right side, 0.35.239.)
     if C.labelsDocked then
         t:eq(point, "LEFT", "docked: its left edge...")
@@ -8477,7 +8477,7 @@ end)
 -- 0.35.187: the Flow key uses the quest's item at its step.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: the quest's item at its step", function(t)
+ns:Register("test", "target button: the quest's item at its step", function(t)
     local X = ns.actions
     t:ok(X.QuestItemNow("6002:1", true, 15710, 1, false, false, nil), "at the step, the item in your bags, nothing targeted: use it")
     t:ok(not X.QuestItemNow("6002:1", false, 15710, 1, false, false, nil), "not at the step yet: no")
@@ -8513,14 +8513,14 @@ ns:Register("test", "easy button: the quest's item at its step", function(t)
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.188: the easy button's modifier icons run out to its left; auto
+-- 0.35.188: the target button's modifier icons run out to its left; auto
 -- attack sits on its right.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: modifier icons to its left, auto attack on its right", function(t)
+ns:Register("test", "target button: modifier icons to its left, auto attack on its right", function(t)
     local icon = ns.rotation.icon
     if not (icon and icon.deck and icon.deck[1] and icon.swing and icon.shiftTag) then
-        t:ok(true, "(the easy button isn't built yet)")
+        t:ok(true, "(the target button isn't built yet)")
         return
     end
     local p, rel, rp, x = icon.deck[1]:GetPoint(1)
@@ -8576,7 +8576,7 @@ end)
 -- raises a dead friend.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: skin a looted corpse", function(t)
+ns:Register("test", "target button: skin a looted corpse", function(t)
     local X = ns.actions
     local yes, no = function() return true end, function() return false end
     local kinds = { { text = "Skinnable", prof = "Skinning", verb = "Skin" },
@@ -8618,7 +8618,7 @@ ns:Register("test", "easy button: skin a looted corpse", function(t)
     end)
 end)
 
-ns:Register("test", "easy button: raise a dead friend you target", function(t)
+ns:Register("test", "target button: raise a dead friend you target", function(t)
     local X = ns.actions
     t:ok(X.ShouldRes({ dead = true, player = true, friend = true, ghost = false }, "Revive"), "a dead friend, still at their body: raise them")
     t:ok(not X.ShouldRes({ dead = true, player = true, friend = true, ghost = true }, "Revive"), "they've released (a ghost): nothing to cast on")
@@ -8668,7 +8668,7 @@ end)
 -- Nature's Grasp when a melee mob is on you.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: skinning waits for an emptied corpse within reach", function(t)
+ns:Register("test", "target button: skinning waits for an emptied corpse within reach", function(t)
     local X = ns.actions
     local corpse = { dead = true, player = false, guid = "g", name = "Plainstrider", hasLoot = false }
     t:ok(X.CorpseReady(corpse, false, true), "nothing left on it, and close: ready")
@@ -8694,7 +8694,7 @@ ns:Register("test", "easy button: skinning waits for an emptied corpse within re
     end)
 end)
 
-ns:Register("test", "easy button: a friendly player targeted gets your buffs, then a heal", function(t)
+ns:Register("test", "target button: a friendly player targeted gets your buffs, then a heal", function(t)
     local E = ns.rotation
     -- Mana sense.
     t:ok(E.CanSpare(0.8, false, 0.5), "80% mana, half to keep: yes")
@@ -9140,7 +9140,7 @@ ns:Register("test", "leaving a zone: what's still to train or level is said once
     end)
 end)
 
-ns:Register("test", "easy button: the held-modifier tag is on the key bind's line", function(t)
+ns:Register("test", "target button: the held-modifier tag is on the key bind's line", function(t)
     local C, E = ns.cast, ns.rotation
     local key, icon = C._KeyText(), E.icon
     if not (key and icon and icon.shiftTag) then t:ok(true, "(the Flow key isn't built yet)") return end
@@ -9613,7 +9613,7 @@ ns:Register("test", "easy key: it follows your form in a fight", function(t)
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.206: the second key (the buff button's) has heals and potions on its
+-- 0.35.206: the second key (the self button's) has heals and potions on its
 -- modifiers.
 -------------------------------------------------------------------------------
 
@@ -9648,10 +9648,10 @@ ns:Register("test", "second key: heals and potions on the buff key's modifiers",
     t:ok(ok and type(now) == "table", "what you'd get right now builds" .. (ok and "" or (": " .. tostring(now))))
     local lines = K.Lines()
     t:ok(type(lines) == "table" and #lines >= 1, "/flow carekeys has something to say")
-    -- Off (the buff button off, or no key): the key keeps the buff button's own way in a fight.
+    -- Off (the self button off, or no key): the key keeps the self button's own way in a fight.
     local c = ns.db.buffButton or {}
     with(c, "enabled", false, function()
-        t:eq(K.FightKey(), nil, "buff button off: no heal on its key")
+        t:eq(K.FightKey(), nil, "self button off: no heal on its key")
         t:ok(not K.Active(), "and nothing bound")
     end)
     if not InCombatLockdown() then
@@ -9691,7 +9691,7 @@ ns:Register("test", "easy key: with heals on the second key, Shift and Alt are a
     t:eq(K.PressText("more", "E", true), "Ctrl + Shift + E", "and in words")
     local c = ns.db.buffButton or {}
     with(c, "enabled", false, function()
-        t:ok(not K.Moved(), "buff button off: nothing moved, Flow's key keeps its heal")
+        t:ok(not K.Moved(), "self button off: nothing moved, Flow's key keeps its heal")
         t:eq(ns.rotation.HealPress(), "Shift + key", "and the words say Shift + key")
         t:eq(K.PressFor({ spell = "Regrowth", kind = "heal" }), nil, "no second key to press")
     end)
@@ -9727,7 +9727,7 @@ end)
 ns:Register("test", "settings: one key for one Flow button; a conflict can be cleared", function(t)
     local S = ns.settings
     t:eq(S.FlowSlotOf("Q", { "BUTTON5", "Q", nil }), 2, "Q is Flow's second key")
-    t:eq(S.FlowSlotOf("E", { "BUTTON5", "Q", "E" }), 3, "E is the buff button's")
+    t:eq(S.FlowSlotOf("E", { "BUTTON5", "Q", "E" }), 3, "E is the self button's")
     t:eq(S.FlowSlotOf("F", { "BUTTON5", "Q", "E" }), nil, "F is free of Flow")
     t:eq(S.FlowSlotOf(nil, { "A" }), nil, "no key: none")
     local text = S.ConflictText("E", "Interact With Target", false)
@@ -9737,34 +9737,34 @@ ns:Register("test", "settings: one key for one Flow button; a conflict can be cl
     t:ok(type(S.Unbind) == "function", "the unbind step is there (it runs only on your click)")
     local f = S._Build and S._Build()
     if f then
-        t:ok(f.key3Value ~= nil and f.clear3 ~= nil and f.set3 ~= nil, "Flow Settings has a row for the buff button's key")
+        t:ok(f.key3Value ~= nil and f.clear3 ~= nil and f.set3 ~= nil, "Flow Settings has a row for the self button's key")
         t:ok(f.unbind ~= nil and not f.unbind:IsShown(), "the unbind button is hidden until a key in use is picked")
     end
     local BB = ns.buffButton
-    t:ok(type(BB.SetKey) == "function" and type(BB.Key) == "function", "the buff button's key can be set from the settings")
+    t:ok(type(BB.SetKey) == "function" and type(BB.Key) == "function", "the self button's key can be set from the settings")
 end)
 
-ns:Register("test", "click: the Flow menu's Buttons section toggles the buff button", function(t)
+ns:Register("test", "click: the Flow menu's Buttons section toggles the self button", function(t)
     local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     t:ok(ok and type(items) == "table", "the menu builds")
     local found, keys
     for _, it in ipairs(ok and items or {}) do
-        if type(it.text) == "string" and it.text:find("^Buff button: a second button and key") then found = it end
+        if type(it.text) == "string" and it.text:find("^Self button: a second button and key") then found = it end
         if type(it.text) == "string" and it.text:find("Dock it under", 1, true) then keys = it end
     end
-    t:ok(found ~= nil, "the Buttons section has the buff button's tick")
+    t:ok(found ~= nil, "the Buttons section has the self button's tick")
     t:ok(keys ~= nil and type(keys.func) == "function", "and one to dock it")
     if not found or InCombatLockdown() then return end
     local BB = ns.buffButton
     local was = BB.On()
     local okC, err = pcall(found.func)
     t:ok(okC, "a click runs" .. (okC and "" or (": " .. tostring(err))))
-    t:eq(BB.On(), not was, "it flips the buff button")
+    t:eq(BB.On(), not was, "it flips the self button")
     BB.Set(was)
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.208: key messages in a box of their own; the buff button only when
+-- 0.35.208: key messages in a box of their own; the self button only when
 -- something is due.
 -------------------------------------------------------------------------------
 
@@ -9791,7 +9791,7 @@ ns:Register("test", "settings: a key message stands in its own box, and a confli
     f.status:SetText(was or "")
 end)
 
-ns:Register("test", "buff button: only when something is due", function(t)
+ns:Register("test", "self button: only when something is due", function(t)
     local BB = ns.buffButton
     t:eq(BB.WhenIdle(false, false), "hide", "nothing due, no enemy: it stays away")
     t:eq(BB.WhenIdle(false, true), "heal", "nothing due, an enemy targeted and the key heals: your heal, ready")
@@ -9800,11 +9800,11 @@ ns:Register("test", "buff button: only when something is due", function(t)
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.209: the buff button looks like Flow's icon; a hidden corpse name is
+-- 0.35.209: the self button looks like Flow's icon; a hidden corpse name is
 -- not an error.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "buff button: the size and side icons of Flow's own", function(t)
+ns:Register("test", "self button: the size and side icons of Flow's own", function(t)
     local BB, K = ns.buffButton, ns.careKeys
     t:eq(BB.SIZE, 52, "as big as Flow's icon")
     t:ok(K.SIZES[1] == 36 and K.SIZES[2] == 30 and K.SIZES[3] == 25 and K.SIZES[4] == 22, "its side icons step down like Flow's")
@@ -9987,7 +9987,7 @@ ns:Register("test", "loot rolls: Need on an upgrade, Greed on the rest", functio
     end)
 end)
 
-ns:Register("test", "easy button: a druid's Bash and a paladin's Hammer of Justice stop a cast", function(t)
+ns:Register("test", "target button: a druid's Bash and a paladin's Hammer of Justice stop a cast", function(t)
     local E = ns.rotation
     local has = {}
     for _, r in ipairs(E.INTERRUPTS) do has[r.spell] = r end
@@ -10763,11 +10763,11 @@ ns:Register("test", "click: the icons beside the Flow icon and the auto-attack b
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.228: the buff button docks under Flow's icon; it shows the held
+-- 0.35.228: the self button docks under Flow's icon; it shows the held
 -- modifier's spell, its cooldown and reach; the badge wears your weapon.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "click: the buff button docks under the Flow icon and comes off again", function(t)
+ns:Register("test", "click: the self button docks under the Flow icon and comes off again", function(t)
     local BB = ns.buffButton
     t:ok(type(BB.SetDock) == "function" and type(BB.Docked) == "function" and type(BB.Place) == "function", "it can be docked")
     t:ok(BB.DOCK_GAP >= 12, "the gap between the rows has room for the modifier names")
@@ -10792,12 +10792,12 @@ ns:Register("test", "click: the buff button docks under the Flow icon and comes 
     local okM, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     local found = false
     for _, it in ipairs(okM and items or {}) do
-        if type(it.text) == "string" and it.text:find("Dock the buff button", 1, true) then found = true end
+        if type(it.text) == "string" and it.text:find("Dock the self button", 1, true) then found = true end
     end
     t:ok(found, "the Flow menu's Keys section has the dock tick")
 end)
 
-ns:Register("test", "buff button: a held modifier shows what that press casts", function(t)
+ns:Register("test", "self button: a held modifier shows what that press casts", function(t)
     local K = ns.careKeys
     local c = ns.db.buffButton or {}
     with(c, "enabled", false, function()
@@ -10866,10 +10866,10 @@ ns:Register("test", "auto-attack badge: a click toggles your swing by the bar sl
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.231: two keys for the buff button.
+-- 0.35.231: two keys for the self button.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "buff button: two keys, each with the same modifier presses", function(t)
+ns:Register("test", "self button: two keys, each with the same modifier presses", function(t)
     local BB, S = ns.buffButton, ns.settings
     local keys = BB.KeysOf({ key = "E", key2 = "R" })
     t:ok(#keys == 2 and keys[1] == "E" and keys[2] == "R", "both keys")
@@ -10878,8 +10878,8 @@ ns:Register("test", "buff button: two keys, each with the same modifier presses"
     t:eq(#BB.KeysOf({ key = "E", key2 = "E" }), 1, "the same key twice: once")
     t:eq(#BB.KeysOf({}), 0, "none set: none")
     t:eq(#BB.KeysOf(nil), 0, "no settings: none")
-    t:eq(S.FlowSlotOf("R", { "BUTTON5", "Q", "E", "R" }), 4, "the settings page knows the buff button's second key")
-    t:eq(S.SLOT_NAME[4], "the buff button's second key", "and names it")
+    t:eq(S.FlowSlotOf("R", { "BUTTON5", "Q", "E", "R" }), 4, "the settings page knows the self button's second key")
+    t:eq(S.SLOT_NAME[4], "the self button's second key", "and names it")
     local f = S._Build and S._Build()
     if f then t:ok(f.key4Value ~= nil and f.set4 ~= nil and f.clear4 ~= nil, "Flow Settings has a row for it") end
     t:ok(type(ns.commands.buffkey2) == "function", "/flow buffkey2 sets it too")
@@ -11001,7 +11001,7 @@ ns:Register("test", "suggested: one colour and one beat for everything Flow asks
     t:ok(pcall(P.Add, nil) and pcall(P.Remove, nil), "nothing given: no error")
 end)
 
-ns:Register("test", "easy and buff buttons: the cast's progress along the bottom edge", function(t)
+ns:Register("test", "easy and self buttons: the cast's progress along the bottom edge", function(t)
     local CE = ns.castEdge
     t:near(CE.Progress(1000, 3000, 2000, false), 0.5, 0.001, "halfway through a 2 s cast: half full")
     t:near(CE.Progress(1000, 3000, 1000, false), 0, 0.001, "just started: empty")
@@ -11023,9 +11023,9 @@ ns:Register("test", "buttons: key binds to the right, names from the bottom left
             t:ok(p == "TOP" and rel == icon and rp == "BOTTOM", "on its own: Flow's spell name is under the icon, as it always was")
         end
     end
-    t:ok(type(ns.SetCooldownFrame) == "function", "the buff button can draw the same cooldown sweep")
+    t:ok(type(ns.SetCooldownFrame) == "function", "the self button can draw the same cooldown sweep")
     local b = _G.FlowBuffButton
-    if b then t:near(b:GetWidth(), ns.buffButton.SIZE, 0.5, "the buff button is there") end
+    if b then t:near(b:GetWidth(), ns.buffButton.SIZE, 0.5, "the self button is there") end
 end)
 
 ns:Register("test", "route: a step spread all over the area comes after the exact ones", function(t)
@@ -11225,11 +11225,11 @@ ns:Register("test", "buttons: docked, the modifier is above the key bind and the
     if w and w.joined ~= nil and icon and icon.joined ~= nil and not InCombatLockdown() then
         t:near(w:GetWidth(), (ns.SwingPlace(w.joined)), 0.5, "the button over the badge is the badge's size")
     end
-    -- The buff button: its bind at the middle of its right side, the tag above.
+    -- The self button: its bind at the middle of its right side, the tag above.
     local BB = ns.buffButton
     if BB._keyText and BB._modTag and _G.FlowBuffButton then
         local tp, trel, trp = BB._modTag:GetPoint(1)
-        t:ok(tp == "BOTTOMLEFT" and trel == BB._keyText and trp == "TOPLEFT", "the buff button's modifier is written above its bind")
+        t:ok(tp == "BOTTOMLEFT" and trel == BB._keyText and trp == "TOPLEFT", "the self button's modifier is written above its bind")
         if BB.Docked() and not InCombatLockdown() then
             local kp, krel, krp = BB._keyText:GetPoint(1)
             t:ok(kp == "LEFT" and krel == _G.FlowBuffButton and krp == "RIGHT", "docked: its bind at the middle of its right side")
@@ -11241,7 +11241,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.240: a hand-in waits with its hidden objective; fishing is the buff
--- button's alone; the buff button is docked unless taken off.
+-- button's alone; the self button is docked unless taken off.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "route: a hand-in whose objective you hid leaves the route with it", function(t)
@@ -11263,23 +11263,23 @@ ns:Register("test", "route: a hand-in whose objective you hid leaves the route w
     t:ok(#kept == 2 and #held == 0, "nothing hidden: nothing waits")
 end)
 
-ns:Register("test", "fishing: on the buff button alone while it has a key; the buff button is docked by default", function(t)
+ns:Register("test", "fishing: on the self button alone while it has a key; the self button is docked by default", function(t)
     local X, BB = ns.actions, ns.buffButton
-    t:ok(X.OnBuffOnly({ fish = true }, true), "a fishing step, the buff button fishes: not on the Flow key too")
-    t:ok(not X.OnBuffOnly({ fish = true }, false), "no buff button (or no key on it): the Flow key fishes, as before")
+    t:ok(X.OnBuffOnly({ fish = true }, true), "a fishing step, the self button fishes: not on the Flow key too")
+    t:ok(not X.OnBuffOnly({ fish = true }, false), "no self button (or no key on it): the Flow key fishes, as before")
     t:ok(not X.OnBuffOnly({ type = "spell" }, true), "any other step stays on the Flow key")
     t:ok(not X.OnBuffOnly(nil, true), "no step: nothing")
-    t:ok(type(BB.Fishes()) == "boolean", "the buff button says whether it fishes")
+    t:ok(type(BB.Fishes()) == "boolean", "the self button says whether it fishes")
     t:ok(BB.DockWanted(nil), "never chosen: docked")
     t:ok(BB.DockWanted(true), "docked by you: docked")
     t:ok(not BB.DockWanted(false), "taken off by you: stays off")
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.241: the buff button is yours, Flow's key is your target's.
+-- 0.35.241: the self button is yours, Flow's key is your target's.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "two keys: out of a fight what's cast on you is the buff button's, the rest Flow's key's", function(t)
+ns:Register("test", "two keys: out of a fight what's cast on you is the self button's, the rest Flow's key's", function(t)
     local BB, E = ns.buffButton, ns.rotation
     -- Who a step is for.
     t:ok(BB.IsMine({ spell = "Regrowth", kind = "heal" }), "a heal with nobody named falls on you: yours")
@@ -11297,13 +11297,13 @@ ns:Register("test", "two keys: out of a fight what's cast on you is the buff but
     t:eq(BB.ForTarget(wrath, true, false), wrath, "an attack stays on Flow's key")
     local onBob = { spell = "Regrowth", kind = "heal", unit = "target" }
     t:eq(BB.ForTarget(onBob, true, false), onBob, "a heal on your friendly target stays on Flow's key")
-    -- Order on the buff button.
+    -- Order on the self button.
     local cure, food = { spell = "Cure Poison" }, { item = "item:1" }
     t:eq(BB.MineFirst(cure, food), cure, "a poison on you comes off before you eat")
     t:eq(BB.MineFirst(nil, food), food, "nothing to cure: heal up")
     t:eq(BB.MineFirst(nil, nil), nil, "neither: nothing")
     t:ok(type(BB.TakesMine()) == "boolean", "the button says whether it takes what's yours")
-    -- Healing up, all of it, for the buff button.
+    -- Healing up, all of it, for the self button.
     local asked = {}
     local fake = {
         DrinkStep = function() asked[#asked + 1] = "drink" return { item = "item:2", label = "drink" } end,
@@ -11326,13 +11326,13 @@ end)
 -- 0.35.242: the "press this instead" icon has a place in each layout, on top.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy button: the advised-spell icon is in the open in both layouts, above everything", function(t)
+ns:Register("test", "target button: the advised-spell icon is in the open in both layouts, above everything", function(t)
     local C = ns.cast
     local p, rp, x, y, lp, lrp = C.AdvicePlace(false)
     t:ok(p == "BOTTOMRIGHT" and rp == "BOTTOMRIGHT" and x > 0 and y < 0, "on its own: over the icon's bottom right corner, as before")
     t:ok(lp == "RIGHT" and lrp == "LEFT", "its words to its left")
     p, rp, x, y, lp, lrp = C.AdvicePlace(true)
-    t:ok(p == "LEFT" and rp == "RIGHT" and x > 0 and y == 0, "docked: right of the key bind, level with it (clear of the auto-attack badge and the buff button)")
+    t:ok(p == "LEFT" and rp == "RIGHT" and x > 0 and y == 0, "docked: right of the key bind, level with it (clear of the auto-attack badge and the self button)")
     t:ok(lp == "LEFT" and lrp == "RIGHT", "its words after it")
     local lock, key, icon = C._LockIcon(), C._KeyText(), ns.rotation.icon
     if not (lock and key and icon) then return end
@@ -11379,10 +11379,10 @@ ns:Register("test", "fight record: a target whose ID the game hides is not compa
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.244: buffs for your group are Flow's key's, buff button on or off.
+-- 0.35.244: buffs for your group are Flow's key's, self button on or off.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "group buffs: on Flow's key with the buff button on; the reason when held", function(t)
+ns:Register("test", "group buffs: on Flow's key with the self button on; the reason when held", function(t)
     local E, BB = ns.rotation, ns.buffButton
     local ctx = { inCombat = false, hostile = false, fightType = "normal" }
     local list = {}
@@ -11393,11 +11393,11 @@ ns:Register("test", "group buffs: on Flow's key with the buff button on; the rea
     t:ok(E.GroupHeld(list, true, { hostile = true }, false, true):find("enemy"), "an enemy targeted")
     t:ok(E.GroupHeld(list, true, ctx, true, true):find("city"), "in a city or an inn")
     t:ok(E.GroupHeld(list, true, ctx, false, false):find("form"), "in a form that can't cast")
-    -- The buff button doesn't take them: its own pick never asks for the group.
+    -- The self button doesn't take them: its own pick never asks for the group.
     local asked = 0
     with(E, "GroupBuff", function() asked = asked + 1 return { spell = "Mark of the Wild", unit = "party1" } end, function()
         local ok, s = pcall(BB._pickBuff, { priority = {} }, ctx)
-        t:ok(ok and s == nil, "the buff button offers no buff for the group")
+        t:ok(ok and s == nil, "the self button offers no buff for the group")
         t:eq(asked, 0, "and doesn't look for one")
     end)
     -- And choosing leaves the engine's own group buffs in place for Flow's key.
@@ -11489,10 +11489,10 @@ ns:Register("test", "move handle: docked, the one note goes under both buttons",
     end)
     if buff then
         with(BB, "Docked", function() return true end, function()
-            t:eq(C.NoteUnder(), buff:IsShown() and buff or nil, "docked: under the buff button when it shows")
+            t:eq(C.NoteUnder(), buff:IsShown() and buff or nil, "docked: under the self button when it shows")
         end)
     end
-    -- The real handles: refreshing runs, and the buff button's stays hidden when docked.
+    -- The real handles: refreshing runs, and the self button's stays hidden when docked.
     local hb = BB.handle
     if hb and not InCombatLockdown() then
         with(BB, "Docked", function() return true end, function()
@@ -11671,10 +11671,10 @@ ns:Register("test", "professions: a herb here that's beyond you sets Herbalism's
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.253: docked, the buff button has a size of its own (Ctrl + wheel).
+-- 0.35.253: docked, the self button has a size of its own (Ctrl + wheel).
 -------------------------------------------------------------------------------
 
-ns:Register("test", "click: docked, the wheel over the buff button resizes it alone", function(t)
+ns:Register("test", "click: docked, the wheel over the self button resizes it alone", function(t)
     local BB = ns.buffButton
     t:eq(BB.DockScale(nil, 1.2), 1.2, "never resized: the size of Flow's icon")
     t:eq(BB.DockScale(0.8, 1.2), 0.8, "resized: its own size, whatever Flow's is")
@@ -11691,7 +11691,7 @@ ns:Register("test", "click: docked, the wheel over the buff button resizes it al
         local h = BB.handle
         -- The wheel, as the handle hears it (Ctrl held is what shows the handle).
         t:ok(pcall(h.ScaleBy, h, 1), "a notch over the docked button runs")
-        t:near(buff:GetScale(), ns.ClampScale(before + ns.SCALE_STEP), 0.001, "the buff button is a tenth bigger")
+        t:near(buff:GetScale(), ns.ClampScale(before + ns.SCALE_STEP), 0.001, "the self button is a tenth bigger")
         t:near(main:GetScale(), mainScale, 0.001, "Flow's icon keeps its size")
         local p, rel = buff:GetPoint(1)
         t:ok(p == "TOP" and rel == main, "and it's still docked under Flow's icon")
@@ -11751,10 +11751,10 @@ ns:Register("test", "dungeons: /flow dungeons says whether you have a run's ques
 end)
 
 -------------------------------------------------------------------------------
--- 0.35.256: Flow's icon and the buff button are one size, edge round each.
+-- 0.35.256: Flow's icon and the self button are one size, edge round each.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "easy and buff buttons: the same size, the same edge round the picture, the cast bar inside it", function(t)
+ns:Register("test", "easy and self buttons: the same size, the same edge round the picture, the cast bar inside it", function(t)
     local icon, buff, BB = ns.rotation.icon, _G.FlowBuffButton, ns.buffButton
     t:eq(ns.ICON_EDGE, 3, "one edge width for both")
     if not icon then return end
@@ -11766,7 +11766,7 @@ ns:Register("test", "easy and buff buttons: the same size, the same edge round t
     t:near(icon:GetHeight(), BB.SIZE, 0.01, "and height")
     t:ok(BB.DOCK_GAP >= 2 * ns.ICON_EDGE + 10, "docked: the gap holds both edges and the modifier names")
     if buff then
-        t:near(buff:GetWidth(), icon:GetWidth(), 0.01, "the buff button's picture matches")
+        t:near(buff:GetWidth(), icon:GetWidth(), 0.01, "the self button's picture matches")
     end
     -- The cast bar lies along the bottom of the picture: inside the edge on both.
     local CE = ns.castEdge
@@ -12217,13 +12217,13 @@ end)
 ns:Register("test", "settings: the key rows keep the key clear of the buttons, with room between rows", function(t)
     local S = ns.settings
     t:ok(S.KEY_BUTTON_X - S.KEY_VALUE_X >= 140, "the key has a column of its own before the buttons")
-    t:ok(S.KEY_VALUE_X >= 190, "past the longest label (Buff button's second key:)")
+    t:ok(S.KEY_VALUE_X >= 190, "past the longest label (Self button's second key:)")
     t:ok(S.KEY_ROW >= 30, "a little more room between the rows")
     t:ok(S.KEY_BUTTON_X + 90 + 8 + 80 <= 580, "Set key and Clear still fit in the window")
     local f = S._Build and S._Build()
     t:ok(f ~= nil, "Flow Settings builds")
     if f and f.key4Value and f.set4 then
-        t:ok(f.key4Value:GetWidth() <= S.KEY_BUTTON_X - S.KEY_VALUE_X, "the buff button's second key ends before its buttons")
+        t:ok(f.key4Value:GetWidth() <= S.KEY_BUTTON_X - S.KEY_VALUE_X, "the self button's second key ends before its buttons")
         local p, _, _, x = f.set4:GetPoint(1)
         t:ok(p == "TOPLEFT" and math.abs((x or 0) - S.KEY_BUTTON_X) < 1, "its Set key button is in the button column (" .. tostring(p) .. ", " .. tostring(x) .. ")")
     end
@@ -12367,7 +12367,7 @@ end)
 -- 0.35.273: every small icon shows its cooldown and status; nameplate threat.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "small icons: cooldown and can't-cast look on Flow's and the buff button's alike", function(t)
+ns:Register("test", "small icons: cooldown and can't-cast look on Flow's and the self button's alike", function(t)
     local grey, r, g, b = ns.StatusLook("", nil)
     t:ok(not grey and r == 1 and g == 1 and b == 1, "ready: drawn as it is")
     grey = ns.StatusLook("12", nil)
@@ -12386,11 +12386,11 @@ ns:Register("test", "small icons: cooldown and can't-cast look on Flow's and the
     local timer = { SetText = function(_, s) seen.text = s end }
     t:ok(pcall(ns.PaintStatus, tex, timer, { spell = "No Such Spell" }, GetTime()), "painting runs")
     t:ok(seen.text ~= nil and seen.grey ~= nil and seen.r ~= nil, "it sets the timer, the grey and the colour")
-    -- The buff button's icons have a timer and are kept fresh.
+    -- The self button's icons have a timer and are kept fresh.
     local K = ns.careKeys
     t:ok(K.STATUS_EVERY <= 0.5, "a few times a second")
     local ok, n = pcall(K.PaintStatus, GetTime())
-    t:ok(ok and type(n) == "number", "painting the buff button's icons runs")
+    t:ok(ok and type(n) == "number", "painting the self button's icons runs")
     for _, ic in pairs(K._icons) do
         t:ok(ic.timer ~= nil, "each has a place for its cooldown")
     end
@@ -12533,11 +12533,31 @@ ns:Register("test", "click: what left the Flow menu is in Flow Settings, as tick
             end
         end
     end
-    -- The menu's Buttons section: the buff button, and docking it.
+    -- The menu's Buttons section: the self button, and docking it.
     local items = M.ButtonItems()
-    t:eq(#items, 2, "two ticks: the buff button, and docked")
+    t:eq(#items, 2, "two ticks: the self button, and docked")
     t:ok(items[1].checked ~= nil and items[2].checked ~= nil, "both show their state")
     -- Flow Meters in the Flow menu: one tick.
     local mi = ns.meters.MenuItems()
     t:eq(#mi, 1, "Flow Meters: shown or not, the rest on its own right-click")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.278: the two buttons are the target button and the self button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "words: Flow's two buttons are the target button and the self button", function(t)
+    t:ok(ns.commands.selfbutton == ns.commands.buffbutton and ns.commands.selfbutton ~= nil, "/flow selfbutton is /flow buffbutton")
+    t:ok(ns.commands.selfkey == ns.commands.buffkey and ns.commands.selfkey2 == ns.commands.buffkey2, "/flow selfkey and selfkey2 too")
+    local items = ns.menu.ButtonItems()
+    t:ok(items[1].text:find("^Self button") ~= nil, "the menu calls it the self button")
+    local said
+    for _, x in ipairs(ns.settings.extraChecks) do
+        if type(x.label) == "string" and x.label:lower():find("buff button", 1, true) then said = x.label end
+    end
+    t:eq(said, nil, "no setting still says buff button")
+    for _, x in ipairs(ns.settings.extraChecks) do
+        if type(x.label) == "string" and x.label:lower():find("easy button", 1, true) then said = x.label end
+    end
+    t:eq(said, nil, "nor easy button")
 end)

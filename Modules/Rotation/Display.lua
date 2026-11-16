@@ -26,10 +26,10 @@ local buttonsByItem = {}   -- item ID -> buttons (a healthstone, a bandage)
 
 -- A coloured frame made of plain colour textures. Works on every client
 -- (no dependency on Blizzard art files).
--- outside: the frame goes round the parent (as the buff button's blue edge
+-- outside: the frame goes round the parent (as the self button's blue edge
 -- does) and leaves all of the parent's own area clear; else it lies on the
 -- parent's own outer few pixels.
-ns.ICON_EDGE = 3   -- the coloured edge round Flow's icon and round the buff button
+ns.ICON_EDGE = 3   -- the coloured edge round Flow's icon and round the self button
 local function makeBorder(parent, thickness, inset, outside)
     local b = { edges = {}, outside = outside and thickness or 0 }
     local o = b.outside
@@ -72,7 +72,7 @@ local function buildIcon(cfg)
     f.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
     -- Round the icon, not on it (0.35.256): the same 52 of picture inside a
-    -- 3 pixel edge as the buff button, so the two are one size, and the cast
+    -- 3 pixel edge as the self button, so the two are one size, and the cast
     -- bar along the bottom lies inside the edge on both.
     f.border = makeBorder(f, ns.ICON_EDGE, nil, true)
     f.border.fill:Hide()  -- keep the spell icon clear
@@ -366,7 +366,7 @@ local function setCooldown(cd, s)
     cd:SetCooldown(start or 0, dur or 0)
     return readable and "readable" or "none", start, dur
 end
-ns.SetCooldownFrame = setCooldown   -- (the buff button's sweep: BuffButton.lua)
+ns.SetCooldownFrame = setCooldown   -- (the self button's sweep: BuffButton.lua)
 
 -- Like an action button: grey when you can't cast it now (not enough mana,
 -- or the game says it isn't usable), red when your target is out of its
@@ -423,7 +423,7 @@ end
 -- A small icon's status (0.35.273): "each of the icons next to the easy
 -- button should show the cooldown if it's been cast, and any other status,
 -- like if it can't be cast." Flow's own modifier icons had this for spells;
--- the buff button's icons had none, and items (a potion, a bandage) had no
+-- the self button's icons had none, and items (a potion, a bandage) had no
 -- cooldown on either. One function for all of them:
 --   -> the timer's text, and the tint ({ r, g, b, grey? } or nil: as it is)
 function ns.StepStatus(s, now)
@@ -515,14 +515,14 @@ function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
 end
 
--- Is the buff button set to dock under Flow's icon (and switched on)? Then
+-- Is the self button set to dock under Flow's icon (and switched on)? Then
 -- Flow's own labels take their docked places.
 function ns.DockLayout()
     local BB = ns.buffButton
     return (BB ~= nil and BB.Docked ~= nil and BB.Docked() and BB.On()) and true or false
 end
 
--- Is the buff button docked under Flow's icon and showing, with its own
+-- Is the self button docked under Flow's icon and showing, with its own
 -- modifier icons (CareKeys.lua)? Then the two are drawn as one block.
 function ns.DockedNow()
     local BB, K = ns.buffButton, ns.careKeys
@@ -815,15 +815,15 @@ local function tick()
         icon.swing.weapon = weapon
         icon.swing.tex:SetTexture(weapon)
     end
-    -- The buff button docked under this icon (BuffButton.lua): this icon's
+    -- The self button docked under this icon (BuffButton.lua): this icon's
     -- spell name goes below both, and the modifier names are written once,
-    -- between the rows (the buff button's own).
+    -- between the rows (the self button's own).
     local docked = ns.DockedNow()
     if docked ~= icon.docked then
         icon.docked = docked
         for _, d in ipairs(icon.deck) do d.mod:SetShown(not docked) end
     end
-    -- Docked (the setting, whether or not the buff button shows right now, so
+    -- Docked (the setting, whether or not the self button shows right now, so
     -- nothing jumps about): this icon's spell name above it, its key at its
     -- bottom right. On its own: as it always was (name below, key above).
     local joined = ns.DockLayout()

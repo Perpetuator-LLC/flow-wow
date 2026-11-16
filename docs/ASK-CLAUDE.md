@@ -47,7 +47,7 @@ game closes.) So:
    the connect prompt.
 6. **Deaths:** when you die, Flow saves a death report (what Flow suggested, what you cast, when
    the low-health warning came on, the enemy). At your next reload the bridge passes it on as a
-   `DEATH` line. The watching Claude session does a post-mortem (CLAUDE.md): how the easy button
+   `DEATH` line. The watching Claude session does a post-mortem (CLAUDE.md): how the target button
    could have prevented it. It makes that improvement and tells you in a note.
 
 ## Setup

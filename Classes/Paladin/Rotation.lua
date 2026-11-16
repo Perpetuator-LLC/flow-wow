@@ -186,7 +186,7 @@ ns:Register("rotation", "PALADIN", {
         return s and s.spell
     end,
 
-    -- The easy button's queue (Queue.lua): Ctrl + key is your next strike
+    -- The target button's queue (Queue.lua): Ctrl + key is your next strike
     -- beside the key's own (the first you know that the key doesn't hold),
     -- Alt + key the stun that stops a cast. Shift + key is your heal; Alt is
     -- your healthstone or potion if you carry one.

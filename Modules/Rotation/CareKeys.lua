@@ -1,10 +1,10 @@
 -- The second key: heals and potions, with modifiers of their own.
 --
--- "Perhaps we should have two easy buttons, two key binds: one is heals and
+-- "Perhaps we should have two target buttons, two key binds: one is heals and
 -- pots, the other is attacks. If both had their hotkey with all their
 -- modifiers we can fit quite a few things: ten different casts." (0.35.206)
 --
--- Flow already has a second button with its own key: the buff button
+-- Flow already has a second button with its own key: the self button
 -- (BuffButton.lua, a contributor's: `/flow buffbutton on`, `/flow buffkey
 -- <key>`). This file gives that key the same four modifiers Flow's key has,
 -- for looking after yourself:
@@ -17,13 +17,13 @@
 --   C+S          your best bandage; without one, your cure (Cure Poison...)
 --
 -- All set before the pull, like Flow's key: the game lets nothing change in
--- a fight. Little icons left of the buff button show what each press casts.
+-- a fight. Little icons left of the self button show what each press casts.
 -- Flow's own key is untouched (Shift + key still heals, Alt is still your
 -- potion): the same heal on both keys does no harm, and nothing you're used
 -- to moves. Freeing those two presses of Flow's key for attacks is the next
 -- step, once this has been played.
 --
--- "Heals and potions on the buff button's key" (Flow Settings, Your easy
+-- "Heals and potions on the self button's key" (Flow Settings, Your easy
 -- key) turns it off. /flow carekeys says what each press is set to.
 
 local _, ns = ...
@@ -40,7 +40,7 @@ K.LABEL = { shift = "SHIFT", ctrl = "CTRL", alt = "ALT", more = "C+S" }
 K.NAME = { shift = "Shift", ctrl = "Ctrl", alt = "Alt", more = "Ctrl + Shift" }
 K.BUTTON = { shift = "careshift", ctrl = "carectrl", alt = "carealt", more = "caremore" }
 -- The icons' sizes, nearest the button first: the same as beside Flow's icon
--- ("make the buff button look much like the easy button and its additional
+-- ("make the self button look much like the target button and its additional
 -- icons", 0.35.209).
 K.SIZES = { 36, 30, 25, 22 }
 
@@ -49,7 +49,7 @@ local function cfg()
     return ns.db.buffButton
 end
 function K.Wanted() return cfg().care ~= false end
--- On: the buff button is on, has a key, and this isn't switched off.
+-- On: the self button is on, has a key, and this isn't switched off.
 function K.Active() return BB.On() and #BB.Keys() > 0 and K.Wanted() end
 
 -- The heal and the potion have left Flow's own key (0.35.207: "yes, move
@@ -145,7 +145,7 @@ function K.Now()
 end
 
 -------------------------------------------------------------------------------
--- The secure side: attributes on the buff button, bindings on its key
+-- The secure side: attributes on the self button, bindings on its key
 -------------------------------------------------------------------------------
 local owner = CreateFrame("Frame")
 local slotText, slotStep = {}, {}
@@ -228,7 +228,7 @@ function K.DockNames(btn, show)
 end
 K._dockNames = dockNames   -- (tests)
 
--- The little icons, left of the buff button: what each modifier casts.
+-- The little icons, left of the self button: what each modifier casts.
 local function paint()
     local btn = button()
     if not btn then return end
@@ -373,7 +373,7 @@ function K.PressFor(advice, words)
     local label = (ns.cast and ns.cast.ShortKey and ns.cast.ShortKey(key, GetBindingText and function(k) return GetBindingText(k, "KEY_", true) end)) or key
     return K.PressText(slot, label, words) .. (words and "" or ":")
 end
--- Flow wants a heal right now (in a fight): the buff button lights up.
+-- Flow wants a heal right now (in a fight): the self button lights up.
 function K.HealWanted()
     if not K.Active() then return false end
     for _, s in ipairs({ E.current, E.advice }) do
@@ -382,7 +382,7 @@ function K.HealWanted()
     return false
 end
 
--- A modifier is held: what this key casts with it, for the buff button's
+-- A modifier is held: what this key casts with it, for the self button's
 -- icon (as Flow's icon shows its own). nil: none held, or nothing on it.
 function K.HeldStep(mod)
     if not K.Active() then return nil end
@@ -399,7 +399,7 @@ function K.HeldStep(mod)
 end
 
 -- The key's own spell for a fight (BuffButton asks at the pull): your
--- quickest heal, or nil (off, or no heal known: the buff button's own way).
+-- quickest heal, or nil (off, or no heal known: the self button's own way).
 function K.FightKey()
     if not K.Active() then return nil end
     local ok, plan = pcall(K.Now)
@@ -427,7 +427,7 @@ function K.Lines()
         return out
     end
     if #BB.Keys() == 0 then
-        out[1] = "the buff button has no key yet: /flow buffkey <key> (heals and potions go on its modifiers)"
+        out[1] = "the self button has no key yet: /flow buffkey <key> (heals and potions go on its modifiers)"
         return out
     end
     if not K.Wanted() then out[1] = "heals and potions on the buff key: off" return out end
@@ -447,9 +447,9 @@ ns.commands.carekeys = function()
     for i, l in ipairs(K.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
 end
 ns:Register("help", "carekeys", { order = 31, title = "The second key: heals and potions", lines = {
-    "Turn on the buff button and give it a key (/flow buffbutton on, /flow buffkey <key>): in a fight that key is your quickest heal,",
+    "Turn on the self button and give it a key (/flow buffbutton on, /flow buffkey <key>): in a fight that key is your quickest heal,",
     "Shift + it your heal over time, Ctrl + it your other heal, Alt + it your healthstone or potion, Ctrl + Shift + it your bandage.",
-    "Out of a fight the two keys split the same way: the buff button's key is for you (heal up, eat, drink, bandage, cure, buffs),",
+    "Out of a fight the two keys split the same way: the self button's key is for you (heal up, eat, drink, bandage, cure, buffs),",
     "Flow's key is for your target (attacks on an enemy; heals, buffs and cures on a friendly player you target).",
     "/flow carekeys: what each press is set to.",
 } })
@@ -459,7 +459,7 @@ if ns.settings and ns.settings.AddCheck then
         group = "key",
         label = "Flow's key keeps its heal and potion too",
         note = "(Shift and Alt + Flow's key)",
-        tip = "With heals and potions on the buff button's key, Shift + Flow's key and Alt + Flow's key become two more "
+        tip = "With heals and potions on the self button's key, Shift + Flow's key and Alt + Flow's key become two more "
             .. "attacks (a druid's Entangling Roots and Nature's Grasp). Tick this to keep your heal on Shift and your "
             .. "potion on Alt of Flow's key as well.",
         get = function() return cfg().keepOnMain == true end,
@@ -469,11 +469,11 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",
-        label = "Heals and potions on the buff button's key",
-        note = "(needs the buff button and its key)",
-        tip = "In a fight the buff button's key casts your quickest heal on you; Shift + it your heal over time, "
+        label = "Heals and potions on the self button's key",
+        note = "(needs the self button and its key)",
+        tip = "In a fight the self button's key casts your quickest heal on you; Shift + it your heal over time, "
             .. "Ctrl + it your other heal, Alt + it your healthstone or healing potion, Ctrl + Shift + it your best "
-            .. "bandage. Little icons left of the buff button show each. Flow's own key is unchanged. /flow carekeys lists them.",
+            .. "bandage. Little icons left of the self button show each. Flow's own key is unchanged. /flow carekeys lists them.",
         get = function() return K.Wanted() end,
         set = function(on)
             cfg().care = on and true or false

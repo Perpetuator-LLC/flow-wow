@@ -127,7 +127,7 @@ local function refresh()
     frame.key2Value:SetText(label(ns.db.cast.key2))
     frame.clear2:SetEnabled(ns.db.cast.key2 ~= nil)
     local buffKey = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key() or nil
-    frame.key3Value:SetText(label(buffKey) .. ((buffKey and ns.buffButton and not ns.buffButton.On()) and "  |cff888888(buff button off)|r" or ""))
+    frame.key3Value:SetText(label(buffKey) .. ((buffKey and ns.buffButton and not ns.buffButton.On()) and "  |cff888888(self button off)|r" or ""))
     frame.clear3:SetEnabled(buffKey ~= nil)
     local buffKey2 = ns.buffButton and ns.buffButton.Key and ns.buffButton.Key(2) or nil
     frame.key4Value:SetText(label(buffKey2))
@@ -191,15 +191,15 @@ function S.Notice(f, kind)
 end
 
 -- Which of Flow's own keys already has this key: 1, 2 (the easy key's) or 3
--- or 4 (the buff button's two); nil: none. Pure: keys = { key1, key2, buffKey, buffKey2 }.
+-- or 4 (the self button's two); nil: none. Pure: keys = { key1, key2, buffKey, buffKey2 }.
 function S.FlowSlotOf(key, keys)
     for slot = 1, 4 do
         if key and keys[slot] == key then return slot end
     end
     return nil
 end
-S.SLOT_NAME = { "Flow's key", "Flow's second key", "the buff button's key", "the buff button's second key" }
--- Sets one of Flow's three keys (3: the buff button's).
+S.SLOT_NAME = { "Flow's key", "Flow's second key", "the self button's key", "the self button's second key" }
+-- Sets one of Flow's three keys (3: the self button's).
 local function setSlotKey(key, slot)
     if slot == 3 or slot == 4 then
         if ns.buffButton and ns.buffButton.SetKey then ns.buffButton.SetKey(key, slot == 4 and 2 or 1) end
@@ -209,7 +209,7 @@ local function setSlotKey(key, slot)
 end
 local function doneText(key, slot)
     if slot == 3 or slot == 4 then
-        return "|cff66ff66" .. label(key) .. " now presses the buff button; with Shift, Ctrl, Alt or Ctrl + Shift: your heals and potion.|r"
+        return "|cff66ff66" .. label(key) .. " now presses the self button; with Shift, Ctrl, Alt or Ctrl + Shift: your heals and potion.|r"
     end
     return "|cff66ff66" .. label(key) .. " now casts Flow's suggestion.|r"
 end
@@ -260,7 +260,7 @@ end
 
 local WIDTH = 580
 -- The key rows (0.35.268): the label, then the key in its own column, then
--- the buttons, far enough right that a long label ("Buff button's second
+-- the buttons, far enough right that a long label ("Self button's second
 -- key:") and a long key ("CTRL-SHIFT-BUTTON4") never run under them; and a
 -- little more room between the rows.
 S.KEY_VALUE_X, S.KEY_BUTTON_X, S.KEY_ROW = 200, 360, 32
@@ -441,11 +441,11 @@ local function build(parent)
     set2:SetPoint("TOPLEFT", S.KEY_BUTTON_X, y - S.KEY_ROW)
     f.clear2 = button(f, "Clear", 80)
     f.clear2:SetPoint("LEFT", set2, "RIGHT", 8, 0)
-    -- The buff button's own key (BuffButton.lua, CareKeys.lua): your second
+    -- The self button's own key (BuffButton.lua, CareKeys.lua): your second
     -- key, for buffs out of a fight and heals and potions in one.
     local name3 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name3:SetPoint("TOPLEFT", 16, y - 2 * S.KEY_ROW - 4)
-    name3:SetText("Buff button's key:")
+    name3:SetText("Self button's key:")
     f.key3Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.key3Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.key3Value:SetPoint("TOP", name3, "TOP", 0, 0)
@@ -460,7 +460,7 @@ local function build(parent)
     -- And a second key for it, as Flow's own key has (0.35.231).
     local name4 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name4:SetPoint("TOPLEFT", 16, y - 3 * S.KEY_ROW - 4)
-    name4:SetText("Buff button's second key:")
+    name4:SetText("Self button's second key:")
     f.key4Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.key4Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.key4Value:SetPoint("TOP", name4, "TOP", 0, 0)
@@ -586,8 +586,8 @@ local function build(parent)
             "Your buffs and heals always go on you, even with a friend targeted. Ticked: with a friendly player targeted, Ctrl + your easy key casts the shown heal or buff on them. Otherwise (and with this off) Ctrl + key casts your second attack, or the next way to heal up between fights.",
             function() return ns.db.cast.ctrlTarget ~= false end,
             function(on) ns.db.cast.ctrlTarget = on; if ns.cast then ns.cast:ApplyKey() end end)
-        _, y = check(f, y, "Easy button buffs your group", "(party and raid)",
-            "Out of combat, with nothing else to press, the easy button casts your buffs on the people in your group who are missing them, the right one for each: a druid's Mark of the Wild for everyone and Thorns for tanks; a paladin's Might for melee, Wisdom for casters, healers and hunters, Kings for tanks.",
+        _, y = check(f, y, "Target button buffs your group", "(party and raid)",
+            "Out of combat, with nothing else to press, the target button casts your buffs on the people in your group who are missing them, the right one for each: a druid's Mark of the Wild for everyone and Thorns for tanks; a paladin's Might for melee, Wisdom for casters, healers and hunters, Kings for tanks.",
             function() return ns.db.rotation.groupBuffs ~= false end,
             function(on) ns.db.rotation.groupBuffs = on end)
         _, y = check(f, y, "Share quests with your party", "(share yours, accept theirs; /flow share)",
@@ -878,12 +878,12 @@ local function build(parent)
     f.set4:SetScript("OnClick", function() startCapture(4) end)
     f.clear4:SetScript("OnClick", function()
         setSlotKey(nil, 4)
-        f.status:SetText("The buff button's second key cleared; that key does what it did before.")
+        f.status:SetText("The self button's second key cleared; that key does what it did before.")
         refresh()
     end)
     f.clear3:SetScript("OnClick", function()
         setSlotKey(nil, 3)
-        f.status:SetText("The buff button's key cleared; that key does what it did before.")
+        f.status:SetText("The self button's key cleared; that key does what it did before.")
         refresh()
     end)
     set:SetScript("OnClick", function() startCapture(1) end)

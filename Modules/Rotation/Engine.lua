@@ -334,7 +334,7 @@ function E:EarlyHeal(ctx, def, hurt, now)
         elseif not hot and self:Ready(sp) then hot = sp end
     end
     -- A heal that goes on healing after it lands (def.lingers: Regrowth, 21 s)
-    -- and is still on you: not that one again ("the easy button tells me to
+    -- and is still on you: not that one again ("the target button tells me to
     -- cast Regrowth again even though it is active on me", 0.35.205). Another
     -- heal if you're hit a lot; out of a fight it counts as healing you.
     local lingering, again = {}, nil
@@ -523,7 +523,7 @@ function E.Drinking()
     return (A.Buff("player", isDrinking)) and true or false
 end
 -- The game may hide your mana as it hides your health (then ManaShare is
--- nil, and the drink step used to give up: "the easy button never suggests
+-- nil, and the drink step used to give up: "the target button never suggests
 -- to drink water"). What it still says is whether you can afford a spell:
 -- when one of your heals is "usable, but no mana", you're low.
 --   def: your rotation (def.heals). -> true / false
@@ -612,9 +612,9 @@ function E:CannibalizeStep(ctx)
                  or "Hurt after your fight: walk onto the corpse and Cannibalize it (free; within 5 yards)" }
 end
 
--- part: with the buff button on (BuffButton.lua) the bandage and food are
+-- part: with the self button on (BuffButton.lua) the bandage and food are
 -- on it and only the heal spell is on the Flow key. nil = this is the Flow
--- key ("heal" when the buff button is on, else "all"); "items" = the buff
+-- key ("heal" when the self button is on, else "all"); "items" = the buff
 -- button asking. Your order still holds across the two: the heal spell waits
 -- while a bandage or food you put first is there to use, and the other way.
 -- all: a list to fill with EVERY step you could take now, in your order,
@@ -631,7 +631,7 @@ function E:Recover(ctx, def, part, all)
     if not (E.hurt >= E.HURT.outStart or direct or quite) then return nil end
     local BI, r = ns.buffItems, ns.db.rotation
     local mounted = E.Mounted()
-    -- Cannibalize first (free, on the buff button with your bandages).
+    -- Cannibalize first (free, on the self button with your bandages).
     local can = self:CannibalizeStep(ctx)
     if can then
         -- (Listing every option for the queue: it's the first of them, and
@@ -689,7 +689,7 @@ end
 
 -- Every way to heal up right now, in your recovery order (bandage, food,
 -- heal spell: the ones you carry or know). The first is what the key does;
--- the easy button's queue puts the others on Ctrl and Alt (Queue.lua), so
+-- the target button's queue puts the others on Ctrl and Alt (Queue.lua), so
 -- you choose with a modifier. Empty when you aren't hurt, or in a fight.
 function E:RecoverOptions(ctx, def)
     local out = {}
@@ -975,7 +975,7 @@ end
 -- Out of combat, with no enemy targeted, not resting, and nothing else to
 -- press: each buff in order, for everyone it fits who's missing it (or it's
 -- running out), alive and in range. Yourself: your own priority list.
--- Setting: "Easy button buffs your group" (/flow settings).
+-- Setting: "Target button buffs your group" (/flow settings).
 
 -- What someone in your group does, for picking their buff: the role they
 -- chose in the group finder first, then their class (a druid by its form).
@@ -999,7 +999,7 @@ end
 
 -- A yes/no from the game, or `unknown` when it hides the answer. Forever can
 -- hand back a "secret" true/false, and even testing one (`if checked then`)
--- errors. That stopped the easy button choosing anything out of a fight
+-- errors. That stopped the target button choosing anything out of a fight
 -- whenever you were in a group (0.35.123).
 function E.Yes(v, unknown)
     v = A.Safe(v)
@@ -1062,7 +1062,7 @@ local function auraOn(unit, names)
 end
 E.AuraOn = auraOn   -- (up, seconds left, the name that matched; nil when the game hides it)
 
--- guid -> { [spell] = when you cast it on them } (from the easy button).
+-- guid -> { [spell] = when you cast it on them } (from the target button).
 E.buffMemory = {}
 
 -- "A more powerful spell is already active" (0.35.246): someone has a
@@ -1112,7 +1112,7 @@ end
 -- Pure: why Flow isn't buffing your group right now (nil: it is looking).
 function E.GroupHeld(list, on, ctx, resting, canCast)
     if not list then return "Flow has no buffs for others for your class yet" end
-    if on == false then return "turned off (Flow Settings: Easy button buffs your group)" end
+    if on == false then return "turned off (Flow Settings: Target button buffs your group)" end
     if ctx.inCombat then return "you're in a fight" end
     if ctx.hostile then return "an enemy is targeted" end
     if resting then return "you're in a city or an inn (Flow doesn't buff there)" end
@@ -1204,7 +1204,7 @@ function E.ClearGroupCache() groupCache = nil end
 -------------------------------------------------------------------------------
 -- "When targeting friendly non-group players it would be nice to have
 -- suggested spells for friendlies: I can give Mark and Thorns, so those show,
--- and if I cast through those the easy button becomes heal; or if in combat
+-- and if I cast through those the target button becomes heal; or if in combat
 -- and their health is low, heal."
 --
 -- Out of a fight of your own, with a living friendly player targeted (in
@@ -1418,7 +1418,7 @@ function E:Explain()
     local n = 0
     for _ in pairs(known) do n = n + 1 end
     out[#out + 1] = string.format("Known spells: %d. Last error: %s", n, tostring(self.lastError or "none"))
-    -- The easy button: how its cooldown was drawn (readable, duration, hidden
+    -- The target button: how its cooldown was drawn (readable, duration, hidden
     -- or none) and its tint (grey: can't cast now, red: out of range).
     out[#out + 1] = string.format("Button: cooldown %s, tint %s", tostring(self.cooldownShown or "?"), tostring(self.buttonTint or "none"))
     local ok, ctx = pcall(self.Context, self)
@@ -1702,7 +1702,7 @@ ns:On("PLAYER_LEVEL_UP", function() E.hurt = 0 end)                -- a new leve
 ns:On("PLAYER_UNGHOST", function() E.hurt = E.HURT.outBig + 5; health.since = GetTime() end)  -- back from the dead: about half
 
 -------------------------------------------------------------------------------
--- Death reports: what happened in the fight you died in, so the easy button
+-- Death reports: what happened in the fight you died in, so the target button
 -- can learn from it. When you die, Flow says in chat what went wrong (1-3
 -- findings), saves the report (FlowDB.deathReports, the last 30, read by
 -- tools\claude-bridge.ps1 as a DEATH line for a Claude post-mortem) and logs
@@ -1833,12 +1833,12 @@ ns:On("PLAYER_DEAD", function()
     ns:Print("|cffff6060You died.|r " .. summary)
     for _, f in ipairs(findings) do print("  - " .. f) end
     if ns.claudeInbox and #ns.claudeInbox > 0 then
-        print("  |cff888888(Claude looks at each death to improve the easy button: this one goes at your next /reload.)|r")
+        print("  |cff888888(Claude looks at each death to improve the target button: this one goes at your next /reload.)|r")
     end
 end)
 
 -- A Flow window you can switch off (/flow rot off): the menus offer it back (Menu.lua).
-ns:Register("window", "easybutton", { name = "Flow easy button", order = 30,
+ns:Register("window", "easybutton", { name = "Flow target button", order = 30,
     hidden = function() return ns.db.rotation.enabled == false end,
     show = function() ns.commands.rot("on") end,
     hide = function() ns.commands.rot("off") end })

@@ -200,12 +200,12 @@ local function enemyTargeted()
 end
 
 -- A fight is near: you're about to kill a lot (BI.Killing) or an enemy is
--- targeted. The buff button lights up its buff only then.
+-- targeted. The self button lights up its buff only then.
 function BI.FightNear(ctx, now)
     return BI.Killing(ctx, now) or enemyTargeted()
 end
 
--- The buff item step. preview: also when no fight is near (the buff button
+-- The buff item step. preview: also when no fight is near (the self button
 -- shows the next one, faded, so you can pick your moment); the step then has
 -- soon = true. Without preview, nothing until you're about to fight, so the
 -- bags aren't read ten times a second for nothing.
@@ -236,7 +236,7 @@ ns:Register("action", "buff:item", { order = 2.5, get = function(ctx) return BI.
 
 -- The buff items you carry whose buff is on now, each with its time left:
 -- { { step, left } }. A stone or oil: the time left on your weapon; food:
--- Well Fed; an elixir, scroll or flask: its buff. The buff button shows the
+-- Well Fed; an elixir, scroll or flask: its buff. The self button shows the
 -- one running out first when nothing is due.
 function BI.UpcomingItems()
     if UnitIsDeadOrGhost("player") then return {} end

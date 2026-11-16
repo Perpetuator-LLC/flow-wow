@@ -372,7 +372,7 @@ Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypo
 -- The menu's two ticks for Flow's buttons.
 function Menu.ButtonItems()
     return {
-        { text = "Buff button: a second button and key, for you", stay = true, disabled = InCombatLockdown(),
+        { text = "Self button: a second button and key, for you", stay = true, disabled = InCombatLockdown(),
           checked = ns.buffButton ~= nil and ns.buffButton.On(),
           tip = "A blue button with its own key. Out of a fight: your next buff, bandage or food. In a fight: your heal; with Shift, Ctrl, Alt or Ctrl + Shift: your other heals, your potion and your bandage. Its keys are set in Flow Settings.",
           refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.On() end,
@@ -380,11 +380,11 @@ function Menu.ButtonItems()
               local BB = ns.buffButton
               if not BB or InCombatLockdown() then return end
               BB.Set(not BB.On())
-              if BB.On() and not BB.Key() then ns:Print("buff button on. It has no key yet: set one in Flow Settings (or /flow buffkey <key>).") end
+              if BB.On() and not BB.Key() then ns:Print("self button on. It has no key yet: set one in Flow Settings (or /flow buffkey <key>).") end
           end },
         { text = "   Dock it under Flow's icon", stay = true, disabled = InCombatLockdown(),
           checked = ns.buffButton ~= nil and ns.buffButton.Docked ~= nil and ns.buffButton.Docked(),
-          tip = "The buff button sits right under Flow's icon, as one block: its little icons under Flow's, and Shift, Ctrl, Alt, C+S written once between the two rows.",
+          tip = "The self button sits right under Flow's icon, as one block: its little icons under Flow's, and Shift, Ctrl, Alt, C+S written once between the two rows.",
           refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.Docked() end,
           func = function() if ns.buffButton and ns.buffButton.SetDock then ns.buffButton.SetDock(not ns.buffButton.Docked()) end end },
     }
@@ -560,7 +560,7 @@ function Menu:RouteItemsRaw()
         tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
     section("Steps on the map", stops)
 
-    -- The two buttons (0.35.277): the buff button on or off, and docked or
+    -- The two buttons (0.35.277): the self button on or off, and docked or
     -- not. Everything else about keys, the arrow's look and the extras moved
     -- to Flow Settings (Menu.SettingsSections): "that's more of a detailed
     -- setting that needs to move into the options area".

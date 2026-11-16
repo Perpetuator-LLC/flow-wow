@@ -261,7 +261,7 @@ ns:On("UI_ERROR_MESSAGE", function(_, msg) X.NoteDry(A.Safe(msg)) end)
 -- The steps
 -------------------------------------------------------------------------------
 
--- Fishing: equip the pole, at a fishing step (Flow key and buff button).
+-- Fishing: equip the pole, at a fishing step (Flow key and self button).
 -- before: remember your weapons, so they go back on when you leave.
 function X.EquipStep(ctx)
     if not (ctx and ctx.atFish) or ctx.pole then return nil end
@@ -303,7 +303,7 @@ ns:Register("action", "fish:lure", { order = 20, get = function(ctx)
 end })
 
 -- Fishing: reel in. While the line is out, the key presses Interact, which
--- clicks your bobber (press when it splashes). Flow key and buff button.
+-- clicks your bobber (press when it splashes). Flow key and self button.
 function X.ReelStep(ctx)
     if not (ctx and ctx.pole and channeling("Fishing") and X.CanInteract()) then return nil end
     if X.FriendlyTarget() then
@@ -316,7 +316,7 @@ function X.ReelStep(ctx)
 end
 ns:Register("action", "fish:reel", { order = 30, get = X.ReelStep })
 
--- Fishing: cast. Flow key and buff button.
+-- Fishing: cast. Flow key and self button.
 function X.CastStep(ctx)
     if not (ctx and ctx.fishing and ctx.pole) or channeling("Fishing") then return nil end
     if not knows("Fishing") then return nil end
@@ -705,7 +705,7 @@ end
 
 -- The quest's own item (QuestItems.lua: the one on its Flow Tracker row), at
 -- the step where it's used: the key uses it ("can that become part of the
--- easy button to cast the quest item too?", 0.35.187). Pure:
+-- target button to cast the quest item too?", 0.35.187). Pure:
 --   key: the step's key; at: you're standing at it; item: the quest's item
 --   (nil: none); have: how many are in your bags; enemy: a living enemy is
 --   targeted (then the key is for the fight); mounted; on: the setting
@@ -1147,7 +1147,7 @@ X._errors = errors   -- (tests)
 local clock = debugprofilestop
 local addPart = ns.perf and ns.perf.AddPart
 local PERF = "flow actions"
--- Pure: is this step the buff button's alone? Fishing is, while the buff
+-- Pure: is this step the self button's alone? Fishing is, while the buff
 -- button is on with a key of its own (it does every fishing step, reeling in
 -- included): the Flow key keeps to your target and your route, and the same
 -- step isn't shown on both (0.35.240).

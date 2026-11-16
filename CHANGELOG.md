@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.278
+- **The two buttons are now the target button and the self button.** What was the "easy
+  button" is the target button (attacks on an enemy; heals, buffs and cures on a friendly
+  target and your group); what was the "buff button" is the self button (your heals, food,
+  bandage, cures and buffs). Every message, menu, tooltip, setting and the docs say so.
+  `/flow selfbutton`, `/flow selfkey` and `/flow selfkey2` are the commands; the old
+  `/flow buffbutton` and `/flow buffkey` still work.
+
 ## 0.35.277
 - **A shorter Flow menu.** The arrow's look, the key bindings and the extras left the
   right-click menu for Flow Settings, where the same choices are ticks and buttons: "The

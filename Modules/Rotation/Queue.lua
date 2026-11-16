@@ -1,4 +1,4 @@
--- The easy button's queue: four things on one key. The big icon is what
+-- The target button's queue: four things on one key. The big icon is what
 -- your key casts; beside it, each a little smaller, what the key casts with
 -- a modifier held, the modifier written above it:
 --   CTRL   your second attack (Moonfire while the key casts Wrath); between
@@ -139,7 +139,7 @@ function Q.Slots(main, o)
 end
 
 -- Pure: no spell on two presses ("Bash is showing as 2 of my spells on the
--- easy button: we should never allow a duplicate"). The key first, then the
+-- target button: we should never allow a duplicate"). The key first, then the
 -- icons in their order; a later press that would cast the same spell on the
 -- same unit is left empty. (The same spell on another unit is another
 -- press: your buff on you, and on your friendly target.)

@@ -1,5 +1,5 @@
 -- Your cast, as a thin bar along the bottom edge of Flow's icon and of the
--- buff button.
+-- self button.
 --
 -- "Can both easy and buff show the cast timer on an edge of it too?"
 -- (0.35.233) While you cast or channel, a bar fills (a channel empties)

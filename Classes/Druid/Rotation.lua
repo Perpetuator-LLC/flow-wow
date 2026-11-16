@@ -232,7 +232,7 @@ ns:Register("rotation", "DRUID", {
         return s and s.spell
     end,
 
-    -- The easy button's queue (Queue.lua): what Ctrl + key and Alt + key cast
+    -- The target button's queue (Queue.lua): what Ctrl + key and Alt + key cast
     -- in a fight, for the form you're in at the pull (the first you know).
     -- Caster: Moonfire beside Wrath on Ctrl; Entangling Roots on Ctrl + Shift
     -- (to hold a mob off you while you cast); on Alt, when no healthstone or

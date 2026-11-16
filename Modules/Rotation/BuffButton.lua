@@ -1,4 +1,4 @@
--- Buff button: a second button, left of Flow's icon, for your buffs and weapon
+-- Self button: a second button, left of Flow's icon, for your buffs and weapon
 -- enhancements, so the main icon and key are only ever your fight (damage,
 -- heals, dispels, Flow Actions) and the two never get mixed up.
 --
@@ -47,7 +47,7 @@ function BB.Fishes() return BB.On() and (cfg().key ~= nil or cfg().key2 ~= nil) 
 -- shouts, shields (Lightning Shield, Power Word: Shield), Hunter's Mark, and
 -- a druid's fight form (Bear, Cat, Moonkin) when the rotation asks you to
 -- shift for the fight. Auras, aspects, blessings, Mark of the Wild and Travel
--- Form go on the buff button.
+-- Form go on the self button.
 local ON_ACTION = { "^Seal of ", " Shout$", " Shield$", "^Hunter's Mark$",
                     "^Bear Form$", "^Dire Bear Form$", "^Cat Form$", "^Moonkin Form$" }
 function BB.OnAction(rule)
@@ -244,7 +244,7 @@ end
 
 -- While the button is on, the rotation chooses from its lists without the
 -- buffs; what it would have buffed is worked out beside it, for this button.
--- Buffs for your group stay with Flow's key ("Easy button buffs your group"). The definition is put back whatever happens.
+-- Buffs for your group stay with Flow's key ("Target button buffs your group"). The definition is put back whatever happens.
 local origChoose = E.Choose
 function E:Choose()
     local def = BB.On() and self:Definition()
@@ -516,7 +516,7 @@ local function fillTooltip(tt)
     if id and tt.SetSpellByID then tt:SetSpellByID(id)
     elseif item and tt.SetItemByID then tt:SetItemByID(item) end
     if id or item then tt:AddLine(" ") end
-    tt:AddLine("Flow buff button", 1, 0.82, 0)
+    tt:AddLine("Flow self button", 1, 0.82, 0)
     if s and s.later then
         tt:AddLine("Next buff to run out: " .. BB.Left(s.left) .. " left.", 0.5, 0.8, 1, true)
     end
@@ -536,8 +536,8 @@ local function fillTooltip(tt)
     end
 end
 
--- The same size as Flow's icon (was 40: "make the buff button look much like
--- the easy button", 0.35.209); its blue edge tells the two apart.
+-- The same size as Flow's icon (was 40: "make the self button look much like
+-- the target button", 0.35.209); its blue edge tells the two apart.
 BB.SIZE = 52
 -- Docked: joined to Flow's icon, right under it, so the two read as one
 -- block ("an option to join or dock buff to easy", 0.35.228). The buff
@@ -547,8 +547,8 @@ BB.DOCK_GAP = 17     -- between the two rows: room for the modifier names (and F
 -- (Docked unless you took it off: the default since 0.35.240.)
 function BB.DockWanted(saved) return saved ~= false end
 function BB.Docked() return BB.DockWanted(cfg().dock) and _G.FlowCastButton ~= nil end
--- Docked, it has a size of its own (0.35.253: "hover the buff button and
--- scroll to resize it, independent of the easy button"): Ctrl + mouse wheel
+-- Docked, it has a size of its own (0.35.253: "hover the self button and
+-- scroll to resize it, independent of the target button"): Ctrl + mouse wheel
 -- over it. Until you've set one it's the size of Flow's icon.
 -- Pure: saved: your docked size or nil; main: Flow's icon's size.
 function BB.DockScale(saved, main)
@@ -624,7 +624,7 @@ local function build()
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     local e = ns.ICON_EDGE or 3   -- (the same edge as round Flow's icon)
     bg:SetPoint("TOPLEFT", -e, e); bg:SetPoint("BOTTOMRIGHT", e, -e)
-    bg:SetColorTexture(0.1, 0.6, 1, 0.9)   -- blue edge: the buff button
+    bg:SetColorTexture(0.1, 0.6, 1, 0.9)   -- blue edge: the self button
     edge = bg
     tex = btn:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
@@ -665,12 +665,12 @@ local function build()
     end)
     btn:HookScript("PostClick", function(_, _, down)
         if down ~= false and current and not current.idle and not InCombatLockdown() then
-            ns:Log("action", "buff button pressed: " .. describe(current))
+            ns:Log("action", "self button pressed: " .. describe(current))
         end
     end)
     -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
     -- (Docked it goes where Flow's icon goes: its handle resizes it but doesn't drag it, and the one note under both is Flow's.)
-    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the buff button", save = cfg,
+    if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the self button", save = cfg,
         fixed = function() return BB.Docked() end, quiet = function() return BB.Docked() end,
         wheel = function(delta) return BB.DockWheel(delta) end }) end
     btn:Hide()
@@ -720,7 +720,7 @@ local function tick(_, dt)
         return
     end
     -- A modifier held: the icon becomes what that press casts ("holding
-    -- modifiers should update the buff button as well", 0.35.228).
+    -- modifiers should update the self button as well", 0.35.228).
     local heldStep = ns.careKeys and ns.careKeys.HeldStep and ns.careKeys.HeldStep() or nil
     if heldStep and btn:IsShown() then
         paint(heldStep, true)
@@ -760,8 +760,8 @@ local function tick(_, dt)
     end
     local recover, camp = GetTime() - liveAt < 1 and BB.MineFirst(liveCure, liveRecover) or nil, BB.TakesCamp() and pickCamp(ctx) or nil
     local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
-    -- Nothing due ("I don't want my buff button always showing buffs: like the
-    -- easy button, if I need it show it, else what fits my target", 0.35.208):
+    -- Nothing due ("I don't want my self button always showing buffs: like the
+    -- target button, if I need it show it, else what fits my target", 0.35.208):
     -- with an enemy targeted and heals on this key, your heal, ready; else the
     -- button goes away until something is due. "Always show my next buff"
     -- (Flow Settings) brings back the buff that runs out first.
@@ -860,7 +860,7 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",
-        label = "Buff button beside Flow's icon",
+        label = "Self button beside Flow's icon",
         note = "(own key: /flow buffkey <key>)",
         tip = "Your buffs (auras, aspects, blessings, party buffs), weapon stones and oils, your bandage and "
             .. "food after a fight, and the campfire steps (place, sit) go on a "
@@ -879,9 +879,9 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",
-        label = "Buff button always shows my next buff",
+        label = "Self button always shows my next buff",
         note = "(off: only when something is due)",
-        tip = "Off: the buff button shows up when a buff, a stone, a bandage or food is due, and with an enemy targeted it "
+        tip = "Off: the self button shows up when a buff, a stone, a bandage or food is due, and with an enemy targeted it "
             .. "shows your heal; otherwise it stays away, like Flow's icon. On: it is always there, with the buff that runs out first and its time left.",
         get = function() return cfg().always == true end,
         set = function(on) cfg().always = on and true or nil end,
@@ -891,9 +891,9 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",
-        label = "Dock the buff button under the Flow icon",
+        label = "Dock the self button under the Flow icon",
         note = "(the two as one block)",
-        tip = "The buff button sits right under Flow's icon, its little icons under Flow's, with Shift, Ctrl, Alt and C+S written once between the two rows. Off: it stands where you put it.",
+        tip = "The self button sits right under Flow's icon, its little icons under Flow's, with Shift, Ctrl, Alt and C+S written once between the two rows. Off: it stands where you put it.",
         get = function() return BB.DockWanted(cfg().dock) end,
         set = function(on) BB.SetDock(on) end,
     })
@@ -902,7 +902,7 @@ end
 ns.commands.buffbutton = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then BB.Set(arg == "on") end
-    ns:Print("buff button: " .. (BB.On() and "on" or "off") .. " (/flow buffbutton on|off)")
+    ns:Print("self button: " .. (BB.On() and "on" or "off") .. " (/flow buffbutton on|off)")
     print("  key: " .. (cfg().key or "none (/flow buffkey <key>)"))
     print("  shows now: " .. (current and describe(current) or "nothing"))
     print("  held for fights: " .. tostring(lastCast or "nothing cast from it yet"))
@@ -911,7 +911,7 @@ end
 ns.commands.buffkey = function(arg)
     arg = (arg or ""):gsub("%s+", ""):upper()
     if arg == "" then
-        ns:Print("buff button key: " .. (cfg().key or "none") .. "  (/flow buffkey Q sets it, /flow buffkey off clears it)")
+        ns:Print("self button key: " .. (cfg().key or "none") .. "  (/flow buffkey Q sets it, /flow buffkey off clears it)")
         return
     end
     if arg == "OFF" then cfg().key = nil
@@ -923,20 +923,20 @@ ns.commands.buffkey = function(arg)
         cfg().key = arg
         local other = GetBindingAction and GetBindingAction(arg)
         if other and other ~= "" then
-            ns:Print(string.format("note: %s also did %s; while Flow's buff button has it, it presses the buff button.",
+            ns:Print(string.format("note: %s also did %s; while Flow's self button has it, it presses the self button.",
                 arg, _G["BINDING_NAME_" .. other] or other))
         end
     end
     applyKey()
-    ns:Print("buff button key: " .. (cfg().key or "none"))
+    ns:Print("self button key: " .. (cfg().key or "none"))
 end
 
--- /flow buffkey2 <KEY>: a second key for the buff button (off: clear it).
+-- /flow buffkey2 <KEY>: a second key for the self button (off: clear it).
 -- Flow Settings has the same, with what the key already does.
 ns.commands.buffkey2 = function(arg)
     arg = (arg or ""):gsub("%s+", ""):upper()
     if arg == "" then
-        ns:Print("buff button's second key: " .. (cfg().key2 or "none") .. "  (/flow buffkey2 R sets it, /flow buffkey2 off clears it)")
+        ns:Print("self button's second key: " .. (cfg().key2 or "none") .. "  (/flow buffkey2 R sets it, /flow buffkey2 off clears it)")
         return
     end
     if InCombatLockdown() then ns:Print("key bindings can't change in a fight") return end
@@ -948,5 +948,11 @@ ns.commands.buffkey2 = function(arg)
         end
         BB.SetKey(arg, 2)
     end
-    ns:Print("buff button's second key: " .. (cfg().key2 or "none"))
+    ns:Print("self button's second key: " .. (cfg().key2 or "none"))
 end
+
+-- The button's new name (0.35.278: "the target and self buttons"): the same
+-- commands under it. The old ones still work.
+ns.commands.selfbutton = ns.commands.buffbutton
+ns.commands.selfkey = ns.commands.buffkey
+ns.commands.selfkey2 = ns.commands.buffkey2

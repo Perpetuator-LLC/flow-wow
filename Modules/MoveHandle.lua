@@ -39,7 +39,7 @@ end
 -- opts.quiet: function, true to leave this handle's own note out (docked:
 --   the one note under both buttons is Flow's).
 -- opts.noteUnder: function returning the frame the note goes under (the
---   docked buff button: one note, under both), or nil for the button itself.
+--   docked self button: one note, under both), or nil for the button itself.
 -- Pure: does a handle show?
 function ns.HandleWanted(keyDown, inCombat, shown, off)
     return (keyDown and not inCombat and shown and not off) and true or false

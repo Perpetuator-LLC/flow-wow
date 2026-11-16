@@ -1,5 +1,5 @@
 -- Your casts against Flow's advice. In every fight, each spell you cast is
--- set beside what the easy button advised at that moment:
+-- set beside what the target button advised at that moment:
 --   "advice"  you cast what it advised
 --   "key"     you pressed your key (locked to one spell for the fight) while
 --             the advice was another spell, on your bar
@@ -135,7 +135,7 @@ function C.Report(data, fights, value)
     local out = {}
     local total = data.casts or 0
     if total == 0 then
-        out[1] = "no casts recorded yet: fight a few mobs with the easy button up."
+        out[1] = "no casts recorded yet: fight a few mobs with the target button up."
         return out
     end
     local k = data.kinds or {}
@@ -284,6 +284,6 @@ ns.commands.choices = function(arg)
 end
 
 ns:Register("help", "choices", { order = 47, title = "Your choices", lines = {
-    "/flow choices: what you cast in fights beside what the easy button advised, and the situations you chose otherwise in.",
+    "/flow choices: what you cast in fights beside what the target button advised, and the situations you chose otherwise in.",
     "Flow's rotation is tuned from this (with the diagnostics): a pattern with a reason becomes a rule.",
 } })

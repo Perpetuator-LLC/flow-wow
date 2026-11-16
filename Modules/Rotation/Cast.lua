@@ -153,13 +153,13 @@ end
 -- Where the key's bind and the held-modifier tag sit. On its own: above
 -- the icon, the tag just left of the bind (as since 0.35.199). With the buff
 -- button docked under it (0.35.236: "the key bind text anchored to the
--- bottom right of the easy button and the spell text on top; only in the
+-- bottom right of the target button and the spell text on top; only in the
 -- docked mode"): the bind at the icon's bottom right, the tag after it,
 -- so the gap between the two rows is free.
 -- The small "press this instead" icon (what Flow advises in a fight when the
 -- key holds another spell), with its few words beside it.
 --   On its own: over the icon's bottom right corner, words to its left.
---   Docked: that corner is the auto-attack badge's and the buff button is
+--   Docked: that corner is the auto-attack badge's and the self button is
 --   right under it, so it stands in the open, right of the key bind, words
 --   after it (0.35.242: it sat under the badge and over the gap).
 -- Pure: point, relative point, x, y for the icon (to the Flow icon, or to the
@@ -207,7 +207,7 @@ local function assistantSpell()
     if ok and id then return (A.SpellInfo(id)) end
 end
 
--- A key's name short enough for the corner of the easy button: "Mouse
+-- A key's name short enough for the corner of the target button: "Mouse
 -- Button 5" -> "MB5", "SHIFT-NUMPAD3" -> "S-N3", "SPACE" -> "Spc". Keys
 -- already short ("`", "F", "1") stay as the game names them.
 local SHORT = {
@@ -235,7 +235,7 @@ function C.ShortKey(key, bindingText)
     return mods .. short
 end
 
--- "`" or "` / F" (both keys). short: the easy button's corner ("` / MB5");
+-- "`" or "` / F" (both keys). short: the target button's corner ("` / MB5");
 -- otherwise the game's full names (tooltips, settings).
 function C:KeyLabel(short)
     local out = {}
@@ -246,7 +246,7 @@ function C:KeyLabel(short)
     return table.concat(out, " / ")
 end
 
--- The easy button's tooltip: what it does now (the spell's or item's own
+-- The target button's tooltip: what it does now (the spell's or item's own
 -- tooltip, then why Flow suggests it), what the key is locked to in a fight,
 -- and what's coming up next, each with its reason.
 --   shown: the suggestion (E.shown), locked: the spell the key holds in combat,
@@ -446,12 +446,12 @@ local function build(cfg)
     -- Ctrl: drag to move, mouse wheel to resize (the icon too).
     C.handle = ns:MoveHandle(btn, { name = "the Flow button", save = function() return ns.db.rotation end,
         also = function() return { E.icon } end,
-        -- Docked: the one note goes under the buff button too (0.35.247).
+        -- Docked: the one note goes under the self button too (0.35.247).
         noteUnder = function() return C.NoteUnder() end })
 end
 
 -------------------------------------------------------------------------------
--- The frame the move note goes under: the buff button when it's docked under
+-- The frame the move note goes under: the self button when it's docked under
 -- Flow's icon and showing, else nil (Flow's own button).
 function C.NoteUnder()
     local BB = ns.buffButton
@@ -599,7 +599,7 @@ function C:SetQueue(q)
 end
 -- Out of a fight: for what the key shows now. (Timed for /flow perf; one
 -- failing read must not stop the key's own update.)
-local timedQueue = ns.perf.Wrap("easy button: queue", function(s) return ns.queue.Now(s) end)
+local timedQueue = ns.perf.Wrap("target button: queue", function(s) return ns.queue.Now(s) end)
 function C.SetLiveQueue(s)
     if not ns.queue then return end
     local ok, q = pcall(timedQueue, s)

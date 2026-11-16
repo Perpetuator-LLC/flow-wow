@@ -136,7 +136,7 @@ end
 -------------------------------------------------------------------------------
 -- On your Flow key and on the Flow Tracker (0.35.224)
 -------------------------------------------------------------------------------
--- "Can we make the Flow easy button become the spell in those cases of
+-- "Can we make the Flow target button become the spell in those cases of
 -- hearth or teleport; could we even show it on the Flow Tracker, just like
 -- quest item casting?" Out of a fight, with no enemy targeted and nothing
 -- else for the key to do, the key casts the travel spell (or uses the
