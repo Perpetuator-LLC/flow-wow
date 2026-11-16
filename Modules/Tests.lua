@@ -12422,3 +12422,40 @@ ns:Register("test", "meters: your threat around a taunt is noted in words", func
     t:eq(M.ThreatNote(nil, false, "no enemy targeted"), "no figure: no enemy targeted", "nothing targeted")
     t:ok(pcall(M.MyThreat), "reading your own row runs")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.275: the upgrade arrow on a loot roll; the seller says why it stopped.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "loot rolls: an upgrade gets the green arrow and its figure on the roll window", function(t)
+    local R = ns.rollHint
+    local show, gain = R.ArrowFor({ roll = "need", gain = 2.14 })
+    t:ok(show and gain == "+2.1", "an upgrade: the arrow, and how much better")
+    show, gain = R.ArrowFor({ roll = "greed" })
+    t:ok(not show and gain == "", "not an upgrade: no arrow")
+    show = R.ArrowFor(nil)
+    t:ok(not show, "no verdict: no arrow")
+    t:ok(R.ARROW >= 16, "big enough to see at a glance")
+    -- On a stand-in roll window: made once, shown for an upgrade, hidden otherwise.
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(100, 40); f:Hide()
+    t:ok(pcall(R._arrow, f, { roll = "greed" }), "not an upgrade: runs")
+    t:eq(f.FlowRollArrow, nil, "and nothing is added to the window")
+    t:ok(pcall(R._arrow, f, { roll = "need", gain = 3 }), "an upgrade: runs")
+    t:ok(f.FlowRollArrow ~= nil and f.FlowRollArrow:IsShown(), "the arrow is on it")
+    t:eq(f.FlowRollGain:GetText(), "+3.0", "with the figure")
+    R._arrow(f, { roll = "greed" })
+    t:ok(not f.FlowRollArrow:IsShown(), "the next roll isn't one: the arrow goes")
+end)
+
+ns:Register("test", "seller: after selling 12 it says why the rest are still there", function(t)
+    local V = ns.vendor
+    local note = V.HeldNote(12, 7, 12)
+    t:ok(note ~= nil, "12 sold, 7 left: a note")
+    t:ok(note:find("sold 12", 1, true) ~= nil and note:find("The 7 below", 1, true) ~= nil, "it counts both")
+    t:ok(note:find("buy back", 1, true) ~= nil, "and says it's about buying back")
+    t:ok(note:find("can no longer be bought back", 1, true) ~= nil, "and what selling the rest costs you")
+    t:eq(V.HeldNote(12, 0, 12), nil, "nothing left: no note")
+    t:eq(V.HeldNote(5, 7, 12), nil, "fewer than 12 sold: nothing was held back")
+    t:eq(V.HeldNote(nil, nil, 12), nil, "nothing known: no note")
+end)

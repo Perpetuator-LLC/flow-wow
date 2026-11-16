@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.275
+- **Loot rolls: the upgrade arrow on the roll window.** An item that's an upgrade for you now
+  has the green arrow of your bag icons on its picture in the roll window, with how much
+  better beside it ("+2.1"), as well as the "Flow: upgrade: Need" line. Flow still never rolls
+  for you.
+- **Flow Seller says why it stopped at 12.** After selling 12 it used to just show "Sell 7
+  items". Above it now: Flow stopped on purpose, because a vendor keeps only your last 12
+  sales to buy back; the 7 are still to sell; selling them now means the first ones can no
+  longer be bought back, or leave them for your next visit.
+
 ## 0.35.274
 - Flow Meters: when you cast a taunt (Growl), your threat as the game reports it is noted in
   the diagnostics, at the cast and a moment later, to find out why the meter didn't show the

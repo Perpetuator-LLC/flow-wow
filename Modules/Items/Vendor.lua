@@ -335,7 +335,9 @@ function V:Refresh()
     y = y - 6
     f.footer:ClearAllPoints()
     f.footer:SetPoint("TOPLEFT", 10, y)
-    f.footer:SetText((#kept > 0 and ("Kept: " .. table.concat(kept, ", ") .. ". ") or "") .. "Hover an item to see why.")
+    local held = V.HeldNote(#sold, #proposed, BATCH)
+    f.footer:SetText((held and ("|cffffd100" .. held .. "|r\n") or "")
+        .. (#kept > 0 and ("Kept: " .. table.concat(kept, ", ") .. ". ") or "") .. "Hover an item to see why.")
     y = y - (f.footer:GetStringHeight() + 44)
     f:SetHeight(-y)
 
@@ -346,6 +348,19 @@ function V:Refresh()
     nSell = (junkOn and #junk or 0) + math.min(BATCH, #proposed)
     f.sellAll:SetText(anything and string.format("Sell %d item%s for %s", nSell, nSell == 1 and "" or "s", money(batchValue))
         or "Nothing to sell")
+end
+
+-- Why some are still here (0.35.275). "It sold the 12, then it says Sell 7
+-- items, and it's not clear why: we need some words that we're not selling
+-- everything so they can buy back, and that if they click that button they
+-- won't be able to." Pure: the words, or nil when nothing was held back.
+--   sold: how many Flow sold this visit; left: how many more it would sell.
+function V.HeldNote(sold, left, batch)
+    batch = batch or BATCH
+    if (left or 0) <= 0 or (sold or 0) < batch then return nil end
+    return string.format("Flow sold %d and stopped there on purpose: a vendor keeps only your last %d sales to buy back. "
+        .. "The %d below are still to sell. Sell them now and the first ones can no longer be bought back; or leave them for your next visit.",
+        sold, batch, left)
 end
 
 -- Sell every grey item right away (no confirmation), when you open a vendor.

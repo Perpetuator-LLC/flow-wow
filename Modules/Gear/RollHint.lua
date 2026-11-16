@@ -60,7 +60,38 @@ local function framesFor(rollID)
     return out
 end
 
+-- The green arrow of the bag icons, on the roll window's item (0.35.275: "it
+-- would be nice to see the icon too, so when I click roll I see it right
+-- there"), with how much better beside it. Only for an upgrade.
+R.ARROW = 22
+-- Pure: does this verdict get the arrow, and its figure ("+2.1").
+function R.ArrowFor(v)
+    if not (v and v.roll == "need") then return false, "" end
+    return true, v.gain and string.format("+%.1f", v.gain) or ""
+end
+local function arrow(f, v)
+    local show, gain = R.ArrowFor(v)
+    if not f.FlowRollArrow then
+        if not show then return end
+        local host = f.IconFrame or f
+        local a = f:CreateTexture(nil, "OVERLAY", nil, 7)
+        a:SetSize(R.ARROW, R.ARROW)
+        a:SetPoint("TOPLEFT", host, "TOPLEFT", -6, 6)
+        local ok = a.SetAtlas and pcall(a.SetAtlas, a, "bags-greenarrow")
+        if not ok then a:SetColorTexture(0.2, 1, 0.2, 0.9); a:SetSize(10, 10) end
+        f.FlowRollArrow = a
+        local g = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        g:SetPoint("LEFT", a, "RIGHT", -2, 0)
+        g:SetTextColor(0.3, 1, 0.3)
+        f.FlowRollGain = g
+    end
+    f.FlowRollArrow:SetShown(show)
+    f.FlowRollGain:SetText(gain)
+end
+R._arrow = arrow   -- (tests)
+
 local function mark(f, v)
+    pcall(arrow, f, v)
     if not f.FlowRollHint then
         local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         t:SetPoint("BOTTOM", f, "TOP", 0, 2)
