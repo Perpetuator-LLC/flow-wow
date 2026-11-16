@@ -209,6 +209,8 @@ function Q.ModView(view, slots, mod, inCombat)
     if not (step and (view or inCombat)) then return view, nil end
     local out = { kind = step.kind, mod = mod }
     for k, v in pairs(step) do out[k] = v end
+    -- (words: its plain name, for the line over the icon; label: with the press, for tooltips.)
+    out.words = step.spell or step.label or "your item"
     out.label = Q.NAME[mod] .. " + key: " .. tostring(step.spell or step.label or "your item")
     return out, mod
 end

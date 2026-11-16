@@ -541,10 +541,22 @@ end
 -- the key bind ("CTRL +"), and the picture says the spell, so that line is
 -- gone. A Flow Action still says what the press does, and a buff for
 -- someone says who it's for. Pure:
+-- 0.35.292: the spell's name is always there ("the title of the target spell
+-- is not always shown above it as I expect it to always be, and update if a
+-- modifier is pressed"): what the press casts now, by name; while you hold a
+-- modifier, that modifier's spell (without "CTRL + key:" in front, which
+-- the key bind already says). Who it's for follows the name.
 function ns.IconWords(s, debug)
     if not s then return "" end
-    if s.mod or s.shift then return (s.target and ("on " .. s.target)) or "" end
-    return s.label or (s.target and ("on " .. s.target)) or (debug and s.reason) or ""
+    local name
+    if s.mod or s.shift then
+        name = s.words or s.spell
+    else
+        name = s.label or s.spell
+    end
+    local who = s.target and ("on " .. s.target) or nil
+    if name and who then return name .. " " .. who end
+    return name or who or (debug and s.reason) or ""
 end
 
 -- Holding Shift: Shift + your key's spell (your heal) swaps in, while the
@@ -552,7 +564,7 @@ end
 -- something to press).
 function ns.ShiftView(view, healSpell, shiftDown, inCombat)
     if not (healSpell and shiftDown and (view or inCombat)) then return view, false end
-    return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, shift = true }, true
+    return { spell = healSpell, kind = "heal", label = "Shift + key: " .. healSpell, words = healSpell, shift = true }, true
 end
 
 -- Is the self button set to dock under Flow's icon (and switched on)? Then

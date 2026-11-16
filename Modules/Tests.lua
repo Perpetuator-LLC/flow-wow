@@ -12818,14 +12818,15 @@ end)
 -- 0.35.287: no "CTRL + key: ..." line over the target button.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "target button: holding a modifier doesn't write \"modifier + key\" over the icon", function(t)
-    t:eq(ns.IconWords({ spell = "Moonfire", mod = "ctrl", label = "CTRL + key: Moonfire" }), "", "a held modifier: no line (the key bind says CTRL +)")
-    t:eq(ns.IconWords({ spell = "Regrowth", shift = true, label = "Shift + key: Regrowth" }), "", "Shift for your heal: no line either")
-    t:eq(ns.IconWords({ spell = "Regrowth", mod = "ctrl", label = "CTRL + key: Regrowth", target = "Beryl" }), "on Beryl", "who it's for is still said")
+ns:Register("test", "target button: the spell's name is always over the icon, a held modifier's too, without \"modifier + key\"", function(t)
+    t:eq(ns.IconWords({ spell = "Moonfire", mod = "ctrl", label = "CTRL + key: Moonfire", words = "Moonfire" }), "Moonfire", "a held modifier: its spell's name, without CTRL + key in front")
+    t:eq(ns.IconWords({ spell = "Regrowth", shift = true, label = "Shift + key: Regrowth", words = "Regrowth" }), "Regrowth", "Shift for your heal: the heal's name")
+    t:eq(ns.IconWords({ spell = "Regrowth", mod = "ctrl", label = "CTRL + key: Regrowth", words = "Regrowth", target = "Beryl" }), "Regrowth on Beryl", "and who it's for")
+    t:eq(ns.IconWords({ item = "item:858", mod = "alt", label = "ALT + key: your item", words = "your item" }), "your item", "an item on a modifier: named too")
     t:eq(ns.IconWords({ label = "Equip your Fishing Pole" }), "Equip your Fishing Pole", "a Flow Action still says what the press does")
-    t:eq(ns.IconWords({ spell = "Mark of the Wild", target = "Beryl" }), "on Beryl", "a buff for someone: who")
-    t:eq(ns.IconWords({ spell = "Wrath" }), "", "an ordinary spell: nothing")
-    t:eq(ns.IconWords({ spell = "Wrath", reason = "filler" }, true), "filler", "debug: the reason")
+    t:eq(ns.IconWords({ spell = "Mark of the Wild", target = "Beryl" }), "Mark of the Wild on Beryl", "a buff for someone: its name and who")
+    t:eq(ns.IconWords({ spell = "Wrath" }), "Wrath", "an ordinary spell: its name, always")
+    t:eq(ns.IconWords({ reason = "filler" }, true), "filler", "nothing to name, debug on: the reason")
     t:eq(ns.IconWords(nil), "", "nothing shown: nothing")
 end)
 

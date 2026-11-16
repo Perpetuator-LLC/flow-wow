@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.292
+- **The target button always names its spell.** The line over the icon now always says what
+  the press casts, by name ("Wrath"), and who it's for when that's someone else ("Regrowth on
+  Beryl"). Hold a modifier and it changes to that modifier's spell ("Moonfire"), without the
+  "CTRL + key:" in front. Before, an ordinary spell had no name at all, and 0.35.287 had
+  taken the name away while a modifier was held.
+
 ## 0.35.291
 - Self button: the diagnostics (and `/flow selfbutton why`) now say whether presses came by
   mouse or by its key, what it's set to cast, and every frame that takes clicks and lies over
