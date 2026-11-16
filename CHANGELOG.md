@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.289
+- **Hovering a step in the Flow Router shows that step alone.** The map used to add the step
+  before and the step after, muted, with the lines between them ("from" and "to"). Now it's
+  only the step you point at, with its areas.
+- **"Show on map" says which zone a step is in.** When the step isn't on the map that opens,
+  a line across the top of the map says so: "This step is in The Barrens: right-click the
+  map to zoom out, then click The Barrens." Flow can't turn the game's map to another zone
+  itself: an add-on doing that breaks the map's own buttons in a later fight.
+
 ## 0.35.288
 - **Cooldowns on the small icons, in a fight too.** The icons beside the target button and the
   self button showed a cooldown number only when Flow could read the time, and in a fight the

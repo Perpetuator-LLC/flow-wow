@@ -9456,11 +9456,11 @@ ns:Register("test", "map: pointing at a step in a list shows it alone, between i
     t:eq(M.SoloAt(plan, "x"), nil, "not on the route: the map as usual")
     t:eq(M.SoloAt(plan, nil), nil, "pointing at nothing: the map as usual")
     local s = M.SoloStops(4, 3)
-    t:ok(#s == 3 and s[1] == 2 and s[2] == 3 and s[3] == 4, "the one before, itself, the one after")
+    t:ok(#s == 1 and s[1] == 3, "the step alone: no step before or after it (0.35.289)")
     s = M.SoloStops(4, 1)
-    t:ok(#s == 2 and s[1] == 1 and s[2] == 2, "the first step: itself and the next")
+    t:ok(#s == 1 and s[1] == 1, "the first step: itself")
     s = M.SoloStops(4, 4)
-    t:ok(#s == 2 and s[1] == 3 and s[2] == 4, "the last step: the one before and itself")
+    t:ok(#s == 1 and s[1] == 4, "the last step: itself")
     t:ok(M.SOLO_FADE < 1, "the neighbours are muted")
     -- The tracker's hover and back, with the map as it is: nothing errors.
     local was = M._HoverKey()
@@ -12857,4 +12857,20 @@ ns:Register("test", "small icons: each has the game's cooldown sweep, as the big
     for _, ic in pairs(ns.careKeys._icons) do
         t:ok(ic.cd ~= nil, "a self button's small icon has one")
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.289: a hovered step alone; "Show on map" says which zone it's in.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map: a step shown from another zone's map says where it is", function(t)
+    local M = ns.mapOverlay
+    t:eq(M.ElsewhereText("The Barrens", true), nil, "the step is on the map shown: nothing said")
+    t:eq(M.ElsewhereText("The Barrens", false),
+        "This step is in The Barrens: right-click the map to zoom out, then click The Barrens.", "on another map: which, and how to get there")
+    t:ok(M.ElsewhereText(nil, false):find("isn't on this map", 1, true) ~= nil, "zone unknown: still says it isn't here")
+    t:eq(#M.SoloStops(5, 9), 0, "a step that isn't on the route: none")
+    t:eq(#M.SoloStops(0, 1), 0, "an empty route: none")
+    t:ok(pcall(M.Banner, 1413), "working out the banner runs")
+    t:ok(pcall(M.Redraw, M), "the map still draws")
 end)

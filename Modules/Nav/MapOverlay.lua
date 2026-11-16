@@ -746,13 +746,13 @@ function M.SoloAt(plan, key)
     end
     return nil
 end
--- Pure: the steps shown with it: the one before, itself, the one after.
+-- Pure: the steps shown with it: itself, alone (0.35.289: "I don't want to
+-- see the from and to when I hover an item in the Flow Router, just that one
+-- item and its areas". It showed the step before and after, muted, with the
+-- lines between.)
 function M.SoloStops(n, at)
-    local out = {}
-    for j = at - 1, at + 1 do
-        if j >= 1 and j <= n then out[#out + 1] = j end
-    end
-    return out
+    if at and at >= 1 and at <= (n or 0) then return { at } end
+    return {}
 end
 local function drawSolo(c, mapID, plan, at, T)
     local labels = ns.nav:PlanLabels(plan)
@@ -764,15 +764,7 @@ local function drawSolo(c, mapID, plan, at, T)
             if x then pts[#pts + 1] = { j = j, x = x, y = y, s = s } end
         end
     end
-    -- The first step has no step before it: the way there starts at you
-    -- ("the top one doesn't show me to the first objective", 0.35.211).
-    if at == 1 and pts[1] and pts[1].j == 1 then
-        local px, py = toMap(ns.nav:PlayerPos(), mapID)
-        if px then legs[#legs + 1] = { px, py, pts[1].x, pts[1].y, color = T.route, alpha = FIRST_ALPHA } end
-    end
-    for k = 1, #pts - 1 do
-        legs[#legs + 1] = { pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y, color = T.route, alpha = REST_ALPHA }
-    end
+    -- (No lines: the step alone, with its areas.)
     for _, e in ipairs(pts) do
         local kind = ns.theme.kinds[ns.nav:StopKind(e.s.goal)]
         local icon = kind and string.format("|T%s:12:12|t", kind.icon) or ""
@@ -1985,6 +1977,7 @@ M._fullDraws = 0         -- (tests)
 local function fullDraw()
     local c = canvas()
     if not (c and WorldMapFrame:IsShown() and ns.nav and ns.db.nav.mapRoute ~= false) then return end
+    pcall(M.Banner, WorldMapFrame:GetMapID())
     if not host then
         host = CreateFrame("Frame", nil, c)
         host:SetAllPoints(c)
@@ -2110,6 +2103,58 @@ function M:Tick()
 end
 
 -- Highlight one step for a few seconds (opened from the tracker or arrow menu).
+-- "Show on map" for a step in another zone (0.35.289: "it should open the
+-- right zone too"). Flow can't turn the game's map to another zone: doing
+-- that from an add-on taints the map, and in a later fight its buttons are
+-- blocked (0.35.47), which is why Flow never touches it. So it says where
+-- the step is, across the top of the map, for as long as it's highlighted:
+-- "This step is in The Barrens: right-click the map to zoom out, then click
+-- The Barrens." Pure: the words, or nil when the step is on the map shown.
+function M.ElsewhereText(zone, onThisMap)
+    if onThisMap then return nil end
+    if not zone then return "This step isn't on this map: right-click the map to zoom out and find it." end
+    return string.format("This step is in %s: right-click the map to zoom out, then click %s.", zone, zone)
+end
+-- The step with this key and its zone's name, from the route and what Flow can't place.
+local function stepOf(key)
+    if not key then return nil end
+    for _, s in ipairs(ns.nav.plan or {}) do
+        if s.goal and s.goal.key == key then return s.point or (s.goal.points and s.goal.points[1]) end
+    end
+    return nil
+end
+function M.Banner(mapID)
+    local key = (focusKey and GetTime() < focusUntil and focusKey) or nil
+    local pt = stepOf(key)
+    local text
+    if pt then
+        local x = toMap(pt, mapID)
+        local zone = pt.map and ns.nav.ZoneOf and ns.nav.ZoneOf(pt.map)
+        local info = zone and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(zone)
+        text = M.ElsewhereText(info and info.name or nil, x ~= nil)
+    end
+    if not text then
+        if M.banner then M.banner:Hide() end
+        return nil
+    end
+    if not M.banner then
+        local b = CreateFrame("Frame", nil, WorldMapFrame.ScrollContainer or WorldMapFrame)
+        b:SetPoint("TOP", 0, -10)
+        b:SetSize(520, 22)
+        b.bg = b:CreateTexture(nil, "BACKGROUND")
+        b.bg:SetAllPoints()
+        b.bg:SetColorTexture(0, 0, 0, 0.75)
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        b.text:SetPoint("CENTER")
+        M.banner = b
+    end
+    M.banner:SetFrameStrata(aboveMap())
+    M.banner.text:SetText(text)
+    M.banner:SetWidth(M.banner.text:GetStringWidth() + 24)
+    M.banner:Show()
+    return text
+end
+
 function M:Focus(key, secs)
     focusKey, focusUntil = key, GetTime() + (secs or 6)
     M:Redraw()
