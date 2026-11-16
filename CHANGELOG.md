@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.291
+- Self button: the diagnostics (and `/flow selfbutton why`) now say whether presses came by
+  mouse or by its key, what it's set to cast, and every frame that takes clicks and lies over
+  it, to find out why a click on it doesn't cast.
+
 ## 0.35.290
 - **A step that needs something from another continent waits for it, and says where.** "Trial
   of the Sea Lion" sent you to the shrine with half the pendant: the other half is across the

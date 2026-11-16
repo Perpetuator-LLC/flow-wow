@@ -12914,3 +12914,32 @@ ns:Register("test", "route: steps waiting for one across the sea are held, with 
     t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 } } }, 1), 0, "every place on another continent: that continent")
     t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 }, { wx = 2, wy = 2, cont = 1 } } }, 1), nil, "one place here: not overseas")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.291: why a click on the self button might not cast.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "self button: Flow can say what lies over it and whether presses came by mouse", function(t)
+    local BB = ns.buffButton
+    t:ok(BB.Overlaps({ 0, 0, 10, 10 }, { 5, 5, 10, 10 }), "two rectangles that share a corner overlap")
+    t:ok(not BB.Overlaps({ 0, 0, 10, 10 }, { 10, 0, 10, 10 }), "side by side: they don't")
+    t:ok(not BB.Overlaps({ 0, 0, 10, 10 }, { 0, 20, 10, 10 }), "one above the other with a gap: they don't")
+    t:ok(not BB.Overlaps(nil, { 0, 0, 1, 1 }), "nothing to compare: no")
+    t:ok(BB.Above("DIALOG", 1, "MEDIUM", 50), "a higher strata is on top, whatever the level")
+    t:ok(BB.Above("MEDIUM", 60, "MEDIUM", 50), "the same strata: the higher level is on top")
+    t:ok(not BB.Above("MEDIUM", 50, "MEDIUM", 50), "the same place: not on top")
+    t:ok(not BB.Above("LOW", 99, "MEDIUM", 1), "a lower strata is underneath")
+    local ok, list = pcall(BB.Covering)
+    t:ok(ok and type(list) == "table", "looking for frames over the button runs")
+    local okW, lines = pcall(BB.WhyLines)
+    t:ok(okW and #lines >= 1, "the report builds")
+    t:ok(type(ns.commands.selfbutton) == "function", "/flow selfbutton why")
+    -- Nothing of Flow's own lies over it (the handles are hidden unless Ctrl is held).
+    if ok and BB.Shown and BB.Shown() and not ns.MoveKeyDown() then
+        local mineOver
+        for _, name in ipairs(list) do
+            if name:find("^Flow") then mineOver = name end
+        end
+        t:eq(mineOver, nil, "no frame of Flow's takes the click before the self button")
+    end
+end)

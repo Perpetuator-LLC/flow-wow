@@ -663,9 +663,13 @@ local function build()
     btn:HookScript("PreClick", function()
         if current and current.before and not InCombatLockdown() then pcall(current.before) end
     end)
-    btn:HookScript("PostClick", function(_, _, down)
-        if down ~= false and current and not current.idle and not InCombatLockdown() then
-            ns:Log("action", "self button pressed: " .. describe(current))
+    btn:HookScript("PostClick", function(self, _, down)
+        if down == false then return end
+        -- By mouse (the pointer is on it) or by its key: counted, and said in the log.
+        local mouse = self:IsMouseOver() and true or false
+        if mouse then BB.byMouse = (BB.byMouse or 0) + 1 else BB.byKey = (BB.byKey or 0) + 1 end
+        if current and not current.idle and not InCombatLockdown() then
+            ns:Log("action", "self button pressed" .. (mouse and " (mouse)" or "") .. ": " .. describe(current))
         end
     end)
     -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
@@ -674,6 +678,85 @@ local function build()
         fixed = function() return BB.Docked() end, quiet = function() return BB.Docked() end,
         wheel = function(delta) return BB.DockWheel(delta) end }) end
     btn:Hide()
+end
+
+-------------------------------------------------------------------------------
+-- Why a click on the self button might not cast (0.35.291)
+-------------------------------------------------------------------------------
+-- "Clicking on the self button doesn't cast it." Its key works (the log has
+-- the presses), so either something lies over the button and takes the
+-- click, or the click arrives and the game doesn't act on it. The log now
+-- says whether a press came by mouse, and /flow selfbutton why (also in the
+-- diagnostics) lists every frame that takes clicks and lies over the button.
+
+-- Pure: do two rectangles ({ left, bottom, width, height }, screen units) overlap?
+function BB.Overlaps(a, b)
+    if not (a and b and a[1] and b[1] and a[3] and b[3]) then return false end
+    return a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]
+end
+-- Pure: is a frame at this strata and level drawn over one at that?
+BB.STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+function BB.Above(strataA, levelA, strataB, levelB)
+    local a, b = BB.STRATA[strataA or ""] or 0, BB.STRATA[strataB or ""] or 0
+    if a ~= b then return a > b end
+    return (levelA or 0) > (levelB or 0)
+end
+local function rectOf(f)
+    local ok, l, b, w, h = pcall(f.GetRect, f)
+    if not ok or not l then return nil end
+    local s = f:GetEffectiveScale()
+    return { l * s, b * s, w * s, h * s }
+end
+local function nameOf(f)
+    local n = f.GetName and f:GetName()
+    if n then return n end
+    local p = f.GetParent and f:GetParent()
+    local pn = p and p.GetName and p:GetName()
+    return pn and ("a child of " .. pn) or "an unnamed frame"
+end
+-- The frames that take clicks, are on screen and lie over the button.
+function BB.Covering()
+    local out = {}
+    if not (btn and btn:IsVisible() and EnumerateFrames) then return out end
+    local mine = rectOf(btn)
+    if not mine then return out end
+    local strata, level = btn:GetFrameStrata(), btn:GetFrameLevel()
+    local f = EnumerateFrames()
+    local seen = 0
+    while f and seen < 20000 do
+        seen = seen + 1
+        local ok, hit = pcall(function()
+            if f == btn or (f.IsForbidden and f:IsForbidden()) then return false end
+            if not (f:IsVisible() and f:IsMouseEnabled()) then return false end
+            if not BB.Above(f:GetFrameStrata(), f:GetFrameLevel(), strata, level) then return false end
+            return BB.Overlaps(rectOf(f), mine)
+        end)
+        if ok and hit then out[#out + 1] = nameOf(f) .. " (" .. tostring(f:GetFrameStrata()) .. " " .. tostring(f:GetFrameLevel()) .. ")" end
+        f = EnumerateFrames(f)
+    end
+    return out
+end
+function BB.WhyLines()
+    local out = {}
+    if not btn then return { "self button: not built (it's off)" } end
+    out[#out + 1] = string.format("self button: %s; shown: %s; takes clicks: %s; at %s level %d; scale %.2f",
+        BB.On() and "on" or "off", tostring(btn:IsShown()), tostring(btn:IsMouseEnabled()),
+        tostring(btn:GetFrameStrata()), btn:GetFrameLevel(), btn:GetScale())
+    out[#out + 1] = string.format("  set to cast: type %s, spell %s, item %s, on %s", tostring(btn:GetAttribute("type")),
+        tostring(btn:GetAttribute("spell")), tostring(btn:GetAttribute("item")), tostring(btn:GetAttribute("unit")))
+    out[#out + 1] = string.format("  presses this session: %d by mouse, %d by key", BB.byMouse or 0, BB.byKey or 0)
+    local okC, list = pcall(BB.Covering)
+    if okC and #list > 0 then
+        out[#out + 1] = "  OVER IT (these take the click before it does): " .. table.concat(list, "; ")
+    else
+        out[#out + 1] = "  nothing that takes clicks lies over it" .. (btn:IsVisible() and "" or " (it isn't on screen now, so this can't be checked)")
+    end
+    if BB.lastCover then
+        out[#out + 1] = string.format("  while it was on screen at %s: %s", tostring(BB.lastCoverAt),
+            #BB.lastCover > 0 and ("OVER IT: " .. table.concat(BB.lastCover, "; ")) or "nothing over it")
+    end
+    out[#out + 1] = "  cast on key down: " .. tostring(GetCVar and GetCVar("ActionButtonUseKeyDown"))
+    return out
 end
 
 -- Key: an override binding, like Flow's own key (your bindings never change).
@@ -900,6 +983,10 @@ if ns.settings and ns.settings.AddCheck then
 end
 
 ns.commands.buffbutton = function(arg)
+    if (arg or ""):lower() == "why" then
+        for i, l in ipairs(BB.WhyLines()) do if i == 1 then ns:Print(l) else print(l) end end
+        return
+    end
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then BB.Set(arg == "on") end
     ns:Print("self button: " .. (BB.On() and "on" or "off") .. " (/flow buffbutton on|off)")
@@ -956,3 +1043,14 @@ end
 ns.commands.selfbutton = ns.commands.buffbutton
 ns.commands.selfkey = ns.commands.buffkey
 ns.commands.selfkey2 = ns.commands.buffkey2
+
+-- What lay over the self button the last time it was on screen (looked at
+-- every half minute out of a fight), for the diagnostics: at a reload the
+-- button may not be showing.
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(30, function()
+        if InCombatLockdown() or not (BB.Shown and BB.Shown()) then return end
+        local ok, list = pcall(BB.Covering)
+        if ok then BB.lastCover, BB.lastCoverAt = list, date("%H:%M:%S") end
+    end)
+end
