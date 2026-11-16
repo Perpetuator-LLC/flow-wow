@@ -170,6 +170,13 @@ local function graph(cont)
         all[cont] = g
     end
     if not grids[cont] then
+        -- Nearly full: straight runs are thinned first (N.Thin), so there's room to learn more.
+        if #g.x > MAX_NODES * N.THIN_AT then
+            local ok, removed = pcall(N.ThinInPlace, g)
+            if ok and removed and removed > 0 then
+                ns:Log("nav", string.format("trails: thinned %d point(s) on straight runs (continent %s, %d left)", removed, tostring(cont), #g.x))
+            end
+        end
         local grid = {}
         for i = 1, #g.x do
             local k = floor(g.x[i] / CELL) .. ":" .. floor(g.y[i] / CELL)
@@ -215,7 +222,132 @@ local function link(g, a, b)
     table.insert(g.adj[b], a)
 end
 
+-------------------------------------------------------------------------------
+-- How long each stretch takes, and thinning (0.35.286)
+-------------------------------------------------------------------------------
+-- "You're capturing where I go and the time, so you could connect the points
+-- and collapse them, right?" Flow kept the points and their joins, no time,
+-- and never tidied. Now:
+--   * each join remembers the quickest you've covered it (seconds). The trail
+--     search goes by that, so of two known ways it takes the one you got
+--     through faster (a road over a swim, the lift over the long way round),
+--     not just the shorter line. A stretch you stood or fought on is not
+--     timed (too slow to be travel), nor one too fast to be on foot or a mount.
+--   * when a continent's network is nearly full, points in the middle of a
+--     straight run are taken out and their neighbours joined, so the same
+--     ground takes fewer points and there's room to learn new places.
+N.RUN = 7                 -- yards a second on foot: an untimed stretch counts as this
+N.SLOWEST, N.FASTEST = 2, 40   -- yards a second: outside this a time isn't travel
+N.COST_MIN, N.COST_MAX = 0.5, 4   -- a timed stretch counts as this share of its length, at least and at most
+N.THIN_AT = 0.8           -- thin when a continent is this full
+N.THIN_GAP, N.THIN_OFF = 45, 2.5   -- a join after thinning is at most this long; a point this near the line is "on" it
+
+-- Pure: the seconds worth keeping for a stretch of d yards walked in `sec`,
+-- or nil when that wasn't travel.
+function N.EdgeSeconds(d, sec)
+    if type(d) ~= "number" or type(sec) ~= "number" or sec <= 0 or d <= 0 then return nil end
+    local speed = d / sec
+    if speed < N.SLOWEST or speed > N.FASTEST then return nil end
+    return floor(sec * 10 + 0.5) / 10
+end
+-- Pure: what a stretch costs the search, in yards at running speed: its
+-- length when untimed; else the time it took, kept within sensible bounds.
+function N.EdgeCost(d, sec)
+    if not sec then return d end
+    return math.max(d * N.COST_MIN, math.min(d * N.COST_MAX, sec * N.RUN))
+end
+local function edgeTime(g, a, b)
+    if a > b then a, b = b, a end
+    return g.t and g.t[a] and g.t[a][b] or nil
+end
+local function setEdgeTime(g, a, b, sec)
+    if a > b then a, b = b, a end
+    g.t = g.t or {}
+    g.t[a] = g.t[a] or {}
+    local old = g.t[a][b]
+    if not old or sec < old then g.t[a][b] = sec end
+end
+N._edgeTime, N._setEdgeTime = edgeTime, setEdgeTime   -- (tests)
+
+-- Pure: a thinned copy of a network ({ x, y, adj, indoor, t }) and how many
+-- points went. A point goes when it has exactly two neighbours that aren't
+-- joined already, lies on the line between them (within `off` yards), isn't
+-- indoors, and the new join is at most `gap` long. Times add up.
+function N.Thin(g, gap, off)
+    gap, off = gap or N.THIN_GAP, off or N.THIN_OFF
+    local count = #g.x
+    local adj, times = {}, {}
+    for a = 1, count do
+        adj[a] = {}
+        for _, b in ipairs(g.adj[a] or {}) do adj[a][b] = true end
+    end
+    for a, row in pairs(g.t or {}) do
+        for b, sec in pairs(row) do times[a .. ":" .. b] = sec end
+    end
+    local function key(a, b) if a > b then a, b = b, a end return a .. ":" .. b end
+    local gone, removed = {}, 0
+    for b = 1, count do
+        if not (g.indoor and g.indoor[b]) then
+            local nb = {}
+            for k in pairs(adj[b]) do nb[#nb + 1] = k end
+            if #nb == 2 then
+                local a, c = nb[1], nb[2]
+                local ax, ay, cx, cy = g.x[a], g.y[a], g.x[c], g.y[c]
+                local len = dist(ax, ay, cx, cy)
+                if not adj[a][c] and len <= gap and len > 0 then
+                    -- How far b lies from the line a-c.
+                    local away = math.abs((cx - ax) * (ay - g.y[b]) - (ax - g.x[b]) * (cy - ay)) / len
+                    if away <= off then
+                        adj[a][b], adj[c][b], adj[b] = nil, nil, {}
+                        adj[a][c], adj[c][a] = true, true
+                        local t1, t2 = times[key(a, b)], times[key(b, c)]
+                        if t1 and t2 then times[key(a, c)] = t1 + t2 end
+                        times[key(a, b)], times[key(b, c)] = nil, nil
+                        gone[b] = true
+                        removed = removed + 1
+                    end
+                end
+            end
+        end
+    end
+    local out = { x = {}, y = {}, adj = {} }
+    local map = {}
+    for i = 1, count do
+        if not gone[i] then
+            local m = #out.x + 1
+            out.x[m], out.y[m], map[i] = g.x[i], g.y[i], m
+            if g.indoor and g.indoor[i] then out.indoor = out.indoor or {}; out.indoor[m] = true end
+        end
+    end
+    for a = 1, count do
+        if not gone[a] then
+            local list = {}
+            for b in pairs(adj[a]) do list[#list + 1] = map[b] end
+            table.sort(list)
+            if #list > 0 then out.adj[map[a]] = list end
+        end
+    end
+    for k, sec in pairs(times) do
+        local a, b = k:match("^(%d+):(%d+)$")
+        a, b = map[tonumber(a)], map[tonumber(b)]
+        if a and b then
+            if a > b then a, b = b, a end
+            out.t = out.t or {}
+            out.t[a] = out.t[a] or {}
+            out.t[a][b] = sec
+        end
+    end
+    return out, removed
+end
+-- Thins a saved network where it lies (everything else kept on it stays).
+function N.ThinInPlace(g)
+    local thin, removed = N.Thin(g)
+    if removed > 0 then g.x, g.y, g.adj, g.indoor, g.t = thin.x, thin.y, thin.adj, thin.indoor, thin.t end
+    return removed
+end
+
 local lastNode, lastCont, lastIndoor
+local lastNodeAt   -- when you were at lastNode (for the stretch's time)
 local function record(p)
     if (UnitOnTaxi and UnitOnTaxi("player")) or (IsFlying and IsFlying()) then lastNode = nil return end
     local speed = A.Safe(GetUnitSpeed("player")) or 0
@@ -225,7 +357,7 @@ local function record(p)
     if lastNode then
         local d = dist(p.wx, p.wy, g.x[lastNode], g.y[lastNode])
         if d < SPACING then return end
-        if d > MAX_EDGE then lastNode = nil end
+        if d > MAX_EDGE then lastNode, lastNodeAt = nil, nil end
     end
     local n = nearestNode(p.cont, p.wx, p.wy, SNAP) or addNode(p.cont, p.wx, p.wy)
     -- Caves and buildings: trail points walked indoors are marked, and the
@@ -234,7 +366,12 @@ local function record(p)
     if n and indoor then g.indoor = g.indoor or {}; g.indoor[n] = true end
     if indoor and lastIndoor == false then N:AddEntrance(p) end
     lastIndoor = indoor
-    if n and lastNode and n ~= lastNode then link(g, lastNode, n) end
+    if n and lastNode and n ~= lastNode then
+        link(g, lastNode, n)
+        local sec = lastNodeAt and N.EdgeSeconds(dist(g.x[lastNode], g.y[lastNode], g.x[n], g.y[n]), GetTime() - lastNodeAt)
+        if sec then setEdgeTime(g, lastNode, n, sec) end
+    end
+    if n and n ~= lastNode then lastNodeAt = GetTime() end
     lastNode = n or lastNode
 end
 
@@ -275,7 +412,10 @@ local function astar(cont, s, t)
     local g = graph(cont)
     local tx, ty = g.x[t], g.y[t]
     local open, gScore, came, closed = {}, { [s] = 0 }, {}, {}
-    heapPush(open, s, dist(g.x[s], g.y[s], tx, ty))
+    -- (Costs are in yards at running speed: a stretch's length, or the time it
+    -- took you. The guess to the end is the straight line at the best a timed
+    -- stretch can count, so the search stays exact.)
+    heapPush(open, s, dist(g.x[s], g.y[s], tx, ty) * N.COST_MIN)
     local steps = 0
     while #open > 0 do
         steps = steps + 1
@@ -293,11 +433,11 @@ local function astar(cont, s, t)
         if not closed[cur] then
             closed[cur] = true
             for _, nb in ipairs(g.adj[cur] or {}) do
-                local ng = gScore[cur] + dist(g.x[cur], g.y[cur], g.x[nb], g.y[nb])
+                local ng = gScore[cur] + N.EdgeCost(dist(g.x[cur], g.y[cur], g.x[nb], g.y[nb]), edgeTime(g, cur, nb))
                 if not gScore[nb] or ng < gScore[nb] then
                     gScore[nb] = ng
                     came[nb] = cur
-                    heapPush(open, nb, ng + dist(g.x[nb], g.y[nb], tx, ty))
+                    heapPush(open, nb, ng + dist(g.x[nb], g.y[nb], tx, ty) * N.COST_MIN)
                 end
             end
         end

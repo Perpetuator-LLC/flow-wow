@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.286
+- **Trails remember how long each stretch takes.** Flow learned where you walk, not how
+  long it took. Each stretch now keeps the quickest you've covered it, and when two known
+  ways lead to a step the arrow takes the one you got through faster (a road over a swim),
+  not just the shorter line. Time you spent standing or fighting isn't counted. It starts
+  from what you walk from now on; trails learned before are used by their length, as before.
+- **A full trail network thins itself.** A continent holds 6,000 trail points, and once full
+  Flow learned nothing new there. When it's nearly full, points in the middle of a straight
+  run are taken out and their neighbours joined, so the same ground takes fewer points.
+  Corners, forks and points inside caves and buildings stay.
+
 ## 0.35.285
 - **A "banker" who isn't a bank is learned as not one.** Flow kept sending you to bank at the
   Crossroads, where an NPC is titled a banker but opens no bank: the quest data marks them as

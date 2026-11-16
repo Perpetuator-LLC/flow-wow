@@ -12746,3 +12746,70 @@ ns:Register("test", "professions: gathering for this zone waits behind your ques
     t:eq(SP.NextRealStep({}), nil, "an empty route: none")
     t:eq(SP.NextRealStep(nil), nil, "no route: none")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.286: trails remember how long each stretch takes, and thin themselves.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "trails: each stretch keeps the quickest time you covered it, and the search goes by it", function(t)
+    local N = ns.nav
+    t:eq(N.EdgeSeconds(15, 2.14), 2.1, "15 yards in about 2 seconds: kept, to a tenth")
+    t:eq(N.EdgeSeconds(15, 30), nil, "half a minute for 15 yards: you stood or fought, not travel")
+    t:eq(N.EdgeSeconds(15, 0.1), nil, "too fast to be on foot or a mount: not kept")
+    t:eq(N.EdgeSeconds(15, 0), nil, "no time: nothing")
+    t:eq(N.EdgeSeconds(nil, 2), nil, "no length: nothing")
+    t:eq(N.EdgeCost(15, nil), 15, "never timed: its length")
+    t:near(N.EdgeCost(15, 15 / N.RUN), 15, 0.01, "covered at running speed: its length")
+    t:ok(N.EdgeCost(15, 5) > 15, "a slow stretch (a swim, a climb) counts as longer")
+    t:ok(N.EdgeCost(15, 1) < 15, "a quick one (mounted, a road) counts as shorter")
+    t:eq(N.EdgeCost(15, 100), 15 * N.COST_MAX, "but never more than a few times its length")
+    t:eq(N.EdgeCost(15, 0.01), 15 * N.COST_MIN, "nor less than half of it")
+    local g = {}
+    N._setEdgeTime(g, 5, 2, 3.0)
+    t:eq(N._edgeTime(g, 2, 5), 3.0, "a stretch's time is the same both ways")
+    N._setEdgeTime(g, 2, 5, 4.0)
+    t:eq(N._edgeTime(g, 5, 2), 3.0, "a slower pass doesn't replace the quickest")
+    N._setEdgeTime(g, 2, 5, 2.0)
+    t:eq(N._edgeTime(g, 5, 2), 2.0, "a quicker one does")
+    t:eq(N._edgeTime(g, 1, 9), nil, "a stretch never timed: nothing")
+end)
+
+ns:Register("test", "trails: a straight run is thinned; corners, forks and indoor points stay", function(t)
+    local N = ns.nav
+    -- A straight road 1-2-3-4 (15 yards apart), a corner at 4, on to 5; a fork at 3 to 6.
+    local g = {
+        x = { 0, 15, 30, 45, 45, 30 },
+        y = { 0,  0,  0,  0, 15, -15 },
+        adj = { { 2 }, { 1, 3 }, { 2, 4, 6 }, { 3, 5 }, { 4 }, { 3 } },
+        t = { [1] = { [2] = 2 }, [2] = { [3] = 2.5 } },
+    }
+    local thin, removed = N.Thin(g, 45, 2.5)
+    t:eq(removed, 1, "one point in the middle of the straight goes (2)")
+    t:eq(#thin.x, 5, "five points left")
+    -- 1 and 3 are joined now; their time is the two added up.
+    local a, c
+    for i = 1, #thin.x do
+        if thin.x[i] == 0 and thin.y[i] == 0 then a = i end
+        if thin.x[i] == 30 and thin.y[i] == 0 then c = i end
+    end
+    local joined = false
+    for _, nb in ipairs(thin.adj[a] or {}) do if nb == c then joined = true end end
+    t:ok(joined, "its neighbours are joined in its place")
+    local lo, hi = math.min(a, c), math.max(a, c)
+    t:eq(thin.t and thin.t[lo] and thin.t[lo][hi], 4.5, "and the times add up")
+    t:eq(#(thin.adj[c] or {}), 3, "the fork keeps its three ways")
+    -- The corner (4) is off the line 3-5: it stays.
+    local corner
+    for i = 1, #thin.x do if thin.x[i] == 45 and thin.y[i] == 0 then corner = i end end
+    t:ok(corner ~= nil, "the corner stays")
+    -- Indoors: kept even on a straight line.
+    local g2 = { x = { 0, 15, 30 }, y = { 0, 0, 0 }, adj = { { 2 }, { 1, 3 }, { 2 } }, indoor = { [2] = true } }
+    local _, removed2 = N.Thin(g2, 45, 2.5)
+    t:eq(removed2, 0, "a point walked indoors stays")
+    -- Too long a join: not made.
+    local g3 = { x = { 0, 30, 60 }, y = { 0, 0, 0 }, adj = { { 2 }, { 1, 3 }, { 2 } } }
+    local _, removed3 = N.Thin(g3, 45, 2.5)
+    t:eq(removed3, 0, "a join longer than the limit isn't made")
+    t:eq(N.ThinInPlace({ x = {}, y = {}, adj = {} }), 0, "an empty network: nothing to thin")
+    t:ok(N.THIN_AT > 0.5 and N.THIN_AT < 1, "thinning starts when a continent is nearly full")
+end)
