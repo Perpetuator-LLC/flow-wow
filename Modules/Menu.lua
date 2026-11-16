@@ -405,24 +405,9 @@ function Menu.SettingsSections()
         for _, it in ipairs(safe(nav.ArrowMenuItems, nav)) do items[#items + 1] = it end
         return items
     end }
-    out[#out + 1] = { group = "key", title = "Key bindings", build = function()
-        return {
-            { text = "Key bindings: hover a button, press a key...",
-              func = function() if ns.bind and not InCombatLockdown() then ns.bind:Start() end end },
-            { text = "Show keys bound straight to spells (in chat)", func = function() ns.commands.keys() end },
-        }
-    end }
-    local B = ns.bonus
-    if B and B.SetSpoken then
-        out[#out + 1] = { group = "fun", title = "Extras", build = function()
-            return {
-                { text = "NPCs read their words aloud (text-to-speech)", checked = B:Extra("spoken"),
-                  tip = "When you talk to an NPC, the game's text-to-speech voice reads what they say. Untick to switch it off.",
-                  refresh = function(it) it.checked = B:Extra("spoken") end,
-                  func = function() B:SetSpoken(not B:Extra("spoken")) end },
-            }
-        end }
-    end
+    -- (Hover-to-bind and "show keys bound to spells" are Flow Settings' own
+    -- buttons with the keys; text-to-speech is its own tick under Bonus mode.
+    -- 0.35.280: each was there twice.)
     return out
 end
 

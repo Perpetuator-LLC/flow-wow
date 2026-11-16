@@ -821,7 +821,7 @@ end
 -- never off; Cast.lua), it's instant, and your opener comes with the next
 -- press. Only where the game has Start Attack: the Attack spell toggles, and
 -- a second press would turn it off again.
---   Off: "Start auto attack at the pull" (Flow Settings, Your easy key).
+--   Off: "Start auto attack at the pull" (Flow Settings, Easy keys).
 --   Not for one enemy (a boss whose shield hurts whoever hits it):
 --     ns:Register("noAutoAttack", "<its name>", { why = "..." })
 -- If two presses don't start it (the game refused), Flow lets it go for that
@@ -1843,7 +1843,7 @@ ns:Register("window", "easybutton", { name = "Flow target button", order = 30,
     show = function() ns.commands.rot("on") end,
     hide = function() ns.commands.rot("off") end })
 
--- Flow Settings, "Your easy key".
+-- Flow Settings, "Easy keys".
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "key",

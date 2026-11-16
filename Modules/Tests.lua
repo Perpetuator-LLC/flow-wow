@@ -6659,7 +6659,7 @@ ns:Register("test", "settings: options are grouped by when you use them; WoW's o
     t:ok(inGroup("Show WoW's quest tracker", "screen"), "WoW's quest tracker: On your screen")
     t:ok(inGroup("Flow buttons on WoW's windows", "screen"), "Flow's buttons on WoW's windows: On your screen")
     t:ok(inGroup("Finish the area you're in first", "route"), "the area-first tick: Finding your way")
-    t:ok(inGroup("Self button beside Flow's icon", "key"), "the self button: Your easy key")
+    t:ok(inGroup("Self button beside Flow's icon", "key"), "the self button: Easy keys")
     with(S, "extraChecks", { { label = "x", group = "nowhere" }, { label = "y" } }, function()
         t:eq(#S.ExtrasFor("more"), 2, "a tick with no group, or one Flow doesn't know: under More")
         t:eq(#S.ExtrasFor("route"), 0, "and nowhere else")
@@ -6668,7 +6668,7 @@ ns:Register("test", "settings: options are grouped by when you use them; WoW's o
     local ok, err = pcall(S._Build)
     t:ok(ok, "the page builds" .. (ok and "" or (": " .. tostring(err))))
     local heads = table.concat(S:Headings(), " | ")
-    t:ok(heads:find("Your easy key | In a group | Finding your way | Quests | Loot and selling | New spells and professions | On your screen", 1, true) ~= nil,
+    t:ok(heads:find("Easy keys | In a group | Finding your way | Quests | Loot and selling | New spells and professions | On your screen", 1, true) ~= nil,
         "headings by use: " .. heads)
     local wow, screen = heads:find("Suggested WoW settings", 1, true), heads:find("On your screen", 1, true)
     t:ok(wow and screen and wow > screen, "WoW's own settings come last, under their own heading")
@@ -8175,7 +8175,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
         for _, it in ipairs(sec.build()) do if it.text then inSettings[it.text] = true end end
     end
     t:ok(inSettings["The arrow"] and inSettings["Flat lines"] and inSettings["Colour by distance"], "the arrow's look is a part of Flow Settings")
-    t:ok(inSettings["Key bindings"] and inSettings["Show keys bound straight to spells (in chat)"], "and so are the key bindings")
+    t:ok(not inSettings["Key bindings"], "the key bindings are Flow Settings' own buttons, not listed a second time")
     -- Folded: one row a section, none of them the catch-all.
     local more, rows = false, 0
     for _, row in ipairs(M.Fold(items)) do
@@ -8200,12 +8200,12 @@ ns:Register("test", "click: text-to-speech has a switch among Flow Settings' ext
     local B, M = ns.bonus, ns.menu
     if not (B and B.SetSpoken) then t:ok(true, "(no Bonus extras)") return end
     local entry
-    for _, sec in ipairs(M.SettingsSections()) do
-        for _, it in ipairs(sec.build()) do
-            if it.text and it.text:find("text-to-speech", 1, true) then entry = it end
+    for _, x in ipairs(B.EXTRAS) do
+        if x.label:find("text-to-speech", 1, true) then
+            entry = { text = x.label, checked = B:Extra(x.key), func = function() B:SetSpoken(not B:Extra("spoken")) end }
         end
     end
-    t:ok(entry ~= nil, "Flow Settings has it, by a name you'd look for")
+    t:ok(entry ~= nil, "Flow Settings has it once, under Bonus mode, by a name you'd look for")
     local enabled, spoken = ns.db.bonus.enabled, ns.db.bonus.spoken
     with(ns, "Print", function() end, function()
         B:SetSpoken(true)
@@ -12519,19 +12519,14 @@ ns:Register("test", "click: what left the Flow menu is in Flow Settings, as tick
         t:ok(ok and type(items) == "table", sec.title .. ": its entries build")
     end
     t:eq(groups["The arrow"], "route", "the arrow's look: under Finding your way")
-    t:eq(groups["Key bindings"], "key", "key bindings: with your keys")
+    t:eq(groups["Key bindings"], nil, "key bindings aren't a second section: they're with the keys already")
     -- The page builds with them, and each button there runs.
     local f = S._Build and S._Build()
     t:ok(f ~= nil, "Flow Settings builds")
-    if f and f.menuButtons then
-        t:ok(#f.menuButtons >= 1, "the actions are buttons on the page")
-        for _, b in ipairs(f.menuButtons) do
-            if b:GetText() == "Show keys bound straight to spells (in chat)" then
-                local okC
-                with(ns, "Print", function() end, function() okC = pcall(b:GetScript("OnClick"), b) end)
-                t:ok(okC, "a click on a button runs")
-            end
-        end
+    if f and f.showKeys then
+        local okC
+        with(ns, "Print", function() end, function() okC = pcall(f.showKeys:GetScript("OnClick"), f.showKeys) end)
+        t:ok(okC, "a click on Show keys bound to spells runs")
     end
     -- The menu's Buttons section: the self button, and docking it.
     local items = M.ButtonItems()
@@ -12602,4 +12597,30 @@ ns:Register("test", "router: the rows start under a title that takes two lines",
     t:eq(M.TitleExtra(26, 13), 13 + M.TITLE_PAD, "two lines: a line lower, and a little room")
     t:eq(M.TitleExtra(nil, 13), 0, "unknown height: as before")
     t:ok(M.TITLE_PAD >= 3, "some room under it")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.280: one place for keys in Flow Settings; nothing listed twice.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "settings: the keys are named by button, and no entry is there twice", function(t)
+    local S, M = ns.settings, ns.menu
+    t:eq(S.GROUPS[1].title, "Easy keys", "the first group is Easy keys")
+    local f = S._Build and S._Build()
+    t:ok(f ~= nil, "Flow Settings builds")
+    if f and f.keyNames then
+        local names = {}
+        for i, fs in ipairs(f.keyNames) do names[i] = fs:GetText() end
+        t:eq(table.concat(names, " | "),
+            "Target button key: | Target button second key: | Self button key: | Self button second key:", "the four keys, named by button")
+    end
+    t:ok(f == nil or f.showKeys ~= nil, "Show keys bound to spells is with the keys")
+    -- Nothing from the menu's moved sections repeats what the page already has.
+    for _, sec in ipairs(M.SettingsSections()) do
+        for _, it in ipairs(sec.build()) do
+            local text = tostring(it.text or "")
+            t:ok(not text:find("hover a button", 1, true), sec.title .. ": no second hover-to-bind (" .. text:sub(1, 30) .. ")")
+            t:ok(not text:find("text-to-speech", 1, true), sec.title .. ": no second text-to-speech (" .. text:sub(1, 30) .. ")")
+        end
+    end
 end)

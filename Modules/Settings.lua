@@ -4,7 +4,7 @@
 -- Flow's own options are grouped by WHEN YOU USE THEM, not by which part of
 -- Flow they belong to (0.35.170; they were one long list under "Flow"):
 --
---   Your easy key  Click "Set key", press the key (modifiers and mouse
+--   Easy keys      Click "Set key", press the key (modifiers and mouse
 --                  buttons 3-5 work). If the key already does something,
 --                  Flow says what and you choose: use it anyway (your own
 --                  binding is untouched and comes back if you clear Flow's
@@ -43,7 +43,7 @@ local frame
 -- The groups, in the order they're shown. "more" only shows when a file
 -- added a tick without naming a group.
 S.GROUPS = {
-    { key = "key",    title = "Your easy key",              note = "what it casts in and around fights" },
+    { key = "key",    title = "Easy keys",                  note = "your two buttons' keys, and what they cast" },
     { key = "group",  title = "In a group",                 note = "playing with other people" },
     { key = "route",  title = "Finding your way",           note = "the arrow, the route and the map" },
     { key = "quests", title = "Quests",                     note = "at the NPC" },
@@ -412,11 +412,11 @@ local function build(parent)
     f.title:SetPoint("TOPLEFT", 16, -12)
     f.title:SetText("Flow Settings  |cff888888v" .. (ns.Version and ns.Version() or "?") .. "|r")
 
-    -- Your easy key: the key itself first (the rest of the group follows below).
+    -- Easy keys: the key itself first (the rest of the group follows below).
     local y = heading(f, -52, S.GROUPS[1].title, S.GROUPS[1].note)
     local name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name:SetPoint("TOPLEFT", 16, y - 4)
-    name:SetText("Your key:")
+    name:SetText("Target button key:")
     f.keyValue = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.keyValue:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.keyValue:SetPoint("TOP", name, "TOP", 0, 0)
@@ -430,7 +430,7 @@ local function build(parent)
     -- A second key for the same button (e.g. one under each hand).
     local name2 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name2:SetPoint("TOPLEFT", 16, y - S.KEY_ROW - 4)
-    name2:SetText("Second key:")
+    name2:SetText("Target button second key:")
     f.key2Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.key2Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.key2Value:SetPoint("TOP", name2, "TOP", 0, 0)
@@ -445,7 +445,7 @@ local function build(parent)
     -- key, for buffs out of a fight and heals and potions in one.
     local name3 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name3:SetPoint("TOPLEFT", 16, y - 2 * S.KEY_ROW - 4)
-    name3:SetText("Self button's key:")
+    name3:SetText("Self button key:")
     f.key3Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.key3Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.key3Value:SetPoint("TOP", name3, "TOP", 0, 0)
@@ -460,7 +460,7 @@ local function build(parent)
     -- And a second key for it, as Flow's own key has (0.35.231).
     local name4 = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     name4:SetPoint("TOPLEFT", 16, y - 3 * S.KEY_ROW - 4)
-    name4:SetText("Self button's second key:")
+    name4:SetText("Self button second key:")
     f.key4Value = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.key4Value:SetPoint("LEFT", f, "TOPLEFT", S.KEY_VALUE_X, 0)
     f.key4Value:SetPoint("TOP", name4, "TOP", 0, 0)
@@ -545,6 +545,19 @@ local function build(parent)
     hoverHelp:SetJustifyH("LEFT")
     hoverHelp:SetText("Hover any action button and press a key. Nothing changes until you click Save.")
     y = y - 32
+    -- The keys bound straight to a spell (from the Flow Spells list), which
+    -- the game's own Key Bindings window never lists: beside the other key
+    -- things (0.35.280: "all of the key binding stuff together").
+    local shown = button(f, "Show keys bound to spells", 170)
+    shown:SetPoint("TOPLEFT", 16, y)
+    shown:SetScript("OnClick", function() if ns.commands.keys then pcall(ns.commands.keys) end end)
+    f.showKeys = shown
+    local shownHelp = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    shownHelp:SetPoint("LEFT", shown, "RIGHT", 10, 0)
+    shownHelp:SetWidth(WIDTH - 220)
+    shownHelp:SetJustifyH("LEFT")
+    shownHelp:SetText("Lists them in chat: keys that cast a spell at once, set from the Flow Spells list.")
+    y = y - 32
     -- Heals land on you when nobody friendly is targeted (the game's Auto
     -- Self Cast, in the setup suggestions); this key forces it on you anyway.
     f.selfCastRow, y = choices(f, y, "Heal yourself: hold",
@@ -563,11 +576,11 @@ local function build(parent)
     local _
     local rows = {}
 
-    -- Your easy key: what it casts in and around fights. (The key itself,
+    -- Easy keys: what it casts in and around fights. (The key itself,
     -- hover-to-bind and "heal yourself" are above, under the same heading.)
     rows.key = function()
         _, y = check(f, y, "Shift + easy key heals you", "(works in fights too)",
-            "Your easy key can't change what it casts during a fight (WoW's rule), so a heal Flow shows mid-fight can't be cast with it. Shift + your key always casts your fastest heal on you, fights included.",
+            "The target button's key can't change what it casts during a fight (WoW's rule), so a heal Flow shows mid-fight can't be cast with it. Shift + your key always casts your fastest heal on you, fights included.",
             function() return ns.db.cast.shiftHeal ~= false end,
             function(on) ns.db.cast.shiftHeal = on end)
         _, y = check(f, y, "Alt + easy key: healthstone or potion", "(works in fights too)",

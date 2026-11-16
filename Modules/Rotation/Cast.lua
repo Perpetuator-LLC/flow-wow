@@ -772,7 +772,7 @@ end)
 --       none = { key = "Wrath", ctrl = "Moonfire" },           -- no form
 --       ["Bear Form"] = { key = "Maul", ctrl = "Demoralizing Roar" } } end
 --
--- "The key follows your form in a fight" (Flow Settings, Your easy key)
+-- "The key follows your form in a fight" (Flow Settings, Easy keys)
 -- turns it off. /flow key test says what each form is given.
 
 -- The presses a change of form may swap: the key, and each modifier by the

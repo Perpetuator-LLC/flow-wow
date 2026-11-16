@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.280
+- **Flow Settings: the keys in one place, nothing twice.** The first group is "Easy keys", and
+  its four keys are named by button: Target button key, Target button second key, Self button
+  key, Self button second key. "Hover to bind keys" was there twice (one came with the
+  entries moved out of the menu): once now, with "Show keys bound to spells" beside it.
+  Text-to-speech was there twice too (under Bonus mode, and again as "Extras"): once now,
+  under Bonus mode.
+
 ## 0.35.279
 - **Aquatic Form links to its quest.** "Get Aquatic Form (level 16, class quest)" had no step
   to open. It's a quest chain, and Flow now knows it: the line says where you are in it
