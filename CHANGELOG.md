@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.277
+- **A shorter Flow menu.** The arrow's look, the key bindings and the extras left the
+  right-click menu for Flow Settings, where the same choices are ticks and buttons: "The
+  arrow" under Finding your way, "Key bindings" with your keys, "Extras" under Just for fun.
+  The menu keeps a "Buttons" section with two ticks: the buff button on or off, and docked
+  under Flow's icon or not.
+- **Flow Meters is one tick in the menu:** shown or not. When they show (in combat, in a
+  group, always) and how many rows (2, 5, 10) are on the meters' own right-click menu.
+
 ## 0.35.276
 - **The gathering step says what to pick.** "Herbalism: 35 -> 50 (Mageroyal here needs 50)"
   named the skill and the herb out of reach, not the ones to gather. It now reads "Pick

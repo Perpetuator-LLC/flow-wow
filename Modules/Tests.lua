@@ -2212,6 +2212,11 @@ ns:Register("test", "click: arrow style and colour in the menu and on the settin
             if it.text == "Flat lines" then flat = it end
             if it.text == "Colour by distance" then col = it end
         end
+        -- (0.35.277: the arrow's look left the Flow menu for Flow Settings; its entries are the same ones.)
+        for _, it in ipairs(N:ArrowMenuItems()) do
+            if it.text == "Flat lines" then flat = flat or it end
+            if it.text == "Colour by distance" then col = col or it end
+        end
         t:ok(flat and col, "menu: the styles and the colour switch")
         if flat then pcall(flat.func) end
         t:eq(N:ArrowStyle(), "flat", "menu: flat arrow")
@@ -8161,9 +8166,16 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     t:eq(twice, nil, "no section and no entry twice")
     t:eq(titles[1], "Order", "Order first")
     t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
-        and seen["Steps on the map"] and seen.Arrow and seen.Keys and seen["Flow windows"], "the sections every Flow menu has")
+        and seen["Steps on the map"] and seen.Buttons and seen["Flow windows"], "the sections every Flow menu has")
+    t:ok(not seen.Arrow and not seen.Keys and not seen.Extras, "the arrow's look, the keys and the extras are in Flow Settings now")
     t:ok(texts["Flow Settings"] and texts["Flow Improvements"], "Flow's windows are a click away")
-    t:ok(texts["Flat lines"] and texts["Colour by distance"], "the arrow's look is a section of it")
+    local inSettings = {}
+    for _, sec in ipairs(M.SettingsSections()) do
+        inSettings[sec.title] = true
+        for _, it in ipairs(sec.build()) do if it.text then inSettings[it.text] = true end end
+    end
+    t:ok(inSettings["The arrow"] and inSettings["Flat lines"] and inSettings["Colour by distance"], "the arrow's look is a part of Flow Settings")
+    t:ok(inSettings["Key bindings"] and inSettings["Show keys bound straight to spells (in chat)"], "and so are the key bindings")
     -- Folded: one row a section, none of them the catch-all.
     local more, rows = false, 0
     for _, row in ipairs(M.Fold(items)) do
@@ -8184,14 +8196,16 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     t:eq(ticked, 1, "Arrow: one style ticked")
 end)
 
-ns:Register("test", "click: text-to-speech has a switch in the Flow menu", function(t)
+ns:Register("test", "click: text-to-speech has a switch among Flow Settings' extras", function(t)
     local B, M = ns.bonus, ns.menu
     if not (B and B.SetSpoken) then t:ok(true, "(no Bonus extras)") return end
     local entry
-    for _, it in ipairs(M:RouteItems()) do
-        if it.text and it.text:find("text-to-speech", 1, true) then entry = it end
+    for _, sec in ipairs(M.SettingsSections()) do
+        for _, it in ipairs(sec.build()) do
+            if it.text and it.text:find("text-to-speech", 1, true) then entry = it end
+        end
     end
-    t:ok(entry ~= nil, "the Flow menu has it, by a name you'd look for")
+    t:ok(entry ~= nil, "Flow Settings has it, by a name you'd look for")
     local enabled, spoken = ns.db.bonus.enabled, ns.db.bonus.spoken
     with(ns, "Print", function() end, function()
         B:SetSpoken(true)
@@ -9730,16 +9744,16 @@ ns:Register("test", "settings: one key for one Flow button; a conflict can be cl
     t:ok(type(BB.SetKey) == "function" and type(BB.Key) == "function", "the buff button's key can be set from the settings")
 end)
 
-ns:Register("test", "click: the Flow menu's Keys section toggles the buff button", function(t)
+ns:Register("test", "click: the Flow menu's Buttons section toggles the buff button", function(t)
     local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
     t:ok(ok and type(items) == "table", "the menu builds")
     local found, keys
     for _, it in ipairs(ok and items or {}) do
-        if type(it.text) == "string" and it.text:find("^Buff button: a second key") then found = it end
-        if type(it.text) == "string" and it.text:find("^Set Flow's keys") then keys = it end
+        if type(it.text) == "string" and it.text:find("^Buff button: a second button and key") then found = it end
+        if type(it.text) == "string" and it.text:find("Dock it under", 1, true) then keys = it end
     end
-    t:ok(found ~= nil, "the Keys section has the buff button's tick")
-    t:ok(keys ~= nil and type(keys.func) == "function", "and an entry to set both buttons' keys")
+    t:ok(found ~= nil, "the Buttons section has the buff button's tick")
+    t:ok(keys ~= nil and type(keys.func) == "function", "and one to dock it")
     if not found or InCombatLockdown() then return end
     local BB = ns.buffButton
     local was = BB.On()
@@ -9876,13 +9890,13 @@ end)
 ns:Register("test", "click: Flow Meters in the Flow menu turns them on and off, and sets the rows", function(t)
     local M = ns.meters
     local items = M.MenuItems()
-    t:ok(#items == 5, "a tick, the always-shown switch and three row choices")
+    t:ok(#items == 1, "one tick: shown or not (the rest is on the meters' own menu)")
     local was, rows = ns.db.meters.off, ns.db.meters.rows
     local ok, err = pcall(items[1].func)
     t:ok(ok, "the tick runs" .. (ok and "" or (": " .. tostring(err))))
     t:eq(M.On(), was == true, "and flips them")
-    ok = pcall(items[4].func)
-    t:ok(ok and M.RowCount() == 5, "five rows on a click")
+    ok = pcall(items[1].func)
+    t:ok(ok, "and back")
     ns.db.meters.off, ns.db.meters.rows = was, rows
     pcall(M.Update)
 end)
@@ -12480,4 +12494,50 @@ ns:Register("test", "professions: the gathering step names the herbs you can pic
     t:eq(SP.NameList({ "Earthroot" }), "Earthroot", "one")
     t:eq(SP.NameList({}), nil, "none: nothing to name")
     t:eq(SP.NameList({ "A", "B", "C", "D", "E" }, 3), "A, B or C", "no more than three named")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.277: the arrow's look, key bindings and extras live in Flow Settings.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: what left the Flow menu is in Flow Settings, as ticks and buttons that work", function(t)
+    local S, M = ns.settings, ns.menu
+    t:eq(S.MenuRowKind({ text = "x", checked = true, func = function() end }), "check", "an entry with a tick stays a tick")
+    t:eq(S.MenuRowKind({ text = "x", radio = true, func = function() end }), "check", "one of a set too")
+    t:eq(S.MenuRowKind({ text = "x", func = function() end }), "action", "an entry that does something becomes a button")
+    t:eq(S.MenuRowKind({ title = true, text = "x" }), nil, "a title isn't a row")
+    t:eq(S.MenuRowKind({ sep = true }), nil, "nor a line")
+    t:eq(S.MenuRowKind({ text = "only words" }), nil, "nor words with nothing to click")
+    t:eq(S.MenuRowText({ text = "   Dock it" }), "Dock it", "the menu's indent is dropped")
+    local list = { { text = "A" }, { text = "   B", checked = true } }
+    t:ok(S.FindMenuItem(list, "B") == list[2], "an entry is found again by its words")
+    t:eq(S.FindMenuItem(list, "C"), nil, "one that's gone: none")
+    local groups = {}
+    for _, sec in ipairs(M.SettingsSections()) do
+        groups[sec.title] = sec.group
+        local ok, items = pcall(sec.build)
+        t:ok(ok and type(items) == "table", sec.title .. ": its entries build")
+    end
+    t:eq(groups["The arrow"], "route", "the arrow's look: under Finding your way")
+    t:eq(groups["Key bindings"], "key", "key bindings: with your keys")
+    -- The page builds with them, and each button there runs.
+    local f = S._Build and S._Build()
+    t:ok(f ~= nil, "Flow Settings builds")
+    if f and f.menuButtons then
+        t:ok(#f.menuButtons >= 1, "the actions are buttons on the page")
+        for _, b in ipairs(f.menuButtons) do
+            if b:GetText() == "Show keys bound straight to spells (in chat)" then
+                local okC
+                with(ns, "Print", function() end, function() okC = pcall(b:GetScript("OnClick"), b) end)
+                t:ok(okC, "a click on a button runs")
+            end
+        end
+    end
+    -- The menu's Buttons section: the buff button, and docking it.
+    local items = M.ButtonItems()
+    t:eq(#items, 2, "two ticks: the buff button, and docked")
+    t:ok(items[1].checked ~= nil and items[2].checked ~= nil, "both show their state")
+    -- Flow Meters in the Flow menu: one tick.
+    local mi = ns.meters.MenuItems()
+    t:eq(#mi, 1, "Flow Meters: shown or not, the rest on its own right-click")
 end)

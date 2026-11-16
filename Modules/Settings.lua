@@ -65,6 +65,24 @@ S.extraChecks = {}
 function S:AddCheck(def)
     self.extraChecks[#self.extraChecks + 1] = def
 end
+-- Menu sections shown here (0.35.277). Pure: what kind of row an entry of
+-- a menu becomes: "check" (it has a tick), "action" (it does something),
+-- nil (a title, a line, nothing to click).
+function S.MenuRowKind(it)
+    if type(it) ~= "table" or it.title or it.sep or it.rule or not it.func then return nil end
+    if it.checked ~= nil or it.radio then return "check" end
+    return "action"
+end
+-- Pure: an entry's words without the menu's indent.
+function S.MenuRowText(it) return (tostring(it.text or ""):gsub("^%s+", "")) end
+-- Pure: the entry of a freshly built list with the same words.
+function S.FindMenuItem(items, text)
+    for _, it in ipairs(items or {}) do
+        if S.MenuRowText(it) == text then return it end
+    end
+    return nil
+end
+
 -- The added ticks that belong to one group, in the order they were added.
 function S.ExtrasFor(key)
     local out = {}
@@ -735,6 +753,45 @@ local function build(parent)
             local after = rows[g.key] and rows[g.key]()
             for _, x in ipairs(extras) do
                 _, y = check(f, y, x.label, x.note, x.tip, x.get, x.set)
+            end
+            -- What moved here from the arrow's menu: a small heading, then its entries.
+            for _, sec in ipairs((ns.menu and ns.menu.SettingsSections and ns.menu.SettingsSections()) or {}) do
+                if sec.group == g.key then
+                    local okB, list = pcall(sec.build)
+                    local drawn = false
+                    for _, it in ipairs(okB and list or {}) do
+                        local kind = S.MenuRowKind(it)
+                        if kind and not drawn then
+                            drawn = true
+                            local sub = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                            sub:SetPoint("TOPLEFT", 16, y - 6)
+                            sub:SetText(sec.title)
+                            y = y - 24
+                        end
+                        local text = S.MenuRowText(it)
+                        local function current()
+                            local okN, now = pcall(sec.build)
+                            local cur = okN and S.FindMenuItem(now, text) or nil
+                            if cur and cur.refresh then pcall(cur.refresh, cur) end
+                            return cur
+                        end
+                        if kind == "check" then
+                            _, y = check(f, y, text, nil, it.tip,
+                                function() local cur = current(); return (cur and cur.checked) and true or false end,
+                                function() local cur = current(); if cur and cur.func then cur.func() end end)
+                        elseif kind == "action" then
+                            local b = button(f, text, 420)
+                            b:SetPoint("TOPLEFT", 18, y)
+                            b:SetScript("OnClick", function()
+                                local cur = current()
+                                if cur and cur.func then pcall(cur.func) end
+                            end)
+                            f.menuButtons = f.menuButtons or {}
+                            f.menuButtons[#f.menuButtons + 1] = b
+                            y = y - 28
+                        end
+                    end
+                end
             end
             if type(after) == "function" then after() end
         end

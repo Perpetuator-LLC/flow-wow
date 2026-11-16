@@ -658,21 +658,12 @@ end
 
 -- The Flow menu's entries (Menu.lua puts them under Flow windows).
 function M.MenuItems()
-    local items = { { text = "Flow Meters: threat and DPS in a group", stay = true, checked = M.On(),
-        tip = "Two small lists, shown in a party or raid and at training dummies: threat on your target, and damage per second. The top two and you.",
+    -- One tick (0.35.277): shown or not. When, and how many rows, are on the
+    -- meters' own right-click menu.
+    return { { text = "Flow Meters (right-click them for when they show, and rows)", stay = true, checked = M.On(),
+        tip = "Two small lists: threat on your target, and damage or healing. Right-click the meters themselves to choose when they show (in combat, in a group, always), how many rows, and what they count.",
         refresh = function(it) it.checked = M.On() end,
         func = function() cfg().off = M.On() or nil; pcall(M.Update) end } }
-    items[#items + 1] = { text = "   Flow Meters: always shown (alone too)", stay = true, checked = cfg().always == true,
-        tip = "Off: the meters show in a party or raid and while a training dummy is your target. On: always. /flow meter does the same.",
-        refresh = function(it) it.checked = cfg().always == true end,
-        func = function() M.SetAlways(not cfg().always) end }
-    for _, n in ipairs(M.ROWS) do
-        items[#items + 1] = { text = "   Flow Meters rows: " .. M.RowsLabel(n), stay = true,
-            radio = true, checked = M.RowCount() == n,
-            refresh = function(it) it.checked = M.RowCount() == n end,
-            func = function() cfg().rows = n; pcall(M.Update) end }
-    end
-    return items
 end
 
 -------------------------------------------------------------------------------

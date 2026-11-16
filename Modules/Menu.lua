@@ -367,7 +367,64 @@ end
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
 Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
-                  "Steps on the map", "Arrow", "Keys", "Extras", "Flow windows" }
+                  "Steps on the map", "Buttons", "Flow windows" }
+
+-- The menu's two ticks for Flow's buttons.
+function Menu.ButtonItems()
+    return {
+        { text = "Buff button: a second button and key, for you", stay = true, disabled = InCombatLockdown(),
+          checked = ns.buffButton ~= nil and ns.buffButton.On(),
+          tip = "A blue button with its own key. Out of a fight: your next buff, bandage or food. In a fight: your heal; with Shift, Ctrl, Alt or Ctrl + Shift: your other heals, your potion and your bandage. Its keys are set in Flow Settings.",
+          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.On() end,
+          func = function()
+              local BB = ns.buffButton
+              if not BB or InCombatLockdown() then return end
+              BB.Set(not BB.On())
+              if BB.On() and not BB.Key() then ns:Print("buff button on. It has no key yet: set one in Flow Settings (or /flow buffkey <key>).") end
+          end },
+        { text = "   Dock it under Flow's icon", stay = true, disabled = InCombatLockdown(),
+          checked = ns.buffButton ~= nil and ns.buffButton.Docked ~= nil and ns.buffButton.Docked(),
+          tip = "The buff button sits right under Flow's icon, as one block: its little icons under Flow's, and Shift, Ctrl, Alt, C+S written once between the two rows.",
+          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.Docked() end,
+          func = function() if ns.buffButton and ns.buffButton.SetDock then ns.buffButton.SetDock(not ns.buffButton.Docked()) end end },
+    }
+end
+
+-- What left the menu for Flow Settings: each a group there, a small heading
+-- and the same entries (a tick stays a tick, an action becomes a button).
+function Menu.SettingsSections()
+    local nav = ns.nav
+    local function safe(fn, ...)
+        if not fn then return {} end
+        local ok, res = pcall(fn, ...)
+        return (ok and type(res) == "table") and res or {}
+    end
+    local out = {}
+    out[#out + 1] = { group = "route", title = "The arrow", build = function()
+        local items = safe(nav.TravelMenuItems)
+        for _, it in ipairs(safe(nav.ArrowMenuItems, nav)) do items[#items + 1] = it end
+        return items
+    end }
+    out[#out + 1] = { group = "key", title = "Key bindings", build = function()
+        return {
+            { text = "Key bindings: hover a button, press a key...",
+              func = function() if ns.bind and not InCombatLockdown() then ns.bind:Start() end end },
+            { text = "Show keys bound straight to spells (in chat)", func = function() ns.commands.keys() end },
+        }
+    end }
+    local B = ns.bonus
+    if B and B.SetSpoken then
+        out[#out + 1] = { group = "fun", title = "Extras", build = function()
+            return {
+                { text = "NPCs read their words aloud (text-to-speech)", checked = B:Extra("spoken"),
+                  tip = "When you talk to an NPC, the game's text-to-speech voice reads what they say. Untick to switch it off.",
+                  refresh = function(it) it.checked = B:Extra("spoken") end,
+                  func = function() B:SetSpoken(not B:Extra("spoken")) end },
+            }
+        end }
+    end
+    return out
+end
 
 function Menu:RouteItemsRaw()
     local nav = ns.nav
@@ -503,52 +560,11 @@ function Menu:RouteItemsRaw()
         tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
     section("Steps on the map", stops)
 
-    -- The arrow's look (Nav.lua).
-    -- (First: walking to a step Flow would have you teleport or hearth to.)
-    local arrowItems = safe(nav.TravelMenuItems)
-    for _, it in ipairs(safe(nav.ArrowMenuItems, nav)) do arrowItems[#arrowItems + 1] = it end
-    section("Arrow", arrowItems)
-
-    section("Keys", {
-        -- Both of Flow's buttons and their keys ("we should be able to toggle the
-        -- buff button on in the menu and bind both", 0.35.207).
-        { text = "Set Flow's keys: the easy key and the buff button's (Flow Settings)...", disabled = InCombatLockdown(),
-          tip = "Flow's key, a second key for it, and the buff button's own key. A key something else uses is shown, and can be taken off that.",
-          func = function() if ns.settings and ns.settings.Open then ns.settings:Open() end end },
-        { text = "Buff button: a second key for buffs, heals and potions", stay = true, disabled = InCombatLockdown(),
-          checked = ns.buffButton ~= nil and ns.buffButton.On(),
-          tip = "A blue button left of Flow's icon with its own key. Out of a fight: your next buff, bandage or food. In a fight: your heal; with Shift, Ctrl, Alt or Ctrl + Shift: your other heals, your potion, your bandage. Flow's own key then has Shift and Alt free for two more attacks.",
-          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.On() end,
-          func = function()
-              local BB = ns.buffButton
-              if not BB or InCombatLockdown() then return end
-              BB.Set(not BB.On())
-              if BB.On() and not BB.Key() then ns:Print("buff button on. It has no key yet: Flow menu, Keys, \"Set Flow's keys\" (or /flow buffkey <key>).") end
-          end },
-        { text = "   Dock the buff button under the Flow icon", stay = true, disabled = InCombatLockdown(),
-          checked = ns.buffButton ~= nil and ns.buffButton.Docked ~= nil and ns.buffButton.Docked(),
-          tip = "The buff button sits right under Flow's icon, as one block: its little icons under Flow's, and Shift, Ctrl, Alt, C+S written once between the two rows.",
-          refresh = function(it) it.checked = ns.buffButton ~= nil and ns.buffButton.Docked() end,
-          func = function() if ns.buffButton and ns.buffButton.SetDock then ns.buffButton.SetDock(not ns.buffButton.Docked()) end end },
-        -- Hover-to-bind mode (also in Flow Settings and /flow bind).
-        { text = "Key bindings: hover a button, press a key...", disabled = InCombatLockdown(),
-          func = function() if ns.bind then ns.bind:Start() end end },
-        -- The keys that cast a spell straight away (bound from the Flow Spells
-        -- list): the game's own Key Bindings window never lists those.
-        { text = "Show keys bound straight to spells (in chat)", func = function() ns.commands.keys() end },
-    })
-
-    -- Extras (Bonus.lua). Text-to-speech was only in Flow Settings, under
-    -- "Bonus mode": "how do I turn off the TTS, it was like a hidden setting".
-    local B = ns.bonus
-    if B and B.SetSpoken then
-        section("Extras", {
-            { text = "NPCs read their words aloud (text-to-speech)", checked = B:Extra("spoken"), stay = true,
-              tip = "When you talk to an NPC, the game's text-to-speech voice reads what they say. Untick to switch it off.",
-              refresh = function(it) it.checked = B:Extra("spoken") end,
-              func = function() B:SetSpoken(not B:Extra("spoken")) end },
-        })
-    end
+    -- The two buttons (0.35.277): the buff button on or off, and docked or
+    -- not. Everything else about keys, the arrow's look and the extras moved
+    -- to Flow Settings (Menu.SettingsSections): "that's more of a detailed
+    -- setting that needs to move into the options area".
+    section("Buttons", Menu.ButtonItems())
 
     -- Flow's own windows. (The game's options page can't be opened in a fight.)
     local windows = {}
