@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.285
+- **A "banker" who isn't a bank is learned as not one.** Flow kept sending you to bank at the
+  Crossroads, where an NPC is titled a banker but opens no bank: the quest data marks them as
+  one. Flow can't know better until you talk to them. Now, when you talk to someone the quest
+  data calls a banker and no bank opens, Flow notes it, says so, and stops sending you there
+  (for all your characters). If a bank does open there later, the note is dropped.
+- **Gathering for the zone you're in waits behind your quests.** "Herbalism 35 -> 50
+  (Mageroyal here needs 50)" was a step like any other and could come first. It's optional
+  now: the route takes it in when it's near the way you're going, and the minimap still
+  shows the herbs. When your route is about to take you to another zone whose herbs are
+  beyond you, gathering comes before you leave, as a proper step.
+- Two self-tests put right (a class quest already in your log; the quest item row).
+
 ## 0.35.284
 - **Flow windows, Flow Meters: the tick means "always shown".** It's just "Flow Meters" now
   (no "(right-click...)"). Tick it and the meters are on and always shown, also if they were

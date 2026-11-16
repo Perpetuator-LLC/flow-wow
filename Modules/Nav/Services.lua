@@ -129,7 +129,7 @@ function S:Nearest(kind)
     end
     -- Questie's data: only your own faction's NPCs.
     for _, npc in ipairs(found[kind] or {}) do
-        if ns.places.FriendlyTo(npc.faction, faction) then
+        if ns.places.FriendlyTo(npc.faction, faction) and not (ns.places.NotRole and ns.places.NotRole(npc.name, kind)) then
             for areaId, list in pairs(npc.spawns) do
                 local map = ns.quests:UiMapForArea(areaId)
                 if map then
@@ -146,6 +146,15 @@ end
 -- Every one of `kind` Flow can find on your continent, nearest first, at
 -- most `max`: { name, map, x, y, cont, wx, wy, yards, learned } (Export.lua:
 -- the flight masters on your way). The same three sources as S:Nearest.
+-- Does the quest data list this NPC with that role? (For "talked to them,
+-- and they aren't one": Places.lua.)
+function S.DataHas(name, kind)
+    for _, npc in ipairs(found[kind] or {}) do
+        if npc.name == name then return true end
+    end
+    return false
+end
+
 function S:All(kind, max)
     local nav = ns.nav
     local p = nav and nav:PlayerPos()
@@ -171,7 +180,7 @@ function S:All(kind, max)
         end
     end
     for _, npc in ipairs(found[kind] or {}) do
-        if ns.places.FriendlyTo(npc.faction, faction) then
+        if ns.places.FriendlyTo(npc.faction, faction) and not (ns.places.NotRole and ns.places.NotRole(npc.name, kind)) then
             for areaId, list in pairs(npc.spawns) do
                 local map = ns.quests:UiMapForArea(areaId)
                 if map then

@@ -416,6 +416,57 @@ ns:On("MERCHANT_SHOW", function()
 end)
 ns:On("TAXIMAP_OPENED", function() remember("flight") end)
 ns:On("BANKFRAME_OPENED", function() remember("bank") end)
+
+-- Not what the quest data says (0.35.285). "It keeps telling me to stop at a
+-- bank at the Crossroads, and there is no bank: there's a person titled
+-- Uninspected Shipment Banker, who I can't use as a bank." The quest data
+-- marks that NPC as a banker. Flow can't know better until you talk to them:
+-- when you do and no bank opens, Flow notes that this one isn't a bank and
+-- stops sending you there (for all your characters). If a bank does open
+-- there later, the note is dropped.
+P.NOT_AFTER = 4   -- seconds to wait for the bank to open after you talk to them
+-- Pure: talked to at `talkedAt`; the bank last opened at `openedAt` (nil:
+-- never); `now`. Proved not a bank?
+function P.ProvedNot(talkedAt, openedAt, now, wait)
+    if not talkedAt or (now - talkedAt) < (wait or P.NOT_AFTER) then return false end
+    return not (openedAt ~= nil and openedAt >= talkedAt)
+end
+-- Pure: notes it in `store` ({ [name] = { [role] = true } }).
+function P.NoteNot(store, name, role)
+    if not (store and name and role) then return false end
+    store[name] = store[name] or {}
+    store[name][role] = true
+    return true
+end
+function P.NotRole(name, role)
+    local d = ns.db and ns.db.placesNot
+    return (d and name and d[name] and d[name][role]) and true or false
+end
+ns:OnLoad(function(saved) saved.placesNot = saved.placesNot or {} end)
+local bankOpenedAt
+ns:On("BANKFRAME_OPENED", function()
+    bankOpenedAt = GetTime()
+    local name = ns.api.Safe(UnitName("npc"))
+    if name and ns.db.placesNot[name] then ns.db.placesNot[name].bank = nil end
+end)
+local function talked()
+    local name = ns.api.Safe(UnitName("npc"))
+    local S = ns.services
+    if not (name and S and S.DataHas and S.DataHas(name, "bank")) or P.NotRole(name, "bank") then return end
+    local at = GetTime()
+    if not C_Timer then return end
+    C_Timer.After(P.NOT_AFTER + 0.5, function()
+        if P.ProvedNot(at, bankOpenedAt, GetTime(), P.NOT_AFTER) then
+            P.NoteNot(ns.db.placesNot, name, "bank")
+            ns:Print(name .. " isn't a bank you can use (the quest data says banker): Flow won't send you there to bank again.")
+            ns:Log("places", name .. ": listed as a banker, no bank opened: noted as not a bank")
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a banker that isn't one") end
+        end
+    end)
+end
+for _, ev in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "MERCHANT_SHOW", "QUEST_DETAIL" }) do
+    ns:On(ev, function() pcall(talked) end)
+end
 ns:On("AUCTION_HOUSE_SHOW", function() remember("auction") end)
 ns:On("CONFIRM_BINDER", function() remember("inn") end)
 ns:On("MAIL_SHOW", function()

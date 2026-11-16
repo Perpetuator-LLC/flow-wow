@@ -7359,7 +7359,7 @@ ns:Register("test", "route: the class quest for a spell is always a step (Bear F
     local key, text = Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "accept", quest = chain[5928] } })
     t:eq(key, "pickup:5928", "the improvement's link is the step")
     t:eq(text, "Heeding the Call from Turak Runetotem", "and it says which quest, from whom")
-    t:eq((Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "inlog", quest = chain[5922] } })), nil, "nothing to pick up: no link")
+    t:eq((Q.ClassQuestKey("Bear Form", { { spell = "Bear Form", state = "inlog", quest = chain[5922] } })), "5922:done", "in your log: the link is its turn-in's step (0.35.279)")
     t:eq(Q.ClassQuestLine({ spell = "Bear Form", state = "accept", quest = chain[5928] }),
         "Bear Form: pick up \"Heeding the Call\" from Turak Runetotem", "the route check says it")
     t:ok(Q.ClassQuestLine({ spell = "Bear Form", state = "unknown" }):find("doesn't have its class quest", 1, true) ~= nil, "or that the data doesn't have it")
@@ -8437,7 +8437,8 @@ ns:Register("test", "click: the quest item sits on its Flow Tracker row", functi
             t:near(y or 0, 283, 0.5, "on the second row")
             t:ok(b:GetScript("OnEnter") ~= nil, "it has a tooltip")
         end
-        t:ok(byRow[2] == 15710 and byRow[1] == nil and byRow[3] == nil, "the tracker is told which row to leave room on")
+        -- (Only its own row is checked: a real quest item of yours may sit on another.)
+        t:ok(byRow[2] == 15710, "the tracker is told which row to leave room on")
         -- The tracker closed (or hidden): the button goes with it.
         pcall(QI.Layout, QI, rows, false)
         t:ok(not (b and b:IsShown()), "tracker closed: no button left on screen")
@@ -11669,7 +11670,7 @@ ns:Register("test", "professions: a herb here that's beyond you sets Herbalism's
             t:ok(h ~= nil, "Herbalism gets a target")
             t:eq(h and h.target, 50, "of 50")
             t:eq(h and h.zone, "Mageroyal", "because of Mageroyal")
-            t:ok(h and not h.optional, "and it isn't optional")
+            t:ok(h and h.optional == true, "for this zone it's optional: taken in on the way, behind your quests")
         end
     end) end) end)
 end)
@@ -12709,4 +12710,39 @@ ns:Register("test", "click: Flow windows, Flow Meters: ticked is always shown; a
     t:ok(M.On() and M.WhenKey(c) == "always", "off before: now on, always")
     c.off, c.always, c.when, c.whenBefore = off, always, when, before
     pcall(M.Update)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.285: a "banker" who isn't a bank; gathering waits behind your quests.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "places: an NPC the quest data calls a banker, with no bank to open, is learned as not one", function(t)
+    local P, S = ns.places, ns.services
+    t:ok(P.ProvedNot(100, nil, 105, 4), "talked to, and no bank ever opened: not a bank")
+    t:ok(P.ProvedNot(100, 60, 105, 4), "a bank opened earlier, somewhere else: still not a bank")
+    t:ok(not P.ProvedNot(100, 101, 105, 4), "the bank opened right after: a real banker")
+    t:ok(not P.ProvedNot(100, nil, 102, 4), "too soon to say")
+    t:ok(not P.ProvedNot(nil, nil, 105, 4), "never talked to: nothing proved")
+    local store = {}
+    t:ok(P.NoteNot(store, "Uninspected Shipment Banker", "bank"), "noted")
+    t:ok(store["Uninspected Shipment Banker"].bank == true, "by name and role")
+    t:ok(not P.NoteNot(store, nil, "bank"), "no name: nothing noted")
+    -- The note takes them off the list of bankers.
+    local was = ns.db.placesNot["Flow Test Not A Banker"]
+    ns.db.placesNot["Flow Test Not A Banker"] = { bank = true }
+    t:ok(P.NotRole("Flow Test Not A Banker", "bank"), "noted as not a bank")
+    t:ok(not P.NotRole("Flow Test Not A Banker", "vendor"), "other roles untouched")
+    t:ok(not P.NotRole("Somebody Else", "bank"), "others untouched")
+    ns.db.placesNot["Flow Test Not A Banker"] = was
+    t:eq(S.DataHas("Nobody By This Name Xyz", "bank"), false, "the quest data doesn't list a made-up name")
+    t:ok(pcall(S.All, S, "bank", 6), "listing the bankers still runs")
+end)
+
+ns:Register("test", "professions: gathering for this zone waits behind your quests; for the next zone it comes before you leave", function(t)
+    local SP = ns.skillPlan
+    local plan = { { goal = { key = "skill:Herbalism" } }, { goal = { key = "905:1" } }, { goal = { key = "skill:Mining" } } }
+    t:eq(SP.NextRealStep(plan), plan[2], "the next step that isn't gathering for a skill")
+    t:eq(SP.NextRealStep({ { goal = { key = "skill:Herbalism" } } }), nil, "only gathering left: none")
+    t:eq(SP.NextRealStep({}), nil, "an empty route: none")
+    t:eq(SP.NextRealStep(nil), nil, "no route: none")
 end)

@@ -178,6 +178,16 @@ function SP.ObjectPointsOn(ids, names, map)
     end
     return ns.quests.SpreadPoints(spawns, MAX_POINTS, { map = map, onlyMap = true })
 end
+-- Pure: the first step of a plan that isn't gathering for a skill (those
+-- are the steps this very rule adds: looking past them keeps it from
+-- flipping on and off).
+function SP.NextRealStep(plan)
+    for _, s in ipairs(plan or {}) do
+        local key = s.goal and s.goal.key or ""
+        if not (type(key) == "string" and key:find("^skill:")) then return s end
+    end
+    return nil
+end
 -- Before you leave (0.35.283). "One of our aims was to be high enough to do
 -- everything in the next zone." When your next step is in another zone, what
 -- grows THERE counts too: the easiest herb there that's beyond you sets the
@@ -632,10 +642,17 @@ function SP:Targets()
             -- Gathering: what grows where you are and is beyond you.
             if g and g.kind == "gather" and g.spots and rank and not out[p.name] then
                 local okN, need = pcall(function() return SP.ZoneNeed(rank, SP.NodesHere(p.name)) end)
-                if okN and need then out[p.name] = { target = need.skill, zone = need.name } end
-                -- Nothing here is beyond you: the zone your next step is in.
-                if not out[p.name] and ns.nav and ns.nav.plan and ns.nav.plan[1] and ns.nav.ZoneOf then
-                    local pt = ns.nav.plan[1].point
+                -- What's beyond you HERE: gathered on the way, behind your quests
+                -- (0.35.285: "I'm not ready to leave the area: that should be
+                -- bumped down so I'm doing the actual quests"): optional, so the
+                -- route only takes it in when it's near the way you're going.
+                if okN and need then out[p.name] = { target = need.skill, zone = need.name, optional = true } end
+                -- Nothing here is beyond you: the zone your route goes to next.
+                -- That one comes first, before you leave ("if they're about to
+                -- leave the area, that's when it should focus on their skills").
+                local nextStep = ns.nav and ns.nav.plan and SP.NextRealStep(ns.nav.plan)
+                if not out[p.name] and nextStep and ns.nav.ZoneOf then
+                    local pt = nextStep.point
                     local ahead = SP.AheadMap(here(), pt and pt.map, ns.nav.ZoneOf)
                     if ahead then
                         local okA, needA = pcall(function() return SP.ZoneNeed(rank, SP.NodesHere(p.name, ahead)) end)
