@@ -169,10 +169,35 @@ function SP.NameList(names, max)
     return head .. " or " .. names[n]
 end
 
+-- An object's spots on a given map (as objectPoints, for a map you aren't on).
+function SP.ObjectPointsOn(ids, names, map)
+    local spawns = {}
+    for i, id in ipairs(ids or {}) do
+        local o = ns.quests:QuestieGet("GetObject", id)
+        if o and o.spawns and not (names and names[i] and o.name ~= names[i]) then spawns[#spawns + 1] = o.spawns end
+    end
+    return ns.quests.SpreadPoints(spawns, MAX_POINTS, { map = map, onlyMap = true })
+end
+-- Before you leave (0.35.283). "One of our aims was to be high enough to do
+-- everything in the next zone." When your next step is in another zone, what
+-- grows THERE counts too: the easiest herb there that's beyond you sets the
+-- skill to reach, and the step is to gather here (what you can) first.
+-- Pure: the map your route takes you to next when it's another zone than
+-- yours; nil when the next step is in your zone (or unknown).
+--   zoneOf(map) -> the zone a map belongs to.
+function SP.AheadMap(hereMap, nextMap, zoneOf)
+    if not (hereMap and nextMap) then return nil end
+    local a, b = zoneOf(hereMap), zoneOf(nextMap)
+    if not (a and b) or a == b then return nil end
+    return b
+end
+
 -- The nodes of a profession that grow on the map you're on: { { name, skill } }.
 local nodesHereCache = {}
-function SP.NodesHere(prof)
-    local map = here()
+-- map: another map than the one you're on (the zone you're headed for).
+function SP.NodesHere(prof, map)
+    local other = map ~= nil and map ~= here()
+    map = map or here()
     if not map then return {} end
     local key = prof .. ":" .. map
     if nodesHereCache[key] then return nodesHereCache[key] end
@@ -181,7 +206,9 @@ function SP.NodesHere(prof)
         if nd.prof == prof then
             local names = {}
             for i = 1, #(nd.objects or {}) do names[i] = name end
-            local ok, pts, onMap = pcall(objectPoints, nd.objects, names)
+            local ok, pts, onMap
+            if other then ok, pts, onMap = pcall(SP.ObjectPointsOn, nd.objects, names, map)
+            else ok, pts, onMap = pcall(objectPoints, nd.objects, names) end
             if ok and onMap and pts and #pts > 0 then out[#out + 1] = { name = name, skill = nd.skill or 1 } end
         end
     end
@@ -606,6 +633,18 @@ function SP:Targets()
             if g and g.kind == "gather" and g.spots and rank and not out[p.name] then
                 local okN, need = pcall(function() return SP.ZoneNeed(rank, SP.NodesHere(p.name)) end)
                 if okN and need then out[p.name] = { target = need.skill, zone = need.name } end
+                -- Nothing here is beyond you: the zone your next step is in.
+                if not out[p.name] and ns.nav and ns.nav.plan and ns.nav.plan[1] and ns.nav.ZoneOf then
+                    local pt = ns.nav.plan[1].point
+                    local ahead = SP.AheadMap(here(), pt and pt.map, ns.nav.ZoneOf)
+                    if ahead then
+                        local okA, needA = pcall(function() return SP.ZoneNeed(rank, SP.NodesHere(p.name, ahead)) end)
+                        if okA and needA then
+                            local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(ahead)
+                            out[p.name] = { target = needA.skill, zone = needA.name, ahead = info and info.name or "the next zone" }
+                        end
+                    end
+                end
             end
             if g and g.kind == "craft" and rank and not out[p.name] then
                 if rank + 10 < want then
@@ -1484,8 +1523,9 @@ local function planProfession(prof, t, out)
         -- wish it would show me where I needed to go to get these herbs".)
         add({ key = "skill:" .. prof, kind = "skill", prof = prof, points = points, area = (#points > 1) or nil,
               text = (what and ("Pick " .. what .. ": ") or "") .. string.format("%s %d -> %d", prof == "Fishing" and "Fish" or prof, rank, t.target)
-                  .. (t.zone and string.format(" (%s here needs %d)", t.zone, t.target) or ""),
-              details = (t.zone and { string.format("%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target),
+                  .. (t.zone and string.format(t.ahead and (" (%s in " .. t.ahead .. " needs %d)") or " (%s here needs %d)", t.zone, t.target) or ""),
+              details = (t.zone and { string.format(t.ahead and ("%s grows in " .. t.ahead .. ", where your route goes next, and needs %s %d. Gather what you can here before you leave.")
+                        or "%s grows in this zone and needs %s %d. Gather what you can here until you're there.", t.zone, prof, t.target),
                     what and ("Here that's " .. what .. ": the arrow leads to the nearest spot, then the next. The green clouds on your minimap are these.") or "Nothing you can pick grows on this map.",
                     "The spots are where it can grow, not what's up now: Flow isn't told that. Stand at an empty one a few seconds and the arrow goes on to the next; the game's Find Herbs dots are the ones that are up." })
                   or (g.tip and { g.tip }) or nil,

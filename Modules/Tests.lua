@@ -12659,3 +12659,27 @@ ns:Register("test", "professions: a material with no source is bought at the auc
     local ok, pts = pcall(SP.AuctionPoints)
     t:ok(ok and type(pts) == "table", "looking for an auctioneer runs")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.283: the zone you're headed for counts for your gathering skill.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: before you leave a zone, what grows in the next one sets the gathering skill to reach", function(t)
+    local SP = ns.skillPlan
+    local function zoneOf(map) return ({ [10] = 1, [11] = 1, [20] = 2 })[map] end
+    t:eq(SP.AheadMap(10, 20, zoneOf), 2, "your next step is in another zone: that zone")
+    t:eq(SP.AheadMap(10, 11, zoneOf), nil, "another map of the same zone: not leaving")
+    t:eq(SP.AheadMap(10, 10, zoneOf), nil, "the same map: not leaving")
+    t:eq(SP.AheadMap(10, nil, zoneOf), nil, "no next step: nothing ahead")
+    t:eq(SP.AheadMap(10, 99, zoneOf), nil, "a map with no zone known: nothing ahead")
+    t:ok(pcall(SP.ObjectPointsOn, { 1620 }, { "Mageroyal" }, 1413), "asking where a node grows on another map runs")
+    local ok, list = pcall(SP.NodesHere, "Herbalism", 1413)
+    t:ok(ok and type(list) == "table", "the nodes of a given map can be listed")
+    -- Mulgore with Herbalism 35, next step in the Barrens: Mageroyal there sets 50.
+    local barrens = { { name = "Mageroyal", skill = 50 }, { name = "Earthroot", skill = 15 } }
+    with(SP, "NodesHere", function(prof, map) if prof == "Herbalism" and map ~= nil then return barrens end return {} end, function()
+        local need = SP.ZoneNeed(35, SP.NodesHere("Herbalism", 2))
+        t:ok(need and need.name == "Mageroyal" and need.skill == 50, "what's beyond you there is the target")
+        t:eq(SP.ZoneNeed(35, SP.NodesHere("Herbalism")), nil, "and nothing here was")
+    end)
+end)

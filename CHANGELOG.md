@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.283
+- **Before you leave a zone, the next one counts for your gathering skill.** When your next
+  step is in another zone and something grows there that your skill can't gather, reaching
+  that skill is a step now, here, before you go: "Pick Peacebloom or Silverleaf: Herbalism
+  35 -> 50 (Mageroyal in The Barrens needs 50)". Until now Flow only noticed once you were
+  already standing among herbs you couldn't pick.
+
 ## 0.35.282
 - **A material nothing drops or sells becomes a step at the auction house.** "Get 57 Wool
   Cloth" sat in the blocked list. When Flow has seen a price for it at an auction house and
