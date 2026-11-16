@@ -265,6 +265,10 @@ Flow for WoW is a separate project from Flow Engine.
   you). `/flow threat on|off`.
 - **How many you have**: every item's tooltip says how many you have, split between your bags
   and your bank.
+- **Your buffs on a player's tooltip**: hover a friendly player and see, for each buff you give
+  others, whether they have it (from anyone, a group or stronger version too) or it's missing.
+- **A form's new spells on that form's bar**: a spell the game drops on your bars that needs
+  Bear Form, Cat Form or a stance is moved to that form's bar.
 - **Flow Auctions**: at the auction house, what Flow would post and at what price; one click
   posts each. What keeps coming back unsold becomes a vendor item.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
