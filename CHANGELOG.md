@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.288
+- **Cooldowns on the small icons, in a fight too.** The icons beside the target button and the
+  self button showed a cooldown number only when Flow could read the time, and in a fight the
+  game hides it, so they showed nothing there. Each small icon now has the game's own
+  cooldown sweep and countdown, as the big icon does: it darkens and counts down while the
+  spell or item is cooling.
+
 ## 0.35.287
 - **No "CTRL + key: Moonfire" line over the target button.** While you held a modifier that
   line was written over the icon. The modifier is already shown by the key bind ("CTRL +")

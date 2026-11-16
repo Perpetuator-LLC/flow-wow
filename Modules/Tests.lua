@@ -12828,3 +12828,33 @@ ns:Register("test", "target button: holding a modifier doesn't write \"modifier 
     t:eq(ns.IconWords({ spell = "Wrath", reason = "filler" }, true), "filler", "debug: the reason")
     t:eq(ns.IconWords(nil), "", "nothing shown: nothing")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.288: a cooldown frame on every small icon (it works in a fight too).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "small icons: each has the game's cooldown sweep, as the big icon does", function(t)
+    t:ok(ns.GameCounts("duration") and ns.GameCounts("hidden"), "a hidden time: the game draws the countdown")
+    t:ok(not ns.GameCounts("readable") and not ns.GameCounts("none"), "a readable one, or none: Flow's own number")
+    -- On a stand-in icon: a cooldown frame, the timer text kept above it.
+    local icon = CreateFrame("Frame", nil, UIParent)
+    icon:SetSize(30, 30); icon:Hide()
+    local timer = icon:CreateFontString(nil, "OVERLAY")
+    timer:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
+    local cd = ns.AddCooldown(icon, timer)
+    t:ok(cd ~= nil and icon.cd == cd, "the icon gets a cooldown frame")
+    t:ok(icon.timerHost ~= nil and timer:GetParent() == icon.timerHost, "its timer text moves onto a frame of its own")
+    t:ok(icon.timerHost:GetFrameLevel() > cd:GetFrameLevel(), "above the sweep, so the number stays readable")
+    local tex = icon:CreateTexture(nil, "ARTWORK")
+    t:ok(pcall(ns.PaintStatus, tex, timer, { spell = "No Such Spell" }, GetTime(), cd), "painting with a cooldown frame runs")
+    t:ok(pcall(ns.PaintStatus, tex, timer, { item = "item:858" }, GetTime(), cd), "an item too")
+    t:ok(pcall(ns.PaintStatus, tex, timer, nil, GetTime(), cd), "no step: no error")
+    -- The real ones.
+    local deck = ns.rotation.icon and ns.rotation.icon.deck
+    for i, slot in ipairs(deck or {}) do
+        t:ok(slot.cd ~= nil, "the target button's small icon " .. i .. " has one")
+    end
+    for _, ic in pairs(ns.careKeys._icons) do
+        t:ok(ic.cd ~= nil, "a self button's small icon has one")
+    end
+end)

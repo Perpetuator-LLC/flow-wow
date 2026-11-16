@@ -257,6 +257,7 @@ local function paint()
             ic.timer = ic:CreateFontString(nil, "OVERLAY")
             ic.timer:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
             ic.timer:SetPoint("CENTER")
+            if ns.AddCooldown then ns.AddCooldown(ic, ic.timer) end
             ic.label = ic:CreateFontString(nil, "OVERLAY")
             ic.label:SetPoint("BOTTOM", ic, "TOP", 0, 2)
             ic.label:SetTextColor(0.85, 0.85, 0.85)
@@ -490,7 +491,7 @@ function K.PaintStatus(now)
     local n = 0
     for _, ic in pairs(icons) do
         if ic:IsShown() and ic.step and ic.tex then
-            local ok = pcall(ns.PaintStatus, ic.tex, ic.timer, ic.step, now or GetTime())
+            local ok = pcall(ns.PaintStatus, ic.tex, ic.timer, ic.step, now or GetTime(), ic.cd)
             if ok then n = n + 1 end
         end
     end

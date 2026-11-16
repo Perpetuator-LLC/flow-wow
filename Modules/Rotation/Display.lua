@@ -160,6 +160,7 @@ local function buildIcon(cfg)
         d.timer = d:CreateFontString(nil, "OVERLAY")
         d.timer:SetFont(STANDARD_TEXT_FONT, math.max(9, math.floor(sz * 0.42)), "OUTLINE")
         d.timer:SetPoint("CENTER")
+        ns.AddCooldown(d, d.timer)
         d.mod = d:CreateFontString(nil, "OVERLAY")
         d.mod:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
         d.mod:SetPoint("BOTTOM", d, "TOP", 0, 2)
@@ -445,6 +446,23 @@ function ns.StepStatus(s, now)
     local okT, tint = pcall(tintOf, s)
     return txt, okT and TINT[tint] or nil
 end
+-- Pure: did the game draw the countdown itself (from a time Flow can't read)?
+function ns.GameCounts(how) return how == "duration" or how == "hidden" end
+-- A small icon's cooldown frame, with the icon's own timer text kept on top of it.
+function ns.AddCooldown(icon, timer)
+    local cd = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
+    cd:SetAllPoints()
+    if cd.SetDrawEdge then cd:SetDrawEdge(false) end
+    icon.cd = cd
+    if timer then
+        local host = CreateFrame("Frame", nil, icon)
+        host:SetAllPoints()
+        host:SetFrameLevel(cd:GetFrameLevel() + 2)
+        timer:SetParent(host)
+        icon.timerHost = host
+    end
+    return cd
+end
 -- Pure: how the picture is drawn for a status: grey it? and its colour.
 function ns.StatusLook(txt, tv)
     local grey = (txt ~= "" or (tv ~= nil and tv[4] == true)) and true or false
@@ -452,8 +470,19 @@ function ns.StatusLook(txt, tv)
     return grey, 1, 1, 1
 end
 -- Puts a step's status on an icon's picture and its timer text.
-function ns.PaintStatus(tex, timer, s, now)
+-- cd: the icon's cooldown frame (0.35.288). In a fight the game hides
+-- cooldown times from add-ons, so Flow's own number has nothing to count:
+-- the small icons showed no cooldown at all there. The game's cooldown frame
+-- can still draw a hidden time (the sweep, and its own countdown number), as
+-- Flow's big icon does: each small icon has one now.
+function ns.PaintStatus(tex, timer, s, now, cd)
     local txt, tv = ns.StepStatus(s, now)
+    if cd and s then
+        local ok, how = pcall(setCooldown, cd, s)
+        -- (Drawn by the game from a hidden time: its number is the timer.)
+        if ok and ns.GameCounts(how) then txt = "" end
+        if not ok then pcall(cd.SetCooldown, cd, 0, 0) end
+    end
     if timer then timer:SetText(txt) end
     local grey, r, g, b = ns.StatusLook(txt, tv)
     tex:SetDesaturated(grey)
@@ -691,7 +720,7 @@ end
 local function drawSlot(slot, e, now, state)
     slot.tex:SetTexture(stepIcon(e) or "Interface\\Icons\\INV_Misc_QuestionMark")
     -- Its cooldown; grey: cooling down, can't be cast now, or none left; red: out of range.
-    ns.PaintStatus(slot.tex, slot.timer, e, now)
+    ns.PaintStatus(slot.tex, slot.timer, e, now, slot.cd)
     if state ~= slot.state then
         slot.state = state
         if state == "advised" then
