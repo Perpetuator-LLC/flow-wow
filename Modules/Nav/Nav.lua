@@ -602,6 +602,20 @@ function N:Collect(gathered)
     local waiting
     shown, waiting = N.HoldForHidden(shown, hiddenGoals)
     for _, g in ipairs(waiting) do blockedGoals[#blockedGoals + 1] = g end
+    -- And one that waits for a step on another continent (0.35.290: "Trial of
+    -- the Sea Lion" sent to the shrine with half the pendant: the other half
+    -- is across the sea, so its step wasn't on the route, and nothing held
+    -- back the steps that need it). Both are listed, with where and how.
+    do
+        local me = N:PlayerPos()
+        if me and me.cont then
+            local okA, keptA, heldA = pcall(N.HoldForAway, shown, function(g) return N.AwayCont(g, me.cont) end, N.AwayWords)
+            if okA then
+                shown = keptA
+                for _, g in ipairs(heldA) do blockedGoals[#blockedGoals + 1] = g end
+            end
+        end
+    end
     -- "Along the way" goals (loot meat for an optional profession): never a
     -- step of their own, so the route never sends you off to grind them.
     -- They're listed in the arrow panel and step cards, and their mobs are
@@ -714,6 +728,98 @@ function N.HoldForHidden(shown, hiddenGoals)
         kept = nextKept
         if not changed then return kept, held end
     end
+end
+
+-- Steps that wait for one on another continent. Pure:
+--   awayOf(g) -> the continent a step is on when that isn't yours (nil: here)
+--   words(wait, waiting) -> blockedBy, blockedShort for the step across the
+--     sea itself (waiting = false) or for one that waits for it (true)
+--   -> kept, held: the away steps something waits for and everything that
+--      waits (in turn) for them are held; an away step nothing waits for
+--      stays as it was.
+function N.HoldForAway(shown, awayOf, words)
+    local away = {}
+    for _, g in ipairs(shown or {}) do
+        if awayOf(g) ~= nil then away[g.key] = g end
+    end
+    local held = {}
+    if not next(away) then return shown, held end
+    local off, needed = {}, {}
+    for k, g in pairs(away) do off[k] = g end
+    local kept = shown
+    while true do
+        local nextKept, changed = {}, false
+        for _, g in ipairs(kept) do
+            local wait
+            if not away[g.key] then
+                for _, dep in ipairs(g.deps or {}) do
+                    if off[dep] then wait = off[dep] break end
+                end
+            end
+            if wait then
+                -- (The step across the sea it comes down to.)
+                local root = wait.awayRoot or wait
+                needed[root.key] = root
+                local c = {}
+                for k, v in pairs(g) do c[k] = v end
+                c.blockedBy, c.blockedShort = words(root, true)
+                c.awayRoot = root
+                held[#held + 1] = c
+                off[g.key] = c
+                changed = true
+            else
+                nextKept[#nextKept + 1] = g
+            end
+        end
+        kept = nextKept
+        if not changed then break end
+    end
+    -- The away steps that are waited for: listed too, saying where they are.
+    local out = {}
+    for _, g in ipairs(kept) do
+        if needed[g.key] then
+            local c = {}
+            for k, v in pairs(g) do c[k] = v end
+            c.blockedBy, c.blockedShort = words(g, false)
+            table.insert(held, 1, c)
+        else
+            out[#out + 1] = g
+        end
+    end
+    return out, held
+end
+-- The continent a step is on when none of its places is on yours (nil: it
+-- has a place here, or none Flow knows).
+function N.AwayCont(g, mine)
+    local other
+    for _, pt in ipairs(g.points or {}) do
+        if pt.wx == nil and pt.map then
+            local cont, wx, wy = N:ToWorld(pt.map, pt.x, pt.y)
+            pt.cont, pt.wx, pt.wy = cont, wx, wy
+            if not wx then pt.wx = false end
+        end
+        if pt.wx and pt.cont == mine then return nil end
+        if pt.wx and pt.cont ~= nil then other = pt.cont end
+    end
+    return other
+end
+-- Pure: the words, from a step's text, its zone, its continent and how to cross.
+function N.AwayText(text, zone, continent, hint, waiting)
+    local where = (zone and (zone .. ", ") or "") .. (continent or "another continent")
+    if waiting then
+        return string.format("first: %s. That's in %s.%s", text, where, hint and (" " .. hint) or ""), "waits for a step overseas"
+    end
+    return string.format("It's in %s, not on this continent.%s", where, hint and (" " .. hint) or ""), "overseas"
+end
+function N.AwayWords(wait, waiting)
+    local pt = wait.points and wait.points[1]
+    local zoneMap = pt and pt.map and N.ZoneOf and N.ZoneOf(pt.map)
+    local info = zoneMap and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(zoneMap)
+    local D = ns.dungeons
+    local cont = pt and pt.cont
+    local continent = D and D.CONTINENTS and cont ~= nil and D.CONTINENTS[cont] or nil
+    local hint = D and D.TravelHint and cont ~= nil and D.TravelHint(cont, UnitFactionGroup and UnitFactionGroup("player")) or nil
+    return N.AwayText(wait.text or wait.title or wait.key, info and info.name or nil, continent, hint, waiting)
 end
 
 -- Splits the steps into quest steps and profession steps. Off, or with

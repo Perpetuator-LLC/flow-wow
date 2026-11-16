@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.290
+- **A step that needs something from another continent waits for it, and says where.** "Trial
+  of the Sea Lion" sent you to the shrine with half the pendant: the other half is across the
+  sea, so its step wasn't on your route, and nothing held back the steps that need it. Those
+  steps are now listed as waiting, with what comes first, the zone and continent it's in, and
+  how to cross: "first: Trial of the Sea Lion: Get Half Pendant of Aquatic Endurance. That's
+  in Silverpine Forest, Eastern Kingdoms. Zeppelin from the tower outside Orgrimmar...".
+
 ## 0.35.289
 - **Hovering a step in the Flow Router shows that step alone.** The map used to add the step
   before and the step after, muted, with the lines between them ("from" and "to"). Now it's

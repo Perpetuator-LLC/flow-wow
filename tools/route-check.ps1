@@ -237,6 +237,7 @@ if ($unplaced.Count -gt 0) {
         $class = if ($b -match '^Inside |^Handed in inside ') { 'dungeon (expected: the dungeon run handles it)' }
             elseif ($b -match 'battleground') { 'battleground (expected)' }
             elseif ($b -match 'you hid that st[eo]p') { 'waits for a step the player hid (expected)' }
+            elseif ($b -match 'not on this continent|^first: .* That''s in ') { 'on another continent, or waits for a step there (expected)' }
             elseif ($b -match "doesn't know where it's handed in") { 'TO FIX: turn-in with no place (learned when handed in once)' }
             elseif ($b -match "has no spot for|a kind Flow can't place") { 'TO FIX: objective with no place in the quest data (learned when done once)' }
             elseif ($b -match "doesn't know where .* comes from|doesn't know who sells") { 'TO FIX: no source known for the item' }

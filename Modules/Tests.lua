@@ -12874,3 +12874,43 @@ ns:Register("test", "map: a step shown from another zone's map says where it is"
     t:ok(pcall(M.Banner, 1413), "working out the banner runs")
     t:ok(pcall(M.Redraw, M), "the map still draws")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.290: a step that waits for one on another continent is held, and says where.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: steps waiting for one across the sea are held, with where it is", function(t)
+    local N = ns.nav
+    local half = { key = "30:item:15882", text = "Trial of the Sea Lion: Get Half Pendant of Aquatic Endurance" }
+    local pendant = { key = "30:1", text = "Trial of the Sea Lion: 0 -> 1 Pendant of the Sea Lion", deps = { "30:item:15882" } }
+    local turnIn = { key = "30:done", text = "Turn in: Trial of the Sea Lion", deps = { "30:1", "30:item:15882" } }
+    local other = { key = "905:1", text = "Something here" }
+    local awayAlone = { key = "77:1", text = "A quest overseas nothing waits for" }
+    local function awayOf(g) if g == half or g == awayAlone then return 0 end end
+    local function words(wait, waiting) return (waiting and "first: " or "overseas: ") .. wait.text, waiting and "waits" or "overseas" end
+    local kept, held = N.HoldForAway({ other, turnIn, pendant, half, awayAlone }, awayOf, words)
+    local keys = {}
+    for _, g in ipairs(kept) do keys[#keys + 1] = g.key end
+    t:eq(table.concat(keys, ","), "905:1,77:1", "what's here stays; an overseas step nothing waits for is left as it was")
+    t:eq(#held, 3, "the half across the sea, the pendant and the hand-in are held")
+    t:eq(held[1].key, "30:item:15882", "the step across the sea is listed first")
+    t:eq(held[1].blockedBy, "overseas: " .. half.text, "saying it's overseas")
+    local byKey = {}
+    for _, g in ipairs(held) do byKey[g.key] = g end
+    t:eq(byKey["30:1"].blockedBy, "first: " .. half.text, "the pendant waits for it")
+    t:eq(byKey["30:done"].blockedBy, "first: " .. half.text, "and the hand-in waits for the same half, not for the pendant")
+    t:eq(pendant.blockedBy, nil, "the route's own steps are left untouched (copies are held)")
+    -- Nothing overseas: nothing held.
+    kept, held = N.HoldForAway({ other, pendant }, function() return nil end, words)
+    t:ok(#kept == 2 and #held == 0, "nothing overseas: the route as it was")
+    -- The words.
+    local why, short = N.AwayText("Get Half Pendant of Aquatic Endurance", "Silverpine Forest", "Eastern Kingdoms", "Zeppelin from Orgrimmar.", true)
+    t:eq(why, "first: Get Half Pendant of Aquatic Endurance. That's in Silverpine Forest, Eastern Kingdoms. Zeppelin from Orgrimmar.", "waiting: what first, where, how to cross")
+    t:eq(short, "waits for a step overseas", "in short")
+    why, short = N.AwayText("x", "Silverpine Forest", "Eastern Kingdoms", nil, false)
+    t:eq(why, "It's in Silverpine Forest, Eastern Kingdoms, not on this continent.", "the step itself: where")
+    t:eq(short, "overseas", "in short")
+    t:eq(N.AwayCont({ points = {} }, 1), nil, "a step with no place: not overseas")
+    t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 } } }, 1), 0, "every place on another continent: that continent")
+    t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 }, { wx = 2, wy = 2, cont = 1 } } }, 1), nil, "one place here: not overseas")
+end)
