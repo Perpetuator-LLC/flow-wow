@@ -12813,3 +12813,18 @@ ns:Register("test", "trails: a straight run is thinned; corners, forks and indoo
     t:eq(N.ThinInPlace({ x = {}, y = {}, adj = {} }), 0, "an empty network: nothing to thin")
     t:ok(N.THIN_AT > 0.5 and N.THIN_AT < 1, "thinning starts when a continent is nearly full")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.287: no "CTRL + key: ..." line over the target button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "target button: holding a modifier doesn't write \"modifier + key\" over the icon", function(t)
+    t:eq(ns.IconWords({ spell = "Moonfire", mod = "ctrl", label = "CTRL + key: Moonfire" }), "", "a held modifier: no line (the key bind says CTRL +)")
+    t:eq(ns.IconWords({ spell = "Regrowth", shift = true, label = "Shift + key: Regrowth" }), "", "Shift for your heal: no line either")
+    t:eq(ns.IconWords({ spell = "Regrowth", mod = "ctrl", label = "CTRL + key: Regrowth", target = "Beryl" }), "on Beryl", "who it's for is still said")
+    t:eq(ns.IconWords({ label = "Equip your Fishing Pole" }), "Equip your Fishing Pole", "a Flow Action still says what the press does")
+    t:eq(ns.IconWords({ spell = "Mark of the Wild", target = "Beryl" }), "on Beryl", "a buff for someone: who")
+    t:eq(ns.IconWords({ spell = "Wrath" }), "", "an ordinary spell: nothing")
+    t:eq(ns.IconWords({ spell = "Wrath", reason = "filler" }, true), "filler", "debug: the reason")
+    t:eq(ns.IconWords(nil), "", "nothing shown: nothing")
+end)

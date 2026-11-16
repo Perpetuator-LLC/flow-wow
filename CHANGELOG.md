@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.287
+- **No "CTRL + key: Moonfire" line over the target button.** While you held a modifier that
+  line was written over the icon. The modifier is already shown by the key bind ("CTRL +")
+  and the picture says the spell, so it's gone. A Flow Action still says what the press does,
+  and a buff or heal for someone still says who it's for.
+
 ## 0.35.286
 - **Trails remember how long each stretch takes.** Flow learned where you walk, not how
   long it took. Each stretch now keeps the quickest you've covered it, and when two known

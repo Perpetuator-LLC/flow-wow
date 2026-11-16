@@ -507,6 +507,17 @@ function ns.KeyView(s, held, inCombat)
     if not s then return held, nil end   -- (nothing new to press: greyed, as before)
     return { spell = held.spell, kind = "key", label = held.label, held = true }, s
 end
+-- The words over Flow's icon (0.35.287). While you hold a modifier it used
+-- to read "CTRL + key: Moonfire" there; the modifier is already written by
+-- the key bind ("CTRL +"), and the picture says the spell, so that line is
+-- gone. A Flow Action still says what the press does, and a buff for
+-- someone says who it's for. Pure:
+function ns.IconWords(s, debug)
+    if not s then return "" end
+    if s.mod or s.shift then return (s.target and ("on " .. s.target)) or "" end
+    return s.label or (s.target and ("on " .. s.target)) or (debug and s.reason) or ""
+end
+
 -- Holding Shift: Shift + your key's spell (your heal) swaps in, while the
 -- key would do anything at all (the button is there: in a fight, or with
 -- something to press).
@@ -599,7 +610,7 @@ local function render(s, cfg, glow)
     icon.border:SetColor(color[1], color[2], color[3])
     -- Flow Actions always say what the press does ("Equip your Fishing Pole").
     -- A buff for someone in your group says who it's for.
-    icon.text:SetText(s.label or (s.target and ("on " .. s.target)) or (cfg.debug and s.reason) or "")
+    icon.text:SetText(ns.IconWords(s, cfg.debug))
     local how, start, dur = setCooldown(icon.cd, s)
     E.cooldownShown = how
     icon.timer:SetTextColor(1, 0.95, 0.7)
