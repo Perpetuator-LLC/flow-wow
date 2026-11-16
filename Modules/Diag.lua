@@ -100,6 +100,7 @@ function D:Snapshot(reason, spread)
         { "second key", function() if c.carekeys then c.carekeys("") end end },
         { "meters", function() if c.meters then c.meters("") end end },
         { "threat", function() if c.threat then c.threat("") end end },
+        { "zones", function() if c.zones then c.zones("") end end },
         { "self button", function() if c.selfbutton then c.selfbutton("why") end end },
         { "dungeons", function() if c.dungeons then c.dungeons("") end end },
         { "quest marks", function() if c.quest then c.quest("") end end },

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.293
+- **Your quests by zone, and leaving a zone out.** The Flow menu has a "Zones" section: each
+  zone where you have quest steps, with how many and their levels ("Stonetalon Mountains: 6
+  steps (2 to accept), levels 17-22"). Untick a zone and the route stops taking you there:
+  its quests stay in your log and come back when you tick it again. `/flow zones` lists them;
+  `/flow zones off stonetalon`, `/flow zones on stonetalon`, `/flow zones all`. Only quest
+  steps count: a trainer or a vendor in a zone you've left out is still used.
+
 ## 0.35.292
 - **The target button always names its spell.** The line over the icon now always says what
   the press casts, by name ("Wrath"), and who it's for when that's someone else ("Regrowth on

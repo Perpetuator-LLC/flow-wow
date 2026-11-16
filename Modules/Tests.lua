@@ -12944,3 +12944,67 @@ ns:Register("test", "self button: Flow can say what lies over it and whether pre
         t:eq(mineOver, nil, "no frame of Flow's takes the click before the self button")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.293: your quest steps by zone, and leaving a zone out.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: quest steps are counted by zone, and a zone can be left out of the route", function(t)
+    local N = ns.nav
+    local goals = {
+        { key = "a", provider = "questie", level = 14, z = 1 },
+        { key = "b", provider = "questie", level = 18, z = 1 },
+        { key = "c", provider = "pickups", kind = "accept", level = 20, z = 2 },
+        { key = "d", provider = "questie", level = 22, z = 2 },
+        { key = "e", provider = "errands", z = 2 },            -- a trainer: not a zone's quest
+        { key = "f", provider = "questie", level = 16 },       -- no place known
+    }
+    local names = { [1] = "The Barrens", [2] = "Stonetalon Mountains" }
+    local function zoneOf(g) return g.z end
+    local function nameOf(z) return names[z] end
+    local sum, kept, left = N.ZoneFilter(goals, {}, zoneOf, nameOf)
+    t:eq(#sum, 2, "two zones have quest steps")
+    t:eq(left, 0, "nothing left out")
+    t:eq(#kept, 6, "everything stays")
+    local byName = {}
+    for _, z in ipairs(sum) do byName[z.name] = z end
+    t:ok(byName["The Barrens"].steps == 2 and byName["The Barrens"].min == 14 and byName["The Barrens"].max == 18, "the Barrens: 2 steps, levels 14-18")
+    t:ok(byName["Stonetalon Mountains"].steps == 2 and byName["Stonetalon Mountains"].accept == 1, "Stonetalon: 2 steps, one to accept (the trainer isn't counted)")
+    t:eq(N.ZoneLine(byName["The Barrens"]), "The Barrens: 2 steps, levels 14-18", "said in a line")
+    t:eq(N.ZoneLine(byName["Stonetalon Mountains"]), "Stonetalon Mountains: 2 steps (1 to accept), levels 20-22", "with what's still to accept")
+    -- Stonetalon left out: its quest steps go, the trainer there stays.
+    sum, kept, left = N.ZoneFilter(goals, { [2] = true }, zoneOf, nameOf)
+    t:eq(left, 2, "its two quest steps are left out")
+    local keys = {}
+    for _, g in ipairs(kept) do keys[#keys + 1] = g.key end
+    t:eq(table.concat(keys, ","), "a,b,e,f", "the rest stay, the trainer there too")
+    for _, z in ipairs(sum) do
+        if z.name == "Stonetalon Mountains" then
+            t:ok(z.off, "it's still listed, marked as left out")
+            t:ok(N.ZoneLine(z):find("LEFT OUT", 1, true) ~= nil, "and says so")
+        end
+    end
+    t:eq(N.ZoneByName(sum, "stonetalon").name, "Stonetalon Mountains", "a zone is found by a part of its name")
+    t:eq(N.ZoneByName(sum, "ashenvale"), nil, "one with no quest steps: none")
+    t:eq(N.ZoneByName(sum, ""), nil, "nothing typed: none")
+    -- The switch, by the menu's tick and by /flow zones.
+    local was = ns.db.nav.zonesOff
+    with(ns, "Print", function() end, function()
+    with(N, "RequestCollect", function() end, function()
+    with(N, "zoneSummary", sum, function()
+        ns.db.nav.zonesOff = {}
+        local items = N.ZoneMenuItems()
+        t:eq(#items, 2, "the Flow menu has a tick a zone")
+        local tick
+        for _, it in ipairs(items) do if it.text:find("^Stonetalon") then tick = it end end
+        t:ok(tick ~= nil and pcall(tick.func), "a click on Stonetalon's tick runs")
+        t:ok(ns.db.nav.zonesOff[2] == true, "and leaves it out")
+        t:ok(pcall(ns.commands.zones, "on stonetalon"), "/flow zones on runs")
+        t:eq(ns.db.nav.zonesOff[2], nil, "and puts it back")
+        t:ok(pcall(ns.commands.zones, "off barrens") and ns.db.nav.zonesOff[1] == true, "/flow zones off leaves a zone out")
+        t:ok(pcall(ns.commands.zones, "all") and next(ns.db.nav.zonesOff) == nil, "/flow zones all puts every zone back")
+        t:ok(pcall(ns.commands.zones, ""), "/flow zones lists them")
+    end) end) end)
+    ns.db.nav.zonesOff = was
+    N.planDirty = true
+end)

@@ -596,6 +596,12 @@ function N:Collect(gathered)
         if hidden[g.key] then hiddenGoals[#hiddenGoals + 1] = g else shown[#shown + 1] = g end
     end
     N.hiddenGoals = hiddenGoals
+    -- Your quests by zone, and the zones you've left out (0.35.293).
+    do
+        local okZ, summary, keptZ, left = pcall(N.ZoneFilter, shown, ns.db.nav.zonesOff or {},
+            function(g) return N.GoalZone(g) end, N.ZoneNameOf)
+        if okZ then N.zoneSummary, shown, N.zoneLeftOut = summary, keptZ, left end
+    end
     -- A step that waits for one you hid (a quest's hand-in, its objective
     -- hidden) can't be done yet either: off the route, with the reason
     -- (0.35.240: "Turn in: Centaur Bracers" at 10/15, its collect step hidden).
@@ -728,6 +734,114 @@ function N.HoldForHidden(shown, hiddenGoals)
         kept = nextKept
         if not changed then return kept, held end
     end
+end
+
+-- Quests by zone (0.35.293). "Quests are starting to pull me into the
+-- Stonetalon Mountains and I don't know if I want to go there. I'd like to
+-- be able to tell which zone I should be heading towards." Flow had "finish
+-- the area you're in first" (an order, not a choice) and nothing that said
+-- what waits where. Now it counts your quest steps by zone, with their
+-- levels, and a zone can be left out of the route: its quests stay in your
+-- log and come back when you tick it again.
+--   Only quest steps count (accepting, objectives, handing in): a trainer or
+--   a vendor is wherever it is.
+N.ZONE_PROVIDERS = { questie = true, pickups = true, native = true }
+-- Pure: summary ({ { zone, name, steps, accept, min, max, off } }, most
+-- steps first), the goals kept, and how many were left out.
+--   off: { [zone] = true }; zoneOf(goal) -> zone or nil; nameOf(zone) -> name
+function N.ZoneFilter(goals, off, zoneOf, nameOf)
+    local byZone, order, kept, left = {}, {}, {}, 0
+    for _, g in ipairs(goals or {}) do
+        local zone = N.ZONE_PROVIDERS[g.provider or ""] and zoneOf(g) or nil
+        if zone then
+            local z = byZone[zone]
+            if not z then
+                z = { zone = zone, name = nameOf(zone), steps = 0, accept = 0, off = off[zone] == true }
+                byZone[zone] = z
+                order[#order + 1] = z
+            end
+            z.steps = z.steps + 1
+            if g.kind == "accept" then z.accept = z.accept + 1 end
+            local lv = tonumber(g.level)
+            if lv and lv > 0 then
+                z.min = math.min(z.min or lv, lv)
+                z.max = math.max(z.max or lv, lv)
+            end
+        end
+        if zone and off[zone] then left = left + 1 else kept[#kept + 1] = g end
+    end
+    table.sort(order, function(a, b)
+        if a.steps ~= b.steps then return a.steps > b.steps end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    return order, kept, left
+end
+-- Pure: one zone's line: "The Barrens: 55 steps (12 to accept), levels 12-20".
+function N.ZoneLine(z)
+    local levels = z.min and (z.min == z.max and string.format(", level %d", z.min) or string.format(", levels %d-%d", z.min, z.max)) or ""
+    return string.format("%s: %d step%s%s%s%s", tostring(z.name), z.steps, z.steps == 1 and "" or "s",
+        z.accept > 0 and string.format(" (%d to accept)", z.accept) or "", levels, z.off and " - LEFT OUT" or "")
+end
+-- Pure: the zone a typed name means among the summary (a part of its name), or nil.
+function N.ZoneByName(summary, text)
+    text = (text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if text == "" then return nil end
+    for _, z in ipairs(summary or {}) do
+        if tostring(z.name):lower():find(text, 1, true) then return z end
+    end
+    return nil
+end
+function N.GoalZone(g)
+    local pt = g.points and g.points[1]
+    return pt and pt.map and N.ZoneOf and N.ZoneOf(pt.map) or nil
+end
+function N.SetZoneOff(zone, off)
+    ns.db.nav.zonesOff = ns.db.nav.zonesOff or {}
+    ns.db.nav.zonesOff[zone] = off and true or nil
+    N.planDirty = true
+    if N.RequestCollect then N.RequestCollect("a zone left out or put back") end
+end
+function N.ZoneLines()
+    local out = {}
+    local sum = N.zoneSummary or {}
+    if #sum == 0 then return { "quests by zone: none on your route yet" } end
+    out[1] = string.format("your quest steps by zone (%d left out of the route now):", N.zoneLeftOut or 0)
+    for _, z in ipairs(sum) do out[#out + 1] = "  " .. N.ZoneLine(z) end
+    out[#out + 1] = "  /flow zones off <zone> leaves a zone out; /flow zones on <zone> puts it back; /flow zones all"
+    return out
+end
+ns.commands.zones = function(arg)
+    arg = arg or ""
+    local cmd, rest = arg:match("^(%S*)%s*(.-)$")
+    cmd = (cmd or ""):lower()
+    if cmd == "all" then
+        ns.db.nav.zonesOff = {}
+        N.planDirty = true
+        if N.RequestCollect then N.RequestCollect("every zone back") end
+        ns:Print("every zone is on your route again")
+        return
+    end
+    if cmd == "off" or cmd == "on" then
+        local z = N.ZoneByName(N.zoneSummary, rest)
+        if not z then ns:Print("no zone with quest steps called \"" .. tostring(rest) .. "\" (/flow zones lists them)") return end
+        N.SetZoneOff(z.zone, cmd == "off")
+        ns:Print(cmd == "off" and (z.name .. " is left out of your route: its quests stay in your log. /flow zones on " .. z.name .. " puts it back.")
+            or (z.name .. " is on your route again"))
+        return
+    end
+    for i, l in ipairs(N.ZoneLines()) do if i == 1 then ns:Print(l) else print(l) end end
+end
+-- The Flow menu's entries: a tick a zone.
+function N.ZoneMenuItems()
+    local items = {}
+    for _, z in ipairs(N.zoneSummary or {}) do
+        items[#items + 1] = { text = N.ZoneLine({ name = z.name, steps = z.steps, accept = z.accept, min = z.min, max = z.max }),
+            stay = true, checked = not z.off,
+            tip = "Ticked: this zone's quests are on your route. Untick to leave the zone out: its quests stay in your log, and the route stops taking you there.",
+            func = function() N.SetZoneOff(z.zone, not (ns.db.nav.zonesOff and ns.db.nav.zonesOff[z.zone]) ) end,
+            refresh = function(it) it.checked = not (ns.db.nav.zonesOff and ns.db.nav.zonesOff[z.zone]) end }
+    end
+    return items
 end
 
 -- Steps that wait for one on another continent. Pure:

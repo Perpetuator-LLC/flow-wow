@@ -367,7 +367,7 @@ end
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
 Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
-                  "Steps on the map", "Buttons", "Flow windows" }
+                  "Zones", "Steps on the map", "Buttons", "Flow windows" }
 
 -- The menu's two ticks for Flow's buttons.
 function Menu.ButtonItems()
@@ -543,6 +543,9 @@ function Menu:RouteItemsRaw()
         radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
     stops[#stops + 1] = { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end,
         tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
+    -- Your quests by zone: a tick a zone (untick: left out of the route).
+    section("Zones", safe(nav.ZoneMenuItems))
+
     section("Steps on the map", stops)
 
     -- The two buttons (0.35.277): the self button on or off, and docked or
