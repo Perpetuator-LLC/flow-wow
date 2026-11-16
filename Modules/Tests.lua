@@ -12643,3 +12643,19 @@ ns:Register("test", "quests: an item a quest needs you to bring gets a step of i
     t:ok(Q.StillToGet(15877, nil), "count unknown: still to get")
     t:ok(not Q.StillToGet(nil, 0), "no item: nothing to get")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.282: a material nothing drops or sells: a buy step at the auction house.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: a material with no source is bought at the auction house, on a price Flow has seen", function(t)
+    local SP = ns.skillPlan
+    t:eq(SP.AuctionCost(57, 102), 5814, "57 at 1s 2c each")
+    t:eq(SP.AuctionCost(57, nil), nil, "no price seen: no step")
+    t:eq(SP.AuctionCost(57, 0), nil, "a price of nothing: no step")
+    t:eq(SP.AuctionCost(0, 102), nil, "none needed: no step")
+    t:eq(SP.AuctionCost(3, 33.4), 101, "a part of a copper rounds up")
+    t:eq(SP.AuctionText(57, "Wool Cloth", 5814, function(c) return c .. "c" end), "Buy 57 Wool Cloth at the auction house (about 5814c)", "the step's words")
+    local ok, pts = pcall(SP.AuctionPoints)
+    t:ok(ok and type(pts) == "table", "looking for an auctioneer runs")
+end)

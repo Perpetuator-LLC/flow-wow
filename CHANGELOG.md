@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.282
+- **A material nothing drops or sells becomes a step at the auction house.** "Get 57 Wool
+  Cloth" sat in the blocked list. When Flow has seen a price for it at an auction house and
+  knows an auctioneer, it's a step there: "Buy 57 Wool Cloth at the auction house (about 58
+  silver)", and the route waits until you can pay. With no price seen, or no auctioneer known
+  yet, it stays listed and says which is missing.
+
 ## 0.35.281
 - **A quest that needs you to bring something sends you to fetch it first.** "Trial of the
   Lake" wants a Shrine Bauble from the lake, then taken to the shrine; the arrow went

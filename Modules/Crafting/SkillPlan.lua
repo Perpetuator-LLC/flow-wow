@@ -1265,6 +1265,35 @@ function SP.BankerPoints()
     return {}, names
 end
 
+-- Buying a material at the auction house (0.35.282). "Get 57 Wool Cloth"
+-- sat in the blocked list ("Flow doesn't know where Wool Cloth comes from
+-- (Auction House?)"). When Flow has seen a price for it there and knows an
+-- auctioneer, that's a step: at the auctioneer, with what it should cost, so
+-- the route waits until you can pay (as it does for a trainer).
+function SP.AuctionPoints()
+    local names = {}
+    for name, spot in pairs(ns.db.places or {}) do
+        if ns.places.HasRole(spot, "auction") then names[#names + 1] = name end
+    end
+    table.sort(names)
+    if #names > 0 then
+        local pts = npcPoints(names)
+        if #pts > 0 then return pts, names end
+    end
+    local a = ns.services and ns.services.Nearest and ns.services:Nearest("auction")
+    if a and a.map then return { { map = a.map, x = a.x, y = a.y } }, { a.name } end
+    return {}, names
+end
+-- Pure: what buying n at `price` each comes to (copper), or nil with no price.
+function SP.AuctionCost(n, price)
+    if type(price) ~= "number" or price <= 0 or type(n) ~= "number" or n <= 0 then return nil end
+    return math.ceil(n * price)
+end
+-- Pure: the step's words.
+function SP.AuctionText(n, name, cost, money)
+    return string.format("Buy %d %s at the auction house (about %s)", n, name, (money or tostring)(cost))
+end
+
 local function smeltOf(id)
     local s = src(id)
     return s and s.smelt
@@ -1865,9 +1894,23 @@ local function planProfession(prof, t, out)
                   text = string.format("Make %d %s (%s)", n, name, s.made),
                   blockedBy = string.format("make %d %s first (%s)", n, name, s.made) })
         else
-            add({ key = "need:" .. id, kind = "collect", points = { playerPoint() },
-                  text = string.format("Get %d %s", n, name),
-                  blockedBy = "Flow doesn't know where " .. name .. " comes from (Auction House?)" })
+            -- Nothing drops or sells it in Flow's data: the auction house, on a price Flow has seen there.
+            local price = ns.auction and ns.auction.Price and ns.auction:Price(id)
+            local cost = SP.AuctionCost(n, price)
+            local okA, ahPts = pcall(SP.AuctionPoints)
+            if cost and okA and #ahPts > 0 then
+                local money = ns.auction.Money
+                add({ key = "need:" .. id, kind = "buy", points = ahPts, cost = cost,
+                      text = SP.AuctionText(n, name, cost, money),
+                      details = { string.format("Nothing Flow knows of drops or sells %s. At the auction house it was about %s each when Flow last looked.",
+                                      name, (money or tostring)(math.floor(price))),
+                                  "The price there changes: look before you buy. The route waits until you have the money." } })
+            else
+                add({ key = "need:" .. id, kind = "collect", points = { playerPoint() },
+                      text = string.format("Get %d %s", n, name),
+                      blockedBy = cost and ("Flow doesn't know where " .. name .. " comes from, and knows no auctioneer yet: talk to one once")
+                          or ("Flow doesn't know where " .. name .. " comes from, and has seen no price for it at an auction house") })
+            end
         end
     end
     for node, nd in pairs(nodes) do
