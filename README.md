@@ -415,7 +415,8 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
 `/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`,
 `/flow dungeons`, `/flow zones`, `/flow threat`, `/flow meters`, `/flow selfbutton`, `/flow selfkey`,
-`/flow leftovers`, `/flow banker`, `/flow inventory`.
+`/flow leftovers`, `/flow banker`, `/flow inventory`, `/flow audioreset` (WoW silent after your
+speakers came back from a sleeping screen or Remote Desktop).
 
 ## For developers
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) (it lists what review keeps finding, so your pull

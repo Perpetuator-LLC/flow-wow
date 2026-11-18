@@ -3707,6 +3707,34 @@ ns:Register("test", "crafting: a bar for the whole batch", function(t)
     t:eq(CB.Text({ name = "X", total = 2, done = 2 }), "Made 2 X", "done")
 end)
 
+ns:Register("test", "sound: /flow audioreset restarts the game's sound, and by itself when speakers change", function(t)
+    -- "if you can fix it then perhaps give me a command like '/flow audioreset'"
+    local SND = ns.sound
+    if not SND then t:ok(false, "Sound.lua not loaded") return end
+    t:ok(type(ns.commands.audioreset) == "function", "/flow audioreset is a command")
+    local calls = {}
+    local env = {
+        Sound_GameSystem_RestartSoundSystem = function() calls[#calls + 1] = "game" end,
+        ConsoleExec = function(cmd) calls[#calls + 1] = cmd end,
+    }
+    t:eq(#SND.Ways(env, true), 2, "both of the game's ways, when it has them")
+    t:eq(#SND.Ways(env), 1, "by itself: never the console command")
+    local ok, how = SND.Restart(true, env)
+    t:ok(ok and how == "Sound_GameSystem_RestartSoundSystem" and calls[1] == "game" and #calls == 1, "the game's own restart first, once")
+    calls = {}
+    env.Sound_GameSystem_RestartSoundSystem = function() error("blocked") end
+    ok = SND.Restart(true, env)
+    t:ok(ok and calls[1] == "Sound_RestartSoundSystem", "typed, and that fails: the console command")
+    ok, how = SND.Restart(true, {})
+    t:ok(not ok and how:find("no way", 1, true) ~= nil, "neither: says so (and the command tells you what to type)")
+    t:eq(SND.ShouldAuto(true, 100, nil, {}), true, "speakers changed: restart")
+    t:eq(SND.ShouldAuto(false, 100, nil, {}), false, "the setting off: no")
+    t:eq(SND.ShouldAuto(true, 100, 97, {}), false, "right after Flow's own restart: no (it changes the list too)")
+    t:eq(SND.ShouldAuto(true, 100, 50, { 60, 70, 80 }), false, "three this minute already: no more")
+    t:eq(SND.ShouldAuto(true, 100, 50, { 10, 20, 80 }), true, "older ones don't count")
+    t:eq(#SND.Lines(), 2, "/flow audioreset says what this game has")
+end)
+
 ns:Register("test", "money: about three figures in the biggest coin, everywhere", function(t)
     -- "can we also show 13552c as 13.5g - everywhere we display money reuse this
     -- shortening algorithm, generally 3 chars so 124g"

@@ -1,6 +1,17 @@
 # Changelog
 
 
+## 0.35.308
+
+- **`/flow audioreset` brings WoW's sound back.** When your speakers go away and come back (a
+  monitor's speakers vanish while the screen sleeps, or while you're on Remote Desktop), WoW
+  sometimes stops its sound to follow them and never starts it again: the game is silent while
+  everything else plays, and its Audio settings show only "System Default". The command
+  restarts the game's sound without restarting the game.
+- **Flow does it by itself, too:** a few seconds after the game says your speakers changed,
+  Flow restarts the game's sound once things settle. The sound may cut out for a moment. Off:
+  "Restart WoW's sound when your speakers change" in Flow Settings (More).
+
 ## 0.35.307
 
 - **Money reads at a glance, the same everywhere.** A step held back for money said "needs
