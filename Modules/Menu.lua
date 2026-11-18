@@ -579,13 +579,10 @@ function Menu:RouteItemsRaw()
         radio = true, checked = not area and shown == nil, func = function() nav:SetStopsShown(nil) end }
     stops[#stops + 1] = { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end,
         tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
-    -- Your quests by zone: a tick a zone (untick: left out of the route).
-    -- (And, to read: the zones with the most to do at your level, WhereNext.lua.)
-    local zoneItems = safe(nav.ZoneMenuItems)
-    local nextItems = ns.whereNext and safe(ns.whereNext.MenuItems, 5) or {}
-    if #zoneItems > 0 and #nextItems > 0 then zoneItems[#zoneItems + 1] = { rule = true } end
-    for _, it in ipairs(nextItems) do zoneItems[#zoneItems + 1] = it end
-    section("Zones", zoneItems)
+    -- Your questing zones: a tick a zone, yours first, then the zones with
+    -- quests for your level (WhereNext.lua), each with its levels and, in its
+    -- tooltip, what it holds and how it levels. You pick; Flow suggests.
+    section("Zones", safe(nav.ZoneMenuItems))
 
     section("Steps", stops)
 

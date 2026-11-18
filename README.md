@@ -164,15 +164,23 @@ Flow for WoW is a separate project from Flow Engine.
   it for the run's quests. The dungeon route keeps your errands on the way (training that's
   waiting, selling and repairs, your bank), and "Ask my group in chat who has its quests" says
   one line in party chat.
-- **Zones**: the Flow menu's Zones section lists each zone where you have quest steps, with how
-  many and their levels ("Stonetalon Mountains: 6 steps (2 to accept), levels 17-22"). Untick a
-  zone to leave it out of the route; its quests stay in your log. Under a line: Select all zones,
-  Select no zones and Current zone only, to start a choice quickly. With "Finish the selected zones
-  first" (Order) on, an unticked zone isn't left out: its quests come after the ticked zones'.
-  `/flow zones` (`all`, `none`, `here`, `first`).
-- **Where next**: `/flow where` lists the zones with the most to do at your level: quests you
-  could pick up, their levels and XP, class quests, what you could gather there, and whether
-  it's across the sea. The top five also show in the Zones section.
+- **Your questing zones**: you pick them, Flow doesn't. The Flow Router's Zones section (Route)
+  lists your zones and every zone with quests for your level, each with its levels and how many
+  steps or quests to pick up ("Ashenvale: levels 18-24, 22 to pick up - suggested"). Hover one
+  for what it holds: your steps there, quests to pick up and their XP, where the quest givers
+  stand (all in one place, or spread over several), how far apart the quests' mobs are, mob
+  levels, elite quests, class quests and what you could gather. A few are marked "suggested"
+  (good XP for your level, quests in one place, mobs close together). Tick a zone to quest there:
+  the route only takes quests in your zones (per character; a trainer or vendor is wherever it
+  is). Under a line: Quest in the zone you're in, Select all zones, Select no zones and Current
+  zone only. With "Finish the selected zones first" (Order) on, an unticked zone isn't left out:
+  its quests come after your zones'. `/flow zones` (`all`, `none`, `here`, `on <zone>`,
+  `off <zone>`, `first`).
+- **A note when you're in a zone you haven't picked**: a bar at the top of the screen, its edge
+  pulsing orange, says so and what the zone holds, with **Quest here** (it becomes one of your
+  zones) and **Not now** (until you leave and come back). Not on a flight, in a dungeon or in a
+  fight; Ctrl-drag moves it. Off in Flow Settings (Finding your way).
+- **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.

@@ -138,6 +138,7 @@ function X.Lines()
             { "order", ns.xpValue and ns.xpValue.Mode and ns.xpValue:Mode() },
             { "zonefirst", ns.db.nav.zoneFirst ~= false }, { "areafirst", ns.db.nav.areaFirst == true },
             { "zonesfirst", ns.db.nav.zonesFirst == true },
+            { "zones", ns.db.nav.zonesOn and N.ZoneNames and N.ZoneNames(ns.db.nav.zonesOn) or "not picked yet" },
             { "trails", N.TrailsOn and N.TrailsOn() }, { "note", N.zoneNote },
             { "includes", okK and type(kinds) == "string" and kinds or nil },
         })

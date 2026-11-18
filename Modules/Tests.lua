@@ -13111,24 +13111,29 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
     t:eq(N.ZoneByName(sum, "stonetalon").name, "Stonetalon Mountains", "a zone is found by a part of its name")
     t:eq(N.ZoneByName(sum, "ashenvale"), nil, "one with no quest steps: none")
     t:eq(N.ZoneByName(sum, ""), nil, "nothing typed: none")
-    -- The switch, by the menu's tick and by /flow zones.
-    local was = ns.db.nav.zonesOff
+    -- The switch, by the menu's tick and by /flow zones. (Picked one by one
+    -- since 0.35.316: ns.db.nav.zonesOn holds your zones. The zones for your
+    -- level, WhereNext.lua, are stood in for: none here.)
+    local was = ns.db.nav.zonesOn
+    local W = ns.whereNext
     with(ns, "Print", function() end, function()
     with(N, "RequestCollect", function() end, function()
+    with(W, "ByZone", function() return {} end, function()
     with(N, "zoneSummary", sum, function()
-        ns.db.nav.zonesOff = {}
+        ns.db.nav.zonesOn = { [1] = true, [2] = true }
         local items = N.ZoneMenuItems()
         local ticks = 0
         for _, it in ipairs(items) do if it.checked ~= nil then ticks = ticks + 1 end end
         t:eq(ticks, 2, "the Flow menu has a tick a zone")
         local tick
         for _, it in ipairs(items) do if it.text and it.text:find("^Stonetalon") then tick = it end end   -- (the line under them has no words)
+        t:ok(tick ~= nil and type(tick.tipLines) == "table", "each zone has a tooltip of what it holds")
         t:ok(tick ~= nil and pcall(tick.func), "a click on Stonetalon's tick runs")
-        t:ok(ns.db.nav.zonesOff[2] == true, "and leaves it out")
+        t:ok(not ns.db.nav.zonesOn[2], "and leaves it out")
         t:ok(pcall(ns.commands.zones, "on stonetalon"), "/flow zones on runs")
-        t:eq(ns.db.nav.zonesOff[2], nil, "and puts it back")
-        t:ok(pcall(ns.commands.zones, "off barrens") and ns.db.nav.zonesOff[1] == true, "/flow zones off leaves a zone out")
-        t:ok(pcall(ns.commands.zones, "all") and next(ns.db.nav.zonesOff) == nil, "/flow zones all puts every zone back")
+        t:eq(ns.db.nav.zonesOn[2], true, "and picks it again")
+        t:ok(pcall(ns.commands.zones, "off barrens") and not ns.db.nav.zonesOn[1], "/flow zones off leaves a zone out")
+        t:ok(pcall(ns.commands.zones, "all") and ns.db.nav.zonesOn[1] and ns.db.nav.zonesOn[2], "/flow zones all picks every zone listed")
         t:ok(pcall(ns.commands.zones, ""), "/flow zones lists them")
         -- 0.35.311: Select all / Select none / Current zone only, under a line.
         local buttons = {}
@@ -13136,13 +13141,14 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
             if it.text then buttons[(it.text:match("^(Select %a+ zones)") or it.text:match("^(Current zone only)") or "")] = it end
         end
         t:ok(buttons["Select no zones"] and pcall(buttons["Select no zones"].func), "click: Select no zones runs")
-        t:ok(ns.db.nav.zonesOff[1] == true and ns.db.nav.zonesOff[2] == true, "and unticks every zone")
-        t:ok(buttons["Select all zones"] and pcall(buttons["Select all zones"].func) and next(ns.db.nav.zonesOff) == nil, "click: Select all zones ticks them all")
+        t:ok(not ns.db.nav.zonesOn[1] and not ns.db.nav.zonesOn[2], "and unticks every zone")
+        t:ok(buttons["Select all zones"] and pcall(buttons["Select all zones"].func) and ns.db.nav.zonesOn[1] and ns.db.nav.zonesOn[2],
+            "click: Select all zones ticks them all")
         t:ok(buttons["Current zone only"] and pcall(buttons["Current zone only"].func), "click: Current zone only runs")
-        t:ok(pcall(ns.commands.zones, "none") and ns.db.nav.zonesOff[1] == true, "/flow zones none")
+        t:ok(pcall(ns.commands.zones, "none") and next(ns.db.nav.zonesOn) == nil, "/flow zones none")
         t:ok(pcall(ns.commands.zones, "all"), "/flow zones all")
-    end) end) end)
-    ns.db.nav.zonesOff = was
+    end) end) end) end)
+    ns.db.nav.zonesOn = was
     N.planDirty = true
 end)
 
@@ -13191,12 +13197,16 @@ ns:Register("test", "zones: finish the selected zones first", function(t)
     -- "the option to finish the area you're in first should be finish the selected zones first"
     local N = ns.nav
     local sum = { { zone = 1, name = "The Barrens" }, { zone = 2, name = "Stonetalon Mountains" }, { zone = 3, name = "Ashenvale" } }
-    t:eq(next(N.ZonesOffFor("all", sum, 1)), nil, "select all: nothing unticked")
-    local off = N.ZonesOffFor("none", sum, 1)
-    t:ok(off[1] and off[2] and off[3], "select none: every zone unticked")
-    off = N.ZonesOffFor("here", sum, 2)
-    t:ok(off[1] and not off[2] and off[3], "current zone only: the others unticked")
-    local picked = N.SelectedZones(sum, { [3] = true })
+    -- (Picked one by one since 0.35.316: N.ZonesOnFor gives the zones a quick choice picks.)
+    local on = N.ZonesOnFor("all", sum, 1)
+    t:ok(on[1] and on[2] and on[3], "select all: every zone listed")
+    t:eq(next(N.ZonesOnFor("none", sum, 1)), nil, "select none: none")
+    on = N.ZonesOnFor("here", sum, 2)
+    t:ok(on[2] and not on[1] and not on[3], "current zone only: the zone you're in")
+    local keep = ns.db.nav.zonesOn
+    ns.db.nav.zonesOn = { [1] = true, [2] = true }
+    local picked = N.SelectedZones()
+    ns.db.nav.zonesOn = keep
     t:ok(picked[1] and picked[2] and not picked[3], "the selection: the ticked zones")
     local names = { "The Barrens", "Stonetalon Mountains", "Ashenvale" }
     local nameOf = function(z) return names[z] end
@@ -13927,4 +13937,119 @@ ns:Register("test", "click: the Flow Router button opens the list, its arrow poi
     t:eq(ns.db.nav.mapListCollapsed, true, "another closes it")
     ns.db.nav.mapListCollapsed = was
     pcall(M.Redraw, M)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.316: you pick your questing zones; the Zones list says what each
+-- holds and how it levels; a note when you're in one you haven't picked.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "where next: how a zone levels: quest givers' places, how far apart its mobs stand, what's suggested", function(t)
+    -- "some areas have mobs closer together and quests more in a condensed fashion so that they can level faster"
+    local W = ns.whereNext
+    local places, biggest = W.Hubs({ { 0, 0 }, { 50, 40 }, { 100, 0 }, { 2000, 2000 }, { 2050, 2000 } }, 150)
+    t:eq(places, 2, "givers within reach of each other are one place: two places")
+    t:eq(biggest, 3, "three at the biggest")
+    t:eq(select(1, W.Hubs({}, 150)), 0, "no givers: no places")
+    t:eq(W.Spacing({ { 0, 0 }, { 30, 0 }, { 60, 0 }, { 500, 0 } }), 30, "mobs: the middle of each one's distance to its nearest")
+    t:eq(W.Spacing({ { 0, 0 } }), nil, "one spawn: no spacing")
+    t:eq(W.Middle({ 90, 10, 40 }), 40, "the middle of a list")
+    t:ok(W.SpacingWords(30):find("close together", 1, true) ~= nil, "30 yd: close together")
+    t:ok(W.SpacingWords(200):find("spread out", 1, true) ~= nil, "200 yd: spread out")
+    t:eq(W.SpacingWords(nil), nil, "not known: nothing said")
+    -- Suggested: the most XP, helped by quests in one place and mobs close; never across the sea first.
+    local a = { name = "A", quests = 20, xp = 20000, places = 4, biggest = 4, spacing = 90, elites = 0, class = 0 }
+    local b = { name = "B", quests = 18, xp = 18500, places = 2, biggest = 12, spacing = 30, elites = 0, class = 1 }
+    local c = { name = "C", quests = 25, xp = 30000, places = 3, biggest = 10, spacing = 40, elites = 0, class = 0, away = true }
+    local d = { name = "D", quests = 3, xp = 9000 }
+    local e = { name = "E", quests = 12, xp = 15000, places = 5, biggest = 3, spacing = 150, elites = 8, class = 0 }
+    W.Suggest({ a, b, c, d, e }, 2)
+    t:ok(b.suggested and a.suggested, "the two best for you are suggested")
+    t:ok(not c.suggested, "across the sea counts for half")
+    t:ok(not d.suggested, "too few quests: not suggested")
+    t:ok(not e.suggested, "many elites and spread out: not suggested")
+    t:ok(b.why:find("about 18.5k XP for your level", 1, true) and b.why:find("one place", 1, true) and b.why:find("mobs close", 1, true)
+        and b.why:find("your class", 1, true), "and why: " .. tostring(b.why))
+    local lines = table.concat(W.TipLines({ name = "B", quests = 18, xp = 18500, min = 18, max = 23, places = 2, biggest = 12,
+        spacing = 30, mobMin = 17, mobMax = 24, elites = 2, class = 1, gather = "Herbalism: Briarthorn" }), "|")
+    t:ok(lines:find("To pick up: 18 quests, levels 18-23", 1, true) ~= nil, "the tooltip: what you could pick up")
+    t:ok(lines:find("in 2 places, 12 at the biggest", 1, true) ~= nil, "where the givers stand")
+    t:ok(lines:find("about 30 yd apart (close together)", 1, true) ~= nil, "how far apart the mobs are")
+    t:ok(lines:find("Mob levels: 17-24", 1, true) and lines:find("Elite: 2 quests", 1, true) and lines:find("For your class: 1 quest", 1, true)
+        and lines:find("Herbalism: Briarthorn", 1, true), "mob levels, elites, your class, gathering")
+    t:ok(pcall(W.Lines), "/flow where builds")
+end)
+
+ns:Register("test", "zones: you pick them; the Zones list shows every option, yours first, with what it holds", function(t)
+    -- "show the user what the options were and what was suggested for the next level, and then let them pick"
+    local N = ns.nav
+    local goals = {
+        { key = "a", provider = "questie", level = 14, z = 1 },
+        { key = "b", provider = "pickups", kind = "accept", level = 20, z = 2 },
+        { key = "c", provider = "questie", level = 15, z = 1, classQuest = "Cure Poison" },
+    }
+    local names = { [1] = "The Barrens", [2] = "Stonetalon Mountains", [3] = "Ashenvale" }
+    local sum, kept, left = N.ZoneFilter(goals, function(zone) return zone == 2 end, function(g) return g.z end, function(z) return names[z] end)
+    t:eq(left, 1, "a zone you haven't picked: its quest steps are left out (as a function too)")
+    t:eq(#kept, 2, "the rest stay")
+    local byName = {}
+    for _, z in ipairs(sum) do byName[z.name] = z end
+    t:eq(byName["The Barrens"].log, 2, "steps of quests in your log are counted")
+    t:eq(byName["Stonetalon Mountains"].log, 0, "a quest to pick up isn't one in your log")
+    t:ok(byName["The Barrens"].classSpells and byName["The Barrens"].classSpells["Cure Poison"], "a class quest's step is noted by zone")
+    -- A character's first zones: the one it's in, and where its log's quests are.
+    local first = N.FirstZones(sum, 3, nil)
+    t:ok(first[1] and first[3] and not first[2], "first zones: where your log's quests are and where you are, not where Flow found quests to pick up")
+    first = N.FirstZones(sum, 3, { [1] = true })
+    t:ok(not first[1], "a zone you'd left out before stays out")
+    -- The list: yours first, then the suggested, then the rest.
+    local where = { [3] = { name = "Ashenvale", quests = 22, xp = 25000, min = 18, max = 24, suggested = true, why = "the most XP for your level" },
+                    [4] = { name = "Thousand Needles", quests = 6, xp = 9000, min = 22, max = 26 } }
+    local choices = N.ZoneChoices(sum, where, { [1] = true }, 1)
+    t:eq(#choices, 4, "every zone: those with your steps and those with quests for your level")
+    t:eq(choices[1].name, "The Barrens", "yours first")
+    t:eq(choices[2].name, "Ashenvale", "then the suggested")
+    t:ok(choices[1].on and not choices[2].on and choices[1].here, "ticked or not, and where you are")
+    t:eq(N.ZoneChoiceText(choices[1]), "The Barrens: levels 14-15, 2 steps (you're here)", "a row: levels, steps, you're here")
+    t:ok(N.ZoneChoiceText(choices[2]):find("Ashenvale: levels 18-24, 22 to pick up", 1, true)
+        and N.ZoneChoiceText(choices[2]):find("suggested", 1, true), "a zone to pick: its levels, quests to pick up, suggested")
+    local tip = table.concat(N.ZoneChoiceTip(choices[1]), "|")
+    t:ok(tip:find("Class quest here: Cure Poison", 1, true) ~= nil, "the tooltip names a class quest there")
+    tip = table.concat(N.ZoneChoiceTip(choices[2]), "|")
+    t:ok(tip:find("Suggested: the most XP for your level", 1, true) and tip:find("To pick up: 22 quests", 1, true), "and why a zone is suggested")
+    t:ok(N.ZoneChoices(sum, {}, nil, 1)[2].on, "not picked yet: every zone is in, as before")
+end)
+
+ns:Register("test", "click: the note for a zone you haven't picked: Quest here picks it, Not now waits until you come back", function(t)
+    -- "some kind of flashy notification that they're in a zone that they don't currently have selected ... one-click update it"
+    local Z, N = ns.zoneNotice, ns.nav
+    if not Z then t:ok(false, "ZoneNotice.lua not loaded") return end
+    local choice = { zone = 2, name = "Stonetalon Mountains", where = { quests = 12, min = 18, max = 24, suggested = true } }
+    t:ok(Z.Wanted(2, false, choice, nil, false), "in a zone you haven't picked, with quests for you: the note")
+    t:ok(not Z.Wanted(2, true, choice, nil, false), "one of your zones: none")
+    t:ok(not Z.Wanted(2, false, nil, nil, false), "nothing there for you: none")
+    t:ok(not Z.Wanted(2, false, choice, 2, false), "you said Not now here: none")
+    t:ok(not Z.Wanted(2, false, choice, nil, true), "on a flight, in a dungeon or a fight: none")
+    t:ok(not Z.Wanted(nil, false, choice, nil, false), "nowhere known: none")
+    local title, detail = Z.Words(choice)
+    t:eq(title, "You're in Stonetalon Mountains: not one of your questing zones", "what it says")
+    t:eq(detail, "12 quests to pick up, levels 18-24; suggested for your level", "and what the zone holds")
+    -- The bar itself: Quest here picks the zone (Flow's own setter stood in for).
+    local bar = Z.Show(2, choice, true)
+    t:ok(bar and bar:IsShown(), "the note shows")
+    local picked
+    with(ns, "Print", function() end, function()
+    with(N, "SetZoneOn", function(zone, on) picked = { zone, on } end, function()
+        local ok, err = pcall(bar.go:GetScript("OnClick"), bar.go)
+        t:ok(ok, "a click on Quest here runs" .. (ok and "" or (": " .. tostring(err))))
+    end) end)
+    t:ok(picked and picked[1] == 2 and picked[2] == true, "and picks the zone you're in")
+    t:ok(not bar:IsShown(), "the note goes")
+    Z.Show(2, choice, true)
+    local was = Z.dismissed
+    t:ok(pcall(bar.later:GetScript("OnClick"), bar.later), "a click on Not now runs")
+    t:eq(Z.dismissed, 2, "not again in this zone until you leave it")
+    t:ok(not bar:IsShown(), "and the note goes")
+    Z.dismissed = was
+    t:ok(pcall(Z.Check), "looking again runs")
 end)

@@ -1,6 +1,28 @@
 # Changelog
 
 
+## 0.35.316
+
+- **You pick your questing zones; Flow no longer picks for you.** Until now every zone was on
+  the route unless you unticked it, so quests to pick up anywhere around your level pulled you
+  into zones you hadn't chosen. Now the route takes quests only in the zones you've ticked in
+  the Flow Router (Route, Zones). Your first zones are the one you're in and those where the
+  quests in your log are (a zone you'd unticked before stays out). Kept per character: an alt
+  has its own. A trainer, vendor or flight master is still wherever it is.
+- **The Zones list shows every option, with what it holds.** Your zones first, then the zones
+  with quests for your level, each with its levels and how many steps or quests to pick up. A few
+  are marked "suggested". Hover a zone for: your steps there, quests to pick up and about how much
+  XP, where the quest givers stand (all in one place, or in how many), how far apart the quests'
+  mobs are ("about 30 yd apart, close together"), mob levels, elite quests, class quests there,
+  and what you could gather. The separate "Where next" lines are gone from the menu (it's all on
+  the rows now); `/flow where` still lists them in chat.
+- **A note when you're in a zone you haven't picked.** A bar at the top of the screen, its edge
+  pulsing orange for a few seconds: "You're in Stonetalon Mountains: not one of your questing
+  zones", what it holds, and **Quest here** (one click: it becomes one of your zones) or **Not
+  now** (until you leave and come back). Not on a flight, in a dungeon or in a fight; Ctrl-drag
+  moves it. Off: "Say when you're in a zone you haven't picked" in Flow Settings (Finding your
+  way). The Zones list also has "Quest in the zone you're in".
+
 ## 0.35.315
 
 - **The Flow Seller sells your junk first, really.** Flow used to ask the game to sell
