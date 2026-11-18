@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.301
+
+- **Flow Prices: an item's auction price over time, as a chart.** Alt + click an item (bags, a
+  chat link, the auction house), click a line in Flow Banker's "Auction prices", or type
+  `/flow price <item>`. The chart shows the cheapest buyout (each) Flow saw at each visit to the
+  auction house, with time to scale: two scans an hour apart sit close together, a week without
+  one is a long stretch. Hover a dot for its price and when. Above it: the price now, the
+  lowest, highest and average, and how it moved from the first look to the last.
+- Flow now keeps up to 48 points of history an item (it kept the last 8 looks); the looks it
+  already had start the chart. A long history thins at its far end instead of losing it.
+- The Alt + click can be turned off in Flow Settings, under "Loot and selling".
+
 ## 0.35.300
 
 - **A bank icon on what goes into your bank.** Items in your bags that Flow Banker will put

@@ -13233,3 +13233,128 @@ ns:Register("test", "bags: what goes into your bank at the next visit has a bank
     t:ok(type(B.MarkDirty) == "function" and pcall(B.MarkDirty), "a choice in the Flow Banker repaints the bags")
     t:ok(B.BANK_TIP:find("Flow Banker", 1, true) ~= nil, "the tooltip says why")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.301: Flow Prices: an item's auction price over time, as a chart.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "auction: each visit adds a point to an item's price history", function(t)
+    local AH = ns.auction
+    local h = {}
+    AH.AddPoint(h, 500, 1000, 48, 600)
+    AH.AddPoint(h, 450, 1200, 48, 600)
+    t:eq(#h, 2, "two looks in one visit are one point")
+    t:eq(h[2], 450, "the cheapest of the visit")
+    AH.AddPoint(h, 700, 1300, 48, 600)
+    t:eq(h[2], 450, "a dearer look in the same visit doesn't raise it")
+    AH.AddPoint(h, 600, 5000, 48, 600)
+    t:ok(#h == 4 and h[3] == 5000 and h[4] == 600, "a later visit is a new point, with its time")
+    local long = {}
+    for i = 1, 9 do AH.AddPoint(long, 100 + i, i * 10000, 8, 600) end
+    t:ok(#long / 2 <= 8, "past the most kept, it thins")
+    t:eq(long[1], 10000, "the oldest look stays")
+    t:eq(long[#long - 1], 90000, "and the newest")
+    local ordered = true
+    for i = 3, #long - 1, 2 do if long[i] <= long[i - 2] then ordered = false end end
+    t:ok(ordered, "still oldest first")
+    -- Record keeps the looks it always kept, and starts the history from them.
+    local prices = { [2447] = { looks = { { price = 300, at = 9000 }, { price = 200, at = 2000 } }, price = 300, at = 9000 } }
+    local e = AH.Record(prices, 2447, 350.7, 20000)
+    t:ok(e.price == 350 and e.looks[1].price == 350, "the newest look, as before")
+    t:eq(#e.h, 6, "the older looks begin the history")
+    t:ok(e.h[1] == 2000 and e.h[2] == 200 and e.h[5] == 20000 and e.h[6] == 350, "oldest first, the new one last")
+    t:ok(type(AH.ItemId) == "function" and AH.ItemId("item:2447") == 2447, "an item from its link")
+end)
+
+ns:Register("test", "prices: the chart places each look by its time and its price", function(t)
+    local PC = ns.priceChart
+    local pts = PC.Points({ h = { 1000, 100, 2000, 200, 5000, 150 } })
+    t:eq(#pts, 3, "the history as points")
+    t:ok(pts[1].at == 1000 and pts[3].price == 150, "oldest first")
+    t:eq(#PC.Points({ looks = { { price = 9, at = 50 }, { price = 7, at = 20 } } }), 2, "an item with only the old looks still charts")
+    t:eq(PC.Points({ looks = { { price = 9, at = 50 }, { price = 7, at = 20 } } })[1].at, 20, "oldest first there too")
+    t:eq(#PC.Points(nil), 0, "nothing known: no points")
+    local t0, t1, lo, hi = PC.Range(pts)
+    t:ok(t0 == 1000 and t1 == 5000 and lo == 100 and hi == 200, "first and last time, lowest and highest")
+    local placed = PC.Place(pts, 400, 100, 0)
+    t:near(placed[1].x, 0, 0.01, "the first look at the left edge")
+    t:near(placed[3].x, 400, 0.01, "the last at the right")
+    t:near(placed[2].x, 100, 0.01, "time to scale: a quarter of the way in time is a quarter across")
+    t:near(placed[1].y, 0, 0.01, "the lowest at the bottom")
+    t:near(placed[2].y, 100, 0.01, "the highest at the top")
+    t:near(placed[3].y, 50, 0.01, "halfway in price is halfway up")
+    local padded = PC.Place(pts, 400, 100, 0.1)
+    t:ok(padded[1].y > 0 and padded[2].y < 100, "with room above and below")
+    local one = PC.Place({ { at = 7, price = 300 } }, 400, 100)
+    t:ok(#one == 1 and one[1].x == 200 and one[1].y > 0 and one[1].y < 100, "one look sits in the middle")
+    local flat = PC.Place({ { at = 1, price = 300 }, { at = 2, price = 300 } }, 400, 100)
+    t:near(flat[1].y, 50, 0.01, "a price that never moved is a line through the middle")
+    local bottom = PC.Axis(2, 400, 0.5)
+    t:eq(bottom, 0, "the axis never goes under nothing")
+    local s = PC.Stats(pts)
+    t:ok(s.now == 150 and s.low == 100 and s.high == 200 and s.avg == 150 and s.looks == 3, "now, low, high, average")
+    t:near(s.change, 0.5, 0.001, "from the first look to the last")
+    t:eq(PC.ChangeText(0.5), "up 50%", "up")
+    t:eq(PC.ChangeText(-0.08), "down 8%", "down")
+    t:eq(PC.ChangeText(0.001), "unchanged", "barely moved")
+    t:eq(PC.ChangeText(nil), nil, "one look: nothing to compare")
+    t:eq(PC.Span(1500), "25 min", "minutes")
+    t:eq(PC.Span(7200), "2 h", "hours")
+    t:eq(PC.Span(5 * 86400), "5 days", "days")
+    local ticks = PC.Ticks(1000, 5000, 4)
+    t:ok(#ticks == 4 and ticks[1].share == 0 and ticks[4].share == 1 and ticks[1].at == 1000 and ticks[4].at == 5000, "times under the chart, end to end")
+    t:eq(#PC.Ticks(1000, 1000, 4), 1, "one look: one time")
+    t:eq(#PC.Ticks(nil, nil, 4), 0, "no looks: none")
+    local _, none = PC.Words(2447, {}, 6000)
+    t:ok(none:find("No auction price yet", 1, true) ~= nil, "no price: it says so")
+    local head, stats = PC.Words(2447, pts, 5000 + 7200)
+    t:ok(head:find("2 h ago", 1, true) ~= nil, "the price now and how old it is")
+    t:ok(stats:find("3 looks", 1, true) ~= nil and stats:find("down", 1, true) == nil and stats:find("up 50%", 1, true) ~= nil, "low, high, average and the change")
+    t:eq(PC.IsChartClick("|cffffffff|Hitem:2447::::::::20:::::|h[Peacebloom]|h|r", true, false, false, true), 2447, "Alt + click on an item: its chart")
+    t:eq(PC.IsChartClick("|Hitem:2447:|h[x]|h", true, true, false, true), nil, "with Ctrl too: not ours")
+    t:eq(PC.IsChartClick("|Hitem:2447:|h[x]|h", false, false, false, true), nil, "a plain click: not ours")
+    t:eq(PC.IsChartClick("|Hitem:2447:|h[x]|h", true, false, false, false), nil, "turned off: nothing")
+    t:eq(PC.IsChartClick("|Hspell:5176|h[Wrath]|h", true, false, false, true), nil, "not an item: nothing")
+end)
+
+ns:Register("test", "click: Flow Prices opens from /flow price and from a line of Flow Banker's Auction prices", function(t)
+    local PC, AH, K = ns.priceChart, ns.auction, ns.banker
+    local prices = AH:Prices()
+    local had = prices[2447]
+    prices[2447] = { price = 150, at = time() - 60, looks = {}, h = { time() - 90000, 100, time() - 40000, 200, time() - 60, 150 } }
+    local wasItem = PC.item
+    local wasShown = PC._Frame() and PC._Frame():IsShown()
+    local ok, err = pcall(PC.Show, PC, 2447)
+    t:ok(ok, "the chart draws: " .. tostring(err))
+    local f = PC._Frame()
+    t:ok(f and f:IsShown(), "Flow Prices is open")
+    if f then
+        t:ok(f.head and f.head.text:GetText() == "Flow Prices", "named Flow Prices")
+        t:ok(f.dots[3] and f.dots[3]:IsShown() and not (f.dots[4] and f.dots[4]:IsShown()), "a dot for each look")
+        t:ok(f.lines[2] and f.lines[2]:IsShown() and not (f.lines[3] and f.lines[3]:IsShown()), "a line between each two")
+        t:ok((f.stats:GetText() or ""):find("3 looks", 1, true) ~= nil, "its low, high and average above")
+        local d = f.dots[2]
+        t:ok(pcall(d:GetScript("OnEnter"), d) and pcall(d:GetScript("OnLeave"), d), "hovering a dot shows its price and when")
+        -- One look, then none: the same window, fewer marks.
+        prices[2447] = { price = 150, at = time(), looks = {}, h = { time(), 150 } }
+        t:ok(pcall(PC.Fill, PC) and f.dots[1]:IsShown() and not f.dots[2]:IsShown() and not f.lines[1]:IsShown(), "one look: one dot, no line")
+        prices[2447] = nil
+        t:ok(pcall(PC.Fill, PC) and not f.dots[1]:IsShown(), "no price: an empty chart that says why")
+        t:ok(pcall(f.close:GetScript("OnClick"), f.close) and not f:IsShown(), "its close button closes it")
+    end
+    prices[2447] = { price = 150, at = time(), looks = {}, h = { time(), 150 } }
+    t:ok(pcall(ns.commands.price, "item:2447") and PC._Frame():IsShown() and PC.item == 2447, "/flow price <item> opens it")
+    PC._Frame():Hide()
+    t:ok(pcall(ns.commands.price, ""), "/flow price with nothing says how")
+    t:ok(not PC._Frame():IsShown(), "and opens nothing")
+    -- A line of Flow Banker's Auction prices.
+    t:ok(K.RowClick(K, { id = 2447 }) == true and PC._Frame():IsShown(), "a click on a price line opens that item's chart")
+    t:ok(K.RowClick(K, {}) == false, "a line with no item does nothing")
+    local _, lines = K.ViewLines("prices")
+    t:ok(type(K.lineIds) == "table" and #K.lineIds == #lines, "every price line knows its item")
+    K.ViewLines("put")
+    t:eq(K.lineIds, nil, "the other views' lines aren't clickable")
+    prices[2447] = had
+    PC.item = wasItem
+    if wasShown then pcall(PC.Fill, PC) else PC._Frame():Hide() end
+end)

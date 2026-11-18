@@ -277,6 +277,22 @@ local function build()
         r:SetJustifyH("LEFT")
         r:SetWordWrap(false)
         f.rows[i] = r
+        -- A line of "Auction prices" opens that item's chart (Flow Prices, 0.35.301).
+        local rb = CreateFrame("Button", nil, f)
+        rb:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 1); rb:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", 0, -1)
+        rb.hl = rb:CreateTexture(nil, "HIGHLIGHT")
+        rb.hl:SetAllPoints(); rb.hl:SetColorTexture(1, 1, 1, 0.08)
+        rb:SetScript("OnClick", function(self) B:RowClick(self) end)
+        rb:SetScript("OnEnter", function(self)
+            if not self.id then return end
+            ns.Tip(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("Click: its price over time (Flow Prices)", 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        rb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        rb:Hide()
+        f.rowButtons = f.rowButtons or {}
+        f.rowButtons[i] = rb
     end
     -- "Auction prices": a small search, by any part of the name (0.35.221).
     f.search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -400,6 +416,7 @@ end
 -- What a view shows now: the line above the list, and its lines of text.
 function B.ViewLines(view)
     local now = time()
+    B.lineIds = nil   -- (only the auction prices' lines can be clicked: Flow Prices)
     if view == "bank" then
         local bank = ns.db.bank or {}
         local rows = B.BankRows(bank.items, nameOf)
@@ -418,6 +435,8 @@ function B.ViewLines(view)
         end
         local all = B.PriceRows(prices, nameOf)
         local rows = B.Filter(all, B.filter)
+        B.lineIds = {}
+        for i, r in ipairs(rows) do B.lineIds[i] = r.id end
         local out = {}
         for _, r in ipairs(rows) do
             out[#out + 1] = string.format("%s  |cffffd100%s|r each  |cff999999(%s)|r", r.name, AH.Money(r.price), B.Ago(now - (r.at or 0)))
@@ -641,6 +660,11 @@ function B:Fill()
             text = string.format("|cff999999... and %d more (scroll)|r", below + 1)
         end
         f.rows[i]:SetText(text)
+        local rb = f.rowButtons and f.rowButtons[i]
+        if rb then
+            rb.id = (B.lineIds and at <= last and not (i == B.ROWS and below > 0)) and B.lineIds[at] or nil
+            rb:SetShown(rb.id ~= nil)
+        end
     end
     for key, tb in pairs(f.tabs) do
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
@@ -652,6 +676,12 @@ function B:Fill()
     f.search.label:SetShown(B.view == "prices")
     f.go:SetEnabled(bankOpen and putCount > 0)
     f.go:SetText(bankOpen and "Deposit" or "At a bank")
+end
+
+-- A click on a line of "Auction prices": that item's price chart.
+function B:RowClick(rb)
+    if not (rb and rb.id and ns.priceChart) then return false end
+    return ns.priceChart:Show(rb.id)
 end
 
 function B:Scroll(delta)

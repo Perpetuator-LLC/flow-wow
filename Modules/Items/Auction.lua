@@ -51,10 +51,50 @@ function AH.ParseMoney(text)
     return any and math.floor(total + 0.5) or nil
 end
 
--- Remember a look: cheapest per-unit buyout now. history = { { price, at } }.
+-- The price history behind Flow Prices (PriceChart.lua, 0.35.301): one point
+-- a visit to the auction house, oldest first, kept flat to stay small in the
+-- saved file: { at, price, at, price, ... }.
+AH.HIST_MAX = 48      -- points kept an item
+AH.SAME_LOOK = 600    -- seconds: looks this close together are one visit (its cheapest counts)
+-- Pure: adds a look to a history. Within one visit the cheapest price stands;
+-- past `max` points every other one of the older half goes, so a long history
+-- thins out at its far end instead of losing it.
+function AH.AddPoint(h, price, at, max, same)
+    local n = #h
+    if n >= 2 and at >= h[n - 1] and at - h[n - 1] < (same or AH.SAME_LOOK) then
+        h[n] = math.min(h[n], price)
+        return h
+    end
+    h[n + 1], h[n + 2] = at, price
+    local count = #h / 2
+    if count > (max or AH.HIST_MAX) then
+        local kept, half = {}, math.floor(count / 2)
+        for i = 1, count do
+            if i > half or i % 2 == 1 then
+                kept[#kept + 1], kept[#kept + 2] = h[i * 2 - 1], h[i * 2]
+            end
+        end
+        for i = #h, 1, -1 do h[i] = nil end
+        for i, v in ipairs(kept) do h[i] = v end
+    end
+    return h
+end
+
+-- Remember a look: cheapest per-unit buyout now. looks = { { price, at } }
+-- (the last few, newest first), h = the history above.
 function AH.Record(prices, id, unit, now)
     local e = prices[id] or { looks = {} }
     prices[id] = e
+    e.looks = e.looks or {}
+    if not e.h then
+        -- (Looks from before 0.35.301 start the history.)
+        e.h = {}
+        for i = #e.looks, 1, -1 do
+            local l = e.looks[i]
+            if type(l) == "table" and tonumber(l.at) and tonumber(l.price) then AH.AddPoint(e.h, l.price, l.at) end
+        end
+    end
+    AH.AddPoint(e.h, math.floor(unit), now)
     table.insert(e.looks, 1, { price = math.floor(unit), at = now })
     for i = #e.looks, KEEP + 1, -1 do e.looks[i] = nil end
     e.price, e.at = math.floor(unit), now
@@ -86,6 +126,8 @@ local function itemId(text)
     local _, link = (ns.api.ItemInfo or GetItemInfo)(text or "")
     return link and tonumber(link:match("item:(%d+)"))
 end
+
+AH.ItemId = itemId
 
 local function alertIfCheap(id, unit)
     local w = ns.db.ah.watch[id]
