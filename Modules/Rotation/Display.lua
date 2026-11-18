@@ -121,6 +121,33 @@ local function buildIcon(cfg)
         GameTooltip:Show()
     end)
     f.swing:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- A swing spell waiting for your next swing (Maul): the game's action
+    -- bar blinks its button red until it goes off, and now Flow's does too
+    -- (0.35.318: "it preps it for the next hit ... the action bar shows kind
+    -- of like a red glowing effect ... the target button doesn't do that").
+    -- The same red, blinking at the bar's beat; the queued spell's own small
+    -- picture at the top right when the button shows another spell.
+    f.queued = CreateFrame("Frame", nil, f)
+    f.queued:SetAllPoints()
+    f.queued:SetFrameLevel(f.cd:GetFrameLevel() + 1)
+    f.queued.flash = f.queued:CreateTexture(nil, "OVERLAY")
+    f.queued.flash:SetAllPoints()
+    f.queued.flash:SetTexture("Interface\\Buttons\\UI-QuickslotRed")
+    if not f.queued.flash:GetTexture() then f.queued.flash:SetColorTexture(1, 0.1, 0.1, 0.4) end
+    f.queued.mini = f.queued:CreateTexture(nil, "OVERLAY", nil, 2)
+    f.queued.mini:SetSize(18, 18)
+    f.queued.mini:SetPoint("CENTER", f, "TOPRIGHT", -1, -1)
+    f.queued.mini:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    f.queued:SetScript("OnUpdate", function(self, dt)
+        self.t = (self.t or 0) + dt
+        if self.t < E.QUEUE_BLINK then return end
+        self.t = 0
+        self.on = not self.on
+        local a = self.on and 1 or E.QUEUE_LOW
+        self.flash:SetAlpha(a)
+        self.mini:SetAlpha(a)
+    end)
+    f.queued:Hide()
     -- In a fight: a small crossed-swords mark at the icon's top left corner
     -- ("it should show a small in-combat icon", 0.35.227).
     f.combat = f.timerLayer:CreateTexture(nil, "OVERLAY")
@@ -281,6 +308,49 @@ local function scanButtons()
             glowFor(btn)
         end
     end
+end
+
+-------------------------------------------------------------------------------
+-- A swing spell queued (0.35.318): Maul (or Heroic Strike...) goes off on
+-- your next swing, not at the press. While it waits, the target button
+-- blinks red, as the game's action bar does. The spells are the class's
+-- (`nextSwing` in its rotation registration, Classes/<Class>/Rotation.lua).
+-------------------------------------------------------------------------------
+
+E.QUEUE_BLINK = 0.4   -- seconds on, then off (the action bar's beat)
+E.QUEUE_LOW = 0.2     -- how faint it gets between blinks
+
+-- Pure: the first of these spells that's waiting for your swing, or nil.
+--   isCurrent(spell) -> true while it's queued (A.IsCurrent)
+function E.QueuedSpell(list, isCurrent)
+    for _, spell in ipairs(list or {}) do
+        if isCurrent(spell) then return spell end
+    end
+    return nil
+end
+
+-- Shows or puts away the red blink. shown: the spell the button shows now.
+function E.UpdateQueued(shown)
+    local q = icon and icon.queued
+    if not q then return nil end
+    local _, class = UnitClass("player")
+    local rot = class and ns:Get("rotation", class)
+    local spell = (rot and rot.nextSwing) and E.QueuedSpell(rot.nextSwing, A.IsCurrent) or nil
+    E.queued = spell
+    if spell and icon:IsShown() then
+        if not q:IsShown() then
+            q.t, q.on = 0, true
+            q.flash:SetAlpha(1)
+            q.mini:SetAlpha(1)
+            q:Show()
+        end
+        local _, tex = A.SpellInfo(spell)
+        q.mini:SetTexture(tex)
+        q.mini:SetShown(tex ~= nil and spell ~= shown)
+    elseif q:IsShown() then
+        q:Hide()
+    end
+    return spell
 end
 
 local function clearGlows()
@@ -846,6 +916,7 @@ local function tick()
     E.iconShows = (view and not swapped and not view.countdown) and (view.spell or view.item) or nil
     local okR, err = pcall(render, view, cfg, advice or (not swapped and view) or nil)
     if not okR then E.lastError, E.lastErrorAt = "display: " .. tostring(err), GetTime() end
+    pcall(E.UpdateQueued, view and view.spell)
     -- Swords badge while auto attack is on.
     -- (Also there, dim, in a fight or with an enemy targeted while it's off:
     -- so there's something to point at and click, 0.35.227.)

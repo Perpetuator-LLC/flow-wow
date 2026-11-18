@@ -209,6 +209,9 @@ ns:Register("rotation", "DRUID", {
     -- Self-heals, considered before anything else (see Engine HealDecision).
     -- In Cat or Bear Form they're not usable, so they're skipped there.
     heals = { "Regrowth", "Healing Touch", "Rejuvenation" },
+    -- Spells that wait for your next swing instead of going off at once: the
+    -- target button blinks red while one waits (Display.lua, E.UpdateQueued).
+    nextSwing = { "Maul" },
     -- Heals over time: put on early (Engine EarlyHeal), counted as on you for
     -- their duration after you cast them.
     hots = { "Rejuvenation" },

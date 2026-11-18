@@ -36,12 +36,33 @@ function R.Verdict(cmp, role, minGain)
     return { roll = "greed", text = "not an upgrade: Greed", r = 0.7, g = 0.7, b = 0.7 }
 end
 
-function R.For(link)
+-- The verdict for an item link, and the comparison it came from (for the
+-- spec marks).
+function R.Judge(link)
     if not (link and ns.gear and ns.gear.Compare) then return nil end
     local ok, cmp = pcall(ns.gear.Compare, ns.gear, link)
     if not ok then return nil end
-    return R.Verdict(cmp, ns.LevelingRole and ns:LevelingRole() or "dps")
+    return R.Verdict(cmp, ns.LevelingRole and ns:LevelingRole() or "dps"), cmp
 end
+function R.For(link) return (R.Judge(link)) end
+
+-- Pure: what becomes of it if it isn't an upgrade (0.35.318: "the major up
+-- arrow to tell me if it's an upgrade item or a vendor item"): "need" (an
+-- upgrade), "de" (you can disenchant it: the roll offers it), "sell" (it
+-- binds when picked up, so no auction; or the vendor pays as well), or
+-- "ah" (the auction house, by the same rule as your bags: D.AuctionOrVendor).
+--   bop: binds on pickup; canDE: the roll lets you disenchant it;
+--   ahPrice, vendorPrice: copper (nil: not known); vendorUnpriced: the setting
+function R.Fate(v, bop, canDE, ahPrice, vendorPrice, vendorUnpriced)
+    if not v then return nil end
+    if v.roll == "need" then return "need" end
+    if canDE then return "de" end
+    if bop then return "sell" end
+    local D = ns.disposition
+    local d = D and D.AuctionOrVendor and D.AuctionOrVendor(ahPrice, vendorPrice, "loot", vendorUnpriced, tostring)
+    return d and d.action or "sell"
+end
+R.FATE_WORDS = { sell = "then vendor it", ah = "then the auction house", de = "then disenchant it" }
 
 -- The game's roll windows showing this roll (GroupLootFrame1..4 on this
 -- kind of client; a container's children on newer ones).
@@ -60,54 +81,117 @@ local function framesFor(rollID)
     return out
 end
 
--- The green arrow of the bag icons, on the roll window's item (0.35.275: "it
--- would be nice to see the icon too, so when I click roll I see it right
--- there"), with how much better beside it. Only for an upgrade.
+-- Marks on the roll window's item, as on your bags (0.35.318: "the up arrows
+-- for spec upgrades, and the major up arrow ... is not showing up when we're
+-- rolling. On the actual rolling icon, are you not able to put those
+-- graphics on those images?"). Until now the arrow was a picture of the roll
+-- window itself, and the item's picture is a frame of its own, drawn over
+-- it: the arrow was under the item. Now they're on a frame of Flow's laid
+-- over the item's picture:
+--   top left, the big green arrow for an upgrade (and how much better), or
+--   what Flow would do with it: the gold coin (vendor), the auctioneer's mark
+--   (auction house), DE (disenchant);
+--   along the bottom, the spec marks (up, down or the same, per spec).
+-- They take no clicks: the item is hovered and the buttons pressed as always.
 R.ARROW = 22
 -- Pure: does this verdict get the arrow, and its figure ("+2.1").
 function R.ArrowFor(v)
     if not (v and v.roll == "need") then return false, "" end
     return true, v.gain and string.format("+%.1f", v.gain) or ""
 end
-local function arrow(f, v)
-    local show, gain = R.ArrowFor(v)
-    if not f.FlowRollArrow then
-        if not show then return end
-        local host = f.IconFrame or f
-        local a = f:CreateTexture(nil, "OVERLAY", nil, 7)
-        a:SetSize(R.ARROW, R.ARROW)
-        a:SetPoint("TOPLEFT", host, "TOPLEFT", -6, 6)
-        local ok = a.SetAtlas and pcall(a.SetAtlas, a, "bags-greenarrow")
-        if not ok then a:SetColorTexture(0.2, 1, 0.2, 0.9); a:SetSize(10, 10) end
-        f.FlowRollArrow = a
-        local g = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        g:SetPoint("LEFT", a, "RIGHT", -2, 0)
-        g:SetTextColor(0.3, 1, 0.3)
-        f.FlowRollGain = g
-    end
-    f.FlowRollArrow:SetShown(show)
-    f.FlowRollGain:SetText(gain)
+-- The item's picture on the roll window (its own frame), or the window.
+function R.IconHost(f)
+    if f.IconFrame then return f.IconFrame, "IconFrame" end
+    local ic = f.Icon or f.icon
+    if ic and ic.GetParent and ic:GetParent() ~= f then return ic:GetParent(), "the icon's frame" end
+    return f, "the roll window"
 end
-R._arrow = arrow   -- (tests)
+local function overlay(f)
+    if f.FlowRollMarks then return f.FlowRollMarks end
+    local host, which = R.IconHost(f)
+    local o = CreateFrame("Frame", nil, host)
+    o:SetAllPoints(host)
+    o:SetFrameLevel(host:GetFrameLevel() + 10)
+    o:EnableMouse(false)
+    o.which = which
+    o.arrow = o:CreateTexture(nil, "OVERLAY", nil, 2)
+    o.arrow:SetSize(R.ARROW, R.ARROW)
+    o.arrow:SetPoint("TOPLEFT", -6, 6)
+    local ok = o.arrow.SetAtlas and pcall(o.arrow.SetAtlas, o.arrow, "bags-greenarrow")
+    if not ok then o.arrow:SetColorTexture(0.2, 1, 0.2, 0.9); o.arrow:SetSize(10, 10) end
+    o.gain = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    o.gain:SetPoint("LEFT", o.arrow, "RIGHT", -2, 0)
+    o.gain:SetTextColor(0.3, 1, 0.3)
+    o.coin = o:CreateTexture(nil, "OVERLAY", nil, 2)
+    o.coin:SetSize(16, 16)
+    o.coin:SetPoint("TOPLEFT", -2, 2)
+    o.coin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    o.ah = o:CreateTexture(nil, "OVERLAY", nil, 2)
+    o.ah:SetSize(17, 17)
+    o.ah:SetPoint("TOPLEFT", -3, 3)
+    o.ahOk = ns.bagIcons and ns.bagIcons.SetAuctionIcon and ns.bagIcons.SetAuctionIcon(o.ah) or false
+    o.letters = o:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    o.letters:SetPoint("TOPLEFT", 2, -2)
+    o.specs = ns:SpecBadge(o, 11)
+    o.specs:SetPoint("BOTTOMRIGHT", -1, 1)
+    f.FlowRollMarks = o
+    return o
+end
 
-local function mark(f, v)
-    pcall(arrow, f, v)
+-- Paints the marks. v: R.Verdict's; fate: R.Fate's; cmp: the comparison
+-- (its diffs per spec), or nil.
+function R.Paint(f, v, fate, cmp)
+    local o = overlay(f)
+    local show, gain = R.ArrowFor(v)
+    o.arrow:SetShown(show)
+    o.gain:SetText(show and gain or "")
+    o.coin:SetShown(fate == "sell")
+    o.ah:SetShown(fate == "ah" and o.ahOk)
+    local letters = (fate == "de" and "DE") or (fate == "ah" and not o.ahOk and "AH") or ""
+    o.letters:SetText(letters)
+    if fate == "de" then o.letters:SetTextColor(0.75, 0.5, 1.0) else o.letters:SetTextColor(0.4, 0.8, 1.0) end
+    if cmp and cmp.canUse and cmp.diffs then o.specs:Set(cmp.diffs) else o.specs:Hide() end
+    return o
+end
+
+local function mark(f, v, fate, cmp)
+    pcall(R.Paint, f, v, fate, cmp)
     if not f.FlowRollHint then
         local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         t:SetPoint("BOTTOM", f, "TOP", 0, 2)
         f.FlowRollHint = t
     end
-    f.FlowRollHint:SetText(v and ("Flow: " .. v.text) or "")
+    local words = fate and R.FATE_WORDS[fate]
+    f.FlowRollHint:SetText(v and ("Flow: " .. v.text .. (words and (", " .. words) or "")) or "")
     if v then f.FlowRollHint:SetTextColor(v.r, v.g, v.b) end
+end
+
+-- What the roll says about the item: binds on pickup? can you disenchant it?
+local function rollInfo(rollID)
+    if not GetLootRollItemInfo then return nil, nil end
+    local ok, _, _, _, _, bop, _, _, canDE = pcall(GetLootRollItemInfo, rollID)
+    if not ok then return nil, nil end
+    local Safe = ns.api.Safe
+    return Safe(bop) and true or false, Safe(canDE) and true or false
 end
 
 R.said = {}   -- [rollID] = true: the chat line went out
 local function onRoll(rollID)
     if not R.On() or not GetLootRollItemLink then return end
     local link = GetLootRollItemLink(rollID)
-    local v = R.For(link)
-    ns:Log("gear", string.format("loot roll %s: %s -> %s", tostring(rollID), tostring(link), v and v.text or "no verdict (not gear, or not loaded yet)"))
-    for _, f in ipairs(framesFor(rollID)) do pcall(mark, f, v) end
+    local v, cmp = R.Judge(link)
+    local bop, canDE = rollInfo(rollID)
+    local D = ns.disposition
+    local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local vendor = link and get and select(11, get(link)) or nil
+    local fate = R.Fate(v, bop, canDE, D and D.AuctionPrice and D:AuctionPrice(link) or nil, vendor,
+        D and D.VendorUnpriced and D.VendorUnpriced())
+    local frames = framesFor(rollID)
+    for _, f in ipairs(frames) do pcall(mark, f, v, fate, cmp) end
+    local o = frames[1] and frames[1].FlowRollMarks
+    ns:Log("gear", string.format("loot roll %s: %s -> %s%s; marked %d roll window(s)%s", tostring(rollID), tostring(link),
+        v and v.text or "no verdict (not gear, or not loaded yet)", fate and fate ~= "need" and (", " .. fate) or "",
+        #frames, o and (" on " .. tostring(o.which)) or ""))
     if v and v.roll == "need" and not R.said[rollID] then
         R.said[rollID] = true
         ns:Print(string.format("%s is an upgrade for you (+%.1f): Flow suggests Need. (It never rolls for you.)", tostring(link), v.gain or 0))

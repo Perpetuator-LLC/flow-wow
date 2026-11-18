@@ -1,6 +1,22 @@
 # Changelog
 
 
+## 0.35.318
+
+- **Loot rolls show their marks on the item.** The green upgrade arrow was drawn under the
+  item's picture on the roll window, so it never showed. Now Flow's marks sit on top of the
+  picture, as in your bags: the big green arrow and how much better for an upgrade; otherwise
+  what Flow would do with it (the gold coin to vendor it, the auctioneer's mark, DE to
+  disenchant); and the spec marks along the bottom (up, down or the same, per spec). The line
+  above says it too: "Flow: not an upgrade: Greed, then vendor it". An item that binds when
+  picked up never gets the auction mark. The diagnostics' log says which part of the roll
+  window the marks went on.
+- **The target button blinks red while Maul waits for your next swing**, as the game's action
+  bar does: the same red, on the bar's beat. When the button shows another spell, Maul's own
+  small picture blinks at its top right. (Other classes' swing spells are one line in their
+  class files.)
+- Fixed: a self-test from 0.35.316 expected "18.5k XP" where Flow rounds to "19k".
+
 ## 0.35.317
 
 - **Bag icons: what Flow will do top left, what the item is top right.** The auctioneer's mark,

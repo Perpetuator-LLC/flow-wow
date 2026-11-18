@@ -12575,6 +12575,7 @@ end)
 -- 0.35.275: the upgrade arrow on a loot roll; the seller says why it stopped.
 -------------------------------------------------------------------------------
 
+local rollTestFrame   -- (made once: a test may not make a new frame every run)
 ns:Register("test", "loot rolls: an upgrade gets the green arrow and its figure on the roll window", function(t)
     local R = ns.rollHint
     local show, gain = R.ArrowFor({ roll = "need", gain = 2.14 })
@@ -12584,16 +12585,47 @@ ns:Register("test", "loot rolls: an upgrade gets the green arrow and its figure 
     show = R.ArrowFor(nil)
     t:ok(not show, "no verdict: no arrow")
     t:ok(R.ARROW >= 16, "big enough to see at a glance")
-    -- On a stand-in roll window: made once, shown for an upgrade, hidden otherwise.
-    local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(100, 40); f:Hide()
-    t:ok(pcall(R._arrow, f, { roll = "greed" }), "not an upgrade: runs")
-    t:eq(f.FlowRollArrow, nil, "and nothing is added to the window")
-    t:ok(pcall(R._arrow, f, { roll = "need", gain = 3 }), "an upgrade: runs")
-    t:ok(f.FlowRollArrow ~= nil and f.FlowRollArrow:IsShown(), "the arrow is on it")
-    t:eq(f.FlowRollGain:GetText(), "+3.0", "with the figure")
-    R._arrow(f, { roll = "greed" })
-    t:ok(not f.FlowRollArrow:IsShown(), "the next roll isn't one: the arrow goes")
+    -- (0.35.318: the marks are on a frame laid over the item's picture, which
+    -- is a frame of its own; the arrow used to be under it. A stand-in roll
+    -- window with its item's frame, made once.)
+    local f = rollTestFrame
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
+        f:SetSize(240, 50); f:Hide()
+        f.IconFrame = CreateFrame("Button", nil, f)
+        f.IconFrame:SetSize(36, 36)
+        f.IconFrame:SetPoint("LEFT", 6, 0)
+        rollTestFrame = f
+    end
+    local cmp = { canUse = true, diffs = { dps = 3, heal = -1, tank = 0.1 } }
+    local ok, o = pcall(R.Paint, f, { roll = "need", gain = 3 }, "need", cmp)
+    t:ok(ok and o ~= nil, "an upgrade: the marks are painted" .. (ok and "" or (": " .. tostring(o))))
+    if not (ok and o) then return end
+    t:ok(o:GetParent() == f.IconFrame and o:GetFrameLevel() > f.IconFrame:GetFrameLevel(), "on a frame over the item's own picture")
+    t:ok(not o:IsMouseEnabled(), "taking no clicks")
+    t:ok(o.arrow:IsShown() and o.gain:GetText() == "+3.0", "the arrow, with the figure")
+    t:ok(o.specs:IsShown(), "and the spec marks along the bottom")
+    t:ok(not o.coin:IsShown() and not o.ah:IsShown(), "no coin or auction mark on an upgrade")
+    R.Paint(f, { roll = "greed" }, "sell", { canUse = false })
+    t:ok(not o.arrow:IsShown() and o.coin:IsShown(), "a vendor item: the coin, no arrow")
+    t:ok(not o.specs:IsShown(), "something you can't wear: no spec marks")
+    R.Paint(f, { roll = "greed" }, "de", cmp)
+    t:eq(o.letters:GetText(), "DE", "one to disenchant: DE")
+    R.Paint(f, { roll = "greed" }, "ah", cmp)
+    t:ok(o.ah:IsShown() or o.letters:GetText() == "AH", "one for the auction house: its mark")
+    t:eq(R.IconHost(f), f.IconFrame, "the item's frame is found")
+end)
+
+ns:Register("test", "loot rolls: what becomes of an item that isn't an upgrade", function(t)
+    -- "the major up arrow to tell me if it's an upgrade item or a vendor item"
+    local R = ns.rollHint
+    t:eq(R.Fate({ roll = "need" }, true, true), "need", "an upgrade: Need, whatever else")
+    t:eq(R.Fate({ roll = "greed" }, false, true), "de", "the roll offers disenchanting: DE")
+    t:eq(R.Fate({ roll = "greed" }, true, false, 50000, 100), "sell", "binds when picked up: no auction, the vendor")
+    t:eq(R.Fate({ roll = "greed" }, false, false, 50000, 100, true), "ah", "a good auction price: the auction house")
+    t:eq(R.Fate({ roll = "greed" }, false, false, nil, 100, true), "sell", "no price known: the vendor (the setting)")
+    t:eq(R.Fate(nil), nil, "no verdict: nothing")
+    t:eq(R.FATE_WORDS.sell, "then vendor it", "the line says it")
 end)
 
 ns:Register("test", "seller: after selling 12 it says why the rest are still there", function(t)
@@ -13973,7 +14005,7 @@ ns:Register("test", "where next: how a zone levels: quest givers' places, how fa
     t:ok(not c.suggested, "across the sea counts for half")
     t:ok(not d.suggested, "too few quests: not suggested")
     t:ok(not e.suggested, "many elites and spread out: not suggested")
-    t:ok(b.why:find("about 18.5k XP for your level", 1, true) and b.why:find("one place", 1, true) and b.why:find("mobs close", 1, true)
+    t:ok(b.why:find("about 19k XP for your level", 1, true) and b.why:find("one place", 1, true) and b.why:find("mobs close", 1, true)
         and b.why:find("your class", 1, true), "and why: " .. tostring(b.why))
     local lines = table.concat(W.TipLines({ name = "B", quests = 18, xp = 18500, min = 18, max = 23, places = 2, biggest = 12,
         spacing = 30, mobMin = 17, mobMax = 24, elites = 2, class = 1, gather = "Herbalism: Briarthorn" }), "|")
@@ -14093,4 +14125,34 @@ ns:Register("test", "bags: what Flow will do with an item goes top left, what it
     t:eq(pick.action, "fine", "a mark that errors is passed over")
     t:eq(next(B.PickMarks({ { key = "x", group = "nowhere", wants = function() return true end } }, { v = {} })), nil,
         "a mark in a group with no corner shows nowhere")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.318: the target button blinks red while a swing spell waits.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "target button: blinks red while Maul waits for your next swing, as the action bar does", function(t)
+    -- "the action bar shows kind of like a red glowing effect ... the target button doesn't do that"
+    local E = ns.rotation
+    t:eq(E.QueuedSpell({ "Maul" }, function(s) return s == "Maul" end), "Maul", "Maul queued: it's the one waiting")
+    t:eq(E.QueuedSpell({ "Maul" }, function() return false end), nil, "nothing queued: nothing")
+    t:eq(E.QueuedSpell(nil, function() return true end), nil, "a class with no swing spells: nothing")
+    local druid = ns:Get("rotation", "DRUID")
+    t:ok(druid and druid.nextSwing and druid.nextSwing[1] == "Maul", "the druid's swing spell: Maul")
+    local icon = E.icon
+    if not (icon and icon.queued) then t:ok(true, "(the target button isn't built)") return end
+    t:ok(icon.queued:GetFrameLevel() > icon.cd:GetFrameLevel(), "the blink lies over the cooldown's sweep")
+    local ok, err = pcall(E.UpdateQueued, nil)
+    t:ok(ok, "looking whether one waits runs" .. (ok and "" or (": " .. tostring(err))))
+    -- The beat: on, then faint, then on.
+    local q = icon.queued
+    local was = { q:IsShown(), q.t, q.on }
+    q.t, q.on = 0, true
+    q.flash:SetAlpha(1)
+    q:GetScript("OnUpdate")(q, E.QUEUE_BLINK)
+    t:near(q.flash:GetAlpha(), E.QUEUE_LOW, 0.01, "after a beat: faint")
+    q:GetScript("OnUpdate")(q, E.QUEUE_BLINK)
+    t:near(q.flash:GetAlpha(), 1, 0.01, "and bright again")
+    q.t, q.on = was[2], was[3]
+    q:SetShown(was[1])
 end)

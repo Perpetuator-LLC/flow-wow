@@ -38,7 +38,8 @@ Flow for WoW is a separate project from Flow Engine.
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
-  Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it.
+  Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it. While a swing spell
+  waits for your next swing (a druid's Maul), the button blinks red, as the action bar does.
 - **Target button and self button**: Flow's icon is the target button (attacks on an enemy;
   heals, buffs and cures on a friendly target and your group). The self button
   (`/flow selfbutton on`, a key with `/flow selfkey Q`) is a second, blue button for you: your
@@ -309,8 +310,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Leftover quest items**: a quest item no quest in your log uses is looked up in the quest
   data: kept, with the quest named, when one you haven't done uses it; sold or "destroy it"
   only when its quest is done. The bags and Flow Improvements say the same thing.
-- **Loot rolls**: an upgrade gets the green arrow and its figure on the roll window, with
-  "Flow: upgrade: Need". Flow never rolls for you.
+- **Loot rolls**: the item on the roll window gets the same marks as your bags: the big green
+  arrow and its figure for an upgrade, or what Flow would do with it (the gold coin to vendor,
+  the auctioneer's mark, DE), and the spec marks along the bottom; with "Flow: upgrade +2.1:
+  Need" or "Flow: not an upgrade: Greed, then vendor it" above it. Flow never rolls for you.
 - **Weapon skills**: Flow knows which weapon skills you've trained; an upgrade that needs one
   puts a weapon master step on the route. Weapons your class can never use are marked to sell.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
