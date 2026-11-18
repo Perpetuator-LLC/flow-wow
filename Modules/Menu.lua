@@ -548,7 +548,12 @@ function Menu:RouteItemsRaw()
     stops[#stops + 1] = { text = nav.AREA_LABEL, radio = true, checked = area, func = function() nav:SetArea(true) end,
         tip = "The steps around you and around your next step, instead of a fixed number. Where nothing else is nearby, that's just your next step." }
     -- Your quests by zone: a tick a zone (untick: left out of the route).
-    section("Zones", safe(nav.ZoneMenuItems))
+    -- (And, to read: the zones with the most to do at your level, WhereNext.lua.)
+    local zoneItems = safe(nav.ZoneMenuItems)
+    local nextItems = ns.whereNext and safe(ns.whereNext.MenuItems, 5) or {}
+    if #zoneItems > 0 and #nextItems > 0 then zoneItems[#zoneItems + 1] = { rule = true } end
+    for _, it in ipairs(nextItems) do zoneItems[#zoneItems + 1] = it end
+    section("Zones", zoneItems)
 
     section("Steps on the map", stops)
 

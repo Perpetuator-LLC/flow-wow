@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.298
+- **Where next.** `/flow where` lists the zones with the most to do at your level: for each,
+  how many quests you could pick up there (that you haven't done, for your race and class,
+  around your level), their levels and about how much XP they'd give you, how many are class
+  quests, what you could gather there with your profession (or the skill its herbs ask for),
+  and whether it's on another continent. Most XP first. The top five also show in the Flow
+  menu's Zones section, under the zones your route already covers. It doesn't choose for you,
+  and it doesn't know how close together a zone's quests lie or how long the trip takes.
+
 ## 0.35.297
 - **Cat Form's quest is found in the quest data, and so is Cure Poison's.** For a spell your
   trainer doesn't have, Flow now takes the class quest chain that starts at that spell's level

@@ -13148,3 +13148,44 @@ ns:Register("test", "class quests: the chain for a spell the trainer lacks is fo
     t:eq(table.concat(ids, ","), "2,3,1", "in your log first, then not done, then done")
     t:ok(pcall(CQ.Wire), "writing them onto your spells runs")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.298: where next: the zones worth questing in at your level.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "where next: quests you could pick up are tallied by zone, the most XP first", function(t)
+    local W = ns.whereNext
+    t:ok(W.InWindow(20, 18, 20), "a quest at your level you can pick up: counts")
+    t:ok(W.InWindow(17, 15, 20) and W.InWindow(23, 20, 20), "a little under or over you: counts")
+    t:ok(not W.InWindow(14, 10, 20), "far below you: not worth the trip")
+    t:ok(not W.InWindow(26, 22, 20), "far above you: not yet")
+    t:ok(not W.InWindow(22, 24, 20), "needs a level you haven't reached: not yet")
+    t:ok(not W.InWindow(0, 0, 20) and not W.InWindow(nil, nil, 20), "a quest with no level: left out")
+    local zones = {}
+    W.Add(zones, 406, { level = 20 }, 1500)
+    W.Add(zones, 406, { level = 22, classOnly = true }, 1700)
+    W.Add(zones, 17, { level = 18 }, 1300)
+    W.Add(zones, 331, { level = 21 }, 1600)
+    W.Add(zones, 331, { level = 21 }, 1600)
+    W.Add(zones, 331, { level = 19 }, 1400)
+    t:ok(zones[406].quests == 2 and zones[406].xp == 3200 and zones[406].class == 1, "a zone's quests, their XP and its class quests")
+    t:ok(zones[406].min == 20 and zones[406].max == 22, "and their levels")
+    local ranked = W.Rank(zones, 2)
+    t:eq(#ranked, 2, "a zone with one quest isn't worth listing")
+    t:ok(ranked[1].zone == 331 and ranked[2].zone == 406, "the most XP first")
+    t:eq(W.Short(24400), "24k", "thousands, short")
+    t:eq(W.Short(3200), "3.2k", "a few thousand keep a decimal")
+    t:eq(W.Short(850), "850", "under a thousand as it is")
+    local z = { name = "Stonetalon Mountains", quests = 2, xp = 3200, class = 1, min = 20, max = 22,
+                gather = "Herbalism: Briarthorn, Mageroyal" }
+    t:eq(W.Line(z), "Stonetalon Mountains: 2 quests, levels 20-22, about 3.2k XP; 1 for your class; Herbalism: Briarthorn, Mageroyal", "a zone in one line")
+    z.away, z.gather, z.class, z.min = true, nil, 0, 22
+    t:eq(W.Line(z), "Stonetalon Mountains: 2 quests, level 22, about 3.2k XP; on another continent", "across the sea is said")
+    t:eq(W.GatherText("Herbalism", { "Briarthorn", "Mageroyal", "Earthroot", "Peacebloom" }, nil, 70), "Herbalism: Briarthorn, Mageroyal, Earthroot",
+        "what you can pick there, three at most")
+    t:eq(W.GatherText("Herbalism", {}, { name = "Bruiseweed", skill = 100 }, 49), "Herbalism there needs 100 (you have 49)", "its herbs beyond you: what it asks")
+    t:eq(W.GatherText("Herbalism", {}, nil, 49), nil, "nothing grows there: nothing said")
+    t:ok(pcall(W.Lines), "the list builds")
+    t:ok(pcall(W.MenuItems, 5), "the menu's lines build")
+    t:ok(type(ns.commands.where) == "function", "/flow where")
+end)

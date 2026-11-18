@@ -102,6 +102,7 @@ function D:Snapshot(reason, spread)
         { "threat", function() if c.threat then c.threat("") end end },
         { "zones", function() if c.zones then c.zones("") end end },
         { "class quests", function() if c.classquests then c.classquests() end end },
+        { "where next", function() if c.where then c.where() end end },
         { "self button", function() if c.selfbutton then c.selfbutton("why") end end },
         { "dungeons", function() if c.dungeons then c.dungeons("") end end },
         { "quest marks", function() if c.quest then c.quest("") end end },

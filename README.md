@@ -165,6 +165,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **Zones**: the Flow menu's Zones section lists each zone where you have quest steps, with how
   many and their levels ("Stonetalon Mountains: 6 steps (2 to accept), levels 17-22"). Untick a
   zone to leave it out of the route; its quests stay in your log. `/flow zones`.
+- **Where next**: `/flow where` lists the zones with the most to do at your level: quests you
+  could pick up, their levels and XP, class quests, what you could gather there, and whether
+  it's across the sea. The top five also show in the Zones section.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.
