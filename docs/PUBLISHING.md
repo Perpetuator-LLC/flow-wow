@@ -38,7 +38,11 @@ Each release published on GitHub (`v0.35.97`, with its `Flow-<version>.zip`) sta
 GitHub Action [`.github/workflows/curseforge.yml`](../.github/workflows/curseforge.yml). It
 downloads that zip and runs `tools\curseforge-upload.ps1`, which uploads it to project 1790624:
 - tagged with the game version from `## Interface` (16001 -> 1.60.1, the Forever flavour);
-- with that version's `CHANGELOG.md` section as the changelog (Markdown);
+- with every `CHANGELOG.md` section since the release before it as the changelog (Markdown),
+  newest first: a step of the Action finds that release on GitHub and passes `-Since`. CurseForge
+  players see only this text, and a release spans many versions (it was this version's section
+  alone until 0.35.321). Past 30,000 characters the oldest are cut, with a link to the full history;
+- the release before it, by hand: `-Since 0.35.294`, or the script reads your `v*` git tags;
 - as a "release".
 
 **One-time setup (the maintainer):**

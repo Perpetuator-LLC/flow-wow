@@ -2,21 +2,27 @@
 .SYNOPSIS
   Uploads a release zip of Flow to CurseForge (project ID from Flow.toc's
   ## X-Curse-Project-ID), tagged with the game version from ## Interface
-  (16001 -> 1.60.1, the Forever flavour), with that version's CHANGELOG.md
-  section as the changelog.
+  (16001 -> 1.60.1, the Forever flavour). The changelog is every CHANGELOG.md
+  section since the release before it (-Since; the workflow finds it on
+  GitHub, by hand it's read from your git tags), newest first: a release
+  covers many versions, and CurseForge players only see this changelog. With
+  no earlier release known, just this version's section.
 
   The GitHub Action .github/workflows/curseforge.yml runs this for every
   release, with the token stored as the repository secret CF_API_TOKEN.
 
 .USAGE
   $env:CF_API_TOKEN = "<your CurseForge API token>"   (never commit it)
-  powershell -ExecutionPolicy Bypass -File tools\curseforge-upload.ps1 [-Zip dist\Flow-0.35.96.zip] [-DryRun]
+  powershell -ExecutionPolicy Bypass -File tools\curseforge-upload.ps1 [-Zip dist\Flow-0.35.96.zip] [-Since 0.35.95] [-DryRun]
 
+  -Since    the version of the release before this one (its changes are
+            left out). Default: the highest v* git tag below this version.
   -DryRun   shows what it would upload (zip, project, game version name,
             changelog) without a token and without uploading.
 #>
 param(
     [string]$Zip,
+    [string]$Since,
     [string]$Token = $env:CF_API_TOKEN,
     [string]$ProjectId,
     [string]$GameVersion,
@@ -44,20 +50,51 @@ if (-not $GameVersion) {
 if (-not $Zip) { $Zip = Join-Path $root "dist\Flow-$version.zip" }
 if (-not (Test-Path $Zip)) { throw "No zip at $Zip (run tools\package.ps1 first)." }
 
-# The newest section of CHANGELOG.md (this version's).
+# The changelog: every section of CHANGELOG.md after the release before this
+# one, up to this version, newest first.
+function ConvertTo-FlowVersion([string]$s) {
+    if ($s -match '^v?(\d+(\.\d+){1,3})$') { return [version]$Matches[1] }
+    return $null
+}
+$thisVersion = ConvertTo-FlowVersion $version
+if (-not $Since) {
+    # By hand: the highest release tag below this version, from your git tags.
+    $tags = @(& git -C $root tag -l 'v*' 2>$null)
+    $below = @($tags | ForEach-Object { ConvertTo-FlowVersion $_ } | Where-Object { $_ -and $thisVersion -and $_ -lt $thisVersion } | Sort-Object -Descending)
+    if ($below.Count -gt 0) { $Since = $below[0].ToString() }
+}
+$after = if ($Since) { ConvertTo-FlowVersion $Since } else { $null }
+$history = 'https://github.com/Perpetuator-LLC/flow-wow/blob/main/CHANGELOG.md'
+$MAX_CHARS = 30000   # (cut, oldest first, past this: the rest is in the link)
 $lines = Get-Content (Join-Path $root 'CHANGELOG.md')
-$section = New-Object System.Collections.ArrayList
-$inSection = $false
+$sections = New-Object System.Collections.ArrayList
+$current = $null
 foreach ($l in $lines) {
-    if ($l -match '^## ') {
-        if ($inSection) { break }
-        if ($l -match ('^## ' + [regex]::Escape($version) + '\b')) { $inSection = $true }
+    if ($l -match '^## (\S+)') {
+        $v = ConvertTo-FlowVersion $Matches[1]
+        $current = $null
+        if (-not $v) { continue }                       # (## Unreleased and the like)
+        if ($thisVersion -and $v -gt $thisVersion) { continue }       # (newer than this release)
+        if ($after -and $v -le $after) { break }        # (the release before and older)
+        if (-not $after -and $sections.Count -gt 0) { break }   # (no earlier release known: this one only)
+        $current = New-Object System.Collections.ArrayList
+        [void]$sections.Add(@{ version = $Matches[1]; lines = $current })
         continue
     }
-    if ($inSection) { [void]$section.Add($l) }
+    if ($null -ne $current) { [void]$current.Add($l) }
 }
-$changelog = ("## Flow $version`n" + ($section -join "`n")).Trim()
-if ($section.Count -eq 0) { $changelog = "Flow $version. Full history: https://github.com/Perpetuator-LLC/flow-wow/blob/main/CHANGELOG.md" }
+$parts = New-Object System.Collections.ArrayList
+$length, $cut = 0, 0
+foreach ($s in $sections) {
+    $text = ("## Flow {0}`n{1}" -f $s.version, (($s.lines -join "`n").Trim()))
+    if ($length + $text.Length -gt $MAX_CHARS -and $parts.Count -gt 0) { $cut++; continue }
+    [void]$parts.Add($text)
+    $length += $text.Length + 2
+}
+$changelog = ($parts -join "`n`n").Trim()
+if ($cut -gt 0) { $changelog += "`n`n$cut older version(s) in this release: see the full history, $history" }
+if ($sections.Count -eq 0) { $changelog = "Flow $version. Full history: $history" }
+Write-Host ("changelog: {0} version(s){1}" -f $sections.Count, $(if ($Since) { " since $Since" } else { '' }))
 
 Write-Host ("Flow {0}: {1} -> CurseForge project {2}, game version {3}, {4}" -f $version, (Split-Path $Zip -Leaf), $ProjectId, $GameVersion, $ReleaseType)
 if ($DryRun) {

@@ -38,8 +38,24 @@ jobs:
           if (-not $zip) { throw "Release $env:TAG has no Flow-*.zip to upload." }
           [IO.File]::AppendAllText($env:GITHUB_ENV, "ZIP=$($zip.FullName)`n")   # (no byte-order mark)
 
+      # The release before this one: the changelog covers every version since
+      # it (a release spans many versions; CurseForge shows only this text).
+      - name: Find the release before it
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          function V([string]$t) { if ($t -match '^v?(\d+(\.\d+){1,3})$') { [version]$Matches[1] } }
+          $now = V $env:TAG
+          $tags = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName --jq '.[].tagName')
+          $prev = @($tags | ForEach-Object { V $_ } | Where-Object { $_ -and $now -and $_ -lt $now } | Sort-Object -Descending | Select-Object -First 1)
+          if ($prev.Count -gt 0) {
+            Write-Host "release before $env:TAG : $($prev[0])"
+            [IO.File]::AppendAllText($env:GITHUB_ENV, "SINCE=$($prev[0])`n")
+          } else { Write-Host "no release before $env:TAG : its own changes only" }
+
       - name: Upload to CurseForge
         shell: powershell
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        run: powershell -ExecutionPolicy Bypass -File tools\curseforge-upload.ps1 -Zip $env:ZIP
+        run: powershell -ExecutionPolicy Bypass -File tools\curseforge-upload.ps1 -Zip $env:ZIP -Since "$env:SINCE"
