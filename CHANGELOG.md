@@ -1,5 +1,11 @@
 # Changelog
 
+
+## 0.35.299
+
+- **"Steps on the map" is now just "Steps"**, in the arrow's menu and in Flow Settings. It
+  chooses the same thing as before: how many steps the world map and the Flow Tracker show.
+
 ## 0.35.298
 - **Where next.** `/flow where` lists the zones with the most to do at your level: for each,
   how many quests you could pick up there (that you haven't done, for your race and class,

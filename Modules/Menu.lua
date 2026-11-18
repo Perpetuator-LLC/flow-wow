@@ -361,7 +361,7 @@ end
 --   Your waypoint         set one, follow someone, clear it
 --   Dungeons              (when a run fits your level)
 --   Party                 (in a group)
---   Steps on the map      how many the map and the Flow Tracker show
+--   Steps                 how many the map and the Flow Tracker show
 --   Arrow                 its look
 --   Keys                  binding them, listing them
 --   Extras                NPCs read aloud (text-to-speech)
@@ -371,7 +371,7 @@ end
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
 Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
-                  "Zones", "Steps on the map", "Buttons", "Flow windows" }
+                  "Zones", "Steps", "Buttons", "Flow windows" }
 
 -- The menu's two ticks for Flow's buttons.
 function Menu.ButtonItems()
@@ -555,7 +555,7 @@ function Menu:RouteItemsRaw()
     for _, it in ipairs(nextItems) do zoneItems[#zoneItems + 1] = it end
     section("Zones", zoneItems)
 
-    section("Steps on the map", stops)
+    section("Steps", stops)
 
     -- The two buttons (0.35.277): the self button on or off, and docked or
     -- not. Everything else about keys, the arrow's look and the extras moved

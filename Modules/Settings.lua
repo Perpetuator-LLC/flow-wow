@@ -633,7 +633,7 @@ local function build(parent)
             function() return ns.db.nav.zoneFirst ~= false end,
             function(on) ns.db.nav.zoneFirst = on; if ns.nav then ns.nav:Collect(); ns.nav.planDirty = true end end)
         -- 0 = all (nil can't sit in the options list); "area" = all steps in this area.
-        f.stopsRow, y = choices(f, y, "Steps on the map",
+        f.stopsRow, y = choices(f, y, "Steps",
             "Which steps the world map and the Flow Tracker show: your next 1 (the usual), 3, 5, 10, or all of them. Area: every step around you and around your next step (they drop off as you finish them). The Flow Router always lists the whole route. Also in the arrow's right-click menu and /flow nav steps.",
             { { "Next only", 1, 76 }, { "3", 3 }, { "5", 5 }, { "10", 10 }, { "All", 0, 48 }, { "Area", "area", 48 } },
             function() return ns.nav:AreaMode() and "area" or ns.nav:StopsShown() or 0 end,

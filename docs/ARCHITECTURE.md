@@ -14,7 +14,7 @@ Three words, each with one meaning, in the code's comments and in everything a p
 | **objective** | The game's word: one line of a quest. Only ever said of a quest. An unfinished objective becomes a step; so do turn-ins, pickups, trainers and vendors, which are not objectives. | "0/7 Plainstrider Beak" |
 | **waypoint** | A spot you set yourself. The arrow goes there first, and it isn't part of the planned route. | Ctrl + click on the map, `/flow way 52 30` |
 
-So: "Steps on the map", "Next step only", "All steps in this area", "30 steps"; never "objectives"
+So: "Steps", "Next step only", "All steps in this area", "30 steps"; never "objectives"
 for those. In code a step is a *goal* (`navGoal` providers return goals; the planner puts them in
 order): "goal" stays out of player-facing text.
 

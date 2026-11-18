@@ -3081,7 +3081,7 @@ ns:Register("test", "click: Steps on the map in the menu and on the settings pag
         t:ok(ns.nav:AreaMode(), "the area choice back on")
         local row
         for _, r in ipairs(ns.settings:Choices()) do
-            if r.label and r.label:GetText() == "Steps on the map" then row = r end
+            if r.label and r.label:GetText() == "Steps" then row = r end
         end
         if not row then t:ok(true, "(settings page not built yet: open /flow settings once)") return end
         local function click(value)
@@ -8167,7 +8167,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     t:eq(twice, nil, "no section and no entry twice")
     t:eq(titles[1], "Order", "Order first")
     t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
-        and seen["Steps on the map"] and seen.Buttons and seen["Flow windows"], "the sections every Flow menu has")
+        and seen["Steps"] and seen.Buttons and seen["Flow windows"], "the sections every Flow menu has")
     t:ok(not seen.Arrow and not seen.Keys and not seen.Extras, "the arrow's look, the keys and the extras are in Flow Settings now")
     t:ok(texts["Flow Settings"] and texts["Flow Improvements"], "Flow's windows are a click away")
     local inSettings = {}
@@ -13188,4 +13188,24 @@ ns:Register("test", "where next: quests you could pick up are tallied by zone, t
     t:ok(pcall(W.Lines), "the list builds")
     t:ok(pcall(W.MenuItems, 5), "the menu's lines build")
     t:ok(type(ns.commands.where) == "function", "/flow where")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.299: the menu's "Steps on the map" section is just "Steps".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "menu: the section for how many steps show is named Steps", function(t)
+    local has, old = false, false
+    for _, name in ipairs(ns.menu.SECTIONS) do
+        if name == "Steps" then has = true end
+        if name == "Steps on the map" then old = true end
+    end
+    t:ok(has and not old, "Steps, not Steps on the map")
+    local ok, items = pcall(function() return ns.menu:RouteItems() end)
+    t:ok(ok, "the menu builds")
+    local longTitle = false
+    for _, it in ipairs(ok and items or {}) do
+        if type(it.text) == "string" and it.text:find("Steps on the map", 1, true) then longTitle = true end
+    end
+    t:ok(not longTitle, "no entry still says Steps on the map")
 end)

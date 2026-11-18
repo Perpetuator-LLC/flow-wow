@@ -224,7 +224,7 @@ Flow for WoW is a separate project from Flow Engine.
   your Flow key uses the item too.
   Its right-click menu (and Flow Settings) shows or hides the other two quest lists: Questie's
   tracker and WoW's own (which comes back at a /reload once Questie's is off).
-- **Steps on the map**: the route plans up to 30 steps ahead. Choose how many the world map and
+- **Steps**: the route plans up to 30 steps ahead. Choose how many the world map and
   the Flow Tracker show: just the next step, the next 3, 5 or 10, or all of them (/flow settings,
   the arrow's right-click menu, or `/flow nav steps 1|3|5|10|all`). The Flow Router always lists
   the whole route.
@@ -233,7 +233,7 @@ Flow for WoW is a separate project from Flow Engine.
 - **The Flow menu**: right-click the arrow, the Flow Tracker or a step. The thing you clicked
   is shown open; under it the same sections everywhere, in one order, each a row that pops
   out when you point at it or click it ("Order  Shortest path"): Order, Route includes, Go to
-  the nearest..., Your waypoint, Dungeons, Party, Zones, Steps on the map, Buttons (the self
+  the nearest..., Your waypoint, Dungeons, Party, Zones, Steps, Buttons (the self
   button on or off, docked or not), Flow windows. The arrow's look and the key bindings are in
   Flow Settings.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
