@@ -1,6 +1,20 @@
 # Changelog
 
 
+## 0.35.319
+
+- **Mobs your professions want are marked.** The route's "Loot Kodo Meat" and "Loot Strider
+  Meat" steps are along the way, never a stop of their own, and nothing marked their mobs, so
+  it was easy to walk past them. Now each mob that drops it has that profession's icon over its
+  nameplate (Cooking's for meat) with your count ("0/8"), beside any quest marks, and its
+  tooltip says "Flow: loot Kodo Meat for Cooking, 0 -> 8". The count follows as you loot.
+- **Which spells take you out of a form** (druid). The game doesn't say it of a spell, so Flow
+  watches your casts: cast a spell in Bear or Cat Form and Flow notes whether you stayed in it or
+  were shifted out. The spell's tooltip, on your bars and in the spellbook, then says "Flow:
+  takes you out of Bear Form" or "Flow: keeps you in Bear Form and Cat Form"; one Flow hasn't
+  seen cast in a form says so. A form's own abilities (Maul, Claw...) say so from the start.
+  `/flow forms` lists everything seen. Kept for your account, so your other druids know it too.
+
 ## 0.35.318
 
 - **Loot rolls show their marks on the item.** The green upgrade arrow was drawn under the

@@ -1926,16 +1926,18 @@ local function planProfession(prof, t, out)
                 details[#details + 1] = string.format("%d fewer than without fishing: about %d %s from your Fishing step cook just as well.",
                     fromFish, fromFish, itemName(fishId))
             end
+            local have = 0
+            for _, aid in ipairs(ids) do watched[aid] = true; have = have + count(aid) end
             add({ key = "farm:" .. id, kind = "kill", points = pts, npcs = mobs, area = true,
                   -- Optional (no quest needs it): never a step of its own; loot the
                   -- mobs your quests and travel bring you to (Nav.lua: alongGoals).
                   along = t.optional or nil,
+                  -- Which profession, what it drops and how many: the mobs get the
+                  -- profession's icon over their nameplates, and a line in their
+                  -- tooltip (QuestMarks.lua, 0.35.319).
+                  prof = prof, loot = table.concat(names, " or "), have = have, need = have + n,
                   -- Progress like a quest objective: what you carry / what the plan uses.
-                  text = (function()
-                      local have = 0
-                      for _, aid in ipairs(ids) do watched[aid] = true; have = have + count(aid) end
-                      return string.format("Loot %s %s (~%d kills)", table.concat(names, " or "), ns.Progress(have, have + n), kills)
-                  end)(),
+                  text = string.format("Loot %s %s (~%d kills)", table.concat(names, " or "), ns.Progress(have, have + n), kills),
                   details = details,
                   blockedBy = #pts == 0 and ("no known " .. name .. " drops nearby") or nil })
             end

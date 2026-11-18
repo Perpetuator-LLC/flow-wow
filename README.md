@@ -40,6 +40,10 @@ Flow for WoW is a separate project from Flow Engine.
   if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
   Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it. While a swing spell
   waits for your next swing (a druid's Maul), the button blinks red, as the action bar does.
+- **Which spells take you out of a form** (druid): Flow watches your casts and learns, for each
+  spell, whether it kept you in Bear or Cat Form or took you out. The spell's tooltip says so
+  ("Flow: takes you out of Bear Form", "Flow: keeps you in Bear Form and Cat Form", or not seen
+  yet); a form's own abilities say so from the start. `/flow forms` lists them.
 - **Target button and self button**: Flow's icon is the target button (attacks on an enemy;
   heals, buffs and cures on a friendly target and your group). The self button
   (`/flow selfbutton on`, a key with `/flow selfkey Q`) is a second, blue button for you: your
@@ -262,7 +266,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **Only quests you can get**: holiday quests drop out when the event ends, and quests an NPC
   doesn't offer are skipped.
 - **Quest markers on nameplates**: skull with your kill count, diamond with the count of an item
-  a mob drops, star for NPCs to talk to; several per mob.
+  a mob drops, star for NPCs to talk to; several per mob. A mob that drops what one of your
+  professions wants (Kodo Meat for Cooking) gets that profession's icon with your count, and a
+  line in its tooltip: "Flow: loot Kodo Meat for Cooking, 0 -> 8".
 - **Missed quests**: quests you skipped in zones you've quested in (`/flow missed`).
 
 ### Professions

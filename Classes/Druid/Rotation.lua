@@ -212,6 +212,9 @@ ns:Register("rotation", "DRUID", {
     -- Spells that wait for your next swing instead of going off at once: the
     -- target button blinks red while one waits (Display.lua, E.UpdateQueued).
     nextSwing = { "Maul" },
+    -- Shifts form: Flow learns which spells take you out of a form and says
+    -- so in their tooltips (Modules/Rotation/FormSpells.lua).
+    shapeshifts = true,
     -- Heals over time: put on early (Engine EarlyHeal), counted as on you for
     -- their duration after you cast them.
     hots = { "Rejuvenation" },

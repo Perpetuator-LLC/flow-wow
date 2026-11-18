@@ -34,6 +34,56 @@ local plates = {}      -- [unit token] = true
 local routeNames = {}  -- [lower name] = true: NPCs of your current route step
 
 local function db() return ns.db.quests end
+ns.questMarks = ns.questMarks or {}
+
+-------------------------------------------------------------------------------
+-- Mobs a profession wants (0.35.319). "It is telling me that along my path I
+-- should be collecting Kodo meat and Strider meat. And I was just by some and
+-- I didn't realize I should have been killing them. Can we put a different
+-- kind of icon above them that shows the profession ... and add to the
+-- tooltip that we need to kill this for cooking." The route's "Loot Kodo
+-- Meat" steps (SkillPlan.lua: key farm:<item>, with prof, loot, have, need
+-- and the mobs that drop it) are along the way, never a step of their own,
+-- so nothing marked their mobs. Now each of them gets the profession's icon
+-- over its nameplate, with your count, and a Flow line in its tooltip.
+-------------------------------------------------------------------------------
+
+ns.questMarks.PROF_FALLBACK = "Interface\\GossipFrame\\TrainerGossipIcon"
+-- Pure: { [lower mob name] = { prof, loot, have, need, icon } } from route
+-- steps. iconOf(prof) -> the profession's icon.
+function ns.questMarks.ProfMobs(goals, iconOf)
+    local out = {}
+    for _, g in ipairs(goals or {}) do
+        if type(g) == "table" and type(g.key) == "string" and g.key:find("^farm:") and g.prof then
+            for _, mob in ipairs(g.npcs or {}) do
+                local k = tostring(mob):lower()
+                if not out[k] then
+                    out[k] = { prof = g.prof, loot = g.loot, have = g.have, need = g.need,
+                               icon = (iconOf and iconOf(g.prof)) or ns.questMarks.PROF_FALLBACK }
+                end
+            end
+        end
+    end
+    return out
+end
+-- Pure: the tooltip's line: "Flow: loot Kodo Meat for Cooking, 0 -> 8".
+function ns.questMarks.TipLine(pm)
+    local count = (pm.have and pm.need) and (", " .. ns.Progress(pm.have, pm.need)) or ""
+    return string.format("Flow: loot %s for %s%s", tostring(pm.loot or "what it drops"), tostring(pm.prof), count)
+end
+-- The route's steps that ask for a profession's drops, looked at every 2 s.
+local profMobs, profAt = {}, -10
+local function profMobsNow()
+    local now = GetTime()
+    if now - profAt < 2 then return profMobs end
+    profAt = now
+    local N, D = ns.nav, ns.disposition
+    local goals = {}
+    for _, g in ipairs(N and N.alongGoals or {}) do goals[#goals + 1] = g end
+    for _, s in ipairs(N and N.plan or {}) do goals[#goals + 1] = s.goal end
+    profMobs = ns.questMarks.ProfMobs(goals, function(p) return D and D.PROF_ICON and D.PROF_ICON[p] end)
+    return profMobs
+end
 
 -- "Kobold Vermin slain: 3/10" or "3/10 Kobold Vermin slain" -> "Kobold Vermin", "3/10"
 local function parseObjective(text)
@@ -123,6 +173,13 @@ local function classify(unit)
         end
     end
 
+    -- A profession wants what it drops (Kodo Meat for Cooking): its icon, your count.
+    local pm = profMobsNow()[lname]
+    if pm and UnitCanAttack("player", unit) then
+        marks[#marks + 1] = { kind = "prof", icon = pm.icon,
+                              label = (pm.have and pm.need) and (pm.have .. "/" .. pm.need) or "" }
+    end
+
     -- Objective text mentions this NPC, e.g. "Speak with Marshal McBride".
     if #marks == 0 and not UnitCanAttack("player", unit) then
         for _, t in ipairs(texts) do
@@ -210,6 +267,14 @@ function ns.QuestMarksLayout(marks, tgt)
     return {}, marks[1] and marks[1].label or nil
 end
 
+-- Pure: the picture for a mark: its own (a profession's icon), its kind's,
+-- or the raid icon of its kind; and whether it's an icon to trim the edge of.
+function ns.questMarks.MarkTexture(mark)
+    if mark.icon then return mark.icon, true end
+    if KIND_TEXTURE[mark.kind] then return KIND_TEXTURE[mark.kind], false end
+    return ICON:format(KIND_ICON[mark.kind] or 1), false
+end
+
 -- A row of up to 3 icons above the nameplate, each with its own count.
 local function markerFor(plate)
     if plate.FlowQuestMark then return plate.FlowQuestMark end
@@ -266,7 +331,9 @@ local function updateUnit(unit)
     for i = 1, MAX_MARKS do
         local s, mark = m.slots[i], marks[i]
         if mark then
-            s.icon:SetTexture(KIND_TEXTURE[mark.kind] or ICON:format(KIND_ICON[mark.kind]))
+            local tex, trim = ns.questMarks.MarkTexture(mark)
+            s.icon:SetTexture(tex)
+            if trim then s.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else s.icon:SetTexCoord(0, 1, 0, 1) end
             s.count:SetText(mark.label or "")
             widths[i] = 20 + (mark.label and mark.label ~= "" and (s.count:GetStringWidth() + 4) or 0)
             total = total + widths[i]
@@ -364,6 +431,8 @@ ns:On("QUEST_LOG_UPDATE", function() readQuests(); pcall(readDrops); updateAll()
 ns:On("PLAYER_LEVEL_UP", function() C_Timer.After(5, function() pcall(readDrops); updateAll() end) end)
 ns:On("PLAYER_ENTERING_WORLD", function() readQuests(); updateAll() end)
 ns:On("LOOT_OPENED", onLoot)
+-- (Looted some Kodo Meat: the profession mobs' counts follow.)
+ns:On("BAG_UPDATE_DELAYED", function() if next(profMobs) then profAt = -10; updateAll() end end)
 
 -- What /flow quest prints (and the diagnostics keep): your open objectives,
 -- who drops what, and each nameplate in view with the marks it got.
@@ -380,6 +449,10 @@ function ns.questMarks.Lines()
         n = n + 1
     end
     if n == 0 then add("  no open kill/collect objectives") end
+    for mob, pm in pairs(profMobsNow()) do
+        add(string.format("  for %s: %s drops %s (%s)", tostring(pm.prof), mob, tostring(pm.loot),
+            (pm.have and pm.need) and (pm.have .. "/" .. pm.need) or "?"))
+    end
     -- What Flow learned from your own looting, for the items you need now.
     for mob, list in pairs(db().drops or {}) do
         for item in pairs(list) do
@@ -439,4 +512,32 @@ function ns.questMarks.RouteRank(name) return routeNames[(name or ""):lower()] e
 -- Redraw every marker (following someone started or stopped, colours changed).
 function ns.questMarks.Refresh() updateAll() end
 ns.questMarks._targetOf = targetOf   -- (tests)
+
+-- Their tooltip: a Flow line under the game's own ("the tooltip normally
+-- doesn't show for these kinds of things, it only shows the quest mobs").
+local function unitOf(tt)
+    if not tt.GetUnit then return nil end
+    local ok, _, unit = pcall(tt.GetUnit, tt)
+    unit = ok and ns.api.Safe(unit) or nil
+    return type(unit) == "string" and unit or nil
+end
+local function addProfLine(tt)
+    if not db().enabled then return end
+    local unit = unitOf(tt)
+    if not unit or ns.api.Safe(UnitIsPlayer(unit)) then return end
+    local name = ns.api.Safe(UnitName(unit))
+    if type(name) ~= "string" then return end
+    local pm = profMobsNow()[name:lower()]
+    if not pm then return end
+    tt:AddLine(string.format("|T%s:14:14|t %s", pm.icon, ns.questMarks.TipLine(pm)), 1, 0.82, 0.25)
+end
+if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tt)
+        if tt ~= GameTooltip then return end
+        pcall(addProfLine, tt)
+    end)
+elseif GameTooltip and GameTooltip.HookScript then
+    GameTooltip:HookScript("OnTooltipSetUnit", function(tt) pcall(addProfLine, tt) end)
+end
+ns.questMarks._addProfLine = addProfLine   -- (tests)
 ns.questMarks._routeNames = routeNames

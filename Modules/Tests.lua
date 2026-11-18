@@ -14156,3 +14156,77 @@ ns:Register("test", "target button: blinks red while Maul waits for your next sw
     q.t, q.on = was[2], was[3]
     q:SetShown(was[1])
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.319: profession mobs get the profession's icon and a tooltip line;
+-- Flow learns which spells take you out of a form.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "marks: mobs a profession wants (Kodo Meat for Cooking) get its icon, a count and a tooltip line", function(t)
+    -- "Can we put a different kind of icon above them that shows the profession that I need to kill them for?"
+    local QM = ns.questMarks
+    local COOK = "Interface\\Icons\\INV_Misc_Food_15"
+    local goals = {
+        { key = "farm:5467", prof = "Cooking", loot = "Kodo Meat", have = 0, need = 8, npcs = { "Barrens Kodo", "Kodo Calf" } },
+        { key = "farm:5469", prof = "Cooking", loot = "Strider Meat", have = 1, need = 25, npcs = { "Greater Plainstrider" } },
+        { key = "821:1", kind = "kill", npcs = { "Savannah Huntress" } },   -- a quest's: its own marks
+        { key = "farm:1", npcs = { "No Profession" } },                     -- (no profession: nothing)
+    }
+    local mobs = QM.ProfMobs(goals, function(p) return p == "Cooking" and COOK or nil end)
+    t:ok(mobs["barrens kodo"] and mobs["kodo calf"] and mobs["greater plainstrider"], "every mob that drops it, by name")
+    t:eq(mobs["barrens kodo"].icon, COOK, "with the profession's icon")
+    t:ok(not mobs["savannah huntress"] and not mobs["no profession"], "a quest's mobs and steps with no profession: not these")
+    t:eq(mobs["greater plainstrider"].loot, "Strider Meat", "and what it drops")
+    t:eq(QM.ProfMobs(goals, function() return nil end)["kodo calf"].icon, QM.PROF_FALLBACK, "a profession with no icon: the trainer's")
+    t:eq(QM.TipLine(mobs["barrens kodo"]), "Flow: loot Kodo Meat for Cooking, 0 -> 8", "the tooltip's line")
+    local tex, trim = QM.MarkTexture({ kind = "prof", icon = COOK })
+    t:ok(tex == COOK and trim, "the nameplate shows the profession's icon, its edge trimmed")
+    tex, trim = QM.MarkTexture({ kind = "kill" })
+    t:ok(tex:find("RaidTargetingIcon_8", 1, true) ~= nil and not trim, "a quest kill keeps its skull")
+    t:ok(QM.MarkTexture({ kind = "drop" }):find("AvailableQuestIcon", 1, true) ~= nil, "a quest-starting drop keeps its !")
+    t:ok(select(1, QM.MarkTexture({ kind = "something new" })) ~= nil, "a kind with no picture still gets one")
+    t:ok(pcall(QM.Lines), "/flow quest lists them")
+end)
+
+ns:Register("test", "forms: Flow learns which spells keep your form and which take you out of it", function(t)
+    -- "Is there a clear way for me to know which ones will and will not change form back to human?"
+    local FS = ns.formSpells
+    if not FS then t:ok(false, "FormSpells.lua not loaded") return end
+    local store = {}
+    t:ok(FS.Note(store, "Regrowth", "Bear Form", false), "a heal that dropped Bear Form: noted")
+    t:ok(not FS.Note(store, "Regrowth", "Bear Form", false), "the second time: nothing new")
+    FS.Note(store, "Faerie Fire", "Bear Form", true)
+    FS.Note(store, "Faerie Fire", "Cat Form", true)
+    t:eq(FS.Words(store["Regrowth"]), "Flow: takes you out of Bear Form", "the tooltip: takes you out")
+    t:eq(FS.Words(store["Faerie Fire"]), "Flow: keeps you in Bear Form and Cat Form", "keeps you in both")
+    t:eq(FS.Words(nil, "Bear Form"), "Flow: a Bear Form ability (keeps you in it)", "a form's own ability")
+    t:ok(FS.Words(nil):find("not seen", 1, true) ~= nil, "not seen yet: says so")
+    FS.Note(store, "Regrowth", "Bear Form", true)
+    t:eq(FS.Words(store["Regrowth"]), "Flow: keeps you in Bear Form", "seen the other way later: the latest wins")
+    t:ok(FS.Shifts("DRUID") and not FS.Shifts("PALADIN"), "the druid shifts; the paladin's auras aren't forms to leave")
+    t:eq(FS.FormAbilities("DRUID")["Maul"], "Bear Form", "Maul is a Bear Form ability (the class list)")
+    -- The watching, with forms and times of the test's own (Flow's own store stood in for).
+    local seen = {}
+    with(ns, "Log", function() end, function()
+    with(FS, "Store", function() return seen end, function()
+        local keepP, keepD = FS.pending, FS.dropped
+        FS.pending, FS.dropped = nil, nil
+        FS.Sent("Healing Touch", "Bear Form", 100)
+        FS.FormChanged("Bear Form", nil, 100.3)
+        t:ok(seen["Healing Touch"] and seen["Healing Touch"].out["Bear Form"], "sent in Bear Form, the form drops: takes you out")
+        FS.Sent("Demoralizing Roar", "Bear Form", 200)
+        FS.Cast("Demoralizing Roar", "Bear Form", 200.1)
+        t:ok(seen["Demoralizing Roar"] and seen["Demoralizing Roar"].keep["Bear Form"], "cast and still in Bear Form: keeps it")
+        FS.FormChanged("Cat Form", nil, 300)
+        FS.Sent("Rejuvenation", nil, 300.2)
+        t:ok(seen["Rejuvenation"] and seen["Rejuvenation"].out["Cat Form"], "the form dropped just before the cast went out: takes you out")
+        FS.FormChanged("Bear Form", nil, 400)
+        FS.Sent("Wrath", nil, 405)
+        t:eq(seen["Wrath"], nil, "you left the form long before: nothing learned")
+        FS.Sent("Cancel Form", "Cat Form", 500)
+        t:eq(FS.pending, nil, "shifting form itself isn't a spell that takes you out")
+        FS.pending, FS.dropped = keepP, keepD
+    end) end)
+    t:ok(pcall(FS.Lines), "/flow forms lists them")
+    t:ok(pcall(FS._addLine, GameTooltip, "Regrowth"), "the tooltip line adds")
+end)

@@ -105,6 +105,7 @@ function D:Snapshot(reason, spread)
         { "meters", function() if c.meters then c.meters("") end end },
         { "threat", function() if c.threat then c.threat("") end end },
         { "zones", function() if c.zones then c.zones("") end end },
+        { "forms", function() if c.forms then c.forms() end end },
         { "class quests", function() if c.classquests then c.classquests() end end },
         { "where next", function() if c.where then c.where() end end },
         { "self button", function() if c.selfbutton then c.selfbutton("why quick") end end },
