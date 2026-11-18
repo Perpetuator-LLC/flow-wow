@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.306
+
+- **"Show on map" and a step in another zone: finding out what the game allows.** Flow still
+  can't turn the game's map to the step's zone itself (an add-on doing that breaks the map's own
+  buttons in a later fight). It could pass your click to one of the game's own controls that
+  does, if WoW: Forever has one. `/flow buttons` (and the diagnostics) now list the map's
+  controls for other zones, and say what the map did after the last click Flow passed to a
+  quest's line in the log. Nothing changes on screen yet.
+
 ## 0.35.305
 
 - **The ring of dots on the minimap is turned 22.5 degrees.** A dot sat straight above and

@@ -55,11 +55,70 @@ function O.Rect(left, bottom, width, height, scale)
     return left * scale - 1, bottom * scale - 1, width * scale + 2, height * scale + 2
 end
 
+-- "Can 'Show on map' open the zone the step is in?" (0.35.306). Flow can't
+-- turn the game's map to another zone itself (0.35.49: the map's own buttons
+-- were blocked in a later fight), so it would have to pass your click to one
+-- of the map's own controls that does: a zone list at its top, its row of
+-- parent maps, or the quest's line beside it (which on newer clients turns
+-- the map to the quest's zone). Which of those WoW: Forever has isn't known
+-- yet, so /flow buttons (and the diagnostics) say, before any of it is used.
+O.ZONE_CONTROLS = {
+    "WorldMapZoneDropDown", "WorldMapContinentDropDown", "WorldMapZoomOutButton",
+    "WorldMapFrame.ZoneDropDown", "WorldMapFrame.ContinentDropDown", "WorldMapFrame.NavBar",
+}
+
+-- The ones this client has, by path. env: the tests' own.
+function O.ZoneControls(env)
+    local GB, out = ns.gameButtons, {}
+    if not GB then return out end
+    for _, path in ipairs(O.ZONE_CONTROLS) do
+        if GB.Resolve(path, env) then out[#out + 1] = path end
+    end
+    return out
+end
+
+-- What's laid over the map (its overlayFrames: on newer clients the zone list
+-- and the row of parent maps are among them). Most have no name, so each
+-- also gives a few of its own functions, which say what it is. Only reads.
+-- map: the tests' own.
+function O.MapOverlays(map)
+    if map == nil then map = WorldMapFrame end
+    local list = map and type(map.overlayFrames) == "table" and map.overlayFrames or {}
+    local out = {}
+    for i, f in ipairs(list) do
+        local okN, name = pcall(function() return f:GetDebugName() end)
+        local okT, kind = pcall(function() return f:GetObjectType() end)
+        local fns = {}
+        for k, v in pairs(f) do
+            if type(k) == "string" and type(v) == "function" then fns[#fns + 1] = k end
+        end
+        table.sort(fns)
+        while #fns > 6 do table.remove(fns) end
+        out[#out + 1] = string.format("%s %s [%s]", (okT and kind) or "?", (okN and name) or ("#" .. i), table.concat(fns, " "))
+    end
+    return out
+end
+
+-- Pure: what the map did after a click passed to a quest's line. from, to:
+-- the zone names before and after (nil when unknown).
+function O.TurnText(questID, from, to)
+    if not (from and to) then return string.format("a click passed to quest %s's line: the map's zone wasn't readable", tostring(questID)) end
+    if from == to then return string.format("a click passed to quest %s's line: the map stayed on %s", tostring(questID), from) end
+    return string.format("a click passed to quest %s's line: the map turned from %s to %s", tostring(questID), from, to)
+end
+
+-- The zone the map shows, by name, or nil. Only reads.
+local function mapZone()
+    local ok, id = pcall(function() return WorldMapFrame:GetMapID() end)
+    local info = ok and id and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id)
+    return info and info.name or (ok and id and tostring(id)) or nil
+end
+
 local overlay
 
 function O.Disarm()
     if overlay and overlay:IsShown() and not InCombatLockdown() then overlay:Hide() end
-    if overlay then overlay.link, overlay.before, overlay.after = nil, nil, nil end
+    if overlay then overlay.link, overlay.before, overlay.after, overlay.quest = nil, nil, nil, nil end
 end
 
 local function look(link, hover)
@@ -83,11 +142,13 @@ local function build()
     -- Flow's part: before the game opens its window (each click event), and
     -- once after (on the release, when the window has opened either way).
     b:SetScript("PreClick", function(self, _, down)
+        if down and self.quest then self.zoneBefore = mapZone() end
         if down and self.before then pcall(self.before) end
     end)
     b:SetScript("PostClick", function(self, _, down)
         if down then return end
         local after, link = self.after, self.link
+        if self.quest then O.lastTurn = O.TurnText(self.quest, self.zoneBefore, mapZone()) end
         look(link, false)
         O.Disarm()
         if after then pcall(after) end
@@ -118,7 +179,8 @@ end
 function O.Arm(link, kind, before, after, questID)
     local target, path = O.Target(kind)
     local open = WorldMapFrame and WorldMapFrame:IsShown() and true or false
-    if open and questID and not InCombatLockdown() then
+    local toLine = open and questID and not InCombatLockdown()
+    if toLine then
         local ok, b = pcall(O.QuestButton, questID)
         target, path, open = ok and b or nil, "the quest's line in the log", false
         if not target then
@@ -136,6 +198,7 @@ function O.Arm(link, kind, before, after, questID)
     overlay:SetSize(w, h)
     overlay:SetAttribute("clickbutton", target)
     overlay.link, overlay.before, overlay.after = link, before, after
+    overlay.quest = toLine and questID or nil   -- (to note whether the game turns the map)
     O.lastPath = path
     overlay:Show()
     return true
@@ -145,7 +208,7 @@ end
 -- the fight is on), and the link is the plain one again.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if overlay and overlay:IsShown() then overlay:Hide() end
-    if overlay then overlay.link, overlay.before, overlay.after = nil, nil, nil end
+    if overlay then overlay.link, overlay.before, overlay.after, overlay.quest = nil, nil, nil, nil end
 end)
 
 -- /flow buttons also says which of the game's buttons these links use.
@@ -157,5 +220,10 @@ function O.Lines()
             path and ("opens it through " .. path) or "no button of the game's found (it says which key to press)")
     end
     out[#out + 1] = string.format("opened a window through them %d time(s) this session", O.used or 0)
+    local zc = O.ZoneControls()
+    out[#out + 1] = "the map's own controls for other zones: " .. (#zc > 0 and table.concat(zc, ", ") or "none of the known ones")
+    local okO, ov = pcall(O.MapOverlays)
+    out[#out + 1] = "laid over the map: " .. ((okO and #ov > 0) and table.concat(ov, "; ") or (okO and "nothing" or ("unreadable: " .. tostring(ov))))
+    if O.lastTurn then out[#out + 1] = O.lastTurn end
     return out
 end

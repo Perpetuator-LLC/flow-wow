@@ -6935,7 +6935,7 @@ ns:Register("test", "click: step card links open the map through the game's own 
     f, path = O.Target("log", env)
     t:ok(f == log and path == "QuestLogMicroButton", "the quest log: its own button on the menu bar")
     t:eq(O.Target("map", {}), nil, "none of them here: nothing")
-    t:eq(#O.Lines(), 3, "/flow buttons says which buttons the links use")
+    t:ok(#O.Lines() >= 5, "/flow buttons says which buttons the links use, and the map's controls for other zones")
     -- click: the link arms when the mouse comes over it, and its own click still works.
     if not mapOpenLink then
         mapOpenLink = ns.nav._uiLink(UIParent, "test link", function() mapOpenLink.clicks = (mapOpenLink.clicks or 0) + 1 end,
@@ -9486,6 +9486,26 @@ ns:Register("test", "quest log link: with the log open it goes to the quest's ow
     t:eq(O.QuestButton(844, {}), nil, "a client whose list has no such lines: none")
     t:eq(O.QuestButton(nil, list), nil, "no quest: none")
     t:ok(pcall(O.QuestButton, 844), "the game's own list is read without error")
+end)
+
+ns:Register("test", "show on map: says which of the map's own controls could open another zone", function(t)
+    -- "Can the 'show on map' link open the zone that the waypoint is located in?"
+    local O = ns.mapOpen
+    local shown = function() return true end
+    local env = { WorldMapZoneDropDown = { IsShown = shown }, WorldMapFrame = { NavBar = { IsShown = shown } } }
+    local found = O.ZoneControls(env)
+    t:eq(table.concat(found, ","), "WorldMapZoneDropDown,WorldMapFrame.NavBar", "the ones this client has, by path")
+    t:eq(#O.ZoneControls({}), 0, "none of them: an empty list")
+    local nav = { GetDebugName = function() return "WorldMapFrame.NavBar" end, GetObjectType = function() return "Frame" end,
+        GoToMap = function() end, Refresh = function() end }
+    local lines = O.MapOverlays({ overlayFrames = { nav, {} } })
+    t:eq(lines[1], "Frame WorldMapFrame.NavBar [GetDebugName GetObjectType GoToMap Refresh]", "each overlay: kind, name and its own functions")
+    t:eq(lines[2], "? #2 []", "one that can't say what it is still gets a line")
+    t:eq(#O.MapOverlays({}), 0, "a map with no overlays: nothing")
+    t:ok(pcall(O.MapOverlays), "the game's own map is read without error")
+    t:eq(O.TurnText(870, "Durotar", "The Barrens"), "a click passed to quest 870's line: the map turned from Durotar to The Barrens", "the map turned")
+    t:eq(O.TurnText(870, "Durotar", "Durotar"), "a click passed to quest 870's line: the map stayed on Durotar", "the map stayed")
+    t:eq(O.TurnText(870, nil, "Durotar"), "a click passed to quest 870's line: the map's zone wasn't readable", "unknown")
 end)
 
 ns:Register("test", "quest marks: /flow quest lists the nameplates and what each got", function(t)
