@@ -13209,3 +13209,27 @@ ns:Register("test", "menu: the section for how many steps show is named Steps", 
     end
     t:ok(not longTitle, "no entry still says Steps on the map")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.300: a bank icon on bag items Flow Banker will put away.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: what goes into your bank at the next visit has a bank icon", function(t)
+    local B = ns.bagIcons
+    local set = B.BankSet({ { id = 2447 }, { id = 2589 }, {}, "x" })
+    t:ok(set[2447] and set[2589], "Flow Banker's list as a set")
+    t:ok(B.ToBank(2447, set, nil), "on the list: the bank icon")
+    t:ok(not B.ToBank(765, set, nil), "not on the list: none")
+    t:ok(not B.ToBank(2447, set, 2447), "the item your step uses keeps its (o)")
+    t:ok(not B.ToBank(nil, set, nil) and not B.ToBank(2447, nil, nil), "nothing known: none")
+    -- The same list the Deposit button uses, and your own choices count.
+    local K = ns.banker
+    local rows = { { id = 2447, name = "Peacebloom", action = "keep", kind = "Trade Goods", stacks = 1 },
+                   { id = 2589, name = "Linen Cloth", action = "keep", kind = "Trade Goods", stacks = 2 } }
+    local picked = B.BankSet(K.Pick(rows, {}, { [2589] = "carry" }))
+    t:ok(picked[2447] and not picked[2589], "an item you chose to carry has no bank icon")
+    t:ok(not B.BankSet(K.Pick(rows, { [2447] = true }, {}))[2447], "nor one a step on your route uses")
+    t:ok(pcall(B.RefreshBankSet) and type(B.bankSet) == "table", "the list is read without an error")
+    t:ok(type(B.MarkDirty) == "function" and pcall(B.MarkDirty), "a choice in the Flow Banker repaints the bags")
+    t:ok(B.BANK_TIP:find("Flow Banker", 1, true) ~= nil, "the tooltip says why")
+end)

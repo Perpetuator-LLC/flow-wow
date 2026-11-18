@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.35.300
+
+- **A bank icon on what goes into your bank.** Items in your bags that Flow Banker will put
+  away at your next bank visit now show a small bank icon in the top left corner, and their
+  tooltip says so. It's the same list the Deposit button uses, so a choice you make in the
+  Flow Banker (carry this, bank that) changes the icons too.
+
 ## 0.35.299
 
 - **"Steps on the map" is now just "Steps"**, in the arrow's menu and in Flow Settings. It

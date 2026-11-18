@@ -1,5 +1,6 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   (o) target (top left)     = your current route step wants you to use this item
+--   bank (top left)           = Flow Banker puts it in your bank at your next visit (0.35.300)
 --   top right                 = gold coin = sell, AH, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
 --   bottom row (gear)         = one icon per spec, with a mark above: green arrow up = better
@@ -17,6 +18,31 @@ function B.FocusItem()
     local c = ns.nav and ns.nav.current
     return c and c.goal and c.goal.useItem or nil
 end
+
+-- What goes into your bank at your next visit (Flow Banker's own list, so the
+-- icon and the Deposit button always agree; your choices in its window count).
+-- Pure: the list's rows as a set. rows: { { id } } -> { [itemID] = true }
+function B.BankSet(rows)
+    local set = {}
+    for _, r in ipairs(rows or {}) do
+        if type(r) == "table" and r.id then set[r.id] = true end
+    end
+    return set
+end
+-- Pure: does this bag item get the bank icon? Never the item your current
+-- step uses (that one has the (o) in the same corner).
+function B.ToBank(id, set, focus)
+    if not (id and set and set[id]) then return false end
+    return not (focus and focus == id)
+end
+B.bankSet = {}
+function B.RefreshBankSet()
+    local K = ns.banker
+    local ok, rows = pcall(function() return K and K.List and K.List() or {} end)
+    B.bankSet = B.BankSet(ok and rows or {})
+    return B.bankSet
+end
+B.BANK_TIP = "Flow Banker: goes into your bank at your next visit (Deposit there; change it in the Flow Banker)."
 
 local BADGE = {
     sell = { "$", 1.0, 0.75, 0.2 },
@@ -71,6 +97,15 @@ local function marks(button)
     m.focus.edge, m.focus.ring, m.focus.hole, m.focus.dot = disc(1, -1), disc(2, 0), disc(3, 2), disc(4, 4)
     m.focus.edge:SetVertexColor(0, 0, 0, 0.9)
     m.focus.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+    -- The bank: this goes in at your next visit (same corner as the (o); a
+    -- step's item is never banked, so they don't meet).
+    m.bank = m:CreateTexture(nil, "OVERLAY")
+    m.bank:SetSize(14, 14)
+    m.bank:SetPoint("TOPLEFT", -2, 2)
+    local okAtlas = m.bank.SetAtlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("Banker")
+        and pcall(m.bank.SetAtlas, m.bank, "Banker")
+    if not okAtlas then m.bank:SetTexture("Interface\\Icons\\INV_Misc_Bag_10") end
+    m.bank:Hide()
     m.focus:Hide()
     button.flowMarks = m
     return m
@@ -81,6 +116,7 @@ local function clear(button)
     if not m then return end
     m.arrow:Hide()
     m.focus:Hide()
+    m.bank:Hide()
     m.specs:Hide()
     m.badge:SetText("")
     m.coin:Hide()
@@ -104,6 +140,7 @@ local function paint(button, bag, slot)
         m.focus.dot:SetVertexColor(c[1], c[2], c[3], 1)
     end
     m.focus:SetShown(focus or false)
+    m.bank:SetShown(v.action == "keep" and B.ToBank(id, B.bankSet, B.FocusItem()))
     local g = v.item.gear
     if g and g.canUse then m.specs:Set(g.diffs) else m.specs:Hide() end
     m.coin:SetShown(v.action == "sell")
@@ -153,6 +190,7 @@ end
 
 local dirty, acc, wasOpen = true, 0, false
 local function refresh()
+    B.RefreshBankSet()
     eachButton(function(b, bag, slot) pcall(paint, b, bag, slot) end)
 end
 
@@ -184,6 +222,8 @@ for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_
     ns:On(ev, function() dirty = true end)
 end
 
+function B.MarkDirty() dirty = true end
+
 ns.commands.bags = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
@@ -191,7 +231,7 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. $ sell, AH auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. Bank icon = goes into your bank at your next visit. $ sell, AH auction house, DE disenchant.")
     end
 end
 
@@ -205,5 +245,9 @@ ns:Register("itemTip", "disposition", function(tooltip, link)
     if not v then return end
     tooltip:AddLine(string.format("Flow: |cff%s%s|r: %s", ACTION_COLOR[v.action] or "ffffff",
         D.LABEL[v.action] or v.action, v.reason or ""), 0.9, 0.9, 0.9, true)
+    local id = tonumber(tostring(l):match("item:(%d+)"))
+    if v.action == "keep" and B.ToBank(id, B.bankSet, B.FocusItem()) then
+        tooltip:AddLine(B.BANK_TIP, 0.6, 0.8, 1, true)
+    end
     tooltip:Show()
 end)

@@ -552,6 +552,7 @@ function B:CellClick(c, button)
     if not cell then return false end
     B.Rules()[cell.id] = B.NextRule(cell.bank, cell.mine, button == "RightButton")
     if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("banking choice") end
+    if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end   -- (the bank icons on your bags follow)
     B:Fill()
     return true
 end

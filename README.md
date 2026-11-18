@@ -281,7 +281,7 @@ Flow for WoW is a separate project from Flow Engine.
   the best one to sell.
 - **Upgrades at vendors**: the same badge on gear a vendor sells, and one line in chat when
   something for sale is better for the spec you level as, with its price.
-- **Bag icons**: spec marks per role, the (o) marker on an item your current step wants you to
+- **Bag icons**: a bank icon on what Flow Banker will put in your bank at your next visit; spec marks per role, the (o) marker on an item your current step wants you to
   use, gold coin to sell, AH, DE, a quest "!" for items your quests need, and profession icons
   for materials and tools. The tooltip lists every reason to keep an item (e.g. "Linen for
   First Aid"). A material your skill has moved past is let go ("your First Aid is past it"), a
