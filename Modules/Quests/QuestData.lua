@@ -595,6 +595,8 @@ local function forMe(raw)
     return true
 end
 
+Q.ForMe = forMe   -- (ClassQuests.lua)
+
 -- Pure: the part of a quest chain to do now, walking back from the quest
 -- that teaches the spell over the quests that must come first.
 --   get(id) -> { id, name, raw = { preQuestGroup, preQuestSingle } } or nil

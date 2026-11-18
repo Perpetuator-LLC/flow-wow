@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.296
+- **A spell your trainer doesn't have points at your class's quests.** Flow said "Rake: after
+  Cat Form" and nothing about getting Cat Form: its list had Cat Form at the trainer, and on
+  this game the trainer doesn't have it. Flow now looks through the quest data for the quests
+  that are only for your class, and when a spell isn't at the trainer and has no quest Flow
+  knows, Flow Improvements says so and names the class quests you haven't done, with a link
+  to the first one's step. A new form ranks above ordinary training. `/flow classquests`
+  lists them all.
+- **A leftover quest item links to its step.** "Sunscale Feather ... The Angry Scytheclaws"
+  now opens the step to accept that quest, or, while an earlier part is still in your log,
+  that quest's step.
+- A self-test of the move note put right.
+
 ## 0.35.295
 - **A step's tooltip in short lines.** Its details wrapped into a narrow column ("Devouring
   Ectoplasm, level 16-17: drops it 100% of the time" over two lines, six times). Each mob is

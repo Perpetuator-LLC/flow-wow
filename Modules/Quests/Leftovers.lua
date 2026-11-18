@@ -93,6 +93,28 @@ function L.Now()
     return L.Pick(rows, ids, texts, starts), true
 end
 
+-- The step to open for a leftover (0.35.296: "if it could show me a little
+-- link to where on the map I can go and use them"): the quest that uses it
+-- when you can pick that up now, else the part of its chain in your log
+-- (what you finish first). Pure: from where the chain stands.
+--   now: "accept" | "inlog"; firstId: the quest to do now
+function L.KeyFor(now, firstId)
+    if not firstId then return nil end
+    if now == "accept" then return "pickup:" .. firstId end
+    if now == "inlog" then return firstId .. ":done" end
+    return nil
+end
+function L.StepKey(itemId)
+    local ok, related = pcall(L.Related, itemId)
+    for _, q in ipairs(ok and related or {}) do
+        if not q.done then
+            local key = L.KeyFor(q.now, q.firstId)
+            if key then return key end
+        end
+    end
+    return nil
+end
+
 -- Flow Improvements' line for a leftover: what the bags say, in a sentence.
 function L.ImproveText(it)
     local ok, _, why = pcall(L.For, it.id, it.name, it.sell)
@@ -107,7 +129,7 @@ ns:Register("advisor", "leftovers", {
         for i, it in ipairs(ok and list or {}) do
             if i > 3 then break end
             out[#out + 1] = { importance = 25, improves = { "Bag space" },
-                text = L.ImproveText(it) }
+                text = L.ImproveText(it), goalKey = L.StepKey(it.id) }
         end
         return out
     end,
@@ -241,7 +263,10 @@ function L.Related(itemId)
                             done = Q.IsCompleted and Q:IsCompleted(qid) and true or false }
             if not entry.done and Q.ChainNow then
                 local okC, state, first = pcall(Q.ChainNow, Q, qid)
-                if okC then entry.now, entry.first = state, type(first) == "table" and first.name or nil end
+                if okC then
+                    entry.now, entry.first = state, type(first) == "table" and first.name or nil
+                    entry.firstId = type(first) == "table" and first.id or nil
+                end
             end
             out[#out + 1] = entry
         end

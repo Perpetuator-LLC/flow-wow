@@ -8847,7 +8847,8 @@ ns:Register("test", "move handle: its note sits below the button, faint", functi
     local h = ns.cast and ns.cast.handle
     if not (h and h.text) then t:ok(true, "(the Flow key isn't built yet)") return end
     local p, rel, rp, _, y = h.text:GetPoint(1)
-    t:ok(p == "TOP" and rel == h and rp == "BOTTOM", "its top hangs from the button's bottom edge")
+    -- (Docked, the one note hangs under the self button, so it's below both: 0.35.247.)
+    t:ok(p == "TOP" and (rel == h or rel == h.noteUnder) and rp == "BOTTOM", "its top hangs from the button's bottom edge (the self button's when docked)")
     t:ok((y or 0) < 0, "below it")
     t:eq(h.text:GetNumPoints(), 1, "and nowhere above it any more")
     if not h:IsMouseOver() then
@@ -13075,4 +13076,45 @@ ns:Register("test", "dungeons: the list says \"3 of 5\", and hovering gives each
     t:eq(il[5], "- 2 start inside the dungeon", "quests that start inside are said apart")
     t:eq(D.CountText(inside), "0 of 2", "and counted in the total")
     for _, l in ipairs(lines) do t:ok(#l < 60, "short enough not to wrap: " .. l) end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.296: class quests Flow doesn't know by name; a leftover links to its step.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "class quests: a spell the trainer lacks points at your class's quests you haven't done", function(t)
+    local CQ = ns.classQuests
+    t:ok(CQ.IsForm("Cat Form") and CQ.IsForm("Travel Form") and CQ.IsForm("Ghost Wolf"), "forms and Ghost Wolf change your shape")
+    t:ok(not CQ.IsForm("Rake") and not CQ.IsForm(nil), "an ordinary spell doesn't")
+    t:ok(CQ.FORM_IMPORTANCE > 80, "a new form outranks ordinary training")
+    local quests = {
+        { id = 1, name = "Heeding the Call", level = 10, minLevel = 10, done = true },
+        { id = 2, name = "A Lesson to Learn", level = 16, minLevel = 16, inLog = true },
+        { id = 3, name = "The Cat's Path", level = 20, minLevel = 20 },
+        { id = 4, name = "An Older One", level = 14, minLevel = 14 },
+        { id = 5, name = "For Later", level = 30, minLevel = 30 },
+    }
+    local open = CQ.Open(quests, 20, 0, 5)
+    t:eq(#open, 2, "not the done one, not the one in your log, not one above your level")
+    t:eq(open[1].name, "The Cat's Path", "the newest for your level first")
+    t:eq(open[2].name, "An Older One", "then older ones")
+    t:eq(#CQ.Open(quests, 20, 0, 1), 1, "no more than asked for")
+    local text = CQ.Text("Cat Form", open)
+    t:ok(text:find("isn't at your class trainer", 1, true) ~= nil, "it says the trainer doesn't have it")
+    t:ok(text:find("The Cat's Path (level 20)", 1, true) ~= nil, "and names the class quest to look at")
+    t:ok(CQ.Text("Cat Form", {}):find("Ask your trainer", 1, true) ~= nil, "no quest in the data: it says to ask")
+    t:ok(pcall(CQ.Lines), "the list builds")
+    t:ok(pcall(CQ.Orphans), "looking for spells the trainer lacks runs")
+    t:ok(type(ns.commands.classquests) == "function", "/flow classquests")
+    t:ok(ns:Get("advisor", "classQuests") ~= nil and pcall(ns:Get("advisor", "classQuests").check), "Flow Improvements asks it")
+    t:ok(type(ns.quests.ForMe) == "function", "a quest can be checked against your race and class")
+end)
+
+ns:Register("test", "bags: a leftover's line links to the step of the quest that uses it", function(t)
+    local L = ns.leftovers
+    t:eq(L.KeyFor("accept", 905), "pickup:905", "its quest is on offer: the step to accept it")
+    t:eq(L.KeyFor("inlog", 881), "881:done", "an earlier part is in your log: that quest's step")
+    t:eq(L.KeyFor("unknown", 905), nil, "the chain isn't in the data: no link")
+    t:eq(L.KeyFor("accept", nil), nil, "no quest: no link")
+    t:ok(pcall(L.StepKey, 5165), "working out an item's link runs")
 end)
