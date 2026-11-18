@@ -13509,3 +13509,26 @@ ns:Register("test", "arrow: every new text on the second line lays it out (the h
     t:eq(f.subAbove, true, "and a long one")
     f.sub:SetText(was or "")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.305: the minimap ring's dots leave straight up and straight down clear.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "minimap: no dot of the ring sits straight above or below the spot", function(t)
+    local P = ns.minimapPin
+    local pts = P.RingPoints(P.RING_DOTS, P.RING_RADIUS)
+    t:eq(#pts, 8, "eight dots still")
+    local gap, onRing, tops, bottoms = true, true, 0, 0
+    for _, pt in ipairs(pts) do
+        -- Clear of the middle column: more than the dot's own width and the arrow's.
+        if math.abs(pt[1]) < P.RING_DOT then gap = false end
+        if math.abs(math.sqrt(pt[1] * pt[1] + pt[2] * pt[2]) - P.RING_RADIUS) > 0.01 then onRing = false end
+        if pt[2] > P.RING_RADIUS * 0.9 then tops = tops + 1 end
+        if pt[2] < -P.RING_RADIUS * 0.9 then bottoms = bottoms + 1 end
+    end
+    t:ok(gap, "straight up and straight down are clear, for the game's up and down arrows")
+    t:ok(onRing, "all still on the ring")
+    t:ok(tops == 2 and bottoms == 2, "two dots flank the top, two the bottom")
+    local straight = P.RingPoints(8, 11, 0)
+    t:near(straight[3][1], 0, 0.01, "(unturned, a dot would sit straight above)")
+end)

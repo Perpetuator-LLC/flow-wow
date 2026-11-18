@@ -20,10 +20,17 @@ local INDOOR  = { [0] = 300, 240, 180, 120, 80, 50 }
 -- is nothing under it, it stays the solid (o).
 P.RING_DOTS, P.RING_RADIUS, P.RING_DOT = 8, 11, 3
 -- Pure: where the ring's dots sit round the spot ({ x, y } each).
-function P.RingPoints(n, radius)
+-- The ring is turned half a step (22.5 degrees for eight dots, 0.35.305): a
+-- dot sat straight above and straight below the spot, right where the game
+-- draws its little up and down arrows. Now two dots flank the top and two the
+-- bottom, and the arrow shows in the gap between them. (The dots can't go
+-- under the game's own marks instead: those are drawn by the minimap itself,
+-- below anything an add-on puts on it.)
+P.RING_TURN = 0.5   -- of a step between two dots
+function P.RingPoints(n, radius, turn)
     local out = {}
     for i = 1, n do
-        local a = (i - 1) * 2 * math.pi / n
+        local a = (i - 1 + (turn or P.RING_TURN)) * 2 * math.pi / n
         out[i] = { math.cos(a) * radius, math.sin(a) * radius }
     end
     return out

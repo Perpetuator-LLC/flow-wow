@@ -1,6 +1,12 @@
 # Changelog
 
 
+## 0.35.305
+
+- **The ring of dots on the minimap is turned 22.5 degrees.** A dot sat straight above and
+  straight below your next step's spot, over the game's little up and down arrows. Two dots now
+  flank the top and two the bottom, and the arrow shows in the gap between them.
+
 ## 0.35.304
 
 - **Bag items for the auction house show the auctioneer's mark** instead of the letters "AH".
