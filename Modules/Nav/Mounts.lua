@@ -100,7 +100,7 @@ function MT:State()
     }
 end
 
-local function coin(c) return (ns.nav and ns.nav.Coin and ns.nav:Coin(c)) or (math.floor(c / 10000) .. "g") end
+local coin = ns.Money
 
 local function npcPoints(name)
     if not name then return {} end

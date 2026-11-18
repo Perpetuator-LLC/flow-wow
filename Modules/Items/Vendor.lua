@@ -35,7 +35,7 @@ end
 local useItem = (CC and CC.UseContainerItem) or UseContainerItem
 
 local function money(c)
-    return GetCoinTextureString and GetCoinTextureString(math.floor(c)) or tostring(c)
+    return ns.Money(math.floor(c))
 end
 
 -- junk = all grey items; proposed = other items Flow would vendor (best value first).

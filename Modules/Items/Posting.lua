@@ -83,7 +83,7 @@ end
 function P.GaveUp(id)
     local rec = id and ns.db and ns.db.ah and ns.db.ah.posts and ns.db.ah.posts[id]
     if not (rec and rec.gaveUp) then return false end
-    local money = ns.auction and ns.auction.Money or tostring
+    local money = ns.Money
     return true, string.format("didn't sell at auction %d time(s) (deposits %s)", rec.expired or 0, money(rec.lost or 0))
 end
 
@@ -210,7 +210,7 @@ end)
 -- The window
 -------------------------------------------------------------------------------
 local frame
-local function money(c) return ns.auction and ns.auction.Money and ns.auction.Money(c) or tostring(c) end
+local function money(c) return ns.Money(c) end
 
 local function build()
     local f = CreateFrame("Frame", "FlowAuctions", UIParent)

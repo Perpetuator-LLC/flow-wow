@@ -495,7 +495,7 @@ function N:Spot(goal, p)
 end
 
 function N:Coin(c)
-    return GetCoinTextureString and GetCoinTextureString(c or 0) or ((c or 0) .. "c")
+    return ns.Money(c or 0)
 end
 
 local timedProviders = {}   -- each step source timed on its own in /flow perf

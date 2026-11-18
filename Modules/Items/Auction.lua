@@ -26,15 +26,9 @@ local function store()
     return ns.db.ah.prices[realm]
 end
 
--- Copper -> "1g 20s 5c".
+-- Copper -> "1.2g": Flow's short money text (Money.lua), the same everywhere.
 function AH.Money(c)
-    c = math.floor(tonumber(c) or 0)
-    local g, s, cc = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
-    local out = {}
-    if g > 0 then out[#out + 1] = g .. "g" end
-    if s > 0 then out[#out + 1] = s .. "s" end
-    if cc > 0 or #out == 0 then out[#out + 1] = cc .. "c" end
-    return table.concat(out, " ")
+    return ns.Money(math.floor(tonumber(c) or 0))
 end
 
 -- "1.5" or "1g50s" or "75s" -> copper (nil if it isn't a price).

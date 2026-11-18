@@ -383,7 +383,7 @@ function D.VendorUnpriced() return not (ns.db.sell and ns.db.sell.vendorUnpriced
 function D.AuctionOrVendor(ahPrice, vendorPrice, what, vendorUnpriced, money)
     if D.WorthAuction(ahPrice, vendorPrice) then
         return { action = "ah", ahCandidate = true,
-                 reason = string.format("%s; about %s each at the auction house", what, (money or tostring)(math.floor(ahPrice))) }
+                 reason = string.format("%s; about %s each at the auction house", what, (money or ns.Money)(math.floor(ahPrice))) }
     end
     if ahPrice then
         return { action = "sell", ahCandidate = true,
@@ -766,7 +766,7 @@ end
 
 -- Pure: one row as text. money(copper) -> "1s 20c".
 function D.InventoryLine(r, money)
-    money = money or tostring
+    money = money or ns.Money
     local bits = { QUALITY[r.quality or 1] or "?" }
     if r.kind and r.kind ~= "" then bits[#bits + 1] = r.kind end
     if r.bound then bits[#bits + 1] = "soulbound" end
@@ -824,7 +824,7 @@ end
 
 ns.commands.inventory = function()
     local rows, used, total = D:Inventory()
-    local money = ns.auction and ns.auction.Money or tostring
+    local money = ns.Money
     local head, value = D.InventorySummary(rows, used, total)
     ns:Print("inventory: " .. head .. (value > 0 and (", " .. money(value) .. " at a vendor") or ""))
     for _, r in ipairs(rows) do print("  " .. D.InventoryLine(r, money)) end

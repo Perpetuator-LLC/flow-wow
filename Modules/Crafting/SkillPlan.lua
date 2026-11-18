@@ -1347,7 +1347,7 @@ function SP.AuctionCost(n, price)
 end
 -- Pure: the step's words.
 function SP.AuctionText(n, name, cost, money)
-    return string.format("Buy %d %s at the auction house (about %s)", n, name, (money or tostring)(cost))
+    return string.format("Buy %d %s at the auction house (about %s)", n, name, (money or ns.Money)(cost))
 end
 
 local function smeltOf(id)
@@ -1960,7 +1960,7 @@ local function planProfession(prof, t, out)
                 add({ key = "need:" .. id, kind = "buy", points = ahPts, cost = cost,
                       text = SP.AuctionText(n, name, cost, money),
                       details = { string.format("Nothing Flow knows of drops or sells %s. At the auction house it was about %s each when Flow last looked.",
-                                      name, (money or tostring)(math.floor(price))),
+                                      name, (money or ns.Money)(math.floor(price))),
                                   "The price there changes: look before you buy. The route waits until you have the money." } })
             else
                 add({ key = "need:" .. id, kind = "collect", points = { playerPoint() },

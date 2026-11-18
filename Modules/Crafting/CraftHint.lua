@@ -176,7 +176,7 @@ end
 -- upgrade row). list: SP.CheapSkillUps(...).
 local DIFF_WORD = { optimal = "|cffff8040orange|r", medium = "|cffffff00yellow|r", easy = "|cff40c040green|r" }
 function H.CheapRows(list, max)
-    local money = (ns.auction and ns.auction.Money) or tostring
+    local money = ns.Money
     local out = {}
     for i, c in ipairs(list or {}) do
         if i > (max or 3) then break end

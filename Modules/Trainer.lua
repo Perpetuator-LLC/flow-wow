@@ -49,7 +49,7 @@ local function listAvailable()
             print(string.format("  %s%s%s - %s%s|r",
                 afford and "|cff66ff66" or "|cffff6666", name,
                 (sub and sub ~= "") and (" (" .. sub .. ")") or "",
-                GetCoinTextureString and GetCoinTextureString(cost) or tostring(cost),
+                ns.Money(cost),
                 afford and "" or " (can't afford)"))
         end
     end

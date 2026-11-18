@@ -129,7 +129,7 @@ local function update()
         end
     end
     MM.marked = marked
-    local line = MM.Line(ups, ns.ROLE_LABEL and ns.ROLE_LABEL[role] or role, ns.auction and ns.auction.Money or tostring)
+    local line = MM.Line(ups, ns.ROLE_LABEL and ns.ROLE_LABEL[role] or role, ns.Money)
     if line then ns:Print(line) end
     if missing and not retried then
         retried = true

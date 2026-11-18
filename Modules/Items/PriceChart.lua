@@ -129,7 +129,7 @@ function PC.Stamp(at, span)
     return date("%d %b", at)
 end
 
-local function money(c) return ns.auction and ns.auction.Money and ns.auction.Money(c) or tostring(c) end
+local function money(c) return ns.Money(c) end
 local function nameOf(id)
     local name = (ns.api and ns.api.ItemInfo or GetItemInfo)(id)
     return name or ("item " .. tostring(id))

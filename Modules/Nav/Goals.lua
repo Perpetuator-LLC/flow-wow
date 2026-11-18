@@ -718,7 +718,7 @@ ns:Register("navGoal", "errands", {
         end
         local total = 0
         for _, c in ipairs(costs) do total = total + c end
-        local coin = function(c) return GetCoinTextureString and GetCoinTextureString(c) or (c .. "c") end
+        local coin = ns.Money
         if waiting > 0 then
             local _, class = UnitClass("player")
             local names = ns.db.trainer and ns.db.trainer.npc and { ns.db.trainer.npc }

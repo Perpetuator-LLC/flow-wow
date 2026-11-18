@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.307
+
+- **Money reads at a glance, the same everywhere.** A step held back for money said "needs
+  13552c". Every price Flow shows is now about three figures in its biggest coin: 52c, 5.52s,
+  69.6s, 1.36g, 13.6g, 124g. That's the route ("needs 1.36g"), the Flow Seller, repairs, the
+  trainer list, mount savings, auction prices, Flow Prices and the Flow Banker. (Most of these
+  showed plain copper before: the game's coin text isn't there in WoW: Forever.) Prices are
+  rounded to the nearest, and a price typed for `/flow ah watch` still reads "1.36g".
+
 ## 0.35.306
 
 - **"Show on map" and a step in another zone: finding out what the game allows.** Flow still
