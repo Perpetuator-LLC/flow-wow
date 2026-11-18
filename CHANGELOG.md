@@ -1,6 +1,21 @@
 # Changelog
 
 
+## 0.35.320
+
+- Fixed: with "Leave junk behind when looting" on, a corpse you'd looted opened and shut at
+  once, every time. Flow takes everything but grey items and closes the window when only junk
+  is left; the junk keeps the corpse sparkling, so you open it again, and Flow shut it again
+  before you could take anything. Now it closes the window only the first time it looks at a
+  corpse: open it again and the window stays, to take what you like by hand. When it closes, a
+  short note by your cursor says why: "Flow left the junk: Thin Black Claw (open it again to
+  take it)"; the first time in a session, a line in chat too. An item whose quality the game
+  hides is taken, never left as junk. Each corpse's take is in the diagnostics' log.
+- **Corpses you'll skin are emptied, junk and all.** A corpse can only be skinned once nothing is
+  left on it, so leaving the junk kept you from skinning. From a beast or a dragonkin while you
+  have Skinning, Flow now takes the junk too; the Flow Seller sells grey items at your next
+  vendor. Junk is still left on mobs you don't skin.
+
 ## 0.35.319
 
 - **Mobs your professions want are marked.** The route's "Loot Kodo Meat" and "Loot Strider

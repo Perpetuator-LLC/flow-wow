@@ -359,6 +359,10 @@ Flow for WoW is a separate project from Flow Engine.
   "Auction prices" what Flow last saw at the auction house. A Flow Banker tab on your bags and
   on the bank window opens it (`/flow banker`). An NPC the quest data calls a banker who opens
   no bank is learned as not one.
+- **Leave junk behind when looting** (Flow Settings, off by default; `/flow loot nojunk`): Flow
+  loots everything but grey items and closes the window, with a note by your cursor naming what
+  it left; open the corpse again to take it by hand. From a beast or dragonkin while you have
+  Skinning it takes the junk too, so the corpse can be skinned.
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
   One item at a time, all the junk first, so your own items are the last sold and the ones the

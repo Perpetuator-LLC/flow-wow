@@ -3492,7 +3492,27 @@ ns:Register("test", "loot: leave junk behind, take everything else", function(t)
     t:ok(L.Take(ITEM, 0, true, false), "a quest item is always taken, even grey")
     t:ok(L.Take(MONEY, 0, false, false), "money is always taken")
     t:ok(not L.Take(ITEM, 2, false, true), "a locked slot (someone's roll) is left alone")
+    t:ok(L.Take(ITEM, nil, nil, nil), "an item whose quality can't be read is taken, never left as junk")
     with(ns.db.loot, "skipJunk", nil, function() t:ok(not L.Enabled(), "off by default") end)
+    -- 0.35.320: "it just opens the loot window and immediately closes". The
+    -- window closes only the first time Flow looks at a corpse.
+    t:ok(L.ShouldClose(2, 2, "Creature-1", {}), "only junk left, the first look: closed")
+    t:ok(not L.ShouldClose(2, 2, "Creature-1", { ["Creature-1"] = true }), "the same corpse opened again: left open for you")
+    t:ok(not L.ShouldClose(2, 1, "Creature-2", {}), "something besides junk left: left open")
+    t:ok(not L.ShouldClose(0, 0, "Creature-3", {}), "nothing left: nothing to close (the game closes it)")
+    t:ok(L.ShouldClose(1, 1, nil, {}), "the corpse can't be told apart: as before")
+    -- Why it closed, by your cursor ("can we make it more intuitive to users why it's closing").
+    local title, sub = L.JunkWords({ "Thin Black Claw" })
+    t:eq(title, "Flow left the junk: Thin Black Claw", "the note names what it left")
+    t:eq(sub, "(open it again to take it)", "and how to take it")
+    t:eq(L.JunkWords({ "A", "B", "C", "D" }), "Flow left the junk: A, B and 2 more", "many: two by name, the rest counted")
+    t:eq(L.JunkWords({}), "Flow left the junk: grey items", "names hidden: grey items")
+    -- "the fact that it left junk on them means I can't skin them": from a corpse to skin, the junk too.
+    t:ok(L.TakeJunkFor(true, "Beast"), "a beast, with Skinning: take the junk too")
+    t:ok(L.TakeJunkFor(true, "Dragonkin"), "a dragonkin too")
+    t:ok(not L.TakeJunkFor(false, "Beast"), "no Skinning: leave the junk")
+    t:ok(not L.TakeJunkFor(true, "Humanoid"), "a humanoid (not skinned): leave the junk")
+    t:ok(not L.TakeJunkFor(true, nil), "the kind hidden: leave the junk, as before")
 end)
 
 ns:Register("test", "paladin: a seal goes on whenever you have none", function(t)
