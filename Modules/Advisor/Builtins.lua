@@ -144,7 +144,7 @@ ns:Register("advisor", "trainer", {
                 local questKey, questText
                 if s.quest and ns.quests and ns.quests.ClassQuestKey then questKey, questText = ns.quests.ClassQuestKey(s.spell) end
                 out[#out + 1] = {
-                    importance = 75,
+                    importance = (ns.classQuests and ns.classQuests.IsForm(s.spell)) and ns.classQuests.FORM_IMPORTANCE or 75,
                     text = string.format("Get %s (level %d%s)", s.spell, s.level,
                         questText and (", class quest: " .. questText) or (s.note and (", " .. s.note) or ", class trainer")),
                     improves = s.improves,

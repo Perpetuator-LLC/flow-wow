@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.297
+- **Cat Form's quest is found in the quest data, and so is Cure Poison's.** For a spell your
+  trainer doesn't have, Flow now takes the class quest chain that starts at that spell's level
+  from the quest data and treats it as the spell's class quest: its step is always on your
+  route, the spells that wait for it (Rake, Claw, Prowl, Shred) link to it, and Flow
+  Improvements says where you are in it ("Get Cat Form (level 20, class quest: "The Great
+  Cat Spirit" is in your log)"). A form ranks above ordinary training there.
+- A self-test put right after the tooltip's new mob lines.
+
 ## 0.35.296
 - **A spell your trainer doesn't have points at your class's quests.** Flow said "Rake: after
   Cat Form" and nothing about getting Cat Form: its list had Cat Form at the trainer, and on

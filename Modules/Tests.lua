@@ -11069,7 +11069,7 @@ ns:Register("test", "route: a step spread all over the area comes after the exac
         for _, d in ipairs(wide.details) do if d:find("all over the area", 1, true) then said = true end end
         t:ok(said, "its details say why it comes later")
         local levels = false
-        for _, d in ipairs(wide.details) do if d == "Wide Mob, level 11-12" then levels = true end end
+        for _, d in ipairs(wide.details) do if d == "- Wide Mob (11-12)" then levels = true end end
         t:ok(levels, "and how high its mobs are")
     else
         t:ok(true, "(no map for the test zone here: the steps have no places to count)")
@@ -13117,4 +13117,34 @@ ns:Register("test", "bags: a leftover's line links to the step of the quest that
     t:eq(L.KeyFor("unknown", 905), nil, "the chain isn't in the data: no link")
     t:eq(L.KeyFor("accept", nil), nil, "no quest: no link")
     t:ok(pcall(L.StepKey, 5165), "working out an item's link runs")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.297: a spell's class quest is taken from the quest data.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "class quests: the chain for a spell the trainer lacks is found by its level, and its end", function(t)
+    local CQ = ns.classQuests
+    -- A level 20 chain of three, the first part in your log; an unrelated level 14 quest.
+    local quests = {
+        { id = 98340, name = "The Great Cat Spirit", minLevel = 20, inLog = true, pre = {} },
+        { id = 98405, name = "The Great Cat Spirit", minLevel = 20, pre = { 98340 } },
+        { id = 98739, name = "Blessings of the Great Cat Spirit", minLevel = 20, pre = { 98405 } },
+        { id = 6130, name = "Power over Poison", minLevel = 14, pre = { 6129 } },
+        { id = 6129, name = "Curing the Sick", minLevel = 14, pre = {} },
+    }
+    local ids = CQ.Leaves(quests, 20)
+    t:eq(#ids, 1, "one quest ends the level 20 chain")
+    t:eq(ids[1], 98739, "the one nothing else comes after")
+    ids = CQ.Leaves(quests, 14)
+    t:eq(table.concat(ids, ","), "6130", "and the level 14 chain ends in Power over Poison")
+    t:eq(#CQ.Leaves(quests, 30), 0, "no class quest at that level: none")
+    -- No "comes after" in the data: every quest of that level counts, the one in your log first.
+    local flat = {
+        { id = 3, name = "C", minLevel = 20 }, { id = 1, name = "A", minLevel = 20, done = true },
+        { id = 2, name = "B", minLevel = 20, inLog = true },
+    }
+    ids = CQ.Leaves(flat, 20)
+    t:eq(table.concat(ids, ","), "2,3,1", "in your log first, then not done, then done")
+    t:ok(pcall(CQ.Wire), "writing them onto your spells runs")
 end)

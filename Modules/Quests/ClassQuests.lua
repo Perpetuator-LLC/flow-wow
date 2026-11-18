@@ -85,7 +85,11 @@ function CQ.Scan()
             if okQ and q and classOnly(q.raw) then
                 local okM, mine = pcall(function() return Q.ForMe == nil or Q.ForMe(q.raw) end)
                 if okM and mine then
-                    found[#found + 1] = { id = q.id, name = q.name, level = q.level, minLevel = q.minLevel,
+                    local pre = {}
+                    for _, field in ipairs({ "preQuestSingle", "preQuestGroup" }) do
+                        for _, id in ipairs(type(q.raw[field]) == "table" and q.raw[field] or {}) do pre[#pre + 1] = id end
+                    end
+                    found[#found + 1] = { id = q.id, name = q.name, level = q.level, minLevel = q.minLevel, pre = pre,
                                           starter = q.starter and q.starter.name or nil }
                 end
             end
@@ -93,6 +97,7 @@ function CQ.Scan()
         i = last + 1
         if i <= #ids then C_Timer.After(0, step) return end
         CQ.list, CQ.scanning, CQ.scanned = found, false, true
+        pcall(CQ.Wire)
     end
     C_Timer.After(0, step)
 end
@@ -103,7 +108,7 @@ function CQ.Now()
     local log = Q and Q.LogIds and Q:LogIds() or {}
     local out = {}
     for _, q in ipairs(CQ.list) do
-        out[#out + 1] = { id = q.id, name = q.name, level = q.level, minLevel = q.minLevel, starter = q.starter,
+        out[#out + 1] = { id = q.id, name = q.name, level = q.level, minLevel = q.minLevel, starter = q.starter, pre = q.pre,
                           done = Q.IsCompleted and Q:IsCompleted(q.id) and true or false, inLog = log[q.id] == true }
     end
     return out
@@ -125,9 +130,62 @@ function CQ.Orphans()
     return out
 end
 
+-- The quest that teaches it, from the quest data (0.35.297). The list for a
+-- druid showed it plainly: at level 20 there is a chain "The Great Cat
+-- Spirit" ... "Blessings of the Great Cat Spirit", and at 14 one that ends in
+-- "Power over Poison". Flow doesn't need their names: for a spell the
+-- trainer lacks, the class quests that start at that spell's level are its
+-- chain, and the ones no other of them comes before are where it ends. Those
+-- are written onto the spell as its class quest (for this session), so
+-- everything Flow already does for a class quest applies: the step is always
+-- on your route, the spells that wait for it link to it, and Flow
+-- Improvements says where you are in the chain.
+-- Pure: the ends of the chain(s) at `level`: ids, the ones in your log
+-- first, then not done, then done.
+function CQ.Leaves(quests, level)
+    local at, isPre = {}, {}
+    for _, q in ipairs(quests or {}) do
+        if (q.minLevel or q.level or 0) == level then at[#at + 1] = q end
+    end
+    for _, q in ipairs(at) do
+        for _, id in ipairs(q.pre or {}) do isPre[id] = true end
+    end
+    local leaves = {}
+    for _, q in ipairs(at) do
+        if not isPre[q.id] then leaves[#leaves + 1] = q end
+    end
+    local function rank(q) return q.inLog and 0 or (q.done and 2 or 1) end
+    table.sort(leaves, function(a, b)
+        if rank(a) ~= rank(b) then return rank(a) < rank(b) end
+        return a.id > b.id
+    end)
+    local ids = {}
+    for _, q in ipairs(leaves) do ids[#ids + 1] = q.id end
+    return ids
+end
+-- Writes the chain's ends onto each spell the trainer lacks. -> how many.
+function CQ.Wire()
+    if not CQ.scanned then return 0 end
+    local okO, orphans = pcall(CQ.Orphans)
+    if not okO or #orphans == 0 then return 0 end
+    local now = CQ.Now()
+    local n = 0
+    for _, s in ipairs(orphans) do
+        local ids = CQ.Leaves(now, s.level)
+        if #ids > 0 then
+            s.quest, s.note, s.questFromData = ids, "class quest", true
+            n = n + 1
+            ns:Log("quests", string.format("%s: not at the trainer; its class quest is taken from the quest data (%s)", s.spell, table.concat(ids, ", ")))
+        end
+    end
+    if n > 0 and ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a class quest found in the quest data") end
+    return n
+end
+
 ns:Register("advisor", "classQuests", {
     check = function()
         local out = {}
+        pcall(CQ.Wire)
         local ok, orphans = pcall(CQ.Orphans)
         if not ok or #orphans == 0 then return out end
         if not CQ.scanned then pcall(CQ.Scan) return out end
@@ -153,12 +211,19 @@ function CQ.Lines()
     local out = { string.format("class quests in the quest data for your class: %d", #now) }
     table.sort(now, function(a, b) return (a.minLevel or a.level or 0) < (b.minLevel or b.level or 0) end)
     for _, q in ipairs(now) do
-        out[#out + 1] = string.format("  [%d] %s (level %s, from %s)%s: %s", q.id, tostring(q.name), tostring(q.level or "?"),
-            tostring(q.minLevel or "?"), q.starter and (", " .. q.starter) or "", q.done and "done" or (q.inLog and "in your log" or "not done"))
+        out[#out + 1] = string.format("  [%d] %s (level %s, from %s)%s: %s%s", q.id, tostring(q.name), tostring(q.level or "?"),
+            tostring(q.minLevel or "?"), q.starter and (", " .. q.starter) or "", q.done and "done" or (q.inLog and "in your log" or "not done"),
+            (q.pre and #q.pre > 0) and (" (after " .. table.concat(q.pre, ", ") .. ")") or "")
     end
     local ok, orphans = pcall(CQ.Orphans)
     for _, s in ipairs(ok and orphans or {}) do
         out[#out + 1] = string.format("  not at the trainer, no quest known to Flow: %s (level %d in Flow's list)", s.spell, s.level or 0)
+    end
+    local _, token = UnitClass("player")
+    for _, s in ipairs(ns:Get("classSpells", token) or {}) do
+        if s.questFromData then
+            out[#out + 1] = string.format("  %s: class quest taken from the quest data: %s", s.spell, table.concat(s.quest or {}, ", "))
+        end
     end
     return out
 end
