@@ -3507,12 +3507,12 @@ ns:Register("test", "loot: leave junk behind, take everything else", function(t)
     t:eq(sub, "(open it again to take it)", "and how to take it")
     t:eq(L.JunkWords({ "A", "B", "C", "D" }), "Flow left the junk: A, B and 2 more", "many: two by name, the rest counted")
     t:eq(L.JunkWords({}), "Flow left the junk: grey items", "names hidden: grey items")
-    -- "the fact that it left junk on them means I can't skin them": from a corpse to skin, the junk too.
-    t:ok(L.TakeJunkFor(true, "Beast"), "a beast, with Skinning: take the junk too")
-    t:ok(L.TakeJunkFor(true, "Dragonkin"), "a dragonkin too")
-    t:ok(not L.TakeJunkFor(false, "Beast"), "no Skinning: leave the junk")
-    t:ok(not L.TakeJunkFor(true, "Humanoid"), "a humanoid (not skinned): leave the junk")
-    t:ok(not L.TakeJunkFor(true, nil), "the kind hidden: leave the junk, as before")
+    -- "the fact that it left junk on them means I can't skin them": a skinner is told.
+    local warn = L.SkinWarning(true, true)
+    t:ok(warn ~= nil and warn:find("can't be skinned", 1, true) ~= nil and warn:find("/flow loot junk", 1, true) ~= nil,
+        "on, with Skinning: the warning, and how to turn it off")
+    t:eq(L.SkinWarning(true, false), nil, "no Skinning: nothing to say")
+    t:eq(L.SkinWarning(false, true), nil, "off: nothing to say")
 end)
 
 ns:Register("test", "paladin: a seal goes on whenever you have none", function(t)

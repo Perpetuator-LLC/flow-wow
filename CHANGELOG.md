@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.321
+
+- **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took
+  the junk from beasts so they could be skinned; that's gone. A corpse can only be skinned once
+  nothing is left on it, so now Flow just says so: turn "Leave junk behind when looting" on
+  while you have Skinning and a line in chat tells you, with how to turn it off (`/flow loot
+  junk`); if it was already on, you're told once. The setting's tooltip says it too. The note
+  by your cursor and the corpse that stays open the second time stay as they were.
+
 ## 0.35.320
 
 - Fixed: with "Leave junk behind when looting" on, a corpse you'd looted opened and shut at

@@ -679,7 +679,7 @@ local function build(parent)
     -- Loot and selling: at a corpse, at a vendor.
     rows.loot = function()
         _, y = check(f, y, "Leave junk behind when looting", "(Flow auto-loots the rest)",
-            "Grey items stay in the corpse; everything else (money, quest items, gear, materials) is looted for you. The game's own Auto Loot can't skip junk, so Flow does the looting while this is on and gives it back when you turn this off. Hold Shift to loot by hand.",
+            "Grey items stay in the corpse; everything else (money, quest items, gear, materials) is looted for you. The game's own Auto Loot can't skip junk, so Flow does the looting while this is on and gives it back when you turn this off. Hold Shift to loot by hand. With Skinning, leave it off: a corpse with junk still on it can't be skinned.",
             function() return ns.db.loot.skipJunk == true end,
             function(on) ns.lootFilter:SetEnabled(on) end)
         _, y = check(f, y, "Flow Seller: auto-sell at vendors", "(also on the Flow Seller drawer)",

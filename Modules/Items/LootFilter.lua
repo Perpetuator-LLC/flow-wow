@@ -15,12 +15,11 @@
 -- time it leaves junk in a session, it says so in chat, and each time a short
 -- note by your cursor names what it left.
 --
--- A corpse to skin is emptied, junk and all ("I'm trying to skin these mobs,
--- and the fact that it left junk on them means I can't skin them"): the game
--- lets you skin a corpse only once nothing is left on it. So from a beast or
--- a dragonkin while you have Skinning, Flow takes the junk too; the Flow
--- Seller sells grey items at your next vendor. (Flow doesn't destroy items:
--- taking them costs a bag slot until you sell.)
+-- With Skinning, this is a poor fit ("the fact that it left junk on them
+-- means I can't skin them"): the game lets you skin a corpse only once
+-- nothing is left on it. Flow doesn't work round it; it says so, when you
+-- turn this on while you have Skinning, and once (for the account) when it
+-- was already on and you have Skinning (L.SkinWarning).
 
 local _, ns = ...
 local L = {}
@@ -61,12 +60,15 @@ function L.JunkWords(names)
 end
 L.NOTE_SECONDS = 2.5
 
--- Pure: take the junk too? You have Skinning, and the corpse is of a kind
--- you skin (creatureType: the game's word for it).
-L.SKIN_TYPES = { Beast = true, Dragonkin = true }
-function L.TakeJunkFor(hasSkinning, creatureType)
-    return (hasSkinning and L.SKIN_TYPES[creatureType or ""] == true) and true or false
+-- Pure: the warning for a skinner, or nil. on: the setting; hasSkinning: you
+-- have the profession.
+L.SKIN_WARNING = "with \"Leave junk behind when looting\" on, a corpse that still has its junk can't be skinned: "
+    .. "the game lets you skin only an empty corpse. You have Skinning, so you may want it off: /flow loot junk."
+function L.SkinWarning(on, hasSkinning)
+    if on and hasSkinning then return L.SKIN_WARNING end
+    return nil
 end
+local function hasSkinning() return (ns.api.Skill and ns.api.Skill("Skinning")) ~= nil end
 L.seen = {}        -- [loot source] = true: Flow closed this corpse's window once
 L.told = false     -- the chat note went out this session
 L.SEEN_MAX = 200
@@ -84,6 +86,8 @@ function L:SetEnabled(on)
         d.auto = not (ok and v == "0")
         d.skipJunk = true
         setGameAutoLoot(false)
+        local warn = L.SkinWarning(true, hasSkinning())
+        if warn then ns:Print(warn); d.skinWarned = true end
     else
         d.skipJunk = false
         setGameAutoLoot(d.auto ~= false)
@@ -131,18 +135,6 @@ function L.ShowNote(names)
     return note
 end
 
--- The corpse being looted, as a unit: your target or the one under your
--- mouse, whichever the loot comes from (nil: neither, or can't tell).
-local function corpseUnit(source)
-    local Safe = ns.api.Safe
-    for _, u in ipairs({ "target", "mouseover" }) do
-        local g = Safe(UnitGUID(u))
-        if source and g == source then return u end
-    end
-    if not source and Safe(UnitIsDead("target")) then return "target" end
-    return nil
-end
-
 local busy = false
 local function loot()
     if busy or not L.Enabled() or ns.db.loot.auto == false then return end
@@ -150,15 +142,11 @@ local function loot()
     busy = true
     local source = sourceOf()
     local again = source ~= nil and L.seen[source] == true
-    -- A corpse to skin: everything comes off it, junk too.
-    local unit = corpseUnit(source)
-    local skin = unit ~= nil and L.TakeJunkFor(ns.api.Skill and ns.api.Skill("Skinning") ~= nil,
-        ns.api.Safe(UnitCreatureType(unit)))
     local left, junk, took, names = 0, 0, 0, {}
     for i = (ns.api.Safe(GetNumLootItems()) or 0), 1, -1 do
         local _, name, _, _, quality, locked, isQuestItem = GetLootSlotInfo(i)
         local slotType = GetLootSlotType and GetLootSlotType(i)
-        if (skin and not ns.api.Safe(locked)) or L.Take(slotType, quality, isQuestItem, locked) then
+        if L.Take(slotType, quality, isQuestItem, locked) then
             LootSlot(i)
             took = took + 1
         else
@@ -173,8 +161,7 @@ local function loot()
     -- Only junk left, the first time: close the window (the corpse keeps it).
     -- Opened again: it stays open, for you to take what you like.
     local close = L.ShouldClose(left, junk, source, L.seen)
-    ns:Log("loot", string.format("took %d, left %d (%d junk)%s%s%s", took, left, junk,
-        skin and " (a corpse to skin: the junk too)" or "",
+    ns:Log("loot", string.format("took %d, left %d (%d junk)%s%s", took, left, junk,
         close and ", closed the window" or "", again and " (opened again: left open for you)" or ""))
     if close then
         if source then
@@ -206,6 +193,13 @@ ns:On("PLAYER_LOGIN", function()
     if not L.Enabled() then return end
     local ok, v = pcall(GetCVar, "autoLootDefault")
     if ok and v == "1" then setGameAutoLoot(false) end
+    -- On already, with Skinning: said once (professions are read a little after login).
+    if C_Timer and not ns.db.loot.skinWarned then
+        C_Timer.After(10, function()
+            local warn = L.Enabled() and L.SkinWarning(true, hasSkinning())
+            if warn then ns:Print(warn); ns.db.loot.skinWarned = true end
+        end)
+    end
 end)
 
 ns.commands.loot = function(arg)
