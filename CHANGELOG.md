@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.295
+- **A step's tooltip in short lines.** Its details wrapped into a narrow column ("Devouring
+  Ectoplasm, level 16-17: drops it 100% of the time" over two lines, six times). Each mob is
+  one bullet now ("- Devouring Ectoplasm (16-17): 100%") under one heading, bullets and short
+  lines are never wrapped, and the hints at the bottom are one a line.
+- **Dungeons say "3 of 5".** In the Dungeons list a run reads "Wailing Caverns: 3 of 5" (done,
+  out of all its quests) so it no longer runs off the menu. Hover it for each count on its
+  own line: quests completed, the ones you're on, the ones you're missing, any that start
+  inside, and the total. The line under the arrow reads "Dungeon route: Wailing Caverns, 3 of 5".
+
 ## 0.35.294
 - **The professions card no longer pops up to train the next tier.** It appeared at login, on
   a new level and in towns whenever a tier was ready ("Train the next Skinning tier"), with

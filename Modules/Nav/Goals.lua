@@ -256,7 +256,7 @@ local function questGoals(db, q, goals, opts)
                             if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
                             if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
                             if hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
-                            if verb == "Collect" and what then d[#d + 1] = "Drops from mobs/objects near the arrow: " .. what end
+                            if verb == "Collect" and what then d[#d + 1] = what .. " drops from (level): chance" end
                             for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
                             if ns.quests.IsSpread(#points) then d[#d + 1] = "Found all over the area: Flow plans the exact spots near it first, and you get these on the way." end
                             return d
@@ -404,21 +404,22 @@ function ns.quests.MobLines(mobs, drops, max)
     max = max or ns.quests.MOB_LINES
     for i, m in ipairs(list) do
         if i > max then
-            out[#out + 1] = string.format("... and %d more.", #list - max)
+            out[#out + 1] = string.format("- and %d more", #list - max)
             break
         end
+        -- One short line a mob, as a bullet, so nothing wraps (0.35.295: "see how
+        -- the tooltip wraps text and is hard to read?"): "- Name (16-17): 100%".
         local level = ""
         if m.min and m.min > 0 then
-            level = (m.max and m.max > m.min) and string.format(", level %d-%d", m.min, m.max) or string.format(", level %d", m.min)
+            level = (m.max and m.max > m.min) and string.format(" (%d-%d)", m.min, m.max) or string.format(" (%d)", m.min)
         end
         local rate = ""
         if drops and m.rate then
-            rate = m.rate >= 10 and string.format(": drops it %d%% of the time", math.floor(m.rate + 0.5))
-                or string.format(": drops it %.1f%% of the time", m.rate)
+            rate = m.rate >= 10 and string.format(": %d%%", math.floor(m.rate + 0.5)) or string.format(": %.1f%%", m.rate)
         elseif drops then
-            rate = ": drop chance not known"
+            rate = ": chance not known"
         end
-        if level ~= "" or rate ~= "" then out[#out + 1] = m.name .. level .. rate end
+        if level ~= "" or rate ~= "" then out[#out + 1] = "- " .. m.name .. level .. rate end
     end
     return out
 end

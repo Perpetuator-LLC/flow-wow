@@ -2760,6 +2760,24 @@ function N:ClickCursor(on)
     end
 end
 
+-- Pure: should a tooltip line be wrapped? A bullet ("- ...") and a short
+-- line are written as they are, so they stay on one line; a sentence wraps.
+N.WRAP_FROM = 60
+function N.WrapLine(text)
+    if type(text) ~= "string" then return true end
+    if text:find("^%- ") then return false end
+    return #text > N.WRAP_FROM
+end
+-- Pure: a footer of several hints ("Click: open it. Right-click: menu.") as
+-- one short line each.
+function N.FooterLines(footer)
+    local out = {}
+    for part in tostring(footer or ""):gmatch("[^%.]+%.?") do
+        part = part:gsub("^%s+", ""):gsub("%s+$", "")
+        if part ~= "" and part ~= "." then out[#out + 1] = (part:gsub("%.$", "")) end
+    end
+    return out
+end
 function N:FillTooltip(tt, goal, footer)
     local kind = ns.theme.kinds[self:StopKind(goal)]
     local icon = kind and string.format("|T%s:16:16|t ", kind.icon) or ""
@@ -2801,10 +2819,13 @@ function N:FillTooltip(tt, goal, footer)
         if not d:find("^Quest: ") and not d:find("^Objective: ") then
             if first then tt:AddLine(" "); first = false end
             if d:find("^XP: ") then tt:AddLine(d, 0.64, 0.21, 0.93, true)
-            else tt:AddLine(d, 0.8, 0.8, 0.8, true) end
+            else tt:AddLine(d, 0.8, 0.8, 0.8, N.WrapLine(d)) end
         end
     end
-    if footer then tt:AddLine(" "); tt:AddLine(footer, 0.55, 0.55, 0.55, true) end
+    if footer then
+        tt:AddLine(" ")
+        for _, hint in ipairs(N.FooterLines(footer)) do tt:AddLine(hint, 0.55, 0.55, 0.55, N.WrapLine(hint)) end
+    end
 end
 
 -- Clicking a step (Flow Router row or pin, tracker row, map area) opens

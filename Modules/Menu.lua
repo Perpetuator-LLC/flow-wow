@@ -250,9 +250,13 @@ layout = function(f, list, items)
                 if it.section then Menu.ShowSection(it, self)
                 elseif not it.sep and not it.rule then Menu.HideSection() end
             end
-            if not it.tip then return end
+            if not (it.tip or it.tipLines) then return end
             ns.Tip(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(it.tip, 1, 1, 1, true)
+            -- (tipLines: short lines, a heading first, none of them wrapped.)
+            for n, line in ipairs(it.tipLines or {}) do
+                if n == 1 then GameTooltip:AddLine(line, 1, 0.82, 0.25) else GameTooltip:AddLine(line, 1, 1, 1) end
+            end
+            if it.tip then GameTooltip:AddLine(it.tip, 1, 1, 1, true) end
             GameTooltip:Show()
         end)
         r:SetScript("OnLeave", function() GameTooltip:Hide() end)

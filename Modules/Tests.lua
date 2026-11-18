@@ -10963,19 +10963,19 @@ ns:Register("test", "quests: a step says how high its mobs are and how often the
         { name = "Greater Plainstrider", min = 11, max = 12, rate = 25.4 },
     }, true)
     t:eq(#lines, 3, "each mob once")
-    t:eq(lines[1], "Greater Plainstrider, level 11-12: drops it 25% of the time", "the best dropper first, with its levels")
-    t:eq(lines[2], "Fleeting Plainstrider, level 12-13: drops it 19% of the time", "then the next")
-    t:eq(lines[3], "Ornery Plainstrider, level 11-12: drops it 1.7% of the time", "a small chance keeps a decimal")
+    t:eq(lines[1], "- Greater Plainstrider (11-12): 25%", "the best dropper first, with its levels")
+    t:eq(lines[2], "- Fleeting Plainstrider (12-13): 19%", "then the next")
+    t:eq(lines[3], "- Ornery Plainstrider (11-12): 1.7%", "a small chance keeps a decimal")
     lines = Q.MobLines({ { name = "Razormane Hunter", min = 14, max = 14 } }, false)
-    t:eq(lines[1], "Razormane Hunter, level 14", "a mob to kill: its level")
+    t:eq(lines[1], "- Razormane Hunter (14)", "a mob to kill: its level")
     lines = Q.MobLines({ { name = "Kolkar Marauder", min = 15, max = 16 } }, true)
-    t:eq(lines[1], "Kolkar Marauder, level 15-16: drop chance not known", "no figure in the quest data: it says so")
+    t:eq(lines[1], "- Kolkar Marauder (15-16): chance not known", "no figure in the quest data: it says so")
     t:eq(#Q.MobLines({ { name = "Nameless" } }, false), 0, "nothing known about a mob: no line")
     t:eq(#Q.MobLines(nil, true), 0, "no mobs: none")
     local many = {}
     for i = 1, 9 do many[i] = { name = "Mob " .. i, min = 10, rate = i } end
     lines = Q.MobLines(many, true)
-    t:ok(#lines == Q.MOB_LINES + 1 and lines[#lines] == "... and 3 more.", "a long list is cut short")
+    t:ok(#lines == Q.MOB_LINES + 1 and lines[#lines] == "- and 3 more", "a long list is cut short")
     t:eq(Q.DropRate({ GetItemDroprate = function() return { 25.4, "wowhead" } end }, 5087, 3244), 25.4, "the quest data's own figure is read")
     t:eq(Q.DropRate({}, 5087, 3244), nil, "quest data without drop chances: none")
     t:eq(Q.DropRate({ GetItemDroprate = function() return nil end }, 1, 1), nil, "no figure for that mob: none")
@@ -11807,12 +11807,12 @@ ns:Register("test", "click: the dungeon route shows under the arrow, with what's
     }, 15, 10)
     t:eq(#runs, 1, "one run still has quests")
     t:eq(runs[1].done, 1, "and one of its quests is done")
-    t:eq(D.CountText(runs[1]), "Quests: 1/2 (1 done before)", "said at a glance")
+    t:eq(D.CountText(runs[1]), "1 of 3", "said at a glance: done, out of all of them")
     t:ok(#finished == 1 and finished[1].name == "Old Cave" and finished[1].done == 2, "a dungeon with everything done is named as done")
-    t:eq(D.CountText({ count = 1, ready = {}, pickups = {}, leadIns = {}, inside = { 9 } }), "Quests: 0/1", "one that starts inside")
+    t:eq(D.CountText({ count = 1, ready = {}, pickups = {}, leadIns = {}, inside = { 9 } }), "0 of 1", "one that starts inside")
     -- The line under the arrow.
-    t:eq(D.ModeText("Ragefire Chasm", true, 2, 5), "Dungeon route: Ragefire Chasm · Quests: 2/5", "on it, quests still to get")
-    t:eq(D.ModeText("Ragefire Chasm", true, 5, 5), "Dungeon route: Ragefire Chasm · Quests: 5/5", "on it, all in your log")
+    t:eq(D.ModeText("Ragefire Chasm", true, 2, 5), "Dungeon route: Ragefire Chasm, 2 of 5", "on it, quests still to do")
+    t:eq(D.ModeText("Ragefire Chasm", true, 5, 5), "Dungeon route: Ragefire Chasm, 5 of 5", "on it, all done")
     t:eq(D.ModeText("Ragefire Chasm", false, 2, 3), "Ragefire Chasm prepared (your usual route)", "left it: the run is kept")
     t:eq(D.ModeText(nil, true, 0, 0), nil, "no run: no line")
     -- Its menu: leave, or back, and cancel; each click runs.
@@ -13034,4 +13034,45 @@ ns:Register("test", "professions: the card pops for a main profession to learn o
     t:ok(P.SuggestChanged("Herbalism+Skinning", "Alchemy+Herbalism"), "a different pair: changed")
     t:ok(not P.SuggestChanged("Herbalism+Skinning", "Herbalism+Skinning"), "the same pair: not changed")
     t:ok(not P.SuggestChanged(nil, "Herbalism+Skinning"), "never noted before: not a change")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.295: tooltips in short lines; dungeons say "3 of 5", the rest on hover.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tooltips: a step's details are short bullet lines that don't wrap", function(t)
+    local N = ns.nav
+    t:ok(not N.WrapLine("- Devouring Ectoplasm (16-17): 100%"), "a bullet stays on one line")
+    t:ok(not N.WrapLine("XP: 2650 (full XP)"), "a short line too")
+    t:ok(N.WrapLine("Bring 6 portions of Wailing Essence to Mebok Mizzyrix in Ratchet, who will pay you well for them."), "a sentence wraps")
+    t:ok(N.WrapLine(nil), "nothing: the usual")
+    local lines = N.FooterLines("Click: open it. ^: go here next (Custom route). Right-click: menu.")
+    t:eq(#lines, 3, "three hints: three lines")
+    t:eq(lines[1], "Click: open it", "the first")
+    t:eq(lines[2], "^: go here next (Custom route)", "the second")
+    t:eq(lines[3], "Right-click: menu", "the third")
+    t:eq(#N.FooterLines(nil), 0, "no footer: none")
+    for _, l in ipairs(lines) do t:ok(not N.WrapLine(l), "each fits on a line: " .. l) end
+end)
+
+ns:Register("test", "dungeons: the list says \"3 of 5\", and hovering gives each count on its own line", function(t)
+    local D = ns.dungeons
+    local run = { name = "Wailing Caverns", done = 3, ready = { 1 }, pickups = { 2 }, leadIns = {}, inside = {}, followups = {}, count = 2 }
+    local c = D.Counts(run)
+    t:ok(c.done == 3 and c.on == 1 and c.missing == 1 and c.total == 5, "3 done, on 1, missing 1, 5 in all")
+    t:eq(D.CountText(run), "3 of 5", "the list: done, out of all")
+    local lines = D.CountLines(run)
+    t:eq(lines[1], "Wailing Caverns", "the tooltip's heading")
+    t:eq(lines[2], "- 3 quests completed", "what's done")
+    t:eq(lines[3], "- You're on 1 quest", "what's in your log")
+    t:eq(lines[4], "- You're missing 1 quest (to pick up outside)", "what's still to get")
+    t:eq(lines[5], "- 5 quests in all", "the total")
+    local one = { name = "Ragefire Chasm", done = 1, ready = {}, pickups = {}, leadIns = {}, inside = {}, followups = {}, count = 0 }
+    t:eq(D.CountText(one), "1 of 1", "all done: 1 of 1")
+    t:eq(D.CountLines(one)[2], "- 1 quest completed", "one quest, in the singular")
+    local inside = { name = "X", done = 0, ready = {}, pickups = {}, leadIns = {}, inside = { 7, 8 }, followups = {}, count = 2 }
+    local il = D.CountLines(inside)
+    t:eq(il[5], "- 2 start inside the dungeon", "quests that start inside are said apart")
+    t:eq(D.CountText(inside), "0 of 2", "and counted in the total")
+    for _, l in ipairs(lines) do t:ok(#l < 60, "short enough not to wrap: " .. l) end
 end)

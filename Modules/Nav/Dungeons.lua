@@ -1494,11 +1494,33 @@ end
 
 -- Pure: a run's quests at a glance ("5 quests: 2 in your log, 3 to get; 1
 -- done"), so it's plain what you have done already and what's left.
+-- 0.35.295: "Just say 3 of 5. If I hover: 3 quests completed, you're on 1,
+-- you're missing 1, there's 5 total." Pure: the numbers.
+--   done: handed in before; on: in your log; missing: still to pick up
+--   outside; inside: start inside the dungeon; total: all of them.
+function D.Counts(run)
+    local done = run.done or 0
+    local on = #(run.ready or {})
+    local missing = #(run.pickups or {}) + #(run.leadIns or {})
+    local inside = #(run.inside or {}) + #(run.followups or {})
+    return { done = done, on = on, missing = missing, inside = inside, total = done + on + missing + inside }
+end
+-- Pure: "3 of 5": done, out of all of them.
 function D.CountText(run)
-    -- "Quests: 1/3": in your log, out of this run's (0.35.261: "something simpler").
-    local text = string.format("Quests: %d/%d", #(run.ready or {}), run.count or 0)
-    if (run.done or 0) > 0 then text = text .. string.format(" (%d done before)", run.done) end
-    return text
+    local c = D.Counts(run)
+    return string.format("%d of %d", c.done, c.total)
+end
+-- Pure: the same in full, one short line each (a heading first).
+function D.CountLines(run)
+    local c = D.Counts(run)
+    local function q(n) return n == 1 and "1 quest" or (n .. " quests") end
+    local out = { run.name or "Dungeon run" }
+    out[#out + 1] = string.format("- %s completed", q(c.done))
+    out[#out + 1] = string.format("- You're on %s", q(c.on))
+    out[#out + 1] = string.format("- You're missing %s%s", q(c.missing), c.missing > 0 and " (to pick up outside)" or "")
+    if c.inside > 0 then out[#out + 1] = string.format("- %s inside the dungeon", c.inside == 1 and "1 starts" or (c.inside .. " start")) end
+    out[#out + 1] = string.format("- %s in all", q(c.total))
+    return out
 end
 
 -- The dungeon route (0.35.257). "If I enter that mode, it's not clear I'm in
@@ -1507,10 +1529,10 @@ end
 -- while a run is prepared; a click opens its few choices.
 -- Pure: the line. name: the run; on: you're on the dungeon route (only its
 -- steps); have: its quests in your log; total: its quests this run.
-function D.ModeText(name, on, have, total)
+function D.ModeText(name, on, done, total)
     if not name then return nil end
     if not on then return string.format("%s prepared (your usual route)", name) end
-    return string.format("Dungeon route: %s · Quests: %d/%d", name, have, total)
+    return string.format("Dungeon route: %s, %d of %d", name, done, total)
 end
 function D:ModeItems()
     local key = self:Prepared()
@@ -1519,7 +1541,9 @@ function D:ModeItems()
     local items = { { title = true, text = name } }
     local function grey(text) return { text = "|cff999999" .. text .. "|r", disabled = true } end
     if run then
-        items[#items + 1] = grey(D.CountText(run))
+        for i, line in ipairs(D.CountLines(run)) do
+            if i > 1 then items[#items + 1] = grey(line) end
+        end
         items[#items + 1] = grey(D.HaveLine(run))
         local ok, lines = pcall(D.QuestLines, run, D.QuestInfo)
         for _, l in ipairs(ok and lines or {}) do items[#items + 1] = grey(l) end
@@ -1566,8 +1590,8 @@ function D:RefreshToggle()
     if party and party:IsShown() then self.toggle:SetPoint("TOP", party, "BOTTOM", 0, -2)
     else self.toggle:SetPoint("TOP", arrow, "BOTTOM", 0, -50) end
     local run = self:Run(key)
-    local have = run and #run.ready or 0
-    local total = run and run.count or have
+    local counts = run and D.Counts(run) or { done = 0, total = 0 }
+    local have, total = counts.done, counts.total
     local on = self:RunOnly()
     local c = ns.theme.user
     self.toggle.text:SetText(string.format("|cff%s%s|r  |cff888888(click: change)|r", on and c.hex or "ffffff",
@@ -1769,7 +1793,12 @@ function D:MenuItems()
         for i, run in ipairs(list) do
             if i > 6 then break end
             items[#items + 1] = {
-                text = string.format("%s: %s, %s", run.name, D.CountText(run), ratioText(run)),
+                text = string.format("%s: %s", run.name, D.CountText(run)),
+                tipLines = (function()
+                    local lines = D.CountLines(run)
+                    lines[#lines + 1] = "- about " .. ratioText(run) .. " your questing XP per hour"
+                    return lines
+                end)(),
                 checked = prepared == run.key,
                 func = function() C_Timer.After(0.05, function() runMenu(run) end) end,
             }
