@@ -73,11 +73,119 @@ end
 local merchantOpen = false
 local function canSell() return merchantOpen end
 
+-------------------------------------------------------------------------------
+-- Selling, one item at a time (0.35.315). "When it sells all of my items, it
+-- doesn't sell the junk first ... what it shows that I can get back, I
+-- actually can't. If you look at the vendor, it's got some of the junk
+-- items." Flow asked the game to sell everything in the same instant, junk
+-- first, and the game didn't finish them in that order: some junk went last
+-- and pushed your own items out of the vendor's 12-slot buyback tab. Now each
+-- item is sold and Flow waits until it has left your bags before the next:
+-- all the junk, then the rest, so your own items are the last 12 sold.
+-------------------------------------------------------------------------------
+
+V.WAIT = 1.5    -- seconds an item may take to leave your bags before Flow goes on without it
+V.PACE = 0.05   -- seconds between looks
+
+-- Pure: what to sell, in order: every grey item first (when junkOn), then
+-- up to `batch` of the others (best value first, as Candidates sorts them).
+function V.SellOrder(junk, proposed, junkOn, batch)
+    local out = {}
+    if junkOn then
+        for _, e in ipairs(junk or {}) do e.junk = true; out[#out + 1] = e end
+    end
+    proposed = proposed or {}
+    for i = 1, math.min(batch or BATCH, #proposed) do out[#out + 1] = proposed[i] end
+    return out
+end
+
+-- One step of a sale. q: { items, i = 1, sold = {} }; now: seconds;
+-- linkAt(bag, slot): the link of what's there now; use(bag, slot): sells it.
+-- -> "sold" (the item sent last has left your bags; it's added to q.sold),
+-- "sent", "waiting", "gave up" (it didn't go within V.WAIT), "skipped" (it
+-- had moved or gone already) or "done", and the item.
+function V.Step(q, now, linkAt, use)
+    local e = q.waiting
+    if e then
+        if linkAt(e.bag, e.slot) ~= e.link then
+            q.waiting = nil
+            q.sold[#q.sold + 1] = e
+            return "sold", e
+        end
+        if now - q.since < V.WAIT then return "waiting", e end
+        q.waiting = nil
+        q.failed = (q.failed or 0) + 1
+        return "gave up", e
+    end
+    e = q.items[q.i]
+    if not e then return "done" end
+    q.i = q.i + 1
+    if linkAt(e.bag, e.slot) ~= e.link then return "skipped", e end
+    use(e.bag, e.slot)
+    q.waiting, q.since = e, now
+    return "sent", e
+end
+
+-- Pure: how many are still to go in a sale.
+function V.Left(q)
+    if not q then return 0 end
+    return math.max(0, #q.items - q.i + 1) + (q.waiting and 1 or 0)
+end
+
+-- (Flow's own, so the tests can stand in for them.)
+function V.LinkAt(bag, slot)
+    if CC and CC.GetContainerItemLink then return CC.GetContainerItemLink(bag, slot) end
+    return GetContainerItemLink and GetContainerItemLink(bag, slot)
+end
+function V.UseItem(bag, slot) useItem(bag, slot) end
+
+local running            -- the sale under way, or nil
+local finish             -- (below: says what went, tidies the bags)
+local runner = CreateFrame("Frame")
+runner:Hide()
+local paceAcc = 0
+runner:SetScript("OnUpdate", function(self, dt)
+    paceAcc = paceAcc + dt
+    if paceAcc < V.PACE then return end
+    paceAcc = 0
+    local q = running
+    if not q then self:Hide() return end
+    if not canSell() then running = nil; self:Hide(); finish(q, true) return end
+    -- An item that's gone (or was already) doesn't cost a beat.
+    for _ = 1, 4 do
+        local what, e = V.Step(q, GetTime(), V.LinkAt, V.UseItem)
+        if what == "sold" then
+            if e.junk then junkSold = junkSold + 1
+            else
+                sold[#sold + 1] = { link = e.link, id = e.id, price = e.price, diffs = e.diffs }
+                while #sold > BATCH do table.remove(sold, 1) end  -- older ones left the buyback tab
+            end
+        elseif what == "gave up" then
+            ns:Log("sell", "didn't leave your bags within " .. V.WAIT .. " s, went on: " .. tostring(e.link))
+        end
+        if what == "done" then running = nil; self:Hide(); finish(q) return end
+        if what ~= "sold" and what ~= "skipped" then break end
+    end
+end)
+
+-- Sells a list in order (V.SellOrder), one at a time. done(count) runs when
+-- it's over; say: print what was sold. false when a sale is already under way.
+function V.Sell(list, done, say)
+    if running or not canSell() then return false end
+    if #list == 0 then
+        if done then done(0) end
+        return true
+    end
+    running = { items = list, i = 1, sold = {}, done = done, say = say }
+    paceAcc = V.PACE
+    runner:Show()
+    return true
+end
+function V.Selling() return running ~= nil, V.Left(running) end
+
 local function sellOne(e)
     if not canSell() then return end
-    useItem(e.bag, e.slot)
-    sold[#sold + 1] = { link = e.link, id = e.id, price = e.price }
-    while #sold > BATCH do table.remove(sold, 1) end  -- older ones left the buyback tab
+    V.Sell({ e })
 end
 
 -------------------------------------------------------------------------------
@@ -225,7 +333,7 @@ function V:Refresh()
 
     -- Collapsed (just the header) when there's nothing to sell or buy back,
     -- unless you opened it this visit; open otherwise unless you closed it.
-    local nothing = #junk == 0 and #proposed == 0 and #sold == 0
+    local nothing = #junk == 0 and #proposed == 0 and #sold == 0 and not running
     local collapsed = V.visitCollapsed
     if collapsed == nil then collapsed = nothing end
     f.collapsed = collapsed
@@ -289,8 +397,10 @@ function V:Refresh()
         end
     end
 
-    -- Sold this visit (can still be bought back).
-    if #sold > 0 then
+    -- Sold this visit, and still in the vendor's buyback tab (not what was
+    -- pushed out of it: "what it shows that I can get back, I actually can't").
+    local back = V.InBuyback(sold, GetNumBuybackItems and function(link) return buybackIndex(link) ~= nil end or nil)
+    if #back > 0 then
         y = y - 6
         f.soldHeader:ClearAllPoints()
         f.soldHeader:SetPoint("TOPLEFT", 10, y)
@@ -301,7 +411,7 @@ function V:Refresh()
         f.soldHeader:Hide()
     end
     for i = 1, BATCH do
-        local r, e = f.soldRows[i], sold[#sold - i + 1]   -- newest first
+        local r, e = f.soldRows[i], back[#back - i + 1]   -- newest first
         if e then
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 10, y); y = y - ROW_H
             r.link, r.reason = e.link, nil
@@ -348,6 +458,21 @@ function V:Refresh()
     nSell = (junkOn and #junk or 0) + math.min(BATCH, #proposed)
     f.sellAll:SetText(anything and string.format("Sell %d item%s for %s", nSell, nSell == 1 and "" or "s", money(batchValue))
         or "Nothing to sell")
+    if running then
+        f.sellAll:SetEnabled(false)
+        f.sellAll:SetText(string.format("Selling... %d left", V.Left(running)))
+    end
+end
+
+-- Pure: the items sold this visit that the vendor can still sell back
+-- (has(link) -> true when it's in the buyback tab; nil: can't ask, all).
+function V.InBuyback(list, has)
+    if not has then return list or {} end
+    local out = {}
+    for _, e in ipairs(list or {}) do
+        if e.link and has(e.link) then out[#out + 1] = e end
+    end
+    return out
 end
 
 -- Why some are still here (0.35.275). "It sold the 12, then it says Sell 7
@@ -368,16 +493,7 @@ end
 function V:SellJunk()
     if not canSell() then return end
     local junk = self:Candidates()
-    local value = 0
-    for _, e in ipairs(junk) do
-        useItem(e.bag, e.slot)
-        junkSold = junkSold + 1
-        value = value + e.price
-    end
-    if #junk > 0 then
-        ns:Print(string.format("sold %d junk item(s) for %s", #junk, money(value)))
-        D:Invalidate()
-    end
+    V.Sell(V.SellOrder(junk, nil, true), nil, true)
     return #junk
 end
 
@@ -409,14 +525,8 @@ end
 function V:SellAll()
     if not canSell() then return end
     local junk, proposed = self:Candidates()
-    local count = 0
-    if ns.db.sell.junkAll ~= false then
-        for _, e in ipairs(junk) do useItem(e.bag, e.slot); junkSold = junkSold + 1; count = count + 1 end
-    end
-    for i = 1, math.min(BATCH, #proposed) do sellOne(proposed[i]); count = count + 1 end
-    V:Cleanup(count)   -- (Auto-cleanup after this sale too)
-    D:Invalidate()
-    C_Timer.After(0.4, function() V:Refresh() end)
+    V.Sell(V.SellOrder(junk, proposed, ns.db.sell.junkAll ~= false, BATCH), nil, true)
+    V:Refresh()
 end
 
 -- The panel, built the first time it's needed (a vendor, or the tests).
@@ -490,19 +600,23 @@ ns:On("MERCHANT_SHOW", function()
         if not merchantOpen then return end
         panel:ClearAllPoints()
         panel:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT", 4, 0)
-        local sold = 0
-        if ns.db.sell.autoJunk then sold = sold + (V:SellJunk() or 0) end
-        if ns.db.sell.autoAll then sold = sold + (V:SellProposed() or 0) end
-        V:Cleanup(sold)   -- Auto-cleanup: tidy your bags after auto-sell
+        -- Junk first, then what Flow marks to sell, one at a time (V.Sell);
+        -- the bags are tidied when it's done (finish), then your gear repaired.
+        local junk, proposed = V:Candidates()
+        local list = V.SellOrder(junk, ns.db.sell.autoAll and proposed or {}, ns.db.sell.autoJunk, BATCH)
+        local started = V.Sell(list, function(n)
+            if not merchantOpen then return end
+            -- Repair after selling, so what you just sold helps pay for it
+            -- (its gold comes in a moment later; PLAYER_MONEY tries again too).
+            if V.RepairWhen(true, n) == "now" then
+                V:AutoRepair(true)
+            else
+                C_Timer.After(0.8, function() if merchantOpen then V:AutoRepair(false) end end)
+                C_Timer.After(2.5, function() if merchantOpen and lastRepair == "poor" then V:AutoRepair(true) end end)
+            end
+        end, true)
+        if not started then V:AutoRepair(true) end
         V:Refresh()
-        -- Repair after selling, so what you just sold helps pay for it
-        -- (its gold comes in a moment later; PLAYER_MONEY tries again too).
-        if V.RepairWhen(true, sold) == "now" then
-            V:AutoRepair(true)
-        else
-            C_Timer.After(0.8, function() if merchantOpen then V:AutoRepair(false) end end)
-            C_Timer.After(2.5, function() if merchantOpen and lastRepair == "poor" then V:AutoRepair(true) end end)
-        end
     end)
 end)
 
@@ -515,17 +629,34 @@ end)
 function V:SellProposed()
     if not canSell() then return end
     local _, proposed = self:Candidates()
-    local n, value = math.min(BATCH, #proposed), 0
-    for i = 1, n do
-        sellOne(proposed[i])
-        value = value + proposed[i].price
-    end
-    if n > 0 then
-        D:Invalidate()
-        ns:Print(string.format("sold %d item(s) you don't need for %s%s. Wrong one? Buy it back in the Flow Seller: Flow won't sell it again.",
-            n, money(value), #proposed > n and string.format(" (%d more next visit)", #proposed - n) or ""))
-    end
+    local n = math.min(BATCH, #proposed)
+    V.Sell(V.SellOrder(nil, proposed, false, BATCH), nil, true)
     return n
+end
+
+-- A sale is over (or the vendor closed): say what went, tidy the bags.
+finish = function(q, stopped)
+    local nJunk, vJunk, nOwn, vOwn = 0, 0, 0, 0
+    for _, e in ipairs(q.sold) do
+        if e.junk then nJunk, vJunk = nJunk + 1, vJunk + (e.price or 0)
+        else nOwn, vOwn = nOwn + 1, vOwn + (e.price or 0) end
+    end
+    if q.say then
+        if nJunk > 0 then ns:Print(string.format("sold %d junk item(s) for %s", nJunk, money(vJunk))) end
+        if nOwn > 0 then
+            ns:Print(string.format("sold %d item(s) you don't need for %s. Wrong one? Buy it back in the Flow Seller: Flow won't sell it again.",
+                nOwn, money(vOwn)))
+        end
+    end
+    if stopped and V.Left(q) > 0 then
+        ns:Print(string.format("stopped selling: the vendor closed (%d not sold).", V.Left(q)))
+    end
+    ns:Log("sell", string.format("sold %d junk, then %d of yours%s%s", nJunk, nOwn,
+        (q.failed or 0) > 0 and string.format("; %d didn't go", q.failed) or "", stopped and "; the vendor closed" or ""))
+    D:Invalidate()
+    V:Cleanup(#q.sold)   -- Auto-cleanup: tidy your bags after the sale
+    if canSell() then V:Refresh() end
+    if q.done then q.done(#q.sold) end
 end
 
 ns:On("MERCHANT_CLOSED", function()
@@ -534,6 +665,9 @@ ns:On("MERCHANT_CLOSED", function()
 end)
 ns:On("BAG_UPDATE_DELAYED", function()
     if panel and canSell() then D:Invalidate(); V:Refresh() end
+end)
+ns:On("MERCHANT_UPDATE", function()
+    if panel and canSell() then V:Refresh() end
 end)
 
 ns:OnLoad(function(saved)

@@ -1116,8 +1116,34 @@ local function collapsed() return ns.db.nav.mapListCollapsed == true end
 -- game's own side-panel button, and each opens and closes its own panel.
 function M:SetDrawer(open)
     ns.db.nav.mapListCollapsed = not open
-    M:Redraw()
+    -- The list opens or closes even when drawing the route on the map fails
+    -- ("I'm clicking the button for Flow Router to show the list and it
+    -- doesn't pull out", 0.35.315): the failure is noted for the diagnostics.
+    local ok, err = pcall(M.Redraw, M)
+    if not ok then
+        M.NoteError("drawing the map", err)
+        if M._UpdateList then
+            local ok2, err2 = pcall(M._UpdateList)
+            if not ok2 then M.NoteError("the Flow Router's list", err2) end
+        end
+    end
 end
+
+-- Something on the map failed: logged once per message (the map draws twice
+-- a second), and counted for the diagnostics' "world map" lines.
+M.errors = 0
+function M.NoteError(what, err)
+    M.errors = M.errors + 1
+    local msg = what .. " failed: " .. tostring(err)
+    if msg ~= M.lastError then
+        M.lastError, M.lastErrorAt = msg, date("%H:%M:%S")
+        ns:Log("map", msg)
+    end
+end
+
+-- Pure: which way the Flow Router button's arrow points: 1 = right (the
+-- list is closed: it comes out on the right), -1 = left (open: push it back).
+function M.DrawerArrow(open) return open and -1 or 1 end
 
 local button
 local function buildButton()
@@ -1146,21 +1172,45 @@ local function buildButton()
         if i <= 2 then t:SetHeight(1) else t:SetWidth(1) end
         b.edge[i] = t
     end
-    -- A chevron drawn with two lines: "<" opens the drawer, ">" closes it.
-    b.arms = { b:CreateLine(nil, "ARTWORK"), b:CreateLine(nil, "ARTWORK") }
+    -- A little route list (three rows, a dot in the route's colour and a
+    -- line each) with an arrow beside it that points the way the game's own
+    -- quest log button does: right while the list is closed (it comes out on
+    -- the right), left while it's open (0.35.315: "the arrow's just the
+    -- opposite of the one that's built in").
+    b.rows = {}
+    for i = 1, 3 do
+        local d = b:CreateTexture(nil, "ARTWORK")
+        d:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        d:SetSize(5, 5)
+        local l = b:CreateLine(nil, "ARTWORK")
+        l:SetThickness(1.5)
+        b.rows[i] = { dot = d, line = l }
+    end
+    b.arms = { b:CreateLine(nil, "OVERLAY"), b:CreateLine(nil, "OVERLAY") }
     for _, l in ipairs(b.arms) do l:SetThickness(2) end
     function b:Draw()
         local open = not collapsed()
         local c = theme().route
         local hot = self:IsMouseOver()
+        local w, h = self:GetWidth(), self:GetHeight()
         self.bg:SetColorTexture(open and c[1] * 0.25 or 0.05, open and c[2] * 0.25 or 0.05, open and c[3] * 0.25 or 0.08, 0.92)
         for _, t in ipairs(self.edge) do t:SetColorTexture(c[1], c[2], c[3], hot and 1 or 0.75) end
-        local dir = open and 1 or -1   -- points right when open (push it away), left when closed
-        local s = math.min(self:GetWidth(), self:GetHeight()) * 0.18
+        for i, r in ipairs(self.rows) do
+            local y = (2 - i) * h * 0.22
+            r.dot:ClearAllPoints()
+            r.dot:SetPoint("CENTER", self, "CENTER", -w * 0.24, y)
+            r.dot:SetVertexColor(c[1], c[2], c[3], 1)
+            r.line:SetStartPoint("CENTER", self, -w * 0.13, y)
+            r.line:SetEndPoint("CENTER", self, w * 0.08, y)
+            r.line:SetColorTexture(1, 1, 1, hot and 0.95 or 0.75)
+        end
+        local dir = M.DrawerArrow(open)
+        local s = math.min(w, h) * 0.13
+        local cx = w * 0.28
         for i, l in ipairs(self.arms) do
-            l:SetStartPoint("CENTER", self, -dir * s * 0.6, (i == 1 and 1 or -1) * s)
-            l:SetEndPoint("CENTER", self, dir * s * 0.6, 0)
-            l:SetColorTexture(1, 1, 1, hot and 1 or 0.85)
+            l:SetStartPoint("CENTER", self, cx - dir * s * 0.6, (i == 1 and 1 or -1) * s)
+            l:SetEndPoint("CENTER", self, cx + dir * s * 0.6, 0)
+            l:SetColorTexture(hot and 1 or c[1], hot and 1 or c[2], hot and 1 or c[3], 1)
         end
     end
     b:SetScript("OnClick", function() M:SetDrawer(collapsed()) end)
@@ -1739,6 +1789,8 @@ function M._ListRows() return list and list.rows end
 
 local function updateList()
     list = list or buildList()
+    -- (Before anything else can fail: the list opens or closes.)
+    if collapsed() or not ns.nav:PlayerPos() then list:Hide() end
     button = button or buildButton()
     button:Draw()
     if button.routeToggle then button.routeToggle:Draw() end
@@ -1747,7 +1799,8 @@ local function updateList()
     plan = plan or {}
     if not ns.nav:PlayerPos() then list:Hide() return end
     if collapsed() then list:Hide() return end
-    place()
+    local okP, errP = pcall(place)
+    if not okP then M.NoteError("placing the Flow Router", errP) end
     list:Show()
     local hidden = collapsed()
     list.toggle.text:SetText("Flow Router")
@@ -2176,7 +2229,9 @@ ns:OnLoad(function()
         acc = 0
         if WorldMapFrame and WorldMapFrame:IsShown() then
             -- Just opened: draw it all; open: keep up (cheap unless it changed).
-            if open then pcall(M.Tick, M) else pcall(M.Redraw, M) end
+            local ok, err
+            if open then ok, err = pcall(M.Tick, M) else ok, err = pcall(M.Redraw, M) end
+            if not ok then M.NoteError("drawing the map", err) end
             open = true
         else
             if open then pcall(M.StopDots) end   -- (the dots stop drifting while it's closed)
@@ -2225,3 +2280,23 @@ M.Redraw = ns.perf.Wrap("world map (full redraw)", M.Redraw)
 -- route is drawn in, and the Flow Router's button (theirs stacks above it).
 M.ToMap, M.Canvas, M.CanvasScale, M.AboveMap = toMap, canvas, canvasScale, aboveMap
 function M.DrawerButton() return button end
+M._UpdateList = updateList
+
+-- The diagnostics' "world map" lines: is the Flow Router open, where, and
+-- did drawing fail.
+function M.Lines()
+    local out = {}
+    local open = not collapsed()
+    out[#out + 1] = string.format("Flow Router: %s; the list %s; button %s", open and "open" or "closed",
+        list and (list:IsShown() and "shown" or "hidden") or "not built yet", button and "built" or "not built yet")
+    if list and list:IsShown() then
+        local l, b, w, h = list:GetRect()
+        local s = list:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        out[#out + 1] = string.format("  the list at %s, left %d bottom %d, %d x %d (screen %d x %d)",
+            tostring(ns.routerDock and ns.routerDock.lastSpot), (l or 0) * s, (b or 0) * s, (w or 0) * s, (h or 0) * s,
+            UIParent:GetWidth(), UIParent:GetHeight())
+    end
+    out[#out + 1] = string.format("  map drawing failed %d time(s) this session%s", M.errors,
+        M.lastError and (": last at " .. tostring(M.lastErrorAt) .. ", " .. M.lastError) or "")
+    return out
+end

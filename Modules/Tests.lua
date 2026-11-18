@@ -10912,7 +10912,9 @@ ns:Register("test", "click: the self button docks under the Flow icon and comes 
     local point, rel, relPoint, _, y = b:GetPoint(1)
     t:ok(point == "TOP" and rel == main and relPoint == "BOTTOM", "docked: its top hangs from the Flow button's bottom")
     t:near(y or 0, -BB.DOCK_GAP, 0.01, "with the gap between")
-    t:near(b:GetScale(), main:GetScale(), 0.001, "at the Flow button's own size")
+    -- (Its own docked size since 0.35.253, Ctrl + wheel over it: the Flow
+    -- button's until you set one.)
+    t:near(b:GetScale(), BB.DockScale(ns.db.buffButton.dockScale, main:GetScale()), 0.001, "at its docked size")
     ok, err = pcall(BB.SetDock, false)
     t:ok(ok and not BB.Docked(), "undocking runs" .. (ok and "" or (": " .. tostring(err))))
     point, rel = b:GetPoint(1)
@@ -13059,19 +13061,12 @@ ns:Register("test", "self button: Flow can say what lies over it and whether pre
     t:ok(BB.Above("MEDIUM", 60, "MEDIUM", 50), "the same strata: the higher level is on top")
     t:ok(not BB.Above("MEDIUM", 50, "MEDIUM", 50), "the same place: not on top")
     t:ok(not BB.Above("LOW", 99, "MEDIUM", 1), "a lower strata is underneath")
-    local ok, list = pcall(BB.Covering)
-    t:ok(ok and type(list) == "table", "looking for frames over the button runs")
-    local okW, lines = pcall(BB.WhyLines)
+    -- (The look over every frame in the game runs only when you ask, /flow
+    -- selfbutton why: measuring other frames made their own layout code run
+    -- as Flow's, logged as taint, 0.35.315. The tests don't run it.)
+    local okW, lines = pcall(BB.WhyLines, false)
     t:ok(okW and #lines >= 1, "the report builds")
     t:ok(type(ns.commands.selfbutton) == "function", "/flow selfbutton why")
-    -- Nothing of Flow's own lies over it (the handles are hidden unless Ctrl is held).
-    if ok and BB.Shown and BB.Shown() and not ns.MoveKeyDown() then
-        local mineOver
-        for _, name in ipairs(list) do
-            if name:find("^Flow") then mineOver = name end
-        end
-        t:eq(mineOver, nil, "no frame of Flow's takes the click before the self button")
-    end
 end)
 
 -------------------------------------------------------------------------------
@@ -13836,4 +13831,100 @@ ns:Register("test", "click: the flight masters button on the world map shows and
     ns.db.nav.mapFlights = was
     pcall(MF.Set, was == true)
     ns.db.nav.mapFlights = was
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.315: the seller sells junk first, one at a time; Ctrl moves the
+-- buttons again; the Flow Router button opens the list and points the
+-- game's way.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "seller: junk first, one at a time; only what the vendor still holds can be bought back", function(t)
+    -- "it doesn't sell the junk first ... what it shows that I can get back, I actually can't"
+    local V = ns.vendor
+    local junk = { { bag = 0, slot = 1, link = "j1", price = 5 }, { bag = 0, slot = 2, link = "j2", price = 3 } }
+    local own = {}
+    for i = 1, 14 do own[i] = { bag = 1, slot = i, link = "o" .. i, price = 100 - i } end
+    local order = V.SellOrder(junk, own, true, 12)
+    t:eq(#order, 14, "all the junk and 12 of yours")
+    t:ok(order[1].junk and order[2].junk and not order[3].junk, "the junk first")
+    t:eq(order[14].link, "o12", "then yours, up to 12")
+    t:eq(#V.SellOrder(junk, own, false, 12), 12, "junk off: only yours")
+    t:eq(#V.SellOrder(nil, nil, true), 0, "nothing to sell: nothing")
+    -- A sale from a bag of the test's own: each item goes before the next is sold.
+    local bag, sent = {}, {}
+    for _, e in ipairs(order) do bag[e.bag .. ":" .. e.slot] = e.link end
+    local linkAt = function(b, s) return bag[b .. ":" .. s] end
+    local use = function(b, s) sent[#sent + 1] = bag[b .. ":" .. s] end
+    local q = { items = order, i = 1, sold = {} }
+    t:eq(V.Step(q, 0, linkAt, use), "sent", "the first is sent")
+    t:eq(V.Step(q, 0.1, linkAt, use), "waiting", "and nothing more until it has left your bags")
+    t:eq(#sent, 1, "one at a time")
+    bag["0:1"] = nil
+    t:eq(V.Step(q, 0.2, linkAt, use), "sold", "gone from your bags: sold")
+    for n = 1, 200 do
+        local what, e = V.Step(q, n, linkAt, use)
+        if what == "sent" then bag[e.bag .. ":" .. e.slot] = nil end
+        if what == "done" then break end
+    end
+    t:eq(#q.sold, 14, "all sold")
+    t:ok(sent[1] == "j1" and sent[2] == "j2" and sent[3] == "o1", "in order: the junk, then yours")
+    t:eq(q.sold[#q.sold].link, "o12", "yours went last, so they're the ones the buyback tab keeps")
+    -- One the game won't take: Flow goes on after a while.
+    local stuck = { items = { { bag = 5, slot = 5, link = "x" } }, i = 1, sold = {} }
+    local still, none = function() return "x" end, function() end
+    V.Step(stuck, 0, still, none)
+    t:eq(V.Step(stuck, V.WAIT + 0.1, still, none), "gave up", "one that never goes: Flow goes on")
+    t:eq(V.Step(stuck, V.WAIT + 0.2, still, none), "done", "and the sale ends")
+    local moved, sentAny = { items = { { bag = 1, slot = 1, link = "y" } }, i = 1, sold = {} }, false
+    t:eq(V.Step(moved, 0, function() return "other" end, function() sentAny = true end), "skipped",
+        "an item that moved in your bags isn't sold blind")
+    t:ok(not sentAny, "nothing was sent for it")
+    t:eq(V.Left({ items = order, i = 3, waiting = order[2] }), 13, "how many are left")
+    -- Buying back: only what the vendor's buyback tab still holds.
+    local list = { { link = "a" }, { link = "b" }, { link = "c" } }
+    t:eq(#V.InBuyback(list, function(link) return link ~= "b" end), 2, "one pushed out of the buyback tab isn't offered")
+    t:eq(#V.InBuyback(list, nil), 3, "the vendor can't be asked: all of them")
+    t:eq(type((V.Selling())), "boolean", "Flow can say whether it's selling")
+end)
+
+ns:Register("test", "moving buttons: Flow watches Ctrl itself; docked, a drag on the self button moves the pair", function(t)
+    -- "I'm no longer able to use Ctrl to move the easy button or the buff button"
+    local okL, lines = pcall(ns.MoveLines)
+    t:ok(okL and #lines >= 1, "the diagnostics' lines build" .. (okL and "" or (": " .. tostring(lines))))
+    t:eq(ns.MouseFocusName(nil, nil), "nothing", "nothing under the mouse")
+    t:eq(ns.MouseFocusName({ UIParent }), "UIParent", "the first of the game's list")
+    t:eq(ns.MouseFocusName(nil, UIParent), "UIParent", "or the one")
+    local BB = ns.buffButton
+    local h = BB and BB.handle
+    if not (h and ns.cast and ns.cast.handle) then t:ok(true, "(the buttons aren't built)") return end
+    t:ok(type(h.BeginDrag) == "function", "a handle can begin a drag")
+    t:ok(h.opts.dragVia() == (BB.Docked() and ns.cast.handle or nil),
+        "docked: a drag on the self button moves Flow's button; on its own, itself")
+    if not ns.MoveKeyDown() and not InCombatLockdown() then
+        pcall(h:GetScript("OnMouseDown"), h)
+        t:ok(not h.moving and not ns.cast.handle.moving and h.via == nil, "no Ctrl held: a press moves nothing")
+        pcall(h:GetScript("OnMouseUp"), h)
+    end
+end)
+
+ns:Register("test", "click: the Flow Router button opens the list, its arrow pointing as the game's quest log button does", function(t)
+    -- "we need to reverse that Flow Router button ... the arrow's just the opposite of the one that's built in"
+    local M = ns.mapOverlay
+    t:eq(M.DrawerArrow(false), 1, "closed: the arrow points right, the way the list comes out")
+    t:eq(M.DrawerArrow(true), -1, "open: it points left, to put it back")
+    local okL, lines = pcall(M.Lines)
+    t:ok(okL and #lines >= 2, "the diagnostics' world map lines build" .. (okL and "" or (": " .. tostring(lines))))
+    local b = M.DrawerButton()
+    if not b then t:ok(true, "(the map hasn't been opened yet: no button)") return end
+    t:ok(b.rows and #b.rows == 3, "a little route list on it")
+    local was = ns.db.nav.mapListCollapsed
+    ns.db.nav.mapListCollapsed = true
+    local ok, err = pcall(b:GetScript("OnClick"), b)
+    t:ok(ok, "a click runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(ns.db.nav.mapListCollapsed, false, "a click on the closed button opens the list")
+    pcall(b:GetScript("OnClick"), b)
+    t:eq(ns.db.nav.mapListCollapsed, true, "another closes it")
+    ns.db.nav.mapListCollapsed = was
+    pcall(M.Redraw, M)
 end)

@@ -89,6 +89,10 @@ function D:Snapshot(reason, spread)
         { "choices", function() if c.choices then c.choices("") end end },
         { "press audit", function() if c.audit then c.audit("") end end },
         { "game buttons", function() if c.buttons then c.buttons("") end end },
+        { "world map", function()
+            local M = ns.mapOverlay
+            if M and M.Lines then for _, l in ipairs(M.Lines()) do print(l) end end
+        end },
         { "clicks", function() if c.clicks then c.clicks("") end end },
         { "gates", function() if c.gates then c.gates("") end end },
         { "rides", function() if c.rides then c.rides("") end end },
@@ -103,7 +107,8 @@ function D:Snapshot(reason, spread)
         { "zones", function() if c.zones then c.zones("") end end },
         { "class quests", function() if c.classquests then c.classquests() end end },
         { "where next", function() if c.where then c.where() end end },
-        { "self button", function() if c.selfbutton then c.selfbutton("why") end end },
+        { "self button", function() if c.selfbutton then c.selfbutton("why quick") end end },
+        { "moving buttons", function() if ns.MoveLines then for _, l in ipairs(ns.MoveLines()) do print(l) end end end },
         { "dungeons", function() if c.dungeons then c.dungeons("") end end },
         { "quest marks", function() if c.quest then c.quest("") end end },
         -- (Your quests, skills and the route, for tools\route-check.ps1.)

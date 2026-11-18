@@ -1,6 +1,30 @@
 # Changelog
 
 
+## 0.35.315
+
+- **The Flow Seller sells your junk first, really.** Flow used to ask the game to sell
+  everything in the same instant, and the game didn't always finish them in that order: some
+  junk went last and pushed your own items out of the vendor's buyback tab, so "Buy back"
+  offered items that were gone. Now each item is sold and Flow waits until it has left your
+  bags before the next: all the junk, then the rest, so your own items are the last 12 sold.
+  The Sell button says "Selling... 5 left" meanwhile. The "Buy back" list shows only what the
+  vendor's buyback tab still holds. Bags are tidied and gear repaired once the selling is done.
+- **Ctrl moves the target and self buttons again**, more reliably: Flow now watches Ctrl
+  itself as well as waiting for the game to say a key changed, and one button's handle can no
+  longer keep the other's from showing. Docked, Ctrl-dragging the self button moves the pair
+  (it used to do nothing). If it still won't move, Flow's diagnostics now say what lay under
+  your mouse when you pressed Ctrl.
+- **The Flow Router button points the game's way.** Its arrow now matches the quest log button
+  beside it: right while the list is closed, left while it's open. The button shows a little
+  route list in the route's colour. A click opens the list even if drawing the route on the
+  map runs into trouble (that's noted for the diagnostics).
+- Fixed: two spots where Flow read a value the game hides (a loot name, and a check of what
+  lies over the self button that ran every half minute) and was logged as tainting the game's
+  own windows. The check over every frame now only runs when you ask: `/flow selfbutton why`.
+- Fixed: the self-test for the docked self button expected it at the target button's size; it
+  has had a size of its own since 0.35.253.
+
 ## 0.35.314
 
 - **Flight masters on the world map.** A new Flow button on the world map, above the route

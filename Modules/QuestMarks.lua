@@ -294,11 +294,14 @@ end
 -- Learn which mobs drop which quest items.
 local function onLoot()
     if not (UnitExists("target") and UnitIsDead("target")) then return end
-    local mob = UnitName("target")
-    if not mob then return end
-    for slot = 1, GetNumLootItems() do
+    -- (The game may hide a name: indexing a hidden one was blocked and
+    -- logged as taint from Flow, 0.35.315. Unwrapped first; nil = hidden.)
+    local mob = ns.api.Safe(UnitName("target"))
+    if type(mob) ~= "string" then return end
+    for slot = 1, (ns.api.Safe(GetNumLootItems()) or 0) do
         local _, itemName = GetLootSlotInfo(slot)
-        if itemName and items[itemName:lower()] then
+        itemName = ns.api.Safe(itemName)
+        if type(itemName) == "string" and items[itemName:lower()] then
             local key = mob:lower()
             db().drops[key] = db().drops[key] or {}
             if not db().drops[key][itemName:lower()] then

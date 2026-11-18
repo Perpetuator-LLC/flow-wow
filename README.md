@@ -44,8 +44,8 @@ Flow for WoW is a separate project from Flow Engine.
   (`/flow selfbutton on`, a key with `/flow selfkey Q`) is a second, blue button for you: your
   heals, food, bandage, cures, buffs, weapon stones and oils. By default it's docked under the
   target button as one block, with Shift, Ctrl, Alt and C+S written once between the two rows;
-  Ctrl + mouse wheel over it gives it a size of its own. Both have the same edge and size, and
-  a cast bar along the bottom.
+  Ctrl + mouse wheel over it gives it a size of its own, and Ctrl-dragging either one moves the
+  pair. Both have the same edge and size, and a cast bar along the bottom.
 - **Buffs for your group**: out of a fight, with nothing else to press, the target button casts
   your buffs straight on whoever in your party lacks one (Mark of the Wild for everyone, Thorns
   for the tank). When the game refuses one as weaker than what they have, Flow moves on to the
@@ -203,7 +203,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Along the way**: optional farming (meat for Cooking) is never a detour; loot it as you go.
 - **Blocked steps**: steps you can't do yet stay listed, greyed, with the reason ("needs
   1g 20s", "needs a Mining Pick"), and come back by themselves when you can.
-- **Flow Router** (the square button above the world map's quest log button): the route list,
+- **Flow Router** (the square button above the world map's quest log button, a little route
+  list with an arrow that points the way the quest log button's does): the route list,
   just right of the map (and so of the quest log; either or both can be open),
   with a "Route:" dropdown (what the route includes, and the order). Hover a step for details, click it for its step card, use the
   `^` handle to route from that step (it stays marked red), right-click to hide it or "Point
@@ -341,6 +342,8 @@ Flow for WoW is a separate project from Flow Engine.
   no bank is learned as not one.
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
+  One item at a time, all the junk first, so your own items are the last sold and the ones the
+  buyback tab keeps; "Buy back" lists only what the vendor still holds.
   It never sells profession tools or materials you need. Green gear and better materials go
   to the auction house only on a price Flow has seen that beats the vendor after the cut and
   the listing fee; with none known they're vendored (rare gear is always held). Ammunition

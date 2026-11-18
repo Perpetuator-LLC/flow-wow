@@ -673,9 +673,13 @@ local function build()
         end
     end)
     -- Ctrl: drag to move, mouse wheel to resize. Same as the Flow button.
-    -- (Docked it goes where Flow's icon goes: its handle resizes it but doesn't drag it, and the one note under both is Flow's.)
+    -- (Docked it goes where Flow's icon goes: dragging it drags Flow's button,
+    -- and the two move as one (0.35.315: "when they're docked, it doesn't
+    -- seem to move them"); its wheel resizes it alone, and the one note under
+    -- both is Flow's.)
     if ns.MoveHandle then BB.handle = ns:MoveHandle(btn, { name = "the self button", save = cfg,
         fixed = function() return BB.Docked() end, quiet = function() return BB.Docked() end,
+        dragVia = function() return BB.Docked() and ns.cast and ns.cast.handle or nil end,
         wheel = function(delta) return BB.DockWheel(delta) end }) end
     btn:Hide()
 end
@@ -701,17 +705,23 @@ function BB.Above(strataA, levelA, strataB, levelB)
     if a ~= b then return a > b end
     return (levelA or 0) > (levelB or 0)
 end
+-- Every value read from another add-on's or the game's frame is unwrapped
+-- first (ns.api.Safe: nil when the game hides it). Testing a hidden one was
+-- blocked and logged "taint from Flow" each time this looked (0.35.315).
+local function safe(v) return ns.api.Safe(v) end
 local function rectOf(f)
     local ok, l, b, w, h = pcall(f.GetRect, f)
-    if not ok or not l then return nil end
-    local s = f:GetEffectiveScale()
+    if not ok then return nil end
+    l, b, w, h = safe(l), safe(b), safe(w), safe(h)
+    if not (l and b and w and h) then return nil end
+    local s = safe(f:GetEffectiveScale()) or 1
     return { l * s, b * s, w * s, h * s }
 end
 local function nameOf(f)
-    local n = f.GetName and f:GetName()
+    local n = f.GetName and safe(f:GetName())
     if n then return n end
     local p = f.GetParent and f:GetParent()
-    local pn = p and p.GetName and p:GetName()
+    local pn = p and p.GetName and safe(p:GetName())
     return pn and ("a child of " .. pn) or "an unnamed frame"
 end
 -- The frames that take clicks, are on screen and lie over the button.
@@ -726,17 +736,19 @@ function BB.Covering()
     while f and seen < 20000 do
         seen = seen + 1
         local ok, hit = pcall(function()
-            if f == btn or (f.IsForbidden and f:IsForbidden()) then return false end
-            if not (f:IsVisible() and f:IsMouseEnabled()) then return false end
-            if not BB.Above(f:GetFrameStrata(), f:GetFrameLevel(), strata, level) then return false end
+            if f == btn or (f.IsForbidden and safe(f:IsForbidden()) ~= false) then return false end
+            if not (safe(f:IsVisible()) and safe(f:IsMouseEnabled())) then return false end
+            if not BB.Above(safe(f:GetFrameStrata()), safe(f:GetFrameLevel()), strata, level) then return false end
             return BB.Overlaps(rectOf(f), mine)
         end)
-        if ok and hit then out[#out + 1] = nameOf(f) .. " (" .. tostring(f:GetFrameStrata()) .. " " .. tostring(f:GetFrameLevel()) .. ")" end
+        if ok and hit then out[#out + 1] = nameOf(f) .. " (" .. tostring(safe(f:GetFrameStrata())) .. " " .. tostring(safe(f:GetFrameLevel())) .. ")" end
         f = EnumerateFrames(f)
     end
     return out
 end
-function BB.WhyLines()
+-- look: also look for frames over the button (it reads every frame in the
+-- game: only when you ask, /flow selfbutton why; the diagnostics don't).
+function BB.WhyLines(look)
     local out = {}
     if not btn then return { "self button: not built (it's off)" } end
     out[#out + 1] = string.format("self button: %s; shown: %s; takes clicks: %s; at %s level %d; scale %.2f",
@@ -745,11 +757,14 @@ function BB.WhyLines()
     out[#out + 1] = string.format("  set to cast: type %s, spell %s, item %s, on %s", tostring(btn:GetAttribute("type")),
         tostring(btn:GetAttribute("spell")), tostring(btn:GetAttribute("item")), tostring(btn:GetAttribute("unit")))
     out[#out + 1] = string.format("  presses this session: %d by mouse, %d by key", BB.byMouse or 0, BB.byKey or 0)
-    local okC, list = pcall(BB.Covering)
-    if okC and #list > 0 then
-        out[#out + 1] = "  OVER IT (these take the click before it does): " .. table.concat(list, "; ")
-    else
-        out[#out + 1] = "  nothing that takes clicks lies over it" .. (btn:IsVisible() and "" or " (it isn't on screen now, so this can't be checked)")
+    if look then
+        local okC, list = pcall(BB.Covering)
+        if okC then BB.lastCover, BB.lastCoverAt = list, date("%H:%M:%S") end
+        if okC and #list > 0 then
+            out[#out + 1] = "  OVER IT (these take the click before it does): " .. table.concat(list, "; ")
+        else
+            out[#out + 1] = "  nothing that takes clicks lies over it" .. (btn:IsVisible() and "" or " (it isn't on screen now, so this can't be checked)")
+        end
     end
     if BB.lastCover then
         out[#out + 1] = string.format("  while it was on screen at %s: %s", tostring(BB.lastCoverAt),
@@ -983,8 +998,10 @@ if ns.settings and ns.settings.AddCheck then
 end
 
 ns.commands.buffbutton = function(arg)
-    if (arg or ""):lower() == "why" then
-        for i, l in ipairs(BB.WhyLines()) do if i == 1 then ns:Print(l) else print(l) end end
+    local why = (arg or ""):lower():match("^why%s*(%a*)$")
+    if why then
+        -- ("why quick", the diagnostics: without the look over every frame.)
+        for i, l in ipairs(BB.WhyLines(why ~= "quick")) do if i == 1 then ns:Print(l) else print(l) end end
         return
     end
     arg = (arg or ""):lower()
@@ -1044,13 +1061,6 @@ ns.commands.selfbutton = ns.commands.buffbutton
 ns.commands.selfkey = ns.commands.buffkey
 ns.commands.selfkey2 = ns.commands.buffkey2
 
--- What lay over the self button the last time it was on screen (looked at
--- every half minute out of a fight), for the diagnostics: at a reload the
--- button may not be showing.
-if C_Timer and C_Timer.NewTicker then
-    C_Timer.NewTicker(30, function()
-        if InCombatLockdown() or not (BB.Shown and BB.Shown()) then return end
-        local ok, list = pcall(BB.Covering)
-        if ok then BB.lastCover, BB.lastCoverAt = list, date("%H:%M:%S") end
-    end)
-end
+-- (Until 0.35.315 Flow also looked over every frame in the game every half
+-- minute, for the diagnostics. Reading other frames' hidden values was
+-- logged as taint from Flow each time: now only when you ask.)

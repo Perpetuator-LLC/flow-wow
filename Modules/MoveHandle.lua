@@ -40,11 +40,21 @@ end
 --   the one note under both buttons is Flow's).
 -- opts.noteUnder: function returning the frame the note goes under (the
 --   docked self button: one note, under both), or nil for the button itself.
+-- opts.dragVia: function returning another handle that a drag on this one
+--   moves instead (the docked self button: dragging it moves Flow's button,
+--   and so the pair, 0.35.315), or nil.
 -- Pure: does a handle show?
 function ns.HandleWanted(keyDown, inCombat, shown, off)
     return (keyDown and not inCombat and shown and not off) and true or false
 end
 local handles = {}
+-- What happened this session, for the diagnostics (0.35.315: "I'm no longer
+-- able to use Ctrl to move the easy button or the buff button"): Ctrl
+-- changes the game told Flow about, the ones only Flow's own look caught,
+-- handles shown, drags begun and finished, and what lay under the mouse
+-- when Ctrl went down over a button.
+local stats = { events = 0, polled = 0, shown = 0, drags = 0, saved = 0, errors = 0 }
+ns.moveStats = stats
 function ns:MoveHandle(target, opts)
     local h = CreateFrame("Frame", nil, UIParent)
     h.target, h.opts = target, opts
@@ -99,8 +109,9 @@ function ns:MoveHandle(target, opts)
             self.text:SetShown(not quiet)
             self.tab:SetShown(not quiet)
             self:Label()
+            if not self:IsShown() then stats.shown = stats.shown + 1; stats.lastShown = (opts.name or "?") .. " at " .. date("%H:%M:%S") end
             self:Show()
-        elseif not self.moving then
+        elseif not (self.moving or self.via) then   -- (mid-drag it stays, so the release lands on it)
             self:Hide()
         end
     end
@@ -123,6 +134,17 @@ function ns:MoveHandle(target, opts)
         self.moving = false
         target:StopMovingOrSizing()
         self:Save()
+        stats.saved = stats.saved + 1
+        stats.lastSaved = (opts.name or "?") .. " at " .. date("%H:%M:%S")
+    end
+    -- A drag begins (Ctrl held, out of combat). true when it did.
+    function h:BeginDrag()
+        if InCombatLockdown() or not ns.MoveKeyDown() then return false end
+        target:StartMoving()
+        self.moving = true
+        stats.drags = stats.drags + 1
+        stats.lastDrag = (opts.name or "?") .. " at " .. date("%H:%M:%S")
+        return true
     end
     -- One wheel notch with Ctrl held: a tenth bigger or smaller.
     function h:Resize(delta)
@@ -162,11 +184,20 @@ function ns:MoveHandle(target, opts)
         GameTooltip:Hide()
     end)
     h:SetScript("OnMouseDown", function(self)
-        if InCombatLockdown() or not ns.MoveKeyDown() or (opts.fixed and opts.fixed()) then return end
-        target:StartMoving()
-        self.moving = true
+        -- Docked: a drag on the self button moves Flow's button, which it hangs from.
+        local via = opts.dragVia and opts.dragVia()
+        if via and via ~= self then
+            if via:BeginDrag() then self.via = via end
+            return
+        end
+        if opts.fixed and opts.fixed() then return end
+        self:BeginDrag()
     end)
-    h:SetScript("OnMouseUp", function(self) self:Finish() end)
+    h:SetScript("OnMouseUp", function(self)
+        local via = self.via
+        if via then self.via = nil; via:Finish() return end
+        self:Finish()
+    end)
     h:SetScript("OnMouseWheel", function(self, delta) self:Resize(delta) end)
     h:Hide()
     target:SetMovable(true)
@@ -185,10 +216,92 @@ function ns.RestorePlace(frame, save, x0, y0)
     else frame:SetPoint("CENTER", UIParent, "CENTER", x0 or 0, y0 or 0) end
 end
 
+-- Each handle on its own: one that fails can't keep the others from showing.
+local function refreshAll()
+    for _, h in ipairs(handles) do
+        local ok, err = pcall(h.Refresh, h)
+        if not ok then
+            stats.errors = stats.errors + 1
+            stats.lastError = (h.opts and h.opts.name or "?") .. ": " .. tostring(err)
+        end
+    end
+end
+
+-- Pure: the name of what takes the mouse (the first of the game's list, or
+-- the one), for the diagnostics.
+function ns.MouseFocusName(foci, focus)
+    local f = (type(foci) == "table" and foci[1]) or focus
+    if not f then return "nothing" end
+    local ok, name = pcall(function() return f.GetName and f:GetName() end)
+    local Safe = ns.api and ns.api.Safe or function() return nil end
+    name = ok and Safe(name) or nil
+    if type(name) == "string" then return name end
+    local okP, pn = pcall(function() local p = f:GetParent(); return p and p:GetName() end)
+    pn = okP and Safe(pn) or nil
+    return type(pn) == "string" and ("a child of " .. pn) or "an unnamed frame"
+end
+-- Ctrl just went down: over one of the buttons, what's under the mouse?
+-- (The handle, when all is well.)
+local function noteFocus()
+    for _, h in ipairs(handles) do
+        local t = h.target
+        local okO, over = pcall(t.IsMouseOver, t)
+        if okO and over and t:IsVisible() and h.opts and h.opts.name ~= "test" then
+            local foci = GetMouseFoci and GetMouseFoci() or nil
+            local focus = (not foci) and GetMouseFocus and GetMouseFocus() or nil
+            stats.focus = string.format("Ctrl down over %s at %s: under the mouse %s (its handle %s)", h.opts.name, date("%H:%M:%S"),
+                ns.MouseFocusName(foci, focus), h:IsShown() and "showing" or "not showing")
+            return
+        end
+    end
+end
+
+local ctrlWas = false
+local function ctrlChanged()
+    local down = ns.MoveKeyDown()
+    if down == ctrlWas then return false end
+    ctrlWas = down
+    refreshAll()
+    if down then pcall(noteFocus) end
+    return true
+end
 ns:On("MODIFIER_STATE_CHANGED", function()
-    for _, h in ipairs(handles) do h:Refresh() end
+    stats.events = stats.events + 1
+    ctrlChanged()
 end)
+-- Flow looks for itself too, ten times a second: the handles show even when
+-- the game doesn't say a key changed (0.35.315).
+do
+    local poll, acc = CreateFrame("Frame"), 0
+    poll:SetScript("OnUpdate", function(_, dt)
+        acc = acc + dt
+        if acc < 0.1 then return end
+        acc = 0
+        if ctrlChanged() then stats.polled = stats.polled + 1 end
+    end)
+end
 ns:On("PLAYER_REGEN_DISABLED", function()
-    for _, h in ipairs(handles) do h:Finish(); h.moving = false; h:Hide() end
+    for _, h in ipairs(handles) do h:Finish(); h.moving = false; h.via = nil; h:Hide() end
 end)
+
+-- The diagnostics' "moving buttons" lines.
+function ns.MoveLines()
+    local out = { string.format("moving buttons (Ctrl): Ctrl now %s; changes the game told Flow about %d, only Flow's own look caught %d; "
+        .. "handles shown %d, drags %d, saved %d; errors %d", ns.MoveKeyDown() and "down" or "up", stats.events, stats.polled,
+        stats.shown, stats.drags, stats.saved, stats.errors) }
+    for _, h in ipairs(handles) do
+        local name = h.opts and h.opts.name or "?"
+        if name ~= "test" then
+            local t = h.target
+            out[#out + 1] = string.format("  %s: on screen %s, handle %s, can't be dragged itself %s, drags move %s",
+                name, tostring(t:IsVisible()), h:IsShown() and "showing" or "hidden",
+                tostring((h.opts.fixed and h.opts.fixed()) and true or false),
+                (h.opts.dragVia and h.opts.dragVia()) and "Flow's button (docked)" or "itself")
+        end
+    end
+    for _, k in ipairs({ "lastShown", "lastDrag", "lastSaved", "focus", "lastError" }) do
+        if stats[k] then out[#out + 1] = "  " .. k .. ": " .. tostring(stats[k]) end
+    end
+    return out
+end
 
