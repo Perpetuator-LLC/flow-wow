@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.317
+
+- **Bag icons: what Flow will do top left, what the item is top right.** The auctioneer's mark,
+  the gold coin (sell) and DE (disenchant) move to the top left, with the (o) for your step's
+  item and the bank icon: everything about what happens to the item is in one corner. The top
+  right is for what it is: a quest item's "!", a profession's icon for its materials and tools.
+  Each corner shows one mark. (For add-on authors: every mark is now a `bagMark` registration
+  whose group, "action" or "kind", decides its corner; docs/ARCHITECTURE.md.)
+
 ## 0.35.316
 
 - **You pick your questing zones; Flow no longer picks for you.** Until now every zone was on

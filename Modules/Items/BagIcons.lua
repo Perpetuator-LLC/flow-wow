@@ -1,12 +1,21 @@
--- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
---   (o) target (top left)     = your current route step wants you to use this item
---   bank (top left)           = Flow Banker puts it in your bank at your next visit (0.35.300)
---   top right                 = gold coin = sell, the auctioneer's mark = auction house, DE, or why it is kept:
---                               quest "!" (current/upcoming quest), profession icon (crafting material)
---   bottom row (gear)         = one icon per spec, with a mark above: green arrow up = better
---                               than that spec's gear, red arrow down = worse, grey dash = about the same
--- The item tooltip says what Flow would do and why.
--- /flow bags on|off
+-- Marks on your bag slots (Blizzard bags; other bag addons aren't covered).
+-- Two corners, each for one kind of mark (0.35.317: "the icon in the top
+-- right for what the type of the item is, and then up in the top left, what
+-- it's going to do ... the auctioneer icon, however, is on the right. I think
+-- that one should go on the left, and we should make this a generalization"):
+--   top left, what Flow will do with it (group "action"):
+--     (o) your current route step uses it, the bank (Flow Banker puts it away
+--     at your next visit), the gold coin (sell), the auctioneer's mark (the
+--     auction house), DE (disenchant)
+--   top right, what it is (group "kind"):
+--     a quest item "!", a profession's tool or material (its icon)
+--   bottom row (gear): one icon per spec, with a mark above: green arrow up =
+--     better than that spec's gear, red arrow down = worse, grey dash = same
+-- Every mark is a registration, ns:Register("bagMark", key, { group, order,
+-- build, wants, paint, x, y }): its group decides its corner (B.CORNER), and
+-- in each corner the first mark (lowest order) that wants the item shows. A
+-- new mark is a new registration, in the corner its meaning belongs to.
+-- The item tooltip says what Flow would do and why.  /flow bags on|off
 
 local _, ns = ...
 local D = ns.disposition
@@ -44,12 +53,6 @@ function B.RefreshBankSet()
 end
 B.BANK_TIP = "Flow Banker: goes into your bank at your next visit (Deposit there; change it in the Flow Banker)."
 
-local BADGE = {
-    sell = { "$", 1.0, 0.75, 0.2 },
-    ah   = { "AH", 0.4, 0.8, 1.0 },
-    de   = { "DE", 0.75, 0.5, 1.0 },
-}
-
 -- Puts the auctioneer's picture on a texture. -> true when the game has one.
 B.AH_ATLASES = { "Auctioneer", "auctioneer" }
 B.AH_FILE = "Interface\\Minimap\\Tracking\\Auctioneer"
@@ -62,79 +65,165 @@ function B.SetAuctionIcon(tex)
     tex:SetTexture(B.AH_FILE)
     return tex:GetTexture() ~= nil
 end
--- Pure: what the top right corner shows for an action: "coin" (sell), "ah"
--- (the auctioneer's mark), "letters" (DE, or AH without the picture), nil.
-function B.CornerFor(action, ahPicture)
-    if action == "sell" then return "coin" end
-    if action == "ah" then return ahPicture and "ah" or "letters" end
-    if action == "de" then return "letters" end
-    return nil
+
+-------------------------------------------------------------------------------
+-- The two corners, and which mark each shows.
+-------------------------------------------------------------------------------
+
+-- Where a group's marks sit on the slot (x, y: the usual offset; a mark can
+-- give its own, letters sit a little inside the edge).
+B.CORNER = {
+    action = { point = "TOPLEFT", x = -2, y = 2 },     -- what Flow will do with it
+    kind   = { point = "TOPRIGHT", x = -1, y = -1 },   -- what it is
+}
+
+-- The marks, by their order (built once: every registration is made as the
+-- files load, before any bag is painted).
+local markList
+function B.MarkList()
+    if markList then return markList end
+    local list = {}
+    for key, def in ns:Each("bagMark") do
+        list[#list + 1] = { key = key, group = def.group, order = def.order or 50, wants = def.wants, def = def }
+    end
+    table.sort(list, function(a, b)
+        if a.order ~= b.order then return a.order < b.order end
+        return a.key < b.key
+    end)
+    markList = list
+    return list
 end
+
+-- Pure: the mark each corner shows: { [group] = key }. list: marks as
+-- B.MarkList gives them ({ key, group, order, wants }), lowest order first;
+-- ctx: { v = Flow's decision (D:Decide: action, icon, reason, item), id,
+-- focus = your current step uses it, bank = Flow Banker puts it away }.
+function B.PickMarks(list, ctx)
+    local out = {}
+    for _, m in ipairs(list or {}) do
+        if B.CORNER[m.group] and not out[m.group] and m.wants then
+            local ok, want = pcall(m.wants, ctx)
+            if ok and want then out[m.group] = m.key end
+        end
+    end
+    return out
+end
+
+-------------------------------------------------------------------------------
+-- The marks. Top left, what Flow will do with it (group "action").
+-------------------------------------------------------------------------------
+
+local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local function letters(m, text, r, g, b)
+    local s = m:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    s:SetText(text)
+    s:SetTextColor(r, g, b)
+    return s
+end
+local function icon(m, size)
+    local t = m:CreateTexture(nil, "OVERLAY")
+    t:SetSize(size or 14, size or 14)
+    return t
+end
+
+-- Flow's target marker (o) in the route colour: your current step wants you
+-- to use this ("Learn Brilliant Smallfish: use the recipe in your bags").
+ns:Register("bagMark", "step", { group = "action", order = 10, x = -3, y = 3,
+    build = function(m)
+        local f = CreateFrame("Frame", nil, m)
+        f:SetSize(14, 14)
+        f:SetFrameLevel(m:GetFrameLevel() + 2)
+        local function disc(sub, inset)
+            local t = f:CreateTexture(nil, "OVERLAY", nil, sub)
+            t:SetTexture(CIRCLE)
+            t:SetPoint("TOPLEFT", inset, -inset); t:SetPoint("BOTTOMRIGHT", -inset, inset)
+            return t
+        end
+        f.edge, f.ring, f.hole, f.dot = disc(1, -1), disc(2, 0), disc(3, 2), disc(4, 4)
+        f.edge:SetVertexColor(0, 0, 0, 0.9)
+        f.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
+        return f
+    end,
+    wants = function(ctx) return ctx.focus end,
+    paint = function(f)
+        local c = ns.theme.route
+        f.ring:SetVertexColor(c[1], c[2], c[3], 1)
+        f.dot:SetVertexColor(c[1], c[2], c[3], 1)
+    end })
+
+-- The bank: Flow Banker puts it in at your next visit (0.35.300).
+ns:Register("bagMark", "bank", { group = "action", order = 20,
+    build = function(m)
+        local t = icon(m)
+        local okAtlas = t.SetAtlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("Banker")
+            and pcall(t.SetAtlas, t, "Banker")
+        if not okAtlas then t:SetTexture("Interface\\Icons\\INV_Misc_Bag_10") end
+        return t
+    end,
+    wants = function(ctx) return ctx.bank end })
+
+-- Sell: the gold coin.
+ns:Register("bagMark", "sell", { group = "action", order = 30, x = -1, y = 1,
+    build = function(m)
+        local t = icon(m)
+        t:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+        return t
+    end,
+    wants = function(ctx) return ctx.v.action == "sell" end })
+
+-- The auction house: the game's auctioneer mark (0.35.304), or the letters
+-- AH on a game without that picture (the mark after it).
+ns:Register("bagMark", "ah", { group = "action", order = 40, x = -2, y = 2,
+    build = function(m)
+        local t = icon(m, 15)
+        B.ahPicture = B.SetAuctionIcon(t)
+        return t
+    end,
+    wants = function(ctx) return ctx.v.action == "ah" and B.ahPicture == true end })
+ns:Register("bagMark", "ahLetters", { group = "action", order = 41, x = 2, y = -2,
+    build = function(m) return letters(m, "AH", 0.4, 0.8, 1.0) end,
+    wants = function(ctx) return ctx.v.action == "ah" end })
+
+-- Disenchant.
+ns:Register("bagMark", "de", { group = "action", order = 50, x = 2, y = -2,
+    build = function(m) return letters(m, "DE", 0.75, 0.5, 1.0) end,
+    wants = function(ctx) return ctx.v.action == "de" end })
+
+-------------------------------------------------------------------------------
+-- Top right, what it is (group "kind"): a quest item's "!", a profession's
+-- icon for its tools and materials (Disposition.lua's icon for the reason
+-- it's kept).
+-------------------------------------------------------------------------------
+
+ns:Register("bagMark", "what", { group = "kind", order = 10,
+    build = function(m) return icon(m) end,
+    wants = function(ctx) return ctx.v.icon ~= nil end,
+    paint = function(t, ctx) t:SetTexture(ctx.v.icon) end })
+
+-------------------------------------------------------------------------------
+-- Painting a slot.
+-------------------------------------------------------------------------------
 
 local function marks(button)
     if button.flowMarks then return button.flowMarks end
     local m = CreateFrame("Frame", nil, button)
     m:SetAllPoints()
     m:SetFrameLevel(button:GetFrameLevel() + 5)
-    m.arrow = m:CreateTexture(nil, "OVERLAY")
-    m.arrow:SetSize(16, 16)
-    m.arrow:SetPoint("TOPLEFT", -2, 2)
-    local ok = m.arrow.SetAtlas and pcall(m.arrow.SetAtlas, m.arrow, "bags-greenarrow")
-    if not ok then
-        m.arrow:SetColorTexture(0.2, 1, 0.2, 0.9)
-        m.arrow:SetSize(8, 8)
-    end
     -- Bottom: the spec badge (Gear/SpecBadge.lua): an icon per spec with an
     -- arrow right above it (better / worse / same as that spec's gear).
     m.specs = ns:SpecBadge(m, 10)
     m.specs:SetPoint("BOTTOMRIGHT", -1, 1)
-    m.badge = m:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    m.badge:SetPoint("TOPRIGHT", -2, -2)
-    -- Gold coin for "sell".
-    m.coin = m:CreateTexture(nil, "OVERLAY")
-    m.coin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
-    m.coin:SetSize(14, 14)
-    m.coin:SetPoint("TOPRIGHT", -1, -1)
-    m.coin:Hide()
-    -- The auction house: the game's auctioneer mark instead of the letters
-    -- "AH" (0.35.304). A client without that picture keeps the letters.
-    m.ah = m:CreateTexture(nil, "OVERLAY")
-    m.ah:SetSize(15, 15)
-    m.ah:SetPoint("TOPRIGHT", 0, 0)
-    m.ahOk = B.SetAuctionIcon(m.ah)
-    m.ah:Hide()
-    -- Keep-for-a-reason icon (quest "!", or the profession's icon).
-    m.keep = m:CreateTexture(nil, "OVERLAY")
-    m.keep:SetSize(14, 14)
-    m.keep:SetPoint("TOPRIGHT", -1, -1)
-    m.keep:Hide()
-    -- Flow's target marker (o) in the route colour, top-left: this is the
-    -- item your current step wants you to use ("Learn Brilliant Smallfish:
-    -- use the recipe in your bags").
-    local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-    m.focus = CreateFrame("Frame", nil, m)
-    m.focus:SetSize(14, 14)
-    m.focus:SetPoint("TOPLEFT", -3, 3)
-    m.focus:SetFrameLevel(m:GetFrameLevel() + 2)
-    local function disc(sub, inset)
-        local t = m.focus:CreateTexture(nil, "OVERLAY", nil, sub)
-        t:SetTexture(CIRCLE)
-        t:SetPoint("TOPLEFT", inset, -inset); t:SetPoint("BOTTOMRIGHT", -inset, inset)
-        return t
+    m.marks = {}
+    for _, e in ipairs(B.MarkList()) do
+        local c = B.CORNER[e.group]
+        local ok, r = pcall(e.def.build, m)
+        if c and ok and r then
+            r:ClearAllPoints()
+            r:SetPoint(c.point, m, c.point, e.def.x or c.x, e.def.y or c.y)
+            r:Hide()
+            m.marks[e.key] = r
+        end
     end
-    m.focus.edge, m.focus.ring, m.focus.hole, m.focus.dot = disc(1, -1), disc(2, 0), disc(3, 2), disc(4, 4)
-    m.focus.edge:SetVertexColor(0, 0, 0, 0.9)
-    m.focus.hole:SetVertexColor(0.05, 0.05, 0.08, 1)
-    -- The bank: this goes in at your next visit (same corner as the (o); a
-    -- step's item is never banked, so they don't meet).
-    m.bank = m:CreateTexture(nil, "OVERLAY")
-    m.bank:SetSize(14, 14)
-    m.bank:SetPoint("TOPLEFT", -2, 2)
-    local okAtlas = m.bank.SetAtlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("Banker")
-        and pcall(m.bank.SetAtlas, m.bank, "Banker")
-    if not okAtlas then m.bank:SetTexture("Interface\\Icons\\INV_Misc_Bag_10") end
-    m.bank:Hide()
-    m.focus:Hide()
     button.flowMarks = m
     return m
 end
@@ -142,14 +231,8 @@ end
 local function clear(button)
     local m = button.flowMarks
     if not m then return end
-    m.arrow:Hide()
-    m.focus:Hide()
-    m.bank:Hide()
     m.specs:Hide()
-    m.badge:SetText("")
-    m.coin:Hide()
-    m.keep:Hide()
-    m.ah:Hide()
+    for _, r in pairs(m.marks) do r:Hide() end
 end
 
 local function paint(button, bag, slot)
@@ -158,36 +241,22 @@ local function paint(button, bag, slot)
     local v = D:Decide(bag, slot, link)
     if not v then clear(button) return end
     local m = marks(button)
-    -- (The old top-left "equip now" arrow is gone: the spec marks below say
-    -- better / worse per spec, with your levelling spec brightest.)
-    m.arrow:Hide()
     local id = tonumber(link:match("item:(%d+)"))
-    local focus = id and id == ns.bagIcons.FocusItem()
-    if focus then
-        local c = ns.theme.route
-        m.focus.ring:SetVertexColor(c[1], c[2], c[3], 1)
-        m.focus.dot:SetVertexColor(c[1], c[2], c[3], 1)
+    local focusItem = B.FocusItem()
+    local ctx = { v = v, id = id, focus = id ~= nil and id == focusItem }
+    ctx.bank = v.action == "keep" and B.ToBank(id, B.bankSet, focusItem)
+    local list = B.MarkList()
+    local pick = B.PickMarks(list, ctx)
+    for _, e in ipairs(list) do
+        local r = m.marks[e.key]
+        if r then
+            local on = pick[e.group] == e.key
+            if on and e.def.paint then pcall(e.def.paint, r, ctx) end
+            r:SetShown(on)
+        end
     end
-    m.focus:SetShown(focus or false)
-    m.bank:SetShown(v.action == "keep" and B.ToBank(id, B.bankSet, B.FocusItem()))
     local g = v.item.gear
     if g and g.canUse then m.specs:Set(g.diffs) else m.specs:Hide() end
-    m.coin:SetShown(v.action == "sell")
-    if v.action == "keep" and v.icon then
-        m.keep:SetTexture(v.icon)
-        m.keep:Show()
-    else
-        m.keep:Hide()
-    end
-    local corner = B.CornerFor(v.action, m.ahOk)
-    m.ah:SetShown(corner == "ah")
-    local b = corner == "letters" and BADGE[v.action]
-    if b then
-        m.badge:SetText(b[1])
-        m.badge:SetTextColor(b[2], b[3], b[4])
-    else
-        m.badge:SetText("")
-    end
 end
 
 -- Calls fn(button, bag, slot) for every visible Blizzard bag slot button.
@@ -262,7 +331,9 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. Bank icon = goes into your bank at your next visit. $ sell, the auctioneer's mark = auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Top left, what Flow will do with it: (o) your current step uses it, the bank icon (goes into your bank at your next visit), "
+            .. "the gold coin (sell), the auctioneer's mark (auction house), DE (disenchant). Top right, what it is: a quest item's !, a profession's icon. "
+            .. "Bottom: spec icons, green arrow up = better, red down = worse, grey dash = same.")
     end
 end
 

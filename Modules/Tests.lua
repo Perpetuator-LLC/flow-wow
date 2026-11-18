@@ -13705,11 +13705,16 @@ end)
 
 ns:Register("test", "bags: an item for the auction house shows the auctioneer's mark, not the letters AH", function(t)
     local B = ns.bagIcons
-    t:eq(B.CornerFor("ah", true), "ah", "the auction house: its picture")
-    t:eq(B.CornerFor("ah", false), "letters", "a game without that picture: the letters, as before")
-    t:eq(B.CornerFor("sell", true), "coin", "sell: the coin")
-    t:eq(B.CornerFor("de", true), "letters", "disenchant: DE")
-    t:eq(B.CornerFor("keep", true), nil, "keep: its own icon, nothing here")
+    -- (Since 0.35.317 each mark is a "bagMark" registration: B.PickMarks.)
+    local list, was = B.MarkList(), B.ahPicture
+    B.ahPicture = true
+    t:eq(B.PickMarks(list, { v = { action = "ah" } }).action, "ah", "the auction house: its picture")
+    B.ahPicture = false
+    t:eq(B.PickMarks(list, { v = { action = "ah" } }).action, "ahLetters", "a game without that picture: the letters, as before")
+    B.ahPicture = was
+    t:eq(B.PickMarks(list, { v = { action = "sell" } }).action, "sell", "sell: the coin")
+    t:eq(B.PickMarks(list, { v = { action = "de" } }).action, "de", "disenchant: DE")
+    t:eq(B.PickMarks(list, { v = { action = "keep" } }).action, nil, "keep: nothing to do with it")
     t:ok(B.AH_FILE:find("\\", 1, true) ~= nil, "the picture's path has its backslashes")
     local host = CreateFrame("Frame")
     local tex = host:CreateTexture()
@@ -14052,4 +14057,40 @@ ns:Register("test", "click: the note for a zone you haven't picked: Quest here p
     t:ok(not bar:IsShown(), "and the note goes")
     Z.dismissed = was
     t:ok(pcall(Z.Check), "looking again runs")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.317: bag marks in two corners: what Flow will do (top left), what
+-- the item is (top right).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: what Flow will do with an item goes top left, what it is top right", function(t)
+    -- "the auctioneer icon, however, is on the right. I think that one should go on the left, and we should make this a generalization"
+    local B = ns.bagIcons
+    t:eq(B.CORNER.action.point, "TOPLEFT", "actions: the top left corner")
+    t:eq(B.CORNER.kind.point, "TOPRIGHT", "what it is: the top right corner")
+    local list = B.MarkList()
+    local groups = {}
+    for _, m in ipairs(list) do
+        t:ok(B.CORNER[m.group] ~= nil, m.key .. ": its group has a corner")
+        groups[m.key] = m.group
+    end
+    for _, key in ipairs({ "step", "bank", "sell", "ah", "ahLetters", "de" }) do
+        t:eq(groups[key], "action", key .. ": an action, top left")
+    end
+    t:eq(groups.what, "kind", "a quest item's ! or a profession's icon: what it is, top right")
+    -- Each corner shows one mark: the first that wants the item.
+    local QUEST = "Interface\\GossipFrame\\ActiveQuestIcon"
+    local pick = B.PickMarks(list, { v = { action = "keep", icon = QUEST }, bank = true })
+    t:ok(pick.action == "bank" and pick.kind == "what", "a quest item going to the bank: the bank top left, the ! top right")
+    pick = B.PickMarks(list, { v = { action = "ah" }, focus = true })
+    t:eq(pick.action, "step", "the item your step uses: its (o) first")
+    pick = B.PickMarks(list, { v = { action = "sell" } })
+    t:ok(pick.action == "sell" and pick.kind == nil, "junk to sell: the coin, and nothing top right")
+    -- A mark that fails to answer doesn't stop the others.
+    pick = B.PickMarks({ { key = "broken", group = "action", wants = function() error("no") end },
+                         { key = "fine", group = "action", wants = function() return true end } }, { v = {} })
+    t:eq(pick.action, "fine", "a mark that errors is passed over")
+    t:eq(next(B.PickMarks({ { key = "x", group = "nowhere", wants = function() return true end } }, { v = {} })), nil,
+        "a mark in a group with no corner shows nowhere")
 end)
