@@ -1897,8 +1897,6 @@ function N.LayoutSub(f, text)
     else
         f.sub:SetWidth(0)
         f.sub:SetPoint("TOP", f.text, "BOTTOM", 0, -2)
-    -- (Long lines go above the arrow: N.LayoutSub, whoever sets the text.)
-    hooksecurefunc(f.sub, "SetText", function(_, text) pcall(N.LayoutSub, f, text) end)
     end
 end
 
@@ -3907,6 +3905,8 @@ local function buildArrow()
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -2)
     f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.sub:SetPoint("TOP", f.text, "BOTTOM", 0, -2)
+    -- (Long lines go above the arrow: N.LayoutSub, whoever sets the text.)
+    hooksecurefunc(f.sub, "SetText", function(_, text) pcall(N.LayoutSub, f, text) end)
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")

@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.35.304
+
+- **Bag items for the auction house show the auctioneer's mark** instead of the letters "AH".
+  (A game without that picture keeps the letters.)
+- Fixed: the arrow's long second line still sat under the step's name. The change in 0.35.302
+  never took effect (Flow's own self-test said so at login); it does now.
+
 ## 0.35.303
 
 - **Flow's menus widen for long lines.** The dungeon run's details (click the line under the

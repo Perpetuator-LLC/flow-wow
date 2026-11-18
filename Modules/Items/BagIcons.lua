@@ -1,7 +1,7 @@
 -- Icons on your bag slots (Blizzard bags; other bag addons aren't covered):
 --   (o) target (top left)     = your current route step wants you to use this item
 --   bank (top left)           = Flow Banker puts it in your bank at your next visit (0.35.300)
---   top right                 = gold coin = sell, AH, DE, or why it is kept:
+--   top right                 = gold coin = sell, the auctioneer's mark = auction house, DE, or why it is kept:
 --                               quest "!" (current/upcoming quest), profession icon (crafting material)
 --   bottom row (gear)         = one icon per spec, with a mark above: green arrow up = better
 --                               than that spec's gear, red arrow down = worse, grey dash = about the same
@@ -50,6 +50,27 @@ local BADGE = {
     de   = { "DE", 0.75, 0.5, 1.0 },
 }
 
+-- Puts the auctioneer's picture on a texture. -> true when the game has one.
+B.AH_ATLASES = { "Auctioneer", "auctioneer" }
+B.AH_FILE = "Interface\\Minimap\\Tracking\\Auctioneer"
+function B.SetAuctionIcon(tex)
+    if tex.SetAtlas and C_Texture and C_Texture.GetAtlasInfo then
+        for _, name in ipairs(B.AH_ATLASES) do
+            if C_Texture.GetAtlasInfo(name) and pcall(tex.SetAtlas, tex, name) then return true end
+        end
+    end
+    tex:SetTexture(B.AH_FILE)
+    return tex:GetTexture() ~= nil
+end
+-- Pure: what the top right corner shows for an action: "coin" (sell), "ah"
+-- (the auctioneer's mark), "letters" (DE, or AH without the picture), nil.
+function B.CornerFor(action, ahPicture)
+    if action == "sell" then return "coin" end
+    if action == "ah" then return ahPicture and "ah" or "letters" end
+    if action == "de" then return "letters" end
+    return nil
+end
+
 local function marks(button)
     if button.flowMarks then return button.flowMarks end
     local m = CreateFrame("Frame", nil, button)
@@ -75,6 +96,13 @@ local function marks(button)
     m.coin:SetSize(14, 14)
     m.coin:SetPoint("TOPRIGHT", -1, -1)
     m.coin:Hide()
+    -- The auction house: the game's auctioneer mark instead of the letters
+    -- "AH" (0.35.304). A client without that picture keeps the letters.
+    m.ah = m:CreateTexture(nil, "OVERLAY")
+    m.ah:SetSize(15, 15)
+    m.ah:SetPoint("TOPRIGHT", 0, 0)
+    m.ahOk = B.SetAuctionIcon(m.ah)
+    m.ah:Hide()
     -- Keep-for-a-reason icon (quest "!", or the profession's icon).
     m.keep = m:CreateTexture(nil, "OVERLAY")
     m.keep:SetSize(14, 14)
@@ -121,6 +149,7 @@ local function clear(button)
     m.badge:SetText("")
     m.coin:Hide()
     m.keep:Hide()
+    m.ah:Hide()
 end
 
 local function paint(button, bag, slot)
@@ -150,7 +179,9 @@ local function paint(button, bag, slot)
     else
         m.keep:Hide()
     end
-    local b = v.action ~= "sell" and BADGE[v.action]
+    local corner = B.CornerFor(v.action, m.ahOk)
+    m.ah:SetShown(corner == "ah")
+    local b = corner == "letters" and BADGE[v.action]
     if b then
         m.badge:SetText(b[1])
         m.badge:SetTextColor(b[2], b[3], b[4])
@@ -231,7 +262,7 @@ ns.commands.bags = function(arg)
         dirty = true
         ns:Print("bag icons " .. arg)
     else
-        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. Bank icon = goes into your bank at your next visit. $ sell, AH auction house, DE disenchant.")
+        ns:Print("/flow bags on|off. Spec icons with marks: green arrow up = better, red down = worse, grey dash = same, per spec. (o) = your current step uses this. Bank icon = goes into your bank at your next visit. $ sell, the auctioneer's mark = auction house, DE disenchant.")
     end
 end
 

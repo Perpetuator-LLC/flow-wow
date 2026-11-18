@@ -13477,3 +13477,35 @@ ns:Register("test", "click: a menu widens for a long line, and a line still cut 
     if ns.dungeons and ns.dungeons.ModeItems then t:ok(pcall(ns.dungeons.ModeItems, ns.dungeons), "the dungeon run's menu builds") end
     t:ok(type(ns.commands.api) == "function", "/flow api is there (its world marker lines are read in the diagnostics)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.304: the auction house mark on bag items is a picture, not "AH".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: an item for the auction house shows the auctioneer's mark, not the letters AH", function(t)
+    local B = ns.bagIcons
+    t:eq(B.CornerFor("ah", true), "ah", "the auction house: its picture")
+    t:eq(B.CornerFor("ah", false), "letters", "a game without that picture: the letters, as before")
+    t:eq(B.CornerFor("sell", true), "coin", "sell: the coin")
+    t:eq(B.CornerFor("de", true), "letters", "disenchant: DE")
+    t:eq(B.CornerFor("keep", true), nil, "keep: its own icon, nothing here")
+    t:ok(B.AH_FILE:find("\\", 1, true) ~= nil, "the picture's path has its backslashes")
+    local host = CreateFrame("Frame")
+    local tex = host:CreateTexture()
+    local ok, has = pcall(B.SetAuctionIcon, tex)
+    t:ok(ok and type(has) == "boolean", "setting the picture answers whether the game has it: " .. tostring(has))
+    host:Hide()
+end)
+
+ns:Register("test", "arrow: every new text on the second line lays it out (the hook is on the arrow)", function(t)
+    local N = ns.nav
+    local f = N.arrowFrame
+    if not (f and f.sub) then t:ok(true, "(no arrow built yet)") return end
+    local was = f.sub:GetText()
+    f.subAbove = nil
+    f.sub:SetText("12 yd")
+    t:eq(f.subAbove, false, "a short line was laid out when it was set")
+    f.sub:SetText(string.rep("a long way round ", 6))
+    t:eq(f.subAbove, true, "and a long one")
+    f.sub:SetText(was or "")
+end)
