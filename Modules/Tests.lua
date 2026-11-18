@@ -13748,3 +13748,92 @@ ns:Register("test", "minimap: no dot of the ring sits straight above or below th
     local straight = P.RingPoints(8, 11, 0)
     t:near(straight[3][1], 0, 0.01, "(unturned, a dot would sit straight above)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.314: flight masters on the world map.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map flights: flight paths you have, ones to learn, and your next step's flight", function(t)
+    -- "Don't we have like a Flow Map button on the map or something that can show flight paths?"
+    local MF = ns.mapFlights
+    if not MF then t:ok(false, "MapFlights.lua not loaded") return end
+    local known = { ["Crossroads, The Barrens"] = { cont = 1, wx = 0, wy = 0 },
+                    ["Camp Taurajo, The Barrens"] = { cont = 1, wx = 3000, wy = 0 } }
+    local masters = {
+        { name = "Devrak", map = 1413, x = 0.51, y = 0.30, cont = 1, wx = 40, wy = 10 },                 -- the Crossroads' master
+        { name = "Omusa Thunderhorn", map = 1413, x = 0.45, y = 0.58, cont = 1, wx = 3100, wy = -50 },   -- Camp Taurajo's
+        { name = "Bragok", map = 1413, x = 0.63, y = 0.37, cont = 1, wx = 1500, wy = 900 },              -- not learned
+        { name = "Talked To", map = 1413, x = 0.30, y = 0.30, cont = 1, wx = -2000, wy = 0 },            -- you talked to them
+        { name = "Bragok", map = 1413, x = 0.63, y = 0.37, cont = 1, wx = 1510, wy = 905 },              -- (listed twice)
+    }
+    local learned = function(fm) return fm.name == "Talked To" end
+    local air = { from = "Crossroads, The Barrens", to = "Camp Taurajo, The Barrens", sec = 240 }
+    local pins = MF.Pins(known, masters, learned, { Bragok = true }, air)
+    t:eq(#pins, 3, "two you have and one to learn, once")
+    local by = {}
+    for _, p in ipairs(pins) do by[p.name] = p end
+    local cross, taurajo = by["Crossroads, The Barrens"], by["Camp Taurajo, The Barrens"]
+    t:ok(cross and cross.kind == "have" and taurajo and taurajo.kind == "have", "the flight paths you have")
+    if not (cross and taurajo) then return end
+    t:eq(cross.npc, "Devrak", "with their flight master's name")
+    t:eq(cross.map, 1413, "and map, for the arrow")
+    t:eq(taurajo.npc, "Omusa Thunderhorn", "each their own")
+    t:ok(by.Bragok and by.Bragok.kind == "new" and by.Bragok.onRoute, "one to learn, whose step is on the route")
+    t:ok(not by["Talked To"], "one you talked to: you have it")
+    t:ok(not by.Devrak and not by["Omusa Thunderhorn"], "the masters of your flight paths aren't ones to learn")
+    t:eq(cross.role, "from", "your next step's flight: where you'd take off")
+    t:eq(taurajo.role, "to", "and land")
+    t:eq(pins[1].kind, "new", "drawn first: the ones to learn")
+    t:ok(pins[#pins].role ~= nil, "last, on top: your next step's flight")
+    local roles = 0
+    for _, p in ipairs(MF.Pins(known, masters, learned, nil, nil)) do if p.role then roles = roles + 1 end end
+    t:eq(roles, 0, "no flight for your next step: no line")
+    t:eq(#MF.Pins(nil, nil), 0, "nothing known: no pins")
+    -- The tooltips.
+    local title, lines = MF.TipLines(taurajo, "Turn in: Lost in Battle", "4 min")
+    t:eq(title, "Camp Taurajo, The Barrens", "a tooltip's title")
+    t:ok(table.concat(lines, " "):find("Land here for your next step: Turn in: Lost in Battle", 1, true), "where you'd land")
+    _, lines = MF.TipLines(cross, nil, "4 min")
+    t:ok(table.concat(lines, " "):find("quicker by air, 4 min in all", 1, true), "where you'd take off")
+    _, lines = MF.TipLines(by.Bragok)
+    t:ok(table.concat(lines, " "):find("don't have this flight path yet", 1, true), "one to learn says so")
+    t:ok(table.concat(lines, " "):find("step on your route", 1, true), "and that its step is on your route")
+    t:eq(MF.RoleLabel("to"), "Land here: next step", "the words by where you'd land")
+    t:eq(MF.RoleLabel(nil), nil, "none by the others")
+    -- A click points Flow's arrow there (Flow's own waypoint, stood in for).
+    local keepW, got = ns.waypoint, nil
+    ns.waypoint = { Set = function(_, map, x, y, note) got = { map, x, y, note } end }
+    local okP = pcall(MF.PointAt, by.Bragok)
+    ns.waypoint = keepW
+    t:ok(okP and got and got[1] == 1413 and got[4] == "Bragok (flight master)", "clicking one points the arrow at them")
+    ns.waypoint = { Set = function(_, map, x, y) got = { map, x, y } end }
+    got = nil
+    local bare = { name = "Somewhere", kind = "have" }
+    okP = pcall(MF.PointAt, bare, 1414, 0.4, 0.6)
+    ns.waypoint = keepW
+    t:ok(okP and got and got[1] == 1414 and got[2] == 0.4, "one whose master Flow doesn't know: where it is on the map shown")
+end)
+
+ns:Register("test", "click: the flight masters button on the world map shows and hides them", function(t)
+    local MF = ns.mapFlights
+    if not MF then t:ok(false, "MapFlights.lua not loaded") return end
+    local was = ns.db.nav.mapFlights
+    local okB, b = pcall(MF.Button)
+    t:ok(okB and b ~= nil, "the button is made: " .. tostring(b))
+    if not (okB and b) then return end
+    t:ok(b:GetParent() == WorldMapFrame, "on the world map")
+    ns.db.nav.mapFlights = false
+    local ok = pcall(b:GetScript("OnClick"), b)
+    t:ok(ok and MF.On(), "a click shows them")
+    ok = pcall(b:GetScript("OnClick"), b)
+    t:ok(ok and not MF.On(), "another hides them")
+    t:ok(pcall(b:GetScript("OnEnter"), b), "its tooltip builds")
+    pcall(b:GetScript("OnLeave"), b)
+    if not WorldMapFrame:IsShown() then
+        local okD, drawn = pcall(MF.Draw)
+        t:ok(okD and drawn == nil, "with the map closed nothing is drawn")
+    end
+    ns.db.nav.mapFlights = was
+    pcall(MF.Set, was == true)
+    ns.db.nav.mapFlights = was
+end)

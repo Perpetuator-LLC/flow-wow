@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.314
+
+- **Flight masters on the world map.** A new Flow button on the world map, above the route
+  on/off button, shows them (click again to hide them; it's off until you click it):
+  green rings for the flight paths you have, light blue rings for the flight masters whose path
+  you don't have yet (free: talk to them once; the same colour as the route's "Learn the flight
+  path" steps), and, in the route's colour joined by a line, the flight your next step is
+  quicker by ("Fly from here", "Land here: next step"). Hover one for the flight master's name
+  and what it's for; click it to point Flow's arrow there. Also "Flight masters on the world
+  map" in Flow Settings (Finding your way). Flight masters you don't have yet are shown for the
+  continent you're on.
+
 ## 0.35.313
 
 - Fixed: two of Flow's self-tests failed at login after 0.35.311 (the red line in chat). The

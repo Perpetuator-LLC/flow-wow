@@ -2219,3 +2219,9 @@ end
 
 -- Timed for /flow perf (with "keeping up with you" and "route dots").
 M.Redraw = ns.perf.Wrap("world map (full redraw)", M.Redraw)
+
+-- For Flow's other layers on the map (MapFlights.lua: flight masters): where
+-- a spot falls on the map shown, the map's canvas and zoom, the strata the
+-- route is drawn in, and the Flow Router's button (theirs stacks above it).
+M.ToMap, M.Canvas, M.CanvasScale, M.AboveMap = toMap, canvas, canvasScale, aboveMap
+function M.DrawerButton() return button end
