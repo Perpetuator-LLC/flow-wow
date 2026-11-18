@@ -16,7 +16,8 @@ Flow for WoW is a separate project from Flow Engine.
   stance bar button glows. The border colour says why: green attack, light blue buff, gold heal,
   fast gold pulse heal now. A big cooldown timer sits on the icon (and, when it suggests
   re-casting a buff, the buff's last 30 seconds in light blue), and a crossed-swords badge on
-  its right shows auto attack is on.
+  its right shows auto attack is on. A line by the icon always names the spell the press casts
+  ("Wrath", "Regrowth on Beryl"), and changes to a held modifier's spell.
 - **Auto attack at the pull**: with a new enemy targeted and no fight yet, the first press of
   your key turns auto attack on (the game's own Start Attack: on, never off), and your opener
   comes with the next press. WoW: Forever doesn't start it when you cast, and the key can't
@@ -30,15 +31,25 @@ Flow for WoW is a separate project from Flow Engine.
   **C+S** (Ctrl and Shift together) another spell Flow may ask for in the fight, so its
   advice is on a key and not only on your bar. Hold
   a modifier and the big icon becomes that spell. In a fight they are all set at the pull;
-  the one Flow advises pulses gold. A class says what its fights use (`fightKeys`).
+  the one Flow advises pulses gold. A class says what its fights use (`fightKeys`). Each small
+  icon shows its cooldown (the game's own sweep and countdown, so it works in a fight), goes
+  grey when it can't be cast and red when out of range.
 - **Cast button and key**: click the icon or press your Flow key to cast the suggestion. Set the
   key in `/flow settings`; it warns you about conflicts and never changes your own key bindings.
   In combat WoW freezes what a key casts, so at the pull Flow locks it to a real attack (a seal
   if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
   Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it.
-- **Self button** (off by default: `/flow buffbutton on`): buffs and weapon stones, oils and buff
-  items move to their own blue button left of the icon, so the Flow key is only your fight
-  (seals, shouts, shields and Hunter's Mark stay with it). Give it a key with `/flow buffkey Q`.
+- **Target button and self button**: Flow's icon is the target button (attacks on an enemy;
+  heals, buffs and cures on a friendly target and your group). The self button
+  (`/flow selfbutton on`, a key with `/flow selfkey Q`) is a second, blue button for you: your
+  heals, food, bandage, cures, buffs, weapon stones and oils. By default it's docked under the
+  target button as one block, with Shift, Ctrl, Alt and C+S written once between the two rows;
+  Ctrl + mouse wheel over it gives it a size of its own. Both have the same edge and size, and
+  a cast bar along the bottom.
+- **Buffs for your group**: out of a fight, with nothing else to press, the target button casts
+  your buffs straight on whoever in your party lacks one (Mark of the Wild for everyone, Thorns
+  for the tank). When the game refuses one as weaker than what they have, Flow moves on to the
+  next buff or person.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
   target, with a Make N button for exactly that many, and tells you when to stop.
 - **Flow Actions** (same key, out of combat, at your route step): at a fishing spot it equips
@@ -108,7 +119,11 @@ Flow for WoW is a separate project from Flow Engine.
   "Finish the area you're in first". Profession plans use what's in your bags and bank and smelt
   ore into bars. A step that needs something first goes after the
   step that provides it ("after Bear Form"), or waits with the reason: training Demoralizing
-  Roar and Maul comes after the class quest that teaches Bear Form.
+  Roar and Maul comes after the class quest that teaches Bear Form. A quest that needs you to
+  bring something (a bauble from a lake, half a pendant) gets a "get it first" step where it's
+  found; when that's on another continent, the steps that need it wait and say where it is and
+  how to cross. Each trail stretch remembers the quickest you've covered it, so of two known
+  ways the arrow takes the faster; a nearly full trail network thins its straight runs.
 - **Ways between maps**: Flow learns where you cross from one map into another on foot or by
   lift (up Thunder Bluff, through a pass into the next zone). A step in another part of the
   map goes by the way you've used: the arrow leads to the lift, the route counts the ride (so
@@ -121,6 +136,8 @@ Flow for WoW is a separate project from Flow Engine.
   (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
   to. `/flow rides`.
   On any flight the arrow says where you're flying, when you land and what comes after.
+  With your next step on another map, the world map's dotted line still leaves from you,
+  through the gate, to the map's edge; "Show on map" for a step elsewhere says which zone it's in.
 - **Hearthstone**: in a town with an inn, when your stone is set somewhere else, the route
   gets a "Set hearthstone" step (Horde and Alliance towns and cities). A city beats a
   village (in Thunder Bluff with your home in Bloodhoof Village, you're told to set it
@@ -138,8 +155,16 @@ Flow for WoW is a separate project from Flow Engine.
   lead-in quests go on the route (plus any breadcrumb whose giver is next to one of those
   steps), then the entrance; inside, the route shows only that dungeon's quests. Wings are
   told apart by their bosses. In a group, "Share quests" shares the run quests party members
-  lack. `/flow dungeons` lists the runs with each quest and what you still have to pick up;
-  `/flow dungeons <name>` prepares one, `/flow dungeons off` cancels it.
+  lack. `/flow dungeons` lists the runs with each quest and what you still have to pick up
+  ("Quests: 2/5", and what you've done before); `/flow dungeons <name>` puts you on that run's
+  dungeon route, `leave` and `back` step off and on it, `off` cancels it. While a run is
+  prepared a line under the arrow says so ("Dungeon route: Ragefire Chasm · Quests: 2/5"): click
+  it for the run's quests. The dungeon route keeps your errands on the way (training that's
+  waiting, selling and repairs, your bank), and "Ask my group in chat who has its quests" says
+  one line in party chat.
+- **Zones**: the Flow menu's Zones section lists each zone where you have quest steps, with how
+  many and their levels ("Stonetalon Mountains: 6 steps (2 to accept), levels 17-22"). Untick a
+  zone to leave it out of the route; its quests stay in your log. `/flow zones`.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line
   on the map, then goes back to the route when you arrive or clear it.
@@ -181,7 +206,9 @@ Flow for WoW is a separate project from Flow Engine.
   the trail stronger or fainter. The stretch from you follows the way the arrow takes (a
   trail you've walked, a gate, a cave's entrance), not a straight line; numbered waypoints with quest levels (`3 [9]`) and pickups
   (`!2`); labels push each other apart so they don't overlap. Quest areas are drawn as clouds
-  with borders; the minimap shows your current step's area the same way, and the (o) marker.
+  with borders; the minimap shows your current step's area the same way. On the minimap the
+  step in view is ringed with small dots, the middle left clear for the game's own icon and its
+  above/below arrow. Hover a step in the Flow Router and the map shows that step alone.
 - **Step card**: Flow's view of a step (drag it by its title). Its "Show on map" and "Select in
   quest log" links open the map when it's closed (the game opens its own window: Flow passes
   your click to the game's own button, so its code never runs the map). The arrow's own panel is a drawer
@@ -203,8 +230,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **The Flow menu**: right-click the arrow, the Flow Tracker or a step. The thing you clicked
   is shown open; under it the same sections everywhere, in one order, each a row that pops
   out when you point at it or click it ("Order  Shortest path"): Order, Route includes, Go to
-  the nearest..., Your waypoint, Dungeons, Party, Steps on the map, Arrow, Keys, Extras
-  (NPCs read aloud: text-to-speech), Flow windows.
+  the nearest..., Your waypoint, Dungeons, Party, Zones, Steps on the map, Buttons (the self
+  button on or off, docked or not), Flow windows. The arrow's look and the key bindings are in
+  Flow Settings.
 - **Party routes**: share your quests as a party route if you want one; your own route stays
   separate. Anyone following it can edit it; nobody owns it.
 - **Your own waypoint**: `/flow way repair` or `vendor` (or right-click the arrow) for the nearest one; Ctrl- or Alt-click the world map, paste coordinates (`/way Elwynn Forest
@@ -222,12 +250,23 @@ Flow for WoW is a separate project from Flow Engine.
   (`/flow prof plan`).
 - **Guides** for Blacksmithing, Mining, First Aid, Cooking, Fishing and Herbalism, plus the
   recipes Flow has seen in your profession windows.
+- **Gathering keeps up with the zone**: when a herb grows where you are that your skill can't
+  pick, the route gets a step that names what to gather ("Pick Earthroot, Peacebloom or
+  Silverleaf: Herbalism 35 -> 50 (Mageroyal here needs 50)"), taken in on the way behind your
+  quests and shown as an area on the map; an empty spot is passed over after a few seconds.
+  When your route is about to take you to a zone whose herbs are beyond you, that step comes
+  before you leave.
+- **Materials from the auction house**: a material nothing drops or sells becomes a step at an
+  auctioneer, on a price Flow has seen ("Buy 57 Wool Cloth at the auction house (about 58s)").
 - **Tools**: reminds you to buy the Mining Pick, Blacksmith Hammer or Fishing Pole (and a lure),
   and knows when you have one.
 - **Chained professions**: fish you'll catch levelling Fishing count toward Cooking, so there's
   less meat to farm. Cooking goes to a real fire unless you can make a campfire.
 - **Exactly enough**: the profession window gets a Flow panel with a Make N button for exactly
   what reaches your target, and a "that's enough" notice when you get there.
+- **The professions card** pops up only for a main profession you've still to learn (with fewer
+  than two) or when Flow's suggestion changes, never to train a tier: that's on your route and
+  in Flow Improvements.
 
 ### Gear and items
 - **Gear scores per role** in every tooltip, shown with your spec icons (Retribution, Holy,
@@ -242,27 +281,35 @@ Flow for WoW is a separate project from Flow Engine.
 - **Bag icons**: spec marks per role, the (o) marker on an item your current step wants you to
   use, gold coin to sell, AH, DE, a quest "!" for items your quests need, and profession icons
   for materials and tools. The tooltip lists every reason to keep an item (e.g. "Linen for
-  First Aid").
+  First Aid"). A material your skill has moved past is let go ("your First Aid is past it"), a
+  spare bag no bigger than the ones you wear is marked to sell, and something only another
+  class can use ("Classes: Mage") goes to the auction house or a vendor.
+- **Leftover quest items**: a quest item no quest in your log uses is looked up in the quest
+  data: kept, with the quest named, when one you haven't done uses it; sold or "destroy it"
+  only when its quest is done. The bags and Flow Improvements say the same thing.
+- **Loot rolls**: an upgrade gets the green arrow and its figure on the roll window, with
+  "Flow: upgrade: Need". Flow never rolls for you.
 - **Weapon skills**: Flow knows which weapon skills you've trained; an upgrade that needs one
   puts a weapon master step on the route. Weapons your class can never use are marked to sell.
 - **Inventory** (`/flow inventory`): every item in your bags with what Flow would do (sell,
   auction house, keep), why and which rule said so, the vendor price and the last auction
   price. Saved with the diagnostics.
 - **A second key for heals and potions**: turn on the self button and give it a key
-  (`/flow buffbutton on`, `/flow buffkey <key>`). In a fight that key is your quickest heal;
+  (`/flow selfbutton on`, `/flow selfkey <key>`). In a fight that key is your quickest heal;
   Shift, Ctrl, Alt and Ctrl + Shift with it cast your heal over time, your other heal, your
   healthstone or potion, and your bandage (`/flow carekeys`). Out of a fight the two keys
   split the same way: the self button's key is for **you** (heal up, eat, drink, bandage, a
   cure for yourself, your buffs, fishing), Flow's key is for **your target** (attacks on an
   enemy; heals, buffs and cures on a friendly player you target) and for **your group** (their
   buffs, cast straight on whoever is missing one).
-- **Flow Meters**: in a group and at training dummies, two small lists: threat on your
-  target (pets too) and damage per second (the top two and you), from the game's own counts.
-  Right-click for total damage, healing per second or total healing.
+- **Flow Meters**: two small lists, threat on your target (pets too) and damage, from the
+  game's own counts. Right-click them to choose when they show (in combat, in a group, always),
+  2, 5 or 10 players (the group's row on top), what they count (damage per second, total
+  damage, healing per second, total healing), and this fight or all fights since a reset.
 - **Your threat on enemy nameplates**: in a group, in a fight, a small number at the right of
   each enemy's nameplate: your threat as a share of whoever it's attacking, coloured by where
-  you stand (tanking: green yours, orange losing it, red lost; otherwise red means it's on
-  you). `/flow threat on|off`.
+  you stand (tanking: green yours, orange losing it, red lost; otherwise green, yellow from
+  50%, red above 90%, flashing at 100%). `/flow threat on|off`.
 - **How many you have**: every item's tooltip says how many you have, split between your bags
   and your bank.
 - **Your buffs on a player's tooltip**: hover a friendly player and see, for each buff you give
@@ -274,8 +321,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **Flow Banker**: at a bank it lists what you won't need soon (materials Flow keeps for
   later that no step on your route uses) and deposits it at a click; the route adds a bank
   step when one is on your way. Away from a bank its "In your bank" view shows what was there
-  when you last opened it, and "Auction prices" what Flow last saw at the auction house. A
-  Flow Banker tab on your bags opens it (`/flow banker`).
+  when you last opened it (laid out like the bank, your things from the top left), and
+  "Auction prices" what Flow last saw at the auction house. A Flow Banker tab on your bags and
+  on the bank window opens it (`/flow banker`). An NPC the quest data calls a banker who opens
+  no bank is learned as not one.
 - **Flow Seller**: at a vendor Flow auto-sells grey junk and everything else it marks "sell"
   (outgrown gear, food and drink you've outgrown...), 12 a visit, the size of the buyback tab.
   It never sells profession tools or materials you need. Green gear and better materials go
@@ -283,7 +332,8 @@ Flow for WoW is a separate project from Flow Engine.
   the listing fee; with none known they're vendored (rare gear is always held). Ammunition
   your class can't shoot and other classes' spell reagents are sold too. Buy any item back with one click, and
   Flow then never sells it again. Auto-sell has its own switch on the drawer and in Options.
-  With full bags a "sell at a merchant" step goes on the route.
+  With full bags a "sell at a merchant" step goes on the route. After 12 sales the drawer says
+  why it stopped and what selling the rest costs you.
 - **Skill books**: tells you to hold "+N skill" items until the last points before a cap.
 
 ### Progress advice
@@ -312,11 +362,13 @@ Flow for WoW is a separate project from Flow Engine.
 - **Each character keeps its own**: fights, trainer, recipes, profession plan, role, hidden
   steps and the like are saved per character, so "Ways to improve" and the route are about the
   character you're on. Settings, learned trails and NPC places are shared by all of them.
-- **Options > AddOns > Flow**: Flow's options, grouped by when you use them (your easy key, in
+- **Options > AddOns > Flow**: Flow's options, grouped by when you use them (easy keys: the
+  target and self buttons' four keys, hover-to-bind and the keys bound to spells; in
   a group, finding your way, quests, loot and selling, new spells and professions, what's on
   your screen), and, kept apart, Flow's suggested WoW
   settings (auto loot, nameplates, target of target, camera zoom, the camera staying where you
-  put it, the low-health warning, the Interact key reaching objects, timestamps...) with a "Use
+  put it, the low-health warning, health and mana numbers on your and your target's frames,
+  the Interact key reaching objects, timestamps...) with a "Use
   Flow's suggestions" button. When an update adds a suggestion, the page shows once more.
 - **Quests accepted and turned in for you**: talk to a quest giver and Flow turns in your
   finished quests (you pick when there's a choice of rewards), then accepts their new ones (not
@@ -334,6 +386,7 @@ Flow for WoW is a separate project from Flow Engine.
   bar**. `/flow keys` lists the keys that cast a spell directly, not from a bar (the game's Key
   Bindings window doesn't show those).
 - **Colour-blind palette** for the route (in `/flow settings`).
+- **Tooltips with room**: a tooltip Flow opens is wide enough for its sentences.
 - A short intro on the arrow at login (version and status), `/flow help`, `/flow settings`, chat timestamps, and Ctrl-drag to move
   any Flow element.
 - **Self-tests**: `/flow test` runs Flow's built-in checks; they also run on every `/reload`.
@@ -354,7 +407,9 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow action`, `/flow advice`, `/flow way` (`repair`, `vendor`, `clear`), `/flow map`,
 `/flow nav xp|distance|northup|unhide|sort|steps`, `/flow prof plan`, `/flow gear sets`, `/flow sell`,
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
-`/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`.
+`/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`,
+`/flow dungeons`, `/flow zones`, `/flow threat`, `/flow meters`, `/flow selfbutton`, `/flow selfkey`,
+`/flow leftovers`, `/flow banker`, `/flow inventory`.
 
 ## For developers
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) (it lists what review keeps finding, so your pull
