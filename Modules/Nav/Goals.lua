@@ -282,6 +282,7 @@ local function questGoals(db, q, goals, opts)
     -- Flow planned only the objectives. Now, while you don't carry it, getting
     -- it is a step of its own where it's found, and the quest's other steps
     -- wait for it.
+    local noSpotNeeds = {}   -- what it needs first that Questie can't place either (names)
     if not opts.who then
         local needKeys = {}
         for _, itemId in ipairs(ns.quests.SourceItems(quest)) do
@@ -307,6 +308,7 @@ local function questGoals(db, q, goals, opts)
                     needKeys[#needKeys + 1] = key
                 elseif #points == 0 then
                     cant(string.format("it needs %s first, and Questie has no spot for where that's found", name))
+                    noSpotNeeds[#noSpotNeeds + 1] = name
                 end
             end
         end
@@ -349,6 +351,7 @@ local function questGoals(db, q, goals, opts)
                         details = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(m.text) or "?") },
                     }
                     goals[#goals + 1] = g
+                    m.needs = #noSpotNeeds > 0 and noSpotNeeds or nil
                     ns.quests.Unplaced(g, q.id, tonumber(m.key:match(":(%d+)$")), m)
                 end
             end
@@ -446,9 +449,28 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
         g.blockedShort = "from battlegrounds"
         return "battleground"
     end
+    -- It needs something first that nobody can place either (0.35.309: the
+    -- row said "no known spot" for Stalk With The Earthmother, which waits on
+    -- a Raw Brilliant Smallfish): the row names what to get.
+    local needs = m and m.needs
+    if needs and #needs > 0 then
+        g.blockedBy = string.format("Flow doesn't know where: first you need %s, and Questie has no spot for %s. Your quest log says how. Flow learns the spot when you do it.",
+            ns.quests.AndList(needs), #needs == 1 and "where that's found" or "where those are found")
+        g.blockedShort = #needs == 1 and ("needs " .. needs[1]) or string.format("needs %d things first", #needs)
+        table.insert(g.details, "First you need: " .. ns.quests.AndList(needs) .. ".")
+        return "unknown"
+    end
     g.blockedBy = "Flow doesn't know where: " .. tostring(m and m.why or "no spot") .. ". Your quest log says how. Flow learns the spot when you do it."
     g.blockedShort = ns.nav.NO_SPOT
     return "unknown"
+end
+
+-- Pure: { "A", "B", "C" } -> "A, B and C".
+function ns.quests.AndList(list)
+    local n = #(list or {})
+    if n == 0 then return "" end
+    if n == 1 then return tostring(list[1]) end
+    return table.concat(list, ", ", 1, n - 1) .. " and " .. tostring(list[n])
 end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 

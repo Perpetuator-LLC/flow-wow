@@ -9623,6 +9623,20 @@ ns:Register("test", "quest spots: learned where you did it; dungeon and battlegr
     t:eq(ns.quests.Unplaced(g, 1, 1, m, false, false), "unknown", "nothing known")
     t:eq(g.blockedShort, ns.nav.NO_SPOT, "still 'no known spot'")
     t:ok(g.blockedBy:find("learns the spot", 1, true) ~= nil, "and it says Flow learns it when you do it")
+    -- 0.35.309: it waits on something nobody can place: the row says what.
+    g = stop()
+    local fish = { text = "0/1 Fish Chunks", why = "Questie has no spot for Fish Chunks", needs = { "Raw Brilliant Smallfish" } }
+    t:eq(ns.quests.Unplaced(g, 1, 1, fish, false, false), "unknown", "still not placed")
+    t:eq(g.blockedShort, "needs Raw Brilliant Smallfish", "the row names what to get first")
+    t:ok(g.blockedBy:find("first you need Raw Brilliant Smallfish", 1, true) ~= nil and g.blockedBy:find("has no spot for", 1, true) ~= nil,
+        "the reason too (and still reads as a step with no place, for the route check)")
+    t:eq(ns.nav.ShortBlocked(g), "needs Raw Brilliant...", "cut to the row's width at a word")
+    g = stop()
+    ns.quests.Unplaced(g, 1, 1, { text = "0/1 Incense created", why = "x", needs = { "A", "B", "C", "D" } }, false, false)
+    t:eq(g.blockedShort, "needs 4 things first", "several: how many")
+    t:eq(g.details[#g.details], "First you need: A, B, C and D.", "and the card lists them")
+    t:eq(ns.quests.AndList({ "A", "B" }), "A and B", "two")
+    t:eq(ns.quests.AndList({}), "", "none")
     t:eq(ns.dungeons.Of(-1), nil, "a quest that is no dungeon's: none")
 end)
 
@@ -12979,10 +12993,12 @@ ns:Register("test", "route: steps waiting for one across the sea are held, with 
     -- The words.
     local why, short = N.AwayText("Get Half Pendant of Aquatic Endurance", "Silverpine Forest", "Eastern Kingdoms", "Zeppelin from Orgrimmar.", true)
     t:eq(why, "first: Get Half Pendant of Aquatic Endurance. That's in Silverpine Forest, Eastern Kingdoms. Zeppelin from Orgrimmar.", "waiting: what first, where, how to cross")
-    t:eq(short, "waits for a step overseas", "in short")
+    t:eq(short, "after Silverpine Forest", "in short: the zone it waits on")
     why, short = N.AwayText("x", "Silverpine Forest", "Eastern Kingdoms", nil, false)
     t:eq(why, "It's in Silverpine Forest, Eastern Kingdoms, not on this continent.", "the step itself: where")
-    t:eq(short, "overseas", "in short")
+    t:eq(short, "in Silverpine Forest", "in short: the zone")
+    t:eq(select(2, N.AwayText("x", nil, nil, nil, false)), "overseas", "zone unknown: overseas")
+    t:eq(select(2, N.AwayText("x", nil, nil, nil, true)), "waits for a step overseas", "and waiting on one")
     t:eq(N.AwayCont({ points = {} }, 1), nil, "a step with no place: not overseas")
     t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 } } }, 1), 0, "every place on another continent: that continent")
     t:eq(N.AwayCont({ points = { { wx = 1, wy = 1, cont = 0 }, { wx = 2, wy = 2, cont = 1 } } }, 1), nil, "one place here: not overseas")

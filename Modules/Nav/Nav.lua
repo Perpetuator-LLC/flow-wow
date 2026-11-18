@@ -917,13 +917,18 @@ function N.AwayCont(g, mine)
     end
     return other
 end
--- Pure: the words, from a step's text, its zone, its continent and how to cross.
+-- Pure: the words, from a step's text, its zone, its continent and how to
+-- cross. The row's few words name the zone when it's known (0.35.309: three
+-- rows said "overseas" and "waits for a step overseas", and only the tooltip
+-- said Silverpine Forest).
 function N.AwayText(text, zone, continent, hint, waiting)
     local where = (zone and (zone .. ", ") or "") .. (continent or "another continent")
     if waiting then
-        return string.format("first: %s. That's in %s.%s", text, where, hint and (" " .. hint) or ""), "waits for a step overseas"
+        return string.format("first: %s. That's in %s.%s", text, where, hint and (" " .. hint) or ""),
+            zone and ("after " .. zone) or "waits for a step overseas"
     end
-    return string.format("It's in %s, not on this continent.%s", where, hint and (" " .. hint) or ""), "overseas"
+    return string.format("It's in %s, not on this continent.%s", where, hint and (" " .. hint) or ""),
+        zone and ("in " .. zone) or "overseas"
 end
 function N.AwayWords(wait, waiting)
     local pt = wait.points and wait.points[1]

@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.309
+
+- **Locked steps say more in their row.** A step across the sea names the zone: "in Silverpine
+  Forest", and the steps waiting on it "after Silverpine Forest" (they said "overseas" and
+  "waits for a step overseas"). A quest step Flow can't place because it needs something first
+  that nobody knows the place of now says what: "needs Raw Brilliant Smallfish" (Stalk With The
+  Earthmother) or "needs 4 things first" (Traditions of the Bluff, with the four listed on its
+  card), instead of "no known spot".
+
 ## 0.35.308
 
 - **`/flow audioreset` brings WoW's sound back.** When your speakers go away and come back (a
