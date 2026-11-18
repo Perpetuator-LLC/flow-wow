@@ -1,6 +1,16 @@
 # Changelog
 
 
+## 0.35.312
+
+- **Your next step's flight master is ringed on the flight map.** Open a flight map and the
+  flight master that lands you nearest your next step (the one the arrow points at) gets a
+  slowly turning ring of dots in the route's colour, with the step's name under it ("Flow: Turn
+  in: The Ashenvale Hunt"). Nothing is ringed when the step is about as quick to walk to from
+  the flight master you're standing at. The ring takes no clicks: click the flight master as
+  always. Off: "Ring your next step's flight master on the flight map" in Flow Settings
+  (Finding your way).
+
 ## 0.35.311
 
 - **Finish the zones you pick first.** In the Flow menu, Order's "Finish the area you're in

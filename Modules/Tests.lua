@@ -13151,6 +13151,47 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
     N.planDirty = true
 end)
 
+local taxiTestButton   -- (made once: a test may not make a new frame every run)
+ns:Register("test", "flight map: your next step's flight master gets a ring", function(t)
+    -- "it would be really nice if the target destination flight path that is
+    -- recommended for my next flow item was somehow illuminated, circled"
+    local TM = ns.taxiMark
+    if not TM then t:ok(false, "TaxiMark.lua not loaded") return end
+    local nodes = {
+        { name = "Crossroads", cont = 1, wx = 0, wy = 0 },
+        { name = "Camp Taurajo", cont = 1, wx = 2000, wy = 0 },
+        { name = "Ratchet", cont = 1, wx = 0, wy = 1500 },
+        { name = "Undercity", cont = 0, wx = 2100, wy = 0 },
+    }
+    local step = { cont = 1, wx = 2100, wy = 50 }
+    local name, yd = TM.Pick(nodes, "Crossroads", step, function() return 60 end, 7, 0.8)
+    t:eq(name, "Camp Taurajo", "the one that lands you nearest the step")
+    t:ok(yd and yd > 100 and yd < 120, "and how far from it")
+    t:eq(TM.Pick(nodes, "Camp Taurajo", step, function() return 60 end, 7, 0.8), nil, "standing at the nearest one: nothing to ring")
+    t:eq(TM.Pick(nodes, "Crossroads", { cont = 1, wx = 300, wy = 0 }, function() return 120 end, 7, 0.8), nil,
+        "a step a short walk from here: no flight")
+    t:eq(TM.Pick(nodes, "Crossroads", { cont = 5, wx = 0, wy = 0 }), nil, "a step on another continent: none on this map")
+    t:eq(TM.Pick(nodes, "Crossroads", nil), nil, "no step: nothing")
+    t:eq(TM.Pick(nodes, "Crossroads", step, nil, 7), "Camp Taurajo", "flight time not known yet: the nearest still")
+    t:eq(TM.Label("Turn in: The Ashenvale Hunt"), "Flow: Turn in: The Ashenvale Hunt", "the words under the ring")
+    t:ok(#TM.Label(string.rep("word ", 20)) <= #"Flow: " + TM.LABEL_MAX, "a long step's name is cut")
+    t:ok(pcall(TM.Button, "Crossroads"), "looking for the game's button runs with no flight map open")
+    -- The ring itself, around a button of the tests' own.
+    if not taxiTestButton then
+        taxiTestButton = CreateFrame("Button", nil, UIParent)
+        taxiTestButton:SetSize(16, 16)
+        taxiTestButton:SetPoint("CENTER", UIParent, "CENTER", 0, -2000)   -- (off the screen)
+    end
+    taxiTestButton:Show()
+    t:ok(pcall(TM.ShowAt, taxiTestButton, "Flow: test"), "ringing a button runs")
+    local ring = TM._Ring()
+    t:ok(ring and ring:IsShown() and not ring:IsMouseEnabled(), "the ring shows, and takes no clicks")
+    t:ok(ring and ring.radius > 8, "around the button, not on it")
+    TM.Hide()
+    t:ok(ring and not ring:IsShown(), "and goes when the map closes")
+    taxiTestButton:Hide()
+end)
+
 ns:Register("test", "zones: finish the selected zones first", function(t)
     -- "the option to finish the area you're in first should be finish the selected zones first"
     local N = ns.nav

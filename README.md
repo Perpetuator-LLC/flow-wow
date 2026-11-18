@@ -136,6 +136,8 @@ Flow for WoW is a separate project from Flow Engine.
   (Horde) or Silva Fil'naveth (Alliance), who fly druids home for free, and says who to talk
   to. `/flow rides`.
   On any flight the arrow says where you're flying, when you land and what comes after.
+  On the flight map, the flight master that lands you nearest your next step has a ring of
+  dots in the route's colour and the step's name under it.
   With your next step on another map, the world map's dotted line still leaves from you,
   through the gate, to the map's edge; "Show on map" for a step elsewhere says which zone it's in.
 - **Hearthstone**: in a town with an inn, when your stone is set somewhere else, the route
