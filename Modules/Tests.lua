@@ -13127,7 +13127,7 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
         for _, it in ipairs(items) do if it.checked ~= nil then ticks = ticks + 1 end end
         t:eq(ticks, 2, "the Flow menu has a tick a zone")
         local tick
-        for _, it in ipairs(items) do if it.text:find("^Stonetalon") then tick = it end end
+        for _, it in ipairs(items) do if it.text and it.text:find("^Stonetalon") then tick = it end end   -- (the line under them has no words)
         t:ok(tick ~= nil and pcall(tick.func), "a click on Stonetalon's tick runs")
         t:ok(ns.db.nav.zonesOff[2] == true, "and leaves it out")
         t:ok(pcall(ns.commands.zones, "on stonetalon"), "/flow zones on runs")
@@ -13138,11 +13138,11 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
         -- 0.35.311: Select all / Select none / Current zone only, under a line.
         local buttons = {}
         for _, it in ipairs(N.ZoneMenuItems()) do
-            if it.text then buttons[(it.text:match("^(Select %a+)") or it.text:match("^(Current zone only)") or "")] = it end
+            if it.text then buttons[(it.text:match("^(Select %a+ zones)") or it.text:match("^(Current zone only)") or "")] = it end
         end
-        t:ok(buttons["Select none"] and pcall(buttons["Select none"].func), "click: Select none runs")
+        t:ok(buttons["Select no zones"] and pcall(buttons["Select no zones"].func), "click: Select no zones runs")
         t:ok(ns.db.nav.zonesOff[1] == true and ns.db.nav.zonesOff[2] == true, "and unticks every zone")
-        t:ok(buttons["Select all"] and pcall(buttons["Select all"].func) and next(ns.db.nav.zonesOff) == nil, "click: Select all ticks them all")
+        t:ok(buttons["Select all zones"] and pcall(buttons["Select all zones"].func) and next(ns.db.nav.zonesOff) == nil, "click: Select all zones ticks them all")
         t:ok(buttons["Current zone only"] and pcall(buttons["Current zone only"].func), "click: Current zone only runs")
         t:ok(pcall(ns.commands.zones, "none") and ns.db.nav.zonesOff[1] == true, "/flow zones none")
         t:ok(pcall(ns.commands.zones, "all"), "/flow zones all")

@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.35.313
+
+- Fixed: two of Flow's self-tests failed at login after 0.35.311 (the red line in chat). The
+  Zones section's quick choices are now **Select all zones** and **Select no zones** (Route
+  includes already had a "Select all", and no entry may be in the Flow menu twice), and a test
+  no longer trips over the line above them.
+
 ## 0.35.312
 
 - **Your next step's flight master is ringed on the flight map.** Open a flight map and the
@@ -20,7 +27,7 @@
   says "(Ashenvale, after your zones)". Off (as before): an unticked zone is left out of the
   route. Also in Flow Settings (Finding your way). The 300-yard "Finish the area you're in
   first" is still there, in Flow Settings.
-- **Under the zones, a line and three quick choices:** Select all, Select none and Current zone
+- **Under the zones, a line and three quick choices:** Select all zones, Select no zones and Current zone
   only, to start a choice and then tick the zones you want. `/flow zones all | none | here`,
   and `/flow zones first` turns the option on or off.
 

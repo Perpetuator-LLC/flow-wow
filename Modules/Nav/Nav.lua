@@ -917,8 +917,10 @@ function N.ZoneMenuItems()
     local p = N.PlayerPos and N:PlayerPos()
     local here = p and N.ZoneOf(p.map)
     items[#items + 1] = { rule = true }
-    items[#items + 1] = { text = "Select all", stay = true, func = function() N.SelectZones("all") end }
-    items[#items + 1] = { text = "Select none", stay = true, func = function() N.SelectZones("none") end,
+    -- ("Select all zones", not "Select all": Route includes has a Select all
+    -- of its own, and no entry may be in the Flow menu twice.)
+    items[#items + 1] = { text = "Select all zones", stay = true, func = function() N.SelectZones("all") end }
+    items[#items + 1] = { text = "Select no zones", stay = true, func = function() N.SelectZones("none") end,
         tip = "Untick every zone, then tick the ones you want." }
     items[#items + 1] = { text = here and ("Current zone only (" .. N.ZoneNameOf(here) .. ")") or "Current zone only", stay = true,
         func = function() N.SelectZones("here") end }
