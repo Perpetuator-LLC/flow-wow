@@ -2208,6 +2208,10 @@ function N:FormatStop(i, goal, label)
     local where = goal.awayZone and string.format(" |cff888888(%s, after this zone)|r", goal.awayZone) or ""
     -- A step that goes after another (Needs.lua): "after Bear Form".
     if goal.after then where = where .. string.format(" |cff888888(after %s)|r", goal.after) end
+    -- A class quest's step names the spell it leads to (0.35.310: "I don't see
+    -- Cure Poison at all": on WoW: Forever it's "The Principal Source", not the
+    -- trainer, and the row only said the quest's name).
+    if goal.classQuest then where = where .. string.format(" |cff888888(for %s)|r", goal.classQuest) end
     return string.format("%s|cff%s%s|r |cff%s%s|r%s", icon, numColor, label or tostring(i),
         textColor, goal.text or goal.title or "?", where)
 end

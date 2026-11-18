@@ -1,6 +1,20 @@
 # Changelog
 
 
+## 0.35.310
+
+- **Spell levels come from your trainer, not from Classic's list.** Flow read your class
+  trainer at every visit and kept what it said, but used it only to drop spells a trainer
+  doesn't have. Its levels still came from Classic, so it said "Rake: after Cat Form" at level
+  20 when WoW: Forever's trainer teaches Rake at 24 (Claw at 28, Prowl at 40, Shred at 20). Now
+  the level a trainer first lists a spell you don't have puts Flow's list right, at once and
+  from what Flow already saw. `/flow facts` shows what was put right.
+- **A class quest's steps say which spell they're for:** "Turn in: The Principal Source (for
+  Cure Poison)". On WoW: Forever some spells come from a class quest instead of the trainer
+  (Cure Poison, Cat Form), and the route only showed the quest's name.
+- Shared facts (`/flow places share`, `tools/share-facts.ps1`) carry these first levels too, so
+  one player's trainer visit puts the levels right for everyone.
+
 ## 0.35.309
 
 - **Locked steps say more in their row.** A step across the sea names the zone: "in Silverpine

@@ -10478,6 +10478,47 @@ ns:Register("test", "facts: what trainers teach, and don't, is kept", function(t
     t:ok(not F.NotTaught("DRUID", "Bash", 14, own, none), "seen at a trainer since: that beats an older 'lacks'")
 end)
 
+ns:Register("test", "facts: what trainers teach puts the class list's levels right", function(t)
+    -- "rake is lvl 24" (Flow's list, from Classic, said 20; the trainer had said 24 all along).
+    local F = ns.facts
+    local first = {}
+    t:eq(F.NoteFirst(first, "DRUID", "Rake", 24), true, "a spell you don't know, read at a trainer: its first level")
+    t:eq(F.NoteFirst(first, "DRUID", "Rake", 30), false, "a higher one later: the lowest stands")
+    t:eq(F.NoteFirst(first, "DRUID", "Rake", 0), false, "no level: nothing")
+    -- Older trainer lines: only spells you still don't know (a known one's lowest line is a later rank).
+    local spells = { DRUID = { Rake = { name = "Rake", level = 24 }, Moonfire = { name = "Moonfire", level = 16 },
+                               ["Wrath (Rank 3)"] = { name = "Wrath", rank = "Rank 3", level = 14 } } }
+    local f2 = {}
+    t:eq(F.FirstFromSeen(spells, f2, "DRUID", { Moonfire = true }), 1, "from the old lines: Rake only")
+    t:ok(f2.DRUID.Rake == 24 and f2.DRUID.Moonfire == nil and f2.DRUID.Wrath == nil, "not Moonfire (known: 16 is a later rank), not a named later rank")
+    t:eq(F.FirstLevel("DRUID", "Rake", { first = { DRUID = { Rake = 24 } } }, { first = { DRUID = { Rake = 22 } } }), 22, "yours and shared: the lowest")
+    t:eq(F.FirstLevel("DRUID", "Claw", { first = {} }, { first = {} }), nil, "no trainer seen with it: nothing")
+    -- The list put right, in place.
+    local list = { { spell = "Rake", level = 20, needs = "Cat Form" }, { spell = "Shred", level = 22 },
+                   { spell = "Bear Form", level = 10, quest = { 6001 } }, { spell = "Wrath", level = 1 } }
+    local lv = { Rake = 24, Shred = 20, ["Bear Form"] = 30 }
+    local changed = F.FixLevels(list, function(n) return lv[n] end)
+    t:eq(#changed, 2, "two spells moved")
+    t:ok(list[1].level == 24 and list[1].listLevel == 20, "Rake: 24, and the list's 20 kept")
+    t:eq(list[2].level, 20, "Shred: earlier than the list said")
+    t:eq(list[3].level, 10, "a class quest's spell isn't a trainer's: left as it was")
+    t:eq(list[4].level, 1, "a spell no trainer was seen with: left as it was")
+    t:eq(#F.FixLevels(list, function(n) return lv[n] end), 0, "again: nothing more to change")
+    -- Shared, too.
+    local has = {}
+    for _, l in ipairs(F.ShareLines({ first = { DRUID = { Rake = 24 } } }, nil)) do has[l] = true end
+    t:ok(has["F|DRUID|Rake|24"], "a first level is shared as F|class|spell|level")
+    t:ok(type(F.Shared().first) == "table", "and what came with Flow has a place for them")
+end)
+
+ns:Register("test", "route: a class quest's step names the spell it leads to", function(t)
+    -- "I don't see cure poison at all" (it's a class quest on WoW: Forever).
+    local N = ns.nav
+    local row = N:FormatStop(3, { key = "6127:done", text = "Turn in: The Principal Source", classQuest = "Cure Poison" })
+    t:ok(row:find("(for Cure Poison)", 1, true) ~= nil, "the row says which spell")
+    t:ok(not N:FormatStop(3, { key = "905:1", text = "Something" }):find("(for ", 1, true), "other steps: nothing added")
+end)
+
 ns:Register("test", "facts: the share list holds game facts only, in a fixed form", function(t)
     local F = ns.facts
     local lines = F.ShareLines({ spells = { DRUID = { ["Wrath (Rank 3)"] = { name = "Wrath", rank = "Rank 3", level = 14, cost = 900 },

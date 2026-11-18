@@ -81,7 +81,7 @@ function Test-Coord([string]$s) {
     return [math]::Round($v, 4)
 }
 
-$inSpells = @{}; $inLacks = @{}; $inSpots = @{}; $bad = 0
+$inSpells = @{}; $inLacks = @{}; $inSpots = @{}; $inFirst = @{}; $bad = 0
 foreach ($l in $lines) {
     $f = $l -split '\|'
     if ($f[0] -eq 'S' -and $f.Count -eq 6) {
@@ -95,6 +95,11 @@ foreach ($l in $lines) {
         $level = 0
         if (-not (Test-Class $f[1]) -or -not (Test-Name $f[2]) -or -not [int]::TryParse($f[3], [ref]$level) -or $level -lt 1 -or $level -gt 80) { $bad++; continue }
         $inLacks[$f[1] + '|' + $f[2]] = @{ class = $f[1]; name = $f[2]; level = $level }
+    } elseif ($f[0] -eq 'F' -and $f.Count -eq 4) {
+        # The level a trainer first teaches a spell (Flow 0.35.310).
+        $level = 0
+        if (-not (Test-Class $f[1]) -or -not (Test-Name $f[2]) -or -not [int]::TryParse($f[3], [ref]$level) -or $level -lt 1 -or $level -gt 80) { $bad++; continue }
+        $inFirst[$f[1] + '|' + $f[2]] = @{ class = $f[1]; name = $f[2]; level = $level }
     } elseif ($f[0] -eq 'Q' -and $f.Count -eq 6) {
         $quest = 0; $map = 0
         if (-not [int]::TryParse($f[1], [ref]$quest) -or $quest -le 0 -or -not [int]::TryParse($f[3], [ref]$map) -or $map -le 0) { $bad++; continue }
@@ -108,7 +113,7 @@ foreach ($l in $lines) {
 }
 
 # --- What Flow already ships --------------------------------------------------
-$spells = @{}; $lacks = @{}; $spots = @{}
+$spells = @{}; $lacks = @{}; $spots = @{}; $first = @{}
 if (Test-Path $Out) {
     foreach ($l in (Get-Content $Out)) {
         $m = [regex]::Match($l, '^\s*-- S\|([A-Z]+)\|([^|]*)\|([^|]*)\|(\d+)\|(\d+)\s*$')
@@ -121,6 +126,11 @@ if (Test-Path $Out) {
         $m = [regex]::Match($l, '^\s*-- L\|([A-Z]+)\|([^|]*)\|(\d+)\s*$')
         if ($m.Success) {
             $lacks[$m.Groups[1].Value + '|' + $m.Groups[2].Value] = @{ class = $m.Groups[1].Value; name = $m.Groups[2].Value; level = [int]$m.Groups[3].Value }
+            continue
+        }
+        $m = [regex]::Match($l, '^\s*-- F\|([A-Z]+)\|([^|]*)\|(\d+)\s*$')
+        if ($m.Success) {
+            $first[$m.Groups[1].Value + '|' + $m.Groups[2].Value] = @{ class = $m.Groups[1].Value; name = $m.Groups[2].Value; level = [int]$m.Groups[3].Value }
             continue
         }
         $m = [regex]::Match($l, '^\s*-- Q\|(\d+)\|(\w+)\|(\d+)\|([\d.]+)\|([\d.]+)\s*$')
@@ -145,6 +155,12 @@ foreach ($key in $inSpells.Keys) {
     if ($n.level -gt 0 -and ($o.level -eq 0 -or $n.level -lt $o.level)) { $o.level = $n.level; $changed = $true }
     if ($n.cost -gt 0 -and ($o.cost -eq 0 -or $n.cost -lt $o.cost)) { $o.cost = $n.cost; $changed = $true }
     if ($changed) { $updated++ }
+}
+# A first level: the lowest seen.
+foreach ($key in $inFirst.Keys) {
+    $n = $inFirst[$key]
+    if (-not $first.ContainsKey($key)) { $first[$key] = $n; $added++ }
+    elseif ($n.level -lt $first[$key].level) { $first[$key].level = $n.level; $updated++ }
 }
 foreach ($key in $inLacks.Keys) {
     $n = $inLacks[$key]
@@ -182,6 +198,7 @@ $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine('-- the players.')
 foreach ($key in (Sorted $spells.Keys)) { $s = $spells[$key]; [void]$sb.AppendLine(('-- S|{0}|{1}|{2}|{3}|{4}' -f $s.class, $s.name, $s.rank, $s.level, $s.cost)) }
 foreach ($key in (Sorted $lacks.Keys)) { $s = $lacks[$key]; [void]$sb.AppendLine(('-- L|{0}|{1}|{2}' -f $s.class, $s.name, $s.level)) }
+foreach ($key in (Sorted $first.Keys)) { $s = $first[$key]; [void]$sb.AppendLine(('-- F|{0}|{1}|{2}' -f $s.class, $s.name, $s.level)) }
 foreach ($key in (Sorted $spots.Keys)) {
     $parts = $key -split '\|'
     foreach ($p in $spots[$key]) { [void]$sb.AppendLine(('-- Q|{0}|{1}|{2}|{3}|{4}' -f $parts[0], $parts[1], $p.map, (Format-Num $p.x), (Format-Num $p.y))) }
@@ -207,6 +224,17 @@ foreach ($class in $classes) {
     [void]$sb.AppendLine("        $class = {")
     foreach ($key in (Sorted ($lacks.Keys | Where-Object { $lacks[$_].class -eq $class }))) {
         $s = $lacks[$key]
+        [void]$sb.AppendLine(('            ["{0}"] = {1},' -f $s.name, $s.level))
+    }
+    [void]$sb.AppendLine('        },')
+}
+[void]$sb.AppendLine('    },')
+[void]$sb.AppendLine('    first = {')
+$classes = Sorted (@($first.Values | ForEach-Object { $_.class }) | Select-Object -Unique)
+foreach ($class in $classes) {
+    [void]$sb.AppendLine("        $class = {")
+    foreach ($key in (Sorted ($first.Keys | Where-Object { $first[$_].class -eq $class }))) {
+        $s = $first[$key]
         [void]$sb.AppendLine(('            ["{0}"] = {1},' -f $s.name, $s.level))
     }
     [void]$sb.AppendLine('        },')

@@ -8,6 +8,11 @@
 --
 --   spells   what a class trainer lists: the spell, its rank, the level it
 --            asks, its price                      (read at every trainer)
+--   first    the level a trainer first teaches a spell, seen by a character
+--            that didn't know it yet (then the list starts at its first
+--            rank). It puts the class list's levels right (0.35.310: "rake
+--            is lvl 24": Flow kept advising it at 20, from Classic's list,
+--            although the trainer had said 24 since level 16)
 --   lacks    a spell of Flow's class list that a trainer, read at a level
 --            where the list says it's due, doesn't have at all
 --   spots    where a quest's objective was done or the quest handed in,
@@ -33,6 +38,7 @@ ns:OnLoad(function(saved)
     saved.facts = saved.facts or {}
     saved.facts.spells = saved.facts.spells or {}
     saved.facts.lacks = saved.facts.lacks or {}
+    saved.facts.first = saved.facts.first or {}
 end)
 
 -- A spell's key: its name, with its rank where the game gives one.
@@ -55,6 +61,82 @@ function F.NoteSpell(spells, class, name, rank, level, cost)
     end
     spells[class][key] = { name = name, rank = (type(rank) == "string" and rank ~= "") and rank or nil, level = level, cost = cost }
     return true
+end
+
+-- Pure: the level a trainer first teaches a spell, from a character that
+-- didn't know it. The lowest seen wins. (A trainer's lowest line for a spell
+-- you know is a later rank, Moonfire at 16 rather than 4: so "spells" alone
+-- can't say, and a known spell is never noted here.)
+function F.NoteFirst(first, class, name, level)
+    level = tonumber(level) or 0
+    if not (first and class and type(name) == "string" and name ~= "" and level > 0) then return false end
+    first[class] = first[class] or {}
+    local old = first[class][name]
+    if old and old <= level then return false end
+    first[class][name] = level
+    return true
+end
+
+-- Pure: trainer lines read before "first" existed (0.35.310). A spell this
+-- character still doesn't know was listed from its first rank whenever it
+-- was read, so its lowest level is where it starts. (Lines with a later rank
+-- named are left out. On an account with two characters of a class, a line
+-- may be the other's; the next trainer visit corrects it.) known: { [name] = true }.
+function F.FirstFromSeen(spells, first, class, known)
+    local n = 0
+    for _, s in pairs(spells and spells[class] or {}) do
+        if s.name and not known[s.name] and (s.rank == nil or s.rank == "" or s.rank == "Rank 1")
+            and F.NoteFirst(first, class, s.name, s.level) then
+            n = n + 1
+        end
+    end
+    return n
+end
+
+-- The level a trainer first teaches a spell: the lowest of yours and what
+-- came with Flow. nil: no trainer was seen with it.
+function F.FirstLevel(class, name, own, sharedFacts)
+    own = own or (ns.db and ns.db.facts) or {}
+    sharedFacts = sharedFacts or F.Shared()
+    local best
+    for _, src in ipairs({ own, sharedFacts }) do
+        local lv = src.first and src.first[class] and src.first[class][name]
+        if lv and (not best or lv < best) then best = lv end
+    end
+    return best
+end
+
+-- Pure: the class list's levels put right by what trainers teach, in place
+-- (the list is Flow's guess from Classic; the trainer is the truth). The
+-- list's own level is kept as listLevel. Spells from a quest or with a note
+-- of their own aren't a trainer's. firstOf(name) -> level or nil.
+-- -> what changed: { { spell, from, to } }.
+function F.FixLevels(list, firstOf)
+    local changed = {}
+    for _, s in ipairs(list or {}) do
+        if s.spell and not s.quest and not s.note then
+            local lv = firstOf(s.spell)
+            if lv and lv ~= s.level then
+                s.listLevel = s.listLevel or s.level
+                changed[#changed + 1] = { spell = s.spell, from = s.level, to = lv }
+                s.level = lv
+            end
+        end
+    end
+    return changed
+end
+
+-- Your class's list, put right now. Said once a spell in the log.
+F.fixed = {}
+function F.Apply(class)
+    local list = class and ns:Get("classSpells", class)
+    if not list then return 0 end
+    local changed = F.FixLevels(list, function(name) return F.FirstLevel(class, name) end)
+    for _, c in ipairs(changed) do
+        F.fixed[c.spell] = c
+        ns:Log("facts", string.format("%s: trainers teach it at level %d (Flow's list said %d)", c.spell, c.to, c.from))
+    end
+    return #changed
 end
 
 -- Pure: a class-list spell a trainer doesn't have, read at `level`. Kept at
@@ -86,8 +168,14 @@ end
 local shared
 function F.Shared()
     if shared then return shared end
-    shared = { spells = {}, lacks = {}, spots = {} }
+    shared = { spells = {}, lacks = {}, spots = {}, first = {} }
     for _, data in ns:Each("sharedFacts") do
+        for class, list in pairs(data.first or {}) do
+            shared.first[class] = shared.first[class] or {}
+            for name, lv in pairs(list) do
+                if not shared.first[class][name] or lv < shared.first[class][name] then shared.first[class][name] = lv end
+            end
+        end
         for class, list in pairs(data.spells or {}) do
             shared.spells[class] = shared.spells[class] or {}
             for key, s in pairs(list) do shared.spells[class][key] = s end
@@ -138,10 +226,17 @@ end
 function F.TrainerRead(class, services, level, known)
     if not (ns.db and ns.db.facts and class) then return 0 end
     local n, names = 0, {}
+    ns.db.facts.first = ns.db.facts.first or {}
+    local firsts = 0
     for _, s in ipairs(services or {}) do
         names[s.name] = true
         if F.NoteSpell(ns.db.facts.spells, class, s.name, s.sub, s.level, s.cost) then n = n + 1 end
+        if known and not known[s.name] and (s.sub == nil or s.sub == "" or s.sub == "Rank 1")
+            and F.NoteFirst(ns.db.facts.first, class, s.name, s.level) then
+            n, firsts = n + 1, firsts + 1
+        end
     end
+    if firsts > 0 and class == select(2, UnitClass("player")) then F.Apply(class) end
     for _, name in ipairs(F.Lacking(ns:Get("classSpells", class), names, known, level)) do
         if F.NoteLack(ns.db.facts.lacks, class, name, level) then
             n = n + 1
@@ -157,6 +252,7 @@ end
 -------------------------------------------------------------------------------
 --   "S|CLASS|spell|rank|level|cost"   a trainer's line (rank may be empty)
 --   "L|CLASS|spell|level"             a class-list spell no trainer had up to that level
+--   "F|CLASS|spell|level"             the level a trainer first teaches a spell
 --   "Q|questID|index|map|x|y"         where an objective was done (index: a number, or "done")
 function F.ShareLines(facts, spots)
     local lines = {}
@@ -171,6 +267,11 @@ function F.ShareLines(facts, spots)
     for class, list in pairs(facts and facts.lacks or {}) do
         for name, lv in pairs(list) do
             if clean(class) and clean(name) then lines[#lines + 1] = string.format("L|%s|%s|%d", class, name, lv) end
+        end
+    end
+    for class, list in pairs(facts and facts.first or {}) do
+        for name, lv in pairs(list) do
+            if clean(class) and clean(name) then lines[#lines + 1] = string.format("F|%s|%s|%d", class, name, lv) end
         end
     end
     for quest, by in pairs(spots or {}) do
@@ -202,14 +303,35 @@ function F.Lines()
         count(own.spells), count(own.lacks), spots) }
     out[#out + 1] = string.format("  came with Flow (shared by players): %d trainer line(s), %d missing spell(s), %d quest(s) with spots",
         count(sh.spells), count(sh.lacks), (function() local n = 0; for _ in pairs(sh.spots) do n = n + 1 end; return n end)())
+    out[#out + 1] = string.format("  first levels: %d of yours, %d came with Flow", count(own.first), count(sh.first))
     for class, list in pairs(own.lacks or {}) do
         for name, lv in pairs(list) do
             out[#out + 1] = string.format("  %s: no trainer had %s up to level %d", class, name, lv)
         end
     end
+    local fixed = {}
+    for _, c in pairs(F.fixed) do fixed[#fixed + 1] = string.format("%s %d -> %d", c.spell, c.from, c.to) end
+    table.sort(fixed)
+    if #fixed > 0 then out[#out + 1] = "  your class list put right by trainers: " .. table.concat(fixed, ", ") end
     out[#out + 1] = "  share them with every Flow player: /flow places share (game facts only, nothing about you)"
     return out
 end
+-- At login: "first" filled from trainer lines read before it existed (once
+-- the spellbook is in, to know which spells you have), then your class's
+-- list put right. (Again after each trainer visit: TrainerRead.)
+ns:On("PLAYER_LOGIN", function()
+    C_Timer.After(3, function()
+        local _, class = UnitClass("player")
+        local ok, known = pcall(function() return ns.rotation and ns.rotation:KnownSpells() end)
+        if ok and type(known) == "table" and next(known) and ns.db.facts then
+            ns.db.facts.first = ns.db.facts.first or {}
+            local n = F.FirstFromSeen(ns.db.facts.spells, ns.db.facts.first, class, known)
+            if n > 0 then ns:Log("facts", string.format("%d first level(s) taken from trainer lines read before", n)) end
+        end
+        F.Apply(class)
+    end)
+end)
+
 ns.commands.facts = function()
     for i, l in ipairs(F.Lines()) do if i == 1 then ns:Print(l) else print(l) end end
 end
