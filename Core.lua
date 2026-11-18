@@ -379,6 +379,34 @@ local function apiReport(arg)
         table.sort(found)
         print("  about height or floors (names only): " .. (#found > 0 and table.concat(found, ", "):sub(1, 600) or "nothing by those names"))
     end
+    -- The game's own marker in the world for a tracked spot (C_Navigation):
+    -- if this client has it, where it sits on screen tells above from below
+    -- (0.35.303: "can we have an elevation arrow?"). Names and what they
+    -- answer now, nothing set or changed.
+    do
+        local nav = _G.C_Navigation
+        if type(nav) ~= "table" then
+            print("  world marker (C_Navigation): no")
+        else
+            local names = {}
+            for k in pairs(nav) do if type(k) == "string" then names[#names + 1] = k end end
+            table.sort(names)
+            print("  world marker (C_Navigation): " .. table.concat(names, ", "):sub(1, 300))
+            local okF, f = pcall(function() return nav.GetFrame and nav.GetFrame() end)
+            local okD, d = pcall(function() return nav.GetDistance and nav.GetDistance() end)
+            local okV, v = pcall(function() return nav.HasValidScreenPosition and nav.HasValidScreenPosition() end)
+            local where = "none"
+            if okF and f and f.GetCenter then
+                local okC, x, y = pcall(f.GetCenter, f)
+                where = okC and x and string.format("%.0f, %.0f (screen %.0f high)", x, y, UIParent:GetHeight() or 0) or "hidden from add-ons"
+            end
+            local tracking = _G.C_SuperTrack and C_SuperTrack.IsSuperTrackingAnything and select(2, pcall(C_SuperTrack.IsSuperTrackingAnything))
+            print(string.format("    tracking anything: %s; its frame: %s at %s; distance: %s; on screen: %s",
+                tostring(tracking), okF and f and "yes" or "no", where, okD and tostring(d) or "error", okV and tostring(v) or "error"))
+            print("    a spot of your own can be tracked: C_Map.SetUserWaypoint " .. has(C_Map and C_Map.SetUserWaypoint)
+                .. ", C_SuperTrack.SetSuperTrackedUserWaypoint " .. has(_G.C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint))
+        end
+    end
     print("  quest waypoints: " .. has(C_QuestLog and C_QuestLog.GetNextWaypoint)
         .. ", equipment manager: " .. has(C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs))
     print("  your health: " .. shown(UnitHealth("player")) .. ", facing: " .. shown(GetPlayerFacing and GetPlayerFacing()))

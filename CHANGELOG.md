@@ -1,6 +1,16 @@
 # Changelog
 
 
+## 0.35.303
+
+- **Flow's menus widen for long lines.** The dungeon run's details (click the line under the
+  arrow) ended in "..." ("You're missing 1 quest (to pick up..."). Every Flow menu is now as
+  wide as its longest line needs, up to about two and a half times the old width. A line longer
+  than that still ends in "...", and pointing at it shows all of it.
+- For an up/down mark on the arrow: `/flow api` (and the diagnostics) now say whether this game
+  has its own marker in the world for a tracked spot, which is the one thing that could tell
+  above from below. Nothing is shown on the arrow yet.
+
 ## 0.35.302
 
 - **The arrow's long line sits above the arrow.** A line such as "2166 yd (to the flight

@@ -13,6 +13,16 @@ ns.menu = Menu
 
 local ROW_H, PAD, W = 18, 6, 230
 local frame, catcher, fly
+-- A menu is as wide as its longest line needs, between W and Menu.MAX_W
+-- (0.35.303: the dungeon run's details ended in "..." at 230 wide: "You're
+-- missing 1 quest (to pick up..."). A line longer than the widest menu still
+-- ends in "...", and pointing at it shows all of it.
+Menu.MIN_W, Menu.MAX_W = W, 560
+Menu.TEXT_PAD = 24 + 18 + 6   -- the tick's room, the arrow's, and a little air
+-- Pure: the panel's width for its widest line of text.
+function Menu.WidthFor(widest)
+    return math.max(Menu.MIN_W, math.min(Menu.MAX_W, math.ceil((widest or 0) + Menu.TEXT_PAD)))
+end
 local rows, flyRows = {}, {}
 local ARROW = "Interface\\ChatFrame\\ChatFrameExpandArrow"
 
@@ -89,6 +99,12 @@ local function row(parent, list, i)
 end
 
 function Menu:Close() if frame then frame:Hide() end end
+-- Pure: an entry's words without colour codes.
+function Menu.Plain(text)
+    local s = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", "")
+    s = s:gsub("|r", "")
+    return s
+end
 
 -- Flow's windows you can switch off (registry "window": { name, order,
 -- hidden(), show() }). While one is off, every Flow menu offers to show it
@@ -193,7 +209,7 @@ function Menu.ShowSection(section, anchor)
     -- where the screen ends.
     local right = frame:GetRight() or 0
     local room = (UIParent:GetRight() or 0) - right
-    if room >= W + 4 then fly:SetPoint("TOPLEFT", anchor or frame, "TOPRIGHT", 2, PAD)
+    if room >= (fly:GetWidth() or W) + 4 then fly:SetPoint("TOPLEFT", anchor or frame, "TOPRIGHT", 2, PAD)
     else fly:SetPoint("TOPRIGHT", anchor or frame, "TOPLEFT", -2, PAD) end
     fly:Show()
 end
@@ -206,6 +222,8 @@ end
 layout = function(f, list, items)
     local y = -PAD
     local n = 0
+    local widest = 0
+    f:SetWidth(Menu.MAX_W)   -- (rows at their widest while their text is measured)
     for i, it in ipairs(items) do
         n = i
         local r = row(f, list, i)
@@ -237,6 +255,8 @@ layout = function(f, list, items)
             -- Game fonts lack most symbols, so the tick is a texture.
             if it.checked then mark = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14|t" end
             r.mark:SetText(mark)
+            local okW, tw = pcall(r.text.GetUnboundedStringWidth or r.text.GetStringWidth, r.text)
+            if okW and type(tw) == "number" and tw > widest then widest = tw end
         end
         r.item = it
         r:SetScript("OnClick", function(self)
@@ -249,6 +269,14 @@ layout = function(f, list, items)
             if f == frame then
                 if it.section then Menu.ShowSection(it, self)
                 elseif not it.sep and not it.rule then Menu.HideSection() end
+            end
+            -- A line cut short at the widest menu: all of it, on pointing at it.
+            local cut = not (it.tip or it.tipLines) and self.text.IsTruncated and self.text:IsTruncated()
+            if cut then
+                ns.Tip(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(Menu.Plain(it.text), 1, 1, 1, true)
+                GameTooltip:Show()
+                return
             end
             if not (it.tip or it.tipLines) then return end
             ns.Tip(self, "ANCHOR_RIGHT")
@@ -265,6 +293,7 @@ layout = function(f, list, items)
     end
     for i = n + 1, #list do list[i]:Hide() end
     f:SetHeight(-y + PAD)
+    f:SetWidth(Menu.WidthFor(widest))
 end
 
 -- A click on an entry. `stay` entries (ticks you set several of, like what

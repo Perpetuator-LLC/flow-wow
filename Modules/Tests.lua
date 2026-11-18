@@ -13436,3 +13436,44 @@ ns:Register("test", "bags: a quest item's tooltip names the quest in your log it
     t:ok(pcall(L.QuestFor, 6443), "asking the quest log doesn't error")
     t:ok(pcall(L.Lines), "the leftovers list still builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.303: a menu is as wide as its longest line needs.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: a menu widens for a long line, and a line still cut short shows whole on pointing at it", function(t)
+    local Menu = ns.menu
+    t:eq(Menu.WidthFor(0), Menu.MIN_W, "short lines: the usual width")
+    t:eq(Menu.WidthFor(300), 300 + Menu.TEXT_PAD, "a long line: room for it")
+    t:eq(Menu.WidthFor(5000), Menu.MAX_W, "never wider than the widest menu")
+    t:eq(Menu.Plain("|cff999999You're missing 1 quest|r"), "You're missing 1 quest", "words without colour codes")
+    local long = "You're missing 1 quest (to pick up before you go in), and it is a long way from here"
+    local clicked = false
+    local ok, err = pcall(Menu.Open, Menu, {
+        { title = true, text = "Wailing Caverns" },
+        { text = "|cff999999" .. long .. "|r", disabled = true },
+        { text = "Cancel this run", func = function() clicked = true end },
+    })
+    t:ok(ok, "the menu opens: " .. tostring(err))
+    local f = _G.FlowMenu
+    local rows = Menu._Rows()
+    if ok and f and rows[2] then
+        t:ok(f:GetWidth() > Menu.MIN_W and f:GetWidth() <= Menu.MAX_W, "wider than usual for the long line")
+        t:ok(not (rows[2].text.IsTruncated and rows[2].text:IsTruncated()), "the long line is all there")
+        t:ok(pcall(rows[2]:GetScript("OnEnter"), rows[2]) and pcall(rows[2]:GetScript("OnLeave"), rows[2]), "pointing at it is safe")
+        pcall(rows[3]:GetScript("OnClick"), rows[3])
+        t:ok(clicked and not f:IsShown(), "its entries still click")
+        -- A short menu after it is the usual width again.
+        pcall(Menu.Open, Menu, { { title = true, text = "Short" }, { text = "One", func = function() end } })
+        t:near(f:GetWidth(), Menu.MIN_W, 0.5, "the next short menu: the usual width")
+        -- Longer than the widest menu: cut, and whole in the tooltip.
+        pcall(Menu.Open, Menu, { { title = true, text = "Long" }, { text = string.rep("a very long line ", 12), disabled = true } })
+        t:near(f:GetWidth(), Menu.MAX_W, 0.5, "the widest menu")
+        t:ok(pcall(rows[2]:GetScript("OnEnter"), rows[2]), "pointing at a cut line shows all of it")
+        GameTooltip:Hide()
+    end
+    Menu:Close()
+    -- The dungeon run's menu builds whatever is prepared.
+    if ns.dungeons and ns.dungeons.ModeItems then t:ok(pcall(ns.dungeons.ModeItems, ns.dungeons), "the dungeon run's menu builds") end
+    t:ok(type(ns.commands.api) == "function", "/flow api is there (its world marker lines are read in the diagnostics)")
+end)
