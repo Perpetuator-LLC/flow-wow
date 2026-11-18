@@ -596,6 +596,51 @@ reg("otherClassItem", 29, function(i)
     return auctionOrVendor(i, what)
 end)
 
+-- A recipe (0.35.302): "I have a tailoring and a leatherworking pattern and
+-- it doesn't tell me what to do with them." A recipe for a profession you
+-- don't have is no use to you: the auction house when it's worth it there,
+-- else a vendor. For one of yours: learn it now, keep it until your skill
+-- reaches what it asks, or let it go when you already know it.
+D.RECIPE_PROF = { [1] = "Leatherworking", [2] = "Tailoring", [3] = "Engineering", [4] = "Blacksmithing", [5] = "Cooking",
+                  [6] = "Alchemy", [7] = "First Aid", [8] = "Enchanting", [9] = "Fishing", [10] = "Jewelcrafting", [11] = "Inscription" }
+-- Pure: what a recipe is to you. prof: its profession; rank: your skill in it
+-- (nil: you don't have it); lines: its tooltip; known: the game's "Already known".
+--   -> "other" (not your profession) | "known" | "later", skill | "learn"
+function D.RecipeAdvice(prof, rank, lines, known)
+    if not prof then return nil end
+    if not rank then return "other" end
+    local need
+    for _, l in ipairs(lines or {}) do
+        if type(l.left) == "string" then
+            if known and l.left == known then return "known" end
+            need = need or tonumber(l.left:match("^Requires " .. prof .. " %((%d+)%)"))
+        end
+    end
+    if need and rank > 0 and rank < need then return "later", need end
+    return "learn", need
+end
+reg("recipe", 29.5, function(i)
+    local prof = i.classID == 9 and D.RECIPE_PROF[i.subclassID or -1] or nil
+    if not prof then return nil end
+    local rank = ns.api.Skill and ns.api.Skill(prof) or nil
+    local lines
+    if i.link and ns.gear and ns.gear.TooltipLines then
+        local ok, l = pcall(ns.gear.TooltipLines, ns.gear, i.link)
+        lines = ok and l or nil
+    end
+    local what, need = D.RecipeAdvice(prof, rank, lines, _G.ITEM_SPELL_KNOWN)
+    if what == "learn" then
+        return { action = "keep", reason = string.format("a %s recipe you can learn: right-click it", prof) }
+    elseif what == "later" then
+        return { action = "keep", reason = string.format("a %s recipe: learn it at %s %d (you have %d)", prof, prof, need, rank) }
+    end
+    local why = what == "known" and string.format("a %s recipe you already know", prof)
+        or string.format("a %s recipe, and you don't have %s", prof, prof)
+    if (i.sellPrice or 0) <= 0 and i.bound then return { action = "keep", reason = why .. ", and vendors won't take it" } end
+    if i.bound then return { action = "sell", reason = why } end
+    return auctionOrVendor(i, why)
+end)
+
 -- A bag in your bags (0.35.262): worth putting on when it's bigger than one
 -- you wear (or a bag slot is empty); else it's a spare taking a slot.
 -- Pure: how many slots a bag's tooltip says ("8 Slot Bag").

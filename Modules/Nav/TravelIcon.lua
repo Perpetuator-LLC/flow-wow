@@ -23,7 +23,13 @@ local _, ns = ...
 local N = ns.nav
 if not N then return end
 
-N.TRAVEL_ICON = 44
+N.TRAVEL_ICON = 38
+-- "Make the icon for the arrow not look like it is clickable: it looks like a
+-- button (to cast) and it opens the arrow dialog" (0.35.302). A square icon
+-- in a bright frame is what every action button looks like. So it's round
+-- now, like a mark on a map, a little see-through, with a thin ring.
+N.TRAVEL_ALPHA = 0.85
+local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 N.TRAVEL_ARROW_SCALE = 0.5
 N.travelSkip = {}   -- [stop key] = true: you chose to walk to it (this session)
 
@@ -66,11 +72,24 @@ local function build(frame)
     local t = CreateFrame("Frame", nil, frame)
     t:SetSize(N.TRAVEL_ICON, N.TRAVEL_ICON)
     t:SetPoint("CENTER")
+    t:SetAlpha(N.TRAVEL_ALPHA)
     t.edge = t:CreateTexture(nil, "BACKGROUND")
-    t.edge:SetPoint("TOPLEFT", -2, 2); t.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+    t.edge:SetTexture(DISC)
+    t.edge:SetPoint("TOPLEFT", -1.5, 1.5); t.edge:SetPoint("BOTTOMRIGHT", 1.5, -1.5)
     t.tex = t:CreateTexture(nil, "ARTWORK")
     t.tex:SetAllPoints()
     t.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    -- Cut round. (A client without masks keeps the square picture and drops
+    -- the ring, which would stick out at its sides.)
+    if t.CreateMaskTexture and t.tex.AddMaskTexture then
+        local mask = t:CreateMaskTexture()
+        mask:SetTexture(DISC, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(t.tex)
+        t.tex:AddMaskTexture(mask)
+        t.mask, t.round = mask, true
+    else
+        t.edge:Hide()
+    end
     -- (No mouse of its own: a click goes to the arrow under it, as always.)
     t:EnableMouse(false)
     t:Hide()
@@ -97,7 +116,7 @@ function N.ShowTravel(frame, key, pt, yards)
     local t = frame.travel
     t.tex:SetTexture(iconOf(act))
     local c = ns.theme.route or { 1, 0.82, 0.1 }
-    t.edge:SetColorTexture(c[1], c[2], c[3], 1)
+    t.edge:SetVertexColor(c[1], c[2], c[3], 0.9)
     -- (Also when the arrow itself was made anew: another arrow style.)
     if not t:IsShown() or t.arrow ~= arrow then
         t:Show()

@@ -13358,3 +13358,81 @@ ns:Register("test", "click: Flow Prices opens from /flow price and from a line o
     PC.item = wasItem
     if wasShown then pcall(PC.Fill, PC) else PC._Frame():Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.302: the arrow's long line above it; a round travel icon; recipes;
+-- which quest a quest item is for.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "arrow: a long second line goes above the arrow, a short one stays under the name", function(t)
+    local N = ns.nav
+    local long = "2166 yd ~10s (to the flight master: fly Thunder Bluff, Mulgore to Crossroads, The Barrens, 70 yd). Hearthstone (The Crossroads) is about 3 min quicker"
+    t:ok(N.SubAbove(long), "the long one: above")
+    t:ok(not N.SubAbove("184 yd ~40s NE"), "a short one: under the name")
+    t:ok(not N.SubAbove("|cffffd100" .. string.rep("x", N.SUB_LONG - 2) .. "|r"), "colour codes aren't letters")
+    t:ok(not N.SubAbove(nil) and not N.SubAbove(""), "nothing: under")
+    local f = N.arrowFrame
+    if not (f and f.sub and f.text) then t:ok(true, "(no arrow built yet)") return end
+    local was = f.sub:GetText()
+    f.sub:SetText(long)
+    local point, rel = f.sub:GetPoint(1)
+    t:ok(f.subAbove == true and point == "BOTTOM" and rel == f, "set long: it sits on top of the arrow")
+    t:near(f.sub:GetWidth(), N.SUB_WIDTH, 0.5, "wrapped, not across the screen")
+    f.sub:SetText("184 yd")
+    point, rel = f.sub:GetPoint(1)
+    t:ok(f.subAbove == false and point == "TOP" and rel == f.text, "set short: back under the step's name")
+    t:ok(N.SubLift(f) >= 4, "clear of the arrow's top")
+    f.sub:SetText(was or "")
+end)
+
+ns:Register("test", "arrow: the teleport or hearthstone icon is a round mark, not a button", function(t)
+    local N = ns.nav
+    t:ok(N.TRAVEL_ICON < 44 and N.TRAVEL_ALPHA < 1, "smaller and a little see-through")
+    local f = N.arrowFrame
+    local tr = f and f.travel
+    if not tr then t:ok(true, "(no travel icon shown this session)") return end
+    t:ok(not tr:IsMouseEnabled(), "it takes no clicks of its own")
+    t:ok(tr.round and tr.mask ~= nil or not tr.edge:IsShown(), "cut round (or, without masks, no ring)")
+    t:near(tr:GetAlpha(), N.TRAVEL_ALPHA, 0.01, "see-through")
+end)
+
+ns:Register("test", "bags: a recipe says what to do with it", function(t)
+    local D = ns.disposition
+    t:eq(D.RECIPE_PROF[2], "Tailoring", "a pattern's profession")
+    t:eq(D.RECIPE_PROF[1], "Leatherworking", "and the other")
+    t:eq(D.RecipeAdvice("Tailoring", nil, {}, "Already known"), "other", "not your profession: no use to you")
+    local lines = { { left = "Pattern: Red Woolen Boots" }, { left = "Requires Tailoring (95)" }, { left = "Use: Teaches you how to sew Red Woolen Boots." } }
+    local what, need = D.RecipeAdvice("Tailoring", 60, lines, "Already known")
+    t:ok(what == "later" and need == 95, "yours, skill too low: keep until then")
+    t:eq(D.RecipeAdvice("Tailoring", 95, lines, "Already known"), "learn", "skill enough: learn it")
+    t:eq(D.RecipeAdvice("Tailoring", 0, lines, "Already known"), "learn", "a skill the game doesn't report: nothing planned from the 0")
+    lines[#lines + 1] = { left = "Already known" }
+    t:eq(D.RecipeAdvice("Tailoring", 120, lines, "Already known"), "known", "already known: let it go")
+    t:eq(D.RecipeAdvice(nil, 120, lines, "Already known"), nil, "not a profession's recipe: not this rule's")
+    local rule = ns:Get("disposition", "recipe")
+    t:ok(rule and type(rule.check) == "function", "the rule is there")
+    t:eq(rule.check({ classID = 7, subclassID = 5 }), nil, "not a recipe: left to the other rules")
+    if not (ns.api.Skill and ns.api.Skill("Tailoring")) then
+        local v = rule.check({ classID = 9, subclassID = 2, sellPrice = 100, bound = true })
+        t:ok(v and v.action == "sell" and v.reason:find("don't have Tailoring", 1, true) ~= nil, "a bound pattern for a profession you lack: sell")
+    end
+end)
+
+ns:Register("test", "bags: a quest item's tooltip names the quest in your log it's for", function(t)
+    local L = ns.leftovers
+    local map = L.QuestsByItem({
+        { id = 1486, title = "Deviate Hides", raw = { ObjectiveData = { { Type = "item", Id = 6443 } } } },
+        { id = 962, title = "Serpentbloom", raw = { ObjectiveData = { { Type = "item", Id = 5339 } } } },
+        { id = 1, title = "Another", raw = { ObjectiveData = { { Type = "item", Id = 6443 } } } },
+        { id = 2, title = "No data" },
+    })
+    t:ok(map[5339] and map[5339][1] == "Serpentbloom", "an item to its quest")
+    t:ok(map[6443] and #map[6443] == 2 and map[6443][1] == "Another", "two quests for one item, by name")
+    t:eq(map[999], nil, "an item no quest uses: none")
+    t:eq(L.QuestForText({ "Deviate Hides" }), "Flow: for your quest Deviate Hides", "the tooltip's line")
+    t:eq(L.QuestForText({ "A", "B", "C" }), "Flow: for your quest A, B...", "two named at most")
+    t:eq(L.QuestForText({}), nil, "none: nothing said")
+    t:eq(L.QuestForText(nil), nil, "unknown: nothing said")
+    t:ok(pcall(L.QuestFor, 6443), "asking the quest log doesn't error")
+    t:ok(pcall(L.Lines), "the leftovers list still builds")
+end)

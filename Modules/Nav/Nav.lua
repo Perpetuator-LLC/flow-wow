@@ -1859,6 +1859,49 @@ function N.SetOverNeedle(f, on)
     end
 end
 
+-- The arrow's second line (how far, how to get there). A long one ("2166 yd
+-- (to the flight master: fly Thunder Bluff, Mulgore to Crossroads, The
+-- Barrens, 70 yd). Hearthstone (The Crossroads) is about 3 min quicker") ran
+-- across half the screen under the step's name and over whatever window was
+-- beside the arrow. "Move the really long sentences to be above the arrow"
+-- (0.35.302): past N.SUB_LONG letters it sits above the arrow, wrapped to
+-- N.SUB_WIDTH; a short one ("184 yd ~40s") stays under the name.
+N.SUB_LONG, N.SUB_WIDTH = 60, 340
+-- Pure: does this line go above the arrow? (Colour codes don't count.)
+function N.SubAbove(text)
+    if type(text) ~= "string" then return false end
+    local plain = text:gsub("|c%x%x%x%x%x%x%x%x", "")
+    plain = plain:gsub("|r", "")
+    return #plain > N.SUB_LONG
+end
+-- How far above the arrow's top: clear of the profession arrow's own line
+-- and of the teleport or hearthstone icon when they show.
+function N.SubLift(f)
+    local lift = 4
+    if f.prof and f.prof:IsShown() then lift = N.NeedleClearance(f) + 16 end
+    if f.travel and f.travel:IsShown() then
+        lift = math.max(lift, ((N.TRAVEL_ICON or 0) - (f:GetHeight() or 0)) / 2 + 6)
+    end
+    return lift
+end
+function N.LayoutSub(f, text)
+    if not (f and f.sub and f.text) then return end
+    local above = N.SubAbove(text)
+    local lift = above and N.SubLift(f) or 0
+    if f.subAbove == above and f.subLift == lift then return end
+    f.subAbove, f.subLift = above, lift
+    f.sub:ClearAllPoints()
+    if above then
+        f.sub:SetWidth(N.SUB_WIDTH)
+        f.sub:SetPoint("BOTTOM", f, "TOP", 0, lift)
+    else
+        f.sub:SetWidth(0)
+        f.sub:SetPoint("TOP", f.text, "BOTTOM", 0, -2)
+    -- (Long lines go above the arrow: N.LayoutSub, whoever sets the text.)
+    hooksecurefunc(f.sub, "SetText", function(_, text) pcall(N.LayoutSub, f, text) end)
+    end
+end
+
 -- Travel time: yards to "~1m 20s" at the speed you are moving, or the speed
 -- you last moved at (a run, 7 yd a second, before you have moved at all).
 N.RUN_SPEED = 7

@@ -1,6 +1,22 @@
 # Changelog
 
 
+## 0.35.302
+
+- **The arrow's long line sits above the arrow.** A line such as "2166 yd (to the flight
+  master: fly Thunder Bluff, Mulgore to Crossroads...). Hearthstone is about 3 min quicker" ran
+  across half the screen under the step's name. Long lines are now above the arrow, wrapped; a
+  short one ("184 yd ~40s") stays where it was.
+- **The teleport or hearthstone picture by the arrow no longer looks like a button.** It's
+  round, smaller and a little see-through, like a mark on a map. Clicking it still opens the
+  arrow's details, as clicking the arrow does; your Flow key is what casts it.
+- **Recipes say what to do with them.** A pattern or recipe for a profession you don't have:
+  the auction house when it's worth it there, otherwise a vendor. For one of your professions:
+  learn it now, keep it until your skill reaches what it asks, or let it go when you already
+  know it.
+- **A quest item's tooltip names the quest in your log it's for**, so you can see which quest
+  to finish to get it out of your bags. `/flow leftovers` lists them all.
+
 ## 0.35.301
 
 - **Flow Prices: an item's auction price over time, as a chart.** Alt + click an item (bags, a

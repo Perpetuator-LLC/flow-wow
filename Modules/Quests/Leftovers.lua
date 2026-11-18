@@ -139,6 +139,13 @@ function L.Lines()
     local list, could = L.Now()
     if not could then return { "leftover quest items: Flow needs its quest data (Questie) to check" } end
     local out = { string.format("leftover quest items: %d in your bags that no quest in your log asks for", #list) }
+    local okI, rows = pcall(function() return ns.disposition:Inventory() end)
+    for _, r in ipairs(okI and rows or {}) do
+        local okQ, titles = pcall(L.QuestFor, r.id)
+        if okQ and titles and tostring(r.kind or ""):find("^Quest") then
+            out[#out + 1] = string.format("  for a quest in your log: %d x %s [%d]: %s", r.count or 1, tostring(r.name), r.id, table.concat(titles, ", "))
+        end
+    end
     for _, it in ipairs(list) do
         local okA, what, why = pcall(L.For, it.id, it.name, it.sell)
         out[#out + 1] = string.format("  %d x %s [%d]: %s", it.count, tostring(it.name), it.id, okA and what and (what .. ": " .. tostring(why)) or "no advice")
@@ -298,6 +305,52 @@ function L.LogNeeds()
     needsAt, needsIds, needsTexts = GetTime(), ids, texts
     return ids, texts
 end
+
+-- Which quest in your log an item is for (0.35.302: "I have 14 quest items,
+-- which is kind of ridiculous"). Each one a quest in your log uses can only
+-- leave your bags by doing that quest, so the tooltip names it.
+-- Pure: quests: { { id, title, raw } } -> { [itemID] = { title, ... } }
+function L.QuestsByItem(quests)
+    local out = {}
+    for _, q in ipairs(quests or {}) do
+        for itemId in pairs(L.AddQuest({}, q.raw)) do
+            out[itemId] = out[itemId] or {}
+            table.insert(out[itemId], q.title)
+        end
+    end
+    for _, list in pairs(out) do table.sort(list) end
+    return out
+end
+local byItem, byItemAt = nil, 0
+function L.QuestFor(itemId)
+    local Q = ns.quests
+    if not (itemId and Q and Q.Source and Q:Source()) then return nil end
+    if not byItem or GetTime() - byItemAt > 5 then
+        local quests = {}
+        for id in pairs(Q:LogIds() or {}) do
+            local raw = Q:QuestieGet("GetQuest", id)
+            local title = raw and raw.name
+            if not title and C_QuestLog and C_QuestLog.GetTitleForQuestID then
+                local ok, t = pcall(C_QuestLog.GetTitleForQuestID, id)
+                title = ok and type(t) == "string" and t or nil
+            end
+            quests[#quests + 1] = { id = id, title = title or ("quest " .. id), raw = raw }
+        end
+        byItem, byItemAt = L.QuestsByItem(quests), GetTime()
+    end
+    return byItem[itemId]
+end
+-- Pure: the tooltip's line.
+function L.QuestForText(titles)
+    if not titles or #titles == 0 then return nil end
+    return "Flow: for your quest " .. table.concat(titles, ", ", 1, math.min(2, #titles)) .. (#titles > 2 and "..." or "")
+end
+ns:Register("itemTip", "questFor", function(tooltip, link)
+    local id = link and tonumber(link:match("item:(%d+)"))
+    local ok, titles = pcall(L.QuestFor, id)
+    local text = ok and L.QuestForText(titles) or nil
+    if text then tooltip:AddLine(text, 1, 0.82, 0, true); tooltip:Show() end
+end)
 
 -- For one item of the game's Quest kind: nil when a quest in your log uses
 -- it (or Flow can't check); else what to do and why.
