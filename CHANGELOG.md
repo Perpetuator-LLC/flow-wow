@@ -1,6 +1,19 @@
 # Changelog
 
 
+## 0.35.311
+
+- **Finish the zones you pick first.** In the Flow menu, Order's "Finish the area you're in
+  first" is now **"Finish the selected zones first"**: tick the zones you want under Zones, and
+  the route does their quests first and the other zones' after them (nothing is left out). The
+  Flow Tracker says "Finishing The Barrens and Stonetalon Mountains first", and a waiting step
+  says "(Ashenvale, after your zones)". Off (as before): an unticked zone is left out of the
+  route. Also in Flow Settings (Finding your way). The 300-yard "Finish the area you're in
+  first" is still there, in Flow Settings.
+- **Under the zones, a line and three quick choices:** Select all, Select none and Current zone
+  only, to start a choice and then tick the zones you want. `/flow zones all | none | here`,
+  and `/flow zones first` turns the option on or off.
+
 ## 0.35.310
 
 - **Spell levels come from your trainer, not from Classic's list.** Flow read your class

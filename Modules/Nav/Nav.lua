@@ -600,7 +600,17 @@ function N:Collect(gathered)
     do
         local okZ, summary, keptZ, left = pcall(N.ZoneFilter, shown, ns.db.nav.zonesOff or {},
             function(g) return N.GoalZone(g) end, N.ZoneNameOf)
-        if okZ then N.zoneSummary, shown, N.zoneLeftOut = summary, keptZ, left end
+        if okZ then
+            N.zoneSummary = summary
+            -- "Finish the selected zones first" (0.35.311): the zones you
+            -- didn't tick stay on the route, after the ones you did (N:Options).
+            if N.ZonesFirstOn() then
+                for _, z in ipairs(summary) do z.later, z.off = z.off, false end
+                N.zoneLeftOut = 0
+            else
+                shown, N.zoneLeftOut = keptZ, left
+            end
+        end
     end
     -- A step that waits for one you hid (a quest's hand-in, its objective
     -- hidden) can't be done yet either: off the route, with the reason
@@ -780,7 +790,8 @@ end
 function N.ZoneLine(z)
     local levels = z.min and (z.min == z.max and string.format(", level %d", z.min) or string.format(", levels %d-%d", z.min, z.max)) or ""
     return string.format("%s: %d step%s%s%s%s", tostring(z.name), z.steps, z.steps == 1 and "" or "s",
-        z.accept > 0 and string.format(" (%d to accept)", z.accept) or "", levels, z.off and " - LEFT OUT" or "")
+        z.accept > 0 and string.format(" (%d to accept)", z.accept) or "", levels,
+        z.off and " - LEFT OUT" or (z.later and " - after your zones" or ""))
 end
 -- Pure: the zone a typed name means among the summary (a part of its name), or nil.
 function N.ZoneByName(summary, text)
@@ -801,13 +812,61 @@ function N.SetZoneOff(zone, off)
     N.planDirty = true
     if N.RequestCollect then N.RequestCollect("a zone left out or put back") end
 end
+
+-- "Finish the selected zones first" (0.35.311: "the option to finish the
+-- area you're in first should be finish the selected zones first, and then
+-- in zones the user can select the zones that they want"). The ticks in
+-- the Flow menu's Zones are the selection either way:
+--   off (default): an unticked zone is left out of the route (0.35.293);
+--   on: an unticked zone stays on it, after the ticked ones are done.
+function N.ZonesFirstOn() return ns.db.nav.zonesFirst == true end
+function N.SetZonesFirst(on)
+    ns.db.nav.zonesFirst = on and true or false
+    N.planDirty = true
+    if N.RequestCollect then N.RequestCollect("finish the selected zones first " .. (on and "on" or "off")) end
+end
+-- The zones ticked: { [zone] = true }, among those with quest steps.
+function N.SelectedZones(summary, off)
+    summary, off = summary or N.zoneSummary or {}, off or ns.db.nav.zonesOff or {}
+    local out = {}
+    for _, z in ipairs(summary) do
+        if not off[z.zone] then out[z.zone] = true end
+    end
+    return out
+end
+-- Pure: the Flow Tracker's line for it. nameOf(zone) -> name.
+function N.PickedNote(picked, nameOf)
+    local names = {}
+    for z in pairs(picked or {}) do names[#names + 1] = nameOf(z) end
+    table.sort(names)
+    if #names == 0 then return nil end
+    if #names <= 2 then return "Finishing " .. table.concat(names, " and ") .. " first" end
+    return string.format("Finishing your %d zones first", #names)
+end
+-- Pure: the zones to leave unticked for a quick choice. how: "all", "none",
+-- or "here" (only `here`, the zone you're in). -> { [zone] = true }
+function N.ZonesOffFor(how, summary, here)
+    local off = {}
+    if how == "all" then return off end
+    for _, z in ipairs(summary or {}) do
+        if how == "none" or z.zone ~= here then off[z.zone] = true end
+    end
+    return off
+end
+function N.SelectZones(how)
+    local p = N.PlayerPos and N:PlayerPos()
+    ns.db.nav.zonesOff = N.ZonesOffFor(how, N.zoneSummary, p and N.ZoneOf(p.map))
+    N.planDirty = true
+    if N.RequestCollect then N.RequestCollect("zones: select " .. tostring(how)) end
+end
 function N.ZoneLines()
     local out = {}
     local sum = N.zoneSummary or {}
     if #sum == 0 then return { "quests by zone: none on your route yet" } end
-    out[1] = string.format("your quest steps by zone (%d left out of the route now):", N.zoneLeftOut or 0)
+    out[1] = string.format("your quest steps by zone (%d left out of the route now%s):", N.zoneLeftOut or 0,
+        N.ZonesFirstOn() and "; finishing the ticked zones first" or "")
     for _, z in ipairs(sum) do out[#out + 1] = "  " .. N.ZoneLine(z) end
-    out[#out + 1] = "  /flow zones off <zone> leaves a zone out; /flow zones on <zone> puts it back; /flow zones all"
+    out[#out + 1] = "  /flow zones off <zone> unticks a zone; /flow zones on <zone> ticks it; /flow zones all | none | here; /flow zones first (on or off)"
     return out
 end
 ns.commands.zones = function(arg)
@@ -815,10 +874,19 @@ ns.commands.zones = function(arg)
     local cmd, rest = arg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "all" then
-        ns.db.nav.zonesOff = {}
-        N.planDirty = true
-        if N.RequestCollect then N.RequestCollect("every zone back") end
-        ns:Print("every zone is on your route again")
+        N.SelectZones("all")
+        ns:Print("every zone is ticked again")
+        return
+    end
+    if cmd == "none" or cmd == "here" then
+        N.SelectZones(cmd)
+        ns:Print(cmd == "none" and "every zone is unticked: tick the ones you want (Flow menu, Zones, or /flow zones on <zone>)"
+            or "only the zone you're in is ticked")
+        return
+    end
+    if cmd == "first" then
+        N.SetZonesFirst(not N.ZonesFirstOn())
+        ns:Print("finish the selected zones first: " .. (N.ZonesFirstOn() and "on (unticked zones come after them)" or "off (unticked zones are left out)"))
         return
     end
     if cmd == "off" or cmd == "on" then
@@ -831,16 +899,29 @@ ns.commands.zones = function(arg)
     end
     for i, l in ipairs(N.ZoneLines()) do if i == 1 then ns:Print(l) else print(l) end end
 end
--- The Flow menu's entries: a tick a zone.
+-- The Flow menu's entries: a tick a zone, then (under a line) the quick
+-- choices. ("Finish the selected zones first" is under Order.)
 function N.ZoneMenuItems()
     local items = {}
+    local first = N.ZonesFirstOn()
+    local function ticked(zone) return not (ns.db.nav.zonesOff and ns.db.nav.zonesOff[zone]) end
     for _, z in ipairs(N.zoneSummary or {}) do
         items[#items + 1] = { text = N.ZoneLine({ name = z.name, steps = z.steps, accept = z.accept, min = z.min, max = z.max }),
-            stay = true, checked = not z.off,
-            tip = "Ticked: this zone's quests are on your route. Untick to leave the zone out: its quests stay in your log, and the route stops taking you there.",
-            func = function() N.SetZoneOff(z.zone, not (ns.db.nav.zonesOff and ns.db.nav.zonesOff[z.zone]) ) end,
-            refresh = function(it) it.checked = not (ns.db.nav.zonesOff and ns.db.nav.zonesOff[z.zone]) end }
+            stay = true, checked = ticked(z.zone),
+            tip = first and "Ticked: the route finishes this zone's quests first. Unticked: they stay on your route, after the ticked zones."
+                or "Ticked: this zone's quests are on your route. Untick to leave the zone out: its quests stay in your log, and the route stops taking you there.",
+            func = function() N.SetZoneOff(z.zone, ticked(z.zone)) end,
+            refresh = function(it) it.checked = ticked(z.zone) end }
     end
+    if #items == 0 then return items end
+    local p = N.PlayerPos and N:PlayerPos()
+    local here = p and N.ZoneOf(p.map)
+    items[#items + 1] = { rule = true }
+    items[#items + 1] = { text = "Select all", stay = true, func = function() N.SelectZones("all") end }
+    items[#items + 1] = { text = "Select none", stay = true, func = function() N.SelectZones("none") end,
+        tip = "Untick every zone, then tick the ones you want." }
+    items[#items + 1] = { text = here and ("Current zone only (" .. N.ZoneNameOf(here) .. ")") or "Current zone only", stay = true,
+        func = function() N.SelectZones("here") end }
     return items
 end
 
@@ -2205,7 +2286,7 @@ function N:FormatStop(i, goal, label)
     local numColor = (i == 1) and ns.theme.route.hex or "999999"
     local textColor = kind and kind.color.hex or "ffffff"
     -- A step in another zone, waiting until this zone is done: says where.
-    local where = goal.awayZone and string.format(" |cff888888(%s, after this zone)|r", goal.awayZone) or ""
+    local where = goal.awayZone and string.format(" |cff888888(%s, %s)|r", goal.awayZone, N.awayWords or "after this zone") or ""
     -- A step that goes after another (Needs.lua): "after Bear Form".
     if goal.after then where = where .. string.format(" |cff888888(after %s)|r", goal.after) end
     -- A class quest's step names the spell it leads to (0.35.310: "I don't see
@@ -2620,14 +2701,20 @@ local function isQuestStop(key)
 end
 
 -- Which steps hold you in `zone` (here) and which wait (away); nil, nil when
--- there's nothing to hold you or nowhere else to go.
+-- there's nothing to hold you or nowhere else to go. zone: one zone, or a set
+-- of them ({ [zone] = true }: the zones you ticked, "Finish the selected
+-- zones first").
 function N.AreaSplit(list, zone, p, zoneOf)
     local here, away, byKey = {}, {}, {}
+    local function inSet(z)
+        if type(zone) == "table" then return z ~= nil and zone[z] == true end
+        return z == zone
+    end
     for _, g in ipairs(list) do
         byKey[g.key] = g
         local inZone, nearest = false, nil
         for _, pt in ipairs(g.points or {}) do
-            if pt.map and zoneOf(pt.map) == zone then inZone = true end
+            if pt.map and inSet(zoneOf(pt.map)) then inZone = true end
             if p and pt.wx and pt.cont == p.cont then
                 local d = dist(p.wx, p.wy, pt.wx, pt.wy)
                 if not nearest or d < nearest then nearest = d end
@@ -2955,11 +3042,19 @@ function N:Options(sel)
         end
         if partyFirst then first = partyFirst end
     end
-    -- Finish this zone before leaving it (see N.AreaSplit).
+    -- Finish the zones you ticked first, else this zone before leaving it
+    -- (see N.AreaSplit).
     local here, away
     local p = self:PlayerPos()
     local zone = p and N.ZoneOf(p.map)
-    if zone and ns.db.nav.zoneFirst ~= false then here, away = N.AreaSplit(goals, zone, p, N.ZoneOf) end
+    local picked = N.ZonesFirstOn() and N.SelectedZones() or nil
+    if picked and next(picked) then
+        here, away = N.AreaSplit(goals, picked, p, N.ZoneOf)
+        N.awayWords = "after your zones"
+    elseif zone and ns.db.nav.zoneFirst ~= false then
+        here, away = N.AreaSplit(goals, zone, p, N.ZoneOf)
+        N.awayWords = "after this zone"
+    end
     for _, g in ipairs(goals) do
         local awayZone
         if away and away[g.key] then
@@ -2968,7 +3063,11 @@ function N:Options(sel)
         end
         g.awayZone = awayZone
     end
-    N.zoneNote = (here and away) and ("Finishing " .. zoneName(zone) .. " first") or nil
+    if here and away then
+        N.zoneNote = picked and N.PickedNote(picked, zoneName) or ("Finishing " .. zoneName(zone) .. " first")
+    else
+        N.zoneNote = nil
+    end
     -- Set your home before a spell casts you far from it: a step that's a
     -- travel spell away waits for the "Set hearthstone" step here (Hearth.lua).
     if p and ns.hearth and ns.hearth.BeforeTrips and ns.travelSpells then
@@ -4783,6 +4882,15 @@ if ns.settings and ns.settings.AddCheck then
             .. "Off (default): profession steps stay on the main arrow's route, where the Flow key does their steps.",
         get = function() return ns.db.nav.profArrow == true end,
         set = function(on) N:SetProfArrow(on) end,
+    })
+    ns.settings:AddCheck({
+        group = "route",
+        label = "Finish the selected zones first",
+        note = "(tick them in the Flow menu, Zones)",
+        tip = "On: the route does the zones ticked in the Flow menu (Zones) first, and the other zones' quests after them. "
+            .. "Off (default): a zone you untick there is left out of the route.",
+        get = function() return N.ZonesFirstOn() end,
+        set = function(on) N.SetZonesFirst(on) end,
     })
     ns.settings:AddCheck({
         group = "route",

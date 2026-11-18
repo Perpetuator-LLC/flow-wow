@@ -164,7 +164,10 @@ Flow for WoW is a separate project from Flow Engine.
   one line in party chat.
 - **Zones**: the Flow menu's Zones section lists each zone where you have quest steps, with how
   many and their levels ("Stonetalon Mountains: 6 steps (2 to accept), levels 17-22"). Untick a
-  zone to leave it out of the route; its quests stay in your log. `/flow zones`.
+  zone to leave it out of the route; its quests stay in your log. Under a line: Select all,
+  Select none and Current zone only, to start a choice quickly. With "Finish the selected zones
+  first" (Order) on, an unticked zone isn't left out: its quests come after the ticked zones'.
+  `/flow zones` (`all`, `none`, `here`, `first`).
 - **Where next**: `/flow where` lists the zones with the most to do at your level: quests you
   could pick up, their levels and XP, class quests, what you could gather there, and whether
   it's across the sea. The top five also show in the Zones section.

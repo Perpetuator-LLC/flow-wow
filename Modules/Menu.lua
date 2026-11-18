@@ -475,8 +475,11 @@ function Menu:RouteItemsRaw()
                 or "|cff777777Custom route (pick a step: its ^ or Go here next)|r",
           radio = true, checked = sort == "custom", disabled = sort ~= "custom",
           func = function() ns.xpValue:SetMode("custom") end },
-        { text = "Finish the area you're in first", checked = ns.db.nav.areaFirst == true,
-          func = function() ns.db.nav.areaFirst = (ns.db.nav.areaFirst ~= true); nav.planDirty = true end },
+        -- (0.35.311: was "Finish the area you're in first", which stays in
+        -- Flow Settings. The zones to finish are ticked under Zones below.)
+        { text = "Finish the selected zones first (Zones, below)", checked = nav.ZonesFirstOn(),
+          tip = "On: the route does the zones ticked under Zones first, and the rest after them. Off: an unticked zone is left out of the route.",
+          func = function() nav.SetZonesFirst(not nav.ZonesFirstOn()) end },
     })
 
     -- Route includes: the kinds of steps, the dungeon run on its own

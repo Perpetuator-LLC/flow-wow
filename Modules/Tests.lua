@@ -13123,7 +13123,9 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
     with(N, "zoneSummary", sum, function()
         ns.db.nav.zonesOff = {}
         local items = N.ZoneMenuItems()
-        t:eq(#items, 2, "the Flow menu has a tick a zone")
+        local ticks = 0
+        for _, it in ipairs(items) do if it.checked ~= nil then ticks = ticks + 1 end end
+        t:eq(ticks, 2, "the Flow menu has a tick a zone")
         local tick
         for _, it in ipairs(items) do if it.text:find("^Stonetalon") then tick = it end end
         t:ok(tick ~= nil and pcall(tick.func), "a click on Stonetalon's tick runs")
@@ -13133,8 +13135,53 @@ ns:Register("test", "click: quest steps are counted by zone, and a zone can be l
         t:ok(pcall(ns.commands.zones, "off barrens") and ns.db.nav.zonesOff[1] == true, "/flow zones off leaves a zone out")
         t:ok(pcall(ns.commands.zones, "all") and next(ns.db.nav.zonesOff) == nil, "/flow zones all puts every zone back")
         t:ok(pcall(ns.commands.zones, ""), "/flow zones lists them")
+        -- 0.35.311: Select all / Select none / Current zone only, under a line.
+        local buttons = {}
+        for _, it in ipairs(N.ZoneMenuItems()) do
+            if it.text then buttons[(it.text:match("^(Select %a+)") or it.text:match("^(Current zone only)") or "")] = it end
+        end
+        t:ok(buttons["Select none"] and pcall(buttons["Select none"].func), "click: Select none runs")
+        t:ok(ns.db.nav.zonesOff[1] == true and ns.db.nav.zonesOff[2] == true, "and unticks every zone")
+        t:ok(buttons["Select all"] and pcall(buttons["Select all"].func) and next(ns.db.nav.zonesOff) == nil, "click: Select all ticks them all")
+        t:ok(buttons["Current zone only"] and pcall(buttons["Current zone only"].func), "click: Current zone only runs")
+        t:ok(pcall(ns.commands.zones, "none") and ns.db.nav.zonesOff[1] == true, "/flow zones none")
+        t:ok(pcall(ns.commands.zones, "all"), "/flow zones all")
     end) end) end)
     ns.db.nav.zonesOff = was
+    N.planDirty = true
+end)
+
+ns:Register("test", "zones: finish the selected zones first", function(t)
+    -- "the option to finish the area you're in first should be finish the selected zones first"
+    local N = ns.nav
+    local sum = { { zone = 1, name = "The Barrens" }, { zone = 2, name = "Stonetalon Mountains" }, { zone = 3, name = "Ashenvale" } }
+    t:eq(next(N.ZonesOffFor("all", sum, 1)), nil, "select all: nothing unticked")
+    local off = N.ZonesOffFor("none", sum, 1)
+    t:ok(off[1] and off[2] and off[3], "select none: every zone unticked")
+    off = N.ZonesOffFor("here", sum, 2)
+    t:ok(off[1] and not off[2] and off[3], "current zone only: the others unticked")
+    local picked = N.SelectedZones(sum, { [3] = true })
+    t:ok(picked[1] and picked[2] and not picked[3], "the selection: the ticked zones")
+    local names = { "The Barrens", "Stonetalon Mountains", "Ashenvale" }
+    local nameOf = function(z) return names[z] end
+    t:eq(N.PickedNote(picked, nameOf), "Finishing Stonetalon Mountains and The Barrens first", "the Flow Tracker's line, two zones")
+    t:eq(N.PickedNote({ [1] = true, [2] = true, [3] = true }, nameOf), "Finishing your 3 zones first", "more: how many")
+    t:eq(N.PickedNote({}, nameOf), nil, "none ticked: nothing")
+    -- The split by a set of zones: steps in a ticked zone hold you; the rest wait.
+    local zoneOf = function(map) return map end
+    local function g(key, map) return { key = key, points = { { map = map } } } end
+    local here, away = N.AreaSplit({ g("10:1", 1), g("11:1", 2), g("12:1", 3) }, { [1] = true, [2] = true }, nil, zoneOf)
+    t:ok(here and here["10:1"] and here["11:1"] and away["12:1"], "ticked zones first, the rest after")
+    t:eq(N.ZoneLine({ name = "Ashenvale", steps = 3, accept = 0, later = true }), "Ashenvale: 3 steps - after your zones", "an unticked zone says it comes after")
+    -- The switch, from the Flow menu's Order and from Flow Settings.
+    local was = ns.db.nav.zonesFirst
+    with(N, "RequestCollect", function() end, function()
+        N.SetZonesFirst(true)
+        t:eq(N.ZonesFirstOn(), true, "on")
+        N.SetZonesFirst(false)
+        t:eq(N.ZonesFirstOn(), false, "off")
+    end)
+    ns.db.nav.zonesFirst = was
     N.planDirty = true
 end)
 
