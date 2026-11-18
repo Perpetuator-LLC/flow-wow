@@ -54,8 +54,11 @@ ns:Register("learned", "combatlog", {
 [IO.File]::WriteAllText((Join-Path $out 'Learned\ClaudeInbox.lua'),
     "-- Answers to /claude land here (docs/ASK-CLAUDE.md). Empty in a release.`nlocal _, ns = ...`nns.claudeInbox = ns.claudeInbox or {}`n",
     (New-Object Text.UTF8Encoding $false))
-# NPC spots Flow players shared (community data): shipped as it is.
+# NPC spots and game facts Flow players shared (community data): shipped as
+# they are. (Facts.lua is listed in Flow.toc since 0.35.220, but the zips
+# left it out until 0.35.321: players never got the shared facts.)
 Copy-Item (Join-Path $root 'Learned\Places.lua') (Join-Path $out 'Learned\Places.lua')
+Copy-Item (Join-Path $root 'Learned\Facts.lua') (Join-Path $out 'Learned\Facts.lua')
 
 $zip = Join-Path $dist "Flow-$version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
