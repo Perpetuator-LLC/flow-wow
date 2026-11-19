@@ -14954,3 +14954,24 @@ ns:Register("test", "load: the self-tests at login run a few milliseconds a fram
     t:eq(LF.Text(frames2, 3, 40), "after login: 3 long frame(s) in the first 40 s; the longest: 1250 ms at 8.2 s, 400 ms at 5.0 s", "and said in the log")
     t:ok(LF.Text({}, 0, 40):find("no frame over", 1, true) ~= nil, "none: says so")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.337: the auto-attack badge glows on the inside, as the game's buttons do.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "target button: auto attack on glows inside the badge, with the game's own highlight", function(t)
+    t:ok(ns.SWING_CHECKED:find("CheckButtonHilight", 1, true) ~= nil and ns.SWING_CHECKED:find("\\", 1, true) ~= nil,
+        "the game's highlight for a button that's switched on")
+    local icon = ns.rotation.icon
+    if not (icon and icon.swing and icon.swing.glow) then t:ok(true, "(the target button isn't built yet)") return end
+    local glow = icon.swing.glow
+    if icon.swing.glowInside then
+        local p, rel = glow:GetPoint(1)
+        t:ok(rel == icon.swing.tex and p ~= nil, "laid over the picture, inside the badge's edge")
+        t:eq(glow:GetBlendMode(), "ADD", "added to the picture, as the game does it")
+        t:eq(glow:GetDrawLayer(), "OVERLAY", "on top of the picture")
+    else
+        t:ok(true, "(this game has no such picture: the ring round the badge instead)")
+    end
+    t:ok(glow:IsShown() == (icon.swingState == "on"), "there only while auto attack is on")
+end)

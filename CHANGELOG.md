@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.35.337
+
+- **The auto-attack badge glows on the inside while auto attack is on**, the way the game's own
+  buttons do when they're switched on: a yellow glow from the border inward that fades toward
+  the middle (the game's own highlight, the one on the action bar's Attack button). The orange
+  ring round the outside from 0.35.335 is gone.
+
 ## 0.35.336
 
 - **Fixed: the freeze a few seconds after every login or /reload.** It was Flow checking itself:

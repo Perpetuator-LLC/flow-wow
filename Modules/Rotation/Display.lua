@@ -113,10 +113,26 @@ local function buildIcon(cfg)
     -- drew a soft glow from one of the game's textures: it didn't show.
     -- "It doesn't show the flashing; you do it already on a couple of the
     -- other icons, so do that same thing when auto attack is enabled.")
-    f.swing.glow = f.swing:CreateTexture(nil, "BACKGROUND", nil, -3)
-    f.swing.glow:SetPoint("TOPLEFT", -ns.SWING_RING, ns.SWING_RING)
-    f.swing.glow:SetPoint("BOTTOMRIGHT", ns.SWING_RING, -ns.SWING_RING)
-    f.swing.glow:SetColorTexture(ns.pulse.COLOR[1], ns.pulse.COLOR[2], ns.pulse.COLOR[3], 1)
+    -- 0.35.337: on the INSIDE, as the game does it. "That's actually supposed
+    -- to go on the inside: a glow from the borders inward that fades as it
+    -- goes inward. Look at any of the other icons when they're toggled on."
+    -- Seen on the action bar's own Attack button: it's the game's highlight
+    -- for a button that's switched on (ns.SWING_CHECKED), laid over the
+    -- picture and added to it. Flow's pulse still breathes it.
+    f.swing.glow = f.swing:CreateTexture(nil, "OVERLAY")
+    f.swing.glow:SetAllPoints(f.swing.tex)
+    f.swing.glow:SetTexture(ns.SWING_CHECKED)
+    f.swing.glowInside = f.swing.glow:GetTexture() ~= nil
+    if f.swing.glowInside then
+        f.swing.glow:SetBlendMode("ADD")
+    else
+        -- (A game without that picture: the ring round it, as in 0.35.335.)
+        f.swing.glow:SetDrawLayer("BACKGROUND", -3)
+        f.swing.glow:ClearAllPoints()
+        f.swing.glow:SetPoint("TOPLEFT", -ns.SWING_RING, ns.SWING_RING)
+        f.swing.glow:SetPoint("BOTTOMRIGHT", ns.SWING_RING, -ns.SWING_RING)
+        f.swing.glow:SetColorTexture(ns.pulse.COLOR[1], ns.pulse.COLOR[2], ns.pulse.COLOR[3], 1)
+    end
     f.swing.glow:Hide()
     f.swing:Hide()
     -- Hover: what it is. (A click on it toggles auto attack: ClickSlots.lua
@@ -731,6 +747,9 @@ end
 -- (past the weapon-coloured edge, which is 2), and how dim the badge is when
 -- auto attack is off.
 ns.SWING_RING, ns.SWING_OFF_ALPHA = 4, 0.4
+-- The game's own highlight for a button that's switched on (the action bar's
+-- Attack while you swing): a glow inside the border that fades inward.
+ns.SWING_CHECKED = "Interface\\Buttons\\CheckButtonHilight"
 -- Pure: does the badge's ring pulse? Only while auto attack is on.
 function ns.SwingPulses(badge) return badge == "on" end
 -- Pure: the badge's picture: your form's attack when the class names one
