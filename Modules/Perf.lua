@@ -163,3 +163,45 @@ end
 ns:On("ENCOUNTER_START", function() liteAt = 0 end)
 ns:On("ENCOUNTER_END", function() liteAt = 0 end)
 ns:On("PLAYER_ENTERING_WORLD", function() liteAt = 0 end)
+
+-------------------------------------------------------------------------------
+-- Long frames right after login (0.35.336). "Every time the game loads,
+-- between 2 and 10 seconds afterwards, there's a freezing moment: look at
+-- what is happening right there." Whatever causes one (Flow, another add-on,
+-- the game streaming the world in), a frame that took far too long is noted
+-- with when it happened, for the first 40 seconds, and the log says so. It
+-- doesn't say whose fault a frame was; /flow perf's "once took" lines do
+-- that for Flow's own work.
+-------------------------------------------------------------------------------
+local LF = { WATCH = 40, LONG = 0.15, SKIP = 1.5, KEEP = 5 }
+ns.loginFrames = LF
+-- Pure: adds a long frame to the list (the longest KEEP are kept, longest first).
+function LF.Note(list, at, seconds, keep)
+    list[#list + 1] = { at = at, ms = seconds * 1000 }
+    table.sort(list, function(a, b) return a.ms > b.ms end)
+    for i = #list, (keep or LF.KEEP) + 1, -1 do list[i] = nil end
+    return list
+end
+-- Pure: the log's line.
+function LF.Text(list, count, watch)
+    if #list == 0 then return string.format("after login: no frame over %d ms in the first %d s", LF.LONG * 1000, watch or LF.WATCH) end
+    local parts = {}
+    for _, f in ipairs(list) do parts[#parts + 1] = string.format("%.0f ms at %.1f s", f.ms, f.at) end
+    return string.format("after login: %d long frame(s) in the first %d s; the longest: %s", count, watch or LF.WATCH, table.concat(parts, ", "))
+end
+ns:On("PLAYER_LOGIN", function()
+    local watcher, since, list, count = CreateFrame("Frame"), 0, {}, 0
+    watcher:SetScript("OnUpdate", function(self, dt)
+        since = since + dt
+        -- (The first frames after the loading screen are the game's own.)
+        if since > LF.SKIP and dt >= LF.LONG then
+            count = count + 1
+            LF.Note(list, since, dt)
+        end
+        if since >= LF.WATCH then
+            self:SetScript("OnUpdate", nil)
+            LF.last = LF.Text(list, count)
+            ns:Log("perf", LF.last)
+        end
+    end)
+end)

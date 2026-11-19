@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.336
+
+- **Fixed: the freeze a few seconds after every login or /reload.** It was Flow checking itself:
+  all of its self-tests (some 550) ran in one frame, 8 seconds after login, and the game stood
+  still for over a second while they did. They now run a few milliseconds a frame, spread over
+  a few seconds, with the same results. In a fight they wait.
+- Flow now notes any frame that takes far too long in the first 40 seconds after login, and
+  when it happened, so what's left of a hitch (Flow's or not) can be found.
+
 ## 0.35.335
 
 - **Druid: Prowl is suggested before a pull.** In Cat Form, out of a fight, with an enemy

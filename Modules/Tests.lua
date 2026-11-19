@@ -31,24 +31,61 @@ function T:near(a, b, tol, msg)
         string.format("%s: got %s, expected %s", msg or "near", tostring(a), tostring(b)))
 end
 
-local function run(filter)
-    local passed, failed, checks, out = 0, 0, 0, {}
-    for name, fn in ns:Each("test") do
-        if not filter or filter == "" or name:lower():find(filter:lower(), 1, true) then
-            local t = setmetatable({ n = 0, fails = {} }, T)
-            local ok, err = pcall(fn, t)
-            if not ok then t.fails[#t.fails + 1] = "error: " .. tostring(err) end
-            checks = checks + t.n
-            if #t.fails == 0 then
-                passed = passed + 1
-            else
-                failed = failed + 1
-                out[#out + 1] = "FAIL " .. name
-                for _, f in ipairs(t.fails) do out[#out + 1] = "    " .. f end
-            end
-        end
+-- Runs one test into a tally ({ passed, failed, checks, out }).
+local function runOne(name, fn, acc)
+    local t = setmetatable({ n = 0, fails = {} }, T)
+    local ok, err = pcall(fn, t)
+    if not ok then t.fails[#t.fails + 1] = "error: " .. tostring(err) end
+    acc.checks = acc.checks + t.n
+    if #t.fails == 0 then
+        acc.passed = acc.passed + 1
+    else
+        acc.failed = acc.failed + 1
+        acc.out[#acc.out + 1] = "FAIL " .. name
+        for _, f in ipairs(t.fails) do acc.out[#acc.out + 1] = "    " .. f end
     end
-    return passed, failed, checks, out
+end
+
+local function run(filter)
+    local acc = { passed = 0, failed = 0, checks = 0, out = {} }
+    for name, fn in ns:Each("test") do
+        if not filter or filter == "" or name:lower():find(filter:lower(), 1, true) then runOne(name, fn, acc) end
+    end
+    return acc.passed, acc.failed, acc.checks, acc.out
+end
+
+-- The login run, spread over frames (0.35.336). "Every time the game loads,
+-- somewhere between 2 and 10 seconds afterwards, there's a freezing moment."
+-- It was this: every self-test (some 550) in one frame, 8 seconds after
+-- login, 1.2 to 1.4 seconds with the game standing still. Now a frame runs
+-- tests for at most BUDGET milliseconds and hands back; the rest wait for
+-- the next frame. The same tests, the same results, a few seconds later.
+--   list: { { name, fn } }; budget: ms a frame; done(acc) at the end;
+--   defer(fn): run fn next frame; clock() -> ms; busy() -> wait (a fight)
+ns.tests = { BUDGET = 4 }
+function ns.tests.Spread(list, budget, done, defer, clock, busy)
+    local i = 1
+    local acc = { passed = 0, failed = 0, checks = 0, out = {}, ms = 0, frames = 0, worst = 0, worstName = nil }
+    local function step()
+        -- (A fight: tests open windows and set the key, which the game doesn't allow in one. Wait.)
+        if busy and busy() then defer(step, 2) return end
+        local t0 = clock()
+        repeat
+            local e = list[i]
+            i = i + 1
+            if e then
+                local s0 = clock()
+                runOne(e[1], e[2], acc)
+                local took = clock() - s0
+                if took > acc.worst then acc.worst, acc.worstName = took, e[1] end
+            end
+        until i > #list or (clock() - t0) >= budget
+        acc.ms = acc.ms + (clock() - t0)
+        acc.frames = acc.frames + 1
+        if i <= #list then defer(step, 0) else done(acc) end
+    end
+    step()
+    return acc
 end
 
 ns.commands.test = function(arg)
@@ -77,21 +114,22 @@ end
 -- click it. The full results are in the diagnostics and /flow test.
 ns:On("PLAYER_LOGIN", function()
     C_Timer.After(8, function()
-        if InCombatLockdown() then return end
-        local t0 = debugprofilestop and debugprofilestop()
-        local ok, passed, failed, checks, out = pcall(run)
-        local ms = t0 and (debugprofilestop() - t0) or 0
-        if not ok then ns:Log("tests", "run failed: " .. tostring(passed)) return end
-        ns:Log("tests", string.format("at login: %d passed, %d failed (%.0f ms)", passed, failed, ms))
-        -- Kept for the after-login diagnostics, so it needn't run them again.
-        ns.lastTestRun = { at = date("%H:%M:%S"), passed = passed, failed = failed, checks = checks,
-                           out = out, ms = ms }
-        if failed > 0 then
-            local first = (out[1] or ""):gsub("^FAIL ", "")
-            ns:Print(string.format("|cffff6060%d self-test%s failed|r (%s%s). Details: /flow test",
-                failed, failed == 1 and "" or "s", first, failed > 1 and ", ..." or ""))
-            for _, l in ipairs(out) do ns:Log("tests", l) end
-        end
+        local list = {}
+        for name, fn in ns:Each("test") do list[#list + 1] = { name, fn } end
+        local clock = debugprofilestop or function() return GetTime() * 1000 end
+        ns.tests.Spread(list, ns.tests.BUDGET, function(acc)
+            ns:Log("tests", string.format("at login: %d passed, %d failed (%.0f ms over %d frames; the longest single test %.0f ms: %s)",
+                acc.passed, acc.failed, acc.ms, acc.frames, acc.worst, tostring(acc.worstName)))
+            -- Kept for the after-login diagnostics, so it needn't run them again.
+            ns.lastTestRun = { at = date("%H:%M:%S"), passed = acc.passed, failed = acc.failed, checks = acc.checks,
+                               out = acc.out, ms = acc.ms, frames = acc.frames }
+            if acc.failed > 0 then
+                local first = (acc.out[1] or ""):gsub("^FAIL ", "")
+                ns:Print(string.format("|cffff6060%d self-test%s failed|r (%s%s). Details: /flow test",
+                    acc.failed, acc.failed == 1 and "" or "s", first, acc.failed > 1 and ", ..." or ""))
+                for _, l in ipairs(acc.out) do ns:Log("tests", l) end
+            end
+        end, function(fn, wait) C_Timer.After(wait or 0, fn) end, clock, function() return InCombatLockdown() and true or false end)
     end)
 end)
 
@@ -14860,4 +14898,59 @@ ns:Register("test", "druid: in Cat Form with an enemy targeted, Prowl is suggest
     end
     t:eq(rule.when({ inCombat = false, hostile = true }) and true or false, inCat and not hidden,
         "an enemy targeted, out of a fight: asked for exactly when you're a cat and not prowling yet")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.336: the login run of these tests is spread over frames.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "load: the self-tests at login run a few milliseconds a frame, not all at once", function(t)
+    local S = ns.tests
+    t:ok(S.BUDGET <= 8, "a frame's share is small: " .. tostring(S.BUDGET) .. " ms")
+    -- Ten made-up tests of 3 ms each, 5 ms a frame: two a frame, five frames.
+    local now, ran, queue = 0, 0, {}
+    local list = {}
+    for i = 1, 10 do
+        list[i] = { "made-up " .. i, function(tt)
+            now = now + 3
+            ran = ran + 1
+            tt:ok(i ~= 7, "the seventh fails")
+        end }
+    end
+    local finished
+    S.Spread(list, 5, function(acc) finished = acc end, function(fn) queue[#queue + 1] = fn end, function() return now end)
+    t:eq(ran, 2, "the first frame runs only what fits in its share")
+    t:eq(finished, nil, "and hands back before the end")
+    local frames = 1
+    while #queue > 0 and frames < 50 do
+        local fn = table.remove(queue, 1)
+        fn()
+        frames = frames + 1
+    end
+    t:eq(ran, 10, "every test still runs")
+    t:eq(frames, 5, "over five frames")
+    t:ok(finished and finished.passed == 9 and finished.failed == 1 and finished.checks == 10, "with the same tally as all at once")
+    t:ok(finished and finished.frames == 5 and finished.out[1] == "FAIL made-up 7", "its frames counted, the failure named")
+    t:ok(finished and finished.worst == 3 and finished.worstName ~= nil, "and the longest single test kept, to find a slow one")
+    -- A fight: it waits, and carries on after.
+    local busy, waited, ran2, queue2, done2 = true, 0, 0, {}, false
+    S.Spread({ { "a", function() ran2 = ran2 + 1 end } }, 5, function() done2 = true end,
+        function(fn, wait) waited = wait or 0; queue2[#queue2 + 1] = fn end, function() return 0 end, function() return busy end)
+    t:ok(ran2 == 0 and waited == 2 and not done2, "in a fight nothing runs: it looks again in a moment")
+    busy = false
+    table.remove(queue2, 1)()
+    t:ok(ran2 == 1 and done2, "after the fight it runs")
+    -- An empty list ends at once.
+    local empty
+    S.Spread({}, 5, function(acc) empty = acc end, function() end, function() return 0 end)
+    t:ok(empty and empty.passed == 0, "nothing to run: done")
+    -- Long frames after login are noted.
+    local LF = ns.loginFrames
+    local frames2 = {}
+    LF.Note(frames2, 8.2, 1.25, 2)
+    LF.Note(frames2, 3.0, 0.2, 2)
+    LF.Note(frames2, 5.0, 0.4, 2)
+    t:ok(#frames2 == 2 and frames2[1].ms == 1250 and frames2[2].ms == 400, "the longest are kept, longest first")
+    t:eq(LF.Text(frames2, 3, 40), "after login: 3 long frame(s) in the first 40 s; the longest: 1250 ms at 8.2 s, 400 ms at 5.0 s", "and said in the log")
+    t:ok(LF.Text({}, 0, 40):find("no frame over", 1, true) ~= nil, "none: says so")
 end)
