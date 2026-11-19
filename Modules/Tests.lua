@@ -14783,3 +14783,41 @@ ns:Register("test", "tracker: the game's quest item gets a button only when it h
     t:eq(QI.ItemOf(5068, { sourceItemId = 5068 }, has, usable), nil, "and none when that's the same useless one")
     t:ok(pcall(QI.Lines), "/flow questitems says why an item has no button")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.333: combo points on your target's nameplate.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "nameplates: your combo points show as pips under your target's nameplate", function(t)
+    local PC = ns.plateCombo
+    t:ok(PC.Uses("ROGUE", nil), "a rogue uses them")
+    t:ok(PC.Uses("DRUID", "Cat Form"), "a druid in Cat Form does")
+    t:ok(not PC.Uses("DRUID", "Bear Form") and not PC.Uses("DRUID", nil), "a druid in another shape doesn't")
+    t:ok(not PC.Uses("PALADIN", nil), "a class without them doesn't")
+    t:ok(PC.Wanted(true, "DRUID", "Cat Form", true), "a cat with an enemy targeted: shown")
+    t:ok(not PC.Wanted(true, "DRUID", "Cat Form", false), "no enemy targeted: not shown")
+    t:ok(not PC.Wanted(false, "ROGUE", nil, true), "switched off: not shown")
+    local lit, r, g = PC.Pips(3, 5)
+    t:ok(#lit == 5 and lit[3] and not lit[4], "three of five lit")
+    t:ok(r == 1 and g > 0.5, "gold while building")
+    local full, _, fullG = PC.Pips(5, 5)
+    t:ok(full[5] and fullG < 0.5, "red when full: spend them")
+    lit = PC.Pips(0, 5)
+    t:ok(#lit == 5 and not lit[1], "none yet: five empty pips, so you see where they'll be")
+    lit = PC.Pips(9, 5)
+    t:ok(#lit == 5 and lit[5], "never more than you can hold")
+    lit = PC.Pips(nil, nil)
+    t:eq(#lit, 5, "nothing known: five empty")
+    t:eq(PC.Width(5, 9, 3), 57, "the row's width")
+    -- Now, in the game: it runs whatever you're targeting, and can be switched off and on.
+    local wasOff = ns.db.plateCombo and ns.db.plateCombo.off
+    t:ok(pcall(PC.Update), "a look at your target runs")
+    t:ok(pcall(PC.Set, false) and not PC.On(), "/flow combo off")
+    t:ok(not PC.shown, "off: nothing shown")
+    t:ok(pcall(PC.Set, true) and PC.On(), "and on again")
+    ns.db.plateCombo.off = wasOff
+    pcall(PC.Update)
+    local okL, lines = pcall(PC.Lines)
+    t:ok(okL and lines[2]:find("nameplateResourceOnTarget", 1, true) ~= nil, "/flow combo says what the game's own setting answers")
+    t:ok(type(ns.commands.combo) == "function", "/flow combo")
+end)

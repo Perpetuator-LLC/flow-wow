@@ -104,6 +104,7 @@ function D:Snapshot(reason, spread)
         { "second key", function() if c.carekeys then c.carekeys("") end end },
         { "meters", function() if c.meters then c.meters("") end end },
         { "threat", function() if c.threat then c.threat("") end end },
+        { "combo points", function() if c.combo then c.combo("") end end },
         { "zones", function() if c.zones then c.zones("") end end },
         { "forms", function() if c.forms then c.forms() end end },
         { "class quests", function() if c.classquests then c.classquests() end end },

@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.333
+
+- **Your combo points on your target's nameplate.** A row of small pips under the nameplate of
+  the enemy you have targeted, one for each combo point you can hold: the ones you have are
+  lit gold, and all of them turn red when you're full. For a rogue, and for a druid in Cat
+  Form. With no points yet the empty pips still show. It's on from the start; off in Flow
+  Settings (On your screen) or with `/flow combo off`. The game needs enemy nameplates on for
+  there to be one to draw under (the V key by default).
+
 ## 0.35.332
 
 - **A quest item with nothing to click no longer gets a button.** On "The Stagnant Oasis" the
