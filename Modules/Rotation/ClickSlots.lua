@@ -71,6 +71,23 @@ function S.AttackSlot(hasAction, actionInfo, spellName)
     end
     return nil
 end
+-- Which half of a click the badge's button listens for (0.35.339). "If I
+-- click the auto attack icon next to the Flow button, it does not toggle off
+-- auto attack, and it should." The log had it: each click was noted and the
+-- swing stayed on. The button listened for the release only, and this game
+-- is set to act on the press ("cast on key down"): a secure button that
+-- isn't told about the press then does nothing at all. So it listens for
+-- the half the game acts on, and only that half.
+-- Pure: useKeyDown: the game's setting (true: on the press).
+function S.ClickEvent(useKeyDown)
+    return useKeyDown and "AnyDown" or "AnyUp"
+end
+function S.UseKeyDown()
+    if not GetCVarBool then return false end
+    local ok, v = pcall(GetCVarBool, "ActionButtonUseKeyDown")
+    return ok and v and true or false
+end
+
 -- Pure: how the badge's button toggles your swing: the bar slot when Attack
 -- is on a bar, else the spell. -> kind ("action" | "spell"), value.
 function S.AttackVia(slot, spell)
@@ -113,7 +130,10 @@ local function build(btn, icon)
     local w = CreateFrame("Button", "FlowSwingButton", btn, "SecureActionButtonTemplate")
     w:SetSize(24, 24)
     w:SetPoint("LEFT", btn, "RIGHT", 8, 0)
-    w:RegisterForClicks("AnyUp")   -- (once a click: Attack toggles)
+    -- Once a click (Attack toggles: both the press and the release would turn
+    -- it off and on again), and on the one the game acts on (S.ClickEvent).
+    w.clicks = S.ClickEvent(S.UseKeyDown())
+    w:RegisterForClicks(w.clicks)
     w.hl = w:CreateTexture(nil, "HIGHLIGHT")
     w.hl:SetAllPoints()
     w.hl:SetColorTexture(1, 1, 1, 0.25)
@@ -129,7 +149,7 @@ local function build(btn, icon)
         if S.swingClicks > 5 or not C_Timer then return end
         local before = A.Swinging() and true or false
         C_Timer.After(0.4, function()
-            ns:Log("cast", string.format("auto-attack badge clicked (set as %s): swinging %s -> %s", tostring(self.set), tostring(before), tostring(A.Swinging() and true or false)))
+            ns:Log("cast", string.format("auto-attack badge clicked (set as %s, listening for %s): swinging %s -> %s", tostring(self.set), tostring(self.clicks), tostring(before), tostring(A.Swinging() and true or false)))
         end)
     end)
     w:Hide()
@@ -181,6 +201,12 @@ function S.Sync(fight)
         local joined = icon.joined and true or false
         local side = icon.side or "left"
         if (w.joined ~= joined or w.side ~= side) and ns.PlaceSwing then ns.PlaceSwing(w, btn, joined, side) end
+        -- (The game's "act on the press" setting may have changed.)
+        local clicks = S.ClickEvent(S.UseKeyDown())
+        if clicks ~= w.clicks then
+            w.clicks = clicks
+            w:RegisterForClicks(clicks)
+        end
         local okS, slot = pcall(S.AttackSlot)
         local kind, value = S.AttackVia(okS and slot or nil, spell)
         local set = tostring(kind) .. ":" .. tostring(value)
@@ -217,7 +243,7 @@ function S.Lines()
         local b = S.buttons[slot]
         if b then out[#out + 1] = string.format("    %s icon: %s%s", slot, b.text ~= "" and b.text or "nothing", b:IsShown() and "" or " (hidden)") end
     end
-    if S.swing then out[#out + 1] = "    auto-attack badge: " .. tostring(S.swing.set) .. (S.swing:IsShown() and "" or " (hidden)") end
+    if S.swing then out[#out + 1] = "    auto-attack badge: " .. tostring(S.swing.set) .. ", listening for " .. tostring(S.swing.clicks) .. (S.swing:IsShown() and "" or " (hidden)") end
     return out
 end
 

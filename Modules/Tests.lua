@@ -14978,3 +14978,20 @@ ns:Register("test", "target button: auto attack on glows inside the badge, with 
     end
     t:ok(glow:IsShown() == (icon.swingState == "on"), "there only while auto attack is on")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.339: a click on the auto-attack badge toggles your swing.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: the auto-attack badge listens for the half of a click the game acts on", function(t)
+    local S = ns.clickSlots
+    t:eq(S.ClickEvent(true), "AnyDown", "the game acts on the press: the badge listens for the press")
+    t:eq(S.ClickEvent(false), "AnyUp", "the game acts on the release: for the release")
+    t:ok(S.ClickEvent(true) ~= S.ClickEvent(false), "never both: Attack toggles, and twice would be off and on again")
+    t:eq(type(S.UseKeyDown()), "boolean", "the game's setting is read")
+    local w = S.swing
+    if not w then t:ok(true, "(the badge's button isn't built yet)") return end
+    t:eq(w.clicks, S.ClickEvent(S.UseKeyDown()), "the badge's button is set the way the game is now")
+    t:ok(w:GetAttribute("type") == nil or w:GetAttribute("type") == "action" or w:GetAttribute("type") == "spell",
+        "and toggles Attack by its bar slot, or by the spell")
+end)

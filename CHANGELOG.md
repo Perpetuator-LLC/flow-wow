@@ -1,6 +1,14 @@
 # Changelog
 
 
+## 0.35.339
+
+- **Fixed: clicking the auto-attack badge beside the target button didn't turn auto attack
+  off.** The badge listened for the release of the mouse button, and with the game set to act
+  on the press ("cast on key down") a click that way does nothing. It now listens for the half
+  of the click your game acts on. Turned off, auto attack stays off until you attack again:
+  your next attack on the target key starts your swings, as every attack does.
+
 ## 0.35.338
 
 - **The auto-attack badge shows the game's own Attack picture for your shape.** In Cat Form it
