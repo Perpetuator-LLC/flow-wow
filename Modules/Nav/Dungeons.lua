@@ -1584,11 +1584,8 @@ function D:RefreshToggle()
         t:SetScript("OnClick", function() ns.menu:Open(D:ModeItems()) end)
         self.toggle = t
     end
-    -- Under the party line when that one shows, else in its place.
-    local party = ns.partyHelp and ns.partyHelp.toggle
-    self.toggle:ClearAllPoints()
-    if party and party:IsShown() then self.toggle:SetPoint("TOP", party, "BOTTOM", 0, -2)
-    else self.toggle:SetPoint("TOP", arrow, "BOTTOM", 0, -50) end
+    -- (Where it sits: with the arrow's other lines, by length. Nav.lua N.LayoutLines.)
+    if self.toggle:GetNumPoints() == 0 then self.toggle:SetPoint("TOP", arrow, "BOTTOM", 0, -50) end
     local run = self:Run(key)
     local counts = run and D.Counts(run) or { done = 0, total = 0 }
     local have, total = counts.done, counts.total

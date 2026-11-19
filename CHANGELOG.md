@@ -1,6 +1,16 @@
 # Changelog
 
 
+## 0.35.323
+
+- **The arrow's lines of text are stacked by length, like a triangle pointing at the arrow.**
+  The step's name, the distance line, the profession arrow's line and the party and dungeon
+  lines all sit on one side of the arrow now, the shortest next to it and the longest furthest
+  away. With the arrow in the top half of your screen they're above it; in the bottom half
+  they're below it. If the arrow sits so close to the top edge that the lines wouldn't fit above
+  it, they go below instead, so nothing runs off the screen: drag the arrow down a little
+  (Ctrl + drag) to get them above.
+
 ## 0.35.322
 
 - Fixed: quest rewards got neither the green arrow nor the gold coin when one choice was an

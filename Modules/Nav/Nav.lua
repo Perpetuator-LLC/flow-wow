@@ -2109,52 +2109,123 @@ function N.SetOverNeedle(f, on)
     a.overNeedle = on
     a:SetScale(on and N.ON_NEEDLE_SCALE or 1)
     a:SetAlpha(on and N.ON_NEEDLE_ALPHA or 1)
-    -- The main arrow's text moves down clear of the long profession arrow.
-    if f.text then
-        f.text:ClearAllPoints()
-        f.text:SetPoint("TOP", f, "BOTTOM", 0, on and -N.NeedleClearance(f) or -2)
-    end
+    -- (The arrow's lines move clear of the long profession arrow: N.LayoutLines.)
+    f.stackSig = nil
 end
 
--- The arrow's second line (how far, how to get there). A long one ("2166 yd
--- (to the flight master: fly Thunder Bluff, Mulgore to Crossroads, The
--- Barrens, 70 yd). Hearthstone (The Crossroads) is about 3 min quicker") ran
--- across half the screen under the step's name and over whatever window was
--- beside the arrow. "Move the really long sentences to be above the arrow"
--- (0.35.302): past N.SUB_LONG letters it sits above the arrow, wrapped to
--- N.SUB_WIDTH; a short one ("184 yd ~40s") stays under the name.
+-- The arrow's lines of text (0.35.323). "I'd like to see the text at the top
+-- of the arrow with the largest at the very top, then the medium, then the
+-- shortest under that, and then the arrow. If it's on the bottom half of the
+-- screen it could flip, so the largest text is at the very bottom and it
+-- works up almost like a triangle to the arrow on top."
+--
+-- Every line that goes with the arrow (the step's name, how far, the
+-- profession arrow's line, the party and dungeon lines) is stacked on one
+-- side of it, the shortest next to the arrow and the longest furthest away:
+--   * arrow in the top half of the screen: the lines above it;
+--   * arrow in the bottom half: the lines below it;
+--   * no room above (the arrow sits right at the top edge): below, so
+--     nothing runs off the screen. Drag the arrow down a little for "above".
+-- A long second line ("2166 yd (to the flight master: fly ...). Hearthstone
+-- is about 3 min quicker") is wrapped to N.SUB_WIDTH (0.35.302).
 N.SUB_LONG, N.SUB_WIDTH = 60, 340
--- Pure: does this line go above the arrow? (Colour codes don't count.)
-function N.SubAbove(text)
+N.LINE_GAP = 2
+-- Pure: is this a long line (to wrap)? Colour codes don't count.
+function N.LongLine(text)
     if type(text) ~= "string" then return false end
     local plain = text:gsub("|c%x%x%x%x%x%x%x%x", "")
     plain = plain:gsub("|r", "")
     return #plain > N.SUB_LONG
 end
--- How far above the arrow's top: clear of the profession arrow's own line
--- and of the teleport or hearthstone icon when they show.
-function N.SubLift(f)
-    local lift = 4
-    if f.prof and f.prof:IsShown() then lift = N.NeedleClearance(f) + 16 end
-    if f.travel and f.travel:IsShown() then
-        lift = math.max(lift, ((N.TRAVEL_ICON or 0) - (f:GetHeight() or 0)) / 2 + 6)
-    end
-    return lift
+-- Pure: the lines in the order they leave the arrow: shortest first.
+--   lines: { { key, w, h } } -> a new list
+function N.StackOrder(lines)
+    local out = {}
+    for i, l in ipairs(lines or {}) do out[i] = l end
+    table.sort(out, function(a, b)
+        if a.w ~= b.w then return a.w < b.w end
+        return tostring(a.key) < tostring(b.key)
+    end)
+    return out
 end
-function N.LayoutSub(f, text)
-    if not (f and f.sub and f.text) then return end
-    local above = N.SubAbove(text)
-    local lift = above and N.SubLift(f) or 0
-    if f.subAbove == above and f.subLift == lift then return end
-    f.subAbove, f.subLift = above, lift
-    f.sub:ClearAllPoints()
-    if above then
-        f.sub:SetWidth(N.SUB_WIDTH)
-        f.sub:SetPoint("BOTTOM", f, "TOP", 0, lift)
-    else
-        f.sub:SetWidth(0)
-        f.sub:SetPoint("TOP", f.text, "BOTTOM", 0, -2)
+-- Pure: which side of the arrow? centerY, top: the arrow's middle and top
+-- edge, from the bottom of the screen; need: the stack's height.
+function N.StackSide(centerY, screenH, top, need)
+    if centerY < screenH / 2 then return "below" end
+    if top + need > screenH then return "below" end
+    return "above"
+end
+-- Pure: how far from the arrow's edge each line starts. -> { [key] = offset }, total
+function N.StackOffsets(ordered, first, gap)
+    local out, at = {}, first or 0
+    for _, l in ipairs(ordered) do
+        out[l.key] = at
+        at = at + (l.h or 0) + (gap or 0)
     end
+    return out, at
+end
+
+local function arrowLines(f)
+    local out = {}
+    local function add(key, region, fs, cap)
+        fs = fs or region
+        local text = fs:GetText()
+        if not (region:IsShown() and text and text ~= "") then return end
+        local w = fs:GetStringWidth() or 0
+        if cap then w = math.min(w, cap) end
+        out[#out + 1] = { key = key, region = region, fs = fs, w = w, h = math.max(fs:GetStringHeight() or 0, 10) }
+    end
+    add("title", f.text)
+    local long = N.LongLine(f.sub:GetText())
+    if long ~= f.subLong then
+        f.subLong = long
+        f.sub:SetWidth(long and N.SUB_WIDTH or 0)
+    end
+    add("sub", f.sub, nil, long and N.SUB_WIDTH or nil)
+    if f.prof and f.prof:IsShown() then add("prof", f.prof.text, nil, 260) end
+    -- The lines other parts of Flow hang on the arrow: buttons with a .text.
+    for _, pair in ipairs({ { "party", ns.party }, { "partyHelp", ns.partyHelp }, { "dungeon", ns.dungeons } }) do
+        local t = pair[2] and pair[2].toggle
+        if t and t.text then add(pair[1], t, t.text) end
+    end
+    return out
+end
+
+-- Places the arrow's lines. Cheap when nothing changed (called a few times a second).
+function N.LayoutLines(f)
+    if not (f and f.text and f.sub and f:IsVisible()) then return false end
+    local lines = N.StackOrder(arrowLines(f))
+    local h = f:GetHeight() or 56
+    local clear = ((f.arrow and f.arrow.overNeedle) or (f.prof and f.prof:IsShown())) and N.NeedleClearance(f) or nil
+    local travel = (f.travel and f.travel:IsShown()) and (((N.TRAVEL_ICON or 0) - h) / 2 + 4) or 0
+    local _, need = N.StackOffsets(lines, 0, N.LINE_GAP)
+    local _, cy = f:GetCenter()
+    local scale = (f:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    local screenH = (UIParent:GetHeight() or 768) / scale
+    local side = N.StackSide(cy or 0, screenH, f:GetTop() or 0, need + (clear or 4))
+    local first = math.max(clear or (side == "above" and 4 or 2), travel)
+    local parts = { side, tostring(math.floor(first + 0.5)) }
+    for _, l in ipairs(lines) do parts[#parts + 1] = string.format("%s:%d:%d", l.key, math.floor(l.w + 0.5), math.floor(l.h + 0.5)) end
+    local sig = table.concat(parts, "|")
+    f.stackSide, f.stackFirst, f.stackOrder = side, first, lines
+    if sig == f.stackSig then return false end
+    f.stackSig = sig
+    local offsets, total = N.StackOffsets(lines, first, N.LINE_GAP)
+    for _, l in ipairs(lines) do
+        local r = l.region
+        if r ~= l.fs then r:SetSize(math.max(60, l.w), math.max(16, l.h)) end   -- (a button: as wide as its words)
+        r:ClearAllPoints()
+        if side == "above" then r:SetPoint("BOTTOM", f, "TOP", 0, offsets[l.key])
+        else r:SetPoint("TOP", f, "BOTTOM", 0, -offsets[l.key]) end
+    end
+    -- The part of the stack that clicks like the arrow: over the lines, on their side.
+    if f.textHit then
+        f.textHit:ClearAllPoints()
+        f.textHit:SetSize(240, math.max(20, total))
+        if side == "above" then f.textHit:SetPoint("BOTTOM", f, "TOP", 0, 0)
+        else f.textHit:SetPoint("TOP", f, "BOTTOM", 0, 0) end
+    end
+    return true
 end
 
 -- Travel time: yards to "~1m 20s" at the speed you are moving, or the speed
@@ -4184,8 +4255,19 @@ local function buildArrow()
     f.text:SetPoint("TOP", f, "BOTTOM", 0, -2)
     f.sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.sub:SetPoint("TOP", f.text, "BOTTOM", 0, -2)
-    -- (Long lines go above the arrow: N.LayoutSub, whoever sets the text.)
-    hooksecurefunc(f.sub, "SetText", function(_, text) pcall(N.LayoutSub, f, text) end)
+    -- The lines are stacked by length on one side of the arrow (N.LayoutLines),
+    -- looked at a few times a second: any of them may change, and so may
+    -- where the arrow is.
+    f.linesDriver = CreateFrame("Frame", nil, f)
+    do
+        local acc = 1
+        f.linesDriver:SetScript("OnUpdate", function(_, dt)
+            acc = acc + dt
+            if acc < 0.2 then return end
+            acc = 0
+            pcall(N.LayoutLines, f)
+        end)
+    end
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")

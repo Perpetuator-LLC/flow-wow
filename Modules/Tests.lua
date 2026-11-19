@@ -2848,14 +2848,15 @@ ns:Register("test", "profession arrow: the main arrow's art, narrow and long, cl
     N.SetOverNeedle(f, true)
     t:ok(math.abs(f.arrow:GetScale() - N.ON_NEEDLE_SCALE) < 0.01 and f.arrow:GetAlpha() < 1,
         "arrow showing: the main arrow is smaller and see-through")
-    local _, _, _, _, y = f.text:GetPoint(1)
-    local want = -N.NeedleClearance(f)
-    t:ok(y and y <= want + 0.5, string.format("the main text moves down clear of it (text at %s, clear of it below %s)", tostring(y), tostring(want)))
+    N.LayoutLines(f)
+    t:ok((f.stackFirst or 0) >= N.NeedleClearance(f) - 0.5, "the arrow's lines move clear of it")
     N.SetOverNeedle(f, false)
     t:ok(math.abs(f.arrow:GetScale() - 1) < 0.01 and math.abs(f.arrow:GetAlpha() - 1) < 0.01,
         "no profession arrow: the main arrow back to full size")
-    _, _, _, _, y = f.text:GetPoint(1)
-    t:ok(y and math.abs(y + 2) < 0.01, "and its text back in place")
+    if not (f.prof and f.prof:IsShown()) then
+        N.LayoutLines(f)
+        t:ok((f.stackFirst or 99) < N.NeedleClearance(f) or N.NeedleClearance(f) <= 4, "and its lines back by the arrow")
+    end
     N.SetOverNeedle(f, was)
 end)
 
@@ -13648,27 +13649,6 @@ end)
 -- which quest a quest item is for.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "arrow: a long second line goes above the arrow, a short one stays under the name", function(t)
-    local N = ns.nav
-    local long = "2166 yd ~10s (to the flight master: fly Thunder Bluff, Mulgore to Crossroads, The Barrens, 70 yd). Hearthstone (The Crossroads) is about 3 min quicker"
-    t:ok(N.SubAbove(long), "the long one: above")
-    t:ok(not N.SubAbove("184 yd ~40s NE"), "a short one: under the name")
-    t:ok(not N.SubAbove("|cffffd100" .. string.rep("x", N.SUB_LONG - 2) .. "|r"), "colour codes aren't letters")
-    t:ok(not N.SubAbove(nil) and not N.SubAbove(""), "nothing: under")
-    local f = N.arrowFrame
-    if not (f and f.sub and f.text) then t:ok(true, "(no arrow built yet)") return end
-    local was = f.sub:GetText()
-    f.sub:SetText(long)
-    local point, rel = f.sub:GetPoint(1)
-    t:ok(f.subAbove == true and point == "BOTTOM" and rel == f, "set long: it sits on top of the arrow")
-    t:near(f.sub:GetWidth(), N.SUB_WIDTH, 0.5, "wrapped, not across the screen")
-    f.sub:SetText("184 yd")
-    point, rel = f.sub:GetPoint(1)
-    t:ok(f.subAbove == false and point == "TOP" and rel == f.text, "set short: back under the step's name")
-    t:ok(N.SubLift(f) >= 4, "clear of the arrow's top")
-    f.sub:SetText(was or "")
-end)
-
 ns:Register("test", "arrow: the teleport or hearthstone icon is a round mark, not a button", function(t)
     local N = ns.nav
     t:ok(N.TRAVEL_ICON < 44 and N.TRAVEL_ALPHA < 1, "smaller and a little see-through")
@@ -13786,18 +13766,6 @@ ns:Register("test", "bags: an item for the auction house shows the auctioneer's 
     host:Hide()
 end)
 
-ns:Register("test", "arrow: every new text on the second line lays it out (the hook is on the arrow)", function(t)
-    local N = ns.nav
-    local f = N.arrowFrame
-    if not (f and f.sub) then t:ok(true, "(no arrow built yet)") return end
-    local was = f.sub:GetText()
-    f.subAbove = nil
-    f.sub:SetText("12 yd")
-    t:eq(f.subAbove, false, "a short line was laid out when it was set")
-    f.sub:SetText(string.rep("a long way round ", 6))
-    t:eq(f.subAbove, true, "and a long one")
-    f.sub:SetText(was or "")
-end)
 
 -------------------------------------------------------------------------------
 -- 0.35.305: the minimap ring's dots leave straight up and straight down clear.
@@ -14302,4 +14270,58 @@ ns:Register("test", "click: flight masters on the map: pick one for where you ca
         t:ok(pcall(MF.ClearPick) and MF.sel.from == nil, "and clears")
     end)
     MF.sel = was
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.323: the arrow's lines are stacked by length, away from the arrow.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "arrow: its lines stack by length, the shortest next to the arrow, on the side with room", function(t)
+    local N = ns.nav
+    local long = "2166 yd ~10s (to the flight master: fly Thunder Bluff, Mulgore to Crossroads, The Barrens, 70 yd). Hearthstone (The Crossroads) is about 3 min quicker"
+    t:ok(N.LongLine(long), "a long line is wrapped")
+    t:ok(not N.LongLine("184 yd ~40s NE"), "a short one isn't")
+    t:ok(not N.LongLine("|cffffd100" .. string.rep("x", N.SUB_LONG - 2) .. "|r"), "colour codes aren't letters")
+    t:ok(not N.LongLine(nil) and not N.LongLine(""), "nothing: not long")
+    local order = N.StackOrder({ { key = "title", w = 150, h = 12 }, { key = "sub", w = 60, h = 10 }, { key = "dungeon", w = 300, h = 16 } })
+    t:ok(order[1].key == "sub" and order[2].key == "title" and order[3].key == "dungeon", "shortest first: it sits next to the arrow")
+    local same = N.StackOrder({ { key = "b", w = 50, h = 10 }, { key = "a", w = 50, h = 10 } })
+    t:eq(same[1].key, "a", "two as long as each other: always the same way round")
+    t:eq(N.StackSide(900, 1000, 930, 60), "above", "top half, with room: above the arrow")
+    t:eq(N.StackSide(970, 1000, 995, 60), "below", "top half, no room above: below, not off the screen")
+    t:eq(N.StackSide(300, 1000, 330, 60), "below", "bottom half: below the arrow")
+    local off, total = N.StackOffsets(order, 4, 2)
+    t:ok(off.sub == 4 and off.title == 16 and off.dungeon == 30, "each line past the one before, a gap between")
+    t:eq(total, 48, "and the stack's height")
+    local f = N.arrowFrame
+    if not (f and f.sub and f.text and f:IsVisible()) then t:ok(true, "(no arrow on screen)") return end
+    local wasTitle, wasSub = f.text:GetText(), f.sub:GetText()
+    f.text:SetText("Enter Wailing Caverns")
+    f.sub:SetText("184 yd")
+    f.stackSig = nil
+    t:ok(pcall(N.LayoutLines, f), "the lines lay out")
+    local side = f.stackSide
+    t:ok(side == "above" or side == "below", "on one side: " .. tostring(side))
+    local p1, r1 = f.sub:GetPoint(1)
+    local p2, r2, _, _, y2 = f.text:GetPoint(1)
+    local want = side == "above" and "BOTTOM" or "TOP"
+    t:ok(p1 == want and p2 == want and r1 == f and r2 == f, "both lines hang from the arrow, on that side")
+    local _, _, _, _, y1 = f.sub:GetPoint(1)
+    t:ok(math.abs(y1) < math.abs(y2), "the short line is nearer the arrow than the step's name")
+    f.sub:SetText(long)
+    f.stackSig = nil
+    N.LayoutLines(f)
+    t:near(f.sub:GetWidth(), N.SUB_WIDTH, 0.5, "a long line is wrapped, not across the screen")
+    _, _, _, _, y1 = f.sub:GetPoint(1)
+    _, _, _, _, y2 = f.text:GetPoint(1)
+    t:ok(math.abs(y1) > math.abs(y2), "and, being the longest, it's furthest from the arrow")
+    if f.textHit then
+        local hp = f.textHit:GetPoint(1)
+        t:eq(hp, want, "the lines click like the arrow, on their side")
+    end
+    t:eq(N.LayoutLines(f), false, "nothing changed: nothing moved again")
+    f.text:SetText(wasTitle or "")
+    f.sub:SetText(wasSub or "")
+    f.stackSig = nil
+    N.LayoutLines(f)
 end)
