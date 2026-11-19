@@ -14559,16 +14559,19 @@ ns:Register("test", "move: a button dragged near a line-up shows the line and se
 end)
 
 ns:Register("test", "target button: the auto-attack badge wears your form's attack or your weapon, and glows softly when on", function(t)
-    t:eq(ns.SwingPicture("claw", "staff"), "claw", "in a form the class names an attack for: its picture")
-    t:eq(ns.SwingPicture(nil, "staff"), "staff", "in your own shape: your weapon")
+    t:eq(ns.SwingPicture("paw", "staff"), "paw", "the game's own picture for Attack in your shape")
+    t:eq(ns.SwingPicture(nil, "staff"), "staff", "the game has none: your weapon")
     t:eq(ns.SwingPicture(nil, nil), nil, "neither known: left as it is")
     local r, g, b, a = ns.QualityColor(2, { [2] = { r = 0.1, g = 1, b = 0 } })
     t:ok(r == 0.1 and g == 1 and b == 0 and a == 1, "the edge: the colour of your weapon's quality")
     t:eq(select(4, ns.QualityColor(nil, {})), 0, "no weapon: no edge")
     t:ok(ns.SwingPulses("on") and not ns.SwingPulses("off") and not ns.SwingPulses(nil), "its ring pulses only while auto attack is on")
     t:ok(ns.SWING_RING > 2, "and stands out past the weapon-coloured edge")
-    local druid = ns:Get("rotation", "DRUID")
-    t:ok(type(druid.swingSpell) == "function" and pcall(druid.swingSpell), "the druid names its form's attack")
+    t:eq(ns.AttackPicture("bar", "spell"), "bar", "Attack on a bar: exactly the picture the action bar shows")
+    t:eq(ns.AttackPicture(nil, "spell"), "spell", "not on a bar: the spell's own")
+    t:eq(ns.AttackPicture(nil, nil), nil, "neither: none")
+    t:ok(pcall(ns.AttackTexture, GetTime()), "the game is asked for Attack's picture without an error")
+    t:eq(ns:Get("rotation", "DRUID").swingSpell, nil, "the druid no longer lends Claw's or Maul's picture (it was the target button's own)")
     local icon = ns.rotation.icon
     if not (icon and icon.swing) then t:ok(true, "(the target button isn't built yet)") return end
     t:ok(icon.swing.glow and icon.swing.edge, "the badge has its ring and its edge")

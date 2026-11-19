@@ -752,10 +752,37 @@ ns.SWING_RING, ns.SWING_OFF_ALPHA = 4, 0.4
 ns.SWING_CHECKED = "Interface\\Buttons\\CheckButtonHilight"
 -- Pure: does the badge's ring pulse? Only while auto attack is on.
 function ns.SwingPulses(badge) return badge == "on" end
--- Pure: the badge's picture: your form's attack when the class names one
--- (a claw, a paw), else the weapon in your main hand, else nil (as it is).
-function ns.SwingPicture(formTexture, weaponTexture)
-    return formTexture or weaponTexture or nil
+-- Pure: the badge's picture: the game's own for Attack (it follows your
+-- shape), else the weapon in your main hand, else nil (as it is).
+function ns.SwingPicture(attackTexture, weaponTexture)
+    return attackTexture or weaponTexture or nil
+end
+-- Pure: which of the game's answers to use: the bar slot's picture when
+-- Attack is on a bar (exactly what the action bar shows), else the spell's.
+function ns.AttackPicture(slotTexture, spellTexture)
+    return slotTexture or spellTexture or nil
+end
+-- The game's picture for Attack now. Where Attack sits on your bars is
+-- looked up at most every few seconds (120 slots); its picture each time.
+local attackSlot, attackSlotAt
+function ns.AttackTexture(now)
+    local S = ns.clickSlots
+    if S and S.AttackSlot and (not attackSlotAt or now - attackSlotAt > 3) then
+        attackSlotAt = now
+        local ok, slot = pcall(S.AttackSlot)
+        attackSlot = ok and slot or nil
+    end
+    local slotTex
+    if attackSlot and GetActionTexture then
+        local ok, tex = pcall(GetActionTexture, attackSlot)
+        slotTex = ok and A.Safe(tex) or nil
+    end
+    local spellTex
+    if not slotTex then
+        local spell = S and S.AttackSpell and S.AttackSpell() or nil
+        spellTex = spell and select(2, A.SpellInfo(spell)) or nil
+    end
+    return ns.AttackPicture(slotTex, spellTex)
 end
 -- Pure: the edge's colour for an item quality (nil: none worn, no edge).
 --   colors: the game's table, { [quality] = { r, g, b } }
@@ -1025,20 +1052,16 @@ local function tick()
     if fighting ~= icon.combat:IsShown() then icon.combat:SetShown(fighting) end
     -- The badge wears the weapon in your main hand ("can the auto-attack icon
     -- show the currently equipped weapon", 0.35.228).
-    -- In a form the class names an attack for (a cat's claw, a bear's paw),
-    -- that attack's picture instead (0.35.327).
+    -- The game's own picture for Attack comes first (0.35.338): on your
+    -- action bar it changes with your shape (your weapon as yourself, the
+    -- cat's or the bear's own attack in a form), and the badge shows the
+    -- same. (0.35.327 used Claw's and Maul's pictures for a cat and a bear:
+    -- as a cat that's the very picture on the target button, so the badge
+    -- looked like a second copy of it. "Why does the auto attack show my
+    -- target icon instead of the auto attack icon for that form?")
     local weapon = GetInventoryItemTexture and A.Safe(GetInventoryItemTexture("player", 16)) or nil
-    local def = E:Definition()
-    local formSpell
-    if def and def.swingSpell then
-        local okF, name = pcall(def.swingSpell)
-        formSpell = okF and type(name) == "string" and name or nil
-    end
-    if formSpell ~= icon.swing.formSpell then
-        icon.swing.formSpell = formSpell
-        icon.swing.formTexture = formSpell and select(2, A.SpellInfo(formSpell)) or nil
-    end
-    local art = ns.SwingPicture(icon.swing.formTexture, weapon)
+    local attack = ns.AttackTexture(GetTime())
+    local art = ns.SwingPicture(attack, weapon)
     if art and art ~= icon.swing.weapon then
         icon.swing.weapon = art
         icon.swing.tex:SetTexture(art)

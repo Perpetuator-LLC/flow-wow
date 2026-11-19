@@ -244,13 +244,6 @@ ns:Register("rotation", "DRUID", {
     -- Spells that wait for your next swing instead of going off at once: the
     -- target button blinks red while one waits (Display.lua, E.UpdateQueued).
     nextSwing = { "Maul" },
-    -- The auto-attack badge's picture (Display.lua): a claw as a cat, a paw as
-    -- a bear; in your own shape, the weapon in your hand.
-    swingSpell = function()
-        if inCat() then return "Claw" end
-        if inBear() then return "Maul" end
-        return nil
-    end,
     -- Shifts form: Flow learns which spells take you out of a form and says
     -- so in their tooltips (Modules/Rotation/FormSpells.lua).
     shapeshifts = true,

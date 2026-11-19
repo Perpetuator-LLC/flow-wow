@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.35.338
+
+- **The auto-attack badge shows the game's own Attack picture for your shape.** In Cat Form it
+  showed Claw's picture, which is the very picture on the target button, so it looked like a
+  second copy of that button. It now shows what the Attack button on your action bar shows:
+  your weapon as yourself, the cat's or the bear's own attack in a form.
+
 ## 0.35.337
 
 - **The auto-attack badge glows on the inside while auto attack is on**, the way the game's own
