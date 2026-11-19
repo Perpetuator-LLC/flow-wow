@@ -14788,7 +14788,7 @@ end)
 -- 0.35.333: combo points on your target's nameplate.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "nameplates: your combo points show as pips under your target's nameplate", function(t)
+ns:Register("test", "nameplates: your combo points show as a bar in sections under your target's health bar", function(t)
     local PC = ns.plateCombo
     t:ok(PC.Uses("ROGUE", nil), "a rogue uses them")
     t:ok(PC.Uses("DRUID", "Cat Form"), "a druid in Cat Form does")
@@ -14797,18 +14797,29 @@ ns:Register("test", "nameplates: your combo points show as pips under your targe
     t:ok(PC.Wanted(true, "DRUID", "Cat Form", true), "a cat with an enemy targeted: shown")
     t:ok(not PC.Wanted(true, "DRUID", "Cat Form", false), "no enemy targeted: not shown")
     t:ok(not PC.Wanted(false, "ROGUE", nil, true), "switched off: not shown")
-    local lit, r, g = PC.Pips(3, 5)
-    t:ok(#lit == 5 and lit[3] and not lit[4], "three of five lit")
-    t:ok(r == 1 and g > 0.5, "gold while building")
-    local full, _, fullG = PC.Pips(5, 5)
-    t:ok(full[5] and fullG < 0.5, "red when full: spend them")
-    lit = PC.Pips(0, 5)
-    t:ok(#lit == 5 and not lit[1], "none yet: five empty pips, so you see where they'll be")
-    lit = PC.Pips(9, 5)
-    t:ok(#lit == 5 and lit[5], "never more than you can hold")
-    lit = PC.Pips(nil, nil)
-    t:eq(#lit, 5, "nothing known: five empty")
-    t:eq(PC.Width(5, 9, 3), 57, "the row's width")
+    -- (0.35.334: one bar in sections, not pips.)
+    local points, max = PC.Fill(3, 5)
+    t:ok(points == 3 and max == 5, "three of five sections filled")
+    t:eq((PC.Fill(9, 5)), 5, "never more than you can hold")
+    t:eq((PC.Fill(nil, nil)), 0, "nothing known: an empty bar of five")
+    t:eq(select(2, PC.Fill(0, nil)), 5, "five sections when the game doesn't say")
+    local r, g, b = PC.BarColor({ COMBO_POINTS = { r = 1, g = 0.96, b = 0.41 } })
+    t:ok(r == 1 and g == 0.96 and b == 0.41, "the game's own colour for combo points")
+    r, g, b = PC.BarColor(nil)
+    t:ok(r == PC.COLOR[1] and g == PC.COLOR[2] and b == PC.COLOR[3], "the same colour where the game has no table")
+    -- What it hangs under: the power bar when the nameplate shows one, else the health bar.
+    local health, power, plate = { name = "health" }, { name = "power", hidden = true }, { name = "plate" }
+    local shown = function(f) return not f.hidden end
+    local under, what = PC.Under(plate, { healthBar = health, powerBar = power }, shown)
+    t:ok(under == health and what == "health", "right under the health bar")
+    power.hidden = nil
+    under, what = PC.Under(plate, { healthBar = health, powerBar = power }, shown)
+    t:ok(under == power and what == "power", "under the power bar when there is one")
+    under, what = PC.Under(plate, { HealthBarsContainer = { healthBar = health } }, shown)
+    t:ok(under == health and what == "health", "the health bar where the game keeps it in a holder")
+    under, what = PC.Under(plate, nil, shown)
+    t:ok(under == plate and what == "plate", "a nameplate whose bars aren't found: under the nameplate itself")
+    t:ok(PC.HEIGHT <= 8, "about as tall as the bars above it")
     -- Now, in the game: it runs whatever you're targeting, and can be switched off and on.
     local wasOff = ns.db.plateCombo and ns.db.plateCombo.off
     t:ok(pcall(PC.Update), "a look at your target runs")

@@ -1,6 +1,14 @@
 # Changelog
 
 
+## 0.35.334
+
+- **Combo points on the nameplate are a bar in sections now, like the game's own bars.** In
+  place of the separate squares: one bar right under your target's health bar (under its power
+  bar when the nameplate shows one), as wide as that bar, with the game's bar texture and a dark
+  edge, cut into five sections. It fills a section for each combo point, in the game's own combo
+  point colour.
+
 ## 0.35.333
 
 - **Your combo points on your target's nameplate.** A row of small pips under the nameplate of

@@ -187,8 +187,8 @@ Flow for WoW is a separate project from Flow Engine.
   fight; Ctrl-drag moves it. Off in Flow Settings (Finding your way).
 - **Alignment lines**: Ctrl + drag a Flow button and a line shows when it is level with the middle
   of the screen or with Flow's other button or the arrow; let go and it settles on the line.
-- **Combo points on the nameplate**: pips under your target's nameplate for a rogue or a druid in
-  Cat Form, red when full (`/flow combo`).
+- **Combo points on the nameplate**: a five-section bar under your target's health bar for a rogue or a
+  druid in Cat Form, in the game's combo point colour (`/flow combo`).
 - **From group to group**: in a kill or collect step's area the arrow doesn't stop at the ring.
   When you leave a group of spots, or stand in one with nothing to do, it points to the nearest
   group you haven't just worked, of any such step near the front of your route (`/flow hop`).

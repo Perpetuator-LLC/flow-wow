@@ -9,12 +9,25 @@
 -- Whether WoW: Forever has it, and whether it draws combo points there, isn't
 -- known: /flow combo (and the diagnostics) say what the game answers. So Flow
 -- draws its own, which needs nothing from the game but the nameplate and the
--- count, both of which Flow already reads:
---   * a row of small pips under your target's nameplate, one for each combo
---     point you can hold; the ones you have are lit (gold, red when full);
---   * only for a class that uses them now (a rogue; a druid in Cat Form),
---     with an enemy targeted whose nameplate is on screen;
---   * with no points yet the empty pips still show, so you see where they'll be.
+-- count, both of which Flow already reads.
+--
+-- 0.35.334, how it looks: "I like the squares under the nameplate. They
+-- should be right under the health bar, or under the energy or mana bar if
+-- there is one, and look just like the experience bar where there's the
+-- chunks: the full width of the default nameplate, five sections, each a
+-- combo point, filling up as the points accrue, in the default colours the
+-- game uses for combo points."
+--   * one bar, as wide as the nameplate's health bar and right under it
+--     (under its power bar when it shows one), with the game's bar texture,
+--     a dark back and a thin dark edge, like the bars above it;
+--   * cut into as many sections as you can hold points (five);
+--   * filled a section a point, in the game's own combo point colour
+--     (PowerBarColor.COMBO_POINTS).
+-- Only for a class that uses them now (a rogue; a druid in Cat Form), with
+-- an enemy targeted whose nameplate is on screen. Empty, the bar still shows.
+-- (The sections are placed without measuring the nameplate: the game doesn't
+-- let add-ons measure those. Each divider rides on an unseen bar filled to
+-- that many points, so it sits where that many points end.)
 -- It's on from the start. Off: Flow Settings (On your screen), /flow combo off.
 
 local _, ns = ...
@@ -22,8 +35,12 @@ local A = ns.api
 local PC = {}
 ns.plateCombo = PC
 
-PC.PIP, PC.GAP, PC.DROP = 9, 3, 3     -- a pip's size, the space between two, how far under the plate
+PC.HEIGHT = 5                         -- the bar's height (a nameplate's health bar is about this)
+PC.DROP = 1                           -- the gap under the bar above it
+PC.WIDTH = 110                        -- its width when the nameplate's health bar can't be found
 PC.TICK = 0.2                         -- seconds between looks while it shows (the game's events come first)
+PC.TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+PC.COLOR = { 1.00, 0.96, 0.41 }       -- the game's combo point colour, where its own table doesn't say
 
 ns:OnLoad(function(saved) saved.plateCombo = saved.plateCombo or {} end)
 local function cfg() return ns.db.plateCombo or {} end
@@ -35,24 +52,40 @@ function PC.Uses(class, form)
     return class == "DRUID" and form == "Cat Form"
 end
 
--- Pure: show the pips? on: the setting; hostile: an enemy is targeted.
+-- Pure: show the bar? on: the setting; hostile: an enemy is targeted.
 function PC.Wanted(on, class, form, hostile)
     return (on and hostile and PC.Uses(class, form)) and true or false
 end
 
--- Pure: which pips are lit, and their colour. -> { bool, ... }, r, g, b
-function PC.Pips(points, max)
+-- Pure: how full the bar is. -> points (0..max), max
+function PC.Fill(points, max)
     max = math.max(1, math.min(tonumber(max) or 5, 10))
-    points = math.max(0, math.min(tonumber(points) or 0, max))
-    local lit = {}
-    for i = 1, max do lit[i] = i <= points end
-    if points >= max then return lit, 1, 0.25, 0.2 end       -- full: spend them
-    return lit, 1, 0.82, 0.1
+    return math.max(0, math.min(tonumber(points) or 0, max)), max
 end
 
--- Pure: how wide the row is.
-function PC.Width(max, pip, gap)
-    return max * (pip or PC.PIP) + (max - 1) * (gap or PC.GAP)
+-- Pure: the bar's colour: the game's own for combo points, else Flow's copy of it.
+--   colors: the game's PowerBarColor table (or nil)
+function PC.BarColor(colors)
+    local c = type(colors) == "table" and (colors.COMBO_POINTS or colors[4]) or nil
+    if type(c) == "table" and c.r then return c.r, c.g, c.b end
+    return PC.COLOR[1], PC.COLOR[2], PC.COLOR[3]
+end
+
+-- Pure: what the bar hangs under: the nameplate's power bar when it shows
+-- one, else its health bar, else the nameplate itself.
+--   uf: the nameplate's unit frame (or nil); shown(frame) -> is it showing
+--   -> frame, "power" | "health" | "plate"
+function PC.Under(plate, uf, shown)
+    if type(uf) == "table" then
+        for _, key in ipairs({ "powerBar", "PowerBar", "manabar", "ManaBar" }) do
+            local p = uf[key]
+            if p and shown(p) then return p, "power" end
+        end
+        local h = uf.healthBar or uf.HealthBar
+            or (type(uf.HealthBarsContainer) == "table" and (uf.HealthBarsContainer.healthBar or uf.HealthBarsContainer))
+        if h and shown(h) then return h, "health" end
+    end
+    return plate, "plate"
 end
 
 local function maxPoints()
@@ -74,22 +107,59 @@ end
 local bar
 local function build()
     local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(PC.Width(5), PC.PIP)
-    f.pips = {}
+    f:SetSize(PC.WIDTH, PC.HEIGHT)
+    -- A thin dark edge and a dark back, like the bars above it.
+    f.edge = f:CreateTexture(nil, "BACKGROUND", nil, -2)
+    f.edge:SetPoint("TOPLEFT", -1, 1); f.edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    f.edge:SetColorTexture(0, 0, 0, 0.9)
+    f.back = f:CreateTexture(nil, "BACKGROUND", nil, -1)
+    f.back:SetAllPoints()
+    f.back:SetTexture(PC.TEXTURE)
+    f.back:SetVertexColor(0.18, 0.17, 0.1, 0.9)
+    f.fill = CreateFrame("StatusBar", nil, f)
+    f.fill:SetAllPoints()
+    f.fill:SetStatusBarTexture(PC.TEXTURE)
+    f.marks = {}   -- unseen bars, one for each divider
+    f.lines = CreateFrame("Frame", nil, f)
+    f.lines:SetAllPoints()
+    f.lines:SetFrameLevel(f.fill:GetFrameLevel() + 2)
+    f.dividers = {}
     f:Hide()
     return f
 end
-local function pip(f, i)
-    local p = f.pips[i]
-    if p then return p end
-    p = { back = f:CreateTexture(nil, "BACKGROUND"), fill = f:CreateTexture(nil, "ARTWORK") }
-    p.back:SetSize(PC.PIP, PC.PIP)
-    p.back:SetPoint("LEFT", f, "LEFT", (i - 1) * (PC.PIP + PC.GAP), 0)
-    p.back:SetColorTexture(0, 0, 0, 0.8)
-    p.fill:SetPoint("TOPLEFT", p.back, "TOPLEFT", 1, -1)
-    p.fill:SetPoint("BOTTOMRIGHT", p.back, "BOTTOMRIGHT", -1, 1)
-    f.pips[i] = p
-    return p
+
+-- The dividers for `max` sections: each at the end of an unseen bar filled to
+-- that many points (no measuring).
+local function sections(f, max)
+    if f.max == max then return end
+    f.max = max
+    f.fill:SetMinMaxValues(0, max)
+    for k = 1, math.max(#f.marks, max - 1) do
+        local m = f.marks[k]
+        if k <= max - 1 then
+            if not m then
+                m = CreateFrame("StatusBar", nil, f)
+                m:SetAllPoints()
+                m:SetStatusBarTexture(PC.TEXTURE)
+                m:SetStatusBarColor(0, 0, 0, 0)
+                f.marks[k] = m
+                local d = f.lines:CreateTexture(nil, "OVERLAY")
+                d:SetColorTexture(0, 0, 0, 1)
+                d:SetWidth(1)
+                local tex = m:GetStatusBarTexture()
+                d:SetPoint("TOP", tex, "TOPRIGHT", 0, 0)
+                d:SetPoint("BOTTOM", tex, "BOTTOMRIGHT", 0, 0)
+                f.dividers[k] = d
+            end
+            m:SetMinMaxValues(0, max)
+            m:SetValue(k)
+            m:Show()
+            f.dividers[k]:Show()
+        elseif m then
+            m:Hide()
+            f.dividers[k]:Hide()
+        end
+    end
 end
 
 local ticker
@@ -99,7 +169,12 @@ local function stop()
     PC.shown = false
 end
 
--- Draws (or puts away) the pips for now.
+local function isShown(frame)
+    local ok, v = pcall(function() return frame:IsShown() end)
+    return ok and v and true or false
+end
+
+-- Draws (or puts away) the bar for now.
 function PC.Update()
     local _, class = UnitClass("player")
     local wanted = PC.Wanted(PC.On(), class, A.Form and A.Form() or nil, hostileTarget())
@@ -112,27 +187,30 @@ function PC.Update()
         return false
     end
     bar = bar or build()
-    local max = maxPoints()
-    local lit, r, g, b = PC.Pips(A.ComboPoints(), max)
-    for i = 1, math.max(#bar.pips, max) do
-        local p = pip(bar, i)
-        local there = i <= max
-        p.back:SetShown(there)
-        p.fill:SetShown(there)
-        if there then
-            if lit[i] then p.fill:SetColorTexture(r, g, b, 1) else p.fill:SetColorTexture(0.25, 0.25, 0.25, 0.9) end
-        end
-    end
-    if bar.plate ~= plate or bar.max ~= max then
-        bar.plate, bar.max = plate, max
+    local points, max = PC.Fill(A.ComboPoints(), maxPoints())
+    sections(bar, max)
+    bar.fill:SetValue(points)
+    bar.fill:SetStatusBarColor(PC.BarColor(_G.PowerBarColor))
+    local okU, under, what = pcall(PC.Under, plate, plate.UnitFrame, isShown)
+    if not okU then under, what = plate, "plate" end
+    if bar.under ~= under then
+        bar.under, PC.under = under, what
         bar:SetParent(plate)
-        bar:SetSize(PC.Width(max), PC.PIP)
         bar:ClearAllPoints()
-        bar:SetPoint("TOP", plate, "BOTTOM", 0, -PC.DROP)
+        if what == "plate" then
+            -- (Its bars weren't found: a bar of Flow's own width under the nameplate.)
+            bar:SetSize(PC.WIDTH, PC.HEIGHT)
+            bar:SetPoint("TOP", plate, "BOTTOM", 0, -PC.DROP - 2)
+        else
+            -- As wide as the bar above it, right under it.
+            bar:SetHeight(PC.HEIGHT)
+            bar:SetPoint("TOPLEFT", under, "BOTTOMLEFT", 0, -PC.DROP - 1)
+            bar:SetPoint("TOPRIGHT", under, "BOTTOMRIGHT", 0, -PC.DROP - 1)
+        end
         bar:SetFrameLevel((plate:GetFrameLevel() or 0) + 10)
     end
     bar:Show()
-    PC.shown, PC.last = true, A.ComboPoints()
+    PC.shown, PC.last = true, points
     return true
 end
 
@@ -144,7 +222,10 @@ local function refresh()
     local _, class = UnitClass("player")
     local want = PC.Wanted(PC.On(), class, A.Form and A.Form() or nil, hostileTarget())
     if want and not ticker and C_Timer and C_Timer.NewTicker then
-        ticker = C_Timer.NewTicker(PC.TICK, function() pcall(PC.Update) end)
+        ticker = C_Timer.NewTicker(PC.TICK, function()
+            local okT, errT = pcall(PC.Update)
+            if not okT then PC.lastError = tostring(errT) end
+        end)
     elseif not want then
         stop()
     end
@@ -153,10 +234,13 @@ for _, ev in ipairs({ "PLAYER_TARGET_CHANGED", "UPDATE_SHAPESHIFT_FORM", "PLAYER
     ns:On(ev, refresh)
 end
 ns:On("NAME_PLATE_UNIT_ADDED", function(unit)
-    if ns.rotation and ns.rotation.Yes and ns.rotation.Yes(UnitIsUnit(unit, "target"), false) then refresh() end
+    if ns.rotation and ns.rotation.Yes and ns.rotation.Yes(UnitIsUnit(unit, "target"), false) then
+        if bar then bar.under = nil end   -- (a nameplate is handed out anew: hang the bar again)
+        refresh()
+    end
 end)
 ns:On("NAME_PLATE_UNIT_REMOVED", function()
-    if bar and bar:IsShown() then refresh() end
+    if bar and bar:IsShown() then bar.under = nil; refresh() end
 end)
 ns:On("UNIT_POWER_UPDATE", function(unit) if unit == "player" and PC.shown then pcall(PC.Update) end end)
 
@@ -171,7 +255,7 @@ if ns.settings and ns.settings.AddCheck then
         group = "screen",
         label = "Combo points on your target's nameplate",
         note = "(rogue; druid in Cat Form)",
-        tip = "A row of small pips under your target's nameplate, one for each combo point you can hold; the ones you have are lit, and they turn red when full.",
+        tip = "A bar under your target's health bar, as wide as it, cut into a section for each combo point you can hold and filled a section a point, in the game's combo point colour.",
         get = function() return PC.On() end,
         set = function(on) PC.Set(on) end,
     })
@@ -188,11 +272,29 @@ function PC.Native()
     return out
 end
 
+-- What your target's nameplate is made of, by name (for hanging the bar).
+function PC.PlateParts()
+    local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
+    if not plate then return "no nameplate for your target on screen" end
+    local uf = plate.UnitFrame
+    if type(uf) ~= "table" then return "the nameplate has no UnitFrame" end
+    local names = {}
+    for k, v in pairs(uf) do
+        if type(k) == "string" and type(v) == "table" and (k:lower():find("bar") or k:lower():find("health") or k:lower():find("power")) then
+            names[#names + 1] = k .. (isShown(v) and "" or " (hidden)")
+        end
+    end
+    table.sort(names)
+    return "its parts: " .. (#names > 0 and table.concat(names, ", "):sub(1, 300) or "none with bar, health or power in the name")
+end
+
 function PC.Lines()
     local _, class = UnitClass("player")
-    local out = { string.format("combo points on the nameplate: %s; this class uses them now: %s; shown: %s; points: %d of %d", PC.On() and "on" or "off",
-        tostring(PC.Uses(class, A.Form and A.Form() or nil)), tostring(PC.shown and true or false), A.ComboPoints(), maxPoints()) }
+    local out = { string.format("combo points on the nameplate: %s; this class uses them now: %s; shown: %s; points: %d of %d; hung under: %s", PC.On() and "on" or "off",
+        tostring(PC.Uses(class, A.Form and A.Form() or nil)), tostring(PC.shown and true or false), A.ComboPoints(), maxPoints(), tostring(PC.under or "nothing yet")) }
     out[#out + 1] = "  the game's own settings: " .. table.concat(PC.Native(), "; ")
+    local okP, parts = pcall(PC.PlateParts)
+    out[#out + 1] = "  your target's nameplate: " .. (okP and parts or ("unreadable: " .. tostring(parts)))
     if PC.lastError then out[#out + 1] = "  last error: " .. PC.lastError end
     return out
 end
