@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.332
+
+- **A quest item with nothing to click no longer gets a button.** On "The Stagnant Oasis" the
+  Flow Tracker showed the Dried Seeds as a button, and clicking it did nothing: the seeds are
+  used by clicking the fissure in the water, not the item. Flow showed whatever the game calls
+  the quest's item; it now shows it only when the item has a use of its own (a horn you blow,
+  a sampler you fill). The same goes for the target key's "use your quest item". `/flow
+  questitems` says which quest items have no button, and why.
+
 ## 0.35.331
 
 - **"Show on map" for a step in another zone: click it again and the map zooms out to where

@@ -35,7 +35,12 @@ end
 --   quest: the quest data ({ sourceItemId, requiredSourceItems }), or nil
 --   has(id) -> how many are in your bags; usable(id) -> does using it do something
 function QI.ItemOf(special, quest, has, usable)
-    if special and has(special) > 0 then return special end
+    -- (0.35.332: also only when it has a use. The Stagnant Oasis's Dried Seeds
+    -- are the game's "quest item" for it, but they're used by clicking the
+    -- fissure in the water, not the seeds: a button that did nothing when
+    -- clicked. "Normally we only show the clickable ones; hide the ones that
+    -- are not clickable.")
+    if special and has(special) > 0 and usable(special) then return special end
     local ids = {}
     if type(quest) == "table" then
         if type(quest.sourceItemId) == "number" and quest.sourceItemId > 0 then ids[#ids + 1] = quest.sourceItemId end
@@ -262,9 +267,14 @@ function QI.Lines()
     local Q = ns.quests
     for id in pairs(Q and Q.LogIds and Q:LogIds() or {}) do
         local item = QI.ItemFor(id)
+        local special = QI.Special(id)
         if item then
-            out[#out + 1] = string.format("quest %d: use item %d (%d in your bags, special %s)", id, item, ns.api.Count(item),
-                tostring(QI.Special(id)))
+            out[#out + 1] = string.format("quest %d: use item %d (%d in your bags, special %s, its use: %s)", id, item, ns.api.Count(item),
+                tostring(special), tostring(itemSpell(item)))
+        elseif special then
+            -- (The game's quest item with nothing to click: why it has no button.)
+            out[#out + 1] = string.format("quest %d: the game's quest item %d has no button (%d in your bags, its use: %s)", id, special,
+                ns.api.Count(special), tostring(itemSpell(special)))
         end
     end
     for _, w in ipairs(shown) do

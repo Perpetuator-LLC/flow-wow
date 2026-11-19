@@ -14766,3 +14766,20 @@ ns:Register("test", "click: Show on map, a step in another zone: the second clic
     t:eq(N.GoalMap({ key = "x", points = { { map = 1442 } } }), 1442, "a step's map: its first spot's, when the route has no place for it")
     t:eq(N.GoalMap(nil), nil, "no step: none")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.332: a quest item with nothing to click gets no button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tracker: the game's quest item gets a button only when it has a use", function(t)
+    local QI = ns.questItems
+    local bags = { [5068] = 1, [10327] = 1 }
+    local has = function(id) return bags[id] or 0 end
+    local uses = { [10327] = true }
+    local usable = function(id) return uses[id] == true end
+    t:eq(QI.ItemOf(5068, nil, has, usable), nil, "Dried Seeds (used by clicking the fissure, not the seeds): no button")
+    t:eq(QI.ItemOf(10327, nil, has, usable), 10327, "the Horn of Echeyakee (you blow it): a button")
+    t:eq(QI.ItemOf(5068, { requiredSourceItems = { 5068, 10327 } }, has, usable), 10327, "the game's has no use: the quest data's usable one, if there is one")
+    t:eq(QI.ItemOf(5068, { sourceItemId = 5068 }, has, usable), nil, "and none when that's the same useless one")
+    t:ok(pcall(QI.Lines), "/flow questitems says why an item has no button")
+end)
