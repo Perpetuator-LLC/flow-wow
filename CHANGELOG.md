@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.328
+
+- **Flight masters on the map: one pick, and point at a line for its flight.** Click a flight
+  master and its lines go out, bolder than before: green where you can fly, red where you
+  can't yet. Move the mouse onto a line, or just near it, and that line is drawn bolder still
+  with the flight's time at its middle ("Crossroads to Camp Taurajo: about 1 min 20 s"), or
+  what's missing. The next click, on any flight master or anywhere on the map, clears the
+  lines. Picking a second flight master is gone: pointing does its job.
+- **Right-click a flight master again to take the waypoint off.** A right click points Flow's
+  arrow there, as before; a right click on the same one now removes that waypoint, and its
+  tooltip says which of the two a right click will do.
+
 ## 0.35.327
 
 - **Alignment lines while you move Flow's buttons.** Ctrl + drag the target button or the self

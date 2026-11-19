@@ -230,8 +230,9 @@ Flow for WoW is a separate project from Flow Engine.
   shows the **flight masters**: green rings for the flight paths you have, light blue for the
   ones you don't have yet (free: talk to them once), and the flight your next step is quicker by
   in the route's colour, joined by a line. Hover one for who and what. Click one for where you
-  can fly from it (green lines) and can't yet (red); click another for the flight between them
-  and its time; click off them to clear. Right-click one to point the arrow there.
+  can fly from it (green lines) and can't yet (red); point at a line, or near it, for that
+  flight's time; click again to clear. Right-click one to point the arrow there, and again to
+  take the waypoint off.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
   to your next step, and that step's dot, in the arrow's colour). The dots drift slowly toward
   the next step, so you see which way the route goes, and "Path opacity" in the settings makes

@@ -14242,12 +14242,9 @@ ns:Register("test", "click: flight masters on the map: pick one for where you ca
     local MF = ns.mapFlights
     local sel = MF.Click({}, "Crossroads, The Barrens")
     t:eq(sel.from, "Crossroads, The Barrens", "the first click picks where you'd fly from")
-    sel = MF.Click(sel, "Camp Taurajo, The Barrens")
-    t:ok(sel.from == "Crossroads, The Barrens" and sel.to == "Camp Taurajo, The Barrens", "the second picks where to")
-    sel = MF.Click(sel, "Ratchet, The Barrens")
-    t:eq(sel.to, "Ratchet, The Barrens", "a third takes the second's place (it used to stay on the first two)")
-    t:eq(MF.Click(sel, "Ratchet, The Barrens").to, nil, "the second clicked again: just the first")
-    t:eq(MF.Click(sel, "Crossroads, The Barrens").from, nil, "the first clicked again: nothing picked")
+    -- (0.35.328: one pick; the next click on any flight master clears it.)
+    t:eq(MF.Click(sel, "Camp Taurajo, The Barrens").from, nil, "a click on another: nothing picked")
+    t:eq(MF.Click(sel, "Crossroads, The Barrens").from, nil, "the same one clicked again: nothing picked")
     local have1 = { name = "Crossroads, The Barrens", kind = "have", cont = 1 }
     local have2 = { name = "Camp Taurajo, The Barrens", kind = "have", cont = 1 }
     local new = { name = "Bragok", npc = "Bragok", kind = "new", cont = 1 }
@@ -14555,4 +14552,49 @@ ns:Register("test", "druid: prowling with an enemy targeted, the key doesn't say
     else
         t:ok(true, "(not prowling now: checked when you are)")
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.328: flight masters on the map: one pick, point at a line for its
+-- flight's time; right-click again takes the waypoint off.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: flight masters on the map: one pick, the next click clears; a line near the mouse says its flight", function(t)
+    local MF = ns.mapFlights
+    local sel = MF.Click({}, "Crossroads, The Barrens")
+    t:eq(sel.from, "Crossroads, The Barrens", "a click picks one")
+    sel = MF.Click(sel, "Ratchet, The Barrens")
+    t:ok(sel.from == nil and sel.to == nil, "the next click, on any of them, clears: never two picked")
+    t:eq(MF.Click({}, nil).from, nil, "a click on nothing: nothing")
+    -- Which line the mouse is near.
+    t:near(MF.SegDist(5, 3, 0, 0, 10, 0), 3, 0.001, "beside a line: straight across to it")
+    t:near(MF.SegDist(-4, 3, 0, 0, 10, 0), 5, 0.001, "past its end: to the end")
+    t:near(MF.SegDist(2, 2, 7, 7, 7, 7), 7.071, 0.01, "a line with no length: to its point")
+    local lines = { { name = "Ratchet", ax = 0, ay = 0, bx = 100, by = 0 }, { name = "Camp Taurajo", ax = 0, ay = 0, bx = 0, by = 100 } }
+    t:eq(MF.LineAt(lines, 60, 6, 14), "Ratchet", "near the line to Ratchet: that one")
+    t:eq(MF.LineAt(lines, 5, 60, 14), "Camp Taurajo", "near the other: the other")
+    t:eq(MF.LineAt(lines, 60, 60, 14), nil, "between them, near neither: none")
+    t:eq(MF.LineAt(lines, 3, 2, 14), "Ratchet", "by the picked one, where they all meet: the nearest")
+    t:ok(MF.LINE_BOLD > MF.LINE_THIN and MF.LINE_THIN >= 2, "the lines are bold enough to see, the one you point at bolder")
+    t:ok(pcall(MF.HoverTick), "looking for the line under the mouse runs with nothing drawn")
+    -- Right-click: a waypoint on it; right-click again: off.
+    local pin = { name = "Crossroads, The Barrens", npc = "Devrak", kind = "have", map = 1413, x = 0.515, y = 0.303 }
+    t:ok(MF.WaypointOn({ map = 1413, x = 0.2, y = 0.2, note = "Devrak (flight master)" }, pin), "your waypoint is the one set on this flight master (by its note)")
+    t:ok(MF.WaypointOn({ map = 1413, x = 0.515, y = 0.303 }, pin, { map = 1413, x = 0.515, y = 0.303 }), "or by its place")
+    t:ok(not MF.WaypointOn({ map = 1413, x = 0.7, y = 0.7, note = "My spot" }, pin, { map = 1413, x = 0.515, y = 0.303 }), "a waypoint somewhere else isn't")
+    t:ok(not MF.WaypointOn(nil, pin), "no waypoint: no")
+    local keepW, set, cleared, wp = ns.waypoint, 0, 0, nil
+    ns.waypoint = {
+        Get = function() return wp end,
+        Set = function(_, map, x, y, note) set = set + 1; wp = { map = map, x = x, y = y, note = note } end,
+        Clear = function() cleared = cleared + 1; wp = nil end,
+    }
+    local ok1, r1, ok2, r2
+    with(ns, "Print", function() end, function()
+        ok1, r1 = pcall(MF.RightClick, pin)
+        ok2, r2 = pcall(MF.RightClick, pin)
+    end)
+    ns.waypoint = keepW
+    t:ok(ok1 and r1 == "set" and set == 1, "a right click points Flow's arrow there")
+    t:ok(ok2 and r2 == "cleared" and cleared == 1 and set == 1, "a right click on it again takes the waypoint off")
 end)

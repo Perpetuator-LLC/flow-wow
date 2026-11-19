@@ -210,17 +210,67 @@ end
 -- arrow but not the "selection" (there wasn't one).
 -------------------------------------------------------------------------------
 
+-- A right click on a flight master points Flow's arrow there; a right click
+-- on the same one again takes the waypoint off (0.35.328: "it was kind of
+-- hard to get it off; if I could right-click again and make it go away").
+-- Pure: is your waypoint the one a right click on this pin set?
+--   wp: { map, x, y, note } or nil; spot: { map, x, y } the pin's place
+function MF.WaypointOn(wp, pin, spot)
+    if not (wp and pin) then return false end
+    if wp.note and wp.note == ((pin.npc or pin.name) .. " (flight master)") then return true end
+    if spot and wp.map == spot.map and wp.x and spot.x then
+        return math.abs(wp.x - spot.x) < 0.005 and math.abs(wp.y - spot.y) < 0.005
+    end
+    return false
+end
+-- -> "set" | "cleared" | nil
+function MF.RightClick(pin, mapID, mx, my)
+    local W = ns.waypoint
+    if not (pin and W) then return nil end
+    local spot = (pin.map and pin.x) and { map = pin.map, x = pin.x, y = pin.y } or (mapID and mx and { map = mapID, x = mx, y = my }) or nil
+    local wp = W.Get and W:Get() or nil
+    if MF.WaypointOn(wp, pin, spot) and W.Clear then
+        W:Clear()
+        ns:Print("waypoint off " .. MF.Short(pin.name) .. ": the arrow is back on your route")
+        return "cleared"
+    end
+    return MF.PointAt(pin, mapID, mx, my) and "set" or nil
+end
+
 MF.sel = {}   -- { from = name, to = name }: the flight masters you clicked
 
 -- Pure: the selection after a click on a flight master.
+-- (0.35.328: one pick, kept simple. "Click one, it's selected, and then they
+-- can just hover over everything around it and figure out what their flight
+-- times are. The next click is just off." A second pick is gone: pointing at
+-- a line, or near it, says that flight's time.)
 function MF.Click(sel, name)
     sel = sel or {}
     if not name then return sel end
     if not sel.from then return { from = name } end
-    if name == sel.from then return {} end                  -- the first one again: none
-    if name == sel.to then return { from = sel.from } end   -- the second again: just the first
-    return { from = sel.from, to = name }                   -- another: the second (in place of one before)
+    return {}   -- any flight master while one is picked: nothing picked
 end
+
+-- Pure: how far a point is from a stretch of line, in the same units.
+function MF.SegDist(px, py, ax, ay, bx, by)
+    local dx, dy = bx - ax, by - ay
+    local len2 = dx * dx + dy * dy
+    local t = len2 > 0 and ((px - ax) * dx + (py - ay) * dy) / len2 or 0
+    if t < 0 then t = 0 elseif t > 1 then t = 1 end
+    return dist(px, py, ax + t * dx, ay + t * dy)
+end
+-- Pure: the line the mouse is on or near. lines: { { name, ax, ay, bx, by } }
+-- -> its name (nil: none within `reach`)
+function MF.LineAt(lines, px, py, reach)
+    local best, bestD
+    for _, l in ipairs(lines or {}) do
+        local d = MF.SegDist(px, py, l.ax, l.ay, l.bx, l.by)
+        if d <= reach and (not bestD or d < bestD) then best, bestD = l.name, d end
+    end
+    return best
+end
+MF.LINE_REACH = 14            -- pixels on screen: this near a line is "on it"
+MF.LINE_THIN, MF.LINE_BOLD = 2.5, 5
 
 -- Pure: can you fly between two pins? Both are flight paths you have, on one continent.
 function MF.CanFly(a, b)
@@ -291,10 +341,10 @@ local function makePin(c)
             local text, can = flightText(from, self.pin)
             GameTooltip:AddLine(text, can and 0.4 or 1, can and 1 or 0.4, can and 0.4 or 0.4, true)
         end
-        local name = self.pin.name
-        GameTooltip:AddLine((name == MF.sel.from and "Click: clear") or (MF.sel.from and "Click: the flight from "
-            .. MF.Short(MF.sel.from) .. " to here") or "Click: where you can fly from here", 0.6, 0.6, 0.6)
-        GameTooltip:AddLine("Right-click: point Flow's arrow here.", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(MF.sel.from and "Click: clear the lines" or "Click: where you can fly from here, and how long each flight is (point at a line)", 0.6, 0.6, 0.6, true)
+        local W = ns.waypoint
+        local on = W and W.Get and MF.WaypointOn(W:Get(), self.pin, self.mapID and self.mx and { map = self.mapID, x = self.mx, y = self.my } or nil)
+        GameTooltip:AddLine(on and "Right-click: take your waypoint off it." or "Right-click: point Flow's arrow here (right-click again to take it off).", 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
         self.edge:SetVertexColor(1, 1, 1, 1)
     end)
@@ -305,7 +355,11 @@ local function makePin(c)
     end)
     p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     p:SetScript("OnClick", function(self, button)
-        if button == "RightButton" then MF.PointAt(self.pin, self.mapID, self.mx, self.my) return end
+        if button == "RightButton" then
+            MF.RightClick(self.pin, self.mapID, self.mx, self.my)
+            if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
+            return
+        end
         MF.Pick(self.pin.name)
         if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
     end)
@@ -433,9 +487,11 @@ function MF.DrawLinks(c, where, base)
                 local l = links[nLinks]
                 if not l then l = host:CreateLine(nil, "ARTWORK"); links[nLinks] = l end
                 local col = MF.CanFly(from, pin) and T.flightHave or T.flightCant
-                local chosen = name == MF.sel.to
-                l:SetThickness((chosen and 3.5 or 1.5) / scale)
-                l:SetColorTexture(col[1], col[2], col[3], chosen and 1 or 0.55)
+                local chosen = name == MF.hoverTo
+                l:SetThickness((chosen and MF.LINE_BOLD or MF.LINE_THIN) / scale)
+                l:SetColorTexture(col[1], col[2], col[3], chosen and 1 or 0.8)
+                -- (Kept for the mouse: which line it's near, MF.HoverTick.)
+                l.name, l.ax, l.ay, l.bx, l.by = name, a[1] * w, a[2] * h, b[1] * w, b[2] * h
                 l:SetStartPoint("TOPLEFT", c, a[1] * w, -a[2] * h)
                 l:SetEndPoint("TOPLEFT", c, b[1] * w, -b[2] * h)
                 l:Show()
@@ -443,8 +499,9 @@ function MF.DrawLinks(c, where, base)
         end
     end
     for i = nLinks + 1, old do links[i]:Hide() end
-    -- The second pick: the flight's words at the middle of its line.
-    local to = MF.sel.to and MF.byName[MF.sel.to]
+    MF.linkCtx = a and { c = c, where = where, base = base, scale = scale } or nil
+    -- The line the mouse is near: the flight's words at its middle.
+    local to = MF.hoverTo and MF.byName[MF.hoverTo]
     local b = to and where[to.name]
     if a and b then
         if not flightLabel then
@@ -478,7 +535,40 @@ end
 function MF.HideLinks()
     for i = 1, nLinks do links[i]:Hide() end
     nLinks = 0
+    MF.linkCtx, MF.hoverTo = nil, nil
     if flightLabel then flightLabel:Hide() end
+end
+
+-- The mouse over the map with one picked: the line it's on or near is drawn
+-- bold with its flight's time. Looked at a few times a second.
+function MF.HoverTick()
+    local ctx = MF.linkCtx
+    if not (ctx and MF.sel.from and nLinks > 0 and WorldMapFrame and WorldMapFrame:IsShown()) then
+        if MF.hoverTo then MF.hoverTo = nil end
+        return
+    end
+    local c = ctx.c
+    local es = c:GetEffectiveScale() or 1
+    local x, y = GetCursorPosition()
+    local left, top = c:GetLeft(), c:GetTop()
+    if not (x and left and top) then return end
+    local px, py = x / es - left, top - y / es
+    local lines = {}
+    for i = 1, nLinks do lines[i] = links[i] end
+    -- (The reach is in screen pixels; the map's canvas is drawn at its own scale.)
+    local near = MF.LineAt(lines, px, py, MF.LINE_REACH * (UIParent:GetEffectiveScale() or 1) / es)
+    if near == MF.hoverTo then return end
+    MF.hoverTo = near
+    pcall(MF.DrawLinks, c, ctx.where, ctx.base)
+end
+do
+    local watcher, acc = CreateFrame("Frame"), 0
+    watcher:SetScript("OnUpdate", function(_, dt)
+        acc = acc + dt
+        if acc < 0.08 then return end
+        acc = 0
+        if MF.sel.from then pcall(MF.HoverTick) end
+    end)
 end
 
 -- A click on a flight master (left: MF.Click). Drawn again at once (the map's
@@ -487,13 +577,13 @@ function MF.Pick(name)
     MF.sel = MF.Click(MF.sel, name)
     last = nil
     pcall(MF.Draw)
-    ns:Log("flight", "picked on the map: " .. (MF.sel.from and (MF.Short(MF.sel.from) .. (MF.sel.to and (" to " .. MF.Short(MF.sel.to)) or "")) or "none")
-        .. (MF.lastFlight and MF.sel.to and ("; " .. MF.lastFlight) or ""))
+    MF.hoverTo = nil
+    ns:Log("flight", "picked on the map: " .. (MF.sel.from and MF.Short(MF.sel.from) or "none"))
 end
 -- Nothing picked any more (a click off them, the map closed).
 function MF.ClearPick()
     if not MF.sel.from then return end
-    MF.sel = {}
+    MF.sel, MF.hoverTo = {}, nil
     last = nil
     if WorldMapFrame and WorldMapFrame:IsShown() then pcall(MF.Draw) end
 end
