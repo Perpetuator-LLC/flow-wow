@@ -108,21 +108,16 @@ local function buildIcon(cfg)
     f.swing.edge = f.swing:CreateTexture(nil, "BACKGROUND", nil, -2)
     f.swing.edge:SetPoint("TOPLEFT", -2, 2); f.swing.edge:SetPoint("BOTTOMRIGHT", 2, -2)
     f.swing.edge:SetColorTexture(0, 0, 0, 0)
-    -- On: a soft glow round it that breathes, the picture itself steady.
-    -- (It used to blink the whole badge: "it might be nice if it was glowing
-    -- faintly, not too strong, so the user knows it's on and can click it".)
-    f.swing.glow = f.swing:CreateTexture(nil, "OVERLAY")
-    f.swing.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    f.swing.glow:SetBlendMode("ADD")
-    f.swing.glow:SetPoint("CENTER")
-    f.swing.glow:SetSize(24 * ns.SWING_GLOW, 24 * ns.SWING_GLOW)
-    f.swing.glow:SetVertexColor(1, 0.85, 0.4)
+    -- On: a ring round it that pulses with Flow's other "this is live" marks
+    -- (ns.pulse: one colour, one beat), the picture itself steady. (0.35.327
+    -- drew a soft glow from one of the game's textures: it didn't show.
+    -- "It doesn't show the flashing; you do it already on a couple of the
+    -- other icons, so do that same thing when auto attack is enabled.")
+    f.swing.glow = f.swing:CreateTexture(nil, "BACKGROUND", nil, -3)
+    f.swing.glow:SetPoint("TOPLEFT", -ns.SWING_RING, ns.SWING_RING)
+    f.swing.glow:SetPoint("BOTTOMRIGHT", ns.SWING_RING, -ns.SWING_RING)
+    f.swing.glow:SetColorTexture(ns.pulse.COLOR[1], ns.pulse.COLOR[2], ns.pulse.COLOR[3], 1)
     f.swing.glow:Hide()
-    local pulse = f.swing.glow:CreateAnimationGroup()
-    pulse:SetLooping("BOUNCE")
-    local fade = pulse:CreateAnimation("Alpha")
-    fade:SetFromAlpha(ns.SWING_GLOW_HIGH); fade:SetToAlpha(ns.SWING_GLOW_LOW); fade:SetDuration(1.2)
-    f.swing.pulse = pulse
     f.swing:Hide()
     -- Hover: what it is. (A click on it toggles auto attack: ClickSlots.lua
     -- lays a button of the game's kind over it.)
@@ -720,7 +715,6 @@ end
 function ns.PlaceSwing(frame, anchor, joined, side)
     local size, point, rel, x, y = ns.SwingPlace(joined, side)
     frame.side = side or "left"
-    if frame.glow then frame.glow:SetSize(size * ns.SWING_GLOW, size * ns.SWING_GLOW) end
     frame:ClearAllPoints()
     frame:SetSize(size, size)
     frame:SetPoint(point, anchor, rel, x, y)
@@ -733,9 +727,12 @@ function ns.ModTag(name, joined)
     return (name:gsub(" ", "")) .. "+"
 end
 
--- The auto-attack badge's glow: how much bigger than the badge, and how
--- faint it breathes between.
-ns.SWING_GLOW, ns.SWING_GLOW_HIGH, ns.SWING_GLOW_LOW, ns.SWING_OFF_ALPHA = 1.8, 0.6, 0.25, 0.4
+-- The auto-attack badge: how far its pulsing ring stands out past the badge
+-- (past the weapon-coloured edge, which is 2), and how dim the badge is when
+-- auto attack is off.
+ns.SWING_RING, ns.SWING_OFF_ALPHA = 4, 0.4
+-- Pure: does the badge's ring pulse? Only while auto attack is on.
+function ns.SwingPulses(badge) return badge == "on" end
 -- Pure: the badge's picture: your form's attack when the class names one
 -- (a claw, a paw), else the weapon in your main hand, else nil (as it is).
 function ns.SwingPicture(formTexture, weaponTexture)
@@ -999,9 +996,10 @@ local function tick()
     if badge ~= icon.swingState then
         icon.swingState = badge
         icon.swing:SetShown(badge ~= nil)
-        icon.swing.pulse:Stop()
-        icon.swing.glow:SetShown(badge == "on")
-        if badge == "on" then icon.swing:SetAlpha(1); icon.swing.pulse:Play()
+        local live = ns.SwingPulses(badge)
+        icon.swing.glow:SetShown(live)
+        if live then ns.pulse.Add(icon.swing.glow) else ns.pulse.Remove(icon.swing.glow) end
+        if badge == "on" then icon.swing:SetAlpha(1)
         elseif badge == "off" then icon.swing:SetAlpha(ns.SWING_OFF_ALPHA) end
     end
     local fighting = icon:IsShown() and inCombat and true or false

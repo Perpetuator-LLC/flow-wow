@@ -14527,13 +14527,15 @@ ns:Register("test", "target button: the auto-attack badge wears your form's atta
     local r, g, b, a = ns.QualityColor(2, { [2] = { r = 0.1, g = 1, b = 0 } })
     t:ok(r == 0.1 and g == 1 and b == 0 and a == 1, "the edge: the colour of your weapon's quality")
     t:eq(select(4, ns.QualityColor(nil, {})), 0, "no weapon: no edge")
-    t:ok(ns.SWING_GLOW_HIGH <= 0.7 and ns.SWING_GLOW_LOW > 0, "the glow is faint, and never quite out")
+    t:ok(ns.SwingPulses("on") and not ns.SwingPulses("off") and not ns.SwingPulses(nil), "its ring pulses only while auto attack is on")
+    t:ok(ns.SWING_RING > 2, "and stands out past the weapon-coloured edge")
     local druid = ns:Get("rotation", "DRUID")
     t:ok(type(druid.swingSpell) == "function" and pcall(druid.swingSpell), "the druid names its form's attack")
     local icon = ns.rotation.icon
     if not (icon and icon.swing) then t:ok(true, "(the target button isn't built yet)") return end
-    t:ok(icon.swing.glow and icon.swing.edge and icon.swing.pulse, "the badge has its glow and its edge")
-    t:ok(icon.swing.glow:IsShown() == (icon.swingState == "on"), "the glow is there only while auto attack is on")
+    t:ok(icon.swing.glow and icon.swing.edge, "the badge has its ring and its edge")
+    t:ok(icon.swing.glow:IsShown() == (icon.swingState == "on"), "the ring is there only while auto attack is on")
+    t:ok(ns.pulse.Has(icon.swing.glow) == (icon.swingState == "on"), "and pulses on Flow's one beat, with the other marks")
     t:near(icon.swing.tex:GetAlpha(), 1, 0.01, "the picture itself doesn't blink")
 end)
 
@@ -14831,4 +14833,31 @@ ns:Register("test", "nameplates: your combo points show as a bar in sections und
     local okL, lines = pcall(PC.Lines)
     t:ok(okL and lines[2]:find("nameplateResourceOnTarget", 1, true) ~= nil, "/flow combo says what the game's own setting answers")
     t:ok(type(ns.commands.combo) == "function", "/flow combo")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.335: Prowl before a pull; the auto-attack badge pulses.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "druid: in Cat Form with an enemy targeted, Prowl is suggested before the pull", function(t)
+    local druid = ns:Get("rotation", "DRUID")
+    local rule
+    for _, r in ipairs(druid.priority or {}) do
+        if r.spell == "Prowl" then rule = r end
+    end
+    t:ok(rule ~= nil, "Prowl is on the druid's list")
+    if not rule then return end
+    t:eq(rule.kind, "buff", "as something you cast on yourself (the self button's)")
+    t:ok(rule.reason:find("opener", 1, true) ~= nil, "and says why: your key then holds your opener")
+    -- Never in a fight, never without an enemy targeted (prowling slows you).
+    t:ok(not rule.when({ inCombat = true, hostile = true }), "in a fight: not asked for")
+    t:ok(not rule.when({ inCombat = false, hostile = false }), "nothing targeted: not asked for (you'd only walk slower)")
+    local inCat = ns.api.Form() == "Cat Form"
+    local hidden = false
+    if IsStealthed then
+        local ok, v = pcall(IsStealthed)
+        hidden = ok and ns.api.Safe(v) == true
+    end
+    t:eq(rule.when({ inCombat = false, hostile = true }) and true or false, inCat and not hidden,
+        "an enemy targeted, out of a fight: asked for exactly when you're a cat and not prowling yet")
 end)

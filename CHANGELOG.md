@@ -1,6 +1,17 @@
 # Changelog
 
 
+## 0.35.335
+
+- **Druid: Prowl is suggested before a pull.** In Cat Form, out of a fight, with an enemy
+  targeted and you not prowling yet, the self button offers Prowl. Once you prowl, the target
+  key holds your opener from stealth (Ravage, Pounce or Shred when you have them; Rake before
+  that), and moves to your cat rotation when you hit. It isn't suggested with nothing targeted:
+  prowling slows you, so it shouldn't be asked for while you travel.
+- **The auto-attack badge pulses while auto attack is on.** The soft glow added in 0.35.327
+  didn't show. The badge now has a ring that pulses on the same beat and in the same orange as
+  Flow's other "this is live" marks; the weapon-coloured edge stays inside it.
+
 ## 0.35.334
 
 - **Combo points on the nameplate are a bar in sections now, like the game's own bars.** In

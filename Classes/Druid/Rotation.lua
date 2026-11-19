@@ -49,6 +49,12 @@ local buffs = {
       when = function(c) return not c.inCombat and caster() and needBuff("Mark of the Wild", 60) end },
     { spell = "Thorns", kind = "buff", reason = "Thorns missing or running out",
       when = function(c) return not c.inCombat and caster() and needBuff("Thorns", 30) end },
+    -- Prowl before a pull (0.35.335: "in Cat Form it would be nice if the easy
+    -- buttons were suggesting to use stealth"). Only with an enemy targeted:
+    -- prowling slows you, so it isn't asked for while you travel. Once you
+    -- prowl, the target key holds your opener (the cat list below).
+    { spell = "Prowl", kind = "buff", reason = "Prowl before you pull: your key then holds your opener from stealth",
+      when = function(c) return not c.inCombat and c.hostile and inCat() and not stealthed() end },
 }
 
 -- Auto attack in Cat or Bear Form ("Attack" on older clients).
