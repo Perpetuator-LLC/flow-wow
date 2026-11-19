@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.330
+
+- **Fixed: the alignment lines when you move Flow's buttons were wrong, and didn't say what
+  they lined up with.** With the two buttons docked, the one you dragged was compared with its
+  own docked partner, which moves with it: so a line always ran through the pair wherever it
+  was, and it never settled on the middle of the screen. It was also compared with the edges
+  of the arrow's frame, a box you can't see. Now the lines only use what's on screen and stays
+  put: the middle of the screen, Flow's other button when the two aren't docked, and the middle
+  of the arrow. A line to the middle of the screen runs right across; a line to another thing
+  runs just from the button to that thing, and that thing is outlined in white while the line
+  shows.
+
 ## 0.35.329
 
 - **The route plans a visit to each group of a quest's mobs, not one spot a quest.** A kill or

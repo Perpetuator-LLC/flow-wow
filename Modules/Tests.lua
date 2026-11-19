@@ -14667,3 +14667,63 @@ ns:Register("test", "route: a kill step with several groups of spots is planned 
     t:eq((H.Planned(list, hops, 5, 0, { [list[2].id] = 99 }, 100, list[1])), nil, "the plan's groups all worked: none (the nearest is used instead)")
     t:eq((H.Planned(list, nil, 5, 0, {}, 100, list[1])), nil, "no plan: none")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.330: the alignment lines only use what's on screen and stays put, and
+-- show what they line up with.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "move: a docked partner is never lined up with; a line to another thing runs from the button to it", function(t)
+    local G = ns.guides
+    t:eq(G.Partner("FlowCastButton", false), "FlowBuffButton", "on their own: the target button may line up with the self button")
+    t:eq(G.Partner("FlowBuffButton", false), "FlowCastButton", "and the other way round")
+    t:eq(G.Partner("FlowCastButton", true), nil, "docked: the self button moves with it, so it's no guide (it always 'lined up')")
+    t:eq(G.Partner("FlowBuffButton", true), nil, "docked, the other way: the same")
+    t:eq(G.Partner("FlowZoneNote", false), nil, "something else dragged: neither")
+    local screen = { w = 1000, h = 800 }
+    -- The docked case that went wrong: with no partner, the pair lines up with the screen's middle again.
+    local s = G.Snap({ l = 477, r = 517, b = 100, t = 140 }, screen, {})
+    t:ok(s.dx == 3 and s.x == 500 and s.xSrc == nil, "near the middle of the screen: onto it (a line right across)")
+    -- With the partner wrongly counted (its middle on the dragged one's), the screen's middle lost.
+    local partner = { l = 477, r = 517, b = 40, t = 80 }
+    local wrong = G.Snap({ l = 477, r = 517, b = 100, t = 140 }, screen, { partner })
+    t:ok(wrong.dx == 0 and wrong.xSrc == partner, "(what happened before: its own partner was the nearest line-up, at no distance)")
+    -- What a line belongs to.
+    local other = { l = 300, r = 340, b = 100, t = 140, name = "FlowBuffButton" }
+    s = G.Snap({ l = 298, r = 338, b = 144, t = 184 }, screen, { other })
+    t:ok(s.xSrc == other and s.ySrc == other and s.rect ~= nil, "a line to the other button knows it's that button's")
+    local lo, hi = G.Span(144, 184, 100, 140, 14)
+    t:ok(lo == 86 and hi == 198, "the line runs from the one to the other and a little past, not across the screen")
+    -- The arrow offers its middle only (its frame is a box you can't see).
+    local arrow = { l = 480, r = 536, b = 700, t = 756, middle = true, name = "FlowNavArrow" }
+    s = G.Snap({ l = 479, r = 519, b = 300, t = 340 }, { w = 2000, h = 800 }, { arrow })
+    t:ok(s.x == nil and s.dx == 0, "level with the arrow frame's left edge: nothing (only its middle counts)")
+    s = G.Snap({ l = 485, r = 525, b = 300, t = 340 }, { w = 2000, h = 800 }, { arrow })
+    t:ok(s.x == 508 and s.dx == 3 and s.xSrc == arrow, "its middle near the arrow's middle: onto it")
+    -- Only what's really on screen.
+    local hidden = CreateFrame("Frame", nil, UIParent)
+    hidden:SetSize(20, 20); hidden:SetPoint("CENTER"); hidden:Hide()
+    t:eq(G.RectOf(hidden), nil, "a hidden frame is no guide")
+    hidden:Show()
+    t:ok(G.RectOf(hidden) ~= nil, "a shown one is")
+    hidden:Hide()
+    t:ok(pcall(G.Others, _G.FlowCastButton), "what the target button may line up with is worked out")
+    -- Drawing a line-up of each kind.
+    local wasOn = ns.db.settings and ns.db.settings.moveGuides
+    ns.db.settings = ns.db.settings or {}
+    ns.db.settings.moveGuides = true
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(40, 40); f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", 300, 300); f:Show()
+    G.Start(f)
+    local host = G._Host()
+    local okD = pcall(G.Draw, { dx = 2, dy = -4, x = 300, y = 140, xSrc = other, ySrc = other, rect = { l = 298, r = 338, b = 144, t = 184 } })
+    t:ok(okD and host.v:IsShown() and host.h:IsShown(), "both lines draw")
+    t:ok(host.box[1][1]:IsShown() and not host.box[2][1]:IsShown(), "and what they line up with is outlined, once")
+    okD = pcall(G.Draw, { dx = 3, dy = 0, x = 500, rect = { l = 477, r = 517, b = 100, t = 140 } })
+    t:ok(okD and host.v:IsShown() and not host.h:IsShown() and not host.box[1][1]:IsShown(), "the screen's middle: one line, nothing outlined")
+    pcall(G.Draw, nil)
+    t:ok(not host.v:IsShown() and not host.h:IsShown(), "near nothing: no lines")
+    G.Drop(f)
+    ns.db.settings.moveGuides = wasOn
+    f:Hide()
+end)
