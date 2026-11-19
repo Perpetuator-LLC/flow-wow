@@ -164,14 +164,20 @@ end
 --   after it (0.35.242: it sat under the badge and over the gap).
 -- Pure: point, relative point, x, y for the icon (to the Flow icon, or to the
 -- key bind when docked), then the same for its words (to the small icon).
-function C.AdvicePlace(docked)
+-- (side: the side the small icons run to, 0.35.324; this goes on the other.)
+function C.AdvicePlace(docked, side)
+    if side == "right" then
+        if docked then return "RIGHT", "LEFT", -10, 0, "RIGHT", "LEFT", -3, 0 end
+        return "BOTTOMLEFT", "BOTTOMLEFT", -8, -8, "LEFT", "RIGHT", 2, 0
+    end
     if docked then return "LEFT", "RIGHT", 10, 0, "LEFT", "RIGHT", 3, 0 end
     return "BOTTOMRIGHT", "BOTTOMRIGHT", 8, -8, "RIGHT", "LEFT", -2, 0
 end
-function C.PlaceAdvice(docked)
+function C.PlaceAdvice(docked, side)
+    side = side or C.labelsSide or "left"
     local icon = E.icon
     if not (lockIcon and icon and keyText) then return false end
-    local p, rp, x, y, lp, lrp, lx, ly = C.AdvicePlace(docked)
+    local p, rp, x, y, lp, lrp, lx, ly = C.AdvicePlace(docked, side)
     lockIcon:ClearAllPoints()
     lockIcon:SetPoint(p, docked and keyText or icon, rp, x, y)
     lockIcon.label:ClearAllPoints()
@@ -182,20 +188,25 @@ function C.PlaceAdvice(docked)
 end
 C._LockIcon = function() return lockIcon end   -- (tests)
 
-function C.LayoutLabels(docked)
+function C.LayoutLabels(docked, side)
     local icon = E.icon
     if not (keyText and icon) then return false end
+    side = side or C.labelsSide or "left"
+    C.labelsSide = side
+    local right = side == "right"
     keyText:ClearAllPoints()
     -- (Docked: the bind at the middle of the icon's right side, the held
     -- modifier on its own line above it, the auto-attack badge below.)
-    if docked then keyText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    if docked and right then keyText:SetPoint("RIGHT", icon, "LEFT", -6, 0)
+    elseif docked then keyText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     else keyText:SetPoint("BOTTOM", icon, "TOP", 0, 2) end
     if icon.shiftTag then
         icon.shiftTag:ClearAllPoints()
-        if docked then icon.shiftTag:SetPoint("BOTTOMLEFT", keyText, "TOPLEFT", 0, 2)
+        if docked and right then icon.shiftTag:SetPoint("BOTTOMRIGHT", keyText, "TOPRIGHT", 0, 2)
+        elseif docked then icon.shiftTag:SetPoint("BOTTOMLEFT", keyText, "TOPLEFT", 0, 2)
         else icon.shiftTag:SetPoint("RIGHT", keyText, "LEFT", -4, 0) end
     end
-    C.PlaceAdvice(docked)
+    C.PlaceAdvice(docked, side)
     C.labelsDocked = docked and true or false
     return true
 end

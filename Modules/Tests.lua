@@ -8608,18 +8608,21 @@ ns:Register("test", "target button: modifier icons to its left, auto attack on i
         t:ok(true, "(the target button isn't built yet)")
         return
     end
+    -- (To the left for a button in the left half of the screen; mirrored in the right half, 0.35.324.)
+    local right = icon.side == "right"
+    local own, other, sign = right and "BOTTOMLEFT" or "BOTTOMRIGHT", right and "BOTTOMRIGHT" or "BOTTOMLEFT", right and 1 or -1
     local p, rel, rp, x = icon.deck[1]:GetPoint(1)
-    t:ok(p == "BOTTOMRIGHT" and rel == icon and rp == "BOTTOMLEFT" and (x or 0) < 0, "the first (CTRL) hangs off the icon's left edge")
+    t:ok(p == own and rel == icon and rp == other and (x or 0) * sign > 0, "the first (SHIFT) hangs off the icon's edge on its side")
     for i = 2, #icon.deck do
         local p2, rel2, rp2, x2 = icon.deck[i]:GetPoint(1)
-        t:ok(p2 == "BOTTOMRIGHT" and rel2 == icon.deck[i - 1] and rp2 == "BOTTOMLEFT" and (x2 or 0) < 0,
-            "the next one further left (" .. i .. ")")
+        t:ok(p2 == own and rel2 == icon.deck[i - 1] and rp2 == other and (x2 or 0) * sign > 0,
+            "the next one further out (" .. i .. ")")
     end
     t:eq(icon.deck[1]:GetNumPoints(), 1, "one anchor each (not still tied to the right side)")
     local sp, srel, srp, sx = icon.swing:GetPoint(1)
     -- (Docked: small, at the bottom right corner, 0.35.239.)
-    local _, wantP, wantRp = ns.SwingPlace(icon.joined)
-    t:ok(sp == wantP and srel == icon and srp == wantRp and (sx or 0) > 0, "the crossed swords are on its right")
+    local _, wantP, wantRp = ns.SwingPlace(icon.joined, icon.side)
+    t:ok(sp == wantP and srel == icon and srp == wantRp and (sx or 0) * sign < 0, "the crossed swords are on the other side")
     t:eq(icon.swing:GetNumPoints(), 1, "and only there")
     -- (0.35.199: on the key bind's line, just left of it; its own test below.)
     local tp, _, _, tx = icon.shiftTag:GetPoint(1)
@@ -11301,8 +11304,8 @@ ns:Register("test", "buttons: docked, the key is at the Flow icon's bottom right
     local key, icon = C._KeyText(), ns.rotation.icon
     t:ok(type(ns.DockLayout()) == "boolean", "Flow's icon can ask whether it's in the docked layout")
     if not (key and icon and not InCombatLockdown()) then return end
-    local was = C.labelsDocked
-    t:ok(C.LayoutLabels(true), "the docked places")
+    local was, wasSide = C.labelsDocked, C.labelsSide
+    t:ok(C.LayoutLabels(true, "left"), "the docked places")
     local p, rel, rp = key:GetPoint(1)
     t:ok(p == "LEFT" and rel == icon and rp == "RIGHT", "docked: the key bind at the middle of the icon's right side")
     if icon.shiftTag then
@@ -11316,7 +11319,7 @@ ns:Register("test", "buttons: docked, the key is at the Flow icon's bottom right
         local tp, trel, trp = icon.shiftTag:GetPoint(1)
         t:ok(tp == "RIGHT" and trel == key and trp == "LEFT", "the tag just left of it, as before")
     end
-    C.LayoutLabels(was)
+    C.LayoutLabels(was, wasSide)
 end)
 
 -------------------------------------------------------------------------------
@@ -11383,7 +11386,7 @@ ns:Register("test", "buttons: docked, the modifier is above the key bind and the
     local icon = ns.rotation.icon
     if icon and icon.swing and icon.joined ~= nil then
         local p, r, rp = icon.swing:GetPoint(1)
-        local wantSize, wantP, wantRp = ns.SwingPlace(icon.joined)
+        local wantSize, wantP, wantRp = ns.SwingPlace(icon.joined, icon.side)
         t:ok(p == wantP and r == icon and rp == wantRp, "the badge is where this mode puts it")
         t:near(icon.swing:GetWidth(), wantSize, 0.5, "and that size")
     end
@@ -11504,7 +11507,7 @@ ns:Register("test", "target button: the advised-spell icon is in the open in bot
     if not (lock and key and icon) then return end
     local rel
     p, rel, rp = lock:GetPoint(1)
-    local wantP, wantRp = C.AdvicePlace(C.labelsDocked)
+    local wantP, wantRp = C.AdvicePlace(C.labelsDocked, C.labelsSide)
     t:ok(p == wantP and rp == wantRp and rel == (C.labelsDocked and key or icon), "the real one is where this layout puts it")
     t:eq(lock:GetNumPoints(), 1, "and only there")
     t:ok(lock:GetFrameLevel() > icon:GetFrameLevel() + 30, "drawn above the badge, the numbers and the click buttons")
@@ -14324,4 +14327,46 @@ ns:Register("test", "arrow: its lines stack by length, the shortest next to the 
     f.sub:SetText(wasSub or "")
     f.stackSig = nil
     N.LayoutLines(f)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.324: a button's small icons run toward the side of the screen it's on.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "buttons: the small icons run left in the left half of the screen, right in the right half", function(t)
+    t:eq(ns.SideFor(400, 1920), "left", "left half: out to the left")
+    t:eq(ns.SideFor(1500, 1920), "right", "right half: out to the right")
+    t:eq(ns.SideFor(960, 1920), "left", "dead centre: left, as it always was")
+    t:eq(ns.SideFor(nil, 1920), "left", "not on screen yet: left")
+    t:eq(ns.ButtonSide(nil), "left", "no button: left")
+    -- What sat on the right swaps over, so nothing lies under the icons.
+    local _, p, rp, x = ns.SwingPlace(false, "right")
+    t:ok(p == "RIGHT" and rp == "LEFT" and x < 0, "icons to the right: the auto-attack badge on the left")
+    _, p, rp, x = ns.SwingPlace(true, "right")
+    t:ok(p == "BOTTOMRIGHT" and rp == "BOTTOMLEFT" and x < 0, "docked too")
+    _, p, rp, x = ns.SwingPlace(false, "left")
+    t:ok(p == "LEFT" and rp == "RIGHT" and x > 0, "icons to the left: the badge on the right, as before")
+    local C, K = ns.cast, ns.careKeys
+    local ap, arp, ax = C.AdvicePlace(true, "right")
+    t:ok(ap == "RIGHT" and arp == "LEFT" and ax < 0, "the bar's advice mark swaps over with the key's name")
+    ap, arp, ax = C.AdvicePlace(true, "left")
+    t:ok(ap == "LEFT" and arp == "RIGHT" and ax > 0, "and is where it was on the left")
+    t:eq(K.ColumnEdge(2, "left"), K.ColumnRight(2), "the self button's columns: as before to the left")
+    t:eq(K.ColumnEdge(2, "right"), -K.ColumnRight(2), "the same steps the other way to the right")
+    t:eq(K.ColumnCentre(3, "right"), -K.ColumnMiddle(3), "and the names over them")
+    local icon = ns.rotation.icon
+    if not (icon and icon.deck and icon.deck[1]) or InCombatLockdown() then t:ok(true, "(the target button isn't built, or a fight is on)") return end
+    local was = icon.side or "left"
+    ns.PlaceDeck(icon, "right")
+    local dp, drel, drp, dx = icon.deck[1]:GetPoint(1)
+    t:ok(dp == "BOTTOMLEFT" and drel == icon and drp == "BOTTOMRIGHT" and dx > 0, "to the right: the first icon off the right edge, bottoms level")
+    local d2p, d2rel, d2rp = icon.deck[2]:GetPoint(1)
+    t:ok(d2p == "BOTTOMLEFT" and d2rel == icon.deck[1] and d2rp == "BOTTOMRIGHT", "the next, smaller one further right")
+    t:eq(icon.deck[1]:GetNumPoints(), 1, "one anchor each")
+    ns.PlaceDeck(icon, "left")
+    dp, drel, drp, dx = icon.deck[1]:GetPoint(1)
+    t:ok(dp == "BOTTOMRIGHT" and drel == icon and drp == "BOTTOMLEFT" and dx < 0, "to the left: off the left edge")
+    ns.PlaceDeck(icon, was)
+    t:ok(type(ns.SelfSide()) == "string", "the self button knows its side: " .. tostring(ns.SelfSide()))
+    t:ok(pcall(K.Apply), "the self button's icons place on that side without an error")
 end)

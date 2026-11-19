@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.324
+
+- **The target and self buttons' small icons run toward the side of the screen the button is
+  on.** In the left half of the screen they go off to the left, as before; move a button into
+  the right half and they go off to the right instead, biggest nearest, bottoms level with the
+  button. Each button goes by where it is; docked, the two swap together as one mirrored block.
+  What sat on the other side (the key's name when docked, the auto-attack badge) swaps over, so
+  nothing lies under the icons.
+
 ## 0.35.323
 
 - **The arrow's lines of text are stacked by length, like a triangle pointing at the arrow.**

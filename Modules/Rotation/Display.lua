@@ -656,12 +656,56 @@ end
 -- sits at the icon's bottom right, under the bind ("CTRL +" over "Q / MB5"
 -- over the badge, 0.35.239). On its own: 24 wide, at the middle of the right.
 ns.SWING_SIZE, ns.SWING_DOCKED = 24, 14
-function ns.SwingPlace(joined)
+-- Which way a button's small icons run (0.35.324): "if we move them to the
+-- right, they should go off to the right; on the left-hand side of the
+-- screen, off to the left." A button in the right half of the screen has its
+-- modifier icons to its right, biggest nearest, bottoms level; in the left
+-- half, to its left. What sat on the other side (the key's name when docked,
+-- the auto-attack badge) swaps over, so nothing lies under the icons.
+-- Docked, the self button follows the target button's side: one mirrored
+-- block. On their own, each button goes by where it is.
+-- Pure: "left" or "right" for a button whose middle is at centerX.
+function ns.SideFor(centerX, screenW)
+    if not (centerX and screenW) then return "left" end
+    return centerX > screenW / 2 and "right" or "left"
+end
+function ns.ButtonSide(frame)
+    if not (frame and frame.GetCenter) then return "left" end
+    local x = frame:GetCenter()
+    if not x then return "left" end
+    return ns.SideFor(x * (frame:GetEffectiveScale() or 1), (UIParent:GetWidth() or 0) * (UIParent:GetEffectiveScale() or 1))
+end
+-- The self button's side: the target button's when docked to it.
+function ns.SelfSide()
+    local BB = ns.buffButton
+    if BB and BB.Docked and BB.Docked() and E.icon then return ns.ButtonSide(E.icon) end
+    return ns.ButtonSide(_G.FlowBuffButton)
+end
+-- The target button's small icons, out to `side`, nearest first.
+function ns.PlaceDeck(icon, side)
+    local prev
+    for _, d in ipairs(icon and icon.deck or {}) do
+        d:ClearAllPoints()
+        if side == "right" then
+            if prev then d:SetPoint("BOTTOMLEFT", prev, "BOTTOMRIGHT", 6, 0) else d:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, 0) end
+        else
+            if prev then d:SetPoint("BOTTOMRIGHT", prev, "BOTTOMLEFT", -6, 0) else d:SetPoint("BOTTOMRIGHT", icon, "BOTTOMLEFT", -10, 0) end
+        end
+        prev = d
+    end
+end
+-- (side: the side the small icons run to; the badge sits on the other.)
+function ns.SwingPlace(joined, side)
+    if side == "right" then
+        if joined then return ns.SWING_DOCKED, "BOTTOMRIGHT", "BOTTOMLEFT", -6, 0 end
+        return ns.SWING_SIZE, "RIGHT", "LEFT", -8, 0
+    end
     if joined then return ns.SWING_DOCKED, "BOTTOMLEFT", "BOTTOMRIGHT", 6, 0 end
     return ns.SWING_SIZE, "LEFT", "RIGHT", 8, 0
 end
-function ns.PlaceSwing(frame, anchor, joined)
-    local size, point, rel, x, y = ns.SwingPlace(joined)
+function ns.PlaceSwing(frame, anchor, joined, side)
+    local size, point, rel, x, y = ns.SwingPlace(joined, side)
+    frame.side = side or "left"
     frame:ClearAllPoints()
     frame:SetSize(size, size)
     frame:SetPoint(point, anchor, rel, x, y)
@@ -950,18 +994,29 @@ local function tick()
     -- nothing jumps about): this icon's spell name above it, its key at its
     -- bottom right. On its own: as it always was (name below, key above).
     local joined = ns.DockLayout()
-    if joined ~= icon.joined then
-        icon.joined = joined
+    -- (Which way the small icons run: by the half of the screen it's in.
+    -- Looked at out of a fight; a button isn't dragged across the screen in one.)
+    local side = icon.side or "left"
+    if not inCombat or not icon.side then side = ns.ButtonSide(icon) end
+    if joined ~= icon.joined or side ~= icon.side then
+        icon.joined, icon.side = joined, side
+        ns.PlaceDeck(icon, side)
         icon.text:ClearAllPoints()
         if joined then
-            icon.text:SetPoint("BOTTOMLEFT", icon, "TOPLEFT", 0, 2)
-            icon.text:SetJustifyH("LEFT")
+            -- (Its name starts over the corner away from the small icons.)
+            if side == "right" then
+                icon.text:SetPoint("BOTTOMRIGHT", icon, "TOPRIGHT", 0, 2)
+                icon.text:SetJustifyH("RIGHT")
+            else
+                icon.text:SetPoint("BOTTOMLEFT", icon, "TOPLEFT", 0, 2)
+                icon.text:SetJustifyH("LEFT")
+            end
         else
             icon.text:SetPoint("TOP", icon, "BOTTOM", 0, -4)
             icon.text:SetJustifyH("CENTER")
         end
-        if ns.cast and ns.cast.LayoutLabels then ns.cast.LayoutLabels(joined) end
-        if icon.swing then ns.PlaceSwing(icon.swing, icon, joined) end
+        if ns.cast and ns.cast.LayoutLabels then ns.cast.LayoutLabels(joined, side) end
+        if icon.swing then ns.PlaceSwing(icon.swing, icon, joined, side) end
     end
     -- The queue's three icons: in a fight, with an enemy targeted, while you
     -- heal up, or while you hold a modifier (Q.Shows).

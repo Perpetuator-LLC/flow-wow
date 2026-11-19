@@ -582,12 +582,17 @@ function BB.Place()
         -- Docked: its name under it from its left edge, its key at its top
         -- right (Flow's own key is at Flow's bottom right: the two sit together
         -- beside the gap). Only in this mode: on its own it's as it always was.
+        -- (Mirrored when the small icons run to the right: 0.35.324.)
+        local right = ns.SelfSide and ns.SelfSide() == "right"
+        BB.placedSide = right and "right" or "left"
         if label then
-            label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
-            label:SetJustifyH("LEFT")
+            if right then label:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -2) else label:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2) end
+            label:SetJustifyH(right and "RIGHT" or "LEFT")
             label:SetWidth(170)
         end
-        if keyText then keyText:SetPoint("LEFT", btn, "RIGHT", 6, 0) end
+        if keyText then
+            if right then keyText:SetPoint("RIGHT", btn, "LEFT", -6, 0) else keyText:SetPoint("LEFT", btn, "RIGHT", 6, 0) end
+        end
         return true
     end
     if label then

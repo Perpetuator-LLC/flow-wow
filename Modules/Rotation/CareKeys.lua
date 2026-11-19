@@ -193,6 +193,10 @@ end
 -- its middle, from the button's left edge (both negative: out to the left).
 -- The same steps as the icons beside Flow's own (Display.lua): 10 to the
 -- first, 6 between, sizes K.SIZES.
+-- (Those are for icons out to the left. Out to the right the same numbers,
+-- the other way: K.ColumnEdge and K.ColumnCentre take the side, 0.35.324.)
+function K.ColumnEdge(index, side) return side == "right" and -K.ColumnRight(index) or K.ColumnRight(index) end
+function K.ColumnCentre(index, side) return side == "right" and -K.ColumnMiddle(index) or K.ColumnMiddle(index) end
 function K.ColumnRight(index)
     local x = -10
     for i = 1, index - 1 do x = x - (K.SIZES[i] or K.SIZES[#K.SIZES]) - 6 end
@@ -204,7 +208,7 @@ end
 -- Docked: SHIFT, CTRL, ALT and C+S written once, between the two rows, one
 -- over each column, always all four (they name Flow's presses too).
 local dockNames = {}
-function K.DockNames(btn, show)
+function K.DockNames(btn, show, side)
     for index, slot in ipairs(K.SLOTS) do
         local fs = dockNames[index]
         if show and not fs then
@@ -218,7 +222,7 @@ function K.DockNames(btn, show)
                 fs:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
                 fs:SetText(K.LABEL[slot])
                 fs:ClearAllPoints()
-                fs:SetPoint("BOTTOM", btn, "TOPLEFT", K.ColumnMiddle(index), 2)
+                fs:SetPoint("BOTTOM", btn, side == "right" and "TOPRIGHT" or "TOPLEFT", K.ColumnCentre(index, side), 2)
                 fs:Show()
             else
                 fs:Hide()
@@ -235,7 +239,10 @@ local function paint()
     local n = 0
     local prevIcon
     local docked = (BB.Docked and BB.Docked()) and true or false
-    K.DockNames(btn, docked and K.Active())
+    local side = ns.SelfSide and ns.SelfSide() or "left"
+    K.side = side
+    local right = side == "right"
+    K.DockNames(btn, docked and K.Active(), side)
     for index, slot in ipairs(K.SLOTS) do
         local ic = icons[slot]
         local s = K.Active() and slotStep[slot] or nil
@@ -298,7 +305,8 @@ local function paint()
                     -- the names are written once for all four (K.DockNames).
                     local sz = K.SIZES[index] or K.SIZES[#K.SIZES]
                     ic:SetSize(sz, sz)
-                    ic:SetPoint("TOPRIGHT", btn, "TOPLEFT", K.ColumnRight(index), 0)
+                    if right then ic:SetPoint("TOPLEFT", btn, "TOPRIGHT", K.ColumnEdge(index, side), 0)
+                    else ic:SetPoint("TOPRIGHT", btn, "TOPLEFT", K.ColumnRight(index), 0) end
                     ic.label:Hide()
                 else
                     -- (On its own: out to the left, nearest first and biggest, bottoms level.)
@@ -307,7 +315,10 @@ local function paint()
                     ic.label:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
                     ic.label:SetText(K.LABEL[slot])
                     ic.label:Show()
-                    if prevIcon then ic:SetPoint("BOTTOMRIGHT", prevIcon, "BOTTOMLEFT", -6, 0)
+                    if right then
+                        if prevIcon then ic:SetPoint("BOTTOMLEFT", prevIcon, "BOTTOMRIGHT", 6, 0)
+                        else ic:SetPoint("BOTTOMLEFT", btn, "BOTTOMRIGHT", 10, 0) end
+                    elseif prevIcon then ic:SetPoint("BOTTOMRIGHT", prevIcon, "BOTTOMLEFT", -6, 0)
                     else ic:SetPoint("BOTTOMRIGHT", btn, "BOTTOMLEFT", -10, 0) end
                 end
                 prevIcon = ic
@@ -344,6 +355,24 @@ function K.Apply()
     if changed or keysText() ~= boundKey or boundSet == nil then bind() end
     paint()
     return true
+end
+
+-- The button was moved to the other half of the screen (or docked to a
+-- target button that was): its small icons and labels swap sides. Looked at
+-- twice a second, out of a fight (its icons are the game's secure buttons).
+do
+    local watcher, acc = CreateFrame("Frame"), 0
+    watcher:SetScript("OnUpdate", function(_, dt)
+        acc = acc + dt
+        if acc < 0.5 then return end
+        acc = 0
+        if InCombatLockdown() or not button() or not ns.SelfSide then return end
+        local side = ns.SelfSide()
+        if side == K.side then return end
+        local BB2 = ns.buffButton
+        if BB2 and BB2.Docked and BB2.Docked() and BB2.Place then pcall(BB2.Place) end
+        pcall(K.Apply)
+    end)
 end
 
 -- Does one of this key's presses cast this item or spell? -> the slot
