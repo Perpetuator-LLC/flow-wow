@@ -3274,6 +3274,17 @@ ns:Register("test", "quest rewards: the big arrow goes on your best upgrade", fu
     t:eq(R.Best(choices, "dps"), 2, "biggest upgrade you can use, for your spec")
     t:eq(R.Best(choices, "heal"), 4, "another spec, another pick")
     t:eq(R.Best({ [1] = { canUse = true, diffs = { dps = 0.1 } } }, "dps"), nil, "no upgrade: no arrow (the coin says what to sell)")
+    -- 0.35.322: "The Disruption Ends": a Binding Girdle (better only for
+    -- healing) and a mail Cinch Belt you can't wear, which sells for more.
+    -- Neither mark showed: the coin wanted nothing to be better for ANY spec.
+    local disruption = {
+        [1] = { canUse = true, diffs = { dps = -0.4, heal = 1.8, tank = -0.2 }, item = { sellPrice = 310 } },   -- Binding Girdle
+        [2] = { canUse = false, diffs = { dps = 2, heal = 0, tank = 2 }, item = { sellPrice = 455 } },           -- Cinch Belt (mail)
+    }
+    t:eq(R.Best(disruption, "dps"), nil, "levelling as a cat: neither is your upgrade")
+    t:eq(R.SellChoice(disruption, "dps"), 2, "so the coin goes on the one that sells for more, wearable or not")
+    t:eq(R.SellChoice(disruption, "heal"), nil, "levelling as a healer, the girdle is your upgrade: no coin")
+    t:eq(R.SellChoice(choices, "dps"), nil, "an upgrade for your spec: no coin")
 end)
 
 ns:Register("test", "quests: finished ones are turned in for you, choices left to you", function(t)
@@ -14249,4 +14260,46 @@ ns:Register("test", "forms: Flow learns which spells keep your form and which ta
     end) end)
     t:ok(pcall(FS.Lines), "/flow forms lists them")
     t:ok(pcall(FS._addLine, GameTooltip, "Regrowth"), "the tooltip line adds")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.322: click flight masters on the map: where you can fly, the flight's time.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: flight masters on the map: pick one for where you can fly, another for the flight", function(t)
+    -- "if I click on one of the flight masters it should show me the route ... green ... red ... flight details as far as time"
+    local MF = ns.mapFlights
+    local sel = MF.Click({}, "Crossroads, The Barrens")
+    t:eq(sel.from, "Crossroads, The Barrens", "the first click picks where you'd fly from")
+    sel = MF.Click(sel, "Camp Taurajo, The Barrens")
+    t:ok(sel.from == "Crossroads, The Barrens" and sel.to == "Camp Taurajo, The Barrens", "the second picks where to")
+    sel = MF.Click(sel, "Ratchet, The Barrens")
+    t:eq(sel.to, "Ratchet, The Barrens", "a third takes the second's place (it used to stay on the first two)")
+    t:eq(MF.Click(sel, "Ratchet, The Barrens").to, nil, "the second clicked again: just the first")
+    t:eq(MF.Click(sel, "Crossroads, The Barrens").from, nil, "the first clicked again: nothing picked")
+    local have1 = { name = "Crossroads, The Barrens", kind = "have", cont = 1 }
+    local have2 = { name = "Camp Taurajo, The Barrens", kind = "have", cont = 1 }
+    local new = { name = "Bragok", npc = "Bragok", kind = "new", cont = 1 }
+    local away = { name = "Undercity, Tirisfal", kind = "have", cont = 0 }
+    t:ok(MF.CanFly(have1, have2), "both paths yours: you can fly it (green)")
+    t:ok(not MF.CanFly(have1, new), "one not learned: you can't yet (red)")
+    t:ok(not MF.CanFly(have1, away), "across the sea: no flight")
+    local fmt = function(s) return s .. " s" end
+    local text, can = MF.FlightText(have1, have2, 78, nil, fmt)
+    t:ok(can and text == "Crossroads to Camp Taurajo: 78 s (your last flight)", "flown before: its time: " .. text)
+    text = MF.FlightText(have1, have2, nil, 80, fmt)
+    t:eq(text, "Crossroads to Camp Taurajo: about 80 s", "never flown: Flow's guess")
+    t:eq(MF.FlightText(have1, have2, nil, nil, fmt), "Crossroads to Camp Taurajo: flight time not known yet", "no guess: says so")
+    text, can = MF.FlightText(have1, new, nil, nil, fmt)
+    t:ok(not can and text:find("learn the flight path at Bragok", 1, true) ~= nil, "can't yet: says where to learn it")
+    t:eq(MF.Short("Crossroads, The Barrens"), "Crossroads", "short names")
+    t:ok(ns.theme.flightCant and ns.theme.flightHave, "green and red come from the theme")
+    -- Picking with the map closed runs (nothing drawn); clearing puts it back.
+    local was = MF.sel
+    with(ns, "Log", function() end, function()
+        local ok, err = pcall(MF.Pick, "Crossroads, The Barrens")
+        t:ok(ok and MF.sel.from == "Crossroads, The Barrens", "a pick runs" .. (ok and "" or (": " .. tostring(err))))
+        t:ok(pcall(MF.ClearPick) and MF.sel.from == nil, "and clears")
+    end)
+    MF.sel = was
 end)

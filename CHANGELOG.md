@@ -1,6 +1,24 @@
 # Changelog
 
 
+## 0.35.322
+
+- Fixed: quest rewards got neither the green arrow nor the gold coin when one choice was an
+  upgrade for another spec only. "The Disruption Ends" offers a Binding Girdle (better for
+  healing, not for the cat you level as) and a mail Cinch Belt you can't wear that sells for
+  more: the coin waited for nothing to be better for ANY spec, and the arrow is only for the
+  spec you level as. The coin now goes on the one that sells for most whenever nothing is an
+  upgrade for the spec you level as; the spec marks still show the girdle's healing arrow.
+- **Click flight masters on the map.** Click one and lines go to every other flight master
+  on the map: green where you can fly (you have both flight paths), red where you can't yet.
+  Click another and the line between them is drawn bold, with the flight's time at its middle
+  (your last flight of it, or Flow's estimate: "Crossroads to Camp Taurajo: about 1 min 20 s"),
+  or what's missing ("learn the flight path at Bragok first"). Click a third and it takes the
+  second's place; click one of the two again, or anywhere on the map off them, to clear. A
+  flight master's tooltip says the flight from the one you picked. Right-click one to point
+  Flow's arrow there (a left click did that before, which is why a "selection" seemed to stick:
+  it was your next step's flight).
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took

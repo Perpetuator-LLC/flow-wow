@@ -11,9 +11,16 @@
 --     places and the quest data, on the continent you're on;
 --   the route's colour, joined by a line: the flight that gets you to your
 --     next step quicker than walking (the one the arrow's card suggests).
--- Hover one for its name and what it's for; click it to point Flow's arrow
--- there. Hidden until you click the button (the map is busy enough); the
--- button remembers. Setting: "Flight masters on the world map".
+-- Click a flight master to see where you can fly from it (0.35.322, below:
+-- "if I click on one of the flight masters, it should show me the route"):
+-- a line to each of the others, green where you can fly (you have both
+-- paths), red where you can't yet. Click a second one: the flight between
+-- the two, with its time. Click a third: it takes the second's place. Click
+-- one of the two again, or anywhere on the map off them, and it clears.
+-- Right-click a flight master to point Flow's arrow there.
+-- Hover one for its name and what it's for. Hidden until you click the
+-- button (the map is busy enough); the button remembers.
+-- Setting: "Flight masters on the world map".
 --
 -- Flow's own frames on the map's canvas, like the route's pins. It never
 -- changes the game's map or calls its functions, so the map's own buttons
@@ -180,6 +187,7 @@ local function hideAll()
     for i = 1, nPins do pins[i]:Hide() end
     nPins = 0
     if flyLine then flyLine:Hide() end
+    if MF.HideLinks then MF.HideLinks() end
 end
 
 -- Points Flow's arrow at a pin.
@@ -189,6 +197,67 @@ function MF.PointAt(pin, mapID, mx, my)
     if pin.map and pin.x then ns.waypoint:Set(pin.map, pin.x, pin.y, note) return true end
     if mapID and mx then ns.waypoint:Set(mapID, mx, my, note) return true end
     return false
+end
+
+-------------------------------------------------------------------------------
+-- Picking flight masters (0.35.322). "If I click on one of the flight masters,
+-- it should show me the route. If I have both the source and the destination
+-- it should be green, and if I don't have one of them it should show red ...
+-- if I select one of them it would be cool if it showed me all the places I
+-- can go, and then I can click the other one, and that should show me flight
+-- details as far as time." Until now a click set Flow's arrow on it, so the
+-- line that appeared was your next step's flight, and a third click moved the
+-- arrow but not the "selection" (there wasn't one).
+-------------------------------------------------------------------------------
+
+MF.sel = {}   -- { from = name, to = name }: the flight masters you clicked
+
+-- Pure: the selection after a click on a flight master.
+function MF.Click(sel, name)
+    sel = sel or {}
+    if not name then return sel end
+    if not sel.from then return { from = name } end
+    if name == sel.from then return {} end                  -- the first one again: none
+    if name == sel.to then return { from = sel.from } end   -- the second again: just the first
+    return { from = sel.from, to = name }                   -- another: the second (in place of one before)
+end
+
+-- Pure: can you fly between two pins? Both are flight paths you have, on one continent.
+function MF.CanFly(a, b)
+    return (a and b and a.kind == "have" and b.kind == "have" and a.cont == b.cont) and true or false
+end
+
+-- Pure: a flight master's short name ("Crossroads" of "Crossroads, The Barrens").
+function MF.Short(name) return (tostring(name or "?"):match("^([^,]+)")) end
+
+-- Pure: what a flight between two pins says. flown: its seconds the last time
+-- you flew it (nil: never); estimate: Flow's guess (nil: none); fmt(sec) -> "1 min 20 s".
+-- -> text, can
+function MF.FlightText(a, b, flown, estimate, fmt)
+    local route = MF.Short(a.name) .. " to " .. MF.Short(b.name)
+    if not MF.CanFly(a, b) then
+        if a.cont ~= b.cont then return route .. ": not on one continent", false end
+        local need = {}
+        if a.kind ~= "have" then need[#need + 1] = a.npc or MF.Short(a.name) end
+        if b.kind ~= "have" then need[#need + 1] = b.npc or MF.Short(b.name) end
+        return route .. ": you can't fly it yet (learn the flight path at " .. table.concat(need, " and ") .. " first)", false
+    end
+    fmt = fmt or function(s) return math.floor(s + 0.5) .. " s" end
+    if flown then return route .. ": " .. fmt(flown) .. " (your last flight)", true end
+    if estimate then return route .. ": about " .. fmt(estimate), true end
+    return route .. ": flight time not known yet", true
+end
+
+-- The flight between two pins, in words, from what you've flown.
+local function flightText(a, b)
+    local N = ns.nav
+    local flown = ns.db.flightTimes and ns.db.flightTimes[a.name .. ">" .. b.name]
+    local est
+    if not flown and MF.CanFly(a, b) and N and N.FlightSeconds then
+        local ok, s = pcall(N.FlightSeconds, a.name, b.name)
+        est = ok and s or nil
+    end
+    return MF.FlightText(a, b, flown, est, N and N.FormatSeconds)
 end
 
 local function makePin(c)
@@ -216,7 +285,16 @@ local function makePin(c)
         local col = self.col
         GameTooltip:AddLine(title, col[1], col[2], col[3])
         for _, l in ipairs(lines) do GameTooltip:AddLine(l, 1, 1, 1, true) end
-        GameTooltip:AddLine("Click: point Flow's arrow here.", 0.6, 0.6, 0.6)
+        -- With one picked: the flight from it to here.
+        local from = MF.sel.from and MF.byName and MF.byName[MF.sel.from]
+        if from and from ~= self.pin then
+            local text, can = flightText(from, self.pin)
+            GameTooltip:AddLine(text, can and 0.4 or 1, can and 1 or 0.4, can and 0.4 or 0.4, true)
+        end
+        local name = self.pin.name
+        GameTooltip:AddLine((name == MF.sel.from and "Click: clear") or (MF.sel.from and "Click: the flight from "
+            .. MF.Short(MF.sel.from) .. " to here") or "Click: where you can fly from here", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine("Right-click: point Flow's arrow here.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
         self.edge:SetVertexColor(1, 1, 1, 1)
     end)
@@ -225,7 +303,12 @@ local function makePin(c)
         GameTooltip:Hide()
         self.edge:SetVertexColor(0, 0, 0, 0.9)
     end)
-    p:SetScript("OnClick", function(self) MF.PointAt(self.pin, self.mapID, self.mx, self.my) end)
+    p:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    p:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then MF.PointAt(self.pin, self.mapID, self.mx, self.my) return end
+        MF.Pick(self.pin.name)
+        if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
+    end)
     return p
 end
 
@@ -253,6 +336,14 @@ local function placePin(c, pin, x, y, mapID, base, air)
     -- One you don't have yet: its picture a little faded, so the ones you
     -- can fly to stand out.
     p.icon:SetAlpha(pin.kind == "have" and 1 or 0.7)
+    -- One you picked: a white edge, a little wider.
+    local picked = pin.name == MF.sel.from or pin.name == MF.sel.to
+    if picked then
+        p.edge:ClearAllPoints(); p.edge:SetPoint("TOPLEFT", -4, 4); p.edge:SetPoint("BOTTOMRIGHT", 4, -4)
+        p.edge:SetVertexColor(1, 1, 1, 1)
+    else
+        p.edge:SetVertexColor(0, 0, 0, 0.9)
+    end
     local label = MF.RoleLabel(pin.role)
     p.text:SetText(label or "")
     p.text:SetShown(label ~= nil)
@@ -280,18 +371,27 @@ function MF.Draw()
     local air = airNow()
     local onRoute = onRouteNow()
     local list = MF.Pins(ns.db.flights, masters(), learnedFn(), onRoute, air)
-    local shown, at = { have = 0, new = 0 }, {}
+    local shown, at, where = { have = 0, new = 0 }, {}, {}
+    MF.byName = {}
     for _, pin in ipairs(list) do
+        MF.byName[pin.name] = pin
         local x, y = M.ToMap(pin, mapID)
         if x then
             placePin(c, pin, x, y, mapID, base, air)
             shown[pin.kind] = shown[pin.kind] + 1
             if pin.role then at[pin.role] = { x, y } end
+            where[pin.name] = { x, y }
         end
     end
     for i = nPins + 1, old do pins[i]:Hide() end
-    -- Your next step's flight: a line from where you'd take off to where you'd land.
-    if at.from and at.to then
+    -- (A flight master you picked that's gone from the list: the pick goes.)
+    if MF.sel.from and not MF.byName[MF.sel.from] then MF.sel = {} end
+    if MF.sel.to and not MF.byName[MF.sel.to] then MF.sel = { from = MF.sel.from } end
+    local picking = MF.sel.from ~= nil
+    MF.DrawLinks(c, where, base)
+    -- Your next step's flight: a line from where you'd take off to where you'd
+    -- land (not while you're picking: the lines are yours then).
+    if at.from and at.to and not picking then
         local col, w, h = ns.theme.route, c:GetWidth(), c:GetHeight()
         flyLine:SetThickness(2 / M.CanvasScale())
         flyLine:SetColorTexture(col[1], col[2], col[3], 0.75)
@@ -311,6 +411,101 @@ function MF.Draw()
     return shown
 end
 
+-- The lines from the flight master you picked: green to each you can fly to,
+-- red to each you can't yet; the one to your second pick bold, with the
+-- flight's time on a label at its middle.
+local links, nLinks = {}, 0
+local flightLabel
+function MF.DrawLinks(c, where, base)
+    local M = ns.mapOverlay
+    local old = nLinks
+    nLinks = 0
+    local from = MF.sel.from and MF.byName[MF.sel.from]
+    local a = from and where[from.name]
+    local scale = M.CanvasScale()
+    local w, h = c:GetWidth(), c:GetHeight()
+    local T = ns.theme
+    if a then
+        for name, b in pairs(where) do
+            local pin = MF.byName[name]
+            if name ~= from.name and pin and pin.cont == from.cont then
+                nLinks = nLinks + 1
+                local l = links[nLinks]
+                if not l then l = host:CreateLine(nil, "ARTWORK"); links[nLinks] = l end
+                local col = MF.CanFly(from, pin) and T.flightHave or T.flightCant
+                local chosen = name == MF.sel.to
+                l:SetThickness((chosen and 3.5 or 1.5) / scale)
+                l:SetColorTexture(col[1], col[2], col[3], chosen and 1 or 0.55)
+                l:SetStartPoint("TOPLEFT", c, a[1] * w, -a[2] * h)
+                l:SetEndPoint("TOPLEFT", c, b[1] * w, -b[2] * h)
+                l:Show()
+            end
+        end
+    end
+    for i = nLinks + 1, old do links[i]:Hide() end
+    -- The second pick: the flight's words at the middle of its line.
+    local to = MF.sel.to and MF.byName[MF.sel.to]
+    local b = to and where[to.name]
+    if a and b then
+        if not flightLabel then
+            flightLabel = CreateFrame("Frame", nil, c)
+            flightLabel:EnableMouse(false)
+            flightLabel.bg = flightLabel:CreateTexture(nil, "BACKGROUND")
+            flightLabel.bg:SetAllPoints()
+            flightLabel.bg:SetColorTexture(0, 0, 0, 0.75)
+            flightLabel.text = flightLabel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            flightLabel.text:SetPoint("CENTER")
+        end
+        local text, can = flightText(from, to)
+        flightLabel.text:SetText(text)
+        flightLabel.text:SetTextColor(can and 0.5 or 1, can and 1 or 0.5, can and 0.5 or 0.5)
+        flightLabel:SetSize(flightLabel.text:GetStringWidth() + 14, 20)
+        flightLabel:SetParent(c)
+        flightLabel:SetFrameStrata(M.AboveMap())
+        flightLabel:SetFrameLevel(base + 70)
+        flightLabel:SetScale(1 / scale)
+        local s = flightLabel:GetScale()
+        flightLabel:ClearAllPoints()
+        flightLabel:SetPoint("CENTER", c, "TOPLEFT", (a[1] + b[1]) / 2 * w / s, -(a[2] + b[2]) / 2 * h / s)
+        flightLabel:Show()
+        MF.lastFlight = text
+    elseif flightLabel then
+        flightLabel:Hide()
+    end
+end
+
+-- (Everything put away: the layer turned off, the map closed.)
+function MF.HideLinks()
+    for i = 1, nLinks do links[i]:Hide() end
+    nLinks = 0
+    if flightLabel then flightLabel:Hide() end
+end
+
+-- A click on a flight master (left: MF.Click). Drawn again at once (the map's
+-- tick waits while the mouse is on a pin).
+function MF.Pick(name)
+    MF.sel = MF.Click(MF.sel, name)
+    last = nil
+    pcall(MF.Draw)
+    ns:Log("flight", "picked on the map: " .. (MF.sel.from and (MF.Short(MF.sel.from) .. (MF.sel.to and (" to " .. MF.Short(MF.sel.to)) or "")) or "none")
+        .. (MF.lastFlight and MF.sel.to and ("; " .. MF.lastFlight) or ""))
+end
+-- Nothing picked any more (a click off them, the map closed).
+function MF.ClearPick()
+    if not MF.sel.from then return end
+    MF.sel = {}
+    last = nil
+    if WorldMapFrame and WorldMapFrame:IsShown() then pcall(MF.Draw) end
+end
+-- A click on the map, off the flight masters, clears the pick ("if I click
+-- anywhere off of them it should deselect them"). The game says a mouse
+-- button went down; Flow only reads where the mouse is.
+ns:On("GLOBAL_MOUSE_DOWN", function()
+    if not (MF.sel.from and WorldMapFrame and WorldMapFrame:IsShown()) or MF.hovering then return end
+    local sc = WorldMapFrame.ScrollContainer
+    if sc and sc:IsMouseOver() then MF.ClearPick() end
+end)
+
 -- What the last draw was of: drawn again only when it changed (a new map,
 -- a zoom, a flight path learned, your next step's flight, the list of
 -- flight masters every MF.KEEP seconds) and not while you point at a pin
@@ -322,7 +517,8 @@ local function stateNow()
     local _, nRoute = onRouteNow()
     return table.concat({ tostring(WorldMapFrame:GetMapID()), string.format("%.3f", M.CanvasScale()),
         math.floor(c:GetWidth()), math.floor(c:GetHeight()), tostring(ns.nav and ns.nav.flightGen or 0),
-        tostring(masters()), air and air.from or "-", air and air.to or "-", nRoute }, "|")
+        tostring(masters()), air and air.from or "-", air and air.to or "-", nRoute,
+        tostring(MF.sel.from) .. ">" .. tostring(MF.sel.to) }, "|")
 end
 
 -------------------------------------------------------------------------------
@@ -388,6 +584,8 @@ function MF.Button()
         GameTooltip:AddLine("Flow flight masters on the map: " .. (on and "shown" or "hidden"))
         GameTooltip:AddLine("Green: flight paths you have. Light blue: ones you don't have yet (free: talk to them once). "
             .. "Joined by a line in the route's colour: the flight your next step is quicker by.", 1, 1, 1, true)
+        GameTooltip:AddLine("Click a flight master: where you can fly from it (green) and can't yet (red). Click another: "
+            .. "the flight between them and its time. Click off them to clear. Right-click one: point Flow's arrow there.", 0.8, 0.8, 0.8, true)
         if on then
             GameTooltip:AddLine(string.format("On this map: %d you have, %d to learn.", MF.shown.have, MF.shown.new), 0.8, 0.8, 0.8)
         end
@@ -433,7 +631,8 @@ ns:OnLoad(function()
         acc = acc + dt
         if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end   -- lite: every 2 s
         acc = 0
-        if WorldMapFrame and WorldMapFrame:IsShown() then pcall(MF.Tick) end
+        if WorldMapFrame and WorldMapFrame:IsShown() then pcall(MF.Tick)
+        elseif MF.sel.from then MF.sel = {} end   -- (the map closed: the pick goes)
     end)
 end)
 

@@ -224,7 +224,9 @@ Flow for WoW is a separate project from Flow Engine.
   the arrow here". A button above it shows or hides the route on the map, and one above that
   shows the **flight masters**: green rings for the flight paths you have, light blue for the
   ones you don't have yet (free: talk to them once), and the flight your next step is quicker by
-  in the route's colour, joined by a line. Hover one for who and what; click it to point the arrow there.
+  in the route's colour, joined by a line. Hover one for who and what. Click one for where you
+  can fly from it (green lines) and can't yet (red); click another for the flight between them
+  and its time; click off them to clear. Right-click one to point the arrow there.
 - **World map and minimap**: the route as a faint dotted trail, like a treasure map (the stretch
   to your next step, and that step's dot, in the arrow's colour). The dots drift slowly toward
   the next step, so you see which way the route goes, and "Path opacity" in the settings makes
@@ -301,8 +303,9 @@ Flow for WoW is a separate project from Flow Engine.
   about the same), compared with what the item would
   replace (two one-handers are judged as a pair against a two-hander), or with your gear set
   for that role (Equipment Manager or `/flow gear save`). Weapon speed counts for each spec.
-- **Quest reward badges**: the same spec icons and arrows on quest rewards, or a gold coin on
-  the best one to sell.
+- **Quest reward badges**: the same spec icons and arrows on quest rewards: the big green arrow
+  on the best upgrade for the spec you're levelling, or, when none is one, a gold coin on the
+  one that sells for most (wearable or not).
 - **Upgrades at vendors**: the same badge on gear a vendor sells, and one line in chat when
   something for sale is better for the spec you level as, with its price.
 - **Bag icons**: top left, what Flow will do with it: the (o) marker on an item your current

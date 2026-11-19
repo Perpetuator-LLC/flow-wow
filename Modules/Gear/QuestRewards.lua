@@ -2,8 +2,12 @@
 --   spec badge (bottom of the icon) = one icon per spec with an arrow above:
 --     up = better than what that spec wears, down = worse, flat = about the
 --     same (Gear/SpecBadge.lua, the same marks as in your bags)
---   gold coin (top left) = nothing is an upgrade for any spec: take this one
---     to sell (highest vendor price)
+--   gold coin (top left) = nothing is an upgrade for the spec you're
+--     levelling: take this one to sell (highest vendor price, whether you can
+--     wear it or not). Until 0.35.322 it needed nothing to be an upgrade for
+--     ANY spec: "The Disruption Ends" offered a Binding Girdle (better only
+--     for healing) and a mail Cinch Belt (more gold), and neither mark showed.
+--     The spec marks still show the girdle's healing arrow.
 --   big green arrow (top left) = the best pick for you: the biggest upgrade
 --     for the spec you're levelling (the same arrow as "equip this" in your
 --     bags). Shown when you're offered the quest and when you turn it in.
@@ -75,25 +79,31 @@ local function hideAll()
     end
 end
 
+-- Pure: the choice to take to sell: the highest vendor price, when none is
+-- an upgrade for `role` (the spec you're levelling). nil when one is.
+--   choices[i] = G:Compare result ({ canUse, diffs, item = { sellPrice } })
+function R.SellChoice(choices, role)
+    if R.Best(choices, role) then return nil end
+    local sell, price
+    for i, c in pairs(choices) do
+        local p = c.item and c.item.sellPrice or 0
+        if not price or p > price or (p == price and i < sell) then sell, price = i, p end
+    end
+    return sell
+end
+
 -- For each choice: its comparison (diffs per spec), and which one to take to
--- sell when none is an upgrade for any spec. Returns choices, sellIndex, missingInfo.
+-- sell when none is an upgrade for your levelling spec. Returns choices,
+-- sellIndex, missingInfo.
 local function pick(n)
-    local choices, sell, missing, anyUp = {}, nil, false, false
+    local choices, missing = {}, false
     for i = 1, n do
         local link = GetQuestItemLink("choice", i)
         local c = link and G:Compare(link)
         if link and not c then missing = true end
-        if c then
-            choices[i] = c
-            if c.canUse then
-                for _, role in ipairs(G.ROLES) do
-                    if ns.SpecTrend(c.diffs[role]) == "up" then anyUp = true end
-                end
-            end
-            if not sell or c.item.sellPrice > sell.price then sell = { i = i, price = c.item.sellPrice } end
-        end
+        if c then choices[i] = c end
     end
-    return choices, (not anyUp and sell) and sell.i or nil, missing
+    return choices, R.SellChoice(choices, ns:LevelingRole()), missing
 end
 
 local retried = false
@@ -120,7 +130,8 @@ local function update(why)
         end
     end
     -- (for the diagnostics: which reward was marked, and whether its button was found)
-    local line = string.format("%s: %d choice(s), best for you %s, marked %d", tostring(why), n, tostring(best), marked)
+    local line = string.format("%s: %d choice(s), best for you %s, to sell %s, marked %d", tostring(why), n, tostring(best),
+        tostring(n > 1 and sellIndex or nil), marked)
     if line ~= lastLogged then lastLogged = line; ns:Log("rewards", line) end
     -- Item info may not be loaded the first time; try once more shortly.
     if missing and not retried then

@@ -55,6 +55,7 @@ ns.theme = {
     good     = rgb("66FF66"),  -- green: worth doing (a dungeon run with your group)
     flightHave = rgb("66FF66"),  -- green: a flight path you have, on the world map (MapFlights.lua;
                                  -- one you don't have yet wears kinds.flight's colour, as its route step does)
+    flightCant = rgb("E8443A"),  -- red: a flight you can't take yet (one end not learned), on the world map
     profPointer = rgb("1E2026"),  -- near-black smoked glass: the profession arrow under the main arrow
 }
 
