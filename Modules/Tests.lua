@@ -14598,3 +14598,72 @@ ns:Register("test", "click: flight masters on the map: one pick, the next click 
     t:ok(ok1 and r1 == "set" and set == 1, "a right click points Flow's arrow there")
     t:ok(ok2 and r2 == "cleared" and cleared == 1 and set == 1, "a right click on it again takes the waypoint off")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.329: the planner visits a kill or collect step group by group.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a kill step with several groups of spots is planned as a visit to each, other steps in between", function(t)
+    local P = ns.planner
+    local function pt(x, y) return { wx = x, wy = y, cont = 1, map = 1 } end
+    -- Spots into groups, nearest first.
+    local groups = P.Groups({ pt(0, 0), pt(10, 0), pt(500, 0), pt(30, 10), pt(510, 0) })
+    t:eq(#groups, 2, "spots close together are one group")
+    t:ok(#groups[1].points == 3 and #groups[2].points == 2, "each with its spots")
+    t:near(groups[2].x, 505, 0.01, "a group's middle")
+    -- How many visits a step gets.
+    t:eq(P.VisitsFor(10, 5), 3, "ten to get: three groups (never more)")
+    t:eq(P.VisitsFor(6, 5), 2, "six to get: two")
+    t:eq(P.VisitsFor(3, 5), 1, "three to get: one group will do")
+    t:eq(P.VisitsFor(nil, 4), 2, "not known how many: two")
+    t:eq(P.VisitsFor(10, 1), 1, "all its spots in one group: one visit")
+    t:eq(P.VisitsFor(10, 2), 2, "never more visits than groups")
+    -- What depends on a step waits for its last visit; your first pick goes by its first.
+    local a1 = { key = "1:1", goal = { key = "1:1" } }
+    local a2 = { key = "1:1", goal = a1.goal }
+    local b = { key = "2:1", goal = { key = "2:1" } }
+    local turnIn = { key = "1:done", goal = { key = "1:done", deps = { "1:1" } } }
+    t:ok(P._valid({ a1, b, a2, turnIn }, {}), "the turn-in after the last visit: fine")
+    t:ok(not P._valid({ a1, turnIn, b, a2 }, {}), "the turn-in before the last visit: not allowed")
+    t:ok(P._valid({ a1, b, a2 }, { first = "1:1" }), "your first pick is first by its first visit")
+    t:ok(not P._valid({ b, a1, a2 }, { first = "1:1" }), "and not when something comes before it")
+    -- A whole plan: two groups of boars 500 yards apart, another quest's spot between them.
+    local wasOn = ns.db.nav.groupVisits
+    ns.db.nav.groupVisits = true
+    local boars = { key = "1:1", area = true, left = 8, title = "Boars", points = { pt(0, 0), pt(10, 0), pt(500, 0), pt(510, 0) } }
+    local herbs = { key = "2:1", title = "A crate", points = { pt(250, 0) } }
+    local hand = { key = "1:done", title = "Turn in", points = { pt(520, 0) }, deps = { "1:1" } }
+    local me = pt(-50, 0)
+    local ok, plan = pcall(P.Plan, P, me, { boars, herbs, hand }, {})
+    t:ok(ok and plan ~= nil, "the plan is made" .. (ok and "" or (": " .. tostring(plan))))
+    if ok and plan then
+        t:eq(#plan, 3, "still one line a step")
+        t:ok(plan[1].goal == boars and plan[2].goal == herbs and plan[3].goal == hand, "the boars (first group), the crate on the way, then the turn-in")
+        t:ok(plan[1].visits and #plan[1].visits == 2 and plan[1].visits[2].wx >= 500, "the boars' second group is a visit of its own, after the crate")
+        t:eq(#plan.hops, 2, "the groups, in the order planned, for the arrow")
+        t:ok(plan.hops[1].wx < 100 and plan.hops[2].wx > 400, "near group first, far group second")
+        t:near(plan[3].cum, 570, 5, "the turn-in's distance counts every visit before it")
+        t:near(plan[2].cum, 300, 5, "the crate comes between the two groups")
+    end
+    -- Three to get: one visit, as it always was.
+    boars.left = 3
+    local ok1, one = pcall(P.Plan, P, me, { boars, herbs, hand }, {})
+    t:ok(ok1 and one and #one.hops == 0 and one[1].visits == nil, "few left: one visit, nothing split")
+    -- Switched off (or asked not to): one spot a step.
+    boars.left = 8
+    local ok2, plain = pcall(P.Plan, P, me, { boars, herbs, hand }, { groups = false })
+    t:ok(ok2 and plain and #plain == 3 and #plain.hops == 0, "a plan asked for without visits has none")
+    ns.db.nav.groupVisits = false
+    local ok3, off = pcall(P.Plan, P, me, { boars, herbs, hand }, {})
+    t:ok(ok3 and off and #off.hops == 0 and not P.GroupsOn(), "switched off: none")
+    ns.db.nav.groupVisits = wasOn
+    -- The arrow takes the plan's order of groups.
+    local H = ns.areaHop
+    local list = H.Groups({ { key = "1:1", title = "Boars", points = { pt(0, 0), pt(10, 0), pt(500, 0), pt(510, 0) } },
+                            { key = "3:1", title = "Wolves", points = { pt(40, 80) } } }, 1)
+    local hops = { { key = "1:1", wx = 5, wy = 0 }, { key = "1:1", wx = 505, wy = 0 } }
+    local nextG = H.Planned(list, hops, 5, 0, {}, 100, list[1])
+    t:ok(nextG == list[2], "in the first group: the plan's next group, though another quest's is nearer")
+    t:eq((H.Planned(list, hops, 5, 0, { [list[2].id] = 99 }, 100, list[1])), nil, "the plan's groups all worked: none (the nearest is used instead)")
+    t:eq((H.Planned(list, nil, 5, 0, {}, 100, list[1])), nil, "no plan: none")
+end)

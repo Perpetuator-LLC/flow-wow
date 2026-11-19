@@ -10,6 +10,10 @@
 --     OPTIONAL_DETOUR extra yards, i.e. they're roughly on the way
 --   * a step with many possible spots (mob spawns) uses whichever spot is
 --     closest to where you'll be at that point in the trip
+--   * a kill or collect step whose spots lie in several groups is visited
+--     group by group (0.35.329): each of its nearest groups is a visit of
+--     its own in the order, so the trip threads through the groups of
+--     several quests instead of counting each quest as one spot
 --   * finish this zone before leaving it: steps in another zone wait until
 --     this zone's are done (Nav.lua decides which: quests too low or too
 --     high for you don't hold you here, and a step just over the border or
@@ -266,6 +270,96 @@ local function candidates(p, goals)
     return out
 end
 
+-------------------------------------------------------------------------------
+-- Group visits (0.35.329). "As it is planning the next route, is it smart
+-- enough to consider all the clouds, or does it only consider one or two of
+-- the points in the quest? I would prefer the former."
+--
+-- A kill or collect step was one visit to one spot (whichever of its spots
+-- was nearest to where you'd be). Ten boars aren't at one spot: you work one
+-- group, then the next. So such a step now becomes up to MAX_VISITS visits,
+-- one for each of its nearest groups of spots, as many as what's left to get
+-- is likely to need (PER_GROUP a group). Each visit is ordered like any
+-- step, so another quest's group that lies between two of them comes in
+-- between. The step is still one line on your route (at its first visit);
+-- what depends on it (the turn-in) comes after its last visit.
+-- Flow can't see what's alive: how many a group yields is a guess, and the
+-- plan is made again as you go.
+-------------------------------------------------------------------------------
+P.GROUP_YARDS = 60     -- spots this close to a group's middle are one group
+P.PER_GROUP = 4        -- what one group is taken to yield
+P.MAX_VISITS = 3       -- visits planned for one step
+P.MAX_EXTRA = 8        -- extra visits in one plan (the order's size is what costs time)
+P.GROUP_SPOTS = 60     -- a step's nearest spots looked at
+
+function P.GroupsOn() return not (ns.db and ns.db.nav and ns.db.nav.groupVisits == false) end
+
+-- Pure: spots into groups, in the order given (nearest first: so the groups
+-- come out nearest first too). -> { { x, y, points = { pt } } }
+function P.Groups(points, yards)
+    local out = {}
+    for _, pt in ipairs(points or NONE) do
+        local home
+        for _, grp in ipairs(out) do
+            if dist(pt.wx, pt.wy, grp.x, grp.y) <= (yards or P.GROUP_YARDS) then home = grp break end
+        end
+        if not home then
+            home = { x = pt.wx, y = pt.wy, points = {} }
+            out[#out + 1] = home
+        end
+        local n = #home.points
+        home.x, home.y = (home.x * n + pt.wx) / (n + 1), (home.y * n + pt.wy) / (n + 1)
+        home.points[n + 1] = pt
+    end
+    return out
+end
+
+-- Pure: how many visits a step gets. left: how many are still to get (nil:
+-- not known); groups: how many groups its spots lie in.
+function P.VisitsFor(left, groups)
+    if (groups or 0) < 2 then return 1 end
+    local want = left and math.ceil(left / P.PER_GROUP) or 2
+    return math.max(1, math.min(want, P.MAX_VISITS, groups))
+end
+
+-- Splits the kept steps' kill and collect steps into visits (in place).
+local function expand(p, stops)
+    local N = ns.nav
+    local extra, n = 0, #stops
+    for i = 1, n do
+        local s = stops[i]
+        local goal = s.goal
+        if extra < P.MAX_EXTRA and goal.area and goal.points and #goal.points > 1
+            and not (N and N.GatherSpots and N.GatherSpots(goal)) then
+            local pts = {}
+            for _, pt in ipairs(goal.points) do
+                if pt.wx and pt.cont == p.cont then pts[#pts + 1] = pt end
+            end
+            for _, pt in ipairs(pts) do dk[pt] = dist(p.wx, p.wy, pt.wx, pt.wy) end
+            table.sort(pts, byNear)
+            for j = #pts, P.GROUP_SPOTS + 1, -1 do dk[pts[j]] = nil; pts[j] = nil end
+            local groups = P.Groups(pts)
+            local visits = math.min(P.VisitsFor(goal.left, #groups), 1 + (P.MAX_EXTRA - extra))
+            if visits >= 2 then
+                for j = 1, visits do
+                    local grp = groups[j]
+                    for k = #grp.points, MAX_POINTS + 1, -1 do grp.points[k] = nil end
+                    if j == 1 then
+                        s.points, s.visit, s.gx, s.gy = grp.points, 1, grp.x, grp.y
+                    else
+                        stops[#stops + 1] = { goal = goal, key = s.key, points = grp.points, near = dk[grp.points[1]] or s.near,
+                                              visit = j, gx = grp.x, gy = grp.y }
+                        extra = extra + 1
+                    end
+                end
+            end
+            for _, pt in ipairs(pts) do dk[pt] = nil end
+        end
+    end
+    return extra
+end
+P._expand = function(p, stops) return expand(p, stops) end   -- (tests)
+
 -- Walks an order from your position. Returns weighted cost, legs, points.
 -- (The legs are straight yards, what the route shows; the cost counts flights.)
 local function walk(p, order)
@@ -296,8 +390,14 @@ local posOf = {}   -- (valid: each step's place in the order; reused)
 local function valid(order)
     local pos = posOf
     for k in pairs(pos) do pos[k] = nil end
-    for i, s in ipairs(order) do pos[s.key] = i end
-    if OPT.first and pos[OPT.first] and pos[OPT.first] ~= 1 then return false end
+    -- (A step with several visits: its place is its last one, so what waits
+    -- for it waits for all of them. Your own first pick goes by its first.)
+    local firstAt
+    for i, s in ipairs(order) do
+        pos[s.key] = i
+        if not firstAt and s.key == OPT.first then firstAt = i end
+    end
+    if OPT.first and firstAt and firstAt ~= 1 then return false end
     local lastTour, firstOther = 0, math.huge
     for i, s in ipairs(order) do
         for _, dep in ipairs(s.goal.deps or {}) do
@@ -505,6 +605,7 @@ function P:Plan(p, goals, opts)
     nearPt, nearD = {}, {}   -- the nearest-spot answers are for this plan only
     local stops = candidates(p, goals)
     if #stops == 0 then return nil end
+    if OPT.groups ~= false and P.GroupsOn() then expand(p, stops) end
     local order = build(p, stops)
     -- Finish this area: if the best trip leaves the area before it's done,
     -- plan one that doesn't, and keep that unless it costs a lot more.
@@ -523,13 +624,40 @@ function P:Plan(p, goals, opts)
     local dropped
     order, dropped = prune(p, order)
     local _, legs, pts = walk(p, order)
-    local plan, cum = { dropped = dropped }, 0
+    -- One line a step, at its first visit; its later visits ride on it
+    -- (entry.visits) and on plan.hops, the groups in the order they're
+    -- planned (the arrow leads from one to the next: AreaHop.lua).
+    local plan, cum, seen = { dropped = dropped, hops = {} }, 0, {}
     for i, s in ipairs(order) do
         cum = cum + legs[i]
-        plan[i] = { goal = s.goal, point = pts[i], leg = legs[i], cum = cum }
+        local e = seen[s.key]
+        if not e then
+            e = { goal = s.goal, point = pts[i], leg = legs[i], cum = cum }
+            plan[#plan + 1] = e
+            seen[s.key] = e
+        else
+            e.visits = e.visits or { e.point }
+            e.visits[#e.visits + 1] = pts[i]
+        end
+        if s.visit then plan.hops[#plan.hops + 1] = { key = s.key, wx = s.gx, wy = s.gy, visit = s.visit } end
     end
     nearPt, nearD = {}, {}
     return plan
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "route",
+        label = "Plan a visit to each group of a quest's mobs",
+        note = "(not just its nearest spot)",
+        tip = "A kill or collect step whose spots lie in several groups is planned as a visit to each of its nearest groups (up to three), so the route "
+            .. "threads through the groups of several quests. Off: each such step counts as one spot, as it used to.",
+        get = function() return P.GroupsOn() end,
+        set = function(on)
+            ns.db.nav.groupVisits = on and true or false
+            if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("group visits") end
+        end,
+    })
 end
 
 -- Timed for /flow perf.

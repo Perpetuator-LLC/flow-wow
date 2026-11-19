@@ -116,6 +116,26 @@ function H.Next(groups, x, y, worked, now, skip, range, rest)
     return best, bestD
 end
 
+-- Pure: the next group by the route's own plan (0.35.329): the planner now
+-- orders a step's groups among the other steps (plan.hops), so the arrow
+-- follows that order, not just "whatever is nearest".
+--   hops: { { key, wx, wy } } in planned order -> group, yards (nil: none fits)
+function H.Planned(groups, hops, x, y, worked, now, skip, rest)
+    for _, hop in ipairs(hops or {}) do
+        local best, bestD
+        for _, g in ipairs(groups or {}) do
+            if g.key == hop.key then
+                local d = dist(g.x, g.y, hop.wx, hop.wy)
+                if d <= H.GROUP * 1.5 and (not bestD or d < bestD) then best, bestD = g, d end
+            end
+        end
+        if best and best ~= skip and not H.Resting(worked, best.id, now, rest) then
+            return best, dist(x, y, best.x, best.y)
+        end
+    end
+    return nil
+end
+
 -- Pure: the arrow's second line.
 --   state "in": inTitle (nil: the step you're on), nextYards (nil: none near)
 --   state "go": yards, title (nil: the step you're on)
@@ -195,7 +215,9 @@ function H.Tick()
     end
     if not started then return end
     local resting = here and H.Resting(H.worked, here.id, now)
-    local nextG, nextD = H.Next(list, p.wx, p.wy, H.worked, now, here)
+    -- The route's own order of groups first; the nearest when it has none.
+    local nextG, nextD = H.Planned(list, N.plan and N.plan.hops, p.wx, p.wy, H.worked, now, here)
+    if not nextG then nextG, nextD = H.Next(list, p.wx, p.wy, H.worked, now, here) end
     if here and not resting then
         H.cur = { state = "in", key = goal.key, group = here,
                   text = H.Text("in", titleFor(here, goal.key), nil, nextD) }

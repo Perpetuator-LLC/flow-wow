@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.329
+
+- **The route plans a visit to each group of a quest's mobs, not one spot a quest.** A kill or
+  collect step used to count as a single stop at whichever of its spots was nearest. Ten boars
+  aren't at one spot, so such a step is now planned as up to three visits, one to each of its
+  nearest groups of spots, as many as what's left to get is likely to need (about four a
+  group). Each visit is ordered like any step, so another quest's group or errand that lies
+  between two of them comes in between, and the turn-in waits for the last visit. The step is
+  still one line on your route; the arrow leads from group to group in the planned order. Flow
+  can't see what's alive, so how many a group yields is a guess, and the plan is made again as
+  you go. Off: Flow Settings, Finding your way.
+
 ## 0.35.328
 
 - **Flight masters on the map: one pick, and point at a line for its flight.** Click a flight

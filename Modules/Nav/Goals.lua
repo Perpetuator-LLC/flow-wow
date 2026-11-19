@@ -249,6 +249,8 @@ local function questGoals(db, q, goals, opts)
                         spread = ns.quests.IsSpread(#points) or nil,
                         elite = elite or nil, hard = hard or nil, helping = opts.who,
                         npcs = #targets > 0 and targets or nil, area = true, target = what,
+                        -- (How many are still to get: the planner sizes its visits by it.)
+                        left = obj.need and math.max(0, obj.need - (obj.have or 0)) or nil,
                         kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                         text = whose .. (elite and "[Elite] " or "") .. (title and (title .. ": ") or "") .. ns.ProgressText(objText),
                         details = (function()
