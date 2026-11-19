@@ -133,6 +133,8 @@ function ns:MoveHandle(target, opts)
         if not self.moving or InCombatLockdown() then return end
         self.moving = false
         target:StopMovingOrSizing()
+        -- (Alignment lines, MoveGuides.lua: it settles on the line that shows.)
+        if ns.guides then pcall(ns.guides.Drop, target) end
         self:Save()
         stats.saved = stats.saved + 1
         stats.lastSaved = (opts.name or "?") .. " at " .. date("%H:%M:%S")
@@ -142,6 +144,7 @@ function ns:MoveHandle(target, opts)
         if InCombatLockdown() or not ns.MoveKeyDown() then return false end
         target:StartMoving()
         self.moving = true
+        if ns.guides then pcall(ns.guides.Start, target) end
         stats.drags = stats.drags + 1
         stats.lastDrag = (opts.name or "?") .. " at " .. date("%H:%M:%S")
         return true

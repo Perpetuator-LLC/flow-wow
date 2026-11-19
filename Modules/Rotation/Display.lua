@@ -104,10 +104,24 @@ local function buildIcon(cfg)
     f.swing.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     local _, swingIcon = A.SpellInfo("Auto Attack")
     f.swing.tex:SetTexture(swingIcon or "Interface\\Icons\\INV_Sword_04")
-    local pulse = f.swing:CreateAnimationGroup()
+    -- Its edge wears the colour of the weapon in your main hand (0.35.327).
+    f.swing.edge = f.swing:CreateTexture(nil, "BACKGROUND", nil, -2)
+    f.swing.edge:SetPoint("TOPLEFT", -2, 2); f.swing.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+    f.swing.edge:SetColorTexture(0, 0, 0, 0)
+    -- On: a soft glow round it that breathes, the picture itself steady.
+    -- (It used to blink the whole badge: "it might be nice if it was glowing
+    -- faintly, not too strong, so the user knows it's on and can click it".)
+    f.swing.glow = f.swing:CreateTexture(nil, "OVERLAY")
+    f.swing.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    f.swing.glow:SetBlendMode("ADD")
+    f.swing.glow:SetPoint("CENTER")
+    f.swing.glow:SetSize(24 * ns.SWING_GLOW, 24 * ns.SWING_GLOW)
+    f.swing.glow:SetVertexColor(1, 0.85, 0.4)
+    f.swing.glow:Hide()
+    local pulse = f.swing.glow:CreateAnimationGroup()
     pulse:SetLooping("BOUNCE")
     local fade = pulse:CreateAnimation("Alpha")
-    fade:SetFromAlpha(1); fade:SetToAlpha(0.45); fade:SetDuration(0.6)
+    fade:SetFromAlpha(ns.SWING_GLOW_HIGH); fade:SetToAlpha(ns.SWING_GLOW_LOW); fade:SetDuration(1.2)
     f.swing.pulse = pulse
     f.swing:Hide()
     -- Hover: what it is. (A click on it toggles auto attack: ClickSlots.lua
@@ -706,6 +720,7 @@ end
 function ns.PlaceSwing(frame, anchor, joined, side)
     local size, point, rel, x, y = ns.SwingPlace(joined, side)
     frame.side = side or "left"
+    if frame.glow then frame.glow:SetSize(size * ns.SWING_GLOW, size * ns.SWING_GLOW) end
     frame:ClearAllPoints()
     frame:SetSize(size, size)
     frame:SetPoint(point, anchor, rel, x, y)
@@ -718,6 +733,21 @@ function ns.ModTag(name, joined)
     return (name:gsub(" ", "")) .. "+"
 end
 
+-- The auto-attack badge's glow: how much bigger than the badge, and how
+-- faint it breathes between.
+ns.SWING_GLOW, ns.SWING_GLOW_HIGH, ns.SWING_GLOW_LOW, ns.SWING_OFF_ALPHA = 1.8, 0.6, 0.25, 0.4
+-- Pure: the badge's picture: your form's attack when the class names one
+-- (a claw, a paw), else the weapon in your main hand, else nil (as it is).
+function ns.SwingPicture(formTexture, weaponTexture)
+    return formTexture or weaponTexture or nil
+end
+-- Pure: the edge's colour for an item quality (nil: none worn, no edge).
+--   colors: the game's table, { [quality] = { r, g, b } }
+function ns.QualityColor(quality, colors)
+    local c = quality and colors and colors[quality]
+    if not c then return 0, 0, 0, 0 end
+    return c.r or 1, c.g or 1, c.b or 1, 1
+end
 -- Pure: the auto-attack badge beside the icon: "on" while you swing, "off"
 -- (dim) in a fight or with an enemy targeted while you don't, nil otherwise.
 function ns.SwingBadge(shown, swinging, inCombat, hostile)
@@ -970,17 +1000,36 @@ local function tick()
         icon.swingState = badge
         icon.swing:SetShown(badge ~= nil)
         icon.swing.pulse:Stop()
+        icon.swing.glow:SetShown(badge == "on")
         if badge == "on" then icon.swing:SetAlpha(1); icon.swing.pulse:Play()
-        elseif badge == "off" then icon.swing:SetAlpha(0.4) end
+        elseif badge == "off" then icon.swing:SetAlpha(ns.SWING_OFF_ALPHA) end
     end
     local fighting = icon:IsShown() and inCombat and true or false
     if fighting ~= icon.combat:IsShown() then icon.combat:SetShown(fighting) end
     -- The badge wears the weapon in your main hand ("can the auto-attack icon
     -- show the currently equipped weapon", 0.35.228).
+    -- In a form the class names an attack for (a cat's claw, a bear's paw),
+    -- that attack's picture instead (0.35.327).
     local weapon = GetInventoryItemTexture and A.Safe(GetInventoryItemTexture("player", 16)) or nil
-    if weapon and weapon ~= icon.swing.weapon then
-        icon.swing.weapon = weapon
-        icon.swing.tex:SetTexture(weapon)
+    local def = E:Definition()
+    local formSpell
+    if def and def.swingSpell then
+        local okF, name = pcall(def.swingSpell)
+        formSpell = okF and type(name) == "string" and name or nil
+    end
+    if formSpell ~= icon.swing.formSpell then
+        icon.swing.formSpell = formSpell
+        icon.swing.formTexture = formSpell and select(2, A.SpellInfo(formSpell)) or nil
+    end
+    local art = ns.SwingPicture(icon.swing.formTexture, weapon)
+    if art and art ~= icon.swing.weapon then
+        icon.swing.weapon = art
+        icon.swing.tex:SetTexture(art)
+    end
+    local quality = GetInventoryItemQuality and A.Safe(GetInventoryItemQuality("player", 16)) or nil
+    if quality ~= icon.swing.quality or icon.swing.edgeSet == nil then
+        icon.swing.quality, icon.swing.edgeSet = quality, true
+        icon.swing.edge:SetColorTexture(ns.QualityColor(quality, _G.ITEM_QUALITY_COLORS))
     end
     -- The self button docked under this icon (BuffButton.lua): this icon's
     -- spell name goes below both, and the modifier names are written once,

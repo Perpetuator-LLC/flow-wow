@@ -2,7 +2,7 @@
 ## Title: Flow (unfettered)
 ## Notes: Levelling companion: rotation and heal advice, route planner, gear and bag sorting, quest help.
 ## Author: Sooth
-## Version: 0.35.326
+## Version: 0.35.327
 ## X-License: GPL-3.0
 ## SavedVariables: FlowDB
 ## SavedVariablesPerCharacter: FlowCharDB
@@ -45,6 +45,7 @@ Modules\Chat.lua
 Modules\Camera.lua
 Modules\Sound.lua
 Modules\Setup.lua
+Modules\MoveGuides.lua
 Modules\BindMode.lua
 Modules\AutoPush.lua
 Modules\NewSpell.lua

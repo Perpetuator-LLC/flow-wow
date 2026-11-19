@@ -1,6 +1,23 @@
 # Changelog
 
 
+## 0.35.327
+
+- **Alignment lines while you move Flow's buttons.** Ctrl + drag the target button or the self
+  button: when its edge or middle comes level with the middle of the screen, or with the edge or
+  middle of Flow's other button or the arrow, a line shows there. Let go while a line shows and
+  the button settles exactly on it: middle to middle, its top on the other's bottom, edge to
+  edge. (The snap happens when you let go: the game doesn't let a frame be nudged while it's
+  being dragged.) Off: Flow Settings, On your screen.
+- **Druid: prowling, the key no longer says "Attack".** With an enemy targeted the key offered
+  auto attack, which makes you swing the moment you're in reach and throws the opener away. The
+  opener (or Rake, or Claw) starts your swings by itself, as every attack does, and does so
+  again each time you attack after turning them off.
+- **The auto-attack badge shows what you hit with, and glows softly when on.** A claw in Cat
+  Form, a paw in Bear Form, your weapon otherwise; its edge is the colour of the weapon in your
+  main hand. While auto attack is on, a faint glow breathes round it instead of the whole badge
+  blinking. Click it to turn auto attack off or on, as before.
+
 ## 0.35.326
 
 - **Druid: prowling, your key is your opener; the moment you attack it's your cat rotation.**

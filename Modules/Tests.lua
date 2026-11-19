@@ -14468,3 +14468,91 @@ ns:Register("test", "easy key: prowling in Cat Form it holds your opener, and th
     -- The pull's spell is asked without an error whatever form you're in.
     t:ok(pcall(druid.pullLock, nil, ns.rotation), "the druid's spell for the pull is worked out")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.327: alignment lines while moving Flow's buttons; the auto-attack
+-- badge's picture and glow; no "Attack" while prowling.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "move: a button dragged near a line-up shows the line and settles on it", function(t)
+    local G = ns.guides
+    local xs, ys = G.Marks({ l = 100, r = 140, b = 200, t = 240 })
+    t:ok(xs[1] == 100 and xs[2] == 120 and xs[3] == 140 and ys[1] == 200 and ys[2] == 220 and ys[3] == 240, "left, middle, right; bottom, middle, top")
+    local d, at = G.Nearest({ 100, 120, 140 }, { 500, 125 }, 8)
+    t:ok(d == 5 and at == 125, "the middle is 5 from a line: that far to move, onto it")
+    t:eq((G.Nearest({ 100, 120, 140 }, { 500 }, 8)), nil, "nothing near: nothing")
+    d = G.Nearest({ 100, 120, 140 }, { 104, 119 }, 8)
+    t:eq(d, -1, "two near: the nearer wins")
+    local screen = { w = 1000, h = 800 }
+    -- Middle of the screen, both ways.
+    local s = G.Snap({ l = 477, r = 517, b = 383, t = 423 }, screen, {})
+    t:ok(s.dx == 3 and s.x == 500 and s.dy == -3 and s.y == 400, "near the middle of the screen: onto it, both ways")
+    -- On top of another button: its bottom on the other's top, middles level.
+    local other = { l = 300, r = 340, b = 100, t = 140 }
+    s = G.Snap({ l = 298, r = 338, b = 144, t = 184 }, screen, { other })
+    t:ok(s.dx == 2 and s.dy == -4 and s.y == 140, "set on top of the other: it settles on its top edge, edges level")
+    -- Beside it: left edge to the other's right edge, tops level.
+    s = G.Snap({ l = 345, r = 385, b = 103, t = 143 }, screen, { other })
+    t:ok(s.dx == -5 and s.x == 340 and s.dy == -3, "beside it: edge to edge, level")
+    -- Far from everything: left where it's dropped.
+    s = G.Snap({ l = 50, r = 90, b = 600, t = 640 }, screen, { other })
+    t:ok(s.dx == 0 and s.dy == 0 and s.x == nil and s.y == nil, "near nothing: no line, no move")
+    t:eq(G.RectOf(nil), nil, "no frame: no rectangle")
+    -- A drag on a frame of our own: the lines come up, the release settles it.
+    local wasOn = ns.db.settings and ns.db.settings.moveGuides
+    ns.db.settings = ns.db.settings or {}
+    ns.db.settings.moveGuides = true
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(40, 40)
+    local cx, cy = UIParent:GetWidth() / 2, UIParent:GetHeight() / 2
+    f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx + 4, cy + 300)
+    f:Show()
+    t:ok(G.Start(f), "a drag begins: the lines watch it")
+    local host = G._Host()
+    t:ok(host and host:IsShown(), "their frame is up")
+    local now = G.Now(f)
+    t:ok(now and now.x ~= nil and now.dx ~= 0 and math.abs(now.dx) <= G.SNAP, "4 off the screen's middle: a line-up is within reach (" .. tostring(now and now.dx) .. ")")
+    pcall(G.Draw, now)
+    t:ok(host.v:IsShown(), "the upright line shows")
+    local dx = G.Drop(f)
+    t:ok(now and math.abs(dx - now.dx) < 0.6 and not host:IsShown(), "let go: it settles by that much, and the lines are put away")
+    t:near((f:GetCenter()), cx + 4 + (now and now.dx or 0), 0.6, "its middle on the line")
+    ns.db.settings.moveGuides = false
+    t:ok(not G.Start(f), "switched off: no lines")
+    ns.db.settings.moveGuides = wasOn
+    f:Hide()
+end)
+
+ns:Register("test", "target button: the auto-attack badge wears your form's attack or your weapon, and glows softly when on", function(t)
+    t:eq(ns.SwingPicture("claw", "staff"), "claw", "in a form the class names an attack for: its picture")
+    t:eq(ns.SwingPicture(nil, "staff"), "staff", "in your own shape: your weapon")
+    t:eq(ns.SwingPicture(nil, nil), nil, "neither known: left as it is")
+    local r, g, b, a = ns.QualityColor(2, { [2] = { r = 0.1, g = 1, b = 0 } })
+    t:ok(r == 0.1 and g == 1 and b == 0 and a == 1, "the edge: the colour of your weapon's quality")
+    t:eq(select(4, ns.QualityColor(nil, {})), 0, "no weapon: no edge")
+    t:ok(ns.SWING_GLOW_HIGH <= 0.7 and ns.SWING_GLOW_LOW > 0, "the glow is faint, and never quite out")
+    local druid = ns:Get("rotation", "DRUID")
+    t:ok(type(druid.swingSpell) == "function" and pcall(druid.swingSpell), "the druid names its form's attack")
+    local icon = ns.rotation.icon
+    if not (icon and icon.swing) then t:ok(true, "(the target button isn't built yet)") return end
+    t:ok(icon.swing.glow and icon.swing.edge and icon.swing.pulse, "the badge has its glow and its edge")
+    t:ok(icon.swing.glow:IsShown() == (icon.swingState == "on"), "the glow is there only while auto attack is on")
+    t:near(icon.swing.tex:GetAlpha(), 1, 0.01, "the picture itself doesn't blink")
+end)
+
+ns:Register("test", "druid: prowling with an enemy targeted, the key doesn't say Attack", function(t)
+    -- (Read from the file's own list: the two "start attacking" entries ask about stealth.)
+    local druid = ns:Get("rotation", "DRUID")
+    t:ok(druid ~= nil, "the druid's rotation is there")
+    local stealthedNow = false
+    if IsStealthed then
+        local ok, v = pcall(IsStealthed)
+        stealthedNow = ok and ns.api.Safe(v) == true
+    end
+    local cur = ns.rotation.current
+    if stealthedNow and cur then
+        t:ok(cur.spell ~= "Attack" and cur.spell ~= "Auto Attack", "prowling now: the icon isn't Attack (" .. tostring(cur.spell) .. ")")
+    else
+        t:ok(true, "(not prowling now: checked when you are)")
+    end
+end)

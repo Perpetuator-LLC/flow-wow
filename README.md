@@ -185,6 +185,8 @@ Flow for WoW is a separate project from Flow Engine.
   pulsing orange, says so and what the zone holds, with **Quest here** (it becomes one of your
   zones) and **Not now** (until you leave and come back). Not on a flight, in a dungeon or in a
   fight; Ctrl-drag moves it. Off in Flow Settings (Finding your way).
+- **Alignment lines**: Ctrl + drag a Flow button and a line shows when it is level with the middle
+  of the screen or with Flow's other button or the arrow; let go and it settles on the line.
 - **From group to group**: in a kill or collect step's area the arrow doesn't stop at the ring.
   When you leave a group of spots, or stand in one with nothing to do, it points to the nearest
   group you haven't just worked, of any such step near the front of your route (`/flow hop`).

@@ -52,11 +52,14 @@ local buffs = {
 }
 
 -- Auto attack in Cat or Bear Form ("Attack" on older clients).
+-- Not while prowling (0.35.327): with an enemy targeted the key said "Attack",
+-- and auto attack on means you swing the moment you're in reach, which
+-- throws the opener away. The opener starts your swings by itself.
 local melee = {
     { spell = "Attack", target = true, reason = "Start attacking",
-      when = function(c) return c.hostile and inAnimal() and not A.IsCurrent("Attack") end },
+      when = function(c) return c.hostile and inAnimal() and not stealthed() and not A.IsCurrent("Attack") end },
     { spell = "Auto Attack", target = true, reason = "Start attacking",
-      when = function(c) return c.hostile and inAnimal() and not A.IsCurrent("Auto Attack") end },
+      when = function(c) return c.hostile and inAnimal() and not stealthed() and not A.IsCurrent("Auto Attack") end },
 }
 
 local cat = {
@@ -235,6 +238,13 @@ ns:Register("rotation", "DRUID", {
     -- Spells that wait for your next swing instead of going off at once: the
     -- target button blinks red while one waits (Display.lua, E.UpdateQueued).
     nextSwing = { "Maul" },
+    -- The auto-attack badge's picture (Display.lua): a claw as a cat, a paw as
+    -- a bear; in your own shape, the weapon in your hand.
+    swingSpell = function()
+        if inCat() then return "Claw" end
+        if inBear() then return "Maul" end
+        return nil
+    end,
     -- Shifts form: Flow learns which spells take you out of a form and says
     -- so in their tooltips (Modules/Rotation/FormSpells.lua).
     shapeshifts = true,
