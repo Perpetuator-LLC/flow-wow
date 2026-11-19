@@ -1,6 +1,15 @@
 # Changelog
 
 
+## 0.35.326
+
+- **Druid: prowling, your key is your opener; the moment you attack it's your cat rotation.**
+  In Cat Form with Prowl up, the target key holds the best opener you know (Ravage, then
+  Pounce, then Shred; before those, Rake). When stealth breaks, the game itself moves the key to
+  Claw and your other presses to their Cat Form spells, in the middle of the fight, the same
+  way the key already follows a change of form. Ravage and Shred only land from behind the mob;
+  the icon's reason says so. `/flow key test` lists what the key holds while stealthed.
+
 ## 0.35.325
 
 - **From group to group in a quest's area.** A kill or collect step took you to the nearest of

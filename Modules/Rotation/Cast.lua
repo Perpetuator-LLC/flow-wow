@@ -826,6 +826,14 @@ local function formSnippet()
 end
 C._FormSnippet = formSnippet   -- (tests)
 C.FORM_STATES = 8   -- form numbers the handler is given (0 = no form)
+-- One more state, past the forms: stealthed in a form (a druid prowling in
+-- Cat Form, 0.35.326). "When I go into prowl, use my opening attack from
+-- stealth on my key, and when I attack, go to all the attack buttons instead
+-- of that from-behind attack." The key holds the opener while you prowl; the
+-- moment stealth breaks the game itself moves it to the form's own spells
+-- (the same handler that follows a change of form), in a fight too.
+-- A class says so with formKeys().stealth = { form = "Cat Form", key = ... }.
+C.STEALTH_STATE = C.FORM_STATES + 1
 
 -- Pure: the state driver's condition and each state's spells. forms: your
 -- forms in the game's order ({ name, index } each); keys: the class's
@@ -861,6 +869,16 @@ function C.FormPlan(forms, keys, knows, slots)
     local cond, plan = {}, { [0] = entry(keys and keys.none) }
     for _, f in ipairs(forms or {}) do
         if f.index and f.index <= C.FORM_STATES then
+            -- (Stealthed in this form first: the game takes the first condition that holds.)
+            local st = keys and keys.stealth
+            if st and st.form == f.name then
+                local e = entry(st)
+                if e then
+                    cond[#cond + 1] = string.format("[form:%d,stealth] %d", f.index, C.STEALTH_STATE)
+                    plan[C.STEALTH_STATE] = e
+                    plan.stealthForm = f.index
+                end
+            end
             cond[#cond + 1] = string.format("[form:%d] %d", f.index, f.index)
             plan[f.index] = entry(keys and keys[f.name])
         end
@@ -902,7 +920,7 @@ function C.SetFormKeys()
     end
     local slots = C.FormSlots()
     local cond, plan = C.FormPlan(A.StanceSpells(), keys, function(spell) return E:Knows(spell) end, slots)
-    for i = 0, C.FORM_STATES do
+    for i = 0, C.STEALTH_STATE do
         local p = keys and plan[i]
         formHeader:SetAttribute("key-" .. i, p and p.key or "")
         for _, slot in ipairs(C.FORM_SLOTS) do
@@ -923,12 +941,27 @@ C._FormHeader = function() return formHeader end   -- (tests)
 -- Flow's own picture of it: your form changed in a fight, so the key (and
 -- Ctrl + key) now cast that form's spells. The handler did the real work.
 local function formNow()
+    local index = 0
     for _, s in ipairs(A.StanceSpells()) do
-        if s.active then return s.index end
+        if s.active then index = s.index break end
     end
-    return 0
+    local p = C.formPlan
+    if p and p.stealthForm == index and p[C.STEALTH_STATE] and IsStealthed then
+        local ok, hidden = pcall(IsStealthed)
+        if ok and A.Safe(hidden) == true then return C.STEALTH_STATE end
+    end
+    return index
 end
-ns:On("UPDATE_SHAPESHIFT_FORM", function()
+-- Is the hand-over from a stealth opener set up? (Without it an opener on
+-- the key would stay there all fight: the class asks before choosing one.)
+function C.StealthReady()
+    return C.formPlan ~= nil and C.formPlan[C.STEALTH_STATE] ~= nil and formHeader ~= nil
+end
+function C.StealthOpener()
+    local p = C.formPlan and C.formPlan[C.STEALTH_STATE]
+    return C.StealthReady() and p and p.key or nil
+end
+local function formChanged()
     if not (InCombatLockdown() and C.formPlan and formHeader) then return end
     local p = C.formPlan[formNow()]
     if not p then return end
@@ -938,7 +971,10 @@ ns:On("UPDATE_SHAPESHIFT_FORM", function()
     end
     formSwitched = true
     ns:Log("rotation", string.format("form key: form %d in a fight, the key casts %s, Ctrl %s, Shift %s, Alt %s, C+S %s", formNow(), tostring(p.key), tostring(p.ctrl), tostring(p.shift), tostring(p.alt), tostring(p.more)))
-end)
+end
+ns:On("UPDATE_SHAPESHIFT_FORM", formChanged)
+-- (Stealth broke in a fight: the opener gives way to the form's own spells.)
+ns:On("UPDATE_STEALTH", formChanged)
 -- After the fight: what Flow remembers having set is stale (the handler
 -- changed it), so the next update writes the key and Ctrl again.
 ns:On("PLAYER_REGEN_ENABLED", function()
@@ -960,7 +996,8 @@ function C.FormLines()
     local out = { "  key follows your form in a fight (watching " .. tostring(formCond) .. "):" }
     local names = { [0] = "no form" }
     for _, s in ipairs(A.StanceSpells()) do names[s.index] = s.name end
-    for i = 0, C.FORM_STATES do
+    names[C.STEALTH_STATE] = (names[C.formPlan.stealthForm or -1] or "a form") .. ", stealthed (the opener; then that form's)"
+    for i = 0, C.STEALTH_STATE do
         local p = C.formPlan[i]
         if p then
             out[#out + 1] = string.format("    %s: key %s, Ctrl %s, Shift %s, Alt %s, Ctrl + Shift %s", names[i] or ("form " .. i), tostring(p.key),

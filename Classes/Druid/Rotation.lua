@@ -18,6 +18,16 @@ local function caster()
     return f == nil or f == "Moonkin Form"
 end
 local function inAnimal() return inCat() or inBear() end
+-- Prowling (stealthed). The game may hide the answer: then "no".
+local function stealthed()
+    if not IsStealthed then return false end
+    local ok, hidden = pcall(IsStealthed)
+    return ok and A.Safe(hidden) == true
+end
+-- What to open with from stealth, the best you know first. Ravage and Shred
+-- only land from behind the mob; Pounce stuns from anywhere. Below those
+-- levels it's Rake: the bleed starts ticking while you Claw.
+local OPENERS = { "Ravage", "Pounce", "Shred", "Rake" }
 -- Not enough mana for Wrath (the game says so: "usable, but no mana").
 local function outOfMana()
     local _, noMana = A.Usable("Wrath")
@@ -50,6 +60,15 @@ local melee = {
 }
 
 local cat = {
+    -- Prowling: the opener (0.35.326). After it lands you're out of stealth and
+    -- the list below takes over; in a fight the key itself is moved on by the
+    -- game (Cast.lua C.STEALTH_STATE).
+    { spell = "Ravage", target = true, reason = "Open from stealth (from behind the mob)",
+      when = function(c) return c.hostile and inCat() and stealthed() end },
+    { spell = "Pounce", target = true, reason = "Open from stealth (it stuns)",
+      when = function(c) return c.hostile and inCat() and stealthed() end },
+    { spell = "Shred", target = true, reason = "Open from stealth (from behind the mob)",
+      when = function(c) return c.hostile and inCat() and stealthed() end },
     { spell = "Ferocious Bite", target = true, reason = "Spend 4+ combo points",
       when = function(c) return c.hostile and inCat() and A.ComboPoints() >= 4 end },
     { spell = "Rip", target = true, reason = "Spend combo points (bleed)",
@@ -197,7 +216,11 @@ local function druidForms()
                    alt = { "Enrage", "Growl" }, more = { "Demoralizing Roar", "Growl", "Enrage" } }
     local cat = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" }, shift = { "Rake", "Rip" },
                   alt = { "Tiger's Fury", "Dash" }, more = { "Rip", "Prowl" } }
-    FORMS = { none = caster, ["Moonkin Form"] = caster, ["Bear Form"] = bear, ["Dire Bear Form"] = bear, ["Cat Form"] = cat }
+    -- Prowling in Cat Form: the opener on the key, the rest as in Cat Form.
+    local prowl = { form = "Cat Form", key = { "Ravage", "Pounce", "Shred", "Rake", "Claw" },
+                    ctrl = cat.ctrl, shift = cat.shift, alt = cat.alt, more = cat.more }
+    FORMS = { none = caster, ["Moonkin Form"] = caster, ["Bear Form"] = bear, ["Dire Bear Form"] = bear, ["Cat Form"] = cat,
+              stealth = prowl }
     return FORMS
 end
 
@@ -229,6 +252,13 @@ ns:Register("rotation", "DRUID", {
     pullLock = function(s, engine)
         if s and (s.kind == "heal" or s.kind == "emergency") then s = nil end
         if inCat() then
+            -- Prowling: the opener, when the game is set to move the key on
+            -- once stealth breaks (else it would sit on the key all fight).
+            if stealthed() and ns.cast and ns.cast.StealthReady and ns.cast.StealthReady() then
+                for _, spell in ipairs(OPENERS) do
+                    if engine:Knows(spell) then return spell end
+                end
+            end
             if engine:Knows("Claw") then return "Claw" end
         elseif inBear() then
             if engine:Knows("Maul") then return "Maul" end

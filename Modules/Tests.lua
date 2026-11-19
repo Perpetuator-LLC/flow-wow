@@ -14424,3 +14424,47 @@ ns:Register("test", "route: in a quest's area the arrow leads from group to grou
     t:eq(H.cur, nil, "off: the ring and nothing more")
     ns.db.nav.areaHop = wasOn
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.326: prowling, the key holds the opener; out of stealth, the form's own.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: prowling in Cat Form it holds your opener, and the game moves it on when stealth breaks", function(t)
+    local C = ns.cast
+    t:eq(C.STEALTH_STATE, C.FORM_STATES + 1, "stealthed is one more state, past the forms")
+    local forms = { { name = "Bear Form", index = 1 }, { name = "Cat Form", index = 3 } }
+    local keys = {
+        none = { key = "Wrath" },
+        ["Bear Form"] = { key = "Maul" },
+        ["Cat Form"] = { key = "Claw", ctrl = { "Ferocious Bite", "Rake" } },
+        stealth = { form = "Cat Form", key = { "Ravage", "Pounce", "Shred", "Rake", "Claw" }, ctrl = { "Ferocious Bite", "Rake" } },
+    }
+    local known = { Wrath = true, Maul = true, Claw = true, Rake = true, Shred = true }
+    local cond, plan = C.FormPlan(forms, keys, function(s) return known[s] == true end)
+    t:eq(cond, "[form:1] 1; [form:3,stealth] " .. C.STEALTH_STATE .. "; [form:3] 3; 0", "stealthed in the form is asked before the form itself")
+    t:eq(plan[C.STEALTH_STATE].key, "Shred", "the best opener you know")
+    t:eq(plan[3].key, "Claw", "out of stealth: the form's own attack")
+    t:eq(plan.stealthForm, 3, "and which form it belongs to")
+    known.Ravage = true
+    t:eq(select(2, C.FormPlan(forms, keys, function(s) return known[s] == true end))[C.STEALTH_STATE].key, "Ravage", "Ravage once you have it")
+    -- At 20: no opener of its own yet, so the bleed first.
+    local young = { Wrath = true, Claw = true, Rake = true }
+    local _, p20 = C.FormPlan(forms, keys, function(s) return young[s] == true end)
+    t:eq(p20[C.STEALTH_STATE].key, "Rake", "before Shred: Rake opens")
+    t:eq(p20[C.STEALTH_STATE].ctrl, nil, "and isn't on a second press as well")
+    -- A class that doesn't say so, or a form you don't have: nothing new.
+    local plainKeys = { none = keys.none, ["Bear Form"] = keys["Bear Form"], ["Cat Form"] = keys["Cat Form"] }
+    local plainCond, plainPlan = C.FormPlan(forms, plainKeys, function(s) return known[s] == true end)
+    t:ok(plainCond == "[form:1] 1; [form:3] 3; 0" and plainPlan[C.STEALTH_STATE] == nil, "no stealth spells named: as before")
+    local noCat, noCatPlan = C.FormPlan({ { name = "Bear Form", index = 1 } }, keys, function(s) return known[s] == true end)
+    t:ok(noCat == "[form:1] 1; 0" and noCatPlan[C.STEALTH_STATE] == nil, "no Cat Form yet: nothing about stealth")
+    -- The handler is told about that state like any form's.
+    t:ok(C._FormSnippet():find("key-", 1, true) ~= nil, "the handler reads the state's key")
+    t:ok(type(C.StealthReady()) == "boolean", "a class can ask whether the hand-over is set up")
+    local druid = ns:Get("rotation", "DRUID")
+    local ok, k = pcall(druid.formKeys, ns.rotation)
+    t:ok(ok and k.stealth and k.stealth.form == "Cat Form" and k.stealth.key[1] == "Ravage", "the druid names its openers, best first")
+    t:ok(pcall(C.FormLines), "/flow key test lists it")
+    -- The pull's spell is asked without an error whatever form you're in.
+    t:ok(pcall(druid.pullLock, nil, ns.rotation), "the druid's spell for the pull is worked out")
+end)
