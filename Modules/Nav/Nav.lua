@@ -4634,6 +4634,14 @@ local function update()
     end
 
     local wx, wy, how, length = steer(p, choice)
+    -- In a kill or collect step's area: from group to group (AreaHop.lua).
+    -- "go": the arrow points at the next group; "in": the ring, in a group.
+    local hop
+    if N.Hop then
+        local okH, h = pcall(N.Hop, p, choice)
+        hop = okH and type(h) == "table" and h or nil
+    end
+    if hop and hop.state == "go" then wx, wy, how, length = hop.wx, hop.wy, "hop", hop.d end
     N.how = how
     local b = bearing(p, wx, wy)
     local facing = N.ArrowFacing()
@@ -4665,6 +4673,7 @@ local function update()
     -- arrow is a pulsing ring - unless one of the quest's mobs or NPCs has a
     -- nameplate on screen: then the arrow points straight at it.
     local here = choice.d < ARRIVED * 2 or N:InArea(g, p)
+    if hop then here = hop.state == "in" end   -- (a worked group isn't "here" any more: the arrow points on)
     N.arrived = here
     -- On the step's own point, not just somewhere in its area. A big area
     -- quest can have a profession step inside it (a node, a forge); that
@@ -4689,8 +4698,11 @@ local function update()
         else
             frame.arrow:SetArrived(true)
             frame.arrow:Show()
-            frame.sub:SetText(choice.d < ARRIVED * 2 and "You're here" or "You're in the area")
+            frame.sub:SetText((hop and hop.text) or (choice.d < ARRIVED * 2 and "You're here" or "You're in the area"))
         end
+    elseif how == "hop" then
+        frame.sub:SetText(hop.text)
+        frame.arrow:SetArrived(false)
     elseif N.ride then
         -- Who to talk to and how far they are (not the step's own distance:
         -- that's a flight away).

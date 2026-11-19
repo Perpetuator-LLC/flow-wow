@@ -185,6 +185,9 @@ Flow for WoW is a separate project from Flow Engine.
   pulsing orange, says so and what the zone holds, with **Quest here** (it becomes one of your
   zones) and **Not now** (until you leave and come back). Not on a flight, in a dungeon or in a
   fight; Ctrl-drag moves it. Off in Flow Settings (Finding your way).
+- **From group to group**: in a kill or collect step's area the arrow doesn't stop at the ring.
+  When you leave a group of spots, or stand in one with nothing to do, it points to the nearest
+  group you haven't just worked, of any such step near the front of your route (`/flow hop`).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line

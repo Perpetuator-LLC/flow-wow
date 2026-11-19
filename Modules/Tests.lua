@@ -14370,3 +14370,57 @@ ns:Register("test", "buttons: the small icons run left in the left half of the s
     t:ok(type(ns.SelfSide()) == "string", "the self button knows its side: " .. tostring(ns.SelfSide()))
     t:ok(pcall(K.Apply), "the self button's icons place on that side without an error")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.325: from group to group in a quest's area.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: in a quest's area the arrow leads from group to group, the nearest first, across steps", function(t)
+    local H = ns.areaHop
+    local steps = {
+        { key = "1486:1", title = "Deviate Hides", points = {
+            { wx = 0, wy = 0, cont = 1 }, { wx = 20, wy = 10, cont = 1 }, { wx = 30, wy = 0, cont = 1 },   -- one group
+            { wx = 400, wy = 0, cont = 1 }, { wx = 420, wy = 15, cont = 1 },                                -- another
+            { wx = 50, wy = 50, cont = 0 } } },                                                             -- another continent: left out
+        { key = "962:1", title = "Serpentbloom", points = { { wx = 150, wy = 0, cont = 1 }, { wx = 160, wy = 20, cont = 1 } } },
+    }
+    local groups = H.Groups(steps, 1)
+    t:eq(#groups, 3, "spots close together are one group; the other continent's are left out")
+    t:eq(#groups[1].spots, 3, "the first group has its three spots")
+    t:near(groups[1].x, 50 / 3, 0.01, "a group's middle is the middle of its spots")
+    t:ok(groups[1].id ~= groups[2].id and groups[3].key == "962:1", "each group knows its step")
+    t:eq(H.Inside(groups, 10, 5), groups[1], "standing among its spots: in that group")
+    t:eq(H.Inside(groups, 250, 0), nil, "between groups: in none")
+    t:near(H.YardsTo(groups[2], 400, 30), 25, 0.5, "how far a group is: to its nearest spot")
+    -- From the first group: the nearest other one, whichever step it's for.
+    local nextG, d = H.Next(groups, 10, 5, {}, 100, groups[1])
+    t:ok(nextG == groups[3] and d < 200, "the next group is the nearest: another quest's, on the way")
+    -- That one worked: on to the one after; the first rests too.
+    local worked = { [groups[1].id] = 90, [groups[3].id] = 95 }
+    nextG = H.Next(groups, 155, 10, worked, 100, groups[3])
+    t:eq(nextG, groups[2], "a worked group is passed over")
+    t:ok(H.Resting(worked, groups[1].id, 100) and not H.Resting(worked, groups[1].id, 90 + H.REST + 1), "it rests a few minutes, then counts again")
+    t:eq((H.Next(groups, 10, 5, { [groups[2].id] = 99, [groups[3].id] = 99 }, 100, groups[1])), nil, "everything near worked: nothing to point at")
+    t:eq((H.Next(groups, 5000, 5000, {}, 100, nil)), nil, "nothing within range: nothing offered")
+    t:eq(H.Text("go", "Serpentbloom", 139.6), "Next group: 140 yd (Serpentbloom)", "the arrow's line names another step's group")
+    t:eq(H.Text("go", nil, 80), "Next group: 80 yd", "the same step's next group: just how far")
+    t:eq(H.Text("in", nil, nil, 140), "You're in the area. Next group: 140 yd", "in a group: where the next one is")
+    t:eq(H.Text("in", "Serpentbloom", nil, nil), "In the area: Serpentbloom", "in another step's group: whose it is")
+    t:eq(H.Text("in", nil, nil, nil), "You're in the area", "the only group: as it always read")
+    -- The arrow only takes it for the step it was worked out for.
+    local was = H.cur
+    H.cur = { state = "go", key = "1486:1", wx = 1, wy = 2, d = 3, text = "x" }
+    t:eq(ns.nav.Hop(nil, { goal = { key = "1486:1" } }), H.cur, "the arrow gets it for that step")
+    t:eq(ns.nav.Hop(nil, { goal = { key = "other" } }), nil, "and not for another")
+    H.cur = nil
+    t:eq(ns.nav.Hop(nil, { goal = { key = "1486:1" } }), nil, "nothing worked out: the usual arrow")
+    H.cur = was
+    t:ok(pcall(H.Tick), "a look at where you are runs")
+    t:ok(pcall(H.Lines), "/flow hop builds")
+    local wasOn = ns.db.nav.areaHop
+    ns.db.nav.areaHop = false
+    t:ok(not H.On(), "it can be turned off")
+    pcall(H.Tick)
+    t:eq(H.cur, nil, "off: the ring and nothing more")
+    ns.db.nav.areaHop = wasOn
+end)

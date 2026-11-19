@@ -108,6 +108,7 @@ function D:Snapshot(reason, spread)
         { "forms", function() if c.forms then c.forms() end end },
         { "class quests", function() if c.classquests then c.classquests() end end },
         { "where next", function() if c.where then c.where() end end },
+        { "area hop", function() if c.hop then c.hop("") end end },
         { "self button", function() if c.selfbutton then c.selfbutton("why quick") end end },
         { "moving buttons", function() if ns.MoveLines then for _, l in ipairs(ns.MoveLines()) do print(l) end end end },
         { "dungeons", function() if c.dungeons then c.dungeons("") end end },

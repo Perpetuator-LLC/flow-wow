@@ -1,6 +1,18 @@
 # Changelog
 
 
+## 0.35.325
+
+- **From group to group in a quest's area.** A kill or collect step took you to the nearest of
+  its spots, became a ring ("You're in the area"), and stopped there. Now the ring's line says
+  how far the next group of spots is, and when you walk out of a group, or stand in one for 20
+  seconds with no fight and nothing looted, the arrow points to the nearest group you haven't
+  just worked: "Next group: 140 yd (Deviate Hides)". The next group can belong to another kill
+  or collect step near the front of your route, so you work through several quests' mobs on
+  the way instead of finishing one and walking back. A worked group rests for five minutes.
+  Flow can't see what's alive, so a group may be empty when you arrive; standing there a moment
+  sends you on. Off: Flow Settings, Finding your way. `/flow hop` lists the groups.
+
 ## 0.35.324
 
 - **The target and self buttons' small icons run toward the side of the screen the button is
