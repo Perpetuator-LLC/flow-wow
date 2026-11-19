@@ -107,6 +107,74 @@ function O.TurnText(questID, from, to)
     return string.format("a click passed to quest %s's line: the map turned from %s to %s", tostring(questID), from, to)
 end
 
+-- The map's own bar of parent maps ("World > Kalimdor > The Barrens"), found
+-- on WoW: Forever by the 0.35.306 look (WorldMapFrame.NavBar). Its buttons
+-- are the game's: a click passed to one makes the game turn its map there,
+-- untainted. So "Show on map" for a step in another zone can do this much
+-- (0.35.331, "it needs to open to the right zone"): the first click opens
+-- the map, as before, on the zone you're in; a second click on the same link
+-- goes to the bar's button for the nearest map both zones are on (the
+-- continent), where the step's dot shows. The zone itself is then one click
+-- on the map, the game's own. (Straight to the zone would need Flow to turn
+-- the map, which is what breaks its buttons in a later fight.)
+-- Pure: a map and its parents, nearest first. info(id) -> { parentMapID }.
+function O.Ancestors(mapID, info)
+    local out, seen = {}, {}
+    while mapID and mapID ~= 0 and not seen[mapID] and #out < 8 do
+        out[#out + 1] = mapID
+        seen[mapID] = true
+        local i = info and info(mapID)
+        mapID = type(i) == "table" and i.parentMapID or nil
+    end
+    return out
+end
+-- Pure: the bar's button to pass a click to, and the map it leads to. nil
+-- when the map shown is the step's own or one it lies on (nothing to turn).
+--   navList: the bar's buttons ({ id } or { data = { id } }), the first is "home"
+function O.NavPick(stepMap, shownMap, navList, info)
+    if not (stepMap and shownMap) then return nil end
+    local lineage = O.Ancestors(stepMap, info)
+    for _, id in ipairs(lineage) do
+        if id == shownMap then return nil end
+    end
+    for _, id in ipairs(lineage) do
+        for _, b in ipairs(navList or {}) do
+            local bid = b.id or (type(b.data) == "table" and b.data.id) or nil
+            if bid == id then return b, id end
+        end
+    end
+    -- (No map in common on the bar: all the way out.)
+    local home = navList and navList[1]
+    if home then return home, home.id or (type(home.data) == "table" and home.data.id) or nil end
+    return nil
+end
+-- Pure: what a click passed to the bar did.
+function O.NavText(name, from, to)
+    if not (from and to) then return string.format("a click passed to the map's bar (%s): the map's zone wasn't readable", tostring(name)) end
+    if from == to then return string.format("a click passed to the map's bar (%s): the map stayed on %s", tostring(name), from) end
+    return string.format("a click passed to the map's bar (%s): the map turned from %s to %s", tostring(name), from, to)
+end
+-- Pure: the words shown while a second click is ready.
+function O.FollowText(kind, navName)
+    if kind == "log" then return "Click again: open this quest in the log" end
+    return "Click again: zoom the map out to " .. (navName or "where this step is")
+end
+local function mapName(id)
+    local info = id and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id)
+    return info and info.name or (id and ("map " .. tostring(id))) or nil
+end
+-- The bar's button for a step on `stepMap`, with the map open. -> button, name
+function O.NavTarget(stepMap)
+    local bar = WorldMapFrame and WorldMapFrame.NavBar
+    local list = bar and type(bar.navList) == "table" and bar.navList or nil
+    if not (stepMap and list) then return nil end
+    local okS, shown = pcall(function() return WorldMapFrame:GetMapID() end)
+    if not okS then return nil end
+    local b, id = O.NavPick(stepMap, shown, list, C_Map and C_Map.GetMapInfo)
+    if not b then return nil end
+    return b, mapName(id) or "the world"
+end
+
 -- The zone the map shows, by name, or nil. Only reads.
 local function mapZone()
     local ok, id = pcall(function() return WorldMapFrame:GetMapID() end)
@@ -118,7 +186,10 @@ local overlay
 
 function O.Disarm()
     if overlay and overlay:IsShown() and not InCombatLockdown() then overlay:Hide() end
-    if overlay then overlay.link, overlay.before, overlay.after, overlay.quest = nil, nil, nil, nil end
+    if overlay then
+        overlay.link, overlay.before, overlay.after, overlay.quest = nil, nil, nil, nil
+        overlay.kind, overlay.questArg, overlay.stepMap, overlay.navName, overlay.follow = nil, nil, nil, nil, nil
+    end
 end
 
 local function look(link, hover)
@@ -137,22 +208,41 @@ local function build()
     b:SetScript("OnEnter", function(self) look(self.link, true) end)
     b:SetScript("OnLeave", function(self)
         look(self.link, false)
+        if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
         O.Disarm()
     end)
     -- Flow's part: before the game opens its window (each click event), and
     -- once after (on the release, when the window has opened either way).
     b:SetScript("PreClick", function(self, _, down)
-        if down and self.quest then self.zoneBefore = mapZone() end
+        if down and (self.quest or self.navName) then self.zoneBefore = mapZone() end
         if down and self.before then pcall(self.before) end
     end)
     b:SetScript("PostClick", function(self, _, down)
         if down then return end
         local after, link = self.after, self.link
+        local kind, before, questArg, stepMap, follow = self.kind, self.before, self.questArg, self.stepMap, self.follow
         if self.quest then O.lastTurn = O.TurnText(self.quest, self.zoneBefore, mapZone()) end
+        if self.navName then O.lastNav = O.NavText(self.navName, self.zoneBefore, mapZone()) end
         look(link, false)
+        if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
         O.Disarm()
         if after then pcall(after) end
         O.used = (O.used or 0) + 1
+        -- The window is open now: with the mouse still on the link, the next
+        -- click is made ready (the quest's line; the map's bar), and said so.
+        -- (Once: the click after that is the link's own again.)
+        if link and not follow and C_Timer and C_Timer.After then
+            C_Timer.After(0.15, function()
+                if InCombatLockdown() or not (link.IsVisible and link:IsVisible() and link:IsMouseOver()) then return end
+                local ok, armed = pcall(O.Arm, link, kind, before, after, questArg, stepMap, true)
+                if ok and armed and overlay then
+                    look(link, true)
+                    GameTooltip:SetOwner(overlay, "ANCHOR_TOP")
+                    GameTooltip:AddLine(O.FollowText(kind, overlay.navName), 1, 1, 1)
+                    GameTooltip:Show()
+                end
+            end)
+        end
     end)
     return b
 end
@@ -176,10 +266,19 @@ end
 -- ("it would be nice if it opened the quest log expanded, with the quest
 -- selected", 0.35.204). So: one click opens the log with the quest
 -- selected, the next opens the quest itself.
-function O.Arm(link, kind, before, after, questID)
+-- stepMap (the "map" link): with the map already open on a zone the step
+-- isn't in, the click goes to the map's own bar (O.NavTarget).
+-- follow: this is the second click made ready after the first.
+function O.Arm(link, kind, before, after, questID, stepMap, follow)
     local target, path = O.Target(kind)
     local open = WorldMapFrame and WorldMapFrame:IsShown() and true or false
     local toLine = open and questID and not InCombatLockdown()
+    local navName
+    if open and kind == "map" and stepMap and not InCombatLockdown() then
+        local okN, b, name = pcall(O.NavTarget, stepMap)
+        if not (okN and b) then return false end   -- (the map shows the step already, or has no such bar)
+        target, path, open, navName = b, "the map's own bar: " .. tostring(name), false, name
+    end
     if toLine then
         local ok, b = pcall(O.QuestButton, questID)
         target, path, open = ok and b or nil, "the quest's line in the log", false
@@ -199,6 +298,7 @@ function O.Arm(link, kind, before, after, questID)
     overlay:SetAttribute("clickbutton", target)
     overlay.link, overlay.before, overlay.after = link, before, after
     overlay.quest = toLine and questID or nil   -- (to note whether the game turns the map)
+    overlay.kind, overlay.questArg, overlay.stepMap, overlay.navName, overlay.follow = kind, questID, stepMap, navName, follow and true or nil
     O.lastPath = path
     overlay:Show()
     return true
@@ -208,7 +308,7 @@ end
 -- the fight is on), and the link is the plain one again.
 ns:On("PLAYER_REGEN_DISABLED", function()
     if overlay and overlay:IsShown() then overlay:Hide() end
-    if overlay then overlay.link, overlay.before, overlay.after, overlay.quest = nil, nil, nil, nil end
+    O.Disarm()
 end)
 
 -- /flow buttons also says which of the game's buttons these links use.
@@ -225,5 +325,8 @@ function O.Lines()
     local okO, ov = pcall(O.MapOverlays)
     out[#out + 1] = "laid over the map: " .. ((okO and #ov > 0) and table.concat(ov, "; ") or (okO and "nothing" or ("unreadable: " .. tostring(ov))))
     if O.lastTurn then out[#out + 1] = O.lastTurn end
+    if O.lastNav then out[#out + 1] = O.lastNav end
+    local bar = WorldMapFrame and WorldMapFrame.NavBar
+    out[#out + 1] = "the map's bar of parent maps: " .. ((bar and type(bar.navList) == "table") and (#bar.navList .. " button(s)") or "no list of buttons")
     return out
 end

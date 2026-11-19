@@ -3223,6 +3223,18 @@ end
 -- the quest is selected in your log (you open it with L or M, so the game
 -- runs its own window), and Flow's map layer highlights the step for the
 -- next 20 seconds.
+-- The map a step is on: where the route goes for it, else its first spot.
+function N.GoalMap(goal)
+    if not goal then return nil end
+    for _, s in ipairs(N.plan or {}) do
+        if s.goal == goal or (s.goal and s.goal.key == goal.key) then
+            if s.point and s.point.map then return s.point.map end
+        end
+    end
+    local pt = goal.points and goal.points[1]
+    return pt and pt.map or nil
+end
+
 function N:OpenInGame(goal)
     if not goal then return end
     local id = tonumber(goal.key:match("^(%d+):"))
@@ -4159,7 +4171,7 @@ local function buildCard()
         end, function(self)
             return ns.mapOpen and ns.mapOpen.Arm(self, "map", nil, function()
                 if ns.mapOverlay and f.goal then ns.mapOverlay:Focus(f.goal.key, 20) end
-            end)
+            end, nil, N.GoalMap(f.goal))
         end),
         first = uiLink(f, "Go here next", function() N:Select(f.goal.key); f:Hide() end),
     }

@@ -1,6 +1,20 @@
 # Changelog
 
 
+## 0.35.331
+
+- **"Show on map" for a step in another zone: click it again and the map zooms out to where
+  the step shows.** The first click opens the game's map, which always opens on the zone
+  you're in. With the mouse still on the link, a second click now goes to the map's own bar of
+  parent maps (World > Kalimdor > The Barrens) and the game turns its map to the nearest one
+  both zones are on, usually the continent, where the step's dot is drawn. One more click on
+  the zone, the game's own, and you're there. Flow still doesn't turn the map itself: that is
+  what breaks the map's buttons in a later fight. With the map already open, the first click
+  does it.
+- **"Select in quest log": the second click is ready at once.** The first click opens the log
+  with the quest selected; the next click on the same link opens the quest itself. You no
+  longer have to move the mouse off the link and back for that. A small note says so.
+
 ## 0.35.330
 
 - **Fixed: the alignment lines when you move Flow's buttons were wrong, and didn't say what

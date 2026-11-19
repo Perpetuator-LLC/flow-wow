@@ -2166,7 +2166,7 @@ end
 function M.ElsewhereText(zone, onThisMap)
     if onThisMap then return nil end
     if not zone then return "This step isn't on this map: right-click the map to zoom out and find it." end
-    return string.format("This step is in %s: right-click the map to zoom out, then click %s.", zone, zone)
+    return string.format("This step is in %s: click \"Show on map\" again (or right-click the map) to zoom out, then click %s.", zone, zone)
 end
 -- The step with this key and its zone's name, from the route and what Flow can't place.
 local function stepOf(key)

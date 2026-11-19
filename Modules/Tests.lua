@@ -13064,7 +13064,7 @@ ns:Register("test", "map: a step shown from another zone's map says where it is"
     local M = ns.mapOverlay
     t:eq(M.ElsewhereText("The Barrens", true), nil, "the step is on the map shown: nothing said")
     t:eq(M.ElsewhereText("The Barrens", false),
-        "This step is in The Barrens: right-click the map to zoom out, then click The Barrens.", "on another map: which, and how to get there")
+        "This step is in The Barrens: click \"Show on map\" again (or right-click the map) to zoom out, then click The Barrens.", "on another map: which, and how to get there")
     t:ok(M.ElsewhereText(nil, false):find("isn't on this map", 1, true) ~= nil, "zone unknown: still says it isn't here")
     t:eq(#M.SoloStops(5, 9), 0, "a step that isn't on the route: none")
     t:eq(#M.SoloStops(0, 1), 0, "an empty route: none")
@@ -14726,4 +14726,43 @@ ns:Register("test", "move: a docked partner is never lined up with; a line to an
     G.Drop(f)
     ns.db.settings.moveGuides = wasOn
     f:Hide()
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.331: "Show on map" for a step in another zone: a second click goes to
+-- the map's own bar of parent maps.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: Show on map, a step in another zone: the second click zooms the game's map out to where it shows", function(t)
+    local O = ns.mapOpen
+    -- Kalimdor (1414) holds The Barrens (1413) and Stonetalon (1442); Azeroth (947) holds Kalimdor.
+    local parents = { [1413] = 1414, [1442] = 1414, [1414] = 947, [1420] = 1415, [1415] = 947, [947] = 946 }
+    local function info(id) return parents[id] and { parentMapID = parents[id] } or { parentMapID = 0 } end
+    local lineage = O.Ancestors(1442, info)
+    t:ok(lineage[1] == 1442 and lineage[2] == 1414 and lineage[3] == 947, "a map and its parents, nearest first")
+    t:eq(#O.Ancestors(nil, info), 0, "no map: none")
+    t:ok(#O.Ancestors(5, function() return { parentMapID = 5 } end) == 1, "a map that names itself as its parent doesn't loop")
+    -- The bar while the map shows The Barrens: World, Kalimdor, The Barrens.
+    local home, kalimdor, barrens = { id = 947 }, { data = { id = 1414 } }, { id = 1413 }
+    local bar = { home, kalimdor, barrens }
+    local b, id = O.NavPick(1442, 1413, bar, info)
+    t:ok(b == kalimdor and id == 1414, "a step in Stonetalon, the map on The Barrens: the bar's Kalimdor")
+    t:eq((O.NavPick(1413, 1413, bar, info)), nil, "a step on the map shown: nothing to turn")
+    t:eq((O.NavPick(1442, 1414, { home, kalimdor }, info)), nil, "the map already on the continent the step is on: nothing to turn")
+    b, id = O.NavPick(1420, 1413, bar, info)
+    t:ok(b == home and id == 947, "a step across the sea: all the way out, to the world")
+    b = O.NavPick(9999, 1413, bar, info)
+    t:eq(b, home, "a map the bar knows nothing of: all the way out")
+    t:eq((O.NavPick(1442, 1413, {}, info)), nil, "no bar: nothing")
+    t:eq((O.NavPick(nil, 1413, bar, info)), nil, "a step with no map: nothing")
+    t:eq(O.FollowText("map", "Kalimdor"), "Click again: zoom the map out to Kalimdor", "the words while the second click is ready")
+    t:eq(O.FollowText("log"), "Click again: open this quest in the log", "and for the quest log's link")
+    t:eq(O.NavText("Kalimdor", "The Barrens", "Kalimdor"), "a click passed to the map's bar (Kalimdor): the map turned from The Barrens to Kalimdor", "what the click did is kept for the diagnostics")
+    t:ok(O.NavText("Kalimdor", "The Barrens", "The Barrens"):find("stayed on The Barrens", 1, true) ~= nil, "also when it did nothing")
+    t:ok(pcall(O.NavTarget, 1442), "asking the game's bar doesn't error")
+    t:ok(pcall(O.Lines), "/flow buttons lists it")
+    -- The step card hands the link the step's map.
+    local N = ns.nav
+    t:eq(N.GoalMap({ key = "x", points = { { map = 1442 } } }), 1442, "a step's map: its first spot's, when the route has no place for it")
+    t:eq(N.GoalMap(nil), nil, "no step: none")
 end)
