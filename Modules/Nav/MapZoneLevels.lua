@@ -1,45 +1,59 @@
--- Zone level ranges on the continent world map.
+-- Zone info when you hover a zone on the continent world map.
 --
--- "I had previous mods that showed me the level of each zone on the map."
--- On Kalimdor or the Eastern Kingdoms map, each levelling zone shows its
--- range ("10-20") at its centre, coloured against your level:
---   red: well above you; orange: a little above you; yellow: your level;
---   green: just below you (easy); grey: outgrown.
--- A Flow button above the flight-masters button shows or hides them; it
--- remembers. Setting: "Zone levels on the world map". On by default.
+-- "I would just like to highlight the zone and see the name of the zone,
+-- the level range, and the fishing level range."
+-- On Kalimdor or the Eastern Kingdoms map, the zone under the cursor gets a
+-- small card beside the cursor:
+--   Westfall
+--   Level 10-20        (coloured against your level)
+--   Fishing 1
+-- Nothing is drawn until you hover; the game's own zone highlight shows
+-- which zone it is. Setting: "Zone info when hovering the world map". On by
+-- default.
 --
--- Ranges: warcraft.wiki.gg "Zones by level (Classic)". Zones are matched by
--- their English name (the map's own list of zones on that continent), so a
--- zone Flow has no range for just shows nothing.
+-- Level ranges: warcraft.wiki.gg "Zones by level (Classic)". Fishing: the
+-- skill to fish the zone's waters without the catch getting away, as the
+-- Classic fishing tables give it; "130 (205)" means most waters need 130 and
+-- some need 205. Keyed by the map's own zone ID (locale-proof).
 --
--- Flow's own frames on the map's canvas, like the route's pins. It never
--- changes the game's map or calls its functions; the labels don't take the
--- mouse, so the map's own zone hover still works.
+-- Flow's own frames only. It reads the cursor and C_Map; it never changes
+-- the game's map, its labels or its highlight, and its card takes no mouse.
 
 local _, ns = ...
 local ZL = {}
 ns.mapZoneLevels = ZL
 
-ZL.FONT_SIZE = 14   -- screen pixels at any zoom
-
--- { min, max } by zone name.
-ZL.RANGES = {
+-- [uiMapID] = { name, min, max, fish, fishTop }. A city has no range; a zone
+-- with no water no fishing.
+ZL.ZONES = {
     -- Eastern Kingdoms
-    ["Dun Morogh"] = { 1, 10 }, ["Elwynn Forest"] = { 1, 10 }, ["Tirisfal Glades"] = { 1, 10 },
-    ["Westfall"] = { 10, 20 }, ["Loch Modan"] = { 10, 20 }, ["Silverpine Forest"] = { 10, 20 },
-    ["Redridge Mountains"] = { 15, 25 }, ["Duskwood"] = { 18, 30 }, ["Wetlands"] = { 20, 30 },
-    ["Hillsbrad Foothills"] = { 20, 35 }, ["Alterac Mountains"] = { 30, 40 }, ["Arathi Highlands"] = { 30, 40 },
-    ["Stranglethorn Vale"] = { 30, 45 }, ["Badlands"] = { 35, 45 }, ["Swamp of Sorrows"] = { 35, 45 },
-    ["The Hinterlands"] = { 40, 50 }, ["Searing Gorge"] = { 45, 50 }, ["Blasted Lands"] = { 45, 55 },
-    ["Burning Steppes"] = { 50, 58 }, ["Western Plaguelands"] = { 51, 58 }, ["Eastern Plaguelands"] = { 53, 60 },
-    ["Deadwind Pass"] = { 55, 60 },
+    [1426] = { "Dun Morogh", 1, 10, 1 },           [1429] = { "Elwynn Forest", 1, 10, 1 },
+    [1420] = { "Tirisfal Glades", 1, 10, 1 },       [1436] = { "Westfall", 10, 20, 1 },
+    [1432] = { "Loch Modan", 10, 20, 1 },           [1421] = { "Silverpine Forest", 10, 20, 1 },
+    [1433] = { "Redridge Mountains", 15, 25, 55 },  [1431] = { "Duskwood", 18, 30, 55 },
+    [1437] = { "Wetlands", 20, 30, 55 },            [1424] = { "Hillsbrad Foothills", 20, 35, 55 },
+    [1416] = { "Alterac Mountains", 30, 40, 130 },  [1417] = { "Arathi Highlands", 30, 40, 130 },
+    [1434] = { "Stranglethorn Vale", 30, 45, 130, 205 },
+    [1418] = { "Badlands", 35, 45 },                [1435] = { "Swamp of Sorrows", 35, 45, 130 },
+    [1425] = { "The Hinterlands", 40, 50, 205 },    [1427] = { "Searing Gorge", 45, 50 },
+    [1419] = { "Blasted Lands", 45, 55 },           [1428] = { "Burning Steppes", 50, 58, 330 },
+    [1422] = { "Western Plaguelands", 51, 58, 205 },
+    [1423] = { "Eastern Plaguelands", 53, 60, 330 },
+    [1430] = { "Deadwind Pass", 55, 60, 330 },
+    [1453] = { "Stormwind City", nil, nil, 1 },     [1455] = { "Ironforge", nil, nil, 1 },
+    [1458] = { "Undercity", nil, nil, 1 },
     -- Kalimdor
-    ["Teldrassil"] = { 1, 10 }, ["Durotar"] = { 1, 10 }, ["Mulgore"] = { 1, 10 },
-    ["Darkshore"] = { 10, 20 }, ["The Barrens"] = { 10, 25 }, ["Stonetalon Mountains"] = { 15, 27 },
-    ["Ashenvale"] = { 18, 30 }, ["Thousand Needles"] = { 25, 35 }, ["Desolace"] = { 30, 40 },
-    ["Dustwallow Marsh"] = { 35, 45 }, ["Feralas"] = { 40, 50 }, ["Tanaris"] = { 40, 50 },
-    ["Azshara"] = { 45, 55 }, ["Un'Goro Crater"] = { 48, 55 }, ["Felwood"] = { 48, 55 },
-    ["Winterspring"] = { 53, 60 }, ["Moonglade"] = { 55, 60 }, ["Silithus"] = { 55, 60 },
+    [1438] = { "Teldrassil", 1, 10, 1 },            [1411] = { "Durotar", 1, 10, 1 },
+    [1412] = { "Mulgore", 1, 10, 1 },               [1439] = { "Darkshore", 10, 20, 1 },
+    [1413] = { "The Barrens", 10, 25, 1 },          [1442] = { "Stonetalon Mountains", 15, 27, 55 },
+    [1440] = { "Ashenvale", 18, 30, 55 },           [1441] = { "Thousand Needles", 25, 35, 130 },
+    [1443] = { "Desolace", 30, 40, 130 },           [1445] = { "Dustwallow Marsh", 35, 45, 130 },
+    [1444] = { "Feralas", 40, 50, 205, 330 },       [1446] = { "Tanaris", 40, 50, 205 },
+    [1447] = { "Azshara", 45, 55, 205, 330 },       [1449] = { "Un'Goro Crater", 48, 55, 205 },
+    [1448] = { "Felwood", 48, 55, 205 },            [1452] = { "Winterspring", 53, 60, 330 },
+    [1450] = { "Moonglade", 55, 60, 205 },          [1451] = { "Silithus", 55, 60, 330 },
+    [1454] = { "Orgrimmar", nil, nil, 1 },          [1456] = { "Thunder Bluff", nil, nil, 1 },
+    [1457] = { "Darnassus", nil, nil, 1 },
 }
 
 function ZL.On() return not (ns.db and ns.db.nav and ns.db.nav.mapZoneLevels == false) end
@@ -53,203 +67,128 @@ function ZL.Color(min, max, level)
     return 0.62, 0.62, 0.62, "grey"
 end
 
-function ZL.Text(range) return range[1] .. "-" .. range[2] end
+-- The card for the zone `zoneID` (named `name` by the map) for someone of
+-- `level`: { name, level = "Level 10-20" or nil, r, g, b, fish = "Fishing
+-- 130 (205)" or nil }, or nil when Flow knows nothing about it.
+function ZL.Card(zoneID, name, level)
+    local z = ZL.ZONES[zoneID]
+    if not z then return nil end
+    local card = { name = name or z[1] }
+    if z[2] then
+        card.level = z[2] == z[3] and ("Level " .. z[2]) or string.format("Level %d-%d", z[2], z[3])
+        card.r, card.g, card.b = ZL.Color(z[2], z[3], level)
+    end
+    if z[4] then
+        card.fish = "Fishing " .. z[4] .. (z[5] and string.format(" (%d)", z[5]) or "")
+    end
+    return card
+end
 
--- The labels for the map `mapID`: { { name, text, x, y, r, g, b } } at each
--- zone's centre (0-1 on that map), or nil when it isn't a continent.
--- children / rectOf can be passed in (tests); otherwise read from C_Map.
-function ZL.Labels(mapID, level, children, rectOf)
-    if not children then
-        local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
-        local cont = Enum and Enum.UIMapType and Enum.UIMapType.Continent
-        if not (info and cont and info.mapType == cont and C_Map.GetMapChildrenInfo) then return nil end
-        children = C_Map.GetMapChildrenInfo(mapID, Enum.UIMapType.Zone) or {}
+-------------------------------------------------------------------------------
+-- The card.
+-------------------------------------------------------------------------------
+
+local card
+local function makeCard()
+    local f = CreateFrame("Frame", nil, WorldMapFrame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f:SetFrameStrata("TOOLTIP")
+    f:EnableMouse(false)
+    if f.SetBackdrop then
+        f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                        tile = true, tileSize = 16, edgeSize = 14,
+                        insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+        f:SetBackdropColor(0.04, 0.04, 0.06, 0.92)
+        f:SetBackdropBorderColor(0.55, 0.55, 0.6, 1)
     end
-    rectOf = rectOf or function(child)
-        if not C_Map.GetMapRectOnMap then return nil end
-        return C_Map.GetMapRectOnMap(child, mapID)
-    end
-    local out = {}
-    for _, child in ipairs(children) do
-        local range = child.name and ZL.RANGES[child.name]
-        if range then
-            local minX, maxX, minY, maxY = rectOf(child.mapID)
-            if minX and maxX > minX and maxY > minY then
-                local r, g, b = ZL.Color(range[1], range[2], level)
-                out[#out + 1] = { name = child.name, text = ZL.Text(range),
-                                  x = (minX + maxX) / 2, y = (minY + maxY) / 2, r = r, g = g, b = b }
-            end
+    f.name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    f.name:SetPoint("TOPLEFT", 10, -9)
+    f.level = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    f.level:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
+    f.fish = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    f.fish:SetTextColor(0.35, 0.8, 1)   -- water blue
+    for _, fs in ipairs({ f.name, f.level, f.fish }) do fs:SetJustifyH("LEFT") end
+    f:Hide()
+    return f
+end
+
+local shownFor
+local function hideCard()
+    if card then card:Hide() end
+    shownFor = nil
+end
+
+local function showCard(c, zoneID)
+    card = card or makeCard()
+    if shownFor ~= zoneID then
+        card.name:SetText(c.name)
+        local below = card.name
+        card.level:SetShown(c.level ~= nil)
+        if c.level then
+            card.level:SetText(c.level)
+            card.level:SetTextColor(c.r, c.g, c.b)
+            below = card.level
         end
+        card.fish:ClearAllPoints()
+        card.fish:SetPoint("TOPLEFT", below, "BOTTOMLEFT", 0, -3)
+        card.fish:SetShown(c.fish ~= nil)
+        if c.fish then card.fish:SetText(c.fish) end
+        local w = math.max(card.name:GetStringWidth(), c.level and card.level:GetStringWidth() or 0,
+                           c.fish and card.fish:GetStringWidth() or 0)
+        local h = 9 + card.name:GetStringHeight()
+            + (c.level and 4 + card.level:GetStringHeight() or 0)
+            + (c.fish and 3 + card.fish:GetStringHeight() or 0) + 9
+        card:SetSize(math.ceil(w) + 20, math.ceil(h))
+        shownFor = zoneID
     end
-    return out
+    -- Down and to the right of the cursor, like the waypoint tip.
+    local cx, cy = GetCursorPosition()
+    local s = card:GetEffectiveScale()
+    card:ClearAllPoints()
+    card:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cx / s + 18, cy / s - 22)
+    card:Show()
 end
 
--------------------------------------------------------------------------------
--- Drawing.
--------------------------------------------------------------------------------
-
-local host
-local labels, nLabels = {}, 0
-ZL.shown = 0
-
-local function hideAll()
-    for i = 1, nLabels do labels[i]:Hide() end
-    nLabels = 0
-    ZL.shown = 0
-end
-
-local function label(i)
-    local fs = labels[i]
-    if not fs then
-        fs = host:CreateFontString(nil, "OVERLAY")
-        fs:SetFont(STANDARD_TEXT_FONT, ZL.FONT_SIZE, "OUTLINE")
-        fs:SetShadowOffset(1, -1)
-        labels[i] = fs
-    end
-    return fs
-end
-
-function ZL.Draw()
-    local M = ns.mapOverlay
-    local c = M and M.Canvas and M.Canvas()
-    if not (c and WorldMapFrame and WorldMapFrame:IsShown() and ZL.On()) then hideAll() return nil end
-    local list = ZL.Labels(WorldMapFrame:GetMapID(), UnitLevel("player") or 1)
-    if not list then hideAll() return 0 end
-    if not host then
-        host = CreateFrame("Frame", nil, c)
-        host:SetAllPoints(c)
-        host:EnableMouse(false)
-    end
-    host:SetFrameStrata(M.AboveMap())
-    host:SetFrameLevel(math.min(c:GetFrameLevel() + 1000, 9000) + 20)   -- under the route's pins and flight masters
-    host:Show()
-    -- One size on screen at any zoom: the host is scaled against the canvas.
-    local s = 1 / M.CanvasScale()
-    host:SetScale(s)
-    local w, h = c:GetWidth() / s, c:GetHeight() / s
-    for i, l in ipairs(list) do
-        local fs = label(i)
-        fs:ClearAllPoints()
-        fs:SetPoint("CENTER", host, "TOPLEFT", l.x * w, -l.y * h)
-        fs:SetText(l.text)
-        fs:SetTextColor(l.r, l.g, l.b)
-        fs:Show()
-    end
-    for i = #list + 1, nLabels do labels[i]:Hide() end
-    nLabels = #list
-    ZL.shown = #list
-    return #list
-end
-
-local last
-local function stateNow()
-    local M = ns.mapOverlay
-    local c = M.Canvas()
-    return table.concat({ tostring(WorldMapFrame:GetMapID()), string.format("%.3f", M.CanvasScale()),
-        math.floor(c:GetWidth()), math.floor(c:GetHeight()), tostring(UnitLevel("player")) }, "|")
-end
-
--------------------------------------------------------------------------------
--- The button, above the flight-masters button (MapFlights.lua).
--------------------------------------------------------------------------------
-
-local button
-local function anchor(b)
-    local above = ns.mapFlights and ns.mapFlights.Button and ns.mapFlights.Button()
-    b:ClearAllPoints()
-    if not above then return false end
-    b:SetSize(above:GetWidth(), above:GetHeight())
-    b:SetPoint("BOTTOM", above, "TOP", 0, 4)
-    b:SetFrameLevel(above:GetFrameLevel())
-    return above.anchored and true or false
-end
-
-function ZL.Button()
-    if button then return button end
-    if not WorldMapFrame then return nil end
-    local b = CreateFrame("Button", "FlowMapZoneLevelsToggle", WorldMapFrame)
-    b:SetSize(32, 32)
-    b:SetFrameStrata("HIGH")
-    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints()
-    b.edge = {}
-    for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
-                           { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
-        local t = b:CreateTexture(nil, "BORDER")
-        t:SetPoint(pts[1]); t:SetPoint(pts[2])
-        if i <= 2 then t:SetHeight(1) else t:SetWidth(1) end
-        b.edge[i] = t
-    end
-    b.text = b:CreateFontString(nil, "ARTWORK")
-    b.text:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
-    b.text:SetPoint("CENTER")
-    b.text:SetText("Lv")
-    function b:Draw()
-        local on, col, hot = ZL.On(), ns.theme.route, self:IsMouseOver()
-        self.bg:SetColorTexture(on and col[1] * 0.25 or 0.05, on and col[2] * 0.25 or 0.05, on and col[3] * 0.25 or 0.08, 0.92)
-        for _, t in ipairs(self.edge) do t:SetColorTexture(col[1], col[2], col[3], hot and 1 or 0.75) end
-        if on then self.text:SetTextColor(1, 0.82, 0) else self.text:SetTextColor(0.6, 0.6, 0.6) end
-        self.text:SetAlpha(on and 1 or (hot and 0.8 or 0.55))
-    end
-    b:SetScript("OnClick", function(self)
-        ZL.Set(not ZL.On())
-        self:Draw()
-        if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
-    end)
-    b:SetScript("OnEnter", function(self)
-        self:Draw()
-        ns.Tip(self, "ANCHOR_LEFT")
-        local on = ZL.On()
-        GameTooltip:AddLine("Flow zone levels on the map: " .. (on and "shown" or "hidden"))
-        GameTooltip:AddLine("On the continent map, each zone's level range, coloured against your level: "
-            .. "red well above you, orange a little above, yellow your level, green easy, grey outgrown.", 1, 1, 1, true)
-        if on then GameTooltip:AddLine(string.format("On this map: %d zones.", ZL.shown), 0.8, 0.8, 0.8) end
-        GameTooltip:AddLine("Click to " .. (on and "hide" or "show") .. " them.", 0.6, 0.6, 0.6)
-        GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function(self) self:Draw(); GameTooltip:Hide() end)
-    b.anchored = anchor(b)
-    b:Draw()
-    button = b
-    return b
+-- The continent zone under the cursor, or nil.
+local function zoneUnderCursor()
+    local sc = WorldMapFrame.ScrollContainer
+    if not (sc and sc.GetNormalizedCursorPosition and sc:IsMouseOver()) then return nil end
+    local mapID = WorldMapFrame:GetMapID()
+    local info = mapID and C_Map.GetMapInfo(mapID)
+    if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent) then return nil end
+    local x, y = sc:GetNormalizedCursorPosition()
+    if not (x and y and x >= 0 and x <= 1 and y >= 0 and y <= 1) then return nil end
+    local at = C_Map.GetMapInfoAtPosition(mapID, x, y)
+    if not at or at.mapID == mapID then return nil end
+    return at.mapID, at.name
 end
 
 function ZL.Tick()
-    if not (WorldMapFrame and WorldMapFrame:IsShown()) then return end
-    local b = ZL.Button()
-    if b and not b.anchored then b.anchored = anchor(b); b:Draw() end
-    if not ZL.On() then
-        if nLabels > 0 then hideAll(); last = nil end
-        return
-    end
-    local okS, now = pcall(stateNow)
-    if okS and now == last then return end
-    last = okS and now or nil
-    ZL.Draw()
+    if not (ZL.On() and WorldMapFrame and WorldMapFrame:IsShown()) then hideCard() return end
+    -- A pin's own tooltip wins: no card on top of it.
+    if GameTooltip:IsShown() then hideCard() return end
+    local zoneID, name = zoneUnderCursor()
+    local c = zoneID and ZL.Card(zoneID, name, UnitLevel("player") or 1)
+    if c then showCard(c, zoneID) else hideCard() end
 end
-ZL.Tick = ns.perf.Wrap("world map (zone levels)", ZL.Tick)
+ZL.Tick = ns.perf.Wrap("world map (zone info)", ZL.Tick)
 
 function ZL.Set(on)
     ns.db.nav.mapZoneLevels = on and true or false
-    last = nil
-    if button then button:Draw() end
-    if not on then hideAll() end
-    pcall(ZL.Tick)
+    if not on then hideCard() end
 end
 
 ns:OnLoad(function()
-    local acc = 0
     local driver = CreateFrame("Frame")
-    driver:SetScript("OnUpdate", function(_, dt)
-        acc = acc + dt
-        if acc < ((ns.Lite and ns.Lite()) and 2 or 0.5) then return end
-        acc = 0
-        if WorldMapFrame and WorldMapFrame:IsShown() then pcall(ZL.Tick) end
+    driver:SetScript("OnUpdate", function()
+        if WorldMapFrame and WorldMapFrame:IsShown() then pcall(ZL.Tick)
+        elseif shownFor then hideCard() end
     end)
 end)
 
 if ns.settings and ns.settings.AddCheck then
-    ns.settings:AddCheck{ group = "route", label = "Zone levels on the world map",
-        tip = "The same as the Lv button on the world map, above the flight-masters button: each zone's level range "
-            .. "on the continent map, coloured against your level.",
+    ns.settings:AddCheck{ group = "route", label = "Zone info when hovering the world map",
+        tip = "On the continent map, the zone under the cursor shows its name, level range (coloured against "
+            .. "your level) and the fishing skill its waters need.",
         get = ZL.On, set = ZL.Set }
 end

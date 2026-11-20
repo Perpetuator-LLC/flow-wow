@@ -3,11 +3,12 @@
 
 ## Unreleased
 
-- **Zone levels on the world map.** On the Kalimdor and Eastern Kingdoms maps each levelling zone
-  shows its level range at its centre, coloured against your level (red well above you, orange a
-  little above, yellow your level, green easy, grey outgrown). A new "Lv" button above the
-  flight-masters button shows or hides them; setting "Zone levels on the world map". Ranges from
-  the Classic zones-by-level list.
+- **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
+  under the cursor shows a small card by the cursor: its name, level range (coloured against your
+  level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
+  and the fishing skill its waters need ("130 (205)": some need more). Nothing is drawn until you
+  hover. Setting "Zone info when hovering the world map". Ranges from the Classic zones-by-level
+  list; fishing from the Classic fishing tables.
 
 ## 0.35.321
 
@@ -3851,7 +3852,8 @@ Flow's first release on CurseForge, for World of Warcraft: Forever. What's in it
 ## 0.17.6
 - Diagnostics Claude can read from disk: Flow logs its errors and takes a snapshot of its checks on
   every `/reload` and logout (saved with Flow's data). `/flow dump` captures one on demand;
-  `toolsead-diag.ps1` prints it.
+  `tools
+ead-diag.ps1` prints it.
 
 ## 0.17.5
 - Profession and class trainers are found by NPC ID (with a name check) as well as by name, and

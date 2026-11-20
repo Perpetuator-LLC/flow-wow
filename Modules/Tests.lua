@@ -13815,26 +13815,30 @@ end)
 -- 0.35.314: flight masters on the world map.
 -------------------------------------------------------------------------------
 
-ns:Register("test", "map zone levels: each zone's range at its centre, coloured by your level", function(t)
+ns:Register("test", "map zone info: hovering a zone gives its name, level range and fishing skill", function(t)
     local ZL = ns.mapZoneLevels
     if not ZL then t:ok(false, "MapZoneLevels.lua not loaded") return end
-    local children = { { name = "Westfall", mapID = 1 }, { name = "Stormwind City", mapID = 2 },
-                       { name = "Duskwood", mapID = 3 }, { name = "Nowhere", mapID = 4 } }
-    local rects = { [1] = { 0.40, 0.50, 0.70, 0.80 }, [2] = { 0.5, 0.6, 0.5, 0.6 },
-                    [3] = { 0.50, 0.60, 0.70, 0.80 }, [4] = { 0, 1, 0, 1 } }
-    local L = ZL.Labels(1415, 15, children, function(id) return unpack(rects[id]) end)
-    t:eq(#L, 2, "only zones with a range: no cities, no unknown zones")
-    t:eq(L[1].text, "10-20", "Westfall's range")
-    t:ok(math.abs(L[1].x - 0.45) < 1e-6 and math.abs(L[1].y - 0.75) < 1e-6, "at the zone's centre")
+    local w = ZL.Card(1436, "Westfall", 15)
+    t:ok(w and w.name == "Westfall" and w.level == "Level 10-20" and w.fish == "Fishing 1", "Westfall's card")
+    t:ok(w and w.r == 1 and w.g == 0.82, "its range coloured by your level (yellow: yours)")
+    t:eq(ZL.Card(1434, "Stranglethorn Vale", 30).fish, "Fishing 130 (205)", "some waters need more")
+    local city = ZL.Card(1453, "Stormwind City", 15)
+    t:ok(city and city.level == nil and city.fish == "Fishing 1", "a city: fishing, no range")
+    t:ok(ZL.Card(1418, "Badlands", 40).fish == nil, "no water: no fishing line")
+    t:eq(ZL.Card(1, "Nowhere", 15), nil, "a zone Flow doesn't know: no card")
+    t:eq(ZL.Card(1436, "Marche de l'Ouest", 15).name, "Marche de l'Ouest", "the map's own (local) name")
     t:eq(select(4, ZL.Color(10, 20, 15)), "yellow", "your level: yellow")
     t:eq(select(4, ZL.Color(18, 30, 15)), "orange", "a little above you: orange")
     t:eq(select(4, ZL.Color(30, 40, 15)), "red", "well above you: red")
     t:eq(select(4, ZL.Color(1, 10, 15)), "green", "just outgrown: green")
     t:eq(select(4, ZL.Color(1, 10, 30)), "grey", "long outgrown: grey")
     local n = 0
-    for name, r in pairs(ZL.RANGES) do
-        n = n + 1
-        t:ok(r[1] >= 1 and r[2] <= 60 and r[1] < r[2], name .. ": a sane range")
+    for _, z in pairs(ZL.ZONES) do
+        if z[2] then
+            n = n + 1
+            t:ok(z[2] >= 1 and z[3] <= 60 and z[2] < z[3], z[1] .. ": a sane range")
+        end
+        t:ok(z[4] == nil or (z[4] >= 1 and z[4] <= 330 and (z[5] == nil or z[5] > z[4])), z[1] .. ": a sane fishing skill")
     end
     t:eq(n, 40, "every levelling zone in the Classic list")
 end)
