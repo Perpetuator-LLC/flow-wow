@@ -355,6 +355,7 @@ local function build()
             if not self.goal then return end
             -- Its area lights up on the minimap (hover colour), next to the current step's.
             if ns.minimapPin and ns.minimapPin.SetHover then pcall(ns.minimapPin.SetHover, ns.minimapPin, self.goal) end
+            if ns.mapOverlay and ns.mapOverlay.Hover then ns.mapOverlay.Hover(self.key) end   -- (and on the map, when it's open)
             ns.Tip(self, "ANCHOR_LEFT")
             -- Clickable rows say so: hand cursor and an "open" hint.
             if not self.blocked then self.open:Show(); ns.nav:ClickCursor(true) end

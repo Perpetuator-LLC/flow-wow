@@ -680,7 +680,18 @@ end)
 ns:Register("test", "bags: profession materials name every profession that uses them", function(t)
     local rule = ns:Get("disposition", "professionMaterial")
     if not ns.api.Skill("Blacksmithing") then t:ok(true) return end
-    local v = rule.check({ id = 2835, classID = 7, subclassID = 7 })  -- Rough Stone
+    local item = { id = 2835, classID = 7, subclassID = 7 }  -- Rough Stone
+    local v = rule.check(item)
+    -- Past every guide step that takes it (Blacksmithing 65+): outgrown, and
+    -- not named for Blacksmithing any more.
+    local D = ns.disposition
+    local past = D and D.OutgrownBy and D.OutgrownBy(2835, ns.api.Skill("Blacksmithing") or 0, ns:Get("profGuide", "Blacksmithing"))
+    if past then
+        t:ok(not (v and v.reason:find("for Blacksmithing", 1, true)),
+            "Rough Stone outgrown for Blacksmithing (" .. tostring(v and v.reason) .. ")")
+        t:ok(item.outgrown and item.outgrown.Blacksmithing ~= nil, "and noted as outgrown")
+        return
+    end
     -- Your own profession window wins over the guide (Forever has its own recipes).
     t:ok(v and v.reason:find("for Blacksmithing", 1, true) ~= nil,
         "Rough Stone kept for Blacksmithing (" .. tostring(v and v.reason) .. ")")
@@ -11913,9 +11924,15 @@ ns:Register("test", "easy and self buttons: the same size, the same edge round t
     t:eq(ns.ICON_EDGE, 3, "one edge width for both")
     if not icon then return end
     t:eq(icon.border.outside, ns.ICON_EDGE, "Flow's edge goes round its picture, not over it")
-    local top = icon.border.edges[1]
-    local _, _, _, x, y = top:GetPoint(1)
-    t:ok(x == -ns.ICON_EDGE and y == ns.ICON_EDGE, "its top edge starts outside the picture's corner")
+    -- (The game doesn't keep the points in the order they were set: find the
+    -- top left one.)
+    local top, x, y = icon.border.edges[1], nil, nil
+    for n = 1, top:GetNumPoints() do
+        local p, _, _, px, py = top:GetPoint(n)
+        if p == "TOPLEFT" then x, y = px, py end
+    end
+    t:ok(x and math.abs(x + ns.ICON_EDGE) < 0.01 and math.abs(y - ns.ICON_EDGE) < 0.01,
+        "its top edge starts outside the picture's corner (" .. tostring(x) .. ", " .. tostring(y) .. ")")
     t:near(icon:GetWidth(), BB.SIZE, 0.01, "the two pictures are the same width")
     t:near(icon:GetHeight(), BB.SIZE, 0.01, "and height")
     t:ok(BB.DOCK_GAP >= 2 * ns.ICON_EDGE + 10, "docked: the gap holds both edges and the modifier names")

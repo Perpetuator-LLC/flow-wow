@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Pointing at a Flow Tracker row lights its step on the world map again.** It only did on a
+  click. Also: two self-tests that failed on a character with Blacksmithing past Rough Stone, and
+  on how the game hands back a texture's points.
 
 ## 0.35.321
 
