@@ -31,6 +31,46 @@ function Adv:Collect()
     return out
 end
 
+-------------------------------------------------------------------------------
+-- How pressing each one is, as a colour (0.35.346). "Things I should be
+-- doing that aren't urgent should be white. If they're getting close to
+-- their threshold, they should start to turn yellow. And if you hit a cap on
+-- a profession, it should turn red, so you know you're capped and should get
+-- that trained as soon as possible so you're not missing points."
+--   later  white   worth doing, nothing is lost by waiting
+--   soon   yellow  close to a limit, or important
+--   now    red     you're losing something until it's done (skill points
+--                  past a cap, loot with full bags)
+-- An advisor says which with advice.urgency; without one, importance decides
+-- between white and yellow. Red is only ever said outright.
+-------------------------------------------------------------------------------
+Adv.URGENCY = {
+    now   = { 1, 0.25, 0.25, tip = "Red: you're losing out until this is done." },
+    soon  = { 1, 0.82, 0, tip = "Yellow: close to its limit, or important. Do it soon." },
+    later = { 1, 1, 1 },
+}
+Adv.SOON_AT = 70    -- importance from which advice without an urgency is yellow
+Adv.CAP_NEAR = 15   -- skill points under a profession's cap from which it's yellow
+
+-- Pure: "now" | "soon" | "later".
+function Adv.Urgency(item)
+    local u = type(item) == "table" and item.urgency or nil
+    if u == "now" or u == "soon" or u == "later" then return u end
+    return (type(item) == "table" and (item.importance or 0) >= Adv.SOON_AT) and "soon" or "later"
+end
+-- Pure: its colour (r, g, b), and the tooltip's line about it (nil for white).
+function Adv.Color(item)
+    local c = Adv.URGENCY[Adv.Urgency(item)]
+    return c[1], c[2], c[3], c.tip
+end
+-- Pure: a profession against its cap: at it, red; within `near` points, yellow.
+function Adv.CapUrgency(rank, max, near)
+    if not (rank and max) or max <= 0 then return "later" end
+    if rank >= max then return "now" end
+    if max - rank <= (near or Adv.CAP_NEAR) then return "soon" end
+    return "later"
+end
+
 local function line(item)
     local tags = item.improves and #item.improves > 0
         and (" |cff888888(improves " .. table.concat(item.improves, ", ") .. ")|r") or ""
@@ -107,7 +147,8 @@ function Adv.TipLines(shown, hidden, measure)
     for i = 1, math.min(Adv.TIP_MAX, #shown) do
         local text = i .. ". " .. line(shown[i])
         if max then text = Adv.FitLine(text, max, measure) end
-        out[#out + 1] = { text = text, r = 1, g = 1, b = 1 }
+        local r, g, b = Adv.Color(shown[i])
+        out[#out + 1] = { text = text, r = r, g = g, b = b }
     end
     if #hidden > 0 then out[#out + 1] = { text = string.format("(%d hidden)", #hidden), r = 0.6, g = 0.6, b = 0.6 } end
     out[#out + 1] = { text = Adv.TIP_FOOT, r = 0.6, g = 0.6, b = 0.6 }
@@ -503,6 +544,8 @@ local function buildPanel()
                 GameTooltip:AddLine(row.open and "Click to fold the hidden ones away." or "Click to see what you hid.", 1, 1, 1, true)
             else
                 GameTooltip:AddLine(row.item.text, 1, 1, 1, true)
+                local ur, ug, ub, utip = Adv.Color(row.item)
+                if utip and row.kind ~= "hidden" then GameTooltip:AddLine(utip, ur, ug, ub, true) end
                 if row.item.improves then GameTooltip:AddLine("Improves: " .. table.concat(row.item.improves, ", "), 0.7, 0.7, 0.7) end
                 local _, opens = Adv.LinkOf(row.item, goalFor)
                 if row.kind == "hidden" then
@@ -552,6 +595,11 @@ function Adv:FillPanel()
                 end
                 if row.kind == "hidden" then label = "|cff888888" .. label:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. "|r" end
             end
+            -- Its colour says how pressing it is (white, yellow, red). Set on the
+            -- line itself, so a coloured word inside it goes back to that colour.
+            if row.kind == "item" then local cr, cg, cb = Adv.Color(row.item); r.text:SetTextColor(cr, cg, cb)
+            else r.text:SetTextColor(1, 1, 1) end
+            r.urgency = row.kind == "item" and Adv.Urgency(row.item) or nil
             r.text:SetText(label)
             r.link:SetShown(row.kind ~= "header" and Adv.LinkOf(row.item, goalFor) ~= nil)
             r.hide:SetShown(row.kind ~= "header")

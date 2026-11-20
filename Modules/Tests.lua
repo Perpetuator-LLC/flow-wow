@@ -15622,3 +15622,63 @@ ns:Register("test", "click: a To sell line flips between sell and keep and back 
     B.view, B.offset, B.allSell = view, offset, allSell
     if frame then B:Fill(); if not shown then frame:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.346: Flow Improvements colours each line by how pressing it is.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "advice: each line's colour says how pressing it is: white, yellow near a limit, red at a cap", function(t)
+    local Adv = ns.advisor
+    t:eq(Adv.CapUrgency(75, 75), "now", "a profession at its cap: red (every skill-up since is lost)")
+    t:eq(Adv.CapUrgency(80, 75), "now", "(or past it)")
+    t:eq(Adv.CapUrgency(65, 75), "soon", "within 15 points of it: yellow")
+    t:eq(Adv.CapUrgency(60, 75), "soon", "(15 exactly)")
+    t:eq(Adv.CapUrgency(50, 75), "later", "further off: white")
+    t:eq(Adv.CapUrgency(nil, 75), "later", "a skill the game doesn't report: white")
+    t:eq(Adv.CapUrgency(0, 0), "later", "no cap known: white")
+
+    t:eq(Adv.Urgency({ urgency = "now", importance = 10 }), "now", "an advisor's own word wins")
+    t:eq(Adv.Urgency({ importance = 85 }), "soon", "without one, important advice is yellow")
+    t:eq(Adv.Urgency({ importance = 45 }), "later", "and the rest white")
+    t:eq(Adv.Urgency({ importance = 100 }), "soon", "red is never guessed from importance")
+    t:eq(Adv.Urgency({ urgency = "purple", importance = 10 }), "later", "an unknown word is ignored")
+    t:eq(Adv.Urgency(nil), "later", "nothing: white")
+
+    local r, g, b, tip = Adv.Color({ urgency = "now" })
+    t:ok(r == 1 and g < 0.5 and b < 0.5 and tip and tip:find("Red", 1, true), "red, with a line saying what red means")
+    r, g, b, tip = Adv.Color({ urgency = "soon" })
+    t:ok(r == 1 and g > 0.7 and b == 0 and tip and tip:find("Yellow", 1, true), "yellow, with its line")
+    r, g, b, tip = Adv.Color({ importance = 30 })
+    t:ok(r == 1 and g == 1 and b == 1 and tip == nil, "white, with nothing to add")
+
+    -- The button's tooltip carries the colours too.
+    local lines = Adv.TipLines({ { text = "Herbalism is capped at 75", urgency = "now" }, { text = "Cooking 65 of 75", urgency = "soon" }, { text = "Learn Fishing" } }, {}, nil)
+    t:ok(lines[2].g < 0.5, "a capped profession is red in the tooltip")
+    t:ok(lines[3].g > 0.7 and lines[3].b == 0, "one near its cap is yellow")
+    t:ok(lines[4].g == 1 and lines[4].b == 1, "the rest white")
+
+    -- Full bags lose loot: red; nearly full: yellow.
+    local QG = ns.questBags
+    local plan = { slots = 3, turnin = { { title = "Q", slots = 3 } }, bank = {}, sell = {}, finish = {}, stuck = {} }
+    t:eq(QG.Advice(plan, 0)[1].urgency, "now", "full bags: red")
+    t:eq(QG.Advice(plan, 3)[1].urgency, "soon", "nearly full: yellow")
+end)
+
+ns:Register("test", "click: Flow Improvements' rows take their colour when the list is filled", function(t)
+    local Adv = ns.advisor
+    if InCombatLockdown() then return end
+    local ok, err = pcall(Adv.FillPanel, Adv)
+    t:ok(ok, "filling the list doesn't error" .. (ok and "" or (": " .. tostring(err))))
+    local okP = pcall(function()
+        for _, a in ns:Each("advisor") do
+            local okC, list = pcall(a.check)
+            for _, item in ipairs(okC and list or {}) do
+                local u = Adv.Urgency(item)
+                assert(u == "now" or u == "soon" or u == "later")
+                local r, g, b = Adv.Color(item)
+                assert(type(r) == "number" and type(g) == "number" and type(b) == "number")
+            end
+        end
+    end)
+    t:ok(okP, "every piece of advice Flow has for you now has a colour")
+end)

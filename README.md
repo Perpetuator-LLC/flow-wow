@@ -361,6 +361,8 @@ Flow for WoW is a separate project from Flow Engine.
   others, whether they have it (from anyone, a group or stronger version too) or it's missing.
 - **A form's new spells on that form's bar**: a spell the game drops on your bars that needs
   Bear Form, Cat Form or a stance is moved to that form's bar.
+- **Flow Improvements in colour**: white for worth doing, yellow for close to a limit or important,
+  red when you're losing something until it's done (a profession at its cap, full bags).
 - **Quest items in your bags** (`/flow questbags`): what clears each one. With nearly full bags a
   finished quest's hand-in always stays on the route, comes early and says how many slots it frees;
   Flow Banker puts away what waits for another continent or another quest, and offers it back when

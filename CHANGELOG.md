@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.346
+
+- **New: Flow Improvements colours each line by how pressing it is.**
+  - **White**: worth doing, nothing is lost by waiting.
+  - **Yellow**: close to a limit, or important. A profession within 15 points of its cap that
+    you can already train further ("Cooking 62 of 75: you can learn Journeyman Cooking now"),
+    nearly full bags, training and upgrades.
+  - **Red**: you're losing something until it's done. A profession **at its cap** ("Herbalism
+    is capped at 75: learn Journeyman Herbalism"): every skill-up since is lost. Full bags
+    with quest items to hand in: loot is being lost.
+  The same colours are in the tooltip of the Flow Improvements button, and a line's own
+  tooltip says what its colour means.
 ## 0.35.345
 
 - **Fixed: a thing you clicked in Flow Banker's To sell disappeared, with no way back from

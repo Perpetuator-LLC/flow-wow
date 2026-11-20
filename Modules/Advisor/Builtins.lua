@@ -315,6 +315,8 @@ ns:Register("advisor", "professions", {
             local tier = ns.skillPlan and ns.skillPlan.Tier and ns.skillPlan.Tier(p.name, p.rank, p.max, level, ns.skillPlan.TierSeen(p.name, p.max))
             if tier and tier.ready then
                 out[#out + 1] = { importance = p.rank >= p.max and 60 or 45,
+                    -- (Capped: every skill-up since is lost. Red. Close to it: yellow.)
+                    urgency = ns.advisor.CapUrgency(p.rank, p.max),
                     text = p.rank >= p.max
                         and string.format("%s is capped at %d: learn %s %s", p.name, p.max, tier.name, p.name)
                         or string.format("%s %d of %d: you can learn %s %s now", p.name, p.rank, p.max, tier.name, p.name),

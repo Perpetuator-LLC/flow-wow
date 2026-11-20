@@ -178,18 +178,20 @@ function QG.Advice(plan, free)
     local out = {}
     if free == nil or free > QG.TIGHT or (plan.slots or 0) == 0 then return out end
     local tight = free <= 1 and 90 or 80
+    -- (Full bags lose loot: red. Nearly full: yellow.)
+    local urgency = free <= 1 and "now" or "soon"
     if #plan.turnin > 0 then
-        out[#out + 1] = { importance = tight, improves = { "Bag space" },
+        out[#out + 1] = { importance = tight, improves = { "Bag space" }, urgency = urgency,
             text = string.format("Bags nearly full: hand in %d finished quest(s) to free %d slot(s): %s",
                 #plan.turnin, QG.Slots(plan.turnin), QG.Names(plan.turnin, 3)) }
     end
     if #plan.bank > 0 then
-        out[#out + 1] = { importance = tight - 5, improves = { "Bag space" },
+        out[#out + 1] = { importance = tight - 5, improves = { "Bag space" }, urgency = urgency,
             text = string.format("Bags nearly full: %d slot(s) of quest items have no use here. Flow Banker puts them away: %s",
                 QG.Slots(plan.bank), QG.Names(plan.bank, 3)) }
     end
     if #plan.sell > 0 then
-        out[#out + 1] = { importance = tight - 10, improves = { "Bag space" },
+        out[#out + 1] = { importance = tight - 10, improves = { "Bag space" }, urgency = urgency,
             text = string.format("Bags nearly full: sell %d leftover quest item(s) no quest of yours uses: %s", #plan.sell, QG.Names(plan.sell, 3)) }
     end
     return out
