@@ -13,30 +13,81 @@ local function hasSeal()
     return A.Buff("player", function(n) return n and n:find("^Seal of") end)
 end
 
--- The seal you have up now (its name), or nil.
-local function currentSeal()
-    local name
-    A.Buff("player", function(n)
-        if n and n:find("^Seal of") then name = n return true end
-    end)
-    return name
-end
-
 -- Every Classic Era / Forever seal, for /flow seal.
 local SEALS = { "Seal of Righteousness", "Seal of the Crusader", "Seal of Command",
                 "Seal of Justice", "Seal of Light", "Seal of Wisdom", "Seal of Fury" }
 
--- Which seal Flow puts up: the one you chose (/flow seal), if you know it;
--- else the one you already have up (you cast it, so keep it); else Fury when
--- tanking; else Righteousness. engine:Knows, role and the seal up can be
--- passed in (tests); otherwise they're read from the game.
-local function pickSeal(engine, role, up)
+-- The last seal you cast (yourself, or with Flow's key) since your last fight
+-- ended. Flow keeps suggesting it until you leave combat, so switching seals
+-- for one fight is just casting the other one.
+local ownSeal
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not (spellID and GetSpellInfo) then return end
+    local name = GetSpellInfo(spellID)
+    if name and name:find("^Seal of") then ownSeal = name end
+end)
+ns:On("PLAYER_REGEN_ENABLED", function() ownSeal = nil end)
+
+-- Your spec: the talent tree with the most points (tabs 1 Holy,
+-- 2 Protection, 3 Retribution), or nil before you've spent any. Read again
+-- only when your talents change.
+local TREES = { "holy", "prot", "ret" }
+local tree, treeRead
+local function talentTree()
+    if treeRead then return tree end
+    treeRead, tree = true, nil
+    if not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then return nil end
+    local most = 0
+    for tab = 1, math.min(GetNumTalentTabs() or 0, #TREES) do
+        local points = 0
+        for i = 1, GetNumTalents(tab) or 0 do
+            points = points + (tonumber((select(5, GetTalentInfo(tab, i)))) or 0)
+        end
+        if points > most then tree, most = TREES[tab], points end
+    end
+    return tree
+end
+for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD" }) do
+    ns:On(event, function() treeRead = false end)
+end
+
+local function inGroup()
+    if IsInGroup then return IsInGroup() and true or false end
+    return (GetNumGroupMembers and GetNumGroupMembers() or 0) > 0
+end
+
+-- The seal for your spec: Protection (or tanking) Fury, Retribution Command,
+-- Holy in a group Wisdom; Righteousness otherwise, and until you know those.
+local function specSeal(engine, role, spec, grouped)
+    if (role == "tank" or spec == "prot") and engine:Knows("Seal of Fury") then return "Seal of Fury" end
+    if spec == "ret" and engine:Knows("Seal of Command") then return "Seal of Command" end
+    if (spec == "holy" or role == "heal") and grouped and engine:Knows("Seal of Wisdom") then return "Seal of Wisdom" end
+    return "Seal of Righteousness"
+end
+
+-- Which seal Flow puts up: the one you cast this fight; else the one you
+-- chose (settings, /flow seal), if you know it; else your spec's. `s` can
+-- hold own / tree / grouped (tests; false = none); missing ones are read
+-- from the game.
+local function pickSeal(engine, role, s)
+    s = s or {}
+    local own = s.own
+    if own == nil then own = ownSeal end
+    if own and engine:Knows(own) then return own end
     local chosen = ns.db and ns.db.paladinSeal
     if chosen and engine:Knows(chosen) then return chosen end
-    if up == nil then up = currentSeal() end
-    if up and up ~= false then return up end
-    if role == "tank" and engine:Knows("Seal of Fury") then return "Seal of Fury" end
-    return "Seal of Righteousness"
+    local spec = s.tree
+    if spec == nil then spec = talentTree() end
+    local grouped = s.grouped
+    if grouped == nil then grouped = inGroup() end
+    return specSeal(engine, role or (ns.LevelingRole and ns:LevelingRole()) or "dps", spec, grouped)
+end
+
+-- Your choice (a seal's name, or nil for automatic). A new choice applies
+-- at once, even mid-fight.
+local function setSeal(name)
+    ns.db.paladinSeal = name
+    ownSeal = nil
 end
 
 -- Seal missing or about to drop. In Forever, Judgement no longer uses up
@@ -89,9 +140,7 @@ local buffs = {
           return not c.inCombat and needBlessing() and not c.engine:Knows("Blessing of Might")
       end },
 }
--- One rule per seal; only the one pickSeal chooses can fire. (Tanks get
--- Seal of Fury, Forever level 10; everyone else Righteousness; /flow seal
--- or the seal you cast yourself overrides both.)
+-- One rule per seal; only the one pickSeal chooses can fire.
 for _, seal in ipairs(SEALS) do
     buffs[#buffs + 1] = { spell = seal, kind = "buff", reason = "No seal, or running out",
         when = function(c) return wantSeal(c) and pickSeal(c.engine, c.role) == seal end }
@@ -198,8 +247,8 @@ end
 ns.commands.seal = function(arg)
     arg = (arg or ""):match("^%s*(.-)%s*$")
     if arg:lower() == "auto" then
-        ns.db.paladinSeal = nil
-        ns:Print("seal: back to automatic (the seal you have up; else Fury when tanking, Righteousness otherwise)")
+        setSeal(nil)
+        ns:Print("seal: back to automatic (by your talents)")
         return
     end
     if arg ~= "" then
@@ -208,7 +257,7 @@ ns.commands.seal = function(arg)
             ns:Print("no seal called '" .. arg .. "'. Try: righteousness, crusader, command, justice, light, wisdom, fury, or auto")
             return
         end
-        ns.db.paladinSeal = s
+        setSeal(s)
         local known = ns.api.KnownSpells()[s]
         ns:Print("seal: Flow now suggests " .. s
             .. (known and "" or " (you don't know it yet: Flow keeps its usual seal until you do)"))
@@ -219,14 +268,16 @@ ns.commands.seal = function(arg)
 end
 
 ns:Register("help", "seal", { order = 32, title = "Paladin seal", lines = {
-    "/flow seal command (or righteousness, crusader, justice, light, wisdom, fury): the seal Flow suggests, for this character.",
-    "/flow seal auto: back to automatic (keeps the seal you cast yourself; else Fury when tanking, Righteousness otherwise).",
+    "Automatic: by your talents. Retribution: Command; Protection (or tanking): Fury; Holy in a group: Wisdom; otherwise Righteousness.",
+    "Cast a different seal and Flow keeps that one until the fight ends.",
+    "Settings, Easy keys: \"Paladin seal\" picks one for good; or /flow seal command (righteousness, crusader, justice, light, wisdom, fury), /flow seal auto.",
 } })
 
 ns:Register("rotation", "PALADIN", {
     guide = guide,
     wantSeal = wantSeal,   -- (tests)
     pickSeal = pickSeal,   -- (tests)
+    SetSeal = setSeal,     -- (settings)
     SEALS = SEALS,         -- (tests)
     groupBuffs = groupBuffs,
     -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).

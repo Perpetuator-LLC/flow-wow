@@ -318,7 +318,8 @@ end
 
 -- A row of buttons, one per choice; the one in use is lit.
 -- options = { { label, value, width }, ... }; get() -> value, set(value).
-local function choices(f, y, text, tip, options, get, set)
+-- `tipTitle`: the tooltip's title when the row has no name of its own.
+local function choices(f, y, text, tip, options, get, set, tipTitle)
     local l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     l:SetPoint("TOPLEFT", 18, y - 5)
     l:SetText(text)
@@ -337,7 +338,7 @@ local function choices(f, y, text, tip, options, get, set)
         if tip then
             b:SetScript("OnEnter", function(self)
                 ns.Tip(self, "ANCHOR_RIGHT")
-                GameTooltip:AddLine(text)
+                GameTooltip:AddLine(tipTitle or text)
                 GameTooltip:AddLine(tip, 1, 1, 1, true)
                 GameTooltip:Show()
             end)
@@ -591,6 +592,19 @@ local function build(parent)
             "Out of combat at a fishing or gathering step, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
             function() return ns.db.actions.enabled ~= false end,
             function(on) ns.db.actions.enabled = on end)
+        -- Paladins: the seal Flow suggests. Two rows of buttons, one choice.
+        local pal = select(2, UnitClass("player")) == "PALADIN" and ns:Get("rotation", "PALADIN")
+        if pal and pal.SetSeal then
+            local tip = "Auto (the usual): by your talents. Retribution: Command; Protection (or tanking): Fury; Holy in a group: Wisdom; otherwise Righteousness. Pick a seal and Flow suggests that one instead (until you know it, its usual one). For one fight, just cast a different seal: Flow keeps it until the fight ends. Also /flow seal. This character only."
+            local get = function() return ns.db.paladinSeal or "auto" end
+            local set = function(v) pal.SetSeal(v ~= "auto" and v or nil) end
+            f.sealRow, y = choices(f, y, "Paladin seal", tip,
+                { { "Auto", "auto", 46 }, { "Righteousness", "Seal of Righteousness", 96 },
+                  { "Command", "Seal of Command", 70 }, { "Wisdom", "Seal of Wisdom", 62 } }, get, set)
+            f.sealRow2, y = choices(f, y, "", tip,
+                { { "Light", "Seal of Light", 50 }, { "Justice", "Seal of Justice", 60 },
+                  { "Crusader", "Seal of the Crusader", 70 }, { "Fury", "Seal of Fury", 46 } }, get, set, "Paladin seal")
+        end
     end
 
     -- In a group: what Flow does for and with the people you play with.

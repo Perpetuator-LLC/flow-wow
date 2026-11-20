@@ -3,10 +3,11 @@
 
 ## Unreleased
 
-- **Choose your Paladin seal.** `/flow seal command` (or righteousness, crusader, justice, light,
-  wisdom, fury) sets the seal Flow suggests for this character; `/flow seal auto` goes back. On
-  automatic, Flow now keeps refreshing the seal you cast yourself instead of swapping you back to
-  Righteousness (Fury when tanking).
+- **Paladin seal by your spec, your choice, or the fight.** Automatic now goes by your talents:
+  Retribution Command, Protection (or tanking) Fury, Holy in a group Wisdom, otherwise
+  Righteousness. Settings, Easy keys, "Paladin seal" picks one for this character (also
+  `/flow seal command`, `/flow seal auto`). Cast a different seal and Flow keeps that one until
+  the fight ends.
 
 ## 0.35.321
 

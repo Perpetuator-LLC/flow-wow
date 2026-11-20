@@ -3532,21 +3532,35 @@ ns:Register("test", "paladin: a seal goes on whenever you have none", function(t
     end)
 end)
 
-ns:Register("test", "paladin: /flow seal picks the seal Flow suggests", function(t)
+ns:Register("test", "paladin: the seal Flow suggests (talents, your choice, the seal you cast)", function(t)
     local def = ns:Get("rotation", "PALADIN")
     local knowsAll = { Knows = function() return true end }
     local noFury = { Knows = function(_, s) return s ~= "Seal of Fury" end }
+    local noCommand = { Knows = function(_, s) return s ~= "Seal of Command" end }
+    local function at(tree, grouped, own) return { tree = tree or false, grouped = grouped or false, own = own or false } end
     local saved = ns.db.paladinSeal
     ns.db.paladinSeal = nil
-    t:eq(def.pickSeal(knowsAll, "dps", false), "Seal of Righteousness", "automatic, no seal up: Righteousness")
-    t:eq(def.pickSeal(knowsAll, "tank", false), "Seal of Fury", "automatic, tanking: Fury")
-    t:eq(def.pickSeal(noFury, "tank", false), "Seal of Righteousness", "tanking without Fury yet: Righteousness")
-    t:eq(def.pickSeal(knowsAll, "dps", "Seal of Command"), "Seal of Command", "keeps the seal you cast yourself")
+    t:eq(def.pickSeal(knowsAll, "dps", at()), "Seal of Righteousness", "automatic, no talents yet: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "tank", at()), "Seal of Fury", "tanking: Fury")
+    t:eq(def.pickSeal(noFury, "tank", at()), "Seal of Righteousness", "tanking without Fury yet: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "dps", at("ret")), "Seal of Command", "Retribution: Command")
+    t:eq(def.pickSeal(noCommand, "dps", at("ret")), "Seal of Righteousness", "Retribution without Command yet: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "dps", at("prot")), "Seal of Fury", "Protection: Fury")
+    t:eq(def.pickSeal(knowsAll, "dps", at("holy", true)), "Seal of Wisdom", "Holy in a group: Wisdom")
+    t:eq(def.pickSeal(knowsAll, "dps", at("holy", false)), "Seal of Righteousness", "Holy on your own: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "dps", at("ret", false, "Seal of Justice")), "Seal of Justice",
+        "a seal you cast yourself is kept for the fight")
     ns.db.paladinSeal = "Seal of Wisdom"
-    t:eq(def.pickSeal(knowsAll, "dps", "Seal of Command"), "Seal of Wisdom", "your choice wins")
-    t:eq(def.pickSeal(noFury, "tank", false), "Seal of Wisdom", "your choice wins over tanking")
+    t:eq(def.pickSeal(knowsAll, "dps", at("ret")), "Seal of Wisdom", "your choice wins over your talents")
+    t:eq(def.pickSeal(noFury, "tank", at()), "Seal of Wisdom", "your choice wins over tanking")
+    t:eq(def.pickSeal(knowsAll, "dps", at("ret", false, "Seal of Light")), "Seal of Light",
+        "a different seal cast mid-fight wins over your choice")
     ns.db.paladinSeal = "Seal of Fury"
-    t:eq(def.pickSeal(noFury, "dps", false), "Seal of Righteousness", "a seal you don't know yet: the usual one")
+    t:eq(def.pickSeal(noFury, "dps", at()), "Seal of Righteousness", "a seal you don't know yet: the usual one")
+    def.SetSeal("Seal of Light")
+    t:eq(ns.db.paladinSeal, "Seal of Light", "the settings row sets your choice")
+    def.SetSeal(nil)
+    t:eq(ns.db.paladinSeal, nil, "Auto clears it")
     ns.db.paladinSeal = saved
     t:ok(type(ns.commands.seal) == "function", "/flow seal exists")
     for _, s in ipairs(def.SEALS) do t:ok(s:find("^Seal of ") ~= nil, s .. " is a seal") end
