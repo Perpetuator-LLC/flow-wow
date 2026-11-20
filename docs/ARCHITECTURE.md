@@ -155,6 +155,11 @@ party route. A gold key badge atop your quest list (Questie's tracker, else the 
 item tooltip; `K:Build(role)` makes the game's equipment set for a role (puts on what's better from the bags,
 saves, switches back).
 
+`Modules/Items/Trader.lua` (`ns.trader`, the Flow Trader view): Auction.lua's full read hands it every listing
+(`T.ReadStart` / `T.ReadListing` / `T.ReadDone`); `T.Listing` and `T.Deals` (pure) find listings under the vendor's
+price or at half the item's usual price (`T.Usual`, from the price history). A purchase is a job of clicks:
+search, `T.Pick` (what's still within the limit and the budget), then the game's own purchase calls.
+
 `Modules/Nav/Legs.lua` (`ns.legs`): times each trip between two steps (`L.Look`, pure, a look a second) and
 keeps the quickest by pair of 40-yard squares (`ns.db.nav.legs`, shared by your characters). The planner's
 `legs` option (`L.Yards`) answers "exact" (the cost) or "area" (stretches the straight line).

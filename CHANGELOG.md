@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.352
+
+- **New: Flow Trader.** When Flow reads the auction house's listings (it does when you open
+  it, at most every 15 minutes) it now looks at every one for a deal:
+  - **vendor**: listed for less than a vendor pays. Buy it, sell it to any vendor: a certain
+    gain, usually small.
+  - **resell**: listed at half or less of what the item has usually gone for when Flow looked
+    (the middle of its price history, from at least four visits). Buy it and post it again: a
+    guess. The auction house's 5% is taken off the gain shown; the deposit isn't, and it may
+    not sell.
+  The Flow Trader window opens with what it found (a Flow Trader tab on the auction house
+  opens it too), the most gain first, each with a button. **Buy** looks the item up again,
+  **Confirm** and **Pay** buy it: every payment is your click, Flow pays no more than the
+  limit, drops the trade if the price moved, and spends at most a quarter of your gold on one
+  trade (`/flow trader share 10` for a tenth). Only things Flow wouldn't keep for you are
+  offered; what you buy comes by mail, and the Flow Seller or Flow Auctions sell it on.
+  `/flow trader`; Settings, Loot and selling, keeps the window from opening by itself.
+  **Not yet tried at a real auction house**: the buttons use the game's purchase calls, and
+  the log records each step, so the first trade will show whether this client takes them.
 ## 0.35.351
 
 - **Fixed: Flow Banker still took quest things out of the bank and then wanted them back in**

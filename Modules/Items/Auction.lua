@@ -261,6 +261,8 @@ local function readFull()
         if ok and id and buyout and buyout > 0 and count and count > 0 then
             local unit = buyout / count
             if not full.best[id] or unit < full.best[id] then full.best[id] = unit end
+            -- (Flow Trader looks at every listing for a deal: Trader.lua.)
+            if ns.trader then ns.trader.ReadListing(id, count, buyout) end
         end
     end
     full.i = last + 1
@@ -275,6 +277,7 @@ local function readFull()
     ns.db.ah.lastFull = time()
     ns:Print(string.format("auction house: read %d listings, prices for %d different items.", full.n, kept))
     ns:Log("ah", string.format("full scan: %d listings, %d items", full.n, kept))
+    if ns.trader then pcall(ns.trader.ReadDone) end
 end
 -- The game sends this again and again while the window stays open. Flow reads
 -- the list once for each time it asked (0.35.268: "after it finishes it just
@@ -286,6 +289,7 @@ ns:On("REPLICATE_ITEM_LIST_UPDATE", function()
     full.asked = false
     full.busy, full.i, full.n, full.best = true, 0, n, {}
     full.saidAt = GetTime()
+    if ns.trader then pcall(ns.trader.ReadStart) end
     readFull()
 end)
 
@@ -333,6 +337,10 @@ ns:On("ITEM_SEARCH_RESULTS_UPDATED", function(itemKey)
     local ok, row = pcall(CA.GetItemSearchResultInfo, itemKey or one.key, 1)
     answered(ok and row or nil)
 end)
+
+-- Is Flow in the middle of reading prices (a search of its own would get
+-- another search's answer)?
+function AH.Busy() return full.busy or one.id ~= nil or #queue > 0 end
 
 -- Everything in your bags that could be sold there (not soulbound, not
 -- junk), and your watch list: what Flow asks the price of.

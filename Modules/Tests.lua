@@ -16030,3 +16030,130 @@ ns:Register("test", "route: a quest thing that lies in your bank isn't collected
     t:ok(not QG.Banked(0, 1, 0) and not QG.Banked(nil), "none in the bank: still to get")
     t:eq(QG.InBank(-1), false, "an item the bank doesn't hold")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.352: Flow Trader: deals from the auction house's listings, a button each.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "trader: a listing under the vendor's price, or at half its usual price, is a deal", function(t)
+    local T = ns.trader
+    local usual, n = T.Usual({ 100, 80, 200, 120, 300, 100, 400, 110, 500, 5000 })
+    t:eq(usual, 110, "an item's usual price is the middle of its history: one wild look doesn't move it")
+    t:eq(n, 5, "from five visits")
+    t:eq((T.Usual({ 1, 80, 2, 90 })), nil, "two visits aren't enough to call a price usual")
+    t:eq((T.Usual({ 1, 80, 2, 90, 3, 100, 4, 110 })), 95, "an even number: between the two middle ones")
+
+    local a = T.Listing(nil, 10, 300, 25, 100)       -- 30 each: over the vendor's 25, at 30% of the usual 100
+    t:ok(a and a.vq == 0 and a.dq == 10 and a.dc == 300, "half the usual price or less: a resell deal")
+    a = T.Listing(a, 5, 100, 25, 100)                -- 20 each: under the vendor's price too
+    t:ok(a.vq == 5 and a.vc == 100 and a.dq == 15 and a.dc == 400, "under the vendor's price: a vendor deal as well")
+    a = T.Listing(a, 20, 2000, 25, 100)              -- 100 each: no deal
+    t:ok(a.dq == 15 and a.vq == 5, "a listing at the usual price adds nothing")
+    t:eq(T.Listing(nil, 20, 2000, 25, 100), nil, "and makes no deal of its own")
+    t:eq(T.Listing(nil, 5, 100, nil, nil), nil, "no vendor price and no history: nothing to compare with")
+    t:eq(T.Listing(nil, 0, 100, 25, 100), nil, "a listing of nothing: skipped")
+    t:eq(T.Listing(nil, 5, 0, 25, 100), nil, "one with no buyout: skipped")
+
+    local deals = T.Deals({
+        [1] = { vq = 5, vc = 100, dq = 15, dc = 400, vendor = 25, usual = 100 },   -- vendor: 125 - 100 = +25
+        [2] = { vq = 0, vc = 0, dq = 4, dc = 400, vendor = 10, usual = 400 },      -- resell: 400*0.95*4 - 400 = +1120
+        [3] = { vq = 2, vc = 10, dq = 0, dc = 0, vendor = 5000, usual = nil },     -- vendor: 10000 - 10 = +9990
+        [4] = { vq = 1, vc = 99, dq = 0, dc = 0, vendor = 100 },                   -- +1: too little
+        [5] = { vq = 9, vc = 9, dq = 0, dc = 0, vendor = 900 },                    -- kept by Flow: not offered
+    }, function(id) return "Item " .. id end, function(id) return id ~= 5 end, 20)
+    t:eq(#deals, 3, "worth listing, and not something Flow keeps for you")
+    t:eq(deals[1].id, 3, "the most gain first")
+    t:ok(deals[1].kind == "vendor" and deals[1].gain == 9990 and deals[1].limit == 5000, "a vendor deal: the gain is what the vendor pays less what it costs")
+    t:ok(deals[2].id == 2 and deals[2].kind == "resell" and math.abs(deals[2].gain - 1120) < 0.01, "a resell deal: the usual price less the auction house's 5%, less what it costs")
+    t:eq(deals[2].limit, 200, "bought at half the usual price at most")
+    t:ok(deals[3].id == 1 and deals[3].kind == "vendor" and deals[3].qty == 5, "an item that is both is listed as the certain one, for the listings under the vendor's price")
+    t:ok(T.Line(deals[1], function(c) return c .. "c" end):find("2 x Item 3 for 10c: a vendor pays 10000c", 1, true), "a vendor deal's line")
+    t:ok(T.Line(deals[2], function(c) return c .. "c" end):find("usually 400c each", 1, true), "a resell deal's line names the usual price")
+end)
+
+ns:Register("test", "trader: Flow buys only what's still within the limit and your budget", function(t)
+    local T = ns.trader
+    -- Stackable: any number of the cheapest.
+    local stack = { { unit = 10, qty = 5 }, { unit = 12, qty = 10 }, { unit = 30, qty = 100 } }
+    local pick = T.Pick(stack, 15, 1000)
+    t:ok(pick.qty == 15 and pick.cost == 170, "everything at or under the limit, nothing over it")
+    pick = T.Pick(stack, 15, 100)
+    t:ok(pick.qty == 9 and pick.cost == 98, "as many as the budget buys, part of a listing too")
+    t:eq(T.Pick(stack, 5, 1000).qty, 0, "the price moved over the limit: nothing")
+    t:eq(T.Pick({}, 15, 1000).qty, 0, "not listed any more: nothing")
+    -- Single auctions: all of one or none of it.
+    local single = { { unit = 100, qty = 1, auction = 11, buyout = 100 }, { unit = 120, qty = 2, auction = 12, buyout = 240 }, { unit = 500, qty = 1, auction = 13, buyout = 500 } }
+    pick = T.Pick(single, 150, 300)
+    t:ok(#pick.auctions == 1 and pick.auctions[1].id == 11 and pick.cost == 100, "an auction the budget can't cover whole is left")
+    pick = T.Pick(single, 150, 1000)
+    t:ok(#pick.auctions == 2 and pick.qty == 3 and pick.cost == 340, "with the gold for it, each auction within the limit")
+    t:eq(T.Budget(10000, 0.25), 2500, "a quarter of your gold on one trade")
+    t:eq(T.Budget(nil), 0, "no gold: no budget")
+
+    -- The button says where a purchase stands.
+    local has = { search = true, commodity = true, item = true }
+    local label, can = T.Button(nil, 7, has)
+    t:ok(label == "Buy" and can, "a deal: Buy")
+    label, can = T.Button({ id = 7, stage = "search" }, 7, has)
+    t:ok(label == "..." and not can, "looking it up: wait")
+    label, can = T.Button({ id = 7, stage = "ready", commodity = true }, 7, has)
+    t:ok(label == "Confirm" and can, "found, stackable: Confirm (asks the game for the price)")
+    label = T.Button({ id = 7, stage = "quoted", total = 170 }, 7, has)
+    t:ok(label:find("^Pay "), "the game quoted: Pay, with the sum")
+    label = T.Button({ id = 7, stage = "ready", auctions = { {}, {} }, done = 1 }, 7, has)
+    t:eq(label, "Buy 2 of 2", "single auctions: one a click")
+    label, can = T.Button({ id = 8, stage = "ready", commodity = true }, 7, has)
+    t:ok(label == "Buy" and can, "another deal's button is still Buy")
+    _, can = T.Button(nil, 7, { search = false })
+    t:ok(not can, "a client without the search: the button is greyed")
+    t:ok(#T.Tip({ kind = "vendor", limit = 25, name = "x", id = 1 }, nil) >= 2, "a vendor deal's tooltip explains it")
+    t:ok(table.concat(T.Tip({ kind = "resell", limit = 50, usual = 100, name = "x", id = 1 }, nil), " "):find("may not sell", 1, true), "a resell deal's says it's a guess")
+end)
+
+ns:Register("test", "click: Flow Trader opens from the auction house's tab; a button away from the auction house buys nothing", function(t)
+    local T = ns.trader
+    local def = ns:Get("gameButton", "auctiontrader")
+    t:ok(def and def.label == "Flow Trader", "a Flow Trader tab is registered for the auction house")
+    t:ok(def.x and def.x < ns.gameButtons.X, "to the left of the Flow Auctions tab, not on it")
+    if InCombatLockdown() then return end
+    local was = T._Frame() and T._Frame():IsShown()
+    local deals, job = T.deals, T.job
+    T.deals = { { id = 2589, name = "Linen Cloth", kind = "vendor", qty = 20, cost = 200, gain = 60, limit = 13 } }
+    if was then T._Frame():Hide() end
+    local ok, err = pcall(def.click)
+    t:ok(ok, "a click on the tab runs" .. (ok and "" or (": " .. tostring(err))))
+    local f = T._Frame()
+    t:ok(f and f:IsShown(), "the window is up")
+    if f then
+        local r = f.rows[1]
+        t:ok(r:IsShown() and r.text:GetText():find("20 x Linen Cloth", 1, true), "with the deal on its first line")
+        t:eq(r.btn:GetText(), "Buy", "and its button")
+        -- (Not while you stand at an auction house: there a click really looks the item up.)
+        local atAH = _G.AuctionHouseFrame and _G.AuctionHouseFrame:IsShown()
+        if not atAH then
+            local okC, did = pcall(function() return T:Click(r.deal) end)
+            t:ok(okC and not did, "away from an auction house the click buys nothing" .. (okC and "" or (": " .. tostring(did))))
+            t:eq(T.job, job, "and starts nothing")
+            t:ok(pcall(function() r.btn:GetScript("OnClick")(r.btn) end), "the real button's click runs")
+        end
+        t:eq(type(r.btn:GetScript("OnClick")), "function", "each line's button has its click")
+        t:ok(not f.rows[2]:IsShown(), "no line for a deal that isn't there")
+        pcall(def.click)
+        t:ok(not f:IsShown(), "a second click on the tab closes it")
+    end
+    T.deals, T.job = deals, job
+    if f then T:Fill(); if was then f:Show() end end
+    local okL, lines = pcall(T.Lines)
+    t:ok(okL and lines[2]:find("this client: search", 1, true), "/flow trader says which auction calls this client has" .. (okL and "" or (": " .. tostring(lines))))
+    t:eq(type(ns.auction.Busy()), "boolean", "the auction reader says whether it's busy")
+    -- A read with nothing in it finds nothing, and says nothing.
+    local readAt = T.readAt
+    T.ReadStart()
+    T.ReadListing(987654330, 0, 0)
+    local quiet = ns.db.trader.quiet
+    ns.db.trader.quiet = true
+    local d2 = T.deals
+    t:ok(pcall(T.ReadDone), "the end of a read runs")
+    t:eq(#T.deals, 0, "nothing listed, nothing found")
+    T.deals, T.readAt, ns.db.trader.quiet = d2, readAt, quiet
+end)

@@ -377,6 +377,10 @@ Flow for WoW is a separate project from Flow Engine.
   at a bank brings those to your bags. Hover a thing in To bank for why Flow keeps it; Alt-click
   one you once bought back to let Flow sell it again.
   Your own choice: Shift-click a thing there to sell it, click a To sell line to keep it.
+- **Flow Trader**: when Flow reads the auction house's listings it looks for deals: listed under what
+  a vendor pays (a certain gain), or at half an item's usual price or less (buy and post again: a
+  guess). Its tab on the auction house lists them, each with a button; every payment is your click
+  (`/flow trader`).
 - **Flow Prices**: an item's auction price over time as a chart, time to scale, a dot for each
   visit to the auction house (hover for the price and when). Alt + click an item, click a line
   of Flow Banker's Auction prices, or `/flow price <item>`.
