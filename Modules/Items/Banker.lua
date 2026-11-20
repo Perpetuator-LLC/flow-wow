@@ -22,6 +22,11 @@
 --     there last time it was open, and "Auction prices" what Flow last saw at
 --     the auction house. A "Flow Banker" tab on your bags opens it (0.35.203).
 --
+--   * "To sell" (0.35.341): what the Flow Seller takes at the next vendor or
+--     auction house, and what's in your bank that Flow would now sell (a
+--     material your skill has moved past): "Take out" at a bank brings those
+--     to your bags, and the seller does the rest.
+--
 -- Not built yet: fetching things back as a step before the crafting that
 -- needs them (the profession plan already reads what's in your bank).
 
@@ -131,7 +136,9 @@ function B.PutCells(rows, needed, rules)
         if type(r) == "table" and r.action == "keep" and r.id then
             local bank, why = B.Banks(r, needed, rules)
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, bank = bank and true or false, why = why,
-                              mine = rules and rules[r.id] or nil }
+                              mine = rules and rules[r.id] or nil,
+                              -- (Why Flow keeps it at all, and by which rule: the tooltip says.)
+                              reason = r.reason, rule = r.rule }
         end
     end
     table.sort(out, function(a, b)
@@ -148,6 +155,94 @@ function B.List()
     local ok, rows = pcall(D.Inventory, D)
     if not ok then return {} end
     return B.Pick(rows, B.Needed(), B.Rules())
+end
+
+-------------------------------------------------------------------------------
+-- To sell (0.35.341)
+-------------------------------------------------------------------------------
+-- "It should also have a To sell, and that's the one the Flow Seller will
+-- take care of ... Linen Cloth says sell, your First Aid is past it, but it
+-- doesn't take it back out of my bank. The bank needs to show that it's
+-- going to withdraw those and at the next vendor sell them."
+B.LEAVES = { sell = "vendor", ah = "auction house", de = "disenchant" }
+-- (Never taken out by Flow: gear and quest items. Whether one is soulbound
+-- can't be told while it lies in the bank.)
+B.NOT_OUT = { [2] = true, [4] = true, [12] = true }
+
+-- Pure: what's in your bags that leaves at a vendor or the auction house.
+-- rows: D.Inventory's. -> { { id, name, count, action, reason } }, as sorted.
+function B.SellRows(rows)
+    local out = {}
+    for _, r in ipairs(rows or {}) do
+        if type(r) == "table" and B.LEAVES[r.action or ""] then
+            out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason }
+        end
+    end
+    return out
+end
+
+-- Pure: what's in your bank that Flow would sell now, by name.
+--   items: { [itemID] = count }; decide(id) -> { action, reason, item = {
+--   classID, name } } or nil (not loaded); rules: your choices ("bank": it
+--   stays there).
+function B.TakeOutRows(items, decide, rules)
+    local out = {}
+    for id, count in pairs(items or {}) do
+        if type(id) == "number" and type(count) == "number" and count > 0 and not (rules and rules[id] == "bank") then
+            local v = decide(id)
+            local item = type(v) == "table" and v.item or nil
+            if item and (v.action == "sell" or v.action == "ah") and not B.NOT_OUT[item.classID or 0] then
+                out[#out + 1] = { id = id, name = item.name or ("item " .. id), count = count, action = v.action, reason = v.reason, bank = true }
+            end
+        end
+    end
+    table.sort(out, function(a, b)
+        if tostring(a.name) ~= tostring(b.name) then return tostring(a.name) < tostring(b.name) end
+        return a.id < b.id
+    end)
+    return out
+end
+
+-- Right now (remembered a few seconds: it asks every rule about each thing in the bank).
+local takeMemo = { at = -100, rows = {} }
+function B.TakeOut(fresh)
+    local now = GetTime()
+    if not fresh and now - takeMemo.at < 10 then return takeMemo.rows end
+    local D = ns.disposition
+    local rows = {}
+    if D and D.DecideId then
+        rows = B.TakeOutRows(ns.db.bank and ns.db.bank.items, function(id)
+            local ok, v = pcall(D.DecideId, D, id)
+            return ok and v or nil
+        end, B.Rules())
+    end
+    takeMemo.at, takeMemo.rows = now, rows
+    return rows
+end
+
+-- Pure: the "To sell" view's words: the line above, and the lines.
+function B.SellLines(bags, bank, atBank)
+    local out = {}
+    local function line(r, where)
+        return string.format("%s%d x %s  |cff999999(%s: %s)|r", where, r.count or 1, tostring(r.name), B.LEAVES[r.action] or tostring(r.action),
+            tostring(r.reason or "no reason given"))
+    end
+    for _, r in ipairs(bags or {}) do out[#out + 1] = line(r, "") end
+    for _, r in ipairs(bank or {}) do out[#out + 1] = line(r, "|cff66ccffIn your bank:|r ") end
+    local nBags, nBank = #(bags or {}), #(bank or {})
+    if nBags + nBank == 0 then return "Nothing to sell: Flow keeps everything in your bags and your bank.", out end
+    local note = string.format("%d thing(s) in your bags the Flow Seller takes at the next vendor or auction house.", nBags)
+    if nBank > 0 then
+        note = note .. string.format(" %d more in your bank Flow would sell now: %s", nBank,
+            atBank and "Take out brings them to your bags." or "at a bank, Take out brings them to your bags.")
+    end
+    return note, out
+end
+
+-- Pure: how many of the bank's slots to take out with `free` bag slots left.
+function B.TakeCount(slots, free)
+    if free == nil then return slots or 0 end
+    return math.max(0, math.min(slots or 0, free))
 end
 
 -------------------------------------------------------------------------------
@@ -205,6 +300,38 @@ function B:Deposit()
     return #slots
 end
 
+-- Takes what Flow would sell out of the bank, a stack every B.STEP seconds,
+-- as far as your bags have room. The Flow Seller sells it at the next vendor.
+function B:Withdraw()
+    if not bankOpen or not useItem or InCombatLockdown() then return 0 end
+    local want = {}
+    for _, r in ipairs(B.TakeOut(true)) do want[r.id] = true end
+    local SP = ns.skillPlan
+    local okS, slots = pcall(SP.BankSlotsWith, want)
+    if not okS or type(slots) ~= "table" then return 0 end
+    local free = ns.export and ns.export.BagsFree and ns.export.BagsFree() or nil
+    local n = B.TakeCount(#slots, free)
+    for i = 1, n do
+        local s = slots[i]
+        C_Timer.After((i - 1) * B.STEP, function()
+            if bankOpen and not InCombatLockdown() then pcall(useItem, s[1], s[2]) end
+        end)
+    end
+    if n > 0 then
+        ns:Print(string.format("Flow Banker: taking %d stack(s) out to sell%s.", n,
+            n < #slots and string.format(" (%d more when your bags have room)", #slots - n) or ""))
+        ns:Log("bank", string.format("took %d of %d stack(s) out to sell", n, #slots))
+        C_Timer.After(n * B.STEP + 0.8, function()
+            takeMemo.at = -100
+            if ns.disposition then ns.disposition:Invalidate() end
+            if B.frame and B.frame:IsShown() then B:Fill() end
+        end)
+    elseif #slots > 0 then
+        ns:Print("Flow Banker: your bags are full, so nothing was taken out.")
+    end
+    return n
+end
+
 -------------------------------------------------------------------------------
 -- The window
 -------------------------------------------------------------------------------
@@ -253,11 +380,12 @@ local function build()
     f.tabs = {}
     for i, v in ipairs(B.VIEWS) do
         local tb = CreateFrame("Button", nil, f)
-        tb:SetSize(100, 16)
-        tb:SetPoint("TOPLEFT", 8 + (i - 1) * 104, -27)
         tb.text = tb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         tb.text:SetPoint("LEFT")
         tb.text:SetText(v.label)
+        -- Each as wide as its words, one after the other (four fit since 0.35.341).
+        tb:SetSize(math.max(30, (tb.text:GetStringWidth() or 60)), 16)
+        if i == 1 then tb:SetPoint("TOPLEFT", 8, -27) else tb:SetPoint("LEFT", f.tabs[B.VIEWS[i - 1].key], "RIGHT", B.TAB_GAP, 0) end
         tb:SetScript("OnClick", function() B:Show(v.key) end)
         f.tabs[v.key] = tb
     end
@@ -322,7 +450,7 @@ local function build()
     -- lay over that button's end).
     f.go:SetPoint("BOTTOMRIGHT", -10, 8)
     f.go:SetText("Deposit")
-    f.go:SetScript("OnClick", function() B:Deposit() end)
+    f.go:SetScript("OnClick", function() B:GoClick() end)
     f:Hide()
     return f
 end
@@ -330,8 +458,10 @@ end
 -- The window's views. "put": what to put away (the Deposit button). "bank":
 -- what Flow saw in your bank when it was last open, readable anywhere.
 -- "prices": what Flow last saw at the auction house.
+B.TAB_GAP = 12
 B.VIEWS = {
     { key = "put", label = "To bank" },   -- (was "To put away" until 0.35.221)
+    { key = "sell", label = "To sell" },
     { key = "bank", label = "In your bank" },
     { key = "prices", label = "Auction prices" },
 }
@@ -448,6 +578,12 @@ function B.ViewLines(view)
             return string.format("%d of %d item(s) with \"%s\" in the name (the cheapest buyout Flow last saw):", #rows, #all, tostring(B.filter)), out
         end
         return string.format("The cheapest buyout Flow last saw, for %d item(s). Search below.", #rows), out
+    elseif view == "sell" then
+        local D = ns.disposition
+        local okR, rows = pcall(D.Inventory, D)
+        local bank = B.TakeOut()
+        B.takeCount = #bank
+        return B.SellLines(B.SellRows(okR and rows or {}), bank, bankOpen)
     end
     local list = B.List()
     local out = {}
@@ -520,6 +656,7 @@ local function makeCell(f, i)
         if cell then
             GameTooltip:AddLine(cell.bank and "Goes to the bank" or "Stays with you", cell.bank and 0.2 or 0.8, cell.bank and 0.9 or 0.8, cell.bank and 0.3 or 0.8)
             GameTooltip:AddLine((cell.mine and "Your choice. " or "Flow's choice: ") .. tostring(cell.why) .. ".", 1, 1, 1, true)
+            for _, l in ipairs(B.WhyLines(cell)) do GameTooltip:AddLine(l, 1, 0.82, 0, true) end
             GameTooltip:AddLine("Click: " .. (cell.bank and "keep it with you" or "put it in the bank") .. ". Right-click: Flow's own choice.", 0.6, 0.6, 0.6, true)
         else
             GameTooltip:AddLine("In your bank, as Flow last saw it. Go to a bank to take it out.", 0.6, 0.6, 0.6, true)
@@ -565,10 +702,28 @@ function B.StyleCell(c, cell)
     c.icon:SetDesaturated(not cell.bank)
     c.icon:SetAlpha(cell.bank and 1 or 0.6)
 end
+-- Pure: why Flow keeps the thing in a cell, for its tooltip.
+function B.WhyLines(cell)
+    local out = {}
+    if cell and cell.reason and cell.reason ~= "" then out[#out + 1] = "Flow keeps it: " .. tostring(cell.reason) .. "." end
+    if cell and cell.rule == "neverSell" then
+        out[#out + 1] = "You bought it back from a vendor once, so Flow never sells it. Alt-click: let Flow sell it again."
+    end
+    return out
+end
 -- A click on a cell of that view: bank it or carry it; right-click: Flow's own choice.
-function B:CellClick(c, button)
+-- Alt-click on something you once bought back: Flow may sell it again.
+function B:CellClick(c, button, alt)
     local cell = c and c.cell
     if not cell then return false end
+    if alt == nil then alt = IsAltKeyDown and IsAltKeyDown() or false end
+    if alt then
+        if cell.rule ~= "neverSell" or not ns.disposition.Forget(cell.id) then return false end
+        if not c.quiet then ns:Print(tostring(cell.name) .. ": Flow may sell it again (it goes by its usual rules now).") end   -- (quiet: the self-test)
+        if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
+        B:Fill()
+        return true
+    end
     B.Rules()[cell.id] = B.NextRule(cell.bank, cell.mine, button == "RightButton")
     if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("banking choice") end
     if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end   -- (the bank icons on your bags follow)
@@ -669,13 +824,24 @@ function B:Fill()
     for key, tb in pairs(f.tabs) do
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
     end
-    f.go:SetShown(B.view == "put")
     f.all:SetShown(B.view == "put")
     f.all:SetText(B.allRules and "In my bags" or "All my choices")
     f.search:SetShown(B.view == "prices")
     f.search.label:SetShown(B.view == "prices")
-    f.go:SetEnabled(bankOpen and putCount > 0)
-    f.go:SetText(bankOpen and "Deposit" or "At a bank")
+    f.go:SetShown(B.view == "put" or (B.view == "sell" and (B.takeCount or 0) > 0))
+    if B.view == "sell" then
+        f.go:SetEnabled(bankOpen and (B.takeCount or 0) > 0)
+        f.go:SetText(bankOpen and "Take out" or "At a bank")
+    else
+        f.go:SetEnabled(bankOpen and putCount > 0)
+        f.go:SetText(bankOpen and "Deposit" or "At a bank")
+    end
+end
+
+-- The button at the bottom right: Deposit ("To bank") or Take out ("To sell").
+function B:GoClick()
+    if B.view == "sell" then return B:Withdraw() end
+    return B:Deposit()
 end
 
 -- A click on a line of "Auction prices": that item's price chart.
@@ -730,15 +896,17 @@ ns:Register("gameButton", "bank", {
 ns:On("BANKFRAME_OPENED", function()
     bankOpen = true
     if ns.db.banker.off then return end
-    -- (Shown only when there's something to put away.)
-    if #B.List() > 0 then B:Open() end
+    -- (Shown only when there's something to put away, or to take out and sell.)
+    takeMemo.at = -100
+    if #B.List() > 0 then B:Open()
+    elseif #B.TakeOut() > 0 then B:Show("sell") end
 end)
 ns:On("BANKFRAME_CLOSED", function()
     bankOpen = false
     -- (The list of what to put away closes with the bank; a look at what's in
     -- the bank or at prices stays.)
     if B.frame and B.frame:IsShown() then
-        if B.view == "put" then B.frame:Hide() else B:Fill() end
+        if B.view == "put" then B.frame:Hide() else B:Fill() end   -- ("To sell" stays: its list holds anywhere)
     end
 end)
 ns:OnLoad(function(saved) saved.banker = saved.banker or {} end)
@@ -752,6 +920,13 @@ function B.WorthAStop(stacks, free, min)
     return (stacks or 0) > 0 and free ~= nil and free <= 2
 end
 
+-- Pure: the step's words.
+function B.StepText(stacks, out)
+    if (out or 0) <= 0 then return string.format("Bank: put %d stack(s) away", stacks or 0) end
+    if (stacks or 0) <= 0 then return string.format("Bank: take %d thing(s) out to sell", out) end
+    return string.format("Bank: put %d stack(s) away, take %d thing(s) out to sell", stacks, out)
+end
+
 local cache = { at = 0, goals = nil }
 ns:Register("navGoal", "banker", {
     collect = function()
@@ -763,15 +938,19 @@ ns:Register("navGoal", "banker", {
         if not (S and S.All) or bankOpen then return nil end
         local stacks = B.Stacks(B.List())
         local free = ns.export and ns.export.BagsFree and ns.export.BagsFree() or nil
-        if not B.WorthAStop(stacks, free) then return nil end
+        -- (What to take out and sell counts towards a stop being worth it.)
+        local okT, take = pcall(B.TakeOut)
+        local out = okT and #take or 0
+        if not B.WorthAStop(stacks + out, free) then return nil end
         local ok, bankers = pcall(S.All, S, "bank", 6)
         if not ok or #bankers == 0 then return nil end
         local points = {}
         for _, b in ipairs(bankers) do points[#points + 1] = { map = b.map, x = b.x, y = b.y } end
         cache.goals = { {
             key = "bank", kind = "merchant", optional = true, weight = 1, points = points,
-            title = "Flow Banker", text = string.format("Bank: put %d stack(s) away", stacks),
+            title = "Flow Banker", text = B.StepText(stacks, out),
             details = { "Things Flow keeps for later that nothing on your route uses now. At the banker, Flow Banker lists them: one click puts them in.",
+                        out > 0 and "And things in your bank Flow would sell now (a material your skill has moved past): To sell, Take out. The Flow Seller sells them at the next vendor." or nil,
                         "Only on the route while a bank is close to the way you're going." },
         } }
         return cache.goals
@@ -795,6 +974,15 @@ function B.Lines()
     for _, r in ipairs(list) do
         out[#out + 1] = string.format("%d x %s [%s] in %d slot(s): %s", r.count or 1, tostring(r.name), tostring(r.id), r.stacks or 1, tostring(r.reason))
     end
+    local okT, take = pcall(B.TakeOut, true)
+    out[#out + 1] = string.format("  in your bank, to take out and sell: %s", okT and tostring(#take) or ("failed: " .. tostring(take)))
+    for _, r in ipairs(okT and take or {}) do
+        out[#out + 1] = string.format("  %d x %s [%s]: %s (%s)", r.count or 1, tostring(r.name), tostring(r.id), tostring(r.action), tostring(r.reason))
+    end
+    local never = {}
+    for id in pairs((ns.db.sell and ns.db.sell.never) or {}) do never[#never + 1] = tostring(id) end
+    table.sort(never)
+    out[#out + 1] = "  bought back once, never sold (Alt-click one in To bank to undo): " .. (#never > 0 and table.concat(never, ", ") or "none")
     return out
 end
 ns.commands.banker = function(arg)
@@ -805,12 +993,14 @@ ns.commands.banker = function(arg)
         return
     end
     if arg == "show" then B:Open() return end
-    if arg == "bank" or arg == "prices" then B:Show(arg) return end
+    if arg == "bank" or arg == "prices" or arg == "sell" then B:Show(arg) return end
     for i, l in ipairs(B.Lines()) do if i == 1 then ns:Print(l) else print("  " .. l) end end
-    print("  /flow banker show (the window)   /flow banker bank (what's in your bank)   /flow banker prices   /flow banker on|off")
+    print("  /flow banker show (the window)   /flow banker bank (what's in your bank)   /flow banker sell   /flow banker prices   /flow banker on|off")
 end
 ns:Register("help", "banker", { order = 58, title = "Flow Banker", lines = {
     "At a bank, Flow Banker lists what you won't need soon (materials kept for later that no step on your route uses) and deposits it at a click.",
     "Away from a bank, its \"In your bank\" view lists what was there when you last opened it, and \"Auction prices\" what Flow last saw at the auction house. The Flow Banker tab on your bags opens it.",
-    "/flow banker: the list. /flow banker show | bank | prices. /flow banker on|off.",
+    "\"To sell\" lists what the Flow Seller takes at the next vendor or auction house, and what's in your bank that Flow would now sell: at a bank, Take out brings those to your bags.",
+    "In \"To bank\", hover a thing for why Flow keeps it. Alt-click one you once bought back to let Flow sell it again.",
+    "/flow banker: the list. /flow banker show | bank | sell | prices. /flow banker on|off.",
 } })

@@ -1193,6 +1193,21 @@ function SP.BankLayout(parts)
     return out
 end
 
+-- The open bank's slots that hold one of these items (Flow Banker takes
+-- them out): want = { [itemID] = true } -> { { bag, slot, id, count } }.
+function SP.BankSlotsWith(want)
+    local out = {}
+    if not bankOpen then return out end
+    for _, bag in ipairs(bankContainers()) do
+        local okSlots, n = pcall(containerSlots, bag)
+        for slot = 1, okSlots and n or 0 do
+            local okI, id, c = pcall(containerItem, bag, slot)
+            if okI and id and want[id] then out[#out + 1] = { bag, slot, id, c or 1 } end
+        end
+    end
+    return out
+end
+
 -- Reads the bank while it's open. True when what's in it changed.
 function SP.ReadBank()
     if not bankOpen then return false end

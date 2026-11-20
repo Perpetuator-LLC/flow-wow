@@ -361,6 +361,10 @@ Flow for WoW is a separate project from Flow Engine.
   others, whether they have it (from anyone, a group or stronger version too) or it's missing.
 - **A form's new spells on that form's bar**: a spell the game drops on your bars that needs
   Bear Form, Cat Form or a stance is moved to that form's bar.
+- **Flow Banker, To sell**: what the Flow Seller takes at the next vendor or auction house, and
+  what's in your bank that Flow would now sell (a material your skill has moved past): Take out
+  at a bank brings those to your bags. Hover a thing in To bank for why Flow keeps it; Alt-click
+  one you once bought back to let Flow sell it again.
 - **Flow Prices**: an item's auction price over time as a chart, time to scale, a dot for each
   visit to the auction house (hover for the price and when). Alt + click an item, click a line
   of Flow Banker's Auction prices, or `/flow price <item>`.

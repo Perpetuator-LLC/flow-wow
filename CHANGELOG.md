@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.341
+
+- **New: "To sell" in Flow Banker**, beside To bank, In your bank and Auction prices. It lists
+  what the Flow Seller takes at the next vendor or auction house, each with where it goes and
+  why ("40 x Linen Cloth (vendor: your First Aid is past it)").
+- **New: things in your bank that Flow would now sell come back out.** "Linen Cloth says
+  sell, your First Aid is past it, but it doesn't take it back out of my bank." To sell lists
+  those too, marked "In your bank"; at a bank, **Take out** brings them to your bags (as many
+  stacks as you have room for) and the Flow Seller sells them at the next vendor or auction
+  house. The route's bank step says so: "Bank: put 4 stack(s) away, take 2 thing(s) out to
+  sell". Gear and quest items are never taken out, nor anything you chose to bank yourself.
+- **Why Flow keeps a thing**: in To bank, a thing's tooltip now gives Flow's reason ("Flow
+  keeps it: for First Aid: Wool Bandage"), not only whether it goes to the bank.
+- **A bought-back item isn't kept forever any more.** "It says you bought it back before, so
+  now Flow thinks I want to keep it forever, and that's not true." Alt-click it in To bank
+  and Flow goes by its usual rules for it again (its tooltip says so). `/flow banker` lists
+  what's on that list.
 ## 0.35.340
 
 - **New: a quest's materials can be bought at the auction house.** "Gathering the Cure has me

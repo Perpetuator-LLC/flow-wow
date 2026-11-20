@@ -135,12 +135,8 @@ local function rules()
     return sorted
 end
 
--- Verdict for the item in a bag slot (cached per link + bound state).
-function D:Decide(bag, slot, link)
-    local key = link .. ":" .. bag .. ":" .. slot
-    if cache[key] then return cache[key] end
-    local item = self:Describe(bag, slot, link)
-    if not item then return nil end
+-- The rules' verdict for a described item (kept under `key`).
+local function verdictFor(item, key)
     local list = rules()
     for idx, e in ipairs(list) do
         local ok, v = pcall(e.r.check, item)
@@ -172,6 +168,46 @@ function D:Decide(bag, slot, link)
     local v = { action = "keep", reason = "no rule matched", item = item }
     cache[key] = v
     return v
+end
+
+-- Verdict for the item in a bag slot (cached per link + bound state).
+function D:Decide(bag, slot, link)
+    local key = link .. ":" .. bag .. ":" .. slot
+    if cache[key] then return cache[key] end
+    local item = self:Describe(bag, slot, link)
+    if not item then return nil end
+    return verdictFor(item, key)
+end
+
+-- Verdict for something you don't have in a bag slot: what's in your bank,
+-- by item ID (0.35.341: "Linen Cloth says sell, your First Aid is past it,
+-- but it doesn't take it back out of my bank"). The same rules; whether it's
+-- soulbound isn't known from here (item.bound is nil, item.away is true).
+-- nil while the game hasn't loaded the item.
+function D:DecideId(id)
+    local key = "id:" .. tostring(id)
+    if cache[key] then return cache[key] end
+    local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local ok, name, link = pcall(get, id)
+    if not (ok and type(name) == "string" and type(link) == "string") then return nil end
+    local quality, minLevel, sellPrice, classID, _, subclassID = itemInfo(link)
+    if quality == nil then return nil end
+    return verdictFor({
+        link = link, id = id, name = name, away = true,
+        quality = quality, minLevel = minLevel or 0, sellPrice = sellPrice or 0, classID = classID, subclassID = subclassID,
+        gear = ns.gear and ns.gear:Compare(link) or nil,
+    }, key)
+end
+
+-- Let Flow sell something you once bought back (0.35.341: "it says you
+-- bought it back before, so now Flow thinks I want to keep it forever, and
+-- that's not true"). True when it was on the list.
+function D.Forget(id)
+    local never = ns.db.sell and ns.db.sell.never
+    if not (never and id and never[id]) then return false end
+    never[id] = nil
+    D:Invalidate()
+    return true
 end
 
 for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP",

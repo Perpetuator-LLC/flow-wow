@@ -9535,7 +9535,7 @@ ns:Register("test", "click: the Flow Banker tab on your bags opens and closes it
         local tb = f and f.tabs[v.key]
         local ok2, err2 = pcall(function() tb:GetScript("OnClick")(tb) end)
         t:ok(ok2 and B.view == v.key, "the '" .. v.label .. "' word switches to it" .. (ok2 and "" or (": " .. tostring(err2))))
-        t:eq(f.go:IsShown(), v.key == "put", "Deposit only shows with the list to put away")
+        t:eq(f.go:IsShown(), v.key == "put" or (v.key == "sell" and (B.takeCount or 0) > 0), "Deposit only shows with the list to put away (Take out with To sell)")
     end
     local ok3 = pcall(function() f:GetScript("OnMouseWheel")(f, -1) end)
     t:ok(ok3, "the wheel scrolls")
@@ -15067,4 +15067,124 @@ ns:Register("test", "selling: the log names which of your items were sold", func
     t:eq(V.SoldNames(sold, 2), ": Earthroot, Peacebloom and 1 more", "a long sale is cut short")
     t:eq(V.SoldNames({ sold[1] }), "", "only junk: nothing added")
     t:eq(V.SoldNames(nil), "", "nothing sold: nothing added")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.341: Flow Banker's "To sell": what the seller takes, what to take out
+-- of the bank to sell; why Flow keeps a thing; undoing "bought back".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: To sell lists what leaves your bags, and what's in the bank that Flow would sell", function(t)
+    local B = ns.banker
+    local bags = B.SellRows({
+        { id = 1, name = "Broken Fang", action = "sell", reason = "junk", count = 3, stacks = 1 },
+        { id = 2, name = "Small Lustrous Pearl", action = "ah", reason = "worth more at auction", count = 1 },
+        { id = 3, name = "Light Leather", action = "keep", reason = "for Leatherworking", count = 20 },
+        { id = 4, name = "Worn Axe", action = "equip", reason = "better", count = 1 },
+    })
+    t:eq(#bags, 2, "what's sold or auctioned, not what's kept or worn")
+    t:eq(bags[1].name, "Broken Fang", "in the order given")
+
+    local verdicts = {
+        [2589] = { action = "sell", reason = "your First Aid is past it", item = { classID = 7, name = "Linen Cloth" } },
+        [2318] = { action = "keep", reason = "for Leatherworking", item = { classID = 7, name = "Light Leather" } },
+        [5498] = { action = "ah", reason = "worth more at auction", item = { classID = 7, name = "Small Lustrous Pearl" } },
+        [100]  = { action = "sell", reason = "not for you", item = { classID = 4, name = "Old Helm" } },
+        [200]  = { action = "sell", reason = "no quest uses it", item = { classID = 12, name = "Odd Relic" } },
+        [300]  = { action = "sell", reason = "past it", item = { classID = 7, name = "Coarse Thread" } },
+    }
+    local items = { [2589] = 40, [2318] = 12, [5498] = 1, [100] = 1, [200] = 1, [300] = 5, [999] = 2 }
+    local out = B.TakeOutRows(items, function(id) return verdicts[id] end, { [300] = "bank" })
+    t:eq(#out, 2, "only what Flow would sell or auction: not kept things, gear, quest items, your own 'bank it', or things not loaded")
+    t:eq(out[1].name, "Linen Cloth", "by name")
+    t:eq(out[1].count, 40, "with how many the bank holds")
+    t:eq(out[2].action, "ah", "the auction house counts too")
+    t:eq(#B.TakeOutRows(nil, function() return nil end, nil), 0, "a bank Flow hasn't seen: nothing")
+
+    local note, lines = B.SellLines(bags, out, false)
+    t:eq(#lines, 4, "a line each: bags first, then the bank")
+    t:ok(lines[1]:find("3 x Broken Fang", 1, true) and lines[1]:find("(vendor: junk)", 1, true), "what, how many, where it goes and why")
+    t:ok(lines[3]:find("In your bank:", 1, true) and lines[3]:find("40 x Linen Cloth", 1, true), "the bank's are marked")
+    t:ok(note:find("2 thing(s) in your bags", 1, true) and note:find("2 more in your bank", 1, true) and note:find("at a bank, Take out", 1, true),
+        "the line above counts both and says where Take out works")
+    t:ok((B.SellLines(bags, out, true)):find("Take out brings them", 1, true), "at the bank it just says Take out")
+    t:ok((B.SellLines({}, {}, false)):find("Nothing to sell", 1, true), "nothing either way: said so")
+    t:ok(not (B.SellLines(bags, {}, false)):find("in your bank", 1, true), "nothing in the bank to sell: the bank isn't mentioned")
+
+    t:eq(B.TakeCount(5, 3), 3, "only as many stacks as your bags have room for")
+    t:eq(B.TakeCount(5, 0), 0, "full bags: none")
+    t:eq(B.TakeCount(5, nil), 5, "room unknown: all (the game refuses what doesn't fit)")
+
+    t:eq(B.StepText(4, 0), "Bank: put 4 stack(s) away", "the route's step, as before")
+    t:eq(B.StepText(4, 2), "Bank: put 4 stack(s) away, take 2 thing(s) out to sell", "with things to take out")
+    t:eq(B.StepText(0, 2), "Bank: take 2 thing(s) out to sell", "only things to take out")
+
+    t:ok(pcall(B.TakeOut, true), "reading your own bank doesn't error")
+    t:eq(type(B.TakeOut()), "table", "and gives a list")
+    t:eq(#ns.skillPlan.BankSlotsWith({}), 0, "nothing wanted: no bank slots")
+    local okL, l = pcall(B.Lines)
+    t:ok(okL and type(l) == "table", "/flow banker lists it" .. (okL and "" or (": " .. tostring(l))))
+end)
+
+ns:Register("test", "banker: a thing's tooltip says why Flow keeps it; a bought-back one can be let go", function(t)
+    local B, D = ns.banker, ns.disposition
+    local cells = B.PutCells({ { id = 2934, name = "Ruined Leather Scraps", action = "keep", rule = "neverSell",
+        reason = "you bought it back before", kind = "Trade Goods", count = 7 } }, {}, {})
+    t:eq(cells[1].reason, "you bought it back before", "the cell carries Flow's reason")
+    t:eq(cells[1].rule, "neverSell", "and the rule")
+    local why = B.WhyLines(cells[1])
+    t:eq(why[1], "Flow keeps it: you bought it back before.", "the tooltip says why it's kept")
+    t:ok(why[2] and why[2]:find("Alt-click", 1, true), "and how to undo a buy-back")
+    t:eq(#B.WhyLines({ reason = "for First Aid: Wool Bandage", rule = "professionMaterial" }), 1, "another reason: just the reason")
+    t:eq(#B.WhyLines({}), 0, "no reason known: no line")
+
+    local never = ns.db.sell.never
+    local id = 987654321
+    local had = never[id]
+    never[id] = true
+    t:ok(D.Forget(id), "forgetting one that's on the list")
+    t:eq(never[id], nil, "takes it off")
+    t:ok(not D.Forget(id), "one that isn't on it: nothing to do")
+    never[id] = had
+    t:eq(D:DecideId(-5), nil, "an item the game doesn't know: no verdict, no error")
+    local v = D:DecideId(6948)   -- (the hearthstone: the game always has it loaded)
+    t:ok(v == nil or (type(v.action) == "string" and v.item and v.item.away), "something not in your bags gets a verdict by its ID")
+end)
+
+ns:Register("test", "click: Flow Banker's To sell view opens, and Alt-click lets a bought-back thing go", function(t)
+    local B = ns.banker
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset = B.view, B.offset
+    local ok, err = pcall(B.Show, B, "sell")
+    t:ok(ok and B.view == "sell", "the view opens" .. (ok and "" or (": " .. tostring(err))))
+    local f = B._Frame()
+    t:ok(f and f.tabs.sell and f.tabs.sell:IsShown(), "it has its word under the title")
+    t:ok(f and f.tabs.prices:GetRight() == nil or f.tabs.prices:GetRight() <= f:GetRight() + 1, "the four words fit the window")
+    t:ok(f and not f.all:IsShown() and not f.search:IsShown(), "no choices button or search box here")
+    t:eq(f and f.go:IsShown(), (B.takeCount or 0) > 0, "Take out shows only with something in the bank to sell")
+    if f and f.go:IsShown() then
+        t:eq(f.go:GetText(), B.AtBank() and "Take out" or "At a bank", "and says where it works")
+        t:eq(f.go:IsEnabled(), B.AtBank(), "enabled at a bank")
+    end
+    if not B.AtBank() then
+        t:ok(pcall(B.GoClick, B), "the button's click runs away from a bank")
+        t:eq(B:Withdraw(), 0, "and moves nothing there")
+    end
+    -- Alt-click: only for a thing kept because you bought it back.
+    local never = ns.db.sell.never
+    local id = 987654322
+    local had = never[id]
+    never[id] = true
+    local cell = { quiet = true, cell = { id = id, name = "Test Scraps", rule = "neverSell" } }
+    local okC, done = pcall(B.CellClick, B, cell, "LeftButton", true)
+    t:ok(okC and done, "Alt-click on a bought-back thing runs" .. (okC and "" or (": " .. tostring(done))))
+    t:eq(never[id], nil, "and Flow may sell it again")
+    t:eq(B.Rules()[id], nil, "without changing your banking choice")
+    never[id] = had
+    local other = { cell = { id = id, name = "Test Leather", rule = "professionMaterial" } }
+    t:ok(not B:CellClick(other, "LeftButton", true), "Alt-click on anything else does nothing")
+    t:eq(B.Rules()[id], nil, "nor sets a choice")
+    B.view, B.offset = view, offset
+    if f then B:Fill(); if not was then f:Hide() end end
 end)
