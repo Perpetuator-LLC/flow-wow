@@ -7,8 +7,7 @@
   under the cursor shows a small card in the map's top left corner: its name, level range (coloured against your
   level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
   and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
-  nothing hovered it shows the zone you're in: on that zone on the continent map, in the corner
-  of your zone's own map. Settings "Zone info when hovering the world map" and "World map: your
+  nothing hovered it shows the zone you're in, in the same corner. Settings "Zone info when hovering the world map" and "World map: your
   zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
   Classic fishing tables. Hold Shift for the fish a zone's waters give and how often
   ("Raw Brilliant Smallfish 54%"), from Wowhead's Classic catch records; zones with few records say
