@@ -15161,7 +15161,7 @@ ns:Register("test", "click: Flow Banker's To sell view opens, and Alt-click lets
     local f = B._Frame()
     t:ok(f and f.tabs.sell and f.tabs.sell:IsShown(), "it has its word under the title")
     t:ok(f and f.tabs.prices:GetRight() == nil or f.tabs.prices:GetRight() <= f:GetRight() + 1, "the four words fit the window")
-    t:ok(f and not f.all:IsShown() and not f.search:IsShown(), "no choices button or search box here")
+    t:ok(f and f.all:IsShown() and not f.search:IsShown(), "the choices button, no search box")
     t:eq(f and f.go:IsShown(), (B.takeCount or 0) > 0, "Take out shows only with something in the bank to sell")
     if f and f.go:IsShown() then
         t:eq(f.go:GetText(), B.AtBank() and "Take out" or "At a bank", "and says where it works")
@@ -15324,10 +15324,10 @@ end)
 ns:Register("test", "click: Flow Banker's To sell lines and To bank cells set your own choice", function(t)
     local B, D = ns.banker, ns.disposition
     t:eq(B.NextSellChoice(nil, false), "keep", "a click on a thing Flow sells: keep it")
-    t:eq(B.NextSellChoice(true, false), nil, "on one you chose to sell: Flow's choice again")
+    t:eq(B.NextSellChoice(true, false), "sell", "on one you keep: sell it after all")
     t:eq(B.NextSellChoice(nil, true), nil, "a right-click: Flow's choice")
-    t:ok(B.RowTip("sell", { mine = true })[1]:find("You chose to sell it", 1, true), "your own line says so")
-    t:ok(B.RowTip("sell", {})[1]:find("keep it", 1, true), "Flow's line offers to keep it")
+    t:ok(B.RowTip("sell", { mine = true })[1]:find("Sold: your choice", 1, true), "your own line says so")
+    t:ok(B.RowTip("sell", {})[2]:find("keep it", 1, true), "Flow's line offers to keep it")
     t:ok(B.RowTip("prices", nil)[1]:find("Flow Prices", 1, true), "a price line still opens the chart")
     local rows = B.SellRows({ { id = 1, name = "Linen Cloth", action = "sell", reason = "you chose to sell it", rule = "yourChoice", count = 4 } })
     t:ok(rows[1].mine, "a row sold by your choice is marked")
@@ -15355,8 +15355,8 @@ ns:Register("test", "click: Flow Banker's To sell lines and To bank cells set yo
         "Shift-click on a thing vendors won't buy does nothing")
     -- A click on its To sell line: undone.
     B.view = "sell"
-    local okR = pcall(B.RowClick, B, { id = id, row = { mine = true } }, "LeftButton")
-    t:ok(okR, "a click on your own To sell line runs")
+    local okR = pcall(B.RowClick, B, { id = id, row = { mine = true } }, "RightButton")
+    t:ok(okR, "a right-click on your own To sell line runs")
     t:eq(D.Choice(id), nil, "and it's Flow's choice again")
     pcall(B.RowClick, B, { id = id, row = {} }, "LeftButton")
     t:eq(D.Choice(id), "keep", "a click on a line Flow sells: kept")
@@ -15535,4 +15535,90 @@ ns:Register("test", "quest bags: your own bags and log can be read, and /flow qu
     local okA, list = pcall(def.check)
     t:ok(okA and type(list) == "table", "Flow Improvements can ask" .. (okA and "" or (": " .. tostring(list))))
     t:eq(type(ns.commands.questbags), "function", "/flow questbags is there")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.345: To sell keeps showing what you chose to keep; a click flips it,
+-- a right-click goes back to Flow's choice; "All my choices" lists them all.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: what you chose to keep stays in To sell, marked Kept", function(t)
+    local B = ns.banker
+    local rows = B.SellRows({
+        { id = 1, name = "Linen Cloth", action = "keep", rule = "yourChoice", reason = "you chose to keep it", count = 8, sell = 13, quality = 1 },
+        { id = 2, name = "Broken Fang", action = "sell", rule = "junk", reason = "junk", count = 3, sell = 5, quality = 0 },
+        { id = 3, name = "Ruined Leather Scraps", action = "keep", rule = "neverSell", reason = "you bought it back before", count = 6, sell = 7, quality = 1 },
+        { id = 4, name = "Light Leather", action = "keep", rule = "professionMaterial", reason = "for Leatherworking", count = 20 },
+    })
+    t:eq(#rows, 3, "what Flow sells, and what you keep by your own choice or a buy-back; not what Flow keeps by its own rules")
+    t:eq(rows[1].name, "Broken Fang", "what sells comes first")
+    t:ok(rows[2].kept and rows[2].mine and rows[2].name == "Linen Cloth", "then your own keep")
+    t:ok(rows[3].kept and rows[3].bought, "and a thing you bought back")
+    local note, lines = B.SellLines(rows, {}, false)
+    t:ok(lines[2]:find("Kept:", 1, true) and lines[2]:find("8 x Linen Cloth", 1, true) and lines[2]:find("(your choice)", 1, true), "a kept line says so, and why")
+    t:ok(lines[3]:find("(you bought it back)", 1, true), "a buy-back says so")
+    t:ok(note:find("1 thing(s) in your bags", 1, true), "only what sells is counted as selling")
+    local only = B.SellLines({ rows[1] }, {}, false)
+    t:ok(not only:find("Nothing to sell", 1, true), "(something sells)")
+    note, lines = B.SellLines({ rows[2], rows[3] }, {}, false)
+    t:ok(note:find("Nothing to sell now", 1, true) and note:find("2 thing(s) you keep by your own choice", 1, true) and #lines == 2,
+        "nothing selling, but kept things: they're still listed, with how to sell them")
+    t:ok(B.RowTip("sell", rows[2])[2]:find("sell it after all", 1, true), "a kept line's tooltip: click sells it")
+    t:ok(B.RowTip("sell", rows[3])[1]:find("bought it back", 1, true), "a buy-back's says what it is")
+    t:eq(B.NextSellChoice(nil, false), "keep", "click on a selling line: keep")
+    t:eq(B.NextSellChoice(true, false), "sell", "click on a kept line: sell")
+    t:eq(B.NextSellChoice(true, true), nil, "right-click on either: Flow's own choice")
+
+    local all = B.ChoiceRows({ [10] = "keep", [11] = "sell", [12] = "burn" }, { [10] = true, [13] = true }, function(id) return "Item " .. id end)
+    t:eq(#all, 3, "every choice once: sell, keep, bought back")
+    t:ok(all[1].id == 11 and not all[1].kept and all[1].mine, "what you chose to sell first")
+    t:ok(all[2].id == 10 and all[2].kept and all[3].id == 13 and all[3].bought, "then what you keep, and what you bought back")
+    local _, l2 = B.SellLines(all, {}, false)
+    t:ok(l2[1]:find("Your choice:", 1, true) and not l2[1]:find("0 x", 1, true), "a thing you don't carry is listed without a count")
+end)
+
+ns:Register("test", "click: a To sell line flips between sell and keep and back to Flow's choice; All my choices opens", function(t)
+    local B, D = ns.banker, ns.disposition
+    if InCombatLockdown() then return end
+    local id, bought = 987654325, 987654326
+    local wasMine, wasNever = ns.db.sell.mine[id], ns.db.sell.never[bought]
+    ns.db.sell.mine[id] = nil
+    local frame = B._Frame()
+    local shown = frame and frame:IsShown()
+    local view, offset, allSell = B.view, B.offset, B.allSell
+    t:ok(pcall(B.Show, B, "sell"), "To sell opens")
+    frame = B._Frame()
+    -- Flow sells it -> click: kept -> click: sold by your choice -> right-click: Flow's.
+    pcall(B.RowClick, B, { id = id, row = { sell = 10, quality = 1 } }, "LeftButton")
+    t:eq(D.Choice(id), "keep", "a click on a line Flow sells keeps it")
+    pcall(B.RowClick, B, { id = id, row = { kept = true, mine = true, sell = 10, quality = 1 } }, "LeftButton")
+    t:eq(D.Choice(id), "sell", "a click on the kept line sells it again")
+    pcall(B.RowClick, B, { id = id, row = { mine = true, sell = 10, quality = 1 } }, "LeftButton")
+    t:eq(D.Choice(id), "keep", "and a click on that keeps it: either way, as often as you like")
+    pcall(B.RowClick, B, { id = id, row = { kept = true, mine = true, sell = 10, quality = 1 } }, "RightButton")
+    t:eq(D.Choice(id), nil, "a right-click: Flow's own choice")
+    -- A kept thing no vendor buys: the click can't sell it, so it's Flow's again.
+    D.SetChoice(id, "keep")
+    pcall(B.RowClick, B, { id = id, row = { kept = true, mine = true, sell = 0, quality = 1 } }, "LeftButton")
+    t:eq(D.Choice(id), nil, "a kept thing vendors won't buy goes back to Flow's choice, not to a sale that can't happen")
+    -- A buy-back: the click undoes it and sells.
+    ns.db.sell.never[bought] = true
+    pcall(B.RowClick, B, { id = bought, row = { kept = true, bought = true, sell = 7, quality = 1 } }, "LeftButton")
+    t:ok(ns.db.sell.never[bought] == nil and D.Choice(bought) == "sell", "a click on a thing you bought back sells it after all")
+    D.SetChoice(bought, nil)
+    ns.db.sell.never[bought] = true
+    pcall(B.RowClick, B, { id = bought, row = { kept = true, bought = true, sell = 7, quality = 1 } }, "RightButton")
+    t:ok(ns.db.sell.never[bought] == nil and D.Choice(bought) == nil, "a right-click just forgets the buy-back")
+    -- All my choices.
+    if frame then
+        B.allSell = false
+        local ok, err = pcall(function() frame.all:GetScript("OnClick")(frame.all) end)
+        t:ok(ok and B.allSell, "All my choices switches the list" .. (ok and "" or (": " .. tostring(err))))
+        t:eq(frame.all:GetText(), "In my bags", "and the button offers the way back")
+        t:ok(pcall(function() frame.all:GetScript("OnClick")(frame.all) end) and not B.allSell, "a second click: your bags again")
+    end
+    ns.db.sell.mine[id], ns.db.sell.mine[bought], ns.db.sell.never[bought] = wasMine, nil, wasNever
+    D:Invalidate()
+    B.view, B.offset, B.allSell = view, offset, allSell
+    if frame then B:Fill(); if not shown then frame:Hide() end end
 end)

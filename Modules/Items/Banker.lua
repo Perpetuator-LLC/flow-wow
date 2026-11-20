@@ -181,14 +181,51 @@ B.NOT_OUT = { [2] = true, [4] = true, [12] = true }
 
 -- Pure: what's in your bags that leaves at a vendor or the auction house.
 -- rows: D.Inventory's. -> { { id, name, count, action, reason } }, as sorted.
+-- And, after those, what you keep by your own choice (0.35.345): "I was
+-- clicking on the things in To sell and they disappeared, and now I can't get
+-- them back." A thing you told Flow to keep, or once bought back, stays in
+-- this list, marked "Kept", so the same click that took it out puts it back.
+B.KEPT_RULES = { yourChoice = "your choice", neverSell = "you bought it back" }
 function B.SellRows(rows)
-    local out = {}
+    local out, kept = {}, {}
     for _, r in ipairs(rows or {}) do
         if type(r) == "table" and r.action ~= "quest" and B.LEAVES[r.action or ""] then
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason,
-                              mine = r.rule == "yourChoice" or nil }
+                              mine = r.rule == "yourChoice" or nil, sell = r.sell, quality = r.quality }
+        elseif type(r) == "table" and r.action == "keep" and B.KEPT_RULES[r.rule or ""] then
+            kept[#kept + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = "keep", kept = true,
+                                reason = B.KEPT_RULES[r.rule], mine = r.rule == "yourChoice" or nil, bought = r.rule == "neverSell" or nil,
+                                sell = r.sell, quality = r.quality }
         end
     end
+    for _, r in ipairs(kept) do out[#out + 1] = r end
+    return out
+end
+
+-- Pure: every sell or keep choice you've made, as rows (things you carry or
+-- not), by name. mine: { [itemID] = "sell" | "keep" }; never: { [itemID] =
+-- true } (bought back).
+function B.ChoiceRows(mine, never, name)
+    local out, seen = {}, {}
+    for id, what in pairs(mine or {}) do
+        if type(id) == "number" and (what == "sell" or what == "keep") then
+            seen[id] = true
+            out[#out + 1] = { id = id, name = (name and name(id)) or ("item " .. id), count = 0, mine = true, listed = true,
+                              kept = what == "keep" or nil, action = what == "keep" and "keep" or "sell",
+                              reason = what == "keep" and "your choice" or "you chose to sell it" }
+        end
+    end
+    for id in pairs(never or {}) do
+        if type(id) == "number" and not seen[id] then
+            out[#out + 1] = { id = id, name = (name and name(id)) or ("item " .. id), count = 0, listed = true, kept = true, bought = true,
+                              action = "keep", reason = "you bought it back" }
+        end
+    end
+    table.sort(out, function(a, b)
+        if (a.kept and 1 or 0) ~= (b.kept and 1 or 0) then return not a.kept end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
     return out
 end
 
@@ -243,14 +280,25 @@ end
 function B.SellLines(bags, bank, atBank)
     local out = {}
     local function line(r, where)
+        local count = (r.count or 1) > 0 and ((r.count or 1) .. " x ") or ""
+        if r.kept then
+            return string.format("|cff999999Kept:|r %s%s  |cff999999(%s)|r", count, tostring(r.name), tostring(r.reason or "your choice"))
+        end
         if r.mine then where = where .. "|cffffd100Your choice:|r " end
-        return string.format("%s%d x %s  |cff999999(%s: %s)|r", where, r.count or 1, tostring(r.name), B.LEAVES[r.action] or tostring(r.action),
+        return string.format("%s%s%s  |cff999999(%s: %s)|r", where, count, tostring(r.name), B.LEAVES[r.action] or tostring(r.action),
             tostring(r.reason or "no reason given"))
     end
-    for _, r in ipairs(bags or {}) do out[#out + 1] = line(r, "") end
+    local nBags, nKept = 0, 0
+    for _, r in ipairs(bags or {}) do
+        out[#out + 1] = line(r, "")
+        if r.kept then nKept = nKept + 1 else nBags = nBags + 1 end
+    end
     for _, r in ipairs(bank or {}) do out[#out + 1] = line(r, "|cff66ccffIn your bank:|r ") end
-    local nBags, nBank = #(bags or {}), #(bank or {})
-    if nBags + nBank == 0 then return "Nothing to sell: Flow keeps everything in your bags and your bank.", out end
+    local nBank = #(bank or {})
+    if nBags + nBank == 0 then
+        if nKept > 0 then return string.format("Nothing to sell now. %d thing(s) you keep by your own choice are listed: click one to sell it after all.", nKept), out end
+        return "Nothing to sell: Flow keeps everything in your bags and your bank.", out
+    end
     local note = string.format("%d thing(s) in your bags the Flow Seller takes at the next vendor or auction house.", nBags)
     if nBank > 0 then
         note = note .. string.format(" %d more in your bank to take out (to sell, or for a quest here): %s", nBank,
@@ -463,7 +511,7 @@ local function build()
     f.all:SetSize(110, 22)
     f.all:SetPoint("BOTTOMLEFT", 10, 8)
     f.all:SetScript("OnClick", function()
-        B.allRules = not B.allRules
+        if B.view == "sell" then B.allSell = not B.allSell else B.allRules = not B.allRules end
         B.offset = 0
         B:Fill()
     end)
@@ -607,6 +655,11 @@ function B.ViewLines(view)
         local bank = B.TakeOut()
         B.takeCount = #bank
         local bags = B.SellRows(okR and rows or {})
+        -- "All my choices": every sell or keep choice you've made, also for
+        -- things you don't carry now.
+        if B.allSell then
+            bags, bank = B.ChoiceRows(ns.db.sell and ns.db.sell.mine, ns.db.sell and ns.db.sell.never, nameOf), {}
+        end
         -- Each line can be clicked: keep it instead (or undo your own "sell").
         B.lineIds, B.lineRows = {}, {}
         for _, list in ipairs({ bags, bank }) do
@@ -616,7 +669,11 @@ function B.ViewLines(view)
             end
         end
         local note, out = B.SellLines(bags, bank, bankOpen)
-        if #out > 0 then note = note .. " Click one to keep it." end
+        if B.allSell then
+            note = #out > 0 and string.format("Every sell or keep choice you've made (%d), also for things not in your bags.", #out)
+                or "You've made no sell or keep choices: Flow decides everything."
+        end
+        if #out > 0 then note = note .. " Click a line to flip it (sell or keep); right-click: Flow's own choice." end
         return note, out
     end
     local list = B.List()
@@ -876,8 +933,9 @@ function B:Fill()
     for key, tb in pairs(f.tabs) do
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
     end
-    f.all:SetShown(B.view == "put")
-    f.all:SetText(B.allRules and "In my bags" or "All my choices")
+    f.all:SetShown(B.view == "put" or B.view == "sell")
+    local allOn = (B.view == "sell" and B.allSell) or (B.view ~= "sell" and B.allRules)
+    f.all:SetText(allOn and "In my bags" or "All my choices")
     f.search:SetShown(B.view == "prices")
     f.search.label:SetShown(B.view == "prices")
     f.go:SetShown(B.view == "put" or (B.view == "sell" and (B.takeCount or 0) > 0))
@@ -903,7 +961,14 @@ function B:RowClick(rb, button)
     if not (rb and rb.id) then return false end
     if B.view == "sell" then
         local row = rb.row or {}
-        local changed = ns.disposition.SetChoice(rb.id, B.NextSellChoice(row.mine, button == "RightButton"))
+        local D = ns.disposition
+        local reset = button == "RightButton"
+        local want = B.NextSellChoice(row.kept, reset)
+        -- (A thing no vendor buys can't be sold: back to Flow's own choice.)
+        if want == "sell" and not row.listed and not ((row.sell or 0) > 0 or row.quality == 0) then want = nil end
+        local changed = false
+        if row.bought then changed = D.Forget(rb.id) end   -- (a buy-back is undone either way)
+        changed = D.SetChoice(rb.id, want) or changed
         takeOutReset()
         B:Fill()
         return changed
@@ -913,17 +978,20 @@ function B:RowClick(rb, button)
 end
 -- Pure: your choice after a click on a "To sell" line. mine: it's there by
 -- your own choice. Left: keep it (a thing you chose to sell: undo that).
-function B.NextSellChoice(mine, reset)
-    if reset or mine then return nil end
-    return "keep"
+function B.NextSellChoice(kept, reset)
+    if reset then return nil end
+    return kept and "sell" or "keep"
 end
 -- Pure: a line's tooltip.
 function B.RowTip(view, row)
     if view ~= "sell" then return { "Click: its price over time (Flow Prices)" } end
-    if row and row.mine then
-        return { "You chose to sell it.", "Click or right-click: Flow's own choice again." }
+    if row and row.kept then
+        return { row.bought and "Kept: you bought it back once." or "Kept: your choice.", "Click: sell it after all.", "Right-click: Flow's own choice." }
     end
-    return { "Click: keep it (Flow won't sell it).", "It moves to To bank, with the things Flow keeps: Alt-click it there to undo." }
+    if row and row.mine then
+        return { "Sold: your choice.", "Click: keep it instead.", "Right-click: Flow's own choice." }
+    end
+    return { "Flow sells it.", "Click: keep it (it stays in this list, marked Kept).", "Right-click: Flow's own choice." }
 end
 
 function B:Scroll(delta)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.345
+
+- **Fixed: a thing you clicked in Flow Banker's To sell disappeared, with no way back from
+  there.** A click told Flow to keep it, and it left the list. Now it stays in To sell, marked
+  "Kept: ... (your choice)", and the list works like To bank:
+  - **click** a line to flip it: a thing that sells is kept, a kept thing sells;
+  - **right-click** for Flow's own choice again;
+  - **All my choices** (bottom left) lists every sell or keep choice you've made, also for
+    things you don't carry now, to flip or reset the same way.
+  Things you once bought back from a vendor are listed there too ("Kept: ... (you bought it
+  back)"). The things you clicked before are back in the list as Kept.
 ## 0.35.344
 
 "20 items in my bags are quest items, I can't carry anything." Looking at those bags: 11 of
