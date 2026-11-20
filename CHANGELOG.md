@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.354
+
+- For the maintainer, nothing in the game changes: `tools\save-prices.ps1` saves the day's
+  public auction prices for WoW: Forever (TradeSkillMaster's public data: the region and each
+  ruleset's auction house) into a folder beside the repository, a day a folder, so a price
+  history builds up. One fetch a file a day; `-Summary` says what's saved.
 ## 0.35.353
 
 - **New: a Buy button for what your route sends you to the auction house for.** "The route is
