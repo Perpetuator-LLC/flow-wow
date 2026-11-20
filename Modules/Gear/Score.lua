@@ -348,6 +348,8 @@ local function addToTooltip(tooltip, link)
     local worn = isEquipped(link)
     local sets = G.sets
     local inSets = sets and sets:RolesContaining(link) or {}
+    -- (Only sets you keep: "Keep set for" on your bags.)
+    if ns.keepSets then inSets = ns.keepSets.KeptOf(inSets, ns.keepSets.Keeps) end
 
     -- Line 1: the item's own score per role.
     local parts, better = {}, {}
@@ -394,9 +396,10 @@ local function addToTooltip(tooltip, link)
         else
             local others = {}
             for _, role in ipairs(ROLES) do
-                if role ~= main and better[role] then others[#others + 1] = ns:RoleIcon(role, 12) .. " " .. ns:RoleName(role) end
+                local kept = not ns.keepSets and ns.db.gear.keepOffspec or (ns.keepSets and ns.keepSets.Keeps(role))
+                if role ~= main and better[role] and kept then others[#others + 1] = ns:RoleIcon(role, 12) .. " " .. ns:RoleName(role) end
             end
-            if #others > 0 and ns.db.gear.keepOffspec then
+            if #others > 0 then
                 verdict = "|cffffd200Keep|r: better for " .. table.concat(others, " / ")
             else
                 verdict = "|cffaaaaaaSell|r: not better than what you wear"
@@ -482,6 +485,10 @@ ns.commands.gear = function(raw)
         G.sets:Command((raw:gsub("^%s*[Ss][Ee][Tt][Ss]", "")))
     elseif arg == "offspec" then
         g.keepOffspec = not g.keepOffspec
+        -- (Every other spec at once: the ticks on your bags follow.)
+        g.keepSet = {}
+        if ns.disposition then ns.disposition:Invalidate() end
+        if ns.keepSets then ns.keepSets:Refresh() end
         ns:Print("keep gear for other roles: " .. (g.keepOffspec and "yes" or "no, sell it"))
     else
         ns:Print("/flow gear on|off|offspec. Hover any item to see its scores.")

@@ -361,6 +361,9 @@ Flow for WoW is a separate project from Flow Engine.
   others, whether they have it (from anyone, a group or stronger version too) or it's missing.
 - **A form's new spells on that form's bar**: a spell the game drops on your bars that needs
   Bear Form, Cat Form or a stance is moved to that form's bar.
+- **Keep set for**: a tick for each of your specs at the top of your bags. Unticked, gear that's
+  only good for that spec is sold like any other you don't need. Build sets makes the game's own
+  equipment sets for the ticked ones (`/flow keepsets`).
 - **Flow Banker, To sell**: what the Flow Seller takes at the next vendor or auction house, and
   what's in your bank that Flow would now sell (a material your skill has moved past): Take out
   at a bank brings those to your bags. Hover a thing in To bank for why Flow keeps it; Alt-click

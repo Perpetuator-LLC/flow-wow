@@ -77,6 +77,8 @@ function S:SetFor(role)
 end
 
 function S:Has(role) return self:SetFor(role) ~= nil end
+-- The game's own set used for a role ({ id, name, items }), or nil.
+function S:GameSet(role) return blizz[role] end
 
 -- Link of the item a role's set has in a slot; nil = slot empty in that set.
 function S:Link(role, slot)

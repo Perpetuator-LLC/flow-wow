@@ -98,6 +98,7 @@ function D:Snapshot(reason, spread)
         { "rides", function() if c.rides then c.rides("") end end },
         { "quest items", function() if c.questitems then c.questitems("") end end },
         { "banker", function() if c.banker then c.banker("") end end },
+        { "keep sets", function() if c.keepsets then c.keepsets("") end end },
         { "facts", function() if c.facts then c.facts("") end end },
         { "leftovers", function() if c.leftovers then c.leftovers("") end end },
         { "auctions", function() if c.auctions then c.auctions("") end end },

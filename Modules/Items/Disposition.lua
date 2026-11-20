@@ -536,7 +536,13 @@ end)
 reg("inSet", 15, function(i)
     local sets = ns.gear and ns.gear.sets
     local roles = sets and sets:RolesContaining(i.link) or {}
-    if #roles > 0 then return { action = "keep", reason = "in a gear set" } end
+    -- Only a set you keep counts ("Keep set for" on your bags, KeepSets.lua).
+    if ns.keepSets then roles = ns.keepSets.KeptOf(roles, ns.keepSets.Keeps) end
+    if #roles > 0 then
+        local names = {}
+        for _, r in ipairs(roles) do names[#names + 1] = ns:RoleName(r) end
+        return { action = "keep", reason = "in your " .. table.concat(names, " / ") .. " set" }
+    end
 end)
 
 -- Grey items: always junk.
@@ -736,11 +742,12 @@ reg("laterOrOtherRole", 40, function(i)
     if not g.canUse then return nil end
     local main = ns:LevelingRole()
     if g.diffs[main] >= 0.5 then return { action = "keep", reason = "upgrade at level " .. i.minLevel } end
-    if ns.db.gear.keepOffspec then
-        for _, role in ipairs(ns.gear.ROLES) do
-            if role ~= main and g.diffs[role] >= 0.5 then
-                return { action = "keep", reason = "better for " .. ns.ROLE_LABEL[role] }
-            end
+    -- Another spec, when you keep its set ("Keep set for" on your bags).
+    for _, role in ipairs(ns.gear.ROLES) do
+        local kept = ns.keepSets and ns.keepSets.Keeps(role)
+        if ns.keepSets == nil then kept = ns.db.gear.keepOffspec end
+        if role ~= main and kept and g.diffs[role] >= 0.5 then
+            return { action = "keep", reason = "better for " .. ns:RoleName(role) }
         end
     end
 end)

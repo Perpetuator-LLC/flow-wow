@@ -15188,3 +15188,102 @@ ns:Register("test", "click: Flow Banker's To sell view opens, and Alt-click lets
     B.view, B.offset = view, offset
     if f then B:Fill(); if not was then f:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.342: "Keep set for": a tick for each spec on your bags; an unticked
+-- spec's gear isn't kept; Build sets makes the game's equipment sets.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear: a spec's gear is kept only while its set is ticked", function(t)
+    local K = ns.keepSets
+    t:ok(K.Kept("dps", { dps = false }, false, "dps"), "the spec you level as is always kept")
+    t:ok(K.Kept("tank", nil, true, "dps"), "no tick yet: the old switch for other specs decides (on)")
+    t:ok(not K.Kept("tank", nil, false, "dps"), "(off)")
+    t:ok(not K.Kept("tank", { tank = false }, true, "dps"), "unticked: not kept, whatever the old switch says")
+    t:ok(K.Kept("heal", { heal = true }, false, "dps"), "ticked: kept")
+    local kept = K.KeptOf({ "dps", "heal", "tank" }, function(r) return r ~= "heal" end)
+    t:eq(table.concat(kept, ","), "dps,tank", "of a list of specs, the kept ones")
+    t:eq(K.SetName("Feral (Bear)"), "Feral (Bear)", "the game's set is named after the spec")
+    t:eq(#K.SetName("A Very Long Spec Name Indeed"), 16, "cut to what the game allows")
+
+    -- The rule that keeps gear for another spec goes by the ticks.
+    local rule = ns:Get("disposition", "laterOrOtherRole")
+    local main = ns:LevelingRole()
+    local other
+    for _, r in ipairs(ns.gear.ROLES) do if r ~= main then other = r break end end
+    local diffs = { dps = -5, heal = -5, tank = -5 }
+    diffs[other] = 12
+    local item = { minLevel = 1, gear = { canUse = true, diffs = diffs } }
+    local g = ns.db.gear
+    local was = g.keepSet
+    g.keepSet = { [other] = true }
+    local v = rule.check(item)
+    t:ok(v and v.action == "keep" and v.reason == "better for " .. ns:RoleName(other), "ticked: better for that spec is a reason to keep it, by the spec's name")
+    g.keepSet = { [other] = false }
+    t:eq(rule.check(item), nil, "unticked: it isn't, so the item goes by the rules after it (sold)")
+    g.keepSet = was
+    ns.disposition:Invalidate()
+end)
+
+ns:Register("test", "gear: building a set picks the best piece a slot from your bags", function(t)
+    local K = ns.keepSets
+    local picks = K.Best({
+        { link = "helm A", loc = "INVTYPE_HEAD", diff = 4 },
+        { link = "helm B", loc = "INVTYPE_HEAD", diff = 9 },
+        { link = "belt", loc = "INVTYPE_WAIST", diff = 0.2 },
+        { link = "ring", loc = "INVTYPE_FINGER", diff = 2 },
+        { link = "cloak", loc = "INVTYPE_CLOAK", diff = -3 },
+    })
+    t:eq(#picks, 2, "one a kind of slot, and only what's better")
+    t:eq(picks[1].link, "helm B", "the better of two helms, the biggest gain first")
+    t:eq(picks[2].link, "ring", "then the ring")
+    t:eq(#K.Best({}), 0, "nothing in your bags: nothing to put on")
+    t:ok(pcall(K.Wants, "tank"), "looking through your real bags doesn't error")
+    local role = K.WornRole()
+    t:ok(role == "dps" or role == "heal" or role == "tank", "the spec you're wearing is one of the three")
+    local okL, lines = pcall(K.Lines)
+    t:ok(okL and #lines >= 4, "/flow keepsets lists each spec" .. (okL and "" or (": " .. tostring(lines))))
+    t:eq(type(ns.gear.sets.GameSet), "function", "the game's set for a spec can be asked for")
+    if InCombatLockdown() then
+        local said
+        K:Build("tank", function(ok, text) said = { ok, text } end)
+        t:ok(said and said[1] == false, "in a fight nothing is built")
+    end
+end)
+
+ns:Register("test", "click: a Keep set tick on your bags changes what's kept, and puts it back", function(t)
+    local K = ns.keepSets
+    t:ok(pcall(K.Attach, K), "the row attaches to the bag windows that exist")
+    local main = ns:LevelingRole()
+    local other
+    for _, r in ipairs(ns.gear.ROLES) do if r ~= main then other = r break end end
+    local g = ns.db.gear
+    local was, auto = g.keepSet, K.autoBuild
+    g.keepSet = {}
+    for k, v in pairs(was or {}) do g.keepSet[k] = v end
+    K.autoBuild = false   -- (a click here must not swap your gear)
+    local bar
+    for _, b in pairs(K._Bars()) do bar = bar or b end
+    if bar then
+        local cb = bar.ticks[other]
+        local before = K.Keeps(other)
+        cb:SetChecked(not before)
+        local ok, err = pcall(function() cb:GetScript("OnClick")(cb) end)
+        t:ok(ok, "a click on another spec's tick runs" .. (ok and "" or (": " .. tostring(err))))
+        t:eq(K.Keeps(other), not before, "and flips whether its gear is kept")
+        local mine = bar.ticks[main]
+        mine:SetChecked(false)
+        t:ok(pcall(function() mine:GetScript("OnClick")(mine) end), "a click on your own spec's tick runs")
+        t:ok(K.Keeps(main) and mine:GetChecked(), "and it stays ticked")
+        t:ok(bar:GetWidth() > 150, "the row is as wide as its ticks and button")
+        t:ok(type(bar.build:GetScript("OnClick")) == "function", "Build sets has its click")
+    else
+        K:Tick(other, false, true)
+        t:ok(not K.Keeps(other), "(no bag window yet) the tick itself works")
+    end
+    K.autoBuild = auto
+    g.keepSet = was
+    ns.disposition:Invalidate()
+    K:Refresh()
+    t:eq(ns.db.gear.keepSet, was, "(your own ticks restored)")
+end)

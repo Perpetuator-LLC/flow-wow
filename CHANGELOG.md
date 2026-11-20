@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.342
+
+- **New: "Keep set for" ticks at the top of your bags**, one for each of your specs (a druid:
+  Feral (Cat), Restoration, Feral (Bear)). Ticked, Flow keeps gear that's better for that spec
+  and what's in its set, as before. **Unticked, that gear is no longer kept**: it's sold,
+  auctioned or disenchanted like anything else you don't need, unless a ticked spec wants it.
+  The spec you level as is always kept. The keep reason now names the spec ("better for
+  Feral (Bear)", "in your Restoration set"). Per character.
+- **New: Build sets.** The button at the end of that row makes the game's own equipment sets
+  (character window, Equipment Manager) for the ticked specs, named after the spec; ticking a
+  spec that has no set builds it too. The game only saves a set from what you're wearing, so
+  for a spec you aren't wearing Flow puts on what's better for it from your bags, saves the
+  set, and puts your own gear back on (a few seconds, out of a fight only). `/flow keepsets`
+  says how it stands; Settings, Loot and selling, hides the row.
 ## 0.35.341
 
 - **New: "To sell" in Flow Banker**, beside To bank, In your bank and Auction prices. It lists
