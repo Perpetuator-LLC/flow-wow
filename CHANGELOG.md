@@ -1,6 +1,14 @@
 # Changelog
 
 
+## Unreleased
+
+- **Zone levels on the world map.** On the Kalimdor and Eastern Kingdoms maps each levelling zone
+  shows its level range at its centre, coloured against your level (red well above you, orange a
+  little above, yellow your level, green easy, grey outgrown). A new "Lv" button above the
+  flight-masters button shows or hides them; setting "Zone levels on the world map". Ranges from
+  the Classic zones-by-level list.
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took
