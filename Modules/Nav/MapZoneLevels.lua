@@ -18,6 +18,12 @@
 -- Classic fishing tables give it; "130 (205)" means most waters need 130 and
 -- some need 205. Keyed by the map's own zone ID (locale-proof).
 --
+-- Holding Shift adds what the zone's waters give and how often ("I think
+-- your shift idea's probably the best"); a grey "Shift" after the fishing
+-- line says so. Catches: Wowhead's Classic zone fishing records, as each
+-- item's share of the recorded catches (MapZoneFish.lua); open water and
+-- pools together, any skill.
+--
 -- Flow's own frames only. It reads the cursor and C_Map; it never changes
 -- the game's map, its labels or its highlight, and its card takes no mouse.
 
@@ -28,6 +34,9 @@ ns.mapZoneLevels = ZL
 ZL.FONT_SIZE = 14
 ZL.FISH_SIZE = 12
 ZL.FISH_COLOR = { 0.36, 0.88, 0.95 }   -- light tropical-water blue
+ZL.LIST_SIZE = 11
+ZL.FEW = 300                            -- fewer records than this: "few catches recorded"
+ZL.FISH = ZL.FISH or {}                 -- filled by MapZoneFish.lua
 
 -- [uiMapID] = { name, min, max, fish, fishTop }. A city has no range; a zone
 -- with no water no fishing.
@@ -90,6 +99,23 @@ function ZL.Card(zoneID, name, level)
     return card
 end
 
+-- What the zone's waters give: { { name, pct }, ... }, few (true when only a
+-- handful of catches were recorded), or nil when Flow has no records.
+-- `nameOf(itemID)` gives the local name (the game's item cache); the English
+-- one stands in until it loads.
+function ZL.FishList(zoneID, nameOf)
+    local f = ZL.FISH[zoneID]
+    if not (f and f[2]) then return nil end
+    nameOf = nameOf or function(id) return GetItemInfo and (GetItemInfo(id)) end
+    local rows = {}
+    for i = 2, #f do
+        rows[#rows + 1] = { name = nameOf(f[i][1]) or f[i][3], pct = f[i][2] }
+    end
+    return rows, f[1] < ZL.FEW
+end
+
+function ZL.FishOpen() return IsShiftKeyDown and IsShiftKeyDown() or false end
+
 -------------------------------------------------------------------------------
 -- The card.
 -------------------------------------------------------------------------------
@@ -119,41 +145,120 @@ local function makeCard()
     end
     f.fish:SetTextColor(unpack(ZL.FISH_COLOR))
     f.name:SetTextColor(1, 1, 1)
+    -- "Shift" after the fishing line, when there's a list to show.
+    f.hint = f:CreateFontString(nil, "ARTWORK")
+    f.hint:SetFont(STANDARD_TEXT_FONT, ZL.LIST_SIZE - 1, "OUTLINE")
+    f.hint:SetShadowOffset(1, -1)
+    f.hint:SetTextColor(0.5, 0.5, 0.5)
+    f.hint:SetText("Shift")
+    f.hint:SetPoint("BOTTOMLEFT", f.fish, "BOTTOMRIGHT", 6, 0)
+    f.rows = {}
+    f.few = f:CreateFontString(nil, "ARTWORK")
+    f.few:SetFont(STANDARD_TEXT_FONT, ZL.LIST_SIZE, "OUTLINE")
+    f.few:SetShadowOffset(1, -1)
+    f.few:SetTextColor(0.6, 0.6, 0.6)
+    f.few:SetText("few catches recorded")
     f:Hide()
     return f
 end
 
+local function row(f, i)
+    local r = f.rows[i]
+    if r then return r end
+    r = { n = f:CreateFontString(nil, "ARTWORK"), p = f:CreateFontString(nil, "ARTWORK") }
+    for _, fs in ipairs({ r.n, r.p }) do
+        fs:SetFont(STANDARD_TEXT_FONT, ZL.LIST_SIZE, "OUTLINE")
+        fs:SetShadowOffset(1, -1)
+    end
+    r.n:SetJustifyH("LEFT")
+    r.n:SetTextColor(0.9, 0.9, 0.9)
+    r.p:SetJustifyH("RIGHT")
+    r.p:SetTextColor(unpack(ZL.FISH_COLOR))
+    f.rows[i] = r
+    return r
+end
+
 local shownFor
 local function hideCard()
-    if card then card:Hide() end
+    if card then card:Hide(); card.key = nil end
     shownFor = nil
+end
+
+local function cardKey(zoneID) return zoneID .. (ZL.FishOpen() and "+" or "-") end
+
+-- Lay out the card's text for `c`, with the fish list under the fishing
+-- line when it's open.
+local function layout(c, zoneID)
+    card.name:SetText(c.name)
+    local below = card.name
+    card.level:SetShown(c.level ~= nil)
+    if c.level then
+        card.level:SetText(c.level)
+        card.level:SetTextColor(c.r, c.g, c.b)
+        below = card.level
+    end
+    local w = math.max(card.name:GetStringWidth(), c.level and card.level:GetStringWidth() or 0)
+    local h = 9 + card.name:GetStringHeight() + (c.level and 4 + card.level:GetStringHeight() or 0)
+    card.fish:ClearAllPoints()
+    card.fish:SetPoint("TOPLEFT", below, "BOTTOMLEFT", 0, -3)
+    card.fish:SetShown(c.fish ~= nil)
+    local list, few
+    if c.fish then
+        card.fish:SetText(c.fish)
+        list, few = ZL.FishList(zoneID)
+    end
+    local open = list ~= nil and ZL.FishOpen()
+    -- The hint only while there's a list and it isn't showing.
+    card.hint:SetShown(list ~= nil and not open)
+    for _, r in ipairs(card.rows) do r.n:Hide(); r.p:Hide() end
+    card.few:Hide()
+    if c.fish then
+        w = math.max(w, card.fish:GetStringWidth() + (list and 6 + card.hint:GetStringWidth() or 0))
+        h = h + 3 + card.fish:GetStringHeight()
+    end
+    if open then
+        local nameW, pctW = 0, 0
+        for i, f in ipairs(list) do
+            local r = row(card, i)
+            r.n:SetText(f.name)
+            r.p:SetText(f.pct .. "%")
+            nameW = math.max(nameW, r.n:GetStringWidth())
+            pctW = math.max(pctW, r.p:GetStringWidth())
+        end
+        local prev = card.fish
+        for i = 1, #list do
+            local r = card.rows[i]
+            local gap = i == 1 and 5 or 2
+            r.n:ClearAllPoints()
+            r.n:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -gap)
+            r.p:ClearAllPoints()
+            r.p:SetPoint("TOPLEFT", r.n, "TOPLEFT", nameW + 12, 0)
+            r.p:SetWidth(pctW + 2)
+            r.n:Show(); r.p:Show()
+            h = h + gap + r.n:GetStringHeight()
+            prev = r.n
+        end
+        w = math.max(w, nameW + 12 + pctW + 2)
+        if few then
+            card.few:ClearAllPoints()
+            card.few:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -4)
+            card.few:Show()
+            w = math.max(w, card.few:GetStringWidth())
+            h = h + 4 + card.few:GetStringHeight()
+        end
+    end
+    card:SetSize(math.ceil(w) + 20, math.ceil(h + 9))
 end
 
 -- where: "cursor", or { x, y } (0-1 on the canvas) for the card's top centre,
 -- or "corner" (the map's top left).
 local function showCard(c, zoneID, where)
     card = card or makeCard()
-    if shownFor ~= zoneID then
-        card.name:SetText(c.name)
-        local below = card.name
-        card.level:SetShown(c.level ~= nil)
-        if c.level then
-            card.level:SetText(c.level)
-            card.level:SetTextColor(c.r, c.g, c.b)
-            below = card.level
-        end
-        card.fish:ClearAllPoints()
-        card.fish:SetPoint("TOPLEFT", below, "BOTTOMLEFT", 0, -3)
-        card.fish:SetShown(c.fish ~= nil)
-        if c.fish then card.fish:SetText(c.fish) end
-        local w = math.max(card.name:GetStringWidth(), c.level and card.level:GetStringWidth() or 0,
-                           c.fish and card.fish:GetStringWidth() or 0)
-        local h = 9 + card.name:GetStringHeight()
-            + (c.level and 4 + card.level:GetStringHeight() or 0)
-            + (c.fish and 3 + card.fish:GetStringHeight() or 0) + 9
-        card:SetSize(math.ceil(w) + 20, math.ceil(h))
-        shownFor = zoneID
+    if card.key ~= cardKey(zoneID) then
+        layout(c, zoneID)
+        card.key = cardKey(zoneID)
     end
+    shownFor = zoneID
     card:ClearAllPoints()
     local sc = WorldMapFrame.ScrollContainer
     if where == "cursor" then
@@ -215,6 +320,14 @@ local function zoneUnderCursor()
     return at.mapID, at.name
 end
 
+-- The middle of zone `zoneID` on the continent map `mapID`, or nil.
+local function middleOf(zoneID, mapID)
+    if not (C_Map.GetMapRectOnMap and mapID) then return nil end
+    local minX, maxX, minY, maxY = C_Map.GetMapRectOnMap(zoneID, mapID)
+    if not (minX and maxX > minX and maxY > minY) then return nil end
+    return { (minX + maxX) / 2, (minY + maxY) / 2 }
+end
+
 -- With nothing hovered: the zone you're in. On the continent map the card
 -- sits on that zone; on your zone's own map, in its top left corner.
 local function yourZone()
@@ -224,10 +337,10 @@ local function yourZone()
     local mapID = WorldMapFrame:GetMapID()
     if mapID == here then return here, "corner" end
     local info = mapID and C_Map.GetMapInfo(mapID)
-    if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent and C_Map.GetMapRectOnMap) then return nil end
-    local minX, maxX, minY, maxY = C_Map.GetMapRectOnMap(here, mapID)
-    if not (minX and maxX > minX and maxY > minY) then return nil end
-    return here, { (minX + maxX) / 2, (minY + maxY) / 2 }
+    if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent) then return nil end
+    local at = middleOf(here, mapID)
+    if not at then return nil end
+    return here, at
 end
 
 function ZL.Tick()
@@ -260,7 +373,7 @@ end)
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "route", label = "Zone info when hovering the world map",
         tip = "On the continent map, the zone under the cursor shows its name, level range (coloured against "
-            .. "your level) and the fishing skill its waters need.",
+            .. "your level) and the fishing skill its waters need. Hold Shift for the fish its waters give, and how often.",
         get = ZL.On, set = ZL.Set }
     ns.settings:AddCheck{ group = "route", label = "World map: your zone's info without hovering",
         tip = "With nothing hovered, the card shows the zone you're in: on that zone on the continent map, "

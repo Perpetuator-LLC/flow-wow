@@ -10,7 +10,9 @@
   nothing hovered it shows the zone you're in: on that zone on the continent map, in the corner
   of your zone's own map. Settings "Zone info when hovering the world map" and "World map: your
   zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
-  Classic fishing tables.
+  Classic fishing tables. Hold Shift for the fish a zone's waters give and how often
+  ("Raw Brilliant Smallfish 54%"), from Wowhead's Classic catch records; zones with few records say
+  "few catches recorded", and zones with almost none (Burning Steppes, Un'Goro) show no list.
 
 ## 0.35.321
 

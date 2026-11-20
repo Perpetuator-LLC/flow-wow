@@ -13848,6 +13848,28 @@ ns:Register("test", "map zone info: hovering a zone gives its name, level range 
         t:ok(z[4] == nil or (z[4] >= 1 and z[4] <= 330 and (z[5] == nil or z[5] > z[4])), z[1] .. ": a sane fishing skill")
     end
     t:eq(n, 40, "every levelling zone in the Classic list")
+    -- "Can I click on something, like click on the fishing number": the fish
+    -- a zone's waters give, and how often.
+    local fish, few = ZL.FishList(1429, function() return nil end)
+    t:ok(fish and fish[1].name == "Raw Brilliant Smallfish" and fish[1].pct == 54, "Elwynn: mostly smallfish")
+    t:eq(few, false, "Elwynn has plenty of catches recorded")
+    t:eq(ZL.FishList(1429, function(id) return id == 6291 and "Petit poisson brillant" or nil end)[1].name,
+         "Petit poisson brillant", "the item's local name when the game has it")
+    t:eq(ZL.FishList(1418), nil, "no water: no list")
+    t:eq(ZL.FishList(1, function() return nil end), nil, "a zone Flow doesn't know: no list")
+    local listed = 0
+    for id, f in pairs(ZL.FISH) do
+        listed = listed + 1
+        t:ok(ZL.ZONES[id] and ZL.ZONES[id][4], (ZL.ZONES[id] and ZL.ZONES[id][1] or id) .. ": a zone with water")
+        local sum, last = 0, 101
+        for i = 2, #f do
+            sum = sum + f[i][2]
+            t:ok(f[i][2] >= 3 and f[i][2] <= last, tostring(f[i][3]) .. ": listed most common first")
+            last = f[i][2]
+        end
+        t:ok(sum <= 101 and #f >= 2, tostring(id) .. ": shares that add up")
+    end
+    t:ok(listed >= 35, "most zones have their catches")
 end)
 
 ns:Register("test", "map flights: flight paths you have, ones to learn, and your next step's flight", function(t)
