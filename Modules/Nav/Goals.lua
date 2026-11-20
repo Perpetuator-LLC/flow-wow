@@ -238,12 +238,15 @@ local function questGoals(db, q, goals, opts)
             -- Planned later, like elites, so the easier ones come first.
             local myLevel = opts.level or UnitLevel("player")
             local hard = (quest.level or 0) - myLevel >= ns.quests.HARD_ABOVE
-            -- Solo, a hard objective stays off the route (listed, locked) until
-            -- you're within 2 levels: at 18, a level-21 quest's mobs kill you
-            -- over and over. Not held when every mob it needs is known and
-            -- within 2 levels of you, in a group, or with holding turned off.
+            -- Solo, these stay off the route (listed, locked) until you can do
+            -- them; in a group, or with holding turned off, they're routed.
+            --   hard: until you're within 2 levels (at 18, a level-21 quest's
+            --         mobs kill you over and over); not held when every mob it
+            --         needs is known and within 2 levels of you.
+            --   elite: until you're ELITE_SOLO_ABOVE levels above its mobs (or
+            --         the quest, when their levels aren't known).
             local held
-            if hard and #points > 0 and ns.quests.HoldHard() then
+            if (hard or elite) and #points > 0 and ns.quests.HoldHard() then
                 local mobMax
                 for _, m in ipairs(mobs) do
                     if not m.max then mobMax = nil; break end
@@ -251,8 +254,14 @@ local function questGoals(db, q, goals, opts)
                 end
                 local grouped = opts.grouped
                 if grouped == nil then grouped = opts.who ~= nil or (IsInGroup ~= nil and IsInGroup()) end
-                if not grouped and not (mobMax and mobMax - myLevel < ns.quests.HARD_ABOVE) then
-                    held = (quest.level or 0) - ns.quests.HARD_ABOVE + 1
+                if not grouped then
+                    if hard and not (mobMax and mobMax - myLevel < ns.quests.HARD_ABOVE) then
+                        held = (quest.level or 0) - ns.quests.HARD_ABOVE + 1
+                    end
+                    if elite then
+                        local soloAt = (mobMax or quest.level or 0) + ns.quests.ELITE_SOLO_ABOVE
+                        if myLevel < soloAt then held = math.max(held or 0, soloAt) end
+                    end
                 end
             end
             if verb and #points > 0 then
@@ -272,15 +281,17 @@ local function questGoals(db, q, goals, opts)
                         details = (function()
                             local d = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(objText) or "?") }
                             if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
-                            if elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
-                            if held then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Held off the route until level %d, or until you're in a group (setting: Hold quests 3+ levels above you).", quest.level, held)
-                            elseif hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
+                            if held then d[#d + 1] = string.format("%s Held off the route until level %d, or until you're in a group (setting: Hold hard and elite quests while solo).",
+                                    elite and "Elite: hard to solo at this level." or string.format("Level %d: 3 or more levels above you, so its mobs hit hard.", quest.level), held)
+                            elseif elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
+                            if hard and not held then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = what .. " drops from (level): chance" end
                             for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
                             if ns.quests.IsSpread(#points) then d[#d + 1] = "Found all over the area: Flow plans the exact spots near it first, and you get these on the way." end
                             return d
                         end)(),
-                        blockedBy = held and string.format("level %d quest: back on the route at level %d (or in a group)", quest.level, held) or nil,
+                        blockedBy = held and string.format("%s: back on the route at level %d (or in a group)",
+                            elite and "elite, hard to solo" or string.format("level %d quest", quest.level), held) or nil,
                         blockedShort = held and ("at level " .. held) or nil,
                     }
                 end

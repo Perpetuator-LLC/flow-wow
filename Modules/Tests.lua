@@ -3424,6 +3424,23 @@ ns:Register("test", "party help: a member's quest becomes steps with their name 
         local nearGoals = {}
         ns.quests.QuestGoals(near, q, nearGoals, { level = 2, grouped = false })
         t:ok(nearGoals[2] and not nearGoals[2].blockedBy, "solo, 3 above, but its wolves are level 3-4: routed")
+        -- Elite wolves (level 5), solo at your level: held until 3 above them.
+        local eliteDb = {
+            GetQuest = db.GetQuest,
+            GetNPC = function(id)
+                local n = db.GetNPC(id)
+                if n and id == 1 then n.rank, n.minLevel, n.maxLevel = 1, 5, 5 end
+                return n
+            end,
+        }
+        local eSolo, eGroup, eStrong = {}, {}, {}
+        ns.quests.QuestGoals(eliteDb, q, eSolo, { level = 5, grouped = false })
+        ns.quests.QuestGoals(eliteDb, q, eGroup, { level = 5, grouped = true })
+        ns.quests.QuestGoals(eliteDb, q, eStrong, { level = 8, grouped = false })
+        t:ok(not ns.quests.HoldHard() or (eSolo[2] and eSolo[2].elite and eSolo[2].blockedBy and eSolo[2].blockedBy:find("level 8") ~= nil),
+            "elite, solo at its level: held, back at level 8")
+        t:ok(eGroup[2] and eGroup[2].elite and not eGroup[2].blockedBy, "elite in a group: routed")
+        t:ok(eStrong[2] and not eStrong[2].blockedBy, "elite, solo, 3 above its mobs: routed")
     else
         t:ok(true, "(no map for the test zone here: objective step not placed)")
     end
