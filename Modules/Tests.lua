@@ -15814,3 +15814,22 @@ ns:Register("test", "click: To sell's button drops your sell and keep choices, b
     if frame then B:Fill(); if not shown then frame:Hide() end end
     t:ok(ns.db.sell.mine == mine and ns.db.sell.never == never, "(your own choices are back)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.349: the "Keep set for" row hangs under the bags, below the money line.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear: the Keep set row hangs under your bags, not over Flow's tabs on top", function(t)
+    local K = ns.keepSets
+    t:ok(K.Y < 0, "its offset is downwards from the bag's bottom edge")
+    pcall(K.Attach, K)
+    local n = 0
+    for _, bar in pairs(K._Bars()) do
+        n = n + 1
+        local point, _, rel = bar:GetPoint(1)
+        t:eq(point, "TOPLEFT", "its top left corner")
+        t:eq(rel, "BOTTOMLEFT", "on the bag window's bottom left")
+        t:eq(bar:GetNumPoints(), 1, "and nothing else holds it")
+    end
+    t:ok(n >= 0, "(" .. n .. " bag window(s) have the row)")
+end)

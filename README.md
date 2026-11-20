@@ -367,7 +367,7 @@ Flow for WoW is a separate project from Flow Engine.
   finished quest's hand-in always stays on the route, comes early and says how many slots it frees;
   Flow Banker puts away what waits for another continent or another quest, and offers it back when
   a quest here needs it.
-- **Keep set for**: a tick for each of your specs at the top of your bags. Unticked, gear that's
+- **Keep set for**: a tick for each of your specs under your bags (below the money line). Unticked, gear that's
   only good for that spec is sold like any other you don't need. Build sets makes the game's own
   equipment sets for the ticked ones (`/flow keepsets`).
 - **Flow Banker, To sell**: what the Flow Seller takes at the next vendor or auction house, and

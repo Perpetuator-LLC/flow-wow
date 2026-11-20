@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 -- Flow - Gear/KeepSets.lua
--- "Keep set for": a tick for each of your specs, at the top of your bags
+-- "Keep set for": a tick for each of your specs, under your bags
 -- (0.35.342).
 --
 -- "At the top of my bag it should have check marks ... let me check if I
@@ -30,7 +30,10 @@ local G = ns.gear
 local K = {}
 ns.keepSets = K
 
-K.Y = 22            -- the row stands this far above the bag's top edge (over Flow's tabs)
+-- Under the bag window, below its money line (0.35.349: "move it to be below
+-- the bag instead of on top where the Flow Banker tab is ... right below
+-- where it shows my money"). It was above the top edge, over Flow's tabs.
+K.Y = -2            -- the row hangs this far under the bag's bottom edge
 K.STEP = 0.4        -- seconds between two pieces going on
 K.SETTLE = 1.2      -- and after the last one, before the set is saved
 K.MIN_DIFF = 0.5    -- "better" (as the keep rules have it)
@@ -239,7 +242,7 @@ local function makeBar(frame)
     local win = ns.gameButtons.Window(frame)
     local bar = CreateFrame("Frame", nil, frame)
     bar:SetHeight(20)
-    bar:SetPoint("BOTTOMLEFT", win, "TOPLEFT", 4, K.Y)
+    bar:SetPoint("TOPLEFT", win, "BOTTOMLEFT", 4, K.Y)
     bar:SetFrameLevel(math.min((win:GetFrameLevel() or 1) + 520, 9990))
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
@@ -365,7 +368,7 @@ if ns.settings and ns.settings.AddCheck then
         group = "loot",
         label = "\"Keep set for\" ticks on your bags",
         note = "(a tick for each spec)",
-        tip = "A row above your bags with a tick for each of your specs. Unticked: gear that's only good for that spec is sold like any other you don't need. "
+        tip = "A row under your bags with a tick for each of your specs. Unticked: gear that's only good for that spec is sold like any other you don't need. "
             .. "Build sets makes the game's own equipment sets for the ticked ones. Off: the row is hidden; your ticks stay as they are.",
         get = function() return K.On() end,
         set = function(on) ns.db.gear.keepBar = on and true or false; K:Refresh() end,

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.349
+
+- **The "Keep set for" ticks moved under your bags**, right below the money line. They were
+  above the top edge, where the Flow Banker tab stands.
 ## 0.35.348
 
 - **Fixed: Flow Banker took things out of the bank, then wanted to put the same things back.**
