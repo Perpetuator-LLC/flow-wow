@@ -9401,10 +9401,14 @@ ns:Register("test", "route: kinds added later follow the older routes; the map l
     local f = _G.FlowTracker
     local r = f and f.rows and f.rows[1]
     if r and r.goal and r.key and r:GetScript("OnEnter") then
-        pcall(r:GetScript("OnEnter"), r)
-        t:eq(M._HoverKey(), r.key, "a tracker row under the mouse: lit on the map")
+        -- (Pointing lights its area on the minimap; the world map lights it on
+        -- a click. This used to expect the map on pointing too, and failed
+        -- whenever the tracker had a row at the time of the test.)
+        t:ok(pcall(r:GetScript("OnEnter"), r), "pointing at a tracker row runs")
+        M.Hover(r.key)
         pcall(r:GetScript("OnLeave"), r)
-        t:eq(M._HoverKey(), nil, "the mouse leaves: no longer")
+        t:eq(M._HoverKey(), nil, "the mouse leaves: the map lights it no longer")
+        M.Hover(was)
     end
     GameTooltip:Hide()
     -- Flow Banker moves with Ctrl-drag.
@@ -15611,11 +15615,7 @@ ns:Register("test", "click: a To sell line flips between sell and keep and back 
     t:ok(ns.db.sell.never[bought] == nil and D.Choice(bought) == nil, "a right-click just forgets the buy-back")
     -- All my choices.
     if frame then
-        B.allSell = false
-        local ok, err = pcall(function() frame.all:GetScript("OnClick")(frame.all) end)
-        t:ok(ok and B.allSell, "All my choices switches the list" .. (ok and "" or (": " .. tostring(err))))
-        t:eq(frame.all:GetText(), "In my bags", "and the button offers the way back")
-        t:ok(pcall(function() frame.all:GetScript("OnClick")(frame.all) end) and not B.allSell, "a second click: your bags again")
+        t:eq(frame.all:GetText(), "Reset to Flow's", "the button in To sell goes back to Flow's choices (0.35.348)")
     end
     ns.db.sell.mine[id], ns.db.sell.mine[bought], ns.db.sell.never[bought] = wasMine, nil, wasNever
     D:Invalidate()
@@ -15741,4 +15741,76 @@ ns:Register("test", "tooltip: a Flow Banker cell says it in three lines and quie
     end
     B.view, B.offset = view, offset
     if f then B:Fill(); if not was then f:Hide() end end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.348: nothing is taken out of the bank and put back; To sell's button
+-- goes back to Flow's own choices.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: a thing is never both taken out of the bank and put back", function(t)
+    local QG, B = ns.questBags, ns.banker
+    local quests = {
+        { id = 5725, title = "The Power to Destroy...", complete = true, items = { [14395] = true, [14396] = true } },
+        { id = 76240, title = "Stalk With The Earthmother", complete = false, items = { [206344] = true, [6291] = true } },
+        { id = 881, title = "Echeyakee", complete = false, items = { [10327] = true } },
+        { id = 9, title = "Shares An Item", complete = false, items = { [10327] = true, [77] = true } },
+    }
+    local waits, needs = QG.Sets(quests, { [5725] = "away", [76240] = "stuck", [881] = "here", [9] = "away" })
+    t:eq(waits[14395], "The Power to Destroy...", "a quest across the sea: its things wait, in your bags or not")
+    t:eq(needs[10327], "Echeyakee", "a quest Flow can lead you through here: its things are needed")
+    t:eq(waits[10327], nil, "a thing a quest here needs never waits, though another quest for it is across the sea")
+    t:eq(waits[77], "Shares An Item", "(that other quest's own thing does)")
+    t:ok(waits[6291] == nil and needs[6291] == nil, "a quest Flow can't place: its things are moved neither way (32 Raw Brilliant Smallfish went out and back in)")
+
+    -- What's needed here stays out of the "put away" list, so Take out can't be undone by Deposit.
+    local fish = { id = 6291, name = "Raw Brilliant Smallfish", action = "keep", rule = "yourChoice", kind = "Trade Goods: Cooking", reason = "you chose to keep it", count = 32, stacks = 2 }
+    local horn = { id = 10327, name = "Horn of Echeyakee", action = "keep", rule = "professionMaterial", kind = "Trade Goods: Other", reason = "x", count = 1, stacks = 1 }
+    t:ok(not B.Banks(horn, { [10327] = true }, {}, waits), "a thing a quest here needs isn't put away")
+    t:ok(B.Banks(fish, {}, {}, waits), "the fish is (a kept material), and it isn't asked back out")
+    local take = B.TakeOutRows({ [6291] = 32, [10327] = 1 }, function(id) return { action = "keep", item = { classID = 7, name = "x" } } end, {},
+        function(id) return needs[id] end)
+    t:eq(#take, 1, "only what a quest here needs comes out")
+    t:eq(take[1].id, 10327, "the horn, not the fish")
+    t:eq(#B.Thrash(take, { fish }), 0, "so nothing goes out and back in")
+    t:eq(table.concat(B.Thrash({ { id = 5 }, { id = 7 } }, { { id = 7 }, { id = 9 } }), ","), "7", "(a thing in both lists is found)")
+
+    -- Your own bags and bank, right now.
+    local okT, mine = pcall(B.TakeOut, true)
+    local okP, put = pcall(B.List)
+    t:ok(okT and okP, "both lists build for your own things")
+    if okT and okP then
+        local thrash = B.Thrash(mine, put)
+        t:eq(#thrash, 0, "nothing of yours is taken out and put back" .. (#thrash > 0 and (": item " .. table.concat(thrash, ", ")) or ""))
+    end
+    t:eq(type(QG.Needs()), "table", "what quests here need is listed")
+end)
+
+ns:Register("test", "click: To sell's button drops your sell and keep choices, back to Flow's own", function(t)
+    local B, D = ns.banker, ns.disposition
+    if InCombatLockdown() then return end
+    -- (Your real choices are put aside for the test and put back after.)
+    local mine, never = ns.db.sell.mine, ns.db.sell.never
+    ns.db.sell.mine, ns.db.sell.never = { [987654327] = "keep", [987654328] = "sell" }, { [987654329] = true }
+    t:eq(B.ChoiceCount(), 3, "two choices and a buy-back")
+    local frame = B._Frame()
+    local shown = frame and frame:IsShown()
+    local view, offset = B.view, B.offset
+    pcall(B.Show, B, "sell")
+    frame = B._Frame()
+    if frame then
+        t:eq(frame.all:GetText(), "Reset to Flow's", "the button says what it does")
+        t:ok(frame.all:IsShown() and frame.all:IsEnabled(), "and can be clicked while you have choices")
+    end
+    local ok, n = pcall(B.ResetSell, B, true)
+    t:ok(ok and n == 3, "the reset runs and says how many it dropped" .. (ok and "" or (": " .. tostring(n))))
+    t:eq(B.ChoiceCount(), 0, "none left: Flow decides what sells")
+    t:eq(D.Choice(987654327), nil, "a kept thing is Flow's again")
+    if frame then t:ok(not frame.all:IsEnabled(), "with nothing to reset the button is greyed") end
+    t:eq(type(frame and frame.all:GetScript("OnClick")), frame and "function" or "nil", "the real button has its click")
+    ns.db.sell.mine, ns.db.sell.never = mine, never
+    D:Invalidate()
+    B.view, B.offset = view, offset
+    if frame then B:Fill(); if not shown then frame:Hide() end end
+    t:ok(ns.db.sell.mine == mine and ns.db.sell.never == never, "(your own choices are back)")
 end)

@@ -121,7 +121,23 @@ function B.Needed()
     for _, list in ipairs({ N:Goals() or {}, N.blockedGoals or {}, N.hiddenGoals or {} }) do
         for _, g in ipairs(list) do all[#all + 1] = g end
     end
-    return B.NeededBy(all)
+    local out = B.NeededBy(all)
+    -- And what a quest Flow can lead you through here uses (0.35.348): the
+    -- same list that takes a thing out of the bank keeps it out, so nothing
+    -- is taken out and put back.
+    for id in pairs(ns.questBags and ns.questBags.Needs() or {}) do out[id] = true end
+    return out
+end
+
+-- Pure: things Flow would both take out of the bank and put back in (there
+-- must be none: "it tries to deposit the same things that it just withdrew").
+-- take: the Take out rows; put: the rows to put away. -> { itemID }
+function B.Thrash(take, put)
+    local out, putting = {}, {}
+    for _, r in ipairs(put or {}) do if r.id then putting[r.id] = true end end
+    for _, r in ipairs(take or {}) do if r.id and putting[r.id] then out[#out + 1] = r.id end end
+    table.sort(out)
+    return out
 end
 
 -- Your own banking choices (saved for all your characters).
@@ -511,7 +527,8 @@ local function build()
     f.all:SetSize(110, 22)
     f.all:SetPoint("BOTTOMLEFT", 10, 8)
     f.all:SetScript("OnClick", function()
-        if B.view == "sell" then B.allSell = not B.allSell else B.allRules = not B.allRules end
+        if B.view == "sell" then B:ResetSell() return end
+        B.allRules = not B.allRules
         B.offset = 0
         B:Fill()
     end)
@@ -655,11 +672,7 @@ function B.ViewLines(view)
         local bank = B.TakeOut()
         B.takeCount = #bank
         local bags = B.SellRows(okR and rows or {})
-        -- "All my choices": every sell or keep choice you've made, also for
-        -- things you don't carry now.
-        if B.allSell then
-            bags, bank = B.ChoiceRows(ns.db.sell and ns.db.sell.mine, ns.db.sell and ns.db.sell.never, nameOf), {}
-        end
+
         -- Each line can be clicked: keep it instead (or undo your own "sell").
         B.lineIds, B.lineRows = {}, {}
         for _, list in ipairs({ bags, bank }) do
@@ -669,10 +682,6 @@ function B.ViewLines(view)
             end
         end
         local note, out = B.SellLines(bags, bank, bankOpen)
-        if B.allSell then
-            note = #out > 0 and string.format("Every sell or keep choice you've made (%d), also for things not in your bags.", #out)
-                or "You've made no sell or keep choices: Flow decides everything."
-        end
         if #out > 0 then note = note .. " Click a line to flip it (sell or keep); right-click: Flow's own choice." end
         return note, out
     end
@@ -952,8 +961,16 @@ function B:Fill()
         if key == B.view then tb.text:SetTextColor(1, 0.82, 0) else tb.text:SetTextColor(0.6, 0.6, 0.6) end
     end
     f.all:SetShown(B.view == "put" or B.view == "sell")
-    local allOn = (B.view == "sell" and B.allSell) or (B.view ~= "sell" and B.allRules)
-    f.all:SetText(allOn and "In my bags" or "All my choices")
+    -- To sell: one button back to Flow's own choices (0.35.348: "All my
+    -- choices" there read as "keep everything"; "a button that just lets me
+    -- go back to Flow's own choice").
+    if B.view == "sell" then
+        f.all:SetText("Reset to Flow's")
+        f.all:SetEnabled(B.ChoiceCount() > 0)
+    else
+        f.all:SetText(B.allRules and "In my bags" or "All my choices")
+        f.all:SetEnabled(true)
+    end
     f.search:SetShown(B.view == "prices")
     f.search.label:SetShown(B.view == "prices")
     f.go:SetShown(B.view == "put" or (B.view == "sell" and (B.takeCount or 0) > 0))
@@ -964,6 +981,26 @@ function B:Fill()
         f.go:SetEnabled(bankOpen and putCount > 0)
         f.go:SetText(bankOpen and "Deposit" or "At a bank")
     end
+end
+
+-- How many sell or keep choices (and buy-backs) you've made.
+function B.ChoiceCount()
+    local n = 0
+    for _ in pairs(ns.db.sell and ns.db.sell.mine or {}) do n = n + 1 end
+    for _ in pairs(ns.db.sell and ns.db.sell.never or {}) do n = n + 1 end
+    return n
+end
+-- "Flow's choices" (To sell): every sell or keep choice of yours is dropped,
+-- and Flow decides what sells again. quiet: no chat line (the self-test).
+function B:ResetSell(quiet)
+    local n = ns.disposition.ResetChoices()
+    takeOutReset()
+    if not quiet then
+        ns:Print(n > 0 and string.format("Flow Banker: %d sell or keep choice(s) of yours dropped. Flow decides what sells again.", n)
+            or "Flow Banker: you had no sell or keep choices of your own.")
+    end
+    B:Fill()
+    return n
 end
 
 -- The button at the bottom right: Deposit ("To bank") or Take out ("To sell").
@@ -1144,6 +1181,9 @@ function B.Lines()
     local never = {}
     for id in pairs((ns.db.sell and ns.db.sell.never) or {}) do never[#never + 1] = tostring(id) end
     table.sort(never)
+    local okP, put = pcall(B.List)
+    local thrash = B.Thrash(okT and take or {}, okP and put or {})
+    out[#out + 1] = "  taken out and put back (must be none): " .. (#thrash > 0 and table.concat(thrash, ", ") or "none")
     out[#out + 1] = "  bought back once, never sold (Alt-click one in To bank to undo): " .. (#never > 0 and table.concat(never, ", ") or "none")
     local mine = {}
     for id, what in pairs((ns.db.sell and ns.db.sell.mine) or {}) do mine[#mine + 1] = tostring(id) .. " " .. tostring(what) end

@@ -306,7 +306,7 @@ function QG.Now(fresh)
     local by = stepsByQuest()
     local p = ns.nav and ns.nav.PlayerPos and ns.nav:PlayerPos()
     local cont = p and p.cont
-    local plan = QG.Plan(rows, quests, function(qid)
+    local function where(qid)
         local steps = by[qid]
         local who
         for _, s in ipairs(steps or {}) do who = who or s.who end
@@ -315,13 +315,43 @@ function QG.Now(fresh)
         local placed = false
         for _, s in ipairs(steps) do placed = placed or s.placed end
         return (not placed) and "stuck" or nil, who
-    end)
-    local waits = {}
-    for _, e in ipairs(plan.bank) do
-        if e.quest then for _, id in ipairs(e.ids) do waits[id] = e.title end end
     end
-    nowAt, nowIs = t, { plan = plan, free = free(), total = total, waits = waits, quests = quests }
+    local plan = QG.Plan(rows, quests, where)
+    -- Where each quest of your log stands, whatever is in your bags (0.35.348:
+    -- it was worked out from the bags, so a thing put in the bank for a quest
+    -- across the sea stopped counting as "waiting" the moment it left them,
+    -- was offered back out, and then banked again).
+    local states = {}
+    for _, q in ipairs(quests) do states[q.id] = where(q.id) or "here" end
+    local waits, needs = QG.Sets(quests, states)
+    nowAt, nowIs = t, { plan = plan, free = free(), total = total, waits = waits, needs = needs, quests = quests, states = states }
     return nowIs
+end
+
+-- Pure: from your log's quests and where each stands ("here" | "away" |
+-- "stuck"):
+--   waits = { [itemID] = title }  its quest goes on across the sea: to the bank
+--   needs = { [itemID] = title }  a quest Flow can lead you through here uses
+--                                 it: it stays with you, and comes out of the bank
+-- A thing a quest here needs never waits. A quest Flow can't place ("stuck")
+-- is neither: Flow doesn't know enough to move its things either way.
+function QG.Sets(quests, states)
+    local waits, needs = {}, {}
+    for _, q in ipairs(quests or {}) do
+        local s = states and states[q.id]
+        for id in pairs(q.items or {}) do
+            if s == "here" then needs[id] = needs[id] or q.title
+            elseif s == "away" then waits[id] = waits[id] or q.title end
+        end
+    end
+    for id in pairs(needs) do waits[id] = nil end
+    return waits, needs
+end
+
+-- What quests Flow can lead you through here use: { [itemID] = quest title }.
+function QG.Needs()
+    local ok, now = pcall(QG.Now)
+    return ok and now and now.needs or {}
 end
 
 -- Items whose quest's next step is on another continent: Flow Banker puts
@@ -334,12 +364,13 @@ end
 -- Something in your bank a quest of yours can use here: its title, or nil.
 function QG.NeededHere(itemId)
     local ok, now = pcall(QG.Now)
-    if not (ok and now) or now.waits[itemId] then return nil end
-    local q = QG.QuestOf(itemId, now.quests)
-    if not q then return nil end
+    if not (ok and now) then return nil end
+    local title = now.needs[itemId]
+    if not title then return nil end
     -- (A finished quest you still carry its items for has what it needs.)
-    if q.complete and ns.api.Count and (ns.api.Count(itemId) or 0) > 0 then return nil end
-    return q.title
+    local q = QG.QuestOf(itemId, now.quests)
+    if q and q.complete and ns.api.Count and (ns.api.Count(itemId) or 0) > 0 then return nil end
+    return title
 end
 
 ns:Register("advisor", "questBags", {

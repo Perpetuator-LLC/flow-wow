@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.348
+
+- **Fixed: Flow Banker took things out of the bank, then wanted to put the same things back.**
+  Two causes, both from 0.35.344:
+  - it took a quest's things out for any quest in your log, even one Flow can't lead you
+    through (32 Raw Brilliant Smallfish for Stalk With The Earthmother), and then banked them
+    again as a material you keep. Now a thing comes out for a quest only when Flow can lead
+    you through that quest here, and the same list keeps it out of "To bank";
+  - a thing banked because its quest goes on across the sea stopped counting as "waiting"
+    once it had left your bags, so it was offered straight back out.
+  What Flow keeps for later stays in the bank. Only what sells or auctions, or what a quest
+  here can use now, comes out. `/flow banker` has a line that must read "taken out and put
+  back: none".
+- **To sell's bottom-left button is now "Reset to Flow's"**: it drops every sell or keep
+  choice of yours (and buy-backs) at once, so Flow decides what sells again. "All my choices"
+  there showed a list that read as "keep everything". One line is still flipped with a click
+  and reset with a right-click.
+- A self-test about the Flow Tracker failed whenever the tracker had a row when it ran; it
+  expected pointing at a row to light the world map, which a click does.
 ## 0.35.347
 
 - **Fewer Flow lines on a tooltip.** Hovering a quest item in a Flow Banker cell showed eight

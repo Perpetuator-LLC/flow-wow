@@ -267,6 +267,18 @@ function D.SetChoice(id, what)
     if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
     return true
 end
+-- Every sell or keep choice of yours, and every buy-back, forgotten: Flow
+-- decides again (0.35.348). -> how many there were.
+function D.ResetChoices()
+    local n = 0
+    for _, list in ipairs({ ns.db.sell and ns.db.sell.mine or {}, ns.db.sell and ns.db.sell.never or {} }) do
+        for _ in pairs(list) do n = n + 1 end
+        wipe(list)
+    end
+    D:Invalidate()
+    if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
+    return n
+end
 -- Pure: the verdict your choice gives, or nil (no choice, or one that can't
 -- be: a vendor won't buy the thing).
 function D.ChoiceVerdict(mine, sellPrice, quality)
