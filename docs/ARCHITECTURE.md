@@ -155,6 +155,11 @@ party route. A gold key badge atop your quest list (Questie's tracker, else the 
 item tooltip; `K:Build(role)` makes the game's equipment set for a role (puts on what's better from the bags,
 saves, switches back).
 
+`Modules/Quests/QuestBags.lua` (`ns.questBags`): sorts every quest thing in the bags into hand in / sell /
+bank / finish / stuck (`QG.Plan`, pure). `QG.MarkTurnIn` (called from Goals.lua) sets `goal.frees`, and with
+nearly full bags `goal.keep` (the planner never cuts it as too far) and a low weight. `QG.Waits()` and
+`QG.NeededHere(id)` tell Flow Banker what to put away and what to take back out.
+
 `Modules/Quests/QuestBuy.lua` (`ns.questBuy`, navGoal `questbuy`): an optional "buy" step at an
 auctioneer for each item objective in your log that Flow has an auction price for (`qbuy:<quest>:<objective>`,
 with `cost`); the price is the test that the item can be bought. Setting `ns.db.nav.questBuy`.

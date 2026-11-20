@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.344
+
+"20 items in my bags are quest items, I can't carry anything." Looking at those bags: 11 of
+the slots belonged to quests that were already finished, and two of those hand-ins weren't on
+the route at all; 4 were for quests that go on across the sea; 3 were leftovers.
+
+- **Fixed: a finished quest's hand-in could be missing from your route.** The route is planned
+  from the 30 nearest steps, and with many quests to pick up nearby, a hand-in further off (two
+  finished quests in Ratchet, 4 bag slots) never made it. While your bags are nearly full (4
+  slots free or fewer), the hand-in of any finished quest whose items you carry now always
+  stays on the route, comes early, and says what it gives back: "Turn in: Chen's Empty Keg
+  (frees 3 bag slots)".
+- **New: quest things you can't use here go to the bank.** Flow Banker now puts away the items
+  of a quest whose next step is on another continent, and leftovers that wait for a quest you
+  don't have yet. When a quest here can use one again, To sell lists it ("In your bank: ...
+  (your quest: ...)") and Take out brings it back; the route's bank step counts it.
+- **Fixed: Flow Banker wanted to bank what a quest in your log asks for** when it wasn't a
+  "quest item" by kind (14 Earthroot for Gathering the Cure, the day before the hand-in).
+- **A leftover whose quest is 15 or more levels away is sold**, when a vendor buys it (2 Small
+  Furry Paws for a level 60 quest).
+- **New: `/flow questbags`**: every quest thing in your bags and what clears it: hand in
+  (finished), sell, bank, finish (in progress here), or "Flow can't place it". Flow
+  Improvements says the first thing to do while your bags are nearly full.
 ## 0.35.343
 
 - **New: your own "sell it" or "keep it" for any item**, the way you already choose "bank it".

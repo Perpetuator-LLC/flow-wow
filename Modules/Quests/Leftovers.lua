@@ -187,10 +187,18 @@ end
 -- Pure: what to do with a leftover. related: { { name, level, done } } the
 -- quests the quest data ties the item to (none known: {}); price: copper a
 -- vendor pays (0: won't buy).
-function L.Advice(related, price)
+-- level: yours. A quest many levels away isn't a reason to carry its item
+-- when a vendor buys it (0.35.344: 2 Small Furry Paws for a level 60 quest,
+-- in full bags at level 21).
+L.FAR_LEVELS = 15
+function L.Advice(related, price, level)
     local open
     for _, q in ipairs(related or {}) do
         if not q.done and (not open or (q.level or 99) < (open.level or 99)) then open = q end
+    end
+    if open and level and open.level and open.level - level >= L.FAR_LEVELS and (price or 0) > 0 then
+        return "sell", string.format("its quest (%s, level %d) is %d levels away, and it's found again then: sell it",
+            tostring(open.name), open.level, open.level - level)
     end
     if open then
         return "keep", string.format("no quest in your log uses it, but one you haven't done does: %s%s%s",
@@ -365,7 +373,7 @@ function L.For(id, name, price)
     if #related == 0 and not L.scan[id] then
         return "keep", "no quest in your log uses it; Flow is looking through the quest data for one"
     end
-    return L.Advice(related, price)
+    return L.Advice(related, price, UnitLevel and UnitLevel("player") or nil)
 end
 
 -- The bags' answer: before the plain "quest item: keep" (and before "vendors

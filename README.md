@@ -361,6 +361,10 @@ Flow for WoW is a separate project from Flow Engine.
   others, whether they have it (from anyone, a group or stronger version too) or it's missing.
 - **A form's new spells on that form's bar**: a spell the game drops on your bars that needs
   Bear Form, Cat Form or a stance is moved to that form's bar.
+- **Quest items in your bags** (`/flow questbags`): what clears each one. With nearly full bags a
+  finished quest's hand-in always stays on the route, comes early and says how many slots it frees;
+  Flow Banker puts away what waits for another continent or another quest, and offers it back when
+  a quest here needs it.
 - **Keep set for**: a tick for each of your specs at the top of your bags. Unticked, gear that's
   only good for that spec is sold like any other you don't need. Build sets makes the game's own
   equipment sets for the ticked ones (`/flow keepsets`).

@@ -157,6 +157,9 @@ local function questGoals(db, q, goals, opts)
             .. "Hand it in to " .. (who or "the quest giver") .. "." },
         deps = {},
     }
+    -- Finished, and its items sit in your bags: the hand-in frees those slots
+    -- (QuestBags.lua). With nearly full bags it stays on the route and comes early.
+    if q.complete and not opts.who and ns.questBags then pcall(ns.questBags.MarkTurnIn, turnIn, q.id) end
     if not skip(turnIn.key) then goals[#goals + 1] = turnIn end
     -- Nowhere in the quest data: where it was handed in before (LearnedSpots).
     if #turnIn.points == 0 and ns.learnedSpots then

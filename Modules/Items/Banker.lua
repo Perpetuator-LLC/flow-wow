@@ -56,12 +56,22 @@ end
 -- a step on your route uses. -> true / false, and why.
 -- rules: your own choices, { [itemID] = "bank" | "carry" } (Flow sets the
 -- default, you can change it: click an item in the window, 0.35.216).
-function B.Banks(row, needed, rules)
+-- waits: { [itemID] = quest title } for quest items whose quest's next step
+-- is on another continent (QuestBags.lua, 0.35.344).
+function B.Banks(row, needed, rules, waits)
     if type(row) ~= "table" or row.action ~= "keep" then return false, "not something Flow keeps" end
     local mine = rules and row.id and rules[row.id]
     if mine == "carry" then return false, "you chose to carry it" end
     if mine == "bank" then return true, "you chose to bank it" end
     if needed and row.id and needed[row.id] then return false, "a step on your route uses it" end
+    -- Quest things (0.35.344). Nothing to do with it on this continent: the
+    -- bank holds it as well as your bags. A leftover that waits for a quest
+    -- you don't have: the same. What a quest in your log asks for stays with
+    -- you, whatever kind of thing it is (Earthroot for Gathering the Cure
+    -- was on its way to the bank the day before the hand-in).
+    if waits and row.id and waits[row.id] then return true, "its quest (" .. tostring(waits[row.id]) .. ") continues on another continent" end
+    if row.rule == "leftover" then return true, "it waits for a quest you don't have yet" end
+    if type(row.reason) == "string" and row.reason:find("for your quest", 1, true) then return false, "your quest needs it" end
     if stays(row.kind) then return false, "you carry it" end
     if B.LATER_RULES[row.rule or ""] then return true, "kept for later" end
     local kind = row.kind or ""
@@ -70,10 +80,10 @@ function B.Banks(row, needed, rules)
 end
 
 -- Pure: the rows to bank, biggest first.
-function B.Pick(rows, needed, rules)
+function B.Pick(rows, needed, rules, waits)
     local out = {}
     for _, r in ipairs(rows or {}) do
-        if B.Banks(r, needed, rules) then out[#out + 1] = r end
+        if B.Banks(r, needed, rules, waits) then out[#out + 1] = r end
     end
     table.sort(out, function(a, b)
         if (a.stacks or 0) ~= (b.stacks or 0) then return (a.stacks or 0) > (b.stacks or 0) end
@@ -130,11 +140,11 @@ end
 -- Pure: every item Flow keeps, for the window: what goes to the bank first,
 -- then what stays with you, each by name. -> { { id, name, count, bank,
 -- why, mine } }
-function B.PutCells(rows, needed, rules)
+function B.PutCells(rows, needed, rules, waits)
     local out = {}
     for _, r in ipairs(rows or {}) do
         if type(r) == "table" and r.action == "keep" and r.id then
-            local bank, why = B.Banks(r, needed, rules)
+            local bank, why = B.Banks(r, needed, rules, waits)
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, bank = bank and true or false, why = why,
                               mine = rules and rules[r.id] or nil,
                               -- (Why Flow keeps it at all, and by which rule: the tooltip says.)
@@ -154,7 +164,7 @@ function B.List()
     if not (D and D.Inventory) then return {} end
     local ok, rows = pcall(D.Inventory, D)
     if not ok then return {} end
-    return B.Pick(rows, B.Needed(), B.Rules())
+    return B.Pick(rows, B.Needed(), B.Rules(), ns.questBags and ns.questBags.Waits() or nil)
 end
 
 -------------------------------------------------------------------------------
@@ -164,7 +174,7 @@ end
 -- take care of ... Linen Cloth says sell, your First Aid is past it, but it
 -- doesn't take it back out of my bank. The bank needs to show that it's
 -- going to withdraw those and at the next vendor sell them."
-B.LEAVES = { sell = "vendor", ah = "auction house", de = "disenchant" }
+B.LEAVES = { sell = "vendor", ah = "auction house", de = "disenchant", quest = "your quest" }
 -- (Never taken out by Flow: gear and quest items. Whether one is soulbound
 -- can't be told while it lies in the bank.)
 B.NOT_OUT = { [2] = true, [4] = true, [12] = true }
@@ -174,7 +184,7 @@ B.NOT_OUT = { [2] = true, [4] = true, [12] = true }
 function B.SellRows(rows)
     local out = {}
     for _, r in ipairs(rows or {}) do
-        if type(r) == "table" and B.LEAVES[r.action or ""] then
+        if type(r) == "table" and r.action ~= "quest" and B.LEAVES[r.action or ""] then
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason,
                               mine = r.rule == "yourChoice" or nil }
         end
@@ -186,13 +196,19 @@ end
 --   items: { [itemID] = count }; decide(id) -> { action, reason, item = {
 --   classID, name } } or nil (not loaded); rules: your choices ("bank": it
 --   stays there).
-function B.TakeOutRows(items, decide, rules)
+--   quest(id) -> the title of a quest of yours that can use it here, or nil
+--   (0.35.344): what you banked for a quest comes back out when the quest
+--   can go on.
+function B.TakeOutRows(items, decide, rules, quest)
     local out = {}
     for id, count in pairs(items or {}) do
         if type(id) == "number" and type(count) == "number" and count > 0 and not (rules and rules[id] == "bank") then
             local v = decide(id)
             local item = type(v) == "table" and v.item or nil
-            if item and (v.action == "sell" or v.action == "ah") and not B.NOT_OUT[item.classID or 0] then
+            local title = quest and quest(id) or nil
+            if title then
+                out[#out + 1] = { id = id, name = (item and item.name) or ("item " .. id), count = count, action = "quest", reason = title, bank = true }
+            elseif item and (v.action == "sell" or v.action == "ah") and not B.NOT_OUT[item.classID or 0] then
                 out[#out + 1] = { id = id, name = item.name or ("item " .. id), count = count, action = v.action, reason = v.reason, bank = true,
                                   mine = v.rule == "yourChoice" or nil }
             end
@@ -217,7 +233,7 @@ function B.TakeOut(fresh)
         rows = B.TakeOutRows(ns.db.bank and ns.db.bank.items, function(id)
             local ok, v = pcall(D.DecideId, D, id)
             return ok and v or nil
-        end, B.Rules())
+        end, B.Rules(), ns.questBags and ns.questBags.NeededHere or nil)
     end
     takeMemo.at, takeMemo.rows = now, rows
     return rows
@@ -237,7 +253,7 @@ function B.SellLines(bags, bank, atBank)
     if nBags + nBank == 0 then return "Nothing to sell: Flow keeps everything in your bags and your bank.", out end
     local note = string.format("%d thing(s) in your bags the Flow Seller takes at the next vendor or auction house.", nBags)
     if nBank > 0 then
-        note = note .. string.format(" %d more in your bank Flow would sell now: %s", nBank,
+        note = note .. string.format(" %d more in your bank to take out (to sell, or for a quest here): %s", nBank,
             atBank and "Take out brings them to your bags." or "at a bank, Take out brings them to your bags.")
     end
     return note, out
@@ -781,7 +797,7 @@ function B:FillGrid(show)
         -- What Flow keeps in your bags: to the bank (green) or with you (grey).
         local D = ns.disposition
         local okR, rows = pcall(D.Inventory, D)
-        cells = B.allRules and B.RuleCells(B.Rules(), nameOf) or B.PutCells(okR and rows or {}, B.Needed(), B.Rules())
+        cells = B.allRules and B.RuleCells(B.Rules(), nameOf) or B.PutCells(okR and rows or {}, B.Needed(), B.Rules(), ns.questBags and ns.questBags.Waits() or nil)
     else
         cells, own = B.Cells(bank.layout, bank.items, nameOf)
     end

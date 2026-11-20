@@ -206,7 +206,11 @@ local function candidates(p, goals)
     -- A milestone is never dropped as "too far", but it doesn't jump the
     -- queue either: its weight puts it where it costs the least detour.
     table.sort(stops, function(a, b)
-        local fa, fb = forced(a.key) and 2 or (a.goal.milestone and 1 or 0), forced(b.key) and 2 or (b.goal.milestone and 1 or 0)
+        -- (goal.keep: a finished quest's hand-in that frees bag slots while
+        -- your bags are nearly full, QuestBags.lua, 0.35.344. With 130 quests
+        -- to pick up nearer by it never made the 30, and its items stayed.)
+        local fa = forced(a.key) and 2 or ((a.goal.milestone or a.goal.keep) and 1 or 0)
+        local fb = forced(b.key) and 2 or ((b.goal.milestone or b.goal.keep) and 1 or 0)
         if fa ~= fb then return fa > fb end
         return a.near * (a.goal.weight or 1) < b.near * (b.goal.weight or 1)
     end)
@@ -214,7 +218,7 @@ local function candidates(p, goals)
     local kept, keptKeys, allKeys = {}, {}, {}
     for _, s in ipairs(stops) do allKeys[s.key] = true end
     for i = 1, #stops do
-        if i <= MAX_STOPS or forced(stops[i].key) then
+        if i <= MAX_STOPS or forced(stops[i].key) or stops[i].goal.keep then
             kept[#kept + 1] = stops[i]; keptKeys[stops[i].key] = true
         end
     end

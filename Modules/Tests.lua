@@ -15372,3 +15372,167 @@ ns:Register("test", "click: Flow Banker's To sell lines and To bank cells set yo
     B.view, B.offset = view, offset
     if frame then B:Fill(); if not shown then frame:Hide() end end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.344: quest items in your bags: what clears each one.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest bags: every quest thing in your bags gets what clears it", function(t)
+    local QG = ns.questBags
+    local quests = {
+        { id = 821, title = "Chen's Empty Keg", complete = true, items = { [4893] = true, [4894] = true, [4895] = true } },
+        { id = 866, title = "Root Samples", complete = true, items = { [5056] = true } },
+        { id = 5725, title = "The Power to Destroy...", complete = true, items = { [14395] = true, [14396] = true } },
+        { id = 875, title = "Harpy Lieutenants", complete = false, items = { [5065] = true } },
+        { id = 76240, title = "Stalk With The Earthmother", complete = false, items = { [206344] = true } },
+        { id = 6128, title = "Gathering the Cure", complete = true, items = { [2449] = true, [15852] = true } },
+    }
+    local function row(id, name, count, kind, action, reason, stacks)
+        return { id = id, name = name, count = count, stacks = stacks or 1, kind = kind or "Quest", action = action or "keep", reason = reason }
+    end
+    local rows = {
+        row(4893, "Savannah Lion Tusk", 5), row(4894, "Plainstrider Kidney", 5), row(4895, "Thunder Lizard Horn", 1),
+        row(5056, "Root Sample", 8), row(14395, "Spells of Shadow", 1), row(14396, "Incantations from the Nether", 1),
+        row(5065, "Harpy Lieutenant Ring", 2), row(206344, "Knife Set", 1),
+        row(2449, "Earthroot", 14, "Trade Goods: Herb"), row(15852, "Kodo Horn", 5),
+        row(5134, "Small Furry Paw", 2, "Quest", "sell", "its quest is 39 levels away"),
+        row(5165, "Sunscale Feather", 9, "Quest", "keep", "no quest in your log uses it"),
+        row(2318, "Light Leather", 30, "Trade Goods: Leather", "keep", "for Leatherworking", 2),
+    }
+    local where = { [5725] = { "away", "Carendin Halgar" }, [76240] = { "stuck" }, [821] = { nil, "Brewmaster Drohn" } }
+    local plan = QG.Plan(rows, quests, function(id) local w = where[id] or {}; return w[1], w[2] end)
+    t:eq(plan.slots, 12, "the quest things' slots, leather not among them")
+    t:eq(#plan.turnin, 3, "three finished quests to hand in")
+    t:eq(plan.turnin[1].title, "Chen's Empty Keg", "the one that frees the most first")
+    t:eq(plan.turnin[1].slots, 3, "with its slots")
+    t:eq(plan.turnin[1].who, "Brewmaster Drohn", "and who takes it")
+    t:eq(plan.turnin[2].title, "Gathering the Cure", "a plain herb a quest asks for counts with it")
+    t:eq(plan.turnin[2].slots, 2, "(Earthroot and Kodo Horn)")
+    t:eq(#plan.bank, 2, "to the bank: a finished quest that's handed in on another continent, and a leftover that waits")
+    t:eq(plan.bank[1].title, "The Power to Destroy...", "the quest, by its slots")
+    t:eq(plan.bank[1].why, "its next step is on another continent", "and why")
+    t:eq(plan.bank[2].title, "Sunscale Feather", "the leftover")
+    t:eq(#plan.sell, 1, "one leftover to sell")
+    t:eq(#plan.finish, 1, "one quest in progress here")
+    t:eq(plan.finish[1].title, "Harpy Lieutenants", "by name")
+    t:eq(#plan.stuck, 1, "one Flow can't place")
+    t:eq(QG.Slots(plan.turnin), 6, "slots the hand-ins free")
+
+    local lines = QG.Lines(plan, 0, 54)
+    t:eq(lines[1], "Quest items hold 12 of your 54 bag slots (0 free).", "the report's first line")
+    t:ok(table.concat(lines, "\n"):find("3: Chen's Empty Keg, to Brewmaster Drohn (5 x Savannah Lion Tusk, 5 x Plainstrider Kidney, 1 x Thunder Lizard Horn)", 1, true),
+        "a line a quest: slots, who, what")
+    t:ok(table.concat(lines, "\n"):find("Hand in (finished): 6 slot(s)", 1, true), "each kind with its slots")
+
+    local adv = QG.Advice(plan, 0)
+    t:eq(#adv, 3, "nearly full bags: hand in, bank, sell")
+    t:ok(adv[1].text:find("hand in 3 finished quest(s) to free 6 slot(s): Chen's Empty Keg (3), Gathering the Cure (2), Root Samples (1)", 1, true),
+        "the hand-ins named, most slots first")
+    t:ok(adv[1].importance > adv[2].importance and adv[2].importance > adv[3].importance, "in that order")
+    t:eq(#QG.Advice(plan, 12), 0, "room to spare: nothing said")
+    t:eq(#QG.Advice(QG.Plan({}, quests), 0), 0, "no quest things: nothing said")
+    t:eq(QG.Names({ { title = "A", slots = 2 }, { title = "B", slots = 1 }, { title = "C", slots = 1 } }, 2), "A (2), B (1) and 1 more", "a long list is cut")
+end)
+
+ns:Register("test", "quest bags: a quest whose next step is on another continent waits; its later steps don't count", function(t)
+    local QG = ns.questBags
+    local seaLion = {
+        { key = "30:item:15882", conts = { [0] = true } },
+        { key = "30:1", deps = { "30:item:15882" }, conts = { [1] = true } },
+        { key = "30:done", deps = { "30:1", "30:item:15882" }, conts = { [1] = true } },
+    }
+    t:ok(QG.Away(seaLion, 1), "the first thing to do is across the sea: it waits, though later steps are here")
+    t:ok(not QG.Away(seaLion, 0), "over there it doesn't")
+    t:ok(not QG.Away({ { key = "875:1", conts = { [1] = true } }, { key = "875:done", deps = { "875:1" }, conts = { [1] = true } } }, 1), "a quest here doesn't wait")
+    t:ok(QG.Away({ { key = "264:done", conts = { [0] = true } } }, 1), "a finished quest handed in over there waits")
+    t:ok(not QG.Away({ { key = "1:1", conts = {} } }, 1), "a step with no place known isn't 'another continent'")
+    t:ok(not QG.Away({}, 1), "no steps: not known")
+    local q = QG.QuestOf(5, { { id = 1, complete = false, items = { [5] = true } }, { id = 2, complete = true, items = { [5] = true } } })
+    t:eq(q and q.id, 2, "an item two quests ask for: the finished one (its hand-in frees the slot)")
+    t:eq(QG.QuestOf(9, {}), nil, "no quest: nil")
+end)
+
+ns:Register("test", "route: a finished quest's hand-in that frees bag slots stays on the route with nearly full bags", function(t)
+    local QG = ns.questBags
+    local g = { key = "821:done", weight = 0.8, text = "Turn in: Chen's Empty Keg", details = {} }
+    t:ok(QG.MarkStep(g, 3, 0), "three slots, full bags: marked")
+    t:ok(g.keep, "it always makes the route's cut")
+    t:eq(g.weight, 0.5, "and comes early")
+    t:eq(g.text, "Turn in: Chen's Empty Keg (frees 3 bag slots)", "its words say what it frees")
+    t:eq(g.frees, 3, "the slots are on the step")
+    local roomy = { key = "866:done", weight = 0.8, text = "Turn in: Root Samples" }
+    QG.MarkStep(roomy, 1, 20)
+    t:ok(not roomy.keep and roomy.weight == 0.8 and roomy.text == "Turn in: Root Samples", "with room in your bags the route is as it was")
+    t:ok(roomy.details and roomy.details[1]:find("frees 1 bag slot", 1, true), "its details still say what it frees")
+    t:ok(not QG.MarkStep({ key = "1:done" }, 0, 0), "a quest with nothing in your bags: not marked")
+
+    -- The planner: 40 nearer steps, and the far hand-in is still planned.
+    local goals = {}
+    for i = 1, 40 do goals[i] = { key = "pickup:" .. i, text = "near " .. i, points = { { cont = 1, wx = i * 10, wy = 0 } } } end
+    local far = { key = "821:done", text = "far hand-in", points = { { cont = 1, wx = 9000, wy = 0 } } }
+    goals[#goals + 1] = far
+    local function planned(plan)
+        for _, s in ipairs(plan or {}) do if s.goal and s.goal.key == "821:done" then return true end end
+        return false
+    end
+    local p = { cont = 1, wx = 0, wy = 0 }
+    local ok, plan = pcall(ns.planner.Plan, ns.planner, p, goals, {})
+    t:ok(ok and not planned(plan), "unmarked, the far hand-in is cut (the 30 nearest steps)" .. (ok and "" or (": " .. tostring(plan))))
+    far.keep = true
+    ok, plan = pcall(ns.planner.Plan, ns.planner, p, goals, {})
+    t:ok(ok and planned(plan), "marked, it's on the route" .. (ok and "" or (": " .. tostring(plan))))
+end)
+
+ns:Register("test", "banker: quest things go to the bank only when there's nothing to do with them here, and come back", function(t)
+    local B, L = ns.banker, ns.leftovers
+    local function row(name, id, rule, kind, reason)
+        return { name = name, id = id, action = "keep", rule = rule, kind = kind, reason = reason, count = 1, stacks = 1 }
+    end
+    local pendant = row("Clarice's Pendant", 6145, "unsellable", "Quest", "vendors won't buy it; quest item")
+    t:ok(not B.Banks(pendant, {}, {}, {}), "a quest item: stays")
+    local bank, why = B.Banks(pendant, {}, {}, { [6145] = "Until Death Do Us Part" })
+    t:ok(bank and why:find("Until Death Do Us Part", 1, true) and why:find("another continent", 1, true), "its quest goes on across the sea: to the bank, saying so")
+    t:ok(not B.Banks(pendant, {}, { [6145] = "carry" }, { [6145] = "x" }), "your own 'carry it' still wins")
+    t:ok(B.Banks(row("Sunscale Feather", 5165, "leftover", "Quest", "no quest in your log uses it"), {}, {}, {}), "a leftover that waits for a quest: to the bank")
+    t:ok(not B.Banks(row("Earthroot", 2449, "questNeeds", "Trade Goods: Herb", "for your quest: Gathering the Cure"), {}, {}, {}),
+        "a herb your quest asks for stays with you (it was headed for the bank)")
+    t:ok(B.Banks(row("Briarthorn", 2450, "professionMaterial", "Trade Goods: Herb", "for Alchemy"), {}, {}, {}), "a plain material still goes")
+    t:eq(#B.Pick({ pendant }, {}, {}, { [6145] = "Q" }), 1, "the list to put away carries it")
+    local cells = B.PutCells({ pendant }, {}, {}, { [6145] = "Q" })
+    t:ok(cells[1].bank, "and so does the grid")
+
+    -- Back out of the bank when a quest here can use it.
+    local out = B.TakeOutRows({ [5165] = 9, [6145] = 1, [2318] = 20 },
+        function(id) return { action = "keep", reason = "x", item = { classID = 12, name = id == 5165 and "Sunscale Feather" or "Other" } } end,
+        {}, function(id) return id == 5165 and "The Angry Scytheclaws" or nil end)
+    t:eq(#out, 1, "only what a quest here needs (kept things stay in the bank)")
+    t:ok(out[1].action == "quest" and out[1].reason == "The Angry Scytheclaws" and out[1].count == 9, "for which quest, and how many")
+    local _, lines = B.SellLines({}, out, true)
+    t:ok(lines[1]:find("In your bank:", 1, true) and lines[1]:find("(your quest: The Angry Scytheclaws)", 1, true), "its line says it's for your quest")
+    t:eq(#B.SellRows({ { id = 1, name = "x", action = "quest" } }), 0, "(nothing in your bags is ever listed that way)")
+    t:eq(#B.TakeOutRows({ [5165] = 9 }, function() return nil end, { [5165] = "bank" }, function() return "Q" end), 0, "what you chose to bank stays there")
+
+    -- A leftover whose quest is far above you: sold.
+    local what, text = L.Advice({ { name = "Small Furry Paws", level = 60, done = false } }, 92, 21)
+    t:ok(what == "sell" and text:find("39 levels away", 1, true), "a quest 39 levels away isn't a reason to carry its item")
+    what = L.Advice({ { name = "Small Furry Paws", level = 60, done = false } }, 0, 21)
+    t:eq(what, "keep", "unless no vendor buys it")
+    what = L.Advice({ { name = "The Angry Scytheclaws", level = 17, done = false } }, 5, 21)
+    t:eq(what, "keep", "a quest near your level: kept, as before")
+end)
+
+ns:Register("test", "quest bags: your own bags and log can be read, and /flow questbags lists them", function(t)
+    local QG = ns.questBags
+    local ok, now = pcall(QG.Now, true)
+    t:ok(ok and type(now) == "table" and type(now.plan) == "table", "the plan for your own bags builds" .. (ok and "" or (": " .. tostring(now))))
+    if not ok then return end
+    t:eq(type(now.plan.slots), "number", "with its count of slots")
+    t:ok(pcall(QG.Lines, now.plan, now.free, now.total), "and its report")
+    t:eq(type(QG.SlotsByQuest()), "table", "slots a quest are counted")
+    t:eq(type(QG.Waits()), "table", "what waits for another continent is listed")
+    t:eq(QG.NeededHere(-1), nil, "an item no quest asks for isn't needed here")
+    local def = ns:Get("advisor", "questBags")
+    local okA, list = pcall(def.check)
+    t:ok(okA and type(list) == "table", "Flow Improvements can ask" .. (okA and "" or (": " .. tostring(list))))
+    t:eq(type(ns.commands.questbags), "function", "/flow questbags is there")
+end)
