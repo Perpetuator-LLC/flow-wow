@@ -192,6 +192,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **From group to group**: in a kill or collect step's area the arrow doesn't stop at the ring.
   When you leave a group of spots, or stand in one with nothing to do, it points to the nearest
   group you haven't just worked, of any such step near the front of your route (`/flow hop`).
+- **A quest's materials from the auction house**: when a quest asks you to collect something Flow
+  has seen for sale there (5 Earthroot), buying it is an optional step at an auctioneer, with
+  what it should cost, while one is close to your way and you can pay.
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line

@@ -260,6 +260,11 @@ local function questGoals(db, q, goals, opts)
                             if hard then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = what .. " drops from (level): chance" end
                             for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
+                            -- (Seen for sale at the auction house: it can be bought, QuestBuy.lua.)
+                            if od.Type == "item" and ns.questBuy and not opts.who then
+                                local okB, line = pcall(ns.questBuy.LineFor, od.Id, what, ns.questBuy.LeftOf(q.id, i))
+                                if okB and line then d[#d + 1] = line end
+                            end
                             if ns.quests.IsSpread(#points) then d[#d + 1] = "Found all over the area: Flow plans the exact spots near it first, and you get these on the way." end
                             return d
                         end)(),

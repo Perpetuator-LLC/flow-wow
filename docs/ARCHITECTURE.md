@@ -149,6 +149,11 @@ party route. A gold key badge atop your quest list (Questie's tracker, else the 
 ## Quest data
 
 `Modules/Quests/QuestData.lua`, registry kind `questSource`
+
+`Modules/Quests/QuestBuy.lua` (`ns.questBuy`, navGoal `questbuy`): an optional "buy" step at an
+auctioneer for each item objective in your log that Flow has an auction price for (`qbuy:<quest>:<objective>`,
+with `cost`); the price is the test that the item can be bought. Setting `ns.db.nav.questBuy`.
+
 (`{ order, label, available, get, allIds, doable }`).
 
 - **native** (always): the game API, for completed quests and your quest log.

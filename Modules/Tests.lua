@@ -14995,3 +14995,76 @@ ns:Register("test", "click: the auto-attack badge listens for the half of a clic
     t:ok(w:GetAttribute("type") == nil or w:GetAttribute("type") == "action" or w:GetAttribute("type") == "spell",
         "and toggles Attack by its bar slot, or by the spell")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.340: a quest's materials: kept from the moment the quest is in your
+-- log, and buying them at the auction house is a step.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: a material Flow has seen at the auction house can be bought for the quest", function(t)
+    local QB = ns.questBuy
+    local coin = function(c) return c .. "c" end
+    local text = function(n, name, cost) return string.format("Buy %d %s at the auction house (about %s)", n, name, coin(cost)) end
+    local quests = {
+        { id = 6128, title = "Gathering the Cure", level = 14, objectives = {
+            { i = 1, itemId = 2449, name = "Earthroot", left = 5 },
+            { i = 2, itemId = 9999, name = "Soulbound Thing", left = 3 },   -- (never seen for sale)
+            { i = 3, itemId = 2450, name = "Briarthorn", left = 0 },         -- (you have them all)
+        } },
+    }
+    local prices = { [2449] = 120.4, [2450] = 80 }
+    local ah = { { map = 1413, x = 50, y = 29 } }
+    local steps = QB.Steps(quests, function(id) return prices[id] end, ah, text, coin)
+    t:eq(#steps, 1, "one step: the one with a price and some still to get")
+    local s = steps[1]
+    t:eq(s.key, "qbuy:6128:1", "keyed by quest and objective")
+    t:eq(s.kind, "buy", "a buy step")
+    t:eq(s.cost, 602, "what the 5 come to (the route waits until you can pay)")
+    t:ok(s.optional, "optional: only when an auctioneer is close to your way")
+    t:eq(s.points, ah, "at the auctioneer")
+    t:eq(s.text, "Buy 5 Earthroot at the auction house (about 602c): Gathering the Cure", "its words name the quest")
+    t:eq(#QB.Steps(quests, function(id) return prices[id] end, {}, text, coin), 0, "no auctioneer known: no step")
+    t:eq(#QB.Steps(quests, function() return nil end, ah, text, coin), 0, "no price seen: no step")
+    t:eq(QB.Line("Earthroot", 5, 120.4, coin),
+        "Or buy them: Earthroot was about 120c each at the auction house when Flow last looked (about 602c for the 5 you still need).",
+        "the collect step's details say so too")
+    t:eq(QB.Line("Earthroot", 5, nil, coin), nil, "no price: no line")
+    t:eq(QB.Line("Earthroot", 0, 120, coin), nil, "none left: no line")
+    t:ok(pcall(QB.Log), "reading your log doesn't error")
+    t:ok(pcall(QB.LineFor, 2449, "Earthroot", 5), "nor does the line for a real item")
+    t:eq(QB.LeftOf(-1, 1), nil, "a quest that isn't in your log: nothing left to say")
+    local def = ns:Get("navGoal", "questbuy")
+    local ok, goals = pcall(def.collect)
+    t:ok(ok and (goals == nil or type(goals) == "table"), "the route's provider runs")
+    local was = ns.db.nav.questBuy
+    ns.db.nav.questBuy = false
+    t:ok(not QB.On(), "the setting turns it off")
+    t:eq(def.collect(), nil, "off: no steps")
+    ns.db.nav.questBuy = was
+    t:ok(QB.On() == (was ~= false), "(setting restored)")
+end)
+
+ns:Register("test", "items: what a quest in your log asks for is kept before the upcoming-quest scan ends", function(t)
+    local add = ns.quests.AddQuestItems
+    local map = {}
+    add(map, { name = "Gathering the Cure", level = 14, ObjectiveData = { { Type = "item", Id = 2449 }, { Type = "monster", Id = 5 } } }, 6128, true)
+    t:ok(map[2449] and map[2449].inLog, "its item objective is in the list, as in your log")
+    t:eq(map[2449].quest, "Gathering the Cure", "with the quest's name (the keep reason says it)")
+    t:eq(map[5], nil, "a mob to kill isn't an item")
+    add(map, { name = "Later Quest", level = 16, ObjectiveData = { { Type = "item", Id = 2449 } } }, 7, false)
+    t:eq(map[2449].quest, "Gathering the Cure", "an upcoming quest doesn't replace the one in your log")
+end)
+
+ns:Register("test", "selling: the log names which of your items were sold", function(t)
+    local V = ns.vendor
+    local sold = {
+        { junk = true, link = "|cff9d9d9d|Hitem:1::|h[Broken Fang]|h|r" },
+        { link = "|cffffffff|Hitem:2449::|h[Earthroot]|h|r" },
+        { link = "|cffffffff|Hitem:2447::|h[Peacebloom]|h|r" },
+        { id = 77 },
+    }
+    t:eq(V.SoldNames(sold), ": Earthroot, Peacebloom, 77", "your own items by name, junk left out")
+    t:eq(V.SoldNames(sold, 2), ": Earthroot, Peacebloom and 1 more", "a long sale is cut short")
+    t:eq(V.SoldNames({ sold[1] }), "", "only junk: nothing added")
+    t:eq(V.SoldNames(nil), "", "nothing sold: nothing added")
+end)

@@ -1068,6 +1068,8 @@ local function addItems(map, quest, id, inLog)
     end
 end
 
+Q.AddQuestItems = addItems   -- (tests)
+
 local function scanQuestItems()
     qiRunning = true
     local level = UnitLevel("player")
@@ -1111,6 +1113,13 @@ end
 function Q:QuestItems()
     if qiDirty and not qiRunning then
         qiDirty = false
+        -- What your log asks for counts at once (0.35.340): the scan below
+        -- takes a moment (longer in a fight), and until it ended a quest you
+        -- had just accepted, or any quest right after login, kept nothing.
+        for id in pairs(inLog) do
+            local q = Q:QuestieGet("GetQuest", id)
+            if q then addItems(questItems, q, id, true) end
+        end
         scanQuestItems()
     end
     return questItems

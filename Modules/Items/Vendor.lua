@@ -634,6 +634,19 @@ function V:SellProposed()
     return n
 end
 
+-- Pure: which of your own items went, for the log (0.35.340: "I feel like
+-- it keeps getting sold", and the log only had how many).
+function V.SoldNames(sold, max)
+    local names = {}
+    for _, e in ipairs(sold or {}) do
+        if not e.junk then names[#names + 1] = tostring(e.link and e.link:match("%[(.-)%]") or e.id or "?") end
+    end
+    if #names == 0 then return "" end
+    max = max or 15
+    local more = #names - max
+    return ": " .. table.concat(names, ", ", 1, math.min(max, #names)) .. (more > 0 and string.format(" and %d more", more) or "")
+end
+
 -- A sale is over (or the vendor closed): say what went, tidy the bags.
 finish = function(q, stopped)
     local nJunk, vJunk, nOwn, vOwn = 0, 0, 0, 0
@@ -651,8 +664,8 @@ finish = function(q, stopped)
     if stopped and V.Left(q) > 0 then
         ns:Print(string.format("stopped selling: the vendor closed (%d not sold).", V.Left(q)))
     end
-    ns:Log("sell", string.format("sold %d junk, then %d of yours%s%s", nJunk, nOwn,
-        (q.failed or 0) > 0 and string.format("; %d didn't go", q.failed) or "", stopped and "; the vendor closed" or ""))
+    ns:Log("sell", string.format("sold %d junk, then %d of yours%s%s%s", nJunk, nOwn,
+        (q.failed or 0) > 0 and string.format("; %d didn't go", q.failed) or "", stopped and "; the vendor closed" or "", V.SoldNames(q.sold)))
     D:Invalidate()
     V:Cleanup(#q.sold)   -- Auto-cleanup: tidy your bags after the sale
     if canSell() then V:Refresh() end

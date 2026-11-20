@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.340
+
+- **New: a quest's materials can be bought at the auction house.** "Gathering the Cure has me
+  collect 5 Earthroot. Can't I just buy those?" When a quest asks you to collect something
+  Flow has seen for sale at the auction house, buying it is a step too: "Buy 5 Earthroot at
+  the auction house (about 6s): Gathering the Cure", at an auctioneer, once you can pay. It's
+  optional, so it's on your route only while an auctioneer is close to your way (you're going
+  for wool anyway). Whichever you reach first settles it: buy them and the collecting step
+  goes; collect them and the buying step goes. The collecting step's details name the price
+  as well. Settings, Finding your way: "Offer the auction house for a quest's materials".
+- **Fixed: what a quest in your log asks for is kept from the first moment.** Flow keeps
+  such items ("for your quest: Gathering the Cure"), but its list was only filled once a
+  search through the upcoming quests had finished: a moment after login, and longer in a
+  fight. Until then nothing was held back for a quest. Now your log's items count at once.
+- The log names which of your own items a sale at a vendor sold (it only had how many), so
+  "it keeps getting sold" can be checked after a reload.
 
 ## 0.35.339
 
