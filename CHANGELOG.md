@@ -8,6 +8,8 @@
   Blacksmith past 120), now gets the auction house mark instead, on WoW: Forever too, where Flow has no auction
   prices to go on. The reason says why, with the price when Flow has seen one. One that keeps coming back unsold
   says so, and still isn't vendored.
+- **Buying something back from the vendor's own Buyback tab now stops Flow selling it again.** Only Flow's own
+  "Buy back" button used to remember, so an item bought back from the tab was sold again on the next visit.
 
 ## 0.35.321
 

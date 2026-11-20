@@ -426,11 +426,11 @@ function V:Refresh()
             r.btn:SetScript("OnClick", function()
                 local idx = buybackIndex(e.link)
                 if not idx then ns:Print("that item is no longer in the buyback tab") return end
+                -- The buyback hook remembers it and says so.
                 BuybackItem(idx)
                 if e.id then ns.db.sell.never[e.id] = true end
                 for k, s in ipairs(sold) do if s == e then table.remove(sold, k) break end end
                 D:Invalidate()
-                ns:Print(e.link .. " bought back. Flow won't sell it again.")
                 C_Timer.After(0.3, function() V:Refresh() end)
             end)
             r:Show()
@@ -669,6 +669,49 @@ end)
 ns:On("MERCHANT_UPDATE", function()
     if panel and canSell() then V:Refresh() end
 end)
+
+-------------------------------------------------------------------------------
+-- Bought back from the vendor's own Buyback tab: never sold again either.
+-- "It sold my bronze and I bought it back and it sold it again": only Flow's
+-- own "Buy back" button used to remember. Flow watches the game's buyback
+-- call (hooksecurefunc: after it, nothing replaced) and reads which item sat
+-- at that index, from the tab as Flow last saw it, else as it is now.
+-------------------------------------------------------------------------------
+local buybackSeen = {}
+local function seeBuyback()
+    wipe(buybackSeen)
+    for i = 1, (GetNumBuybackItems and GetNumBuybackItems() or 0) do
+        buybackSeen[i] = GetBuybackItemLink and GetBuybackItemLink(i) or nil
+    end
+end
+
+-- Pure: the item id bought back at `index`. seen: the tab's links as Flow
+-- last saw them; live(index): the link there now. nil: can't tell.
+function V.BoughtBackId(index, seen, live)
+    local link = (seen and seen[index]) or (live and live(index))
+    return type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+end
+
+-- Remember it: Flow never sells it again (Disposition's "neverSell").
+function V.RememberBoughtBack(id)
+    if not id then return false end
+    ns.db.sell.never[id] = true
+    D:Invalidate()
+    return true
+end
+
+ns:On("MERCHANT_SHOW", function() seeBuyback() end)
+ns:On("MERCHANT_UPDATE", function() seeBuyback() end)
+if hooksecurefunc and type(BuybackItem) == "function" then
+    hooksecurefunc("BuybackItem", function(index)
+        local id = V.BoughtBackId(index, buybackSeen, GetBuybackItemLink)
+        if V.RememberBoughtBack(id) then
+            local link
+            if GetItemInfo then link = select(2, GetItemInfo(id)) end
+            ns:Print((link or "that item") .. " bought back. Flow won't sell it again.")
+        end
+    end)
+end
 
 ns:OnLoad(function(saved)
     if saved.sell.enabled == nil then saved.sell.enabled = true end

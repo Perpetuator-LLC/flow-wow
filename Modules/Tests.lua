@@ -738,6 +738,19 @@ ns:Register("test", "bags: sell decisions", function(t)
     v = rule("neverSell", { id = 999105 })
     t:eq(v and v.action, "keep", "bought back once: never sold again")
     ns.db.sell.never[999105] = nil
+    -- Bought back from the game's own Buyback tab, not Flow's button.
+    local V = ns.vendor
+    t:eq(V.BoughtBackId(2, { "|Hitem:2841::|h[Bronze Bar]|h", "|Hitem:2840::|h[Copper Bar]|h" }), 2840,
+         "the item at that index, as the tab was before the click")
+    t:eq(V.BoughtBackId(1, {}, function() return "|Hitem:2841::|h[Bronze Bar]|h" end), 2841,
+         "not seen before: the tab as it is now")
+    t:eq(V.BoughtBackId(1, {}, function() return nil end), nil, "nothing there: nothing remembered")
+    local had = ns.db.sell.never[2841]
+    t:ok(V.RememberBoughtBack(2841) and ns.db.sell.never[2841] == true, "bought back: on the never-sell list")
+    v = rule("neverSell", { id = 2841 })
+    t:eq(v and v.action, "keep", "and kept from then on")
+    ns.db.sell.never[2841] = had
+    t:eq(V.RememberBoughtBack(nil), false, "no item: nothing remembered")
     -- Materials are never vendored: "That should all go on the auction house."
     with(ns.db.sell, "vendorUnpriced", nil, function()
         v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
