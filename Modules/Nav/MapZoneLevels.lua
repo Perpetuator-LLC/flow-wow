@@ -7,9 +7,11 @@
 --   Westfall
 --   Level 10-20        (coloured against your level)
 --   Fishing 1
--- Nothing is drawn until you hover; the game's own zone highlight shows
--- which zone it is. Setting: "Zone info when hovering the world map". On by
--- default.
+-- The game's own zone highlight shows which zone it is. With nothing
+-- hovered, the card shows the zone you're in: on it on the continent map,
+-- in the corner of its own map ("Can we have it still show when you're in
+-- the zone by default?"). Settings: "Zone info when hovering the world map",
+-- "World map: your zone's info without hovering". Both on by default.
 --
 -- Level ranges: warcraft.wiki.gg "Zones by level (Classic)". Fishing: the
 -- skill to fish the zone's waters without the catch getting away, as the
@@ -24,6 +26,8 @@ local ZL = {}
 ns.mapZoneLevels = ZL
 
 ZL.FONT_SIZE = 14
+ZL.FISH_SIZE = 12
+ZL.FISH_COLOR = { 0.36, 0.88, 0.95 }   -- light tropical-water blue
 
 -- [uiMapID] = { name, min, max, fish, fishTop }. A city has no range; a zone
 -- with no water no fishing.
@@ -108,12 +112,12 @@ local function makeCard()
     f.level = f:CreateFontString(nil, "ARTWORK")
     f.level:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
     f.fish = f:CreateFontString(nil, "ARTWORK")
-    f.fish:SetTextColor(0.35, 0.8, 1)   -- water blue
     for _, fs in ipairs({ f.name, f.level, f.fish }) do
-        fs:SetFont(STANDARD_TEXT_FONT, ZL.FONT_SIZE, "OUTLINE")
+        fs:SetFont(STANDARD_TEXT_FONT, fs == f.fish and ZL.FISH_SIZE or ZL.FONT_SIZE, "OUTLINE")
         fs:SetShadowOffset(1, -1)
         fs:SetJustifyH("LEFT")
     end
+    f.fish:SetTextColor(unpack(ZL.FISH_COLOR))
     f.name:SetTextColor(1, 1, 1)
     f:Hide()
     return f
@@ -125,7 +129,9 @@ local function hideCard()
     shownFor = nil
 end
 
-local function showCard(c, zoneID)
+-- where: "cursor", or { x, y } (0-1 on the canvas) for the card's top centre,
+-- or "corner" (the map's top left).
+local function showCard(c, zoneID, where)
     card = card or makeCard()
     if shownFor ~= zoneID then
         card.name:SetText(c.name)
@@ -148,13 +154,52 @@ local function showCard(c, zoneID)
         card:SetSize(math.ceil(w) + 20, math.ceil(h))
         shownFor = zoneID
     end
-    -- Down and to the right of the cursor, like the waypoint tip.
-    local cx, cy = GetCursorPosition()
-    local s = card:GetEffectiveScale()
     card:ClearAllPoints()
-    card:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cx / s + 18, cy / s - 22)
+    local sc = WorldMapFrame.ScrollContainer
+    if where == "cursor" then
+        -- Down and to the right of the cursor, like the waypoint tip.
+        local cx, cy = GetCursorPosition()
+        local s = card:GetEffectiveScale()
+        card:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cx / s + 18, cy / s - 22)
+    elseif where == "corner" then
+        card:SetPoint("TOPLEFT", sc, "TOPLEFT", 12, -12)
+    else
+        -- On the zone itself: the canvas pans and zooms, so place it in
+        -- screen terms and leave it off when that spot is out of view.
+        local M = ns.mapOverlay
+        local c2 = M and M.Canvas and M.Canvas()
+        local left, top = c2 and c2:GetLeft(), c2 and c2:GetTop()
+        if not (left and top) then card:Hide() return end
+        local cs = c2:GetEffectiveScale()
+        local px = (left + where[1] * c2:GetWidth()) * cs
+        local py = (top - where[2] * c2:GetHeight()) * cs
+        local ss = sc:GetEffectiveScale()
+        if not (px > sc:GetLeft() * ss and px < sc:GetRight() * ss and py < sc:GetTop() * ss and py > sc:GetBottom() * ss) then
+            card:Hide() return
+        end
+        local s = card:GetEffectiveScale()
+        card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", px / s, py / s)
+    end
     card:Show()
 end
+
+-- The zone you're in (one Flow knows), or nil: from a sub-zone, cave or
+-- town map up to its zone.
+function ZL.PlayerZone(best, parentOf)
+    parentOf = parentOf or function(id)
+        local info = C_Map.GetMapInfo(id)
+        return info and info.parentMapID
+    end
+    local id = best
+    for _ = 1, 6 do
+        if not id or id == 0 then return nil end
+        if ZL.ZONES[id] then return id end
+        id = parentOf(id)
+    end
+    return nil
+end
+
+function ZL.Here() return not (ns.db and ns.db.nav and ns.db.nav.mapZoneHere == false) end
 
 -- The continent zone under the cursor, or nil.
 local function zoneUnderCursor()
@@ -170,13 +215,32 @@ local function zoneUnderCursor()
     return at.mapID, at.name
 end
 
+-- With nothing hovered: the zone you're in. On the continent map the card
+-- sits on that zone; on your zone's own map, in its top left corner.
+local function yourZone()
+    if not ZL.Here() then return nil end
+    local here = ZL.PlayerZone(C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
+    if not here then return nil end
+    local mapID = WorldMapFrame:GetMapID()
+    if mapID == here then return here, "corner" end
+    local info = mapID and C_Map.GetMapInfo(mapID)
+    if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent and C_Map.GetMapRectOnMap) then return nil end
+    local minX, maxX, minY, maxY = C_Map.GetMapRectOnMap(here, mapID)
+    if not (minX and maxX > minX and maxY > minY) then return nil end
+    return here, { (minX + maxX) / 2, (minY + maxY) / 2 }
+end
+
 function ZL.Tick()
     if not (ZL.On() and WorldMapFrame and WorldMapFrame:IsShown()) then hideCard() return end
     -- A pin's own tooltip wins: no card on top of it.
     if GameTooltip:IsShown() then hideCard() return end
+    local level = UnitLevel("player") or 1
     local zoneID, name = zoneUnderCursor()
-    local c = zoneID and ZL.Card(zoneID, name, UnitLevel("player") or 1)
-    if c then showCard(c, zoneID) else hideCard() end
+    local c = zoneID and ZL.Card(zoneID, name, level)
+    if c then showCard(c, zoneID, "cursor") return end
+    local here, where = yourZone()
+    c = here and ZL.Card(here, C_Map.GetMapInfo(here) and C_Map.GetMapInfo(here).name, level)
+    if c then showCard(c, here, where) else hideCard() end
 end
 ZL.Tick = ns.perf.Wrap("world map (zone info)", ZL.Tick)
 
@@ -198,4 +262,8 @@ if ns.settings and ns.settings.AddCheck then
         tip = "On the continent map, the zone under the cursor shows its name, level range (coloured against "
             .. "your level) and the fishing skill its waters need.",
         get = ZL.On, set = ZL.Set }
+    ns.settings:AddCheck{ group = "route", label = "World map: your zone's info without hovering",
+        tip = "With nothing hovered, the card shows the zone you're in: on that zone on the continent map, "
+            .. "and in the top left corner of your zone's own map.",
+        get = ZL.Here, set = function(on) ns.db.nav.mapZoneHere = on and true or false; hideCard() end }
 end

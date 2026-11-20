@@ -13827,6 +13827,13 @@ ns:Register("test", "map zone info: hovering a zone gives its name, level range 
     t:ok(ZL.Card(1418, "Badlands", 40).fish == nil, "no water: no fishing line")
     t:eq(ZL.Card(1, "Nowhere", 15), nil, "a zone Flow doesn't know: no card")
     t:eq(ZL.Card(1436, "Marche de l'Ouest", 15).name, "Marche de l'Ouest", "the map's own (local) name")
+    -- Not hovering: the zone you're in, from a cave or town map up to its zone.
+    local parents = { [9001] = 9000, [9000] = 1436, [1436] = 1415, [1415] = 947 }
+    local up = function(id) return parents[id] end
+    t:eq(ZL.PlayerZone(1436, up), 1436, "in Westfall: Westfall")
+    t:eq(ZL.PlayerZone(9001, up), 1436, "in a mine in Westfall: Westfall")
+    t:eq(ZL.PlayerZone(9999, up), nil, "somewhere Flow doesn't know: nothing")
+    t:eq(ZL.PlayerZone(nil, up), nil, "no map: nothing")
     t:eq(select(4, ZL.Color(10, 20, 15)), "yellow", "your level: yellow")
     t:eq(select(4, ZL.Color(18, 30, 15)), "orange", "a little above you: orange")
     t:eq(select(4, ZL.Color(30, 40, 15)), "red", "well above you: red")

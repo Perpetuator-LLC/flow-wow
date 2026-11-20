@@ -6,9 +6,11 @@
 - **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
   under the cursor shows a small card by the cursor: its name, level range (coloured against your
   level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
-  and the fishing skill its waters need ("130 (205)": some need more). Nothing is drawn until you
-  hover. Setting "Zone info when hovering the world map". Ranges from the Classic zones-by-level
-  list; fishing from the Classic fishing tables.
+  and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
+  nothing hovered it shows the zone you're in: on that zone on the continent map, in the corner
+  of your zone's own map. Settings "Zone info when hovering the world map" and "World map: your
+  zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
+  Classic fishing tables.
 
 ## 0.35.321
 
