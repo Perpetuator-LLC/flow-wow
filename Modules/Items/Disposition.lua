@@ -123,6 +123,26 @@ function D:Describe(bag, slot, link)
     }
 end
 
+-- Pure: a verdict's reasons, for a tooltip (0.35.347). A keep lists every
+-- reason ("vendors won't buy it; quest item; for your quest: X"): the ones
+-- that only say what kind of thing it is are dropped when a real one stands
+-- beside them ("for your quest: X").
+D.PLAIN_REASONS = {
+    ["vendors won't buy it"] = true, ["quest item"] = true, ["not gear (materials, food, potions...)"] = true,
+}
+function D.ShortReason(reason)
+    if type(reason) ~= "string" or reason == "" then return "" end
+    local real, all = {}, {}
+    for part in (reason .. "; "):gmatch("(.-); ") do
+        if part ~= "" then
+            all[#all + 1] = part
+            if not D.PLAIN_REASONS[part] then real[#real + 1] = part end
+        end
+    end
+    if #real == 0 then return all[1] or reason end
+    return table.concat(real, "; ")
+end
+
 -- Rules whose "keep" is a fallback, not a reason worth listing with others.
 local GENERIC = { notGear = true, unneededGear = true }
 local sorted

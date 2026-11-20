@@ -345,11 +345,20 @@ ns:Register("itemTip", "disposition", function(tooltip, link)
     if not bag then return end
     local v = D:Decide(bag, slot, l)
     if not v then return end
-    tooltip:AddLine(string.format("Flow: |cff%s%s|r: %s", ACTION_COLOR[v.action] or "ffffff",
-        D.LABEL[v.action] or v.action, v.reason or ""), 0.9, 0.9, 0.9, true)
     local id = tonumber(tostring(l):match("item:(%d+)"))
-    if v.action == "keep" and B.ToBank(id, B.bankSet, B.FocusItem()) then
-        tooltip:AddLine(B.BANK_TIP, 0.6, 0.8, 1, true)
-    end
+    local toBank = v.action == "keep" and B.ToBank(id, B.bankSet, B.FocusItem())
+    tooltip:AddLine(B.TipLine(D.LABEL[v.action] or v.action, ACTION_COLOR[v.action], v.reason, toBank), 0.9, 0.9, 0.9, true)
     tooltip:Show()
 end)
+
+-- Pure: Flow's one line on an item's tooltip (0.35.347: "look at how many
+-- Flow tooltips there are, we need to consolidate those"). It was three:
+-- which quest it's for, what Flow does with it and every reason, and that it
+-- goes to the bank. Now one: what Flow does, where it goes, the reason that
+-- matters.
+--   Flow: Keep, to your bank at the next visit: for your quest: The Power to Destroy...
+function B.TipLine(label, color, reason, toBank)
+    local short = D.ShortReason(reason)
+    return string.format("Flow: |cff%s%s|r%s%s", color or "ffffff", tostring(label),
+        toBank and ", to your bank at the next visit" or "", short ~= "" and (": " .. short) or "")
+end

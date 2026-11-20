@@ -353,8 +353,19 @@ function L.QuestForText(titles)
     if not titles or #titles == 0 then return nil end
     return "Flow: for your quest " .. table.concat(titles, ", ", 1, math.min(2, #titles)) .. (#titles > 2 and "..." or "")
 end
+-- Does the bags' line on this item's tooltip already say which quest it's for?
+function L.SaidByBags(link)
+    local D = ns.disposition
+    if not (link and D and D.FindInBags and ns.db and ns.db.bags and ns.db.bags.enabled) then return false end
+    local ok, bag, slot, l = pcall(D.FindInBags, D, link)
+    if not (ok and bag) then return false end
+    local okV, v = pcall(D.Decide, D, bag, slot, l)
+    return okV and type(v) == "table" and type(v.reason) == "string" and v.reason:find("for your quest", 1, true) ~= nil
+end
 ns:Register("itemTip", "questFor", function(tooltip, link)
     local id = link and tonumber(link:match("item:(%d+)"))
+    -- (In your bags, Flow's own line already names the quest: BagIcons.lua.)
+    if L.SaidByBags(link) then return end
     local ok, titles = pcall(L.QuestFor, id)
     local text = ok and L.QuestForText(titles) or nil
     if text then tooltip:AddLine(text, 1, 0.82, 0, true); tooltip:Show() end

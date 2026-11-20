@@ -416,6 +416,9 @@ end
 local function onItem(tooltip, link)
     if not link then return end
     pcall(addToTooltip, tooltip, link)
+    -- (A Flow window that says all this itself about the thing under the
+    -- mouse, Flow Banker's cells, asks for none of it: ns.tipQuiet = that frame.)
+    if ns.tipQuiet and tooltip.GetOwner and tooltip:GetOwner() == ns.tipQuiet then return end
     for _, fn in ns:Each("itemTip") do pcall(fn, tooltip, link) end
 end
 

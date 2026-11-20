@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.347
+
+- **Fewer Flow lines on a tooltip.** Hovering a quest item in a Flow Banker cell showed eight
+  of them, most saying the same thing twice. Now:
+  - **An item in your bags gets one Flow line**: what Flow does with it, whether it goes to
+    your bank, and the reason that matters: "Flow: Keep, to your bank at the next visit: for
+    your quest: The Power to Destroy...". (It was three lines; "vendors won't buy it; quest
+    item" is left out when there's a real reason beside it.)
+  - **A Flow Banker cell adds three lines**, not five, and leaves the item's own Flow line
+    out: where it goes and why, why Flow keeps it, and the clicks.
 ## 0.35.346
 
 - **New: Flow Improvements colours each line by how pressing it is.**

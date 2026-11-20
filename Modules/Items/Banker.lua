@@ -741,20 +741,21 @@ local function makeCell(f, i)
     c:SetScript("OnEnter", function(self)
         if not self.id then return end
         ns.Tip(self, "ANCHOR_RIGHT")
+        -- (This cell says what Flow does with the thing itself: the item's own
+        -- Flow lines would say it a second and third time.)
+        ns.tipQuiet = self.cell and self or nil
         if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.id) end
         GameTooltip:AddLine(" ")
         local cell = self.cell
         if cell then
-            GameTooltip:AddLine(cell.bank and "Goes to the bank" or "Stays with you", cell.bank and 0.2 or 0.8, cell.bank and 0.9 or 0.8, cell.bank and 0.3 or 0.8)
-            GameTooltip:AddLine((cell.mine and "Your choice. " or "Flow's choice: ") .. tostring(cell.why) .. ".", 1, 1, 1, true)
-            for _, l in ipairs(B.WhyLines(cell)) do GameTooltip:AddLine(l, 1, 0.82, 0, true) end
-            GameTooltip:AddLine("Click: " .. (cell.bank and "keep it with you" or "put it in the bank") .. ". Right-click: Flow's own choice.", 0.6, 0.6, 0.6, true)
+            for _, l in ipairs(B.CellTip(cell)) do GameTooltip:AddLine(l.text, l.r, l.g, l.b, true) end
         else
             GameTooltip:AddLine("In your bank, as Flow last saw it. Go to a bank to take it out.", 0.6, 0.6, 0.6, true)
         end
         GameTooltip:Show()
     end)
-    c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c:SetScript("OnLeave", function(self) if ns.tipQuiet == self then ns.tipQuiet = nil end; GameTooltip:Hide() end)
+    c:SetScript("OnHide", function(self) if ns.tipQuiet == self then ns.tipQuiet = nil end end)
     c:SetScript("OnMouseUp", function(self, button) B:CellClick(self, button) end)
     c:Hide()
     return c
@@ -793,7 +794,24 @@ function B.StyleCell(c, cell)
     c.icon:SetDesaturated(not cell.bank)
     c.icon:SetAlpha(cell.bank and 1 or 0.6)
 end
--- Pure: why Flow keeps the thing in a cell, for its tooltip.
+-- Pure: a cell's tooltip, three lines at most (0.35.347; it was five, under
+-- three more of Flow's on the item itself): where it goes and why, why Flow
+-- keeps it, and the clicks. -> { { text, r, g, b } }
+function B.CellTip(cell)
+    local out = {}
+    if type(cell) ~= "table" then return out end
+    local why = cell.mine and "your choice" or tostring(cell.why or "Flow's choice")
+    out[#out + 1] = { text = (cell.bank and "Goes to the bank: " or "Stays with you: ") .. why .. ".",
+                      r = cell.bank and 0.2 or 0.8, g = cell.bank and 0.9 or 0.8, b = cell.bank and 0.3 or 0.8 }
+    local short = ns.disposition.ShortReason(cell.reason)
+    if short ~= "" then out[#out + 1] = { text = "Flow keeps it: " .. short .. ".", r = 1, g = 0.82, b = 0 } end
+    local clicks = "Click: " .. (cell.bank and "keep it with you" or "put it in the bank") .. ". Right-click: Flow's choice."
+    if cell.rule == "neverSell" or cell.rule == "yourChoice" then clicks = clicks .. " Alt-click: Flow may sell it again." end
+    if cell.id and ((cell.sell or 0) > 0 or cell.quality == 0) then clicks = clicks .. " Shift-click: sell it." end
+    out[#out + 1] = { text = clicks, r = 0.6, g = 0.6, b = 0.6 }
+    return out
+end
+-- Pure: why Flow keeps the thing in a cell (the longer form; /flow banker).
 function B.WhyLines(cell)
     local out = {}
     if cell and cell.reason and cell.reason ~= "" then out[#out + 1] = "Flow keeps it: " .. tostring(cell.reason) .. "." end

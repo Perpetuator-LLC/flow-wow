@@ -15682,3 +15682,63 @@ ns:Register("test", "click: Flow Improvements' rows take their colour when the l
     end)
     t:ok(okP, "every piece of advice Flow has for you now has a colour")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.347: one Flow line on an item's tooltip, three in a Flow Banker cell.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tooltip: Flow says one line about an item in your bags, with the reason that matters", function(t)
+    local D, B = ns.disposition, ns.bagIcons
+    t:eq(D.ShortReason("vendors won't buy it; quest item; for your quest: The Power to Destroy..."), "for your quest: The Power to Destroy...",
+        "what kind of thing it is drops away beside a real reason")
+    t:eq(D.ShortReason("for Cooking: Peace Tea; for First Aid: Minor Healing Potion"), "for Cooking: Peace Tea; for First Aid: Minor Healing Potion",
+        "real reasons all stay")
+    t:eq(D.ShortReason("vendors won't buy it; quest item"), "vendors won't buy it", "with nothing else to say, the first plain one")
+    t:eq(D.ShortReason("junk"), "junk", "a single reason is itself")
+    t:eq(D.ShortReason(nil), "", "no reason: nothing")
+    t:eq(B.TipLine("Keep", "ffd200", "vendors won't buy it; quest item; for your quest: The Power to Destroy...", true),
+        "Flow: |cffffd200Keep|r, to your bank at the next visit: for your quest: The Power to Destroy...",
+        "what Flow does, where it goes and why, in one line")
+    t:eq(B.TipLine("Sell", "ffbf33", "junk", false), "Flow: |cffffbf33Sell|r: junk", "nothing about the bank when it isn't going there")
+    t:eq(B.TipLine("Keep", nil, nil, false), "Flow: |cffffffffKeep|r", "no reason: just what Flow does")
+    t:eq(ns.leftovers.SaidByBags(nil), false, "no item: the quest line isn't suppressed")
+    t:ok(pcall(ns.leftovers.SaidByBags, "item:6948"), "asking about a real item doesn't error")
+end)
+
+ns:Register("test", "tooltip: a Flow Banker cell says it in three lines and quiets the item's own Flow lines", function(t)
+    local B = ns.banker
+    local lines = B.CellTip({ id = 14395, bank = true, why = "its quest (The Power to Destroy...) continues on another continent",
+        reason = "vendors won't buy it; quest item; for your quest: The Power to Destroy...", rule = "unsellable", sell = 0, quality = 1 })
+    t:eq(#lines, 3, "three lines: where it goes, why it's kept, the clicks")
+    t:eq(lines[1].text, "Goes to the bank: its quest (The Power to Destroy...) continues on another continent.", "where it goes and why, together")
+    t:ok(lines[1].g > 0.8 and lines[1].r < 0.5, "in green")
+    t:eq(lines[2].text, "Flow keeps it: for your quest: The Power to Destroy....", "the reason that matters")
+    t:eq(lines[3].text, "Click: keep it with you. Right-click: Flow's choice.", "the clicks, one line")
+    lines = B.CellTip({ id = 2934, bank = false, mine = "carry", why = "you chose to carry it", reason = "you bought it back before", rule = "neverSell", sell = 7, quality = 1 })
+    t:eq(lines[1].text, "Stays with you: your choice.", "your own choice says so")
+    t:eq(lines[3].text, "Click: put it in the bank. Right-click: Flow's choice. Alt-click: Flow may sell it again. Shift-click: sell it.",
+        "every click that does something, still one line")
+    t:eq(#B.CellTip({ bank = true, why = "kept for later" }), 2, "no reason known: two lines")
+    t:eq(#B.CellTip(nil), 0, "no cell: nothing")
+
+    -- The real cell: hovering it marks the tooltip as its own, leaving clears that.
+    if InCombatLockdown() then return end
+    local was = B._Frame() and B._Frame():IsShown()
+    local view, offset = B.view, B.offset
+    pcall(B.Show, B, "put")
+    local f = B._Frame()
+    local c = f and f.cells and f.cells[1]
+    if c and c:IsShown() and c.cell then
+        local quietBefore = ns.tipQuiet
+        local ok, err = pcall(function() c:GetScript("OnEnter")(c) end)
+        t:ok(ok, "hovering a cell runs" .. (ok and "" or (": " .. tostring(err))))
+        t:eq(ns.tipQuiet, c, "and the item's own Flow lines are asked to stay out")
+        pcall(function() c:GetScript("OnLeave")(c) end)
+        t:eq(ns.tipQuiet, nil, "leaving it lets them back")
+        ns.tipQuiet = quietBefore
+    else
+        t:ok(f ~= nil, "(nothing Flow keeps in your bags right now: no cell to hover)")
+    end
+    B.view, B.offset = view, offset
+    if f then B:Fill(); if not was then f:Hide() end end
+end)
