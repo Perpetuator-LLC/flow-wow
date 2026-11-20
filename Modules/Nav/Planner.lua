@@ -70,6 +70,11 @@ end
 --   walk  = function(a, b) -> yards: the walk from spot a to spot b when it
 --           goes by a gate (two spots in different regions: Gates.lua), nil
 --           when it's the straight line.
+--   legs  = function(a, b, d) -> yards, "exact" | "area": the trip from spot
+--           a to spot b as you've travelled it (Legs.lua), nil when Flow has
+--           learned nothing about it. "exact": you made this trip, and what
+--           it took is the answer. "area": trips between these two
+--           neighbourhoods took that much longer than the straight line.
 local OPT = {}
 
 -- A flight never beats a short walk: below this the straight line is the
@@ -80,6 +85,17 @@ local AIR_MIN = 300
 -- or by flight when that's quicker.
 local function far(a, b)
     local d = dist(a.wx, a.wy, b.wx, b.wy)
+    -- A trip you've made (0.35.350): what it took you is the answer, flight,
+    -- gate, cliff and all. One between the same two neighbourhoods: the
+    -- straight line, stretched as those trips were (never shortened: the
+    -- flight and the travel spell below still get their say).
+    if OPT.legs then
+        local ok, yards, how = pcall(OPT.legs, a, b, d)
+        if ok and type(yards) == "number" then
+            if how == "exact" then return yards end
+            if yards > d then d = yards end
+        end
+    end
     -- A cast away (a druid's Teleport: Moonglade): near, however far it is on foot.
     if OPT.port and a.map ~= b.map then
         local ok, t = pcall(OPT.port, a, b)

@@ -15833,3 +15833,126 @@ ns:Register("test", "gear: the Keep set row hangs under your bags, not over Flow
     end
     t:ok(n >= 0, "(" .. n .. " bag window(s) have the row)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.350: trips from step to step are timed, and the route is planned by them.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "legs: a trip is timed from one step to your arrival at the next: travelling only", function(t)
+    local L = ns.legs
+    local st = {}
+    local A, B = { cont = 1, wx = 0, wy = 0 }, { cont = 1, wx = 300, wy = 0 }
+    local function look(x, y, extra)
+        local s = { cont = 1, wx = x, wy = y, dt = 1, target = B }
+        for k, v in pairs(extra or {}) do s[k] = v end
+        return L.Look(st, s)
+    end
+    -- Arriving somewhere starts the next trip from there.
+    t:eq(L.Look(st, { cont = 1, wx = 5, wy = 0, dt = 1, target = A }), nil, "arriving at a step with no trip before it: nothing learned yet")
+    t:ok(st.anchor and st.anchor.wx == 0, "but the next trip starts from that step's spot")
+    for x = 12, 96, 7 do look(x, 0) end                       -- 13 s running
+    for _ = 1, 20 do look(96, 0, { combat = true }) end        -- a fight on the way: not travel
+    for _ = 1, 30 do look(96, 0) end                           -- standing still: not travel
+    local leg
+    for x = 103, 271, 7 do leg = leg or look(x, 0) end         -- 25 s more, arriving within 30 yd
+    t:ok(leg ~= nil, "arriving at the next step ends the trip")
+    if not leg then return end
+    t:near(leg.d, 300, 0.1, "its length: the straight line between the two steps' spots")
+    t:ok(leg.sec >= 36 and leg.sec <= 40, "its time: the seconds you were moving, not the fight or the wait (" .. tostring(leg.sec) .. ")")
+    t:eq(leg.mode, "foot", "on foot")
+    t:ok(st.anchor.wx == 300 and st.sec == 0, "and the next trip starts here")
+
+    -- A hearthstone in the middle: no trip.
+    st = { anchor = { cont = 1, wx = 0, wy = 0 }, last = { cont = 1, wx = 10, wy = 0 }, sec = 5, ground = 10 }
+    t:eq(look(280, 0), nil, "a jump of hundreds of yards in a second isn't travel")
+    t:eq(st.anchor, nil, "and the trip it was part of is dropped")
+    -- A flight is: fast, and counted whole.
+    st = { anchor = { cont = 1, wx = 0, wy = 0 }, last = { cont = 1, wx = 0, wy = 0 }, sec = 0, ground = 0 }
+    look(150, 0, { taxi = true })
+    leg = look(290, 0, { taxi = true })
+    t:ok(leg and leg.mode == "taxi" and leg.sec == 2, "a flight is a trip, marked as one")
+    -- Wandering: three times the straight line on the ground.
+    st = { anchor = { cont = 1, wx = 0, wy = 0 }, last = { cont = 1, wx = 0, wy = 0 }, sec = 0, ground = 0 }
+    for i = 1, 60 do look((i % 2) * 8, 0) end
+    for x = 8, 280, 8 do leg = look(x, 0) end
+    t:eq(leg, nil, "a trip with a long wander in it teaches nothing")
+    -- Death, another continent.
+    st = { anchor = { cont = 1, wx = 0, wy = 0 }, last = { cont = 1, wx = 0, wy = 0 } }
+    look(5, 0, { dead = true })
+    t:eq(st.anchor, nil, "dying ends the trip unlearned")
+    st = { anchor = { cont = 1, wx = 0, wy = 0 }, last = { cont = 1, wx = 0, wy = 0 } }
+    L.Look(st, { cont = 0, wx = 5, wy = 0, dt = 1 })
+    t:eq(st.anchor, nil, "so does another continent")
+end)
+
+ns:Register("test", "legs: your quickest time for a trip is kept, and the planner measures by it", function(t)
+    local L = ns.legs
+    local store, coarse = {}, {}
+    local leg = { cont = 1, ax = 10, ay = 10, bx = 610, by = 10, sec = 200, d = 600, mode = "foot" }
+    local e, best = L.Keep(store, leg, 100)
+    t:ok(e and best and e.s == 200 and e.n == 1, "a first trip is the best so far")
+    leg.sec = 260
+    e, best = L.Keep(store, leg, 200)
+    t:ok(not best and e.s == 200 and e.n == 2, "a slower one is counted, the quickest stays")
+    leg.sec, leg.mode = 150, "mount"
+    e, best = L.Keep(store, leg, 300)
+    t:ok(best and e.s == 150 and e.m == "mount" and e.n == 3, "a quicker one replaces it, with how you travelled")
+    t:eq(L.Count(store), 1, "one trip between those two places")
+    t:eq((L.Keep(store, { ax = 1, ay = 1, bx = 5, by = 5, sec = 3, d = 6, mode = "foot" }, 1)), nil, "both ends in one square: not a trip")
+
+    -- 150 s at a run is 1050 yards for a 600-yard line: the road goes round something.
+    local a, b = { wx = 20, wy = 20 }, { wx = 600, wy = 30 }
+    local yards, how = L.Lookup(store, coarse, a, b, 580)
+    t:eq(how, "exact", "the same two squares: a trip you've made")
+    t:near(yards, 150 * L.RUN * (580 / 600), 1, "what it took, at a run, for this length")
+    _, how = L.Lookup(store, coarse, b, a, 580)
+    t:eq(how, "exact", "and the way back counts the same")
+    t:eq(L.Lookup(store, coarse, { wx = 2000, wy = 2000 }, { wx = 2600, wy = 2000 }, 600), nil, "somewhere you've never been: nothing known")
+    t:eq(L.Lookup(store, coarse, a, b, 20), nil, "a few steps: not asked")
+
+    -- The neighbourhoods: another trip between the same two, not the same squares.
+    local ratio = L.Ratio(coarse, e, leg.ax, leg.ay, leg.bx, leg.by)
+    t:near(ratio, 150 * L.RUN / 600, 0.01, "how much longer than the straight line it took")
+    yards, how = L.Lookup(store, coarse, { wx = 100, wy = 100 }, { wx = 700, wy = 120 }, 600)
+    t:eq(how, "area", "a trip between the same two neighbourhoods")
+    t:near(yards, 600 * ratio, 1, "is stretched the same way")
+    t:eq(L.Ratio({}, { s = 10, d = 600, m = "taxi" }, 0, 0, 600, 0), nil, "a flight says nothing about the ground between")
+
+    -- Bounds: a time can't make a trip free or endless.
+    t:near(L.YardsOf({ s = 1, d = 1000 }, 1000), 1000 * L.FASTEST, 0.01, "never less than a small share of the line")
+    t:near(L.YardsOf({ s = 9000, d = 100 }, 100), 100 * L.SLOWEST, 0.01, "never more than a few times it")
+
+    -- The planner takes an exact trip as the answer and only stretches by an area's.
+    local P = ns.planner
+    local p1, p2 = { wx = 0, wy = 0, map = 1 }, { wx = 600, wy = 0, map = 1 }
+    t:near(P._Far(p1, p2, {}), 600, 0.01, "nothing learned: the straight line")
+    t:near(P._Far(p1, p2, { legs = function() return 1050, "exact" end }), 1050, 0.01, "a trip you made: what it took")
+    t:near(P._Far(p1, p2, { legs = function() return 300, "exact" end }), 300, 0.01, "(also when it was quicker than a run: a flight)")
+    t:near(P._Far(p1, p2, { legs = function() return 900, "area" end }), 900, 0.01, "its neighbourhood: stretched")
+    t:near(P._Far(p1, p2, { legs = function() return 400, "area" end }), 600, 0.01, "but an area never shortens the line")
+    t:near(P._Far(p1, p2, { legs = function() error("x") end }), 600, 0.01, "an error in the lookup: the straight line")
+
+    -- Old trips go first when the store is full.
+    local big = {}
+    for i = 1, 10 do L.Keep(big, { ax = i * 100, ay = 0, bx = i * 100, by = 500, sec = 60, d = 500, mode = "foot" }, i) end
+    t:eq(L.Prune(big, 6), 4, "over the limit: the ones used longest ago go")
+    t:eq(L.Count(big), 6, "the rest stay")
+    t:ok(big[L.Cell(1000, 0)] ~= nil and big[L.Cell(100, 0)] == nil, "the newest kept, the oldest gone")
+end)
+
+ns:Register("test", "legs: your own trips are read, the planner is given them, and /flow legs lists them", function(t)
+    local L = ns.legs
+    t:eq(type(ns.db.nav.legs), "table", "the store is there")
+    local ok, lines = pcall(L.Lines)
+    t:ok(ok and #lines >= 3, "/flow legs builds" .. (ok and "" or (": " .. tostring(lines))))
+    t:ok(pcall(L.Tick), "a look at where you are doesn't error")
+    local was = ns.db.nav.learnLegs
+    ns.db.nav.learnLegs = false
+    t:eq(L.PlanLegs(), nil, "off: the planner isn't given them")
+    ns.db.nav.learnLegs = nil
+    t:eq(L.PlanLegs(), L.Yards, "on (as it comes): it is")
+    ns.db.nav.learnLegs = was
+    t:eq(L.Yards({ cont = 1, wx = 0, wy = 0 }, { cont = 0, wx = 500, wy = 0 }, 500), nil, "two continents: not a trip Flow times")
+    local okO, opts = pcall(ns.nav.Options, ns.nav)
+    t:ok(okO and type(opts) == "table" and (opts.legs == nil or type(opts.legs) == "function"), "the route's options carry it" .. (okO and "" or (": " .. tostring(opts))))
+end)

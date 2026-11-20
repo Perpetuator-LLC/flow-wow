@@ -195,6 +195,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **A quest's materials from the auction house**: when a quest asks you to collect something Flow
   has seen for sale there (5 Earthroot), buying it is an optional step at an auctioneer, with
   what it should cost, while one is close to your way and you can pay.
+- **Trips Flow learns**: each trip from one step to the next is timed, your quickest is kept, and
+  the route is ordered by those times instead of the straight line (`/flow legs`).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line

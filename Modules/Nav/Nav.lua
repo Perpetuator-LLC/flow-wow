@@ -3329,7 +3329,9 @@ function N:Options(sel)
     end
     return { first = first, tour = tour, here = here, away = away, air = N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil,
              port = ns.travelSpells and ns.travelSpells.PlanPort() or nil,
-             ride = ns.rides and ns.rides.PlanRide() or nil }
+             ride = ns.rides and ns.rides.PlanRide() or nil,
+             -- (Trips you've made, and how long they took: Legs.lua.)
+             legs = ns.legs and ns.legs.PlanLegs() or nil }
 end
 
 -- A plan as if you had picked this step (for previews on the map / advice list).

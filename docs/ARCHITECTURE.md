@@ -155,6 +155,11 @@ party route. A gold key badge atop your quest list (Questie's tracker, else the 
 item tooltip; `K:Build(role)` makes the game's equipment set for a role (puts on what's better from the bags,
 saves, switches back).
 
+`Modules/Nav/Legs.lua` (`ns.legs`): times each trip between two steps (`L.Look`, pure, a look a second) and
+keeps the quickest by pair of 40-yard squares (`ns.db.nav.legs`, shared by your characters). The planner's
+`legs` option (`L.Yards`) answers "exact" (the cost) or "area" (stretches the straight line).
+[FLOW-GRAPH.md](FLOW-GRAPH.md) is the plan for sharing them and for a whole-game order.
+
 `Modules/Quests/QuestBags.lua` (`ns.questBags`): sorts every quest thing in the bags into hand in / sell /
 bank / finish / stuck (`QG.Plan`, pure). `QG.MarkTurnIn` (called from Goals.lua) sets `goal.frees`, and with
 nearly full bags `goal.keep` (the planner never cuts it as too far) and a low weight. `QG.Waits()` and

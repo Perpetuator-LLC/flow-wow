@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.350
+
+- **New: Flow learns how long your trips take, and plans your route by it.** Until now the
+  route was ordered by the straight line between steps (or a flight, a gate, a travel spell
+  where Flow knew one), so a cliff, a river or a winding road between two steps didn't count.
+  Now every trip from one step to the next is timed: the seconds you were travelling (not
+  fighting, not standing still), and whether you ran, rode or flew. Flow keeps your quickest
+  for each pair of places, and the route uses it:
+  - a trip you've made before costs what it took you;
+  - a trip between two neighbourhoods you've crossed before is the straight line, stretched
+    by how much longer such trips took;
+  - anywhere else, the straight line, as before.
+  A trip with a hearthstone, a teleport, a death or a long wander in it isn't kept.
+  `/flow legs` shows what it has learned; Settings, Finding your way: "Learn how long my
+  trips take, and plan by it". Nothing leaves your computer.
+- [docs/FLOW-GRAPH.md](docs/FLOW-GRAPH.md): the plan for sharing those trips between players
+  and for one optimised order through every quest in the game. A plan only: it lists what has
+  to be decided before anything is uploaded anywhere.
 ## 0.35.349
 
 - **The "Keep set for" ticks moved under your bags**, right below the money line. They were
