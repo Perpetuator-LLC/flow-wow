@@ -69,18 +69,56 @@ end
 function QG.Away(steps, cont)
     local keys = {}
     for _, g in ipairs(steps or {}) do keys[g.key] = true end
-    local any, here = false, false
+    local any, here, other = false, false, nil
     for _, g in ipairs(steps or {}) do
         local waits = false
         for _, dep in ipairs(g.deps or {}) do if keys[dep] then waits = true end end
         if not waits then
             for c in pairs(g.conts or {}) do
                 any = true
-                if c == cont then here = true end
+                if c == cont then here = true else other = other or c end
             end
         end
     end
-    return any and not here
+    -- (and which continent it goes on on)
+    return any and not here, (any and not here) and other or nil
+end
+
+-- Pure: a quest's steps without the ones that only fetch a thing you already
+-- own (0.35.351). Put "Spells of Shadow" in the bank and the game calls its
+-- quest unfinished again: a step "collect Spells of Shadow", here, comes
+-- back, the quest looks like one to do here, and Flow asked for the book back
+-- out. In your bags it was finished and handed in across the sea, so to the
+-- bank it went again. A thing in your bank is a thing you have.
+--   steps: { { key, item = itemID or nil, ... } }; held(itemID) -> bool
+function QG.Unheld(steps, held)
+    local out = {}
+    for _, g in ipairs(steps or {}) do
+        if not (g.item and held and held(g.item)) then out[#out + 1] = g end
+    end
+    return out
+end
+
+-- Pure: the things Flow has parked in the bank for a quest across the sea,
+-- kept up to date (0.35.351). Once a thing is parked it stays "waiting",
+-- wherever it lies and whatever the quest log says about it meanwhile, until
+-- one of two things is true: you're on the continent its quest goes on on, or
+-- the quest has left your log. Nothing else brings it back out.
+--   parked: { [itemID] = { quest = id, title, cont } } (changed in place)
+--   quests, states: as QG.Sets; awayCont: { [questID] = continent }; cont: yours (nil: not known)
+function QG.Park(parked, quests, states, awayCont, cont)
+    local inLog = {}
+    for _, q in ipairs(quests or {}) do inLog[q.id] = q end
+    for id, p in pairs(parked) do
+        if not inLog[p.quest] or (cont ~= nil and p.cont == cont) then parked[id] = nil end
+    end
+    for _, q in ipairs(quests or {}) do
+        local to = awayCont and awayCont[q.id]
+        if states and states[q.id] == "away" and to ~= nil and to ~= cont then
+            for id in pairs(q.items or {}) do parked[id] = { quest = q.id, title = q.title, cont = to } end
+        end
+    end
+    return parked
 end
 
 -- Is a row of the inventory a quest thing? (The game's Quest kind, or
@@ -282,7 +320,7 @@ local function stepsByQuest()
                     if cont ~= nil then conts[cont] = true end
                 end
                 by[qid] = by[qid] or {}
-                table.insert(by[qid], { key = g.key, deps = g.deps, conts = conts, placed = next(conts) ~= nil,
+                table.insert(by[qid], { key = g.key, deps = g.deps, conts = conts, placed = next(conts) ~= nil, item = g.item,
                                         who = g.key:find(":done$") and g.npcs and g.npcs[1] or nil })
             end
         end
@@ -304,14 +342,23 @@ function QG.Now(fresh)
     end
     local quests = QG.Quests()
     local by = stepsByQuest()
+    -- (A step that fetches a thing lying in your bank isn't a step: QG.Unheld.)
+    local bank = ns.db.bank and ns.db.bank.items or {}
+    for qid, steps in pairs(by) do by[qid] = QG.Unheld(steps, function(id) return (bank[id] or 0) > 0 end) end
     local p = ns.nav and ns.nav.PlayerPos and ns.nav:PlayerPos()
     local cont = p and p.cont
+    QG.lastCont = cont ~= nil and cont or QG.lastCont
+    local awayCont = {}
     local function where(qid)
         local steps = by[qid]
         local who
         for _, s in ipairs(steps or {}) do who = who or s.who end
-        if not steps then return "stuck", nil end
-        if cont ~= nil and QG.Away(steps, cont) then return "away", who end
+        if not steps or #steps == 0 then return "stuck", nil end
+        -- (Where you are isn't known, in a loading screen or some buildings:
+        -- then Flow moves nothing for this quest either way.)
+        if cont == nil then return "stuck", who end
+        local away, to = QG.Away(steps, cont)
+        if away then awayCont[qid] = to return "away", who end
         local placed = false
         for _, s in ipairs(steps) do placed = placed or s.placed end
         return (not placed) and "stuck" or nil, who
@@ -324,6 +371,13 @@ function QG.Now(fresh)
     local states = {}
     for _, q in ipairs(quests) do states[q.id] = where(q.id) or "here" end
     local waits, needs = QG.Sets(quests, states)
+    -- What's parked for a quest across the sea stays parked (QG.Park).
+    if ns.db.banker then
+        ns.db.banker.parked = ns.db.banker.parked or {}
+        for id, pk in pairs(QG.Park(ns.db.banker.parked, quests, states, awayCont, cont)) do
+            waits[id], needs[id] = pk.title, nil
+        end
+    end
     nowAt, nowIs = t, { plan = plan, free = free(), total = total, waits = waits, needs = needs, quests = quests, states = states }
     return nowIs
 end
@@ -371,6 +425,21 @@ function QG.NeededHere(itemId)
     local q = QG.QuestOf(itemId, now.quests)
     if q and q.complete and ns.api.Count and (ns.api.Count(itemId) or 0) > 0 then return nil end
     return title
+end
+
+ns:PerCharacter("banker.parked")
+
+-- Pure: does the bank hold what's still to get? count: in the bank; need,
+-- have: the objective's (nil: one is enough).
+function QG.Banked(count, need, have)
+    if (count or 0) <= 0 then return false end
+    if not need then return true end
+    return count + (have or 0) >= need
+end
+-- Is this item in your bank, as Flow last saw it (enough of it for an objective)?
+function QG.InBank(itemId, need, have)
+    local items = ns.db and ns.db.bank and ns.db.bank.items
+    return QG.Banked(items and itemId and items[itemId] or 0, need, have)
 end
 
 ns:Register("advisor", "questBags", {

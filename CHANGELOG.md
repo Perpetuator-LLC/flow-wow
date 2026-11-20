@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.351
+
+- **Fixed: Flow Banker still took quest things out of the bank and then wanted them back in**
+  (Half Pendant of Aquatic Agility, Incantations from the Nether, Spells of Shadow). The cause:
+  with the books in your bags their quest is finished and handed in across the sea, so they go
+  to the bank; in the bank, the game calls the quest unfinished again, a "collect it" step
+  comes back on this continent, and Flow asked for them back out. Three changes, so it can't
+  come back another way:
+  - **A thing in your bank is a thing you have.** A step that only fetches something lying in
+    your bank no longer counts as a step.
+  - **Parked means parked.** A thing banked for a quest across the sea stays "waiting",
+    wherever it lies and whatever the quest log says meanwhile, until you're on the continent
+    its quest goes on on, or the quest has left your log. Nothing else brings it out.
+  - **One move, not two.** Whatever its reasons say, Flow doesn't offer to move a thing back
+    the way it just came until you've changed continent or reloaded. Your own choice for a
+    thing is never held back.
+  If where you are isn't known (a loading screen), nothing is moved for a quest either way.
+  `/flow banker` lists what's parked and what Flow moved this session.
 ## 0.35.350
 
 - **New: Flow learns how long your trips take, and plans your route by it.** Until now the

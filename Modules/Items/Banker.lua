@@ -174,13 +174,42 @@ function B.PutCells(rows, needed, rules, waits)
     return out
 end
 
+-- One move, not two (0.35.351). "It tries to deposit the same things that it
+-- just withdrew ... make it so that it can't get into these situations."
+-- Whatever Flow's reasons say, once it has moved a thing one way it doesn't
+-- offer to move it back until you've changed continent (the one thing that
+-- really changes what a quest thing is for) or reloaded. Your own choice for
+-- a thing is never held back.
+--   moved: { [itemID] = { dir = "in" | "out", cont } }   -> may it go `dir` now?
+B.moved = {}
+function B.Settled(moved, id, dir, cont)
+    local m = moved and id and moved[id]
+    if not m or m.dir == dir then return true end
+    return m.cont ~= cont
+end
+local function contNow()
+    local p = ns.nav and ns.nav.PlayerPos and ns.nav:PlayerPos()
+    if p and p.cont ~= nil then B.lastCont = p.cont end
+    return B.lastCont or "?"
+end
+-- Pure: rows without the ones Flow just moved the other way (your own choices stay).
+function B.Unmoved(rows, moved, dir, cont, rules)
+    local out = {}
+    for _, r in ipairs(rows or {}) do
+        local mine = r.mine or (rules and r.id and rules[r.id] ~= nil)
+        if mine or B.Settled(moved, r.id, dir, cont) then out[#out + 1] = r end
+    end
+    return out
+end
+
 -- The list right now: rows to bank.
 function B.List()
     local D = ns.disposition
     if not (D and D.Inventory) then return {} end
     local ok, rows = pcall(D.Inventory, D)
     if not ok then return {} end
-    return B.Pick(rows, B.Needed(), B.Rules(), ns.questBags and ns.questBags.Waits() or nil)
+    local list = B.Pick(rows, B.Needed(), B.Rules(), ns.questBags and ns.questBags.Waits() or nil)
+    return B.Unmoved(list, B.moved, "in", contNow(), B.Rules())
 end
 
 -------------------------------------------------------------------------------
@@ -287,6 +316,7 @@ function B.TakeOut(fresh)
             local ok, v = pcall(D.DecideId, D, id)
             return ok and v or nil
         end, B.Rules(), ns.questBags and ns.questBags.NeededHere or nil)
+        rows = B.Unmoved(rows, B.moved, "out", contNow(), nil)
     end
     takeMemo.at, takeMemo.rows = now, rows
     return rows
@@ -365,9 +395,13 @@ function B:Deposit()
     local want = {}
     for _, r in ipairs(B.List()) do if r.id then want[r.id] = true end end
     local slots = {}
+    local cont = contNow()
     ns.disposition:EachBagItem(function(bag, slot, link)
         local id = tonumber(link:match("item:(%d+)"))
-        if id and want[id] then slots[#slots + 1] = { bag, slot } end
+        if id and want[id] then
+            slots[#slots + 1] = { bag, slot }
+            B.moved[id] = { dir = "in", cont = cont }
+        end
     end)
     for i, s in ipairs(slots) do
         C_Timer.After((i - 1) * B.STEP, function()
@@ -395,8 +429,10 @@ function B:Withdraw()
     if not okS or type(slots) ~= "table" then return 0 end
     local free = ns.export and ns.export.BagsFree and ns.export.BagsFree() or nil
     local n = B.TakeCount(#slots, free)
+    local cont = contNow()
     for i = 1, n do
         local s = slots[i]
+        if s[3] then B.moved[s[3]] = { dir = "out", cont = cont } end
         C_Timer.After((i - 1) * B.STEP, function()
             if bankOpen and not InCombatLockdown() then pcall(useItem, s[1], s[2]) end
         end)
@@ -1183,6 +1219,12 @@ function B.Lines()
     table.sort(never)
     local okP, put = pcall(B.List)
     local thrash = B.Thrash(okT and take or {}, okP and put or {})
+    local parked, moved = {}, {}
+    for id, pk in pairs(ns.db.banker.parked or {}) do parked[#parked + 1] = string.format("%s (%s, continent %s)", tostring(id), tostring(pk.title), tostring(pk.cont)) end
+    for id, m in pairs(B.moved) do moved[#moved + 1] = tostring(id) .. " " .. tostring(m.dir) end
+    table.sort(parked); table.sort(moved)
+    out[#out + 1] = "  parked for a quest across the sea: " .. (#parked > 0 and table.concat(parked, ", ") or "none")
+    out[#out + 1] = "  moved by Flow this session: " .. (#moved > 0 and table.concat(moved, ", ") or "none")
     out[#out + 1] = "  taken out and put back (must be none): " .. (#thrash > 0 and table.concat(thrash, ", ") or "none")
     out[#out + 1] = "  bought back once, never sold (Alt-click one in To bank to undo): " .. (#never > 0 and table.concat(never, ", ") or "none")
     local mine = {}

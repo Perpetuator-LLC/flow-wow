@@ -15956,3 +15956,77 @@ ns:Register("test", "legs: your own trips are read, the planner is given them, a
     local okO, opts = pcall(ns.nav.Options, ns.nav)
     t:ok(okO and type(opts) == "table" and (opts.legs == nil or type(opts.legs) == "function"), "the route's options carry it" .. (okO and "" or (": " .. tostring(opts))))
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.351: a thing parked in the bank for a quest across the sea stays
+-- parked; Flow never moves a thing one way and then back.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: banking a quest's thing doesn't make Flow ask for it back", function(t)
+    local QG = ns.questBags
+    -- In the bank, the game calls the quest unfinished: a "collect it" step is back, here.
+    local steps = {
+        { key = "5725:1", item = 14395, conts = { [1] = true }, placed = true },
+        { key = "5725:2", item = 14396, conts = { [1] = true }, placed = true },
+        { key = "5725:done", deps = { "5725:1", "5725:2" }, conts = { [0] = true }, placed = true },
+    }
+    t:ok(not QG.Away(steps, 1), "as the route has it, the quest now looks like one to do here (that was the bug)")
+    local banked = { [14395] = true, [14396] = true }
+    local real = QG.Unheld(steps, function(id) return banked[id] end)
+    t:eq(#real, 1, "a step that fetches a thing lying in your bank isn't a step")
+    local away, to = QG.Away(real, 1)
+    t:ok(away and to == 0, "what's left is the hand-in across the sea: it waits, and Flow knows on which continent")
+    t:eq(#QG.Unheld(steps, function() return false end), 3, "with nothing in the bank every step counts")
+    t:eq(#QG.Unheld(nil, nil), 0, "no steps: none")
+
+    -- Parked: it stays so until you're over there or the quest is gone.
+    local quests = { { id = 5725, title = "The Power to Destroy...", items = { [14395] = true, [14396] = true } },
+                     { id = 881, title = "Echeyakee", items = { [10327] = true } } }
+    local parked = QG.Park({}, quests, { [5725] = "away", [881] = "here" }, { [5725] = 0 }, 1)
+    t:ok(parked[14395] and parked[14395].cont == 0 and parked[14395].title == "The Power to Destroy...", "a quest across the sea parks its things, with where it goes on")
+    t:eq(parked[10327], nil, "a quest here parks nothing")
+    QG.Park(parked, quests, { [5725] = "here", [881] = "here" }, {}, 1)
+    t:ok(parked[14395] ~= nil, "the quest log changing its mind (the thing is in the bank now) doesn't unpark it")
+    QG.Park(parked, quests, { [5725] = "stuck" }, {}, nil)
+    t:ok(parked[14395] ~= nil, "nor does not knowing where you are")
+    QG.Park(parked, quests, { [5725] = "here" }, {}, 0)
+    t:eq(parked[14395], nil, "being on its continent does: now it can come out")
+    parked = QG.Park({}, quests, { [5725] = "away" }, { [5725] = 0 }, 1)
+    QG.Park(parked, { quests[2] }, {}, {}, 1)
+    t:eq(parked[14395], nil, "and so does the quest leaving your log")
+end)
+
+ns:Register("test", "banker: what Flow just moved one way isn't offered the other way", function(t)
+    local B = ns.banker
+    local moved = { [14395] = { dir = "in", cont = 1 }, [2589] = { dir = "out", cont = 1 } }
+    t:ok(not B.Settled(moved, 14395, "out", 1), "just deposited: not offered back out here")
+    t:ok(B.Settled(moved, 14395, "in", 1), "(more of it may still go in)")
+    t:ok(B.Settled(moved, 14395, "out", 0), "on another continent it may: that's what changes a quest thing's use")
+    t:ok(not B.Settled(moved, 2589, "in", 1), "just taken out: not offered back in")
+    t:ok(B.Settled(moved, 999, "out", 1) and B.Settled(nil, 1, "in", 1), "a thing Flow hasn't moved is free either way")
+    local rows = { { id = 14395, name = "Spells of Shadow" }, { id = 5, name = "Other" }, { id = 2589, name = "Linen Cloth", mine = true } }
+    local out = B.Unmoved(rows, moved, "out", 1, nil)
+    t:eq(#out, 2, "the take-out list loses what was just deposited")
+    t:eq(out[1].id, 5, "the rest stay")
+    local put = B.Unmoved({ { id = 2589, name = "Linen Cloth" }, { id = 5 } }, moved, "in", 1, {})
+    t:eq(#put, 1, "the put-away list loses what was just taken out")
+    put = B.Unmoved({ { id = 2589, name = "Linen Cloth" } }, moved, "in", 1, { [2589] = "bank" })
+    t:eq(#put, 1, "unless you chose to bank it yourself: your own choice is never held back")
+
+    -- Your own things, right now: both lists build, and share nothing.
+    local okT, take = pcall(B.TakeOut, true)
+    local okP, list = pcall(B.List)
+    t:ok(okT and okP, "both lists build" .. ((okT and okP) and "" or (": " .. tostring(okT and list or take))))
+    if okT and okP then t:eq(#B.Thrash(take, list), 0, "nothing of yours is in both") end
+    local okL, lines = pcall(B.Lines)
+    t:ok(okL and table.concat(lines, "\n"):find("parked for a quest across the sea", 1, true), "/flow banker says what's parked" .. (okL and "" or (": " .. tostring(lines))))
+end)
+
+ns:Register("test", "route: a quest thing that lies in your bank isn't collected again", function(t)
+    local QG = ns.questBags
+    t:ok(QG.Banked(1, nil, nil), "one in the bank, no count asked: you have it")
+    t:ok(QG.Banked(3, 5, 2), "three in the bank and two on you make the five")
+    t:ok(not QG.Banked(2, 5, 2), "two and two don't")
+    t:ok(not QG.Banked(0, 1, 0) and not QG.Banked(nil), "none in the bank: still to get")
+    t:eq(QG.InBank(-1), false, "an item the bank doesn't hold")
+end)

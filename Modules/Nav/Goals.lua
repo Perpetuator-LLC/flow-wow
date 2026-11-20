@@ -200,7 +200,11 @@ local function questGoals(db, q, goals, opts)
             cant(string.format("objective %d (%s): Questie has no data for it", i, tostring(obj.text or "?")))
             missing[#missing + 1] = { key = key, text = obj.text, why = "Questie has no data for it", kind = "use" }
         end
-        if not obj.finished and od and not skillObj then
+        -- (What it collects lies in your bank: you have it. No step to go and
+        -- collect it again, 0.35.351; Flow Banker brings it out when the
+        -- quest can go on.)
+        local banked = od and od.Type == "item" and not opts.who and ns.questBags and ns.questBags.InBank(od.Id, obj.need, obj.have)
+        if not obj.finished and od and not skillObj and not banked then
             local spawns, verb, what, elite = {}, nil, nil, false
             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
             local mobs = {}     -- { name, min, max, rate }: their levels, and how often they drop it (0.35.232)
@@ -254,6 +258,8 @@ local function questGoals(db, q, goals, opts)
                         npcs = #targets > 0 and targets or nil, area = true, target = what,
                         -- (How many are still to get: the planner sizes its visits by it.)
                         left = obj.need and math.max(0, obj.need - (obj.have or 0)) or nil,
+                        -- (The item it collects: a step to get a thing that lies in your bank isn't one, QuestBags.lua.)
+                        item = (od.Type == "item") and od.Id or nil,
                         kind = isDaily(quest) and "daily" or (verb == "Kill" and "kill") or (verb == "Collect" and "collect") or "use",
                         text = whose .. (elite and "[Elite] " or "") .. (title and (title .. ": ") or "") .. ns.ProgressText(objText),
                         details = (function()
@@ -296,7 +302,8 @@ local function questGoals(db, q, goals, opts)
     if not opts.who then
         local needKeys = {}
         for _, itemId in ipairs(ns.quests.SourceItems(quest)) do
-            if ns.quests.StillToGet(itemId, ns.api.Count and ns.api.Count(itemId) or 0) then
+            if ns.quests.StillToGet(itemId, ns.api.Count and ns.api.Count(itemId) or 0)
+                and not (ns.questBags and ns.questBags.InBank(itemId)) then
                 local item = call(db, "GetItem", itemId)
                 local spawns, targets = {}, {}
                 for _, npcId in ipairs(item and item.npcDrops or {}) do
@@ -310,7 +317,7 @@ local function questGoals(db, q, goals, opts)
                 if #points > 0 and not skip(key) then
                     goals[#goals + 1] = {
                         key = key, points = points, known = known, title = title, level = quest.level, kind = "collect", area = true,
-                        npcs = #targets > 0 and targets or nil, target = item and item.name,
+                        npcs = #targets > 0 and targets or nil, target = item and item.name, item = itemId,
                         text = (title and (title .. ": ") or "") .. "Get " .. name,
                         details = { "Quest: " .. (title or "?"),
                             "You need " .. name .. " before the rest of this quest can be done: it's found here. The quest's other steps come after." },
