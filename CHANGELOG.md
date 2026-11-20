@@ -1,6 +1,14 @@
 # Changelog
 
 
+## Unreleased
+
+- **Flow no longer sells crafting materials to a vendor.** Cloth, ore, bars, stone, leather, herbs and every
+  other trade good that none of your professions uses, or that your skill has moved past (Rough Stone for a
+  Blacksmith past 120), now gets the auction house mark instead, on WoW: Forever too, where Flow has no auction
+  prices to go on. The reason says why, with the price when Flow has seen one. One that keeps coming back unsold
+  says so, and still isn't vendored.
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took

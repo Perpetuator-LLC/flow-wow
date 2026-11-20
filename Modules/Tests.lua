@@ -738,17 +738,35 @@ ns:Register("test", "bags: sell decisions", function(t)
     v = rule("neverSell", { id = 999105 })
     t:eq(v and v.action, "keep", "bought back once: never sold again")
     ns.db.sell.never[999105] = nil
-    v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
-    t:eq(v and v.action, "sell", "material nobody of yours uses: sell")
-    with(ns.db.sell, "vendorUnpriced", false, function()
-        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
-        t:eq(v and v.action, "ah", "better material, held for the auction house (the old way, by the setting)")
-    end)
+    -- Materials are never vendored: "That should all go on the auction house."
     with(ns.db.sell, "vendorUnpriced", nil, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+        t:eq(v and v.action, "ah", "a plain material nobody of yours uses: the auction house, not a vendor")
+        t:ok(v and v.ahCandidate, "and one whose price the auction scan looks up")
         v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
-        t:eq(v and v.action, "sell", "better material with no auction price known: to a vendor")
-        t:ok(v and v.ahCandidate, "and still one whose price the auction scan looks up")
+        t:eq(v and v.action, "ah", "a better one with no auction price known: the auction house too")
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10,
+                                     outgrown = { Blacksmithing = "Copper Chain Belt" } })
+        t:ok(v and v.action == "ah" and v.reason:find("Blacksmithing is past it", 1, true) ~= nil,
+             "one your Blacksmithing is past: the auction house, and it says why")
     end)
+    with(ns.db.sell, "vendorUnpriced", false, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+        t:eq(v and v.action, "ah", "the setting off: the auction house as well")
+    end)
+    if ns.posting then
+        with(ns.posting, "GaveUp", function() return true, "didn't sell at auction 3 time(s)" end, function()
+            v = rule("unusedMaterial", { id = 999106, classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+            t:ok(v and v.action == "ah" and v.reason:find("didn't sell", 1, true) ~= nil,
+                 "one that keeps coming back unsold: still not vendored, and it says so")
+        end)
+    end
+    local money = function(c) return c .. "c" end
+    v = ns.disposition.MaterialVerdict("crafting material none of your professions use", 400, nil, money)
+    t:ok(v.action == "ah" and v.reason:find("400c", 1, true) ~= nil, "a price seen: given in the reason")
+    v = ns.disposition.MaterialVerdict("crafting material none of your professions use", nil, nil, money)
+    t:ok(v.action == "ah" and v.reason:find("never a vendor", 1, true) ~= nil, "none seen: still the auction house")
+    t:eq(rule("unusedMaterial", { classID = 4, quality = 1, sellPrice = 10 }), nil, "not a material: not this rule's")
 end)
 
 ns:Register("test", "gear: weapon speed tips the balance", function(t)
