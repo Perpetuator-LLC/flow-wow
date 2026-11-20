@@ -4,7 +4,7 @@
 ## Unreleased
 
 - **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
-  under the cursor shows a small card by the cursor: its name, level range (coloured against your
+  under the cursor shows a small card in the map's top left corner: its name, level range (coloured against your
   level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
   and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
   nothing hovered it shows the zone you're in: on that zone on the continent map, in the corner

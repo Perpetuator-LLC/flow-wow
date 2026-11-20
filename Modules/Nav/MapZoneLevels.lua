@@ -3,14 +3,14 @@
 -- "I would just like to highlight the zone and see the name of the zone,
 -- the level range, and the fishing level range."
 -- On Kalimdor or the Eastern Kingdoms map, the zone under the cursor gets a
--- small card beside the cursor:
+-- small card in the map's top left corner (by the cursor it covered too much:
+-- "The card ends up blocking too many things"):
 --   Westfall
 --   Level 10-20        (coloured against your level)
 --   Fishing 1
 -- The game's own zone highlight shows which zone it is. With nothing
--- hovered, the card shows the zone you're in: on it on the continent map,
--- in the corner of its own map ("Can we have it still show when you're in
--- the zone by default?"). Settings: "Zone info when hovering the world map",
+-- hovered, the card shows the zone you're in, in the same corner ("Can we
+-- have it still show when you're in the zone by default?"). Settings: "Zone info when hovering the world map",
 -- "World map: your zone's info without hovering". Both on by default.
 --
 -- Level ranges: warcraft.wiki.gg "Zones by level (Classic)". Fishing: the
@@ -250,9 +250,8 @@ local function layout(c, zoneID)
     card:SetSize(math.ceil(w) + 20, math.ceil(h + 9))
 end
 
--- where: "cursor", or { x, y } (0-1 on the canvas) for the card's top centre,
--- or "corner" (the map's top left).
-local function showCard(c, zoneID, where)
+-- Always in the map's top left corner, clear of the zones you're looking at.
+local function showCard(c, zoneID)
     card = card or makeCard()
     if card.key ~= cardKey(zoneID) then
         layout(c, zoneID)
@@ -260,31 +259,7 @@ local function showCard(c, zoneID, where)
     end
     shownFor = zoneID
     card:ClearAllPoints()
-    local sc = WorldMapFrame.ScrollContainer
-    if where == "cursor" then
-        -- Down and to the right of the cursor, like the waypoint tip.
-        local cx, cy = GetCursorPosition()
-        local s = card:GetEffectiveScale()
-        card:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cx / s + 18, cy / s - 22)
-    elseif where == "corner" then
-        card:SetPoint("TOPLEFT", sc, "TOPLEFT", 12, -12)
-    else
-        -- On the zone itself: the canvas pans and zooms, so place it in
-        -- screen terms and leave it off when that spot is out of view.
-        local M = ns.mapOverlay
-        local c2 = M and M.Canvas and M.Canvas()
-        local left, top = c2 and c2:GetLeft(), c2 and c2:GetTop()
-        if not (left and top) then card:Hide() return end
-        local cs = c2:GetEffectiveScale()
-        local px = (left + where[1] * c2:GetWidth()) * cs
-        local py = (top - where[2] * c2:GetHeight()) * cs
-        local ss = sc:GetEffectiveScale()
-        if not (px > sc:GetLeft() * ss and px < sc:GetRight() * ss and py < sc:GetTop() * ss and py > sc:GetBottom() * ss) then
-            card:Hide() return
-        end
-        local s = card:GetEffectiveScale()
-        card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", px / s, py / s)
-    end
+    card:SetPoint("TOPLEFT", WorldMapFrame.ScrollContainer, "TOPLEFT", 12, -12)
     card:Show()
 end
 
@@ -320,27 +295,16 @@ local function zoneUnderCursor()
     return at.mapID, at.name
 end
 
--- The middle of zone `zoneID` on the continent map `mapID`, or nil.
-local function middleOf(zoneID, mapID)
-    if not (C_Map.GetMapRectOnMap and mapID) then return nil end
-    local minX, maxX, minY, maxY = C_Map.GetMapRectOnMap(zoneID, mapID)
-    if not (minX and maxX > minX and maxY > minY) then return nil end
-    return { (minX + maxX) / 2, (minY + maxY) / 2 }
-end
-
--- With nothing hovered: the zone you're in. On the continent map the card
--- sits on that zone; on your zone's own map, in its top left corner.
+-- With nothing hovered: the zone you're in, on the continent map or its own.
 local function yourZone()
     if not ZL.Here() then return nil end
     local here = ZL.PlayerZone(C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
     if not here then return nil end
     local mapID = WorldMapFrame:GetMapID()
-    if mapID == here then return here, "corner" end
+    if mapID == here then return here end
     local info = mapID and C_Map.GetMapInfo(mapID)
     if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent) then return nil end
-    local at = middleOf(here, mapID)
-    if not at then return nil end
-    return here, at
+    return here
 end
 
 function ZL.Tick()
@@ -350,10 +314,10 @@ function ZL.Tick()
     local level = UnitLevel("player") or 1
     local zoneID, name = zoneUnderCursor()
     local c = zoneID and ZL.Card(zoneID, name, level)
-    if c then showCard(c, zoneID, "cursor") return end
-    local here, where = yourZone()
+    if c then showCard(c, zoneID) return end
+    local here = yourZone()
     c = here and ZL.Card(here, C_Map.GetMapInfo(here) and C_Map.GetMapInfo(here).name, level)
-    if c then showCard(c, here, where) else hideCard() end
+    if c then showCard(c, here) else hideCard() end
 end
 ZL.Tick = ns.perf.Wrap("world map (zone info)", ZL.Tick)
 
@@ -372,11 +336,11 @@ end)
 
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "route", label = "Zone info when hovering the world map",
-        tip = "On the continent map, the zone under the cursor shows its name, level range (coloured against "
+        tip = "On the continent map, the zone under the cursor shows, in the map's top left corner, its name, level range (coloured against "
             .. "your level) and the fishing skill its waters need. Hold Shift for the fish its waters give, and how often.",
         get = ZL.On, set = ZL.Set }
     ns.settings:AddCheck{ group = "route", label = "World map: your zone's info without hovering",
-        tip = "With nothing hovered, the card shows the zone you're in: on that zone on the continent map, "
-            .. "and in the top left corner of your zone's own map.",
+        tip = "With nothing hovered, the card shows the zone you're in, on the continent map "
+            .. "and on your zone's own map.",
         get = ZL.Here, set = function(on) ns.db.nav.mapZoneHere = on and true or false; hideCard() end }
 end
