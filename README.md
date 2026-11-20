@@ -215,6 +215,8 @@ Flow for WoW is a separate project from Flow Engine.
   arrow can be built; nothing is shown yet.
 - **Trips Flow learns**: each trip from one step to the next is timed, your quickest is kept, and
   the route is ordered by those times instead of the straight line (`/flow legs`).
+- **Battlegrounds in Route includes**: battleground quests (in your log and to pick up) are a tick
+  of their own, off until you want them. Hover any quest step for the XP it gives at your level.
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line

@@ -16348,3 +16348,64 @@ ns:Register("test", "click: Flow Deaths opens from the meters; a line and its po
     D:Fill()
     if not was then f:Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.357: battleground quests are a kind of their own in Route includes.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route kinds: battleground quests have their own tick, off until you want them", function(t)
+    local N, Q = ns.nav, ns.quests
+    t:ok(Q.IsBattleground({ zoneOrSort = 3277 }), "a quest filed under Warsong Gulch")
+    t:ok(Q.IsBattleground({ zoneOrSort = 2597 }) and Q.IsBattleground({ zoneOrSort = 3358 }), "Alterac Valley and Arathi Basin too")
+    t:ok(Q.IsBattleground({ zoneOrSort = -25 }), "one under the quest data's Battlegrounds heading")
+    t:ok(Q.IsBattleground(nil, "Battle of Warsong Gulch: 0 -> 3 Warsong Gulch Mark of Honor"), "a step that asks for marks of honor")
+    t:ok(not Q.IsBattleground({ zoneOrSort = 17 }, "Harpy Lieutenants: 2 -> 6 Harpy Lieutenant Ring"), "an ordinary Barrens quest isn't one")
+    t:ok(not Q.IsBattleground(nil, nil), "nothing known: not one")
+
+    local def = ns:Get("routeKind", "battlegrounds")
+    t:ok(def and def.default == false, "the kind exists and starts unticked")
+    t:ok(def.label:find("Battlegrounds", 1, true) and def.tip:find("XP", 1, true), "its tick is named, and its tip says where the XP shows")
+    local keys = {}
+    for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
+    t:ok(table.concat(keys, ","):find("battlegrounds", 1, true), "it's in the Route includes list")
+
+    -- A battleground step is its kind, not "current quests" or "new quests".
+    local marks = { key = "987654331:1", provider = "questie", text = "Battle of Warsong Gulch: 0 -> 3 Warsong Gulch Mark of Honor", blockedShort = "from battlegrounds" }
+    t:eq(N.KindOf(marks, 20), "battlegrounds", "a step for marks of honor: battlegrounds")
+    local pick = { key = "pickup:987654332", provider = "pickups", level = 20, text = "Accept: Vanquish the Invaders (Warsong Gulch Mark of Honor)" }
+    t:eq(N.KindOf(pick, 20), "battlegrounds", "one to pick up: battlegrounds, not new quests")
+    t:eq(N.KindOf({ key = "748:2", provider = "questie", text = "Poison Water: 2 -> 6" }, 20), "quests", "an ordinary quest step is still current quests")
+    -- Unticked: they leave the route and its lists; ticked: they're there.
+    local list = { marks, pick, { key = "748:2", provider = "questie", text = "Poison Water" } }
+    local out = N.FilterKinds(list, function(k) return k ~= "battlegrounds" end, 20)
+    t:eq(#out, 1, "unticked: both battleground steps are left out")
+    t:eq(out[1].key, "748:2", "the ordinary quest stays")
+    out = N.FilterKinds(list, function() return true end, 20)
+    t:eq(#out, 3, "ticked: they're on the route")
+    t:eq(list[1].routeKind, "battlegrounds", "each tagged with its kind")
+    -- The older routes: only "everything" has them.
+    t:ok(N.ModeKinds("complete", true).battlegrounds and not N.ModeKinds("optimal", true).battlegrounds and not N.ModeKinds("quests", true).battlegrounds,
+        "of the older routes only Completionist included them")
+end)
+
+ns:Register("test", "click: the Battlegrounds tick in Route includes turns its steps on and off, and goes back", function(t)
+    local N = ns.nav
+    if InCombatLockdown() then return end
+    local kinds = ns.db.nav.kinds
+    local was = N:Includes("battlegrounds")
+    local ok, err = pcall(N.SetKind, N, "battlegrounds", not was)
+    t:ok(ok, "ticking it runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(N:Includes("battlegrounds"), not was, "and flips whether battleground quests are on your route")
+    pcall(N.SetKind, N, "battlegrounds", was)
+    t:eq(N:Includes("battlegrounds"), was, "and back")
+    ns.db.nav.kinds = kinds
+    if kinds and kinds.battlegrounds == nil then N:Collect() end
+    -- A quest step says what XP it gives at your level (the hover).
+    local g = { key = "pickup:987654333", level = UnitLevel("player"), details = {} }
+    local okX = pcall(function() return ns.xpValue:Apply({ g }) end)
+    if okX then
+        local found = false
+        for _, d in ipairs(g.details) do if type(d) == "string" and d:find("^XP: ") then found = true end end
+        t:ok(found, "a quest step's details carry its XP for your level")
+    end
+end)

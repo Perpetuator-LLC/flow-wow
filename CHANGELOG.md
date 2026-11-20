@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.357
+
+- **New: Battlegrounds in Route includes.** Battleground quests sat among your ordinary
+  quests: the ones in your log as steps Flow can't place ("from battlegrounds"), the ones to
+  pick up as trips to a battlemaster. They're now a tick of their own, "Battlegrounds (their
+  quests)", **off until you tick it**: unticked, they're left out of your route, the Flow
+  Tracker and the lists; ticked, they're all there again. A quest counts as one when the quest
+  data files it under Warsong Gulch, Arathi Basin, Alterac Valley or "Battlegrounds", or when
+  the step asks for a Mark of Honor.
+- Hover any quest step, a battleground's too, for the XP it gives at your level ("XP: about
+  1010 (full XP)", or "40% XP: going grey"): that line was already there, and the tick's
+  tooltip now says so.
 ## 0.35.356
 
 - **Flow Meters count damage taken, interrupts and deaths.** Right-click the meters: the

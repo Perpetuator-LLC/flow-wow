@@ -836,17 +836,57 @@ ns:Register("navGoal", "native", {
 local function pickup(g) return type(g.key) == "string" and g.key:find("^pickup:") ~= nil end
 local function low(g, level) return (g.level or 0) < (level or 0) - ns.nav.LOW_QUEST_BELOW end
 
+-- Battleground quests (0.35.357). "In the Route includes dropdown we should
+-- add battlegrounds as one of the checkboxes. That should remove all the
+-- battleground quests that are being planned into the routes if it's
+-- disabled." They sat among the ordinary quests: the ones in your log as
+-- steps Flow can't place ("from battlegrounds"), the ones to pick up as trips
+-- to a battlemaster. Now they're a kind of their own, off until you tick it.
+--   A quest is one when the quest data files it under a battleground or
+--   under "Battlegrounds", or when the step itself asks for a Mark of Honor.
+ns.quests.BG_ZONES = { [2597] = "Alterac Valley", [3277] = "Warsong Gulch", [3358] = "Arathi Basin" }
+ns.quests.BG_SORT = -25   -- the quest data's "Battlegrounds" heading
+-- Pure: raw: the quest's data ({ zoneOrSort }); text: a step's words.
+function ns.quests.IsBattleground(raw, text)
+    local z = type(raw) == "table" and tonumber(raw.zoneOrSort) or nil
+    if z and (ns.quests.BG_ZONES[z] or z == ns.quests.BG_SORT) then return true end
+    return type(text) == "string" and text:lower():find("mark of honor", 1, true) ~= nil
+end
+local bgMemo = {}
+local function battleground(g)
+    if type(g) ~= "table" or type(g.key) ~= "string" then return false end
+    if g.blockedShort == "from battlegrounds" then return true end
+    local id = tonumber(g.key:match("^pickup:(%d+)$") or g.key:match("^(%d+):"))
+    if not id then return false end
+    local known = bgMemo[id]
+    if known == nil then
+        local raw = ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", id) or nil
+        known = ns.quests.IsBattleground(raw, nil)
+        if raw then bgMemo[id] = known end   -- (quest data not in yet: asked again)
+    end
+    return known or ns.quests.IsBattleground(nil, g.text)
+end
+ns.quests.GoalIsBattleground = battleground
+
 -- A quest to pick up far enough under your level is the low kind, else new.
 ns:Register("routeKind", "lowQuests", { order = 30, default = false,
     label = "Low-level quests (grey ones too; shortest order)", short = "low-level quests",
     tip = "Quests to pick up that are 4 or more levels under you, grey ones too: for doing every quest in a zone. "
         .. "While this is ticked the route goes by the shortest path, since XP would always leave them for last.",
-    match = function(g, level) return pickup(g) and low(g, level) end })
+    match = function(g, level) return pickup(g) and low(g, level) and not battleground(g) end })
+
+-- (After the others in the menu; the quest kinds above leave its steps to it.)
+ns:Register("routeKind", "battlegrounds", { order = 68, default = false,
+    label = "Battlegrounds (their quests)", short = "battlegrounds",
+    tip = "Quests done in a battleground or handed in for its marks (Warsong Gulch, Arathi Basin, Alterac Valley): the ones in your log, and the ones to pick up. "
+        .. "Off: they're left out of your route and its lists. On: hover one for the XP it gives at your level.",
+    match = function(g) return battleground(g) end })
 
 ns:Register("routeKind", "quests", { order = 10, default = true,
     label = "Current quests", short = "current quests",
     tip = "The quests in your log: their objectives, then their turn-ins.",
     match = function(g)
+        if battleground(g) then return false end
         return g.provider == "questie" or g.provider == "native"   -- (no source: a quest step made by hand, as tests do)
             or (g.provider == nil and type(g.key) == "string" and g.key:find("^%d+:") ~= nil)
     end })
@@ -854,7 +894,7 @@ ns:Register("routeKind", "quests", { order = 10, default = true,
 ns:Register("routeKind", "newQuests", { order = 20, default = true,
     label = "New quests", short = "new quests",
     tip = "Quests to pick up that are still worth the XP at your level (not 3 or more levels above you).",
-    match = function(g, level) return pickup(g) and not low(g, level) end })
+    match = function(g, level) return pickup(g) and not low(g, level) and not battleground(g) end })
 
 ns:Register("routeKind", "training", { order = 40, default = true,
     label = "Class trainer, weapon skills, riding", short = "training",
