@@ -1,6 +1,13 @@
 # Changelog
 
 
+## Unreleased
+
+- **Choose your Paladin seal.** `/flow seal command` (or righteousness, crusader, justice, light,
+  wisdom, fury) sets the seal Flow suggests for this character; `/flow seal auto` goes back. On
+  automatic, Flow now keeps refreshing the seal you cast yourself instead of swapping you back to
+  Righteousness (Fury when tanking).
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took

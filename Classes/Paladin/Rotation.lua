@@ -13,6 +13,32 @@ local function hasSeal()
     return A.Buff("player", function(n) return n and n:find("^Seal of") end)
 end
 
+-- The seal you have up now (its name), or nil.
+local function currentSeal()
+    local name
+    A.Buff("player", function(n)
+        if n and n:find("^Seal of") then name = n return true end
+    end)
+    return name
+end
+
+-- Every Classic Era / Forever seal, for /flow seal.
+local SEALS = { "Seal of Righteousness", "Seal of the Crusader", "Seal of Command",
+                "Seal of Justice", "Seal of Light", "Seal of Wisdom", "Seal of Fury" }
+
+-- Which seal Flow puts up: the one you chose (/flow seal), if you know it;
+-- else the one you already have up (you cast it, so keep it); else Fury when
+-- tanking; else Righteousness. engine:Knows, role and the seal up can be
+-- passed in (tests); otherwise they're read from the game.
+local function pickSeal(engine, role, up)
+    local chosen = ns.db and ns.db.paladinSeal
+    if chosen and engine:Knows(chosen) then return chosen end
+    if up == nil then up = currentSeal() end
+    if up and up ~= false then return up end
+    if role == "tank" and engine:Knows("Seal of Fury") then return "Seal of Fury" end
+    return "Seal of Righteousness"
+end
+
 -- Seal missing or about to drop. In Forever, Judgement no longer uses up
 -- the seal, so it only ends by running out: refresh it just before that
 -- (a few seconds in combat; a little earlier right before a pull).
@@ -62,15 +88,14 @@ local buffs = {
       when = function(c)
           return not c.inCombat and needBlessing() and not c.engine:Knows("Blessing of Might")
       end },
-    -- Tanks use Seal of Fury (Forever, level 10); everyone else Righteousness.
-    { spell = "Seal of Fury", kind = "buff", reason = "No seal, or running out (tanking)",
-      when = function(c) return c.role == "tank" and wantSeal(c) end },
-    { spell = "Seal of Righteousness", kind = "buff", reason = "No seal, or running out",
-      when = function(c)
-          local tankSeal = c.role == "tank" and c.engine:Knows("Seal of Fury")
-          return not tankSeal and wantSeal(c)
-      end },
 }
+-- One rule per seal; only the one pickSeal chooses can fire. (Tanks get
+-- Seal of Fury, Forever level 10; everyone else Righteousness; /flow seal
+-- or the seal you cast yourself overrides both.)
+for _, seal in ipairs(SEALS) do
+    buffs[#buffs + 1] = { spell = seal, kind = "buff", reason = "No seal, or running out",
+        when = function(c) return wantSeal(c) and pickSeal(c.engine, c.role) == seal end }
+end
 
 -- Auto attack: suggested when you have a hostile target and aren't swinging.
 -- Older clients call it "Attack", newer ones "Auto Attack"; only the one you
@@ -125,14 +150,15 @@ local function guide(e)
     add("Before a pull:")
     if k("Devotion Aura") then add("  - Devotion Aura on (stays on; it's on your stance bar).") end
     if k("Blessing of Might") then add("  - Blessing of Might (re-cast when under 30s left).") end
-    if k("Seal of Righteousness") then add("  - Seal of Righteousness, cast just before you pull.") end
+    local seal = pickSeal(e)
+    if k(seal) then add("  - " .. seal .. ", cast just before you pull (change it: /flow seal).") end
     add("Fight:")
     if k("Judgement") then
         add("  1. Judgement to open (in Forever it doesn't use up your seal), then again on every cooldown.")
     end
     add("  2. Auto attack: keep swinging (Flow suggests Attack if you aren't).")
     if k("Holy Strike") then add("  3. Holy Strike on every cooldown.") end
-    if k("Seal of Righteousness") then add("  4. Refresh Seal of Righteousness when it has ~3s left.") end
+    if k(seal) then add("  4. Refresh " .. seal .. " when it has ~3s left.") end
     if k("Hammer of Justice") then add("  - Hammer of Justice: stun a runner or buy time to heal.") end
     if k("Consecration") then add("  - Several enemies: Consecration (full damage on up to 4).") end
     add("Healing:")
@@ -158,9 +184,50 @@ local groupBuffs = {
     { spell = "Blessing of Kings", group = "blessing", minutes = 5, rebuff = 30, who = function() return true end },
 }
 
+-- /flow seal [name|auto]: choose the seal Flow suggests (this character only).
+ns:PerCharacter("paladinSeal")
+
+local function findSeal(text)
+    text = (text or ""):lower():gsub("^seal of%s*", ""):gsub("^the%s+", "")
+    if text == "" then return nil end
+    for _, s in ipairs(SEALS) do
+        if s:lower():gsub("^seal of%s*", ""):gsub("^the%s+", ""):find(text, 1, true) == 1 then return s end
+    end
+end
+
+ns.commands.seal = function(arg)
+    arg = (arg or ""):match("^%s*(.-)%s*$")
+    if arg:lower() == "auto" then
+        ns.db.paladinSeal = nil
+        ns:Print("seal: back to automatic (the seal you have up; else Fury when tanking, Righteousness otherwise)")
+        return
+    end
+    if arg ~= "" then
+        local s = findSeal(arg)
+        if not s then
+            ns:Print("no seal called '" .. arg .. "'. Try: righteousness, crusader, command, justice, light, wisdom, fury, or auto")
+            return
+        end
+        ns.db.paladinSeal = s
+        local known = ns.api.KnownSpells()[s]
+        ns:Print("seal: Flow now suggests " .. s
+            .. (known and "" or " (you don't know it yet: Flow keeps its usual seal until you do)"))
+        return
+    end
+    ns:Print("seal: " .. (ns.db.paladinSeal or "automatic")
+        .. ". /flow seal <righteousness|crusader|command|justice|light|wisdom|fury|auto>")
+end
+
+ns:Register("help", "seal", { order = 32, title = "Paladin seal", lines = {
+    "/flow seal command (or righteousness, crusader, justice, light, wisdom, fury): the seal Flow suggests, for this character.",
+    "/flow seal auto: back to automatic (keeps the seal you cast yourself; else Fury when tanking, Righteousness otherwise).",
+} })
+
 ns:Register("rotation", "PALADIN", {
     guide = guide,
     wantSeal = wantSeal,   -- (tests)
+    pickSeal = pickSeal,   -- (tests)
+    SEALS = SEALS,         -- (tests)
     groupBuffs = groupBuffs,
     -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).
     dispels = {

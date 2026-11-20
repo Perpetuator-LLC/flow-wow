@@ -3532,6 +3532,26 @@ ns:Register("test", "paladin: a seal goes on whenever you have none", function(t
     end)
 end)
 
+ns:Register("test", "paladin: /flow seal picks the seal Flow suggests", function(t)
+    local def = ns:Get("rotation", "PALADIN")
+    local knowsAll = { Knows = function() return true end }
+    local noFury = { Knows = function(_, s) return s ~= "Seal of Fury" end }
+    local saved = ns.db.paladinSeal
+    ns.db.paladinSeal = nil
+    t:eq(def.pickSeal(knowsAll, "dps", false), "Seal of Righteousness", "automatic, no seal up: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "tank", false), "Seal of Fury", "automatic, tanking: Fury")
+    t:eq(def.pickSeal(noFury, "tank", false), "Seal of Righteousness", "tanking without Fury yet: Righteousness")
+    t:eq(def.pickSeal(knowsAll, "dps", "Seal of Command"), "Seal of Command", "keeps the seal you cast yourself")
+    ns.db.paladinSeal = "Seal of Wisdom"
+    t:eq(def.pickSeal(knowsAll, "dps", "Seal of Command"), "Seal of Wisdom", "your choice wins")
+    t:eq(def.pickSeal(noFury, "tank", false), "Seal of Wisdom", "your choice wins over tanking")
+    ns.db.paladinSeal = "Seal of Fury"
+    t:eq(def.pickSeal(noFury, "dps", false), "Seal of Righteousness", "a seal you don't know yet: the usual one")
+    ns.db.paladinSeal = saved
+    t:ok(type(ns.commands.seal) == "function", "/flow seal exists")
+    for _, s in ipairs(def.SEALS) do t:ok(s:find("^Seal of ") ~= nil, s .. " is a seal") end
+end)
+
 ns:Register("test", "follow: the arrow follows a party member only while you follow one", function(t)
     local F = ns.follow
     t:eq(F:Target(), nil, "not following anyone at first")
