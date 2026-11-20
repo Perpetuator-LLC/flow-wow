@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.343
+
+- **New: your own "sell it" or "keep it" for any item**, the way you already choose "bank it".
+  In Flow Banker:
+  - **To bank** (the things Flow keeps): **Shift-click** one to sell it. The Flow Seller takes
+    it at the next vendor, whatever Flow's rules say ("you chose to sell it").
+  - **To sell**: **click** a line to keep that thing instead ("you chose to keep it"). A line
+    that's there by your own choice is marked "Your choice:"; a click on it, or a right-click
+    on any line, goes back to Flow's choice.
+  - A thing you chose to keep (or once bought back) is undone with **Alt-click** in To bank.
+  Tooltips say which clicks do what. Per character; `/flow banker` lists your choices. A thing
+  vendors won't buy can't be chosen to sell.
 ## 0.35.342
 
 - **New: "Keep set for" ticks at the top of your bags**, one for each of your specs (a druid:

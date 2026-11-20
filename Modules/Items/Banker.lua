@@ -138,7 +138,7 @@ function B.PutCells(rows, needed, rules)
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, bank = bank and true or false, why = why,
                               mine = rules and rules[r.id] or nil,
                               -- (Why Flow keeps it at all, and by which rule: the tooltip says.)
-                              reason = r.reason, rule = r.rule }
+                              reason = r.reason, rule = r.rule, sell = r.sell, quality = r.quality }
         end
     end
     table.sort(out, function(a, b)
@@ -175,7 +175,8 @@ function B.SellRows(rows)
     local out = {}
     for _, r in ipairs(rows or {}) do
         if type(r) == "table" and B.LEAVES[r.action or ""] then
-            out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason }
+            out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason,
+                              mine = r.rule == "yourChoice" or nil }
         end
     end
     return out
@@ -192,7 +193,8 @@ function B.TakeOutRows(items, decide, rules)
             local v = decide(id)
             local item = type(v) == "table" and v.item or nil
             if item and (v.action == "sell" or v.action == "ah") and not B.NOT_OUT[item.classID or 0] then
-                out[#out + 1] = { id = id, name = item.name or ("item " .. id), count = count, action = v.action, reason = v.reason, bank = true }
+                out[#out + 1] = { id = id, name = item.name or ("item " .. id), count = count, action = v.action, reason = v.reason, bank = true,
+                                  mine = v.rule == "yourChoice" or nil }
             end
         end
     end
@@ -205,6 +207,7 @@ end
 
 -- Right now (remembered a few seconds: it asks every rule about each thing in the bank).
 local takeMemo = { at = -100, rows = {} }
+local function takeOutReset() takeMemo.at = -100 end
 function B.TakeOut(fresh)
     local now = GetTime()
     if not fresh and now - takeMemo.at < 10 then return takeMemo.rows end
@@ -224,6 +227,7 @@ end
 function B.SellLines(bags, bank, atBank)
     local out = {}
     local function line(r, where)
+        if r.mine then where = where .. "|cffffd100Your choice:|r " end
         return string.format("%s%d x %s  |cff999999(%s: %s)|r", where, r.count or 1, tostring(r.name), B.LEAVES[r.action] or tostring(r.action),
             tostring(r.reason or "no reason given"))
     end
@@ -410,11 +414,14 @@ local function build()
         rb:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 1); rb:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", 0, -1)
         rb.hl = rb:CreateTexture(nil, "HIGHLIGHT")
         rb.hl:SetAllPoints(); rb.hl:SetColorTexture(1, 1, 1, 0.08)
-        rb:SetScript("OnClick", function(self) B:RowClick(self) end)
+        rb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        rb:SetScript("OnClick", function(self, button) B:RowClick(self, button) end)
         rb:SetScript("OnEnter", function(self)
             if not self.id then return end
             ns.Tip(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("Click: its price over time (Flow Prices)", 1, 1, 1)
+            for n, l in ipairs(B.RowTip(B.view, self.row)) do
+                if n == 1 then GameTooltip:AddLine(l, 1, 1, 1, true) else GameTooltip:AddLine(l, 0.7, 0.7, 0.7, true) end
+            end
             GameTooltip:Show()
         end)
         rb:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -546,7 +553,7 @@ end
 -- What a view shows now: the line above the list, and its lines of text.
 function B.ViewLines(view)
     local now = time()
-    B.lineIds = nil   -- (only the auction prices' lines can be clicked: Flow Prices)
+    B.lineIds, B.lineRows = nil, nil   -- (lines to click: auction prices (Flow Prices) and To sell (keep it))
     if view == "bank" then
         local bank = ns.db.bank or {}
         local rows = B.BankRows(bank.items, nameOf)
@@ -583,7 +590,18 @@ function B.ViewLines(view)
         local okR, rows = pcall(D.Inventory, D)
         local bank = B.TakeOut()
         B.takeCount = #bank
-        return B.SellLines(B.SellRows(okR and rows or {}), bank, bankOpen)
+        local bags = B.SellRows(okR and rows or {})
+        -- Each line can be clicked: keep it instead (or undo your own "sell").
+        B.lineIds, B.lineRows = {}, {}
+        for _, list in ipairs({ bags, bank }) do
+            for _, r in ipairs(list) do
+                B.lineIds[#B.lineIds + 1] = r.id
+                B.lineRows[#B.lineRows + 1] = r
+            end
+        end
+        local note, out = B.SellLines(bags, bank, bankOpen)
+        if #out > 0 then note = note .. " Click one to keep it." end
+        return note, out
     end
     local list = B.List()
     local out = {}
@@ -708,17 +726,34 @@ function B.WhyLines(cell)
     if cell and cell.reason and cell.reason ~= "" then out[#out + 1] = "Flow keeps it: " .. tostring(cell.reason) .. "." end
     if cell and cell.rule == "neverSell" then
         out[#out + 1] = "You bought it back from a vendor once, so Flow never sells it. Alt-click: let Flow sell it again."
+    elseif cell and cell.rule == "yourChoice" then
+        out[#out + 1] = "Alt-click: Flow's own choice again."
+    end
+    if cell and cell.id and ((cell.sell or 0) > 0 or cell.quality == 0) then
+        out[#out + 1] = "Shift-click: sell it at the next vendor (your choice; undo it in To sell)."
     end
     return out
 end
 -- A click on a cell of that view: bank it or carry it; right-click: Flow's own choice.
 -- Alt-click on something you once bought back: Flow may sell it again.
-function B:CellClick(c, button, alt)
+function B:CellClick(c, button, alt, shift)
     local cell = c and c.cell
     if not cell then return false end
     if alt == nil then alt = IsAltKeyDown and IsAltKeyDown() or false end
+    if shift == nil then shift = IsShiftKeyDown and IsShiftKeyDown() or false end
+    -- Shift-click: sell it (your choice), when a vendor buys it.
+    if shift and not alt then
+        if not ((cell.sell or 0) > 0 or cell.quality == 0) then
+            if not c.quiet then ns:Print(tostring(cell.name) .. ": vendors won't buy it, so there's nothing to choose.") end
+            return false
+        end
+        if not ns.disposition.SetChoice(cell.id, "sell") then return false end
+        if not c.quiet then ns:Print(tostring(cell.name) .. ": the Flow Seller sells it at the next vendor (your choice; undo it in To sell).") end
+        B:Fill()
+        return true
+    end
     if alt then
-        if cell.rule ~= "neverSell" or not ns.disposition.Forget(cell.id) then return false end
+        if (cell.rule ~= "neverSell" and cell.rule ~= "yourChoice") or not ns.disposition.Forget(cell.id) then return false end
         if not c.quiet then ns:Print(tostring(cell.name) .. ": Flow may sell it again (it goes by its usual rules now).") end   -- (quiet: the self-test)
         if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
         B:Fill()
@@ -818,6 +853,7 @@ function B:Fill()
         local rb = f.rowButtons and f.rowButtons[i]
         if rb then
             rb.id = (B.lineIds and at <= last and not (i == B.ROWS and below > 0)) and B.lineIds[at] or nil
+            rb.row = rb.id and B.lineRows and B.lineRows[at] or nil
             rb:SetShown(rb.id ~= nil)
         end
     end
@@ -845,9 +881,33 @@ function B:GoClick()
 end
 
 -- A click on a line of "Auction prices": that item's price chart.
-function B:RowClick(rb)
-    if not (rb and rb.id and ns.priceChart) then return false end
+-- A click on a line of "To sell": keep it instead; on one you chose to sell,
+-- or a right-click: Flow's own choice again.
+function B:RowClick(rb, button)
+    if not (rb and rb.id) then return false end
+    if B.view == "sell" then
+        local row = rb.row or {}
+        local changed = ns.disposition.SetChoice(rb.id, B.NextSellChoice(row.mine, button == "RightButton"))
+        takeOutReset()
+        B:Fill()
+        return changed
+    end
+    if not ns.priceChart then return false end
     return ns.priceChart:Show(rb.id)
+end
+-- Pure: your choice after a click on a "To sell" line. mine: it's there by
+-- your own choice. Left: keep it (a thing you chose to sell: undo that).
+function B.NextSellChoice(mine, reset)
+    if reset or mine then return nil end
+    return "keep"
+end
+-- Pure: a line's tooltip.
+function B.RowTip(view, row)
+    if view ~= "sell" then return { "Click: its price over time (Flow Prices)" } end
+    if row and row.mine then
+        return { "You chose to sell it.", "Click or right-click: Flow's own choice again." }
+    end
+    return { "Click: keep it (Flow won't sell it).", "It moves to To bank, with the things Flow keeps: Alt-click it there to undo." }
 end
 
 function B:Scroll(delta)
@@ -983,6 +1043,10 @@ function B.Lines()
     for id in pairs((ns.db.sell and ns.db.sell.never) or {}) do never[#never + 1] = tostring(id) end
     table.sort(never)
     out[#out + 1] = "  bought back once, never sold (Alt-click one in To bank to undo): " .. (#never > 0 and table.concat(never, ", ") or "none")
+    local mine = {}
+    for id, what in pairs((ns.db.sell and ns.db.sell.mine) or {}) do mine[#mine + 1] = tostring(id) .. " " .. tostring(what) end
+    table.sort(mine)
+    out[#out + 1] = "  your own sell or keep choices: " .. (#mine > 0 and table.concat(mine, ", ") or "none")
     return out
 end
 ns.commands.banker = function(arg)
@@ -1002,5 +1066,6 @@ ns:Register("help", "banker", { order = 58, title = "Flow Banker", lines = {
     "Away from a bank, its \"In your bank\" view lists what was there when you last opened it, and \"Auction prices\" what Flow last saw at the auction house. The Flow Banker tab on your bags opens it.",
     "\"To sell\" lists what the Flow Seller takes at the next vendor or auction house, and what's in your bank that Flow would now sell: at a bank, Take out brings those to your bags.",
     "In \"To bank\", hover a thing for why Flow keeps it. Alt-click one you once bought back to let Flow sell it again.",
+    "Your own choice: Shift-click a thing in \"To bank\" to sell it; click a line of \"To sell\" to keep it. Alt-click (To bank) or a click on your own line (To sell) goes back to Flow's choice.",
     "/flow banker: the list. /flow banker show | bank | sell | prices. /flow banker on|off.",
 } })

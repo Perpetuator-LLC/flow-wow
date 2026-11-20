@@ -204,10 +204,12 @@ end
 -- that's not true"). True when it was on the list.
 function D.Forget(id)
     local never = ns.db.sell and ns.db.sell.never
-    if not (never and id and never[id]) then return false end
-    never[id] = nil
-    D:Invalidate()
-    return true
+    local was = never and id and never[id] and true or false
+    if was then never[id] = nil end
+    -- (And a "keep" of your own: Flow's rules decide again.)
+    if D.Choice(id) == "keep" then D.SetChoice(id, nil); was = true end
+    if was then D:Invalidate() end
+    return was
 end
 
 for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP",
@@ -223,11 +225,46 @@ end)
 -- every character (it only ever stops a sale).
 ns:PerCharacter("sell.never", { adopt = function(old) return old end })
 
+-- Your own choice for an item (0.35.343): "sell" or "keep", whatever Flow's
+-- rules say. "Should we have a way to set 'sell this item', just like we
+-- have for 'bank it'?" Set and undone in Flow Banker (To sell, To bank).
+ns:OnLoad(function(saved)
+    saved.sell = saved.sell or {}
+    saved.sell.mine = saved.sell.mine or {}
+end)
+ns:PerCharacter("sell.mine")
+function D.Choice(id)
+    local mine = ns.db.sell and ns.db.sell.mine
+    return mine and id and mine[id] or nil
+end
+-- what: "sell", "keep", or nil for Flow's own choice. True when it changed.
+function D.SetChoice(id, what)
+    if not id or (what ~= nil and what ~= "sell" and what ~= "keep") then return false end
+    ns.db.sell.mine = ns.db.sell.mine or {}
+    if ns.db.sell.mine[id] == what then return false end
+    ns.db.sell.mine[id] = what
+    D:Invalidate()
+    if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
+    return true
+end
+-- Pure: the verdict your choice gives, or nil (no choice, or one that can't
+-- be: a vendor won't buy the thing).
+function D.ChoiceVerdict(mine, sellPrice, quality)
+    if mine == "keep" then return { action = "keep", reason = "you chose to keep it" } end
+    if mine == "sell" and ((sellPrice or 0) > 0 or quality == 0) then return { action = "sell", reason = "you chose to sell it" } end
+    return nil
+end
+
 -------------------------------------------------------------------------------
 -- Built-in rules
 -------------------------------------------------------------------------------
 
 local function reg(key, order, check) ns:Register("disposition", key, { order = order, check = check }) end
+
+-- Your own choice comes first.
+reg("yourChoice", 0.5, function(i)
+    return D.ChoiceVerdict(D.Choice(i.id), i.sellPrice, i.quality)
+end)
 
 -- You bought it back after Flow sold it once: never sell it again.
 reg("neverSell", 1, function(i)

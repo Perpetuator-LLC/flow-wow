@@ -368,6 +368,7 @@ Flow for WoW is a separate project from Flow Engine.
   what's in your bank that Flow would now sell (a material your skill has moved past): Take out
   at a bank brings those to your bags. Hover a thing in To bank for why Flow keeps it; Alt-click
   one you once bought back to let Flow sell it again.
+  Your own choice: Shift-click a thing there to sell it, click a To sell line to keep it.
 - **Flow Prices**: an item's auction price over time as a chart, time to scale, a dot for each
   visit to the auction house (hover for the price and when). Alt + click an item, click a line
   of Flow Banker's Auction prices, or `/flow price <item>`.
