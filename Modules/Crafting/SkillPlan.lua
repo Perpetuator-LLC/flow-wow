@@ -999,7 +999,7 @@ local function recipeStop(prof, s, known, rank, banked)
     if banked > 0 then
         if not SP.RecipeDue(s.learn, rank, 0) then return nil end
         local pts, names = SP.BankerPoints()
-        return { key = "bankget:" .. s.recipeItem, kind = "merchant", points = pts, npcs = names,
+        return { key = "bankget:" .. s.recipeItem, kind = "merchant", points = pts, npcs = names, fetch = { [s.recipeItem] = 1 },
                  text = "Bank: take out " .. name,
                  details = { "It's in your bank and your skill is high enough to learn " .. s.recipe .. " now." },
                  blockedBy = #pts == 0 and "Flow doesn't know where a bank is" or nil }
@@ -1869,15 +1869,18 @@ local function planProfession(prof, t, out)
     end
 
     -- Bank step: what the plan takes out of your bank, first.
-    local fromBank = {}
+    local fromBank, fetch = {}, {}
     for _, id in ipairs(sortedIds(bankPull)) do
         local n = math.min(bankPull[id], SP.BankCount(id))
-        if n > 0 then fromBank[#fromBank + 1] = string.format("%d %s", n, itemName(id)) end
+        if n > 0 then
+            fromBank[#fromBank + 1] = string.format("%d %s", n, itemName(id))
+            fetch[id] = n   -- (Flow Banker's Take out reads this: Banker.lua, 0.35.353)
+        end
     end
     if #fromBank > 0 then
         local seen = ns.db.bank and ns.db.bank.seenAt
         add({ key = "bank:" .. prof, kind = "merchant", points = bankPts, npcs = bankNames,   -- (a town errand, not an item drop: near first and the buff steps read "collect" as killing)
-              optional = not bankNeeded or nil, weight = bankNeeded and 0.5 or 1.5,
+              optional = not bankNeeded or nil, weight = bankNeeded and 0.5 or 1.5, fetch = fetch,
               text = "Get from your bank: " .. table.concat(fromBank, ", "),
               details = { string.format("For your %s crafts. Take them out at the banker.", prof),
                           SP.BankNote(seen) },

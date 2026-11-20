@@ -116,10 +116,12 @@ end
 -- the most to pay for one; budget: copper to spend at most.
 -- Stackable things can be bought in part; a single auction is all or nothing.
 --   -> { qty, cost, auctions = { { id, buyout } } }
-function T.Pick(listings, limit, budget)
+-- max: buy this many at most (a step that needs 8 buys 8; nil: all of them).
+function T.Pick(listings, limit, budget, max)
     local pick = { qty = 0, cost = 0, auctions = {} }
     for _, l in ipairs(listings or {}) do
         if not (l.unit and l.qty) or l.unit > limit or l.qty <= 0 then break end
+        if max and pick.qty >= max then break end
         local left = (budget or math.huge) - pick.cost
         if l.auction then
             local price = l.buyout or (l.unit * l.qty)
@@ -128,7 +130,7 @@ function T.Pick(listings, limit, budget)
                 pick.auctions[#pick.auctions + 1] = { id = l.auction, buyout = price }
             end
         else
-            local n = math.min(l.qty, math.floor(left / l.unit))
+            local n = math.min(l.qty, math.floor(left / l.unit), max and (max - pick.qty) or l.qty)
             if n <= 0 then break end
             pick.qty, pick.cost = pick.qty + n, pick.cost + n * l.unit
         end
@@ -136,9 +138,52 @@ function T.Pick(listings, limit, budget)
     return pick
 end
 
+-- What your route has you buy at the auction house (0.35.353). "The route is
+-- telling me to go to the auction house and buy 8 Dig Rats ... it'd be really
+-- nice if Flow had a button that would search for that item right away, since
+-- it's part of my current objective." Those steps head Flow Trader's list,
+-- each with the same Buy button.
+T.ROUTE_OVER = 3   -- a step's item is bought at up to this many times the price Flow last saw
+-- Pure: goals: the route's steps. A buy step has kind "buy", its item in the
+-- key ("need:2592") or g.item, "Buy 8 Dig Rat ..." as its words, and what it
+-- should cost (g.cost, copper; nil: unknown).
+--   -> { { id, name, kind = "route", qty, cost, limit, text } }
+function T.RouteNeeds(goals)
+    local out, seen = {}, {}
+    for _, g in ipairs(goals or {}) do
+        if g.kind == "buy" and type(g.key) == "string" then
+            local id = tonumber(g.key:match("^need:(%d+)$")) or tonumber(g.item)
+            local qty, name = tostring(g.text or ""):match("^Buy (%d+) (.-) at the auction house")
+            qty = tonumber(qty)
+            if id and qty and qty > 0 and not seen[id] then
+                seen[id] = true
+                local each = (g.cost and g.cost > 0) and (g.cost / qty) or nil
+                out[#out + 1] = { id = id, name = name or ("item " .. id), kind = "route", qty = qty, cost = g.cost,
+                                  limit = each and each * T.ROUTE_OVER or math.huge, text = g.text, max = qty }
+            end
+        end
+    end
+    return out
+end
+function T.Needs()
+    local N = ns.nav
+    if not (N and N.Goals) then return {} end
+    local ok, rows = pcall(T.RouteNeeds, N:Goals() or {})
+    return ok and rows or {}
+end
+-- The window's lines: what your route needs, then the deals.
+function T.Rows()
+    local out = T.Needs()
+    for _, d in ipairs(T.deals) do out[#out + 1] = d end
+    return out
+end
+
 -- Pure: a deal's line.
 function T.Line(row, coin)
     coin = coin or money
+    if row.kind == "route" then
+        return string.format("%d x %s  |cff66ccfffor your route|r%s", row.qty, row.name, row.cost and ("  (about " .. coin(row.cost) .. ")") or "")
+    end
     if row.kind == "vendor" then
         return string.format("%d x %s for %s: a vendor pays %s  |cff40ff40+%s|r", row.qty, row.name, coin(row.cost), coin(row.limit * row.qty), coin(row.gain))
     end
@@ -257,7 +302,7 @@ function T:Click(row)
         if job then drop(nil) end
         local okK, key = pcall(CA.MakeItemKey, row.id)
         if not (okK and key) then return false end
-        T.job = { id = row.id, name = row.name, kind = row.kind, limit = row.limit, stage = "search", key = key, at = GetTime() }
+        T.job = { id = row.id, name = row.name, kind = row.kind, limit = row.limit, max = row.max, stage = "search", key = key, at = GetTime() }
         local ok, err = pcall(CA.SendSearchQuery, key, {}, false)
         ns:Log("trader", string.format("search %s [%d]: %s", tostring(row.name), row.id, ok and "sent" or tostring(err)))
         if not ok then drop("the game refused the search.") return false end
@@ -311,7 +356,8 @@ end
 local function results(listings, commodity)
     local job = T.job
     if not (job and job.stage == "search") then return end
-    local pick = T.Pick(listings, job.limit, budget())
+    -- (A step on your route may take all your gold: it's what you came for.)
+    local pick = T.Pick(listings, job.limit, job.kind == "route" and (GetMoney and GetMoney() or 0) or budget(), job.max)
     if pick.qty <= 0 then
         local first = listings[1]
         drop(first and string.format("%s is at %s each now, over your limit of %s: gone.", tostring(job.name), money(first.unit), money(job.limit))
@@ -373,7 +419,13 @@ end)
 ns:On("COMMODITY_PURCHASE_FAILED", function()
     if T.job and (T.job.stage == "paying" or T.job.stage == "quoting") then drop("the purchase of " .. tostring(T.job.name) .. " failed (someone was quicker, or the price changed).") end
 end)
-ns:On("AUCTION_HOUSE_SHOW", function() ahOpen = true end)
+ns:On("AUCTION_HOUSE_SHOW", function()
+    ahOpen = true
+    -- Your route sent you here to buy something: the window opens on it.
+    C_Timer.After(0.8, function()
+        if ahOpen and T.On() and ns.db.trader and not ns.db.trader.quiet and #T.Needs() > 0 then T:Show() end
+    end)
+end)
 ns:On("AUCTION_HOUSE_CLOSED", function()
     ahOpen = false
     if T.job then drop(nil) end
@@ -439,6 +491,13 @@ end
 -- Pure: a deal's tooltip.
 function T.Tip(d, job)
     local out = {}
+    if d.kind == "route" then
+        out[#out + 1] = "A step on your route: " .. tostring(d.text or "buy it at the auction house") .. "."
+        out[#out + 1] = d.cost and string.format("Flow buys the %d cheapest, at up to %d times the price it last saw (%s each at most).", d.qty, T.ROUTE_OVER, money(d.limit))
+            or string.format("Flow buys the %d cheapest. It has seen no price for this, so look at the sum before you pay.", d.qty)
+        if job and job.id == d.id and job.stage == "ready" then out[#out + 1] = string.format("Now: %d for %s.", job.qty or 0, money(job.cost or 0)) end
+        return out
+    end
     if d.kind == "vendor" then
         out[#out + 1] = string.format("Listed under what a vendor pays (%s each). Buy it, sell it to any vendor: the gain is certain.", money(d.limit))
     else
@@ -456,8 +515,14 @@ function T:Fill()
     local f = T.frame
     if not f then return end
     local has = T.Has()
-    local n = #T.deals
-    if not T.readAt then
+    local rows = T.Rows()
+    local n = #rows
+    local route = 0
+    for _, r in ipairs(rows) do if r.kind == "route" then route = route + 1 end end
+    if route > 0 then
+        f.note:SetText(string.format("Your route has you buy %d thing(s) here: Buy looks it up, then you confirm and pay.%s", route,
+            n > route and string.format(" Below: %d deal(s) from Flow's last read.", n - route) or ""))
+    elseif not T.readAt then
         f.note:SetText("No full read of the auction house yet this session. Flow reads every listing when you open it (at most every 15 minutes); /flow ah scan asks now.")
     elseif n == 0 then
         f.note:SetText(string.format("No deals in the last read (%s). Flow looks for listings under the vendor's price, and at half an item's usual price or less.", ns.banker and ns.banker.Ago(time() - T.readAt) or "just now"))
@@ -465,7 +530,7 @@ function T:Fill()
         f.note:SetText(string.format("%d deal(s) from the read %s. Each needs your clicks: Buy looks it up again, then you confirm.", n, ns.banker and ns.banker.Ago(time() - T.readAt) or "just now"))
     end
     for i = 1, T.ROWS do
-        local r, d = f.rows[i], T.deals[i]
+        local r, d = f.rows[i], rows[i]
         r.deal = d
         if d then
             r.text:SetText(T.Line(d))

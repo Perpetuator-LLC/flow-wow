@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.353
+
+- **New: a Buy button for what your route sends you to the auction house for.** "The route is
+  telling me to buy 8 Dig Rats at the auction house ... a button that would search for that
+  item right away, since it's part of my current objective." Open the auction house with such
+  a step on your route and Flow Trader opens with it at the top: "8 x Dig Rat for your route".
+  **Buy** looks it up, then you confirm and pay, as for any deal. Flow buys the cheapest, no
+  more than the step asks for, at up to three times the price it last saw.
+- **New: Take out does a bank step.** "The route was taking me to the bank to get the Mild
+  Spices out ... a button that takes those things I need out of my bank." What a step has you
+  fetch ("Get from your bank: 5 Mild Spices", a recipe you can learn now) is in Flow Banker's
+  Take out list, marked "your route", and at the bank the window opens on that list: one click
+  on **Take out**. What a step takes out isn't offered back in.
+- **A probe for "above or below you".** The game gives add-ons no height, and its minimap
+  arrows have no call behind them. The one thing that could tell is the game's own marker in
+  the world for a tracked spot; at a reload it never had a frame to measure. Flow now watches
+  it while you play and logs what it answers (`/flow height`), so the next diagnostics show
+  whether an up or down arrow is possible at all. Nothing is shown yet.
 ## 0.35.352
 
 - **New: Flow Trader.** When Flow reads the auction house's listings (it does when you open

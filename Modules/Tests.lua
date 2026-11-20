@@ -16126,6 +16126,7 @@ ns:Register("test", "click: Flow Trader opens from the auction house's tab; a bu
     t:ok(f and f:IsShown(), "the window is up")
     if f then
         local r = f.rows[1]
+        for _, row in ipairs(f.rows) do if row.deal == T.deals[1] then r = row end end   -- (your route's own purchases come first)
         t:ok(r:IsShown() and r.text:GetText():find("20 x Linen Cloth", 1, true), "with the deal on its first line")
         t:eq(r.btn:GetText(), "Buy", "and its button")
         -- (Not while you stand at an auction house: there a click really looks the item up.)
@@ -16137,7 +16138,7 @@ ns:Register("test", "click: Flow Trader opens from the auction house's tab; a bu
             t:ok(pcall(function() r.btn:GetScript("OnClick")(r.btn) end), "the real button's click runs")
         end
         t:eq(type(r.btn:GetScript("OnClick")), "function", "each line's button has its click")
-        t:ok(not f.rows[2]:IsShown(), "no line for a deal that isn't there")
+        t:ok(not f.rows[#T.Rows() + 1] or not f.rows[#T.Rows() + 1]:IsShown(), "no line past the last one")
         pcall(def.click)
         t:ok(not f:IsShown(), "a second click on the tab closes it")
     end
@@ -16156,4 +16157,82 @@ ns:Register("test", "click: Flow Trader opens from the auction house's tab; a bu
     t:ok(pcall(T.ReadDone), "the end of a read runs")
     t:eq(#T.deals, 0, "nothing listed, nothing found")
     T.deals, T.readAt, ns.db.trader.quiet = d2, readAt, quiet
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.353: the route's own steps at the auction house and the bank get a
+-- button; a probe for "above or below".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "trader: what your route has you buy heads Flow Trader's list, with the same Buy button", function(t)
+    local T = ns.trader
+    local needs = T.RouteNeeds({
+        { key = "need:5051", kind = "buy", cost = 960, text = "Buy 8 Dig Rat at the auction house (about 9.6s)" },
+        { key = "qbuy:6128:1", kind = "buy", item = 2449, cost = 600, text = "Buy 5 Earthroot at the auction house (about 6s): Gathering the Cure" },
+        { key = "need:5051", kind = "buy", cost = 960, text = "Buy 8 Dig Rat at the auction house (about 9.6s)" },
+        { key = "need:77", kind = "buy", text = "Buy 3 Odd Thing at the auction house (about ?)" },
+        { key = "buy:159", kind = "merchant", text = "Buy 5 Refreshing Spring Water" },
+        { key = "875:1", kind = "collect", text = "Harpy Lieutenants" },
+    })
+    t:eq(#needs, 3, "the auction steps, each item once; not a vendor's or a quest's")
+    t:ok(needs[1].id == 5051 and needs[1].qty == 8 and needs[1].name == "Dig Rat" and needs[1].kind == "route", "which item, how many, by name")
+    t:eq(needs[1].limit, 120 * T.ROUTE_OVER, "bought at up to a few times the price Flow last saw")
+    t:eq(needs[1].max, 8, "and no more than the step asks for")
+    t:eq(needs[2].id, 2449, "a quest's material comes by its item")
+    t:eq(needs[3].limit, math.huge, "no price known: no limit (the sum is shown before you pay)")
+    t:ok(T.Line(needs[1], function(c) return c .. "c" end):find("8 x Dig Rat", 1, true) and T.Line(needs[1], function(c) return c .. "c" end):find("for your route", 1, true),
+        "its line says it's for your route")
+    t:ok(T.Tip(needs[1], nil)[1]:find("A step on your route", 1, true), "and its tooltip names the step")
+
+    -- Eight wanted: eight bought, the cheapest, though more are listed.
+    local pick = T.Pick({ { unit = 100, qty = 5 }, { unit = 110, qty = 20 } }, 360, 100000, 8)
+    t:ok(pick.qty == 8 and pick.cost == 830, "the cheapest eight")
+    pick = T.Pick({ { unit = 100, qty = 3, auction = 1, buyout = 300 }, { unit = 100, qty = 3, auction = 2, buyout = 300 }, { unit = 100, qty = 3, auction = 3, buyout = 300 },
+                    { unit = 100, qty = 3, auction = 4, buyout = 300 } }, 360, 100000, 8)
+    t:eq(#pick.auctions, 3, "single auctions: until the step's count is reached")
+    t:eq(T.Pick({ { unit = 400, qty = 5 } }, 360, 100000, 8).qty, 0, "far dearer than Flow last saw: not bought blind")
+
+    local okR, rows = pcall(T.Rows)
+    t:ok(okR and type(rows) == "table", "the window's lines build from your own route" .. (okR and "" or (": " .. tostring(rows))))
+    local label, can = T.Button(nil, 5051, { search = true })
+    t:ok(label == "Buy" and can, "a route line's button is Buy")
+end)
+
+ns:Register("test", "banker: a step that has you take things out of the bank puts them in the Take out list", function(t)
+    local B = ns.banker
+    local fetch = B.FetchBy({
+        { key = "bank:Cooking", text = "Get from your bank: 5 Mild Spices", fetch = { [2678] = 5 } },
+        { key = "bankget:6328", text = "Bank: take out Recipe: Longjaw Mud Snapper", fetch = { [6328] = 1 } },
+        { key = "875:1", text = "Harpy Lieutenants" },
+    })
+    t:eq(fetch[2678], "Get from your bank: 5 Mild Spices", "the step's things, with its words")
+    t:ok(fetch[6328] ~= nil and fetch[5] == nil, "a recipe to fetch too; nothing else")
+    local rows = B.TakeOutRows({ [2678] = 20, [2318] = 40 },
+        function(id) return { action = "keep", reason = "for Cooking", item = { classID = 7, name = id == 2678 and "Mild Spices" or "Light Leather" } } end,
+        {}, nil, function(id) return fetch[id] end)
+    t:eq(#rows, 1, "what the step asks for comes out; what Flow just keeps stays in")
+    t:ok(rows[1].action == "route" and rows[1].name == "Mild Spices" and rows[1].reason == "Get from your bank: 5 Mild Spices", "for which step")
+    local _, lines = B.SellLines({}, rows, true)
+    t:ok(lines[1]:find("In your bank:", 1, true) and lines[1]:find("(your route: Get from your bank: 5 Mild Spices)", 1, true), "its line says it's for your route")
+    t:ok(B.TakeUrgent(rows), "a step's things are needed now: the window opens on them")
+    t:ok(not B.TakeUrgent({ { action = "sell" }, { action = "ah" } }), "things only to sell aren't")
+    t:ok(B.NeededBy({ { fetch = { [2678] = 5 } } })[2678], "and what a step takes out isn't offered back in")
+    t:eq(#B.TakeOutRows({ [2678] = 20 }, function() return nil end, { [2678] = "bank" }, nil, function() return "x" end), 0, "your own 'bank it' still wins")
+    t:eq(type(B.RouteFetch()), "table", "your own route's steps are read")
+end)
+
+ns:Register("test", "nav: the above/below probe reads the game's marker without changing anything", function(t)
+    local HP = ns.heightProbe
+    t:eq(HP.Text(false), "no C_Navigation", "a client without the marker says so")
+    t:ok(HP.Text(true, false, nil, nil, false, false, 0, 0):find("^no frame"), "no frame to measure")
+    t:ok(HP.Text(true, true, 600, 1000, true, false, 2, 130):find("frame at 60%% of the screen's height") ~= nil, "a frame: where it sits")
+    t:ok(HP.Text(true, true, nil, 1000, true, false, 2, 130):find("can't measure", 1, true), "a frame Flow may not measure")
+    t:eq(HP.Side(800, 1000), "above", "over the middle of the screen: above you")
+    t:eq(HP.Side(200, 1000), "below", "under it: below")
+    t:eq(HP.Side(520, 1000), "level", "about the middle: level")
+    t:eq(HP.Side(nil, 1000), nil, "nothing to measure: can't say")
+    local looks = HP.seen.looks
+    t:ok(pcall(HP.Look), "a look runs")
+    t:eq(HP.seen.looks, looks + 1, "and is counted")
+    t:eq(type(ns.commands.height), "function", "/flow height reports it")
 end)

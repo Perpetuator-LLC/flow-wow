@@ -109,6 +109,8 @@ function B.NeededBy(goals)
             end
         end
         if g.useItem then out[g.useItem] = true end
+        -- (What a step has you take out of the bank isn't put back.)
+        for id in pairs(type(g.fetch) == "table" and g.fetch or {}) do out[id] = true end
     end
     return out
 end
@@ -219,7 +221,31 @@ end
 -- take care of ... Linen Cloth says sell, your First Aid is past it, but it
 -- doesn't take it back out of my bank. The bank needs to show that it's
 -- going to withdraw those and at the next vendor sell them."
-B.LEAVES = { sell = "vendor", ah = "auction house", de = "disenchant", quest = "your quest" }
+B.LEAVES = { sell = "vendor", ah = "auction house", de = "disenchant", quest = "your quest", route = "your route" }
+
+-- Pure: what steps on your route have you take out of the bank:
+-- { [itemID] = the step's words }. goals: steps with .fetch = { [itemID] = n }.
+function B.FetchBy(goals)
+    local out = {}
+    for _, g in ipairs(goals or {}) do
+        for id in pairs(type(g.fetch) == "table" and g.fetch or {}) do
+            out[id] = out[id] or tostring(g.text or g.title or "a step on your route")
+        end
+    end
+    return out
+end
+function B.RouteFetch()
+    local N = ns.nav
+    if not (N and N.Goals) then return {} end
+    return B.FetchBy(N:Goals() or {})
+end
+-- Pure: is anything in the take-out list needed now (a step, a quest), not just for sale?
+function B.TakeUrgent(rows)
+    for _, r in ipairs(rows or {}) do
+        if r.action == "route" or r.action == "quest" then return true end
+    end
+    return false
+end
 -- (Never taken out by Flow: gear and quest items. Whether one is soulbound
 -- can't be told while it lies in the bank.)
 B.NOT_OUT = { [2] = true, [4] = true, [12] = true }
@@ -234,7 +260,7 @@ B.KEPT_RULES = { yourChoice = "your choice", neverSell = "you bought it back" }
 function B.SellRows(rows)
     local out, kept = {}, {}
     for _, r in ipairs(rows or {}) do
-        if type(r) == "table" and r.action ~= "quest" and B.LEAVES[r.action or ""] then
+        if type(r) == "table" and r.action ~= "quest" and r.action ~= "route" and B.LEAVES[r.action or ""] then
             out[#out + 1] = { id = r.id, name = r.name, count = r.count or 1, stacks = r.stacks or 1, action = r.action, reason = r.reason,
                               mine = r.rule == "yourChoice" or nil, sell = r.sell, quality = r.quality }
         elseif type(r) == "table" and r.action == "keep" and B.KEPT_RULES[r.rule or ""] then
@@ -281,14 +307,20 @@ end
 --   quest(id) -> the title of a quest of yours that can use it here, or nil
 --   (0.35.344): what you banked for a quest comes back out when the quest
 --   can go on.
-function B.TakeOutRows(items, decide, rules, quest)
+--   route(id) -> the words of a step on your route that has you take it out
+--   ("Get from your bank: 5 Mild Spices"), or nil (0.35.353): the step's
+--   things are in the same list, so Take out does the step.
+function B.TakeOutRows(items, decide, rules, quest, route)
     local out = {}
     for id, count in pairs(items or {}) do
         if type(id) == "number" and type(count) == "number" and count > 0 and not (rules and rules[id] == "bank") then
             local v = decide(id)
             local item = type(v) == "table" and v.item or nil
             local title = quest and quest(id) or nil
-            if title then
+            local step = route and route(id) or nil
+            if step then
+                out[#out + 1] = { id = id, name = (item and item.name) or ("item " .. id), count = count, action = "route", reason = step, bank = true }
+            elseif title then
                 out[#out + 1] = { id = id, name = (item and item.name) or ("item " .. id), count = count, action = "quest", reason = title, bank = true }
             elseif item and (v.action == "sell" or v.action == "ah") and not B.NOT_OUT[item.classID or 0] then
                 out[#out + 1] = { id = id, name = item.name or ("item " .. id), count = count, action = v.action, reason = v.reason, bank = true,
@@ -312,10 +344,11 @@ function B.TakeOut(fresh)
     local D = ns.disposition
     local rows = {}
     if D and D.DecideId then
+        local fetch = B.RouteFetch()
         rows = B.TakeOutRows(ns.db.bank and ns.db.bank.items, function(id)
             local ok, v = pcall(D.DecideId, D, id)
             return ok and v or nil
-        end, B.Rules(), ns.questBags and ns.questBags.NeededHere or nil)
+        end, B.Rules(), ns.questBags and ns.questBags.NeededHere or nil, function(id) return fetch[id] end)
         rows = B.Unmoved(rows, B.moved, "out", contNow(), nil)
     end
     takeMemo.at, takeMemo.rows = now, rows
@@ -1133,8 +1166,12 @@ ns:On("BANKFRAME_OPENED", function()
     if ns.db.banker.off then return end
     -- (Shown only when there's something to put away, or to take out and sell.)
     takeMemo.at = -100
-    if #B.List() > 0 then B:Open()
-    elseif #B.TakeOut() > 0 then B:Show("sell") end
+    -- What your route's step or a quest needs out of the bank comes first:
+    -- the window opens on it, Take out one click away (0.35.353).
+    local take = B.TakeOut()
+    if B.TakeUrgent(take) then B:Show("sell")
+    elseif #B.List() > 0 then B:Open()
+    elseif #take > 0 then B:Show("sell") end
 end)
 ns:On("BANKFRAME_CLOSED", function()
     bankOpen = false
