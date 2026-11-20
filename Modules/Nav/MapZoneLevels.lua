@@ -23,6 +23,8 @@ local _, ns = ...
 local ZL = {}
 ns.mapZoneLevels = ZL
 
+ZL.FONT_SIZE = 14
+
 -- [uiMapID] = { name, min, max, fish, fishTop }. A city has no range; a zone
 -- with no water no fishing.
 ZL.ZONES = {
@@ -101,13 +103,18 @@ local function makeCard()
         f:SetBackdropColor(0.04, 0.04, 0.06, 0.92)
         f:SetBackdropBorderColor(0.55, 0.55, 0.6, 1)
     end
-    f.name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    f.name = f:CreateFontString(nil, "ARTWORK")
     f.name:SetPoint("TOPLEFT", 10, -9)
-    f.level = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    f.level = f:CreateFontString(nil, "ARTWORK")
     f.level:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
-    f.fish = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    f.fish = f:CreateFontString(nil, "ARTWORK")
     f.fish:SetTextColor(0.35, 0.8, 1)   -- water blue
-    for _, fs in ipairs({ f.name, f.level, f.fish }) do fs:SetJustifyH("LEFT") end
+    for _, fs in ipairs({ f.name, f.level, f.fish }) do
+        fs:SetFont(STANDARD_TEXT_FONT, ZL.FONT_SIZE, "OUTLINE")
+        fs:SetShadowOffset(1, -1)
+        fs:SetJustifyH("LEFT")
+    end
+    f.name:SetTextColor(1, 1, 1)
     f:Hide()
     return f
 end
