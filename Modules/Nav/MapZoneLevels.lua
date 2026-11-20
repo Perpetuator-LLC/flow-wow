@@ -8,10 +8,11 @@
 --   Level 10-20        (coloured against your level)
 --   Fishing 1
 -- The game's own zone highlight shows which zone it is. With nothing
--- hovered, the card shows the zone you're in: on it on the continent map,
--- in the corner of its own map ("Can we have it still show when you're in
--- the zone by default?"). Settings: "Zone info when hovering the world map",
--- "World map: your zone's info without hovering". Both on by default.
+-- hovered, any zone's own map shows its card in the top left corner, and the
+-- continent map shows the zone you're in, on that zone ("Can we have it
+-- still show when you're in the zone by default?"). Settings: "Zone info
+-- when hovering the world map", "World map: zone info without hovering".
+-- Both on by default.
 --
 -- Level ranges: warcraft.wiki.gg "Zones by level (Classic)". Fishing: the
 -- skill to fish the zone's waters without the catch getting away, as the
@@ -215,14 +216,16 @@ local function zoneUnderCursor()
     return at.mapID, at.name
 end
 
--- With nothing hovered: the zone you're in. On the continent map the card
--- sits on that zone; on your zone's own map, in its top left corner.
+-- With nothing hovered: on a zone's own map (or a town or cave in it), that
+-- zone, in the map's top left corner; on the continent map, the zone you're
+-- in, on that zone.
 local function yourZone()
     if not ZL.Here() then return nil end
+    local mapID = WorldMapFrame:GetMapID()
+    local viewed = mapID and ZL.PlayerZone(mapID)
+    if viewed then return viewed, "corner" end
     local here = ZL.PlayerZone(C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player"))
     if not here then return nil end
-    local mapID = WorldMapFrame:GetMapID()
-    if mapID == here then return here, "corner" end
     local info = mapID and C_Map.GetMapInfo(mapID)
     if not (info and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent and C_Map.GetMapRectOnMap) then return nil end
     local minX, maxX, minY, maxY = C_Map.GetMapRectOnMap(here, mapID)
@@ -262,8 +265,8 @@ if ns.settings and ns.settings.AddCheck then
         tip = "On the continent map, the zone under the cursor shows its name, level range (coloured against "
             .. "your level) and the fishing skill its waters need.",
         get = ZL.On, set = ZL.Set }
-    ns.settings:AddCheck{ group = "route", label = "World map: your zone's info without hovering",
-        tip = "With nothing hovered, the card shows the zone you're in: on that zone on the continent map, "
-            .. "and in the top left corner of your zone's own map.",
+    ns.settings:AddCheck{ group = "route", label = "World map: zone info without hovering",
+        tip = "With nothing hovered, a zone's own map shows its card in the top left corner, and the continent "
+            .. "map shows the card for the zone you're in, on that zone.",
         get = ZL.Here, set = function(on) ns.db.nav.mapZoneHere = on and true or false; hideCard() end }
 end
