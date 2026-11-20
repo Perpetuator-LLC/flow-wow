@@ -16236,3 +16236,115 @@ ns:Register("test", "nav: the above/below probe reads the game's marker without 
     t:eq(HP.seen.looks, looks + 1, "and is counted")
     t:eq(type(ns.commands.height), "function", "/flow height reports it")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.356: Flow Meters count damage taken, interrupts and deaths; Flow
+-- Deaths shows each death's play-by-play with a health graph.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "meters: damage taken, interrupts and deaths can be counted", function(t)
+    local M = ns.meters
+    for _, key in ipairs({ "taken", "interrupts", "deaths" }) do
+        local mode = M.MODES[key]
+        t:ok(mode and mode.kind and mode.field == "totalAmount" and mode.title and mode.empty, key .. ": a mode with the game's kind and its words")
+        local listed = false
+        for _, k in ipairs(M.MODE_ORDER) do listed = listed or k == key end
+        t:ok(listed, key .. ": in the meters' menu")
+        t:eq(M.ModeKey(key), key, key .. ": a saved choice of it is kept")
+        local ok, list, _, _, why = pcall(M.ReadDamage, mode)
+        t:ok(ok and (type(list) == "table" or type(why) == "string"), key .. ": reading it gives a list or a reason" .. (ok and "" or (": " .. tostring(list))))
+    end
+    t:eq(M.MODES.taken.kind, "DamageTaken", "damage taken is the game's own count of it")
+    local n = 0
+    for _, item in ipairs(M.ContextItems()) do
+        if type(item.text) == "string" and (item.text:find("Damage taken", 1, true) or item.text:find("Interrupts", 1, true) or item.text:find("Deaths", 1, true)) then n = n + 1 end
+    end
+    t:ok(n >= 4, "the right-click menu offers them, and Flow Deaths")
+end)
+
+ns:Register("test", "deaths: the game's record of a death becomes a play-by-play, oldest first", function(t)
+    local D = ns.deaths
+    -- As the game lists them: the newest first.
+    local events = {
+        { timestamp = 105.0, event = "SWING_DAMAGE", sourceName = "Bristleback Geomancer", amount = 212, overkill = 34, currentHP = 0 },
+        { timestamp = 103.5, event = "SPELL_DAMAGE", spellName = "Fireball", sourceName = "Bristleback Geomancer", amount = 300, currentHP = 178 },
+        { timestamp = 102.0, event = "SPELL_HEAL", spellName = "Healing Touch", sourceName = "Wizpig", amount = 250, currentHP = 478 },
+        { timestamp = 100.0, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "FIRE", amount = 120, currentHP = 228 },
+    }
+    local rows = D.Shape(events, 1000)
+    t:eq(#rows, 4, "every moment kept")
+    t:eq(rows[1].what, "Fire", "the oldest first: what they stood in, named")
+    t:eq(rows[1].t, -5, "five seconds before the end")
+    t:ok(rows[2].kind == "heal" and rows[2].amount == 250 and rows[2].who == "Wizpig", "a heal: up, and who healed")
+    t:ok(rows[3].kind == "damage" and rows[3].amount == -300, "a hit: down")
+    t:ok(rows[4].what == "Melee" and rows[4].over == 34 and rows[4].t == 0, "the killing blow last, with what was over")
+    t:near(rows[3].pct, 17.8, 0.01, "health left, as a share of the whole")
+    local line = D.Line(rows[3])
+    t:ok(line:find("Bristleback Geomancer: Fireball", 1, true) and line:find("-300", 1, true) and line:find("18%", 1, true), "a line: who, what, how much, health left")
+    t:ok(D.Line(rows[2]):find("+250", 1, true) and D.Line(rows[4]):find("(34 over)", 1, true), "a heal's plus, a killing blow's overkill")
+    local sum = D.Summary(rows)
+    t:eq(sum[1], "Killing blow: Bristleback Geomancer's Melee for 212", "what killed them")
+    t:eq(sum[2], "632 damage taken in the last 5.0 s; 250 healed by Wizpig", "what they took, and who healed them")
+    t:ok(D.Summary({ rows[1] })[2]:find("no healing in what the game recorded", 1, true), "no heal recorded: said so")
+
+    -- Hidden values (a fight): rows still come out, with what's readable.
+    local hidden = D.Shape({ { timestamp = 1, event = "SPELL_DAMAGE", spellName = "Bolt", amount = 9, currentHP = 5 } }, nil, function() return nil end)
+    t:ok(#hidden == 1 and hidden[1].amount == nil and hidden[1].what == "?", "values the game hides don't break it")
+    t:eq(#D.Shape(nil, nil), 0, "no events: no rows")
+    -- No times: the reverse of the game's order.
+    local untimed = D.Shape({ { event = "SWING_DAMAGE", amount = 1, currentHP = 0 }, { event = "SWING_DAMAGE", amount = 2, currentHP = 1 } }, 10)
+    t:ok(untimed[1].amount == -2 and untimed[2].amount == -1 and untimed[1].t == nil, "without times the game's order is turned round")
+
+    -- The graph: across by time, up by health; the point under the mouse is a row.
+    local pts = D.Points(rows, 100, 50, 1000)
+    t:eq(#pts, 4, "a point a moment")
+    t:ok(pts[1].x == 0 and pts[4].x == 100, "from the first moment at the left to the death at the right")
+    t:near(pts[2].x, 40, 0.01, "placed by its time")
+    t:near(pts[2].y, 50 * 0.478, 0.01, "and its health")
+    t:eq(pts[4].y, 0, "the death at the bottom")
+    t:eq(D.Nearest(pts, 38), 2, "the mouse near a point picks its row")
+    t:eq(D.Nearest(pts, 99), 4, "at the right edge: the death")
+    t:eq(D.Nearest({}, 5), nil, "no points: nothing")
+    t:eq(#D.Points(untimed, 100, 50, nil), 2, "no times and no full health: evenly spaced, against the most health seen")
+    local first, last = D.Window(30, 12)
+    t:ok(first == 19 and last == 30, "a long record shows its end: the death")
+    first, last = D.Window(4, 12)
+    t:ok(first == 1 and last == 4, "a short one whole")
+end)
+
+ns:Register("test", "click: Flow Deaths opens from the meters; a line and its point light up together", function(t)
+    local D, M = ns.deaths, ns.meters
+    local okL, lines = pcall(D.Lines)
+    t:ok(okL and type(lines) == "table" and #lines >= 2, "/flow deaths lists who died and what the game offers" .. (okL and "" or (": " .. tostring(lines))))
+    t:eq(type((D.List())), "table", "the game's count of deaths is read")
+    local rows, _, why = D.Read(nil)
+    t:ok(#rows == 0 and type(why) == "string", "a death with no recap says why there's nothing")
+    if InCombatLockdown() then return end
+    local was = D._Frame() and D._Frame():IsShown()
+    local mode = ns.db.meters.mode
+    ns.db.meters.mode = "deaths"
+    local okC, what = pcall(M.Click, "LeftButton")
+    t:ok(okC and (what == "deaths" or IsControlKeyDown()), "a left-click on the meters while they count deaths opens Flow Deaths" .. (okC and "" or (": " .. tostring(what))))
+    ns.db.meters.mode = nil
+    t:eq(M.Click("LeftButton"), nil, "while they count damage a left-click does nothing")
+    ns.db.meters.mode = mode
+    local f = D._Frame()
+    t:ok(f and f:IsShown(), "the window is up")
+    if not f then return end
+    -- A made-up death in the window: hovering works both ways.
+    local keepRows, keepPts = D.rows, D.points
+    D.rows = D.Shape({ { timestamp = 2, event = "SWING_DAMAGE", amount = 5, currentHP = 0 }, { timestamp = 1, event = "SPELL_HEAL", spellName = "Rejuvenation", amount = 3, currentHP = 5 } }, 10)
+    D.points = D.Points(D.rows, 100, 50, 10)
+    for i = 1, 2 do f.lines[i].index = i end
+    t:ok(pcall(function() f.lines[2]:GetScript("OnEnter")(f.lines[2]) end), "pointing at a line runs")
+    t:eq(D.hover, 2, "that moment is the one lit")
+    t:ok(f.plot.mark:IsShown() and f.lines[2].sel:IsShown() and not f.lines[1].sel:IsShown(), "its point on the graph and its line, no other")
+    D:Hover(1)
+    t:ok(f.lines[1].sel:IsShown() and not f.lines[2].sel:IsShown(), "pointing at the graph's other point lights the other line")
+    pcall(function() f.lines[1]:GetScript("OnLeave")(f.lines[1]) end)
+    t:ok(D.hover == nil and not f.plot.mark:IsShown(), "pointing away: nothing lit")
+    t:ok(pcall(function() f.names[1]:GetScript("OnClick")(f.names[1]) end), "picking a name runs")
+    D.rows, D.points = keepRows, keepPts
+    D:Fill()
+    if not was then f:Hide() end
+end)

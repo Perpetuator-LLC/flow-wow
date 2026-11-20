@@ -43,6 +43,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **The auto-attack badge** beside the target button shows the game's own Attack picture for
   your form, edged in your weapon's quality colour, and glows inside while you're swinging.
   Click it to turn auto attack off: it stays off until your next attack.
+- **Flow Meters** also count damage taken, interrupts and deaths (right-click the meters). **Flow
+  Deaths** shows who died and, for each, the game's own record of the death as a table (what hit
+  them, who, how much, the health left) and a health graph; hovering one lights up the other
+  (`/flow deaths`).
 - **From stealth** (druid, Cat Form): out of a fight with an enemy targeted, Flow suggests
   Prowl; in stealth the target button opens with your best opener (Ravage, Pounce, Shred or
   Rake), then goes on to your usual attacks.

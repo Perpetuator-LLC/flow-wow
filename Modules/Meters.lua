@@ -149,8 +149,13 @@ M.MODES = {
     damage  = { title = "Damage",  menu = "Total damage",             kind = "DamageDone",  field = "totalAmount",     empty = "no damage yet" },
     hps     = { title = "HPS",     menu = "Healing per second (HPS)", kind = "HealingDone", field = "amountPerSecond", empty = "no healing yet" },
     healing = { title = "Healing", menu = "Total healing",            kind = "HealingDone", field = "totalAmount",     empty = "no healing yet" },
+    -- 0.35.356: "add to the meter the amount of damage taken, and then
+    -- interrupts, and deaths". The game counts all three itself.
+    taken      = { title = "Taken",      menu = "Damage taken",  kind = "DamageTaken", field = "totalAmount", empty = "no damage taken yet" },
+    interrupts = { title = "Interrupts", menu = "Interrupts",    kind = "Interrupts",  field = "totalAmount", empty = "no interrupts yet" },
+    deaths     = { title = "Deaths",     menu = "Deaths (left-click the meter: the play-by-play)", kind = "Deaths", field = "totalAmount", empty = "nobody has died" },
 }
-M.MODE_ORDER = { "dps", "damage", "hps", "healing" }
+M.MODE_ORDER = { "dps", "damage", "hps", "healing", "taken", "interrupts", "deaths" }
 -- Pure: the mode a saved choice stands for (anything else: DPS).
 function M.ModeKey(saved) return M.MODES[saved] and saved or "dps" end
 function M.Mode() return M.MODES[M.ModeKey(cfg().mode)] end
@@ -186,7 +191,9 @@ function M.ReadDamage(mode, span)
         local value = A.Safe(amount)
         if type(value) ~= "number" then readable = false; value = nil end
         list[#list + 1] = { name = src.name, raw = amount, value = value, bar = amount,
-                            class = A.Safe(src.classFilename), me = A.Safe(src.isLocalPlayer) == true }
+                            class = A.Safe(src.classFilename), me = A.Safe(src.isLocalPlayer) == true,
+                            -- (A death carries the game's recap of it: Flow Deaths reads it.)
+                            recap = A.Safe(src.deathRecapID) }
     end
     return list, session.totalAmount, readable
 end
@@ -474,18 +481,31 @@ local function build()
         GameTooltip:AddLine("Flow Meters", 1, 0.82, 0)
         GameTooltip:AddLine("Threat on your target (percent of the tank's) and damage or healing in this fight (per second or in all: right-click), from the game's own counts.", 1, 1, 1, true)
         GameTooltip:AddLine(M.note or "DPS: the group, then the top player (a full bar) and the rest against them. Threat: who it's on first; past 100% means close to pulling it.", 0.7, 0.7, 0.7, true)
-        GameTooltip:AddLine("Ctrl + drag: move. Right-click: what it counts, rows, decimals, when it shows.", 0.6, 0.6, 0.6, true)
+        GameTooltip:AddLine("Ctrl + drag: move. Right-click: what it counts (damage, healing, damage taken, interrupts, deaths), rows, decimals, when it shows.", 0.6, 0.6, 0.6, true)
+        if M.ModeKey(cfg().mode) == "deaths" then GameTooltip:AddLine("Click: Flow Deaths, the play-by-play of each death.", 1, 0.82, 0, true) end
         GameTooltip:Show()
     end)
     -- Right-click: its own menu (rows, decimals, when it shows).
-    f:SetScript("OnMouseUp", function(_, button)
-        if button == "RightButton" and ns.menu and ns.menu.Open then ns.menu:Open(M.ContextItems()) end
-    end)
+    f:SetScript("OnMouseUp", function(_, button) M.Click(button) end)
     f:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     return f
 end
 function M._Frame() return frame end
+
+-- A click on the meters. Right: their menu. Left, while the second list
+-- counts Deaths: Flow Deaths, the play-by-play of each (Deaths.lua).
+function M.Click(button)
+    if button == "RightButton" then
+        if ns.menu and ns.menu.Open then ns.menu:Open(M.ContextItems()) end
+        return "menu"
+    end
+    if M.ModeKey(cfg().mode) == "deaths" and ns.deaths and not IsControlKeyDown() then
+        ns.deaths:Show()
+        return "deaths"
+    end
+    return nil
+end
 
 M.state = {}   -- what the last update saw, for /flow meters
 function M.Update()
@@ -645,6 +665,7 @@ function M.ContextItems()
             func = function() M.SetSpan(sp[1]) end }
     end
     items[#items + 1] = { text = "Reset the counts", func = function() M.Reset() end }
+    items[#items + 1] = { text = "Deaths: the play-by-play (Flow Deaths)", func = function() if ns.deaths then ns.deaths:Show() end end }
     items[#items + 1] = { title = true, text = "Numbers" }
     for d = 0, 3 do
         items[#items + 1] = { text = d == 0 and "Whole numbers" or string.format("%d decimal%s", d, d == 1 and "" or "s"), radio = true, stay = true,

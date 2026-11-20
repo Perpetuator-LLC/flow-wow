@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.356
+
+- **Flow Meters count damage taken, interrupts and deaths.** Right-click the meters: the
+  second list can now show them, from the game's own counts, like damage and healing.
+- **New: Flow Deaths.** Who died, and for each death a play-by-play: what hit them, who did
+  it, how much, and the health left, oldest first, the killing blow last. Above it, what
+  killed them, how much they took and who healed them; and a graph of their health over those
+  moments. Hover a point on the graph and its line lights up; hover a line and its point does.
+  Open it with a left-click on the meters while they count Deaths, from their right-click
+  menu, or `/flow deaths`.
+  It shows the game's own record of each death (this game gives add-ons no combat log to make
+  one from), so it holds what the game kept: whether heals are in it, and how far back it
+  goes, is the game's choice. **Not yet seen with a real death**: `/flow deaths` and the
+  diagnostics say what the game's record holds, so the first death will show what's there.
 ## 0.35.355
 
 - The README now covers everything added since 0.35.321: the auto-attack badge, opening from

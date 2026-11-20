@@ -106,6 +106,7 @@ function D:Snapshot(reason, spread)
         { "leftovers", function() if c.leftovers then c.leftovers("") end end },
         { "auctions", function() if c.auctions then c.auctions("") end end },
         { "trader", function() if c.trader then c.trader("") end end },
+        { "deaths", function() if ns.deaths then for _, l in ipairs(ns.deaths.Lines()) do print(l) end end end },
         { "second key", function() if c.carekeys then c.carekeys("") end end },
         { "meters", function() if c.meters then c.meters("") end end },
         { "threat", function() if c.threat then c.threat("") end end },
