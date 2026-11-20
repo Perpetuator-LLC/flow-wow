@@ -40,6 +40,14 @@ Flow for WoW is a separate project from Flow Engine.
   if none is up, then Judgement or Crusader Strike), never a heal. Ctrl, Shift and Alt + key cast the queue's three (above), in fights too.
   Ctrl-drag to move the button; Ctrl + mouse wheel over it resizes it. While a swing spell
   waits for your next swing (a druid's Maul), the button blinks red, as the action bar does.
+- **The auto-attack badge** beside the target button shows the game's own Attack picture for
+  your form, edged in your weapon's quality colour, and glows inside while you're swinging.
+  Click it to turn auto attack off: it stays off until your next attack.
+- **From stealth** (druid, Cat Form): out of a fight with an enemy targeted, Flow suggests
+  Prowl; in stealth the target button opens with your best opener (Ravage, Pounce, Shred or
+  Rake), then goes on to your usual attacks.
+- **Combo points on the nameplate**: a five-part bar under your target's health bar, in the
+  game's own combo colour (`/flow combo`).
 - **Which spells take you out of a form** (druid): Flow watches your casts and learns, for each
   spell, whether it kept you in Bear or Cat Form or took you out. The spell's tooltip says so
   ("Flow: takes you out of Bear Form", "Flow: keeps you in Bear Form and Cat Form", or not seen
@@ -195,6 +203,12 @@ Flow for WoW is a separate project from Flow Engine.
 - **A quest's materials from the auction house**: when a quest asks you to collect something Flow
   has seen for sale there (5 Earthroot), buying it is an optional step at an auctioneer, with
   what it should cost, while one is close to your way and you can pay.
+- **The arrow's words stack** above it, the longest line on top (below it in the lower half of
+  your screen), and a button's small icons run toward the side of the screen it's on. Moving a
+  Flow button shows alignment lines to what's on screen and snaps to them on release.
+- **Above or below you**: the game gives add-ons no height. Flow logs what the game's own
+  world marker answers while you play (`/flow height`), to find out whether an up or down
+  arrow can be built; nothing is shown yet.
 - **Trips Flow learns**: each trip from one step to the next is timed, your quickest is kept, and
   the route is ordered by those times instead of the straight line (`/flow legs`).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
@@ -376,11 +390,18 @@ Flow for WoW is a separate project from Flow Engine.
   what's in your bank that Flow would now sell (a material your skill has moved past): Take out
   at a bank brings those to your bags. Hover a thing in To bank for why Flow keeps it; Alt-click
   one you once bought back to let Flow sell it again.
-  Your own choice: Shift-click a thing there to sell it, click a To sell line to keep it.
+  Your own choice: Shift-click a thing there to sell it, click a To sell line to flip it between
+  sell and keep, right-click for Flow's own choice; "Reset to Flow's" drops all your choices.
+  A step that has you fetch something ("Get from your bank: 5 Mild Spices") is in the Take out
+  list too, and the window opens on it at the bank. Flow never moves a thing one way and then
+  back: what's parked for a quest across the sea stays parked until you're there.
 - **Flow Trader**: when Flow reads the auction house's listings it looks for deals: listed under what
   a vendor pays (a certain gain), or at half an item's usual price or less (buy and post again: a
   guess). Its tab on the auction house lists them, each with a button; every payment is your click
-  (`/flow trader`).
+  (`/flow trader`). When your route sends you there to buy something ("Buy 8 Dig Rat at the
+  auction house"), that item heads the list with the same Buy button.
+- **One Flow line on an item's tooltip**: what Flow does with it, whether it goes to your bank,
+  and the reason that matters.
 - **Flow Prices**: an item's auction price over time as a chart, time to scale, a dot for each
   visit to the auction house (hover for the price and when). Alt + click an item, click a line
   of Flow Banker's Auction prices, or `/flow price <item>`.
@@ -483,7 +504,9 @@ Flow for WoW is a separate project from Flow Engine.
 `/flow bind`, `/flow fights`, `/flow talents`, `/flow splash`, `/flow perf`, `/flow log auto`,
 `/flow test`, `/flow api`, `/flow copy` (what Flow said lately, ready to copy), `/flow nearfirst`,
 `/flow dungeons`, `/flow zones`, `/flow threat`, `/flow meters`, `/flow selfbutton`, `/flow selfkey`,
-`/flow leftovers`, `/flow banker`, `/flow inventory`, `/flow audioreset` (WoW silent after your
+`/flow leftovers`, `/flow banker`, `/flow inventory`, `/flow questbags`, `/flow keepsets`,
+`/flow legs`, `/flow trader`, `/flow hop`, `/flow where`, `/flow price <item>`, `/flow combo`,
+`/flow height`, `/flow audioreset` (WoW silent after your
 speakers came back from a sleeping screen or Remote Desktop).
 
 ## For developers
@@ -521,6 +544,11 @@ talk to Claude from inside the game and get updates by themselves:
   `/reload`. A self-test ("core: a file added while the game runs loads on /reload") keeps
   watch; restart only if it fails.
 - **Packaging:** `tools/package.ps1` builds a release zip; see [docs/PUBLISHING.md](docs/PUBLISHING.md).
+- **Where the route is going:** [docs/FLOW-GRAPH.md](docs/FLOW-GRAPH.md) is the plan for
+  sharing learned trips between players and for one optimised order through every quest. A
+  plan: nothing is uploaded anywhere.
+- **Price history:** `tools/save-prices.ps1` saves the day's public auction prices
+  (TradeSkillMaster's public data) into a folder beside the repository, a day a folder.
 
 ## Licence
 Copyright (C) 2026 Sooth. Flow is free software: you can redistribute it and/or modify it

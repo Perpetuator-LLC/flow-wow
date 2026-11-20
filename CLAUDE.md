@@ -27,7 +27,7 @@ registry first, or add one.
 | `Modules/Gear/`, `Modules/Items/` | Gear scores per role, bag icons, selling, keep reasons. |
 | `Modules/Advisor/` | The advice list. |
 | `Modules/Tests.lua` | Self-tests. |
-| `tools/` | PowerShell: read the in-game diagnostics, look at the game's window, analyse combat logs, package a release, render the CurseForge graphics. |
+| `tools/` | PowerShell: read the in-game diagnostics, look at the game's window, analyse combat logs, package a release, render the CurseForge graphics, save the day's public auction prices (`save-prices.ps1`). |
 
 ## Testing: there is no Lua interpreter, tests run in the game
 

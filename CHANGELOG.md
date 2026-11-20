@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.355
+
+- The README now covers everything added since 0.35.321: the auto-attack badge, opening from
+  stealth, combo points on the nameplate, the arrow's stacked words and alignment lines, trips
+  Flow learns, quest items in your bags, "Keep set for", Flow Banker's To sell and Take out,
+  Flow Trader, Flow Improvements in colour, the one-line tooltip, and the new commands.
 ## 0.35.354
 
 - For the maintainer, nothing in the game changes: `tools\save-prices.ps1` saves the day's
