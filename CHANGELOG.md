@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Paladin: cast the seal you want and Flow suggests it from then on.** No settings or command needed: a seal you
+  cast yourself that differs from Flow's suggestion becomes your choice for this character, every fight, until you
+  cast another (it used to last only until the fight ended). Casting the seal Flow suggested changes nothing.
+  /flow seal auto (or Settings, Auto) goes back to your talents.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'

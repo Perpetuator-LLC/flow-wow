@@ -17,16 +17,8 @@ end
 local SEALS = { "Seal of Righteousness", "Seal of the Crusader", "Seal of Command",
                 "Seal of Justice", "Seal of Light", "Seal of Wisdom", "Seal of Fury" }
 
--- The last seal you cast (yourself, or with Flow's key) since your last fight
--- ended. Flow keeps suggesting it until you leave combat, so switching seals
--- for one fight is just casting the other one.
-local ownSeal
-ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
-    if unit ~= "player" or not spellID then return end
-    local name = A.SpellInfo(spellID)   -- (Flow's own: the bare GetSpellInfo isn't on every client)
-    if name and name:find("^Seal of") then ownSeal = name end
-end)
-ns:On("PLAYER_REGEN_ENABLED", function() ownSeal = nil end)
+-- The seal Flow suggested last (set by pickSeal in the game, not in tests).
+local lastPick
 
 -- Your spec: the talent tree with the most points (tabs 1 Holy,
 -- 2 Protection, 3 Retribution), or nil before you've spent any. Read again
@@ -65,30 +57,61 @@ local function specSeal(engine, role, spec, grouped)
     return "Seal of Righteousness"
 end
 
--- Which seal Flow puts up: the one you cast this fight; else the one you
--- chose (settings, /flow seal), if you know it; else your spec's. `s` can
--- hold own / tree / grouped (tests; false = none); missing ones are read
--- from the game.
+-- Which seal Flow puts up: the one you chose (the last seal you cast
+-- yourself, settings, /flow seal), if you know it; else your spec's. `s` can
+-- hold tree / grouped (tests; false = none); missing ones are read from
+-- the game.
 local function pickSeal(engine, role, s)
+    local live = s == nil
     s = s or {}
-    local own = s.own
-    if own == nil then own = ownSeal end
-    if own and engine:Knows(own) then return own end
     local chosen = ns.db and ns.db.paladinSeal
-    if chosen and engine:Knows(chosen) then return chosen end
-    local spec = s.tree
-    if spec == nil then spec = talentTree() end
-    local grouped = s.grouped
-    if grouped == nil then grouped = inGroup() end
-    return specSeal(engine, role or (ns.LevelingRole and ns:LevelingRole()) or "dps", spec, grouped)
+    local pick
+    if chosen and engine:Knows(chosen) then
+        pick = chosen
+    else
+        local spec = s.tree
+        if spec == nil then spec = talentTree() end
+        local grouped = s.grouped
+        if grouped == nil then grouped = inGroup() end
+        pick = specSeal(engine, role or (ns.LevelingRole and ns:LevelingRole()) or "dps", spec, grouped)
+    end
+    if live then lastPick = pick end
+    return pick
 end
 
 -- Your choice (a seal's name, or nil for automatic). A new choice applies
 -- at once, even mid-fight.
 local function setSeal(name)
     ns.db.paladinSeal = name
-    ownSeal = nil
 end
+
+-- Pure: you cast `cast`; Flow was suggesting `suggested`. Returns the seal
+-- to keep from now on, or nil (not a seal, or the one Flow suggested, so
+-- pressing Flow's key never freezes Auto). "You think somebody's gonna go
+-- through all of that to change their stuff?" No settings, no command:
+-- cast the seal you want once and Flow suggests it from then on, every
+-- fight, until you cast another.
+local function sealFromCast(cast, suggested)
+    if type(cast) ~= "string" or not cast:find("^Seal of ") then return nil end
+    if cast == suggested then return nil end
+    return cast
+end
+
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not spellID then return end
+    local name = A.SpellInfo(spellID)   -- (Flow's own: the bare GetSpellInfo isn't on every client)
+    if not (name and name:find("^Seal of ")) then return end
+    local suggested = lastPick
+    if suggested == nil then
+        local known = ns.api and ns.api.KnownSpells and ns.api.KnownSpells() or {}
+        suggested = pickSeal({ Knows = function(_, sp) return known[sp] end })
+    end
+    local keep = sealFromCast(name, suggested)
+    if not keep or keep == ns.db.paladinSeal then return end
+    setSeal(keep)
+    lastPick = keep
+    ns:Print(keep .. ": Flow suggests this seal from now on. Cast another to switch; /flow seal auto: back to your talents.")
+end)
 
 -- Seal missing or about to drop. In Forever, Judgement no longer uses up
 -- the seal, so it only ends by running out: refresh it just before that
@@ -200,7 +223,7 @@ local function guide(e)
     if k("Devotion Aura") then add("  - Devotion Aura on (stays on; it's on your stance bar).") end
     if k("Blessing of Might") then add("  - Blessing of Might (re-cast when under 30s left).") end
     local seal = pickSeal(e)
-    if k(seal) then add("  - " .. seal .. ", cast just before you pull (change it: /flow seal).") end
+    if k(seal) then add("  - " .. seal .. ", cast just before you pull (to change it, cast the one you want).") end
     add("Fight:")
     if k("Judgement") then
         add("  1. Judgement to open (in Forever it doesn't use up your seal), then again on every cooldown.")
@@ -269,8 +292,8 @@ end
 
 ns:Register("help", "seal", { order = 32, title = "Paladin seal", lines = {
     "Automatic: by your talents. Retribution: Command; Protection (or tanking): Fury; Holy in a group: Wisdom; otherwise Righteousness.",
-    "Cast a different seal and Flow keeps that one until the fight ends.",
-    "Settings, Easy keys: \"Paladin seal\" picks one for good; or /flow seal command (righteousness, crusader, justice, light, wisdom, fury), /flow seal auto.",
+    "To change it, just cast the seal you want: Flow suggests that one from then on, every fight, until you cast another.",
+    "Back to automatic: /flow seal auto (or Settings, Easy keys, \"Paladin seal\": Auto).",
 } })
 
 ns:Register("rotation", "PALADIN", {
@@ -278,6 +301,7 @@ ns:Register("rotation", "PALADIN", {
     wantSeal = wantSeal,   -- (tests)
     pickSeal = pickSeal,   -- (tests)
     SetSeal = setSeal,     -- (settings)
+    SealFromCast = sealFromCast, -- (tests)
     SEALS = SEALS,         -- (tests)
     groupBuffs = groupBuffs,
     -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).
