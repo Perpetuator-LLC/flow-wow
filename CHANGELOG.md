@@ -6,6 +6,11 @@
   one of your class's specs (also /flow spec). Auto is now the talent tree you've put the most points in (before
   talents, the class's recommended levelling spec); it used to be the recommendation only, whatever your talents.
   Flow uses it for gear, food and a paladin's seal.
+- **Paladin: the blessing follows your spec, and the one you cast.** Healing (or Holy in a group): Wisdom; Protection
+  (or tanking): Kings once you have it; otherwise Might (it was always Might). Cast another blessing on yourself and
+  Flow keeps that one from then on; /flow blessing auto, or Settings, "Paladin blessing", goes back.
+- **Druid: Bear Form when tanking.** With "Your spec" set to Feral (Bear) (or /flow spec tank), Flow suggests Bear
+  Form (Dire Bear Form once known) when you target an enemy or are in a fight.
 - **Paladin: Righteous Fury for Protection.** Suggested when your spec is Protection (talents or your choice) and
   it's missing or running out between fights.
 

@@ -3715,6 +3715,31 @@ ns:Register("test", "spec: your talents set the role Flow plays you as; Righteou
     t:ok(def.wantFury("dps", "prot"), "Protection talents: Righteous Fury")
     t:ok(not def.wantFury("dps", "ret"), "Retribution: no Righteous Fury")
     t:ok(not def.wantFury("heal", nil), "healing: no Righteous Fury")
+    -- "Do blessings work the same as seals?"
+    local knowsAll = { Knows = function() return true end }
+    local noKings = { Knows = function(_, s) return s ~= "Blessing of Kings" end }
+    local savedB = ns.db.paladinBlessing
+    ns.db.paladinBlessing = nil
+    local function at(tree, grouped) return { tree = tree or false, grouped = grouped or false } end
+    t:eq(def.pickBlessing(knowsAll, "dps", at("ret")), "Blessing of Might", "Retribution: Might")
+    t:eq(def.pickBlessing(knowsAll, "tank", at()), "Blessing of Kings", "tanking: Kings")
+    t:eq(def.pickBlessing(noKings, "dps", at("prot")), "Blessing of Might", "Protection without Kings yet: Might")
+    t:eq(def.pickBlessing(knowsAll, "heal", at()), "Blessing of Wisdom", "healing: Wisdom")
+    t:eq(def.pickBlessing(knowsAll, "dps", at("holy", true)), "Blessing of Wisdom", "Holy in a group: Wisdom")
+    t:eq(def.pickBlessing(knowsAll, "dps", at("holy", false)), "Blessing of Might", "Holy on your own: Might")
+    ns.db.paladinBlessing = "Blessing of Salvation"
+    t:eq(def.pickBlessing(knowsAll, "dps", at("ret")), "Blessing of Salvation", "your choice wins over your talents")
+    ns.db.paladinBlessing = savedB
+    t:eq(def.BlessingFromCast("Blessing of Wisdom", "Blessing of Might", true), "Blessing of Wisdom",
+        "you cast a different blessing on yourself: Flow keeps it")
+    t:eq(def.BlessingFromCast("Blessing of Wisdom", "Blessing of Might", false), nil,
+        "on a friend: your own blessing stays")
+    t:eq(def.BlessingFromCast("Blessing of Might", "Blessing of Might", true), nil, "the one Flow suggested: Auto stays")
+    t:eq(def.BlessingFromCast("Blessing of Protection", "Blessing of Might", true), nil, "Protection is a moment, not a choice")
+    t:ok(ns.DruidWantsBear("tank", true, false), "druid tank, a fight: Bear Form")
+    t:ok(not ns.DruidWantsBear("tank", true, true), "already a bear: nothing")
+    t:ok(not ns.DruidWantsBear("tank", false, false), "travelling, nothing targeted: nothing")
+    t:ok(not ns.DruidWantsBear("dps", true, false), "not tanking: the form you're in")
 end)
 
 ns:Register("test", "paladin: the seal Flow suggests (talents, your choice, the seal you cast)", function(t)

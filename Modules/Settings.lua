@@ -618,6 +618,12 @@ local function build(parent)
             f.sealRow2, y = choices(f, y, "", tip,
                 { { "Light", "Seal of Light", 50 }, { "Justice", "Seal of Justice", 60 },
                   { "Crusader", "Seal of the Crusader", 70 }, { "Fury", "Seal of Fury", 46 } }, get, set, "Paladin seal")
+            local btip = "The blessing Flow keeps on you. Auto (the usual): by your spec. Healing (or Holy in a group): Wisdom; Protection (or tanking): Kings once you have it; otherwise Might. Or just cast the blessing you want on yourself: Flow keeps that one from then on (Salvation, Light and Sanctuary too). Blessings on your group are separate. This character only."
+            f.blessRow, y = choices(f, y, "Paladin blessing", btip,
+                { { "Auto", "auto", 46 }, { "Might", "Blessing of Might", 54 },
+                  { "Wisdom", "Blessing of Wisdom", 62 }, { "Kings", "Blessing of Kings", 50 } },
+                function() return ns.db.paladinBlessing or "auto" end,
+                function(v) ns.db.paladinBlessing = v ~= "auto" and v or nil end)
         end
     end
 
