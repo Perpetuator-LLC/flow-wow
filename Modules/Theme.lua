@@ -165,3 +165,47 @@ function ns.ProgressText(text)
     if type(text) ~= "string" then return text end
     return (text:gsub("(%d+)%s*/%s*(%d+)", "%1 -> %2"))
 end
+
+-------------------------------------------------------------------------------
+-- A blue glow while the mouse is over one of Flow's square buttons (0.35.381:
+-- "as the user hovers over Flow flight masters or Flow route it doesn't
+-- really highlight that well ... it should give it a nice glow, like the game
+-- does, in blue"). Drawn on the button's highlight layer, so the game shows
+-- and hides it with the mouse and nothing needs redrawing: a soft halo round
+-- the button, a faint wash inside it, and a bright edge.
+--   ns.theme:HoverGlow(button) -> the glow's parts (button.hoverGlow)
+-------------------------------------------------------------------------------
+ns.theme.GLOW = { 0.35, 0.65, 1 }
+ns.theme.GLOW_HALO = 1.9   -- the halo's size, in button widths
+function ns.theme:HoverGlow(b)
+    if not (b and b.CreateTexture) then return nil end
+    if b.hoverGlow then return b.hoverGlow end
+    local c = self.GLOW
+    local g = {}
+    g.halo = b:CreateTexture(nil, "HIGHLIGHT")
+    g.halo:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    g.halo:SetBlendMode("ADD")
+    g.halo:SetVertexColor(c[1], c[2], c[3], 0.9)
+    g.halo:SetPoint("CENTER")
+    g.wash = b:CreateTexture(nil, "HIGHLIGHT")
+    g.wash:SetAllPoints()
+    g.wash:SetBlendMode("ADD")
+    g.wash:SetColorTexture(c[1], c[2], c[3], 0.16)
+    g.edge = {}
+    for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
+                           { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local t = b:CreateTexture(nil, "HIGHLIGHT")
+        t:SetPoint(pts[1]); t:SetPoint(pts[2])
+        if i <= 2 then t:SetHeight(1.5) else t:SetWidth(1.5) end
+        t:SetColorTexture(c[1], c[2], c[3], 1)
+        g.edge[i] = t
+    end
+    function g.Size()
+        local w, h = b:GetWidth(), b:GetHeight()
+        g.halo:SetSize(w * ns.theme.GLOW_HALO, h * ns.theme.GLOW_HALO)
+    end
+    g.Size()
+    b:HookScript("OnSizeChanged", g.Size)
+    b.hoverGlow = g
+    return g
+end

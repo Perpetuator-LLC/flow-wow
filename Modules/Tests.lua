@@ -17607,3 +17607,48 @@ ns:Register("test", "click: the minimap tracking tick turns Flow's managing on a
     t:ok(not (_G.Menu and _G.Menu.ModifyMenu) or T.hooked, "where the game lets add-ons add to its menus, Flow's tick is asked for")
     t:ok(issecurevariable("C_Minimap"), "taint: the game's minimap table is untouched")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.381: the Flow Router button's arrow is filled and on the left; the
+-- map's Flow buttons glow blue under the mouse.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "map: the Flow Router button's arrow is a filled one, and Flow's map buttons glow under the mouse", function(t)
+    local M = ns.mapOverlay
+    local right = M.ArrowLines(9, 10, 1)
+    t:eq(#right, 9, "one upright line per step of the arrow")
+    t:near(right[1].x, -5, 0.01, "pointing right: its back is on the left")
+    t:near(right[9].x, 5, 0.01, "and its tip on the right")
+    t:ok(right[1].half > right[5].half and right[5].half > right[9].half, "tallest at the back, a point at the tip: filled")
+    local left = M.ArrowLines(9, 10, -1)
+    t:near(left[1].x, 5, 0.01, "pointing left: mirrored")
+    t:near(left[9].x, -5, 0.01, "tip on the left")
+    t:eq(#M.ArrowLines(1, 10, 1), 1, "one line doesn't divide by zero")
+    -- The glow: on the highlight layer, so the game shows it with the mouse.
+    local probe = CreateFrame("Button", nil, UIParent)
+    probe:SetSize(32, 32)
+    local ok, g = pcall(ns.theme.HoverGlow, ns.theme, probe)
+    t:ok(ok and g and g.halo and g.wash and #g.edge == 4, "a button gets a halo, a wash and a bright edge" .. (ok and "" or (": " .. tostring(g))))
+    if ok and g then
+        t:eq((g.halo:GetDrawLayer()), "HIGHLIGHT", "drawn only while the mouse is over it")
+        t:near(g.halo:GetWidth(), 32 * ns.theme.GLOW_HALO, 0.5, "the halo reaches past the button")
+        local r, gr, b = g.halo:GetVertexColor()
+        t:ok(b > r and b > gr, "and it's blue")
+        t:eq(ns.theme:HoverGlow(probe), g, "asked twice: the same glow, not two")
+    end
+    probe:Hide()
+    t:eq(ns.theme:HoverGlow(nil), nil, "no button: nothing")
+    -- The real buttons, when the map has made them.
+    local b = M.DrawerButton and M.DrawerButton()
+    if b then
+        t:ok(b.hoverGlow ~= nil, "the Flow Router button glows")
+        t:ok(b.tri and #b.tri == M.ARROW_LINES, "and has the filled arrow")
+        t:ok(pcall(b.Draw, b), "it draws")
+        t:ok(b.routeToggle and b.routeToggle.hoverGlow ~= nil, "the route button glows")
+        local okC = pcall(b:GetScript("OnEnter"), b)
+        t:ok(okC, "pointing at it runs")
+        pcall(b:GetScript("OnLeave"), b)
+    end
+    local fb = _G.FlowMapFlightsToggle
+    if fb then t:ok(fb.hoverGlow ~= nil, "the flight masters button glows") end
+end)

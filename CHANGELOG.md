@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.381
+
+- **The Flow Router button on the map has a filled arrow, on the left.** It was a thin
+  chevron on the right of a little list. Now the arrow is solid and sits on the left, like
+  the game's own quest log button under it, with a faint second chevron trailing it; the
+  little route list is on the right. It still points right while the Flow Router is closed
+  and left while it's open.
+- **Flow's map buttons glow blue under the mouse.** The Flow Router, Flow route and Flow
+  flight masters buttons only brightened their thin border. Each now gets a blue halo, a
+  faint blue wash and a bright edge while you point at it.
 ## 0.35.380
 
 - **New: the minimap shows what your next step needs, and only that.** While your next

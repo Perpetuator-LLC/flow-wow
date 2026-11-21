@@ -1150,6 +1150,20 @@ end
 -- Pure: which way the Flow Router button's arrow points: 1 = right (the
 -- list is closed: it comes out on the right), -1 = left (open: push it back).
 function M.DrawerArrow(open) return open and -1 or 1 end
+-- The button's arrow is filled, like the game's quest log button's (0.35.381),
+-- and drawn from thin upright lines so it can point either way: from its
+-- back (the tallest line) to its tip.
+M.ARROW_LINES = 9
+-- Pure: the lines of an arrow `size` long pointing `dir` (1 right, -1 left):
+-- { { x = offset from its middle, half = half the line's height } }.
+function M.ArrowLines(n, size, dir)
+    local out = {}
+    for i = 1, n do
+        local f = n > 1 and (i - 1) / (n - 1) or 0
+        out[i] = { x = dir * (f - 0.5) * size, half = math.max(0.5, (1 - f) * size * 0.72) }
+    end
+    return out
+end
 
 local button
 local function buildButton()
@@ -1178,11 +1192,14 @@ local function buildButton()
         if i <= 2 then t:SetHeight(1) else t:SetWidth(1) end
         b.edge[i] = t
     end
-    -- A little route list (three rows, a dot in the route's colour and a
-    -- line each) with an arrow beside it that points the way the game's own
-    -- quest log button does: right while the list is closed (it comes out on
-    -- the right), left while it's open (0.35.315: "the arrow's just the
-    -- opposite of the one that's built in").
+    -- A filled arrow on the left, pointing the way the game's own quest log
+    -- button does: right while the list is closed (it comes out on the
+    -- right), left while it's open (0.35.315). Beside it, on the right, a
+    -- little route list (three rows, a dot in the route's colour and a line
+    -- each). 0.35.381: "it would be nice if it had the arrow on the left, a
+    -- filled-in arrow, and matched the quest one built into the game, but
+    -- ours a little more high-tech": the arrow was a thin chevron on the
+    -- right. A faint second chevron trails it.
     b.rows = {}
     for i = 1, 3 do
         local d = b:CreateTexture(nil, "ARTWORK")
@@ -1192,8 +1209,14 @@ local function buildButton()
         l:SetThickness(1.5)
         b.rows[i] = { dot = d, line = l }
     end
-    b.arms = { b:CreateLine(nil, "OVERLAY"), b:CreateLine(nil, "OVERLAY") }
-    for _, l in ipairs(b.arms) do l:SetThickness(2) end
+    b.tri = {}
+    for i = 1, M.ARROW_LINES do
+        b.tri[i] = b:CreateLine(nil, "OVERLAY")
+        b.tri[i]:SetThickness(1.7)
+    end
+    b.trail = { b:CreateLine(nil, "ARTWORK"), b:CreateLine(nil, "ARTWORK") }
+    for _, l in ipairs(b.trail) do l:SetThickness(1.5) end
+    theme():HoverGlow(b)
     function b:Draw()
         local open = not collapsed()
         local c = theme().route
@@ -1204,19 +1227,27 @@ local function buildButton()
         for i, r in ipairs(self.rows) do
             local y = (2 - i) * h * 0.22
             r.dot:ClearAllPoints()
-            r.dot:SetPoint("CENTER", self, "CENTER", -w * 0.24, y)
+            r.dot:SetPoint("CENTER", self, "CENTER", w * 0.06, y)
             r.dot:SetVertexColor(c[1], c[2], c[3], 1)
-            r.line:SetStartPoint("CENTER", self, -w * 0.13, y)
-            r.line:SetEndPoint("CENTER", self, w * 0.08, y)
+            r.line:SetStartPoint("CENTER", self, w * 0.16, y)
+            r.line:SetEndPoint("CENTER", self, w * 0.36, y)
             r.line:SetColorTexture(1, 1, 1, hot and 0.95 or 0.75)
         end
         local dir = M.DrawerArrow(open)
-        local s = math.min(w, h) * 0.13
-        local cx = w * 0.28
-        for i, l in ipairs(self.arms) do
-            l:SetStartPoint("CENTER", self, cx - dir * s * 0.6, (i == 1 and 1 or -1) * s)
-            l:SetEndPoint("CENTER", self, cx + dir * s * 0.6, 0)
+        local s = math.min(w, h) * 0.3
+        local cx = -w * 0.2
+        for i, seg in ipairs(M.ArrowLines(#self.tri, s, dir)) do
+            local l = self.tri[i]
+            l:SetStartPoint("CENTER", self, cx + seg.x, seg.half)
+            l:SetEndPoint("CENTER", self, cx + seg.x, -seg.half)
             l:SetColorTexture(hot and 1 or c[1], hot and 1 or c[2], hot and 1 or c[3], 1)
+        end
+        -- (The trail: a faint chevron behind the arrow's back.)
+        local back = cx - dir * (s * 0.5 + 3)
+        for i, l in ipairs(self.trail) do
+            l:SetStartPoint("CENTER", self, back, (i == 1 and 1 or -1) * s * 0.6)
+            l:SetEndPoint("CENTER", self, back + dir * s * 0.42, 0)
+            l:SetColorTexture(c[1], c[2], c[3], hot and 0.8 or 0.45)
         end
     end
     b:SetScript("OnClick", function() M:SetDrawer(collapsed()) end)
@@ -1257,6 +1288,7 @@ local function buildButton()
     end
     r.slash = r:CreateLine(nil, "OVERLAY", nil, 2)
     r.slash:SetThickness(2)
+    theme():HoverGlow(r)
     function r:Draw()
         local on = ns.db.nav.mapLines ~= false
         local c, hot = theme().route, self:IsMouseOver()
