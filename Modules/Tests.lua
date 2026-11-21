@@ -17804,3 +17804,32 @@ ns:Register("test", "custom route: a dungeon run can be one of its lines", funct
     pcall(F.UpdateBar)
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.384: dungeons wait while you're on a custom route.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "custom route: dungeons wait unless you added the run", function(t)
+    local F = ns.focus
+    t:ok(F.DungeonWaits({ key = "dungeon:1:", provider = "dungeon" }, false), "a run's step waits on a custom route")
+    t:ok(not F.DungeonWaits({ key = "dungeon:1:", provider = "dungeon" }, true), "not when the run is one of your lines")
+    t:ok(not F.DungeonWaits({ key = "train:class", provider = "trainer" }, false), "other steps aren't a dungeon's")
+    t:ok(not F.DungeonWaits(nil, false), "no step: no")
+    t:ok(F.KeyShows(true, false, false), "the dungeon key suggests on your usual route")
+    t:ok(not F.KeyShows(true, true, false), "not on a custom route")
+    t:ok(F.KeyShows(true, true, true), "unless the run is in the custom route")
+    t:ok(not F.KeyShows(false, false, false), "and never with Suggest dungeons off")
+    -- The usual route that shows while your lines wait leaves the run out too.
+    local mine, log, sorter = ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter
+    ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter = { { key = "test:nowhere-987654384", title = "Nowhere" } }, {}, "custom"
+    local okF, out = pcall(F.Filter, { { key = "dungeon:1:", provider = "dungeon", points = { {} } }, { key = "other:1", points = { {} } } }, true)
+    t:ok(okF, "the route is cut" .. (okF and "" or (": " .. tostring(out))))
+    local keys = {}
+    for _, g in ipairs(okF and out or {}) do keys[#keys + 1] = g.key end
+    t:eq(table.concat(keys, ","), "other:1", "lines with nothing to do here: the usual route shows, without the dungeon run")
+    t:ok(not F.AnyDungeon(), "(no dungeon run among these lines)")
+    ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter = mine, log, sorter
+    F.idle, F.stuck = nil, nil
+    pcall(F.UpdateBar)
+    t:ok(pcall(ns.dungeons.KeyStatus), "the dungeon key still works out what to show")
+end)

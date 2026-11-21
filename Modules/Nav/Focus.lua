@@ -399,6 +399,25 @@ end
 -- pickups and the entrance). Adding one turns the run on, since the entrance
 -- and the quests to pick up are only on the route for the run that's on.
 -------------------------------------------------------------------------------
+-- Dungeons wait while you're on a custom route (0.35.384: "when we're in
+-- custom route mode, the user's normally on a mission ... dungeons can wait").
+-- A run's steps (its pickups, its entrance) are on a custom route only when
+-- the run is one of its lines, and the key above the Flow Tracker doesn't
+-- suggest one (Dungeons.lua).
+-- Pure: is this a dungeon run's step that waits? hasLine: a run is among your lines.
+function F.DungeonWaits(goal, hasLine)
+    return type(goal) == "table" and goal.provider == "dungeon" and not hasLine
+end
+function F.AnyDungeon()
+    for _, line in ipairs(lines()) do if line.dungeon then return true end end
+    return false
+end
+-- Pure: does the dungeon key show now? suggest: the setting; custom: you're on
+-- a custom route; inCustom: the run it would show is one of its lines.
+function F.KeyShows(suggest, custom, inCustom)
+    if not suggest then return false end
+    return not custom or inCustom == true
+end
 function F.HasDungeon(key)
     for _, line in ipairs(lines()) do if line.dungeon and line.dungeon == key then return true end end
     return false
@@ -511,10 +530,12 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
         F.UpdateBar()
     end
     if idle then
-        -- Your usual route: the quest kinds by your usual ticks again.
+        -- Your usual route: the quest kinds by your usual ticks again. (Still no
+        -- dungeon run's steps unless you added the run: F.DungeonWaits.)
         local usual = {}
         for _, g in ipairs(list) do
-            if not (g.routeKind and F.Replaces(g.routeKind) and ns.nav and not ns.nav:Includes(g.routeKind)) then usual[#usual + 1] = g end
+            if not (g.routeKind and F.Replaces(g.routeKind) and ns.nav and not ns.nav:Includes(g.routeKind))
+                and not F.DungeonWaits(g, F.AnyDungeon()) then usual[#usual + 1] = g end
         end
         return usual
     end

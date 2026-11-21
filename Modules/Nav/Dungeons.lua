@@ -1854,7 +1854,7 @@ function D:MenuItems()
                 func = function() D:Cancel() end }
         end
     end
-    items[#items + 1] = { text = "Suggest dungeons", tip = "The gold key above the Flow Tracker when a dungeon run is worth doing at your level.", checked = self:Suggest(), minor = true,
+    items[#items + 1] = { text = "Suggest dungeons", tip = "A gold key above the Flow Tracker when a dungeon run is worth doing at your level: hover it for the run, click it to put the run on your route. It only suggests: nothing goes on your route until you click. It stays away while you're on a custom route.", checked = self:Suggest(), minor = true,
         func = function() ns.db.nav.dungeonSuggest = not self:Suggest() end }
     return items
 end
@@ -1876,6 +1876,9 @@ do
         statusAt, statusKey = GetTime(), key
         statusCache = nil
         if not (D:Suggest() and D:Available()) or currentDungeon() then return nil end
+        -- (On a custom route the key only shows for a run you added to it: Focus.lua.)
+        local F = ns.focus
+        if F and F.KeyShows and not F.KeyShows(true, F.Active(), key ~= nil and F.HasDungeon(key)) then return nil end
         local run = key and D:Run(key) or D:Best()
         if not run then return nil end
         local solo = not ns.party:InGroup()

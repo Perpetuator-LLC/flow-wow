@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.384
+
+- **Dungeons wait while you're on a custom route.** A custom route is you on a mission, so:
+  - the gold dungeon key above the Flow Tracker doesn't suggest a run;
+  - a dungeon run's steps (its quests to pick up, "Enter ...") stay off the route, also
+    while the custom route is waiting and your usual route is showing in its place.
+  The exception is a run you added yourself with "Add to my custom route".
+- **"Suggest dungeons" says what it does.** Point at it: it's the gold key that appears when
+  a run is worth doing at your level. It only suggests; nothing goes on your route until
+  you click the key or tick a dungeon's "On your route".
 ## 0.35.383
 
 - **A dungeon's menu is one clear menu.** Under Dungeons in the Flow menu, clicking a
