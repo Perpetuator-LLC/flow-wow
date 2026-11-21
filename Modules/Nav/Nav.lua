@@ -4163,7 +4163,7 @@ local function showPanel()
     lines[#lines + 1] = " "
     lines[#lines + 1] = "|cff888888Right-click the arrow for options. Click the arrow or the ^ tab to fold this away.|r"
     panel.text:SetText(table.concat(lines, "\n"))
-    panel:SetHeight(h:GetHeight() + panel.text:GetStringHeight() + 24)
+    panel:SetHeight(h:GetHeight() + N.TextHeight(panel) + 24)
     -- Placed when it opens (it's refreshed all the time while open): on the
     -- side of the arrow with room, or where you Ctrl-dragged it.
     if not panel:IsShown() then panel.side = placeDrawer(panel, frame) end
@@ -4216,6 +4216,22 @@ end
 N._uiLink = uiLink   -- (tests)
 
 
+N.PICK_LABEL = "Add to custom route"
+-- How tall a panel's text is, wrapped (0.35.390: "the tooltip doesn't go down
+-- far enough when that text appears at the bottom; the background cuts it
+-- right in half"). The text's width came from its two anchors, which the
+-- game hadn't worked out yet when the height was asked for, so a long last
+-- line was measured as one line. The width is set outright first.
+N.TEXT_PAD = 24   -- 12 either side
+-- Pure: the width the text gets in a panel this wide.
+function N.TextWidth(panelWidth) return math.max(50, (panelWidth or 0) - N.TEXT_PAD) end
+function N.TextHeight(panel)
+    local text = panel.text
+    text:SetWidth(N.TextWidth(panel:GetWidth()))
+    if text.SetWordWrap then text:SetWordWrap(true) end
+    return text:GetStringHeight() or 0
+end
+
 local function buildCard()
     local f = buildPanel("FlowStopCard")
     f:SetFrameStrata("FULLSCREEN_DIALOG")          -- above the world map
@@ -4250,7 +4266,9 @@ local function buildCard()
                 if ns.mapOverlay and f.goal then ns.mapOverlay:Focus(f.goal.key, 20) end
             end, nil, N.GoalMap(f.goal))
         end),
-        first = uiLink(f, "Go here next", function()
+        -- (0.35.390: "instead of saying Go here next, it should just say Add to
+        -- custom route": that's what it does, and it goes there next.)
+        first = uiLink(f, N.PICK_LABEL, function()
             -- (Across the sea: its zeppelin or boat is the next step, Crossings.lua.)
             if ns.crossings and ns.crossings.CanLead(f.goal) then ns.crossings.Lead(f.goal) else N:Select(f.goal.key) end
             f:Hide()
@@ -4292,7 +4310,7 @@ function N:ShowStop(goal, anchor)
             x = x + l:GetWidth() + 14
         end
     end
-    card:SetHeight(card.hero:GetHeight() + card.text:GetStringHeight() + 48)
+    card:SetHeight(card.hero:GetHeight() + N.TextHeight(card) + 48)
     card:ClearAllPoints()
     local saved = ns.db.nav.cardPoint
     if saved then

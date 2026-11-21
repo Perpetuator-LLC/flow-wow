@@ -18071,3 +18071,32 @@ ns:Register("test", "quests: each person a quest marks is a step, named for what
     ns.db.quests.giverTalked, QG.names = was, names
     t:ok(pcall(ns.questDump.Lines), "/flow questdata still builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.390: the step card says "Add to custom route", and is as tall as its
+-- wrapped text.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: a step's card is tall enough for a long last line, and its button says Add to custom route", function(t)
+    local N = ns.nav
+    t:eq(N.PICK_LABEL, "Add to custom route", "the button's words")
+    t:eq(N.TextWidth(340), 316, "the text is as wide as the card, less its margins")
+    t:eq(N.TextWidth(0), 50, "never narrower than a word")
+    if InCombatLockdown() then return end
+    local long = "The quest data doesn't say where each objective is done, but it marks these spots for the quest: the arrow goes to the nearest. "
+    local goal = { key = "flowtest:card-987654390", title = "A Test Step", text = "A Test Step: do the thing",
+        points = {}, details = { "Quest: A Test Step", "Objective: do the thing", long .. long .. long } }
+    local ok, err = pcall(N.ShowStop, N, goal, UIParent)
+    t:ok(ok, "the card opens" .. (ok and "" or (": " .. tostring(err))))
+    local card = _G.FlowStopCard
+    if ok and card and card:IsShown() then
+        local textH = card.text:GetStringHeight()
+        t:near(card.text:GetWidth(), N.TextWidth(card:GetWidth()), 1, "its text is set to the card's width before it's measured")
+        t:ok(textH > 30, "the long line wraps over several lines (" .. math.floor(textH) .. " high)")
+        t:ok(card:GetHeight() >= card.hero:GetHeight() + textH + 40, "and the card's background reaches under all of it")
+        local link = card.links and card.links.first
+        t:ok(link and link.text and link.text:GetText() == "Add to custom route", "the button reads Add to custom route")
+        t:eq(type(link and link:GetScript("OnClick")), "function", "and has its click")
+        card:Hide()
+    end
+end)

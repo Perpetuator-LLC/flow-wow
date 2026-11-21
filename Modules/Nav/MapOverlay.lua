@@ -177,7 +177,7 @@ local function pin(c, x, y, label, color, stop, top, target)
                 local items = {
                     { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-                    { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
+                    { text = "Add to custom route (go here next)", func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
                     { sep = true },
@@ -457,7 +457,7 @@ local function blobClick(self, button)
         local items = {
             { title = true, text = g.text or g.title or "This step" },
             { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-            { text = "Go here next (Custom route)", func = function() ns.nav:Select(g.key) end },
+            { text = "Add to custom route (go here next)", func = function() ns.nav:Select(g.key) end },
             { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
             { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
         }
@@ -1474,7 +1474,7 @@ local function buildHelp(f)
             pop[handle] = h
         end
     end
-    line(-8, "go", "Go here next: a Custom route (orange) from it")
+    line(-8, "go", "Add to custom route: go here next (orange)")
     line(-28, "active", "Where you're heading: always the top row")
     line(-50, nil, "Click a step's name to open it. Right-click to hide it or for more.")
     pop:Hide()
@@ -1740,7 +1740,7 @@ local function buildList()
                     or "The next step on your route.", 1, 1, 1, true)
             else
                 M:Preview(row.key)
-                GameTooltip:AddLine("Go here next")
+                GameTooltip:AddLine("Add to custom route: go here next")
                 GameTooltip:AddLine("Makes it your next step: a Custom route (orange) until you choose Most XP or Shortest again. The orange line on the map is that route.", 1, 1, 1, true)
             end
             GameTooltip:Show()
@@ -1800,7 +1800,7 @@ local function buildList()
                     { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     -- (A step across the sea can't be walked to, but its zeppelin or boat can: Crossings.lua.)
-                    { text = "Go here next (Custom route: only its quest line)",
+                    { text = "Add to custom route (its quest line; go here next)",
                       disabled = self.blocked ~= nil and not (ns.crossings and ns.crossings.CanLead(g)),
                       func = function()
                           if ns.crossings and ns.crossings.CanLead(g) then ns.crossings.Lead(g) else ns.nav:Select(g.key) end

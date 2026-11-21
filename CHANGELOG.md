@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.390
+
+- **A step's card says "Add to custom route".** The button under a step's details read "Go
+  here next". It does the same thing (the step's quest line joins your custom route and is
+  your next step) under the name that says so. The same entry in the right-click menus now
+  reads "Add to custom route (go here next)".
+- **Fixed: a step's card cut its last line in half.** When the text ended in a long line
+  (such as "The quest data doesn't say where each objective is done, but it marks these
+  spots ..."), the card's background stopped partway through it. The card and the arrow's
+  panel now measure their text after it's wrapped.
 ## 0.35.389
 
 - **New: the people a quest sends you round to are each a step.** Traditions of the Bluff

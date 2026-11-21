@@ -341,7 +341,7 @@ local function build()
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Point the arrow here (your waypoint)", func = function() if ns.mapOverlay then ns.mapOverlay.PointHere(g) end end },
                     -- (A step across the sea can't be walked to, but its zeppelin or boat can: Crossings.lua.)
-                    { text = "Go here next (Custom route: only its quest line)",
+                    { text = "Add to custom route (its quest line; go here next)",
                       disabled = self.blocked ~= nil and not (ns.crossings and ns.crossings.CanLead(g)),
                       func = function()
                           if ns.crossings and ns.crossings.CanLead(g) then ns.crossings.Lead(g) else ns.nav:Select(g.key) end
