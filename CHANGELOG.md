@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.359
+
+- **Pointing at a Flow Tracker row lights its step on the world map again.** It only did on a
+  click. Also: two self-tests that failed on a character with Blacksmithing past Rough Stone, and
+  on how the game hands back a texture's points.
+  (Thanks, YourBIMpossible: pull request 27.)
+
 ## 0.35.358
 
 - **A custom route is now the quest lines you pick, and nothing else.** "Go here next" on a
