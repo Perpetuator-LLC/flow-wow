@@ -872,6 +872,8 @@ local function render(s, cfg, glow)
     if tv then icon.tex:SetVertexColor(tv[1], tv[2], tv[3])
     elseif s.kind == "held" then icon.tex:SetVertexColor(0.7, 0.7, 0.7)
     else icon.tex:SetVertexColor(1, 1, 1) end
+    -- What it's waiting for: a bar of your mana, rage or energy against its cost (PowerBar.lua).
+    if ns.PaintPower then pcall(ns.PaintPower, icon, s) end
     icon:Show()
 
     -- What lights up on your action bars: `glow`, the advice (in a fight,

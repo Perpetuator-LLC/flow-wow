@@ -18167,3 +18167,55 @@ ns:Register("test", "hearthstone: the step comes when you accept quests by an in
     ns.db.hearth.accepted = was
     t:ok(pcall(H.Line), "the diagnostics line builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.393: a bar on an icon for what its spell is waiting for.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "power bar: an icon shows your mana, rage or energy against what its spell costs", function(t)
+    local P = ns.powerBar
+    local function plain(v) return v end
+    local function hidden() return nil end
+    t:eq(P.Pick({ { type = 3, cost = 40 } }, plain).type, 3, "a spell that costs energy")
+    t:eq(P.Pick({ { type = 0, cost = 0 }, { type = 1, cost = 10 } }, plain).type, 1, "a cost of nothing is passed over")
+    t:eq(P.Pick({ { type = 0, cost = 0 } }, plain), nil, "a free spell: no cost")
+    t:eq(P.Pick(nil, plain), nil, "no list: none")
+    local c = P.Pick({ { type = 0, cost = 120 } }, hidden)
+    t:ok(c and c.type == 0 and c.known == nil and c.cost == 120, "a cost the game hides still counts, and is kept for the game's own bar")
+    t:ok(P.Shows(40, 25), "25 energy for a 40 energy spell: the bar shows")
+    t:ok(not P.Shows(40, 40) and not P.Shows(40, 90), "enough: no bar")
+    t:ok(P.Shows(nil, 25) and P.Shows(40, nil), "either number hidden (in a fight): the bar stays up")
+    t:near(P.Fill(40, 10), 0.25, 0.001, "a quarter of the way there")
+    t:eq(P.Fill(40, 80), 1, "never more than full")
+    t:eq(P.Fill(nil, 10), nil, "hidden: Flow can't say how full")
+    t:eq(P.Height(40), 4, "a tenth of the icon's height")
+    t:eq(P.Height(16), 3, "never thinner than 3")
+    -- On an icon: a spell you can't afford gets a bar; one you can, or a step with no spell, none.
+    local probe = CreateFrame("Frame", nil, UIParent)
+    probe:SetSize(40, 40)
+    local was = ns.db.actions and ns.db.actions.powerBar
+    ns.db.actions = ns.db.actions or {}
+    ns.db.actions.powerBar = nil
+    with(P, "CostOf", function() return { type = 0, cost = 1e9, known = 1e9 } end, function()
+        local ok, up = pcall(ns.PaintPower, probe, { spell = "Test Spell" })
+        t:ok(ok and up == true, "a spell that costs far more than you have: its bar is up" .. (ok and "" or (": " .. tostring(up))))
+        t:ok(probe.flowPower and probe.flowPower:IsShown(), "on the icon")
+        if probe.flowPower then t:near(probe.flowPower:GetHeight(), 4, 0.5, "thin, across its top") end
+        ns.db.actions.powerBar = false
+        t:eq(ns.PaintPower(probe, { spell = "Test Spell" }), false, "turned off: no bar")
+        t:ok(not probe.flowPower:IsShown(), "and it's put away")
+        ns.db.actions.powerBar = nil
+    end)
+    with(P, "CostOf", function() return { type = 0, cost = 0, known = 0 } end, function()
+        -- (Only where Flow can read your mana: hidden, the bar stays up by design.)
+        if ns.api.Safe(UnitPower("player", 0)) ~= nil then
+            t:eq(ns.PaintPower(probe, { spell = "Test Spell" }), false, "a spell you can afford: no bar")
+        end
+    end)
+    t:eq(ns.PaintPower(probe, { item = "item:1" }), false, "a step that isn't a spell: no bar")
+    t:eq(ns.PaintPower(probe, nil), false, "no step: none")
+    t:eq(ns.PaintPower(nil, { spell = "x" }), false, "no icon: none")
+    ns.db.actions.powerBar = was
+    probe:Hide()
+    t:ok(pcall(P.Lines), "/flow powerbar builds")
+end)

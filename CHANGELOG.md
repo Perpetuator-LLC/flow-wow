@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.393
+
+- **New: an icon shows what its spell is waiting for.** A thin bar across the top of the
+  target button's icon, and of the small icons beside it, while the spell there costs more
+  mana, rage or energy than you have. It's empty at none and full at the spell's cost, in
+  the colour of what it costs (mana blue, rage red, energy yellow), and it fills as that
+  comes in: when it's full, the spell can be cast. With enough already, there's no bar.
+- In a fight this game hides your mana, rage and energy from add-ons. The bar still works
+  there, because it's the game's own kind of bar and is handed the hidden numbers to draw.
+  Flow can't tell "enough" from "not yet" then, so the bar stays up and a full bar means
+  ready.
+- "Show what a spell is waiting for on its icon" in Flow Settings (Easy keys) turns it off.
+  `/flow powerbar` says what Flow can read right now.
 ## 0.35.392
 
 - **"Set hearthstone" now comes when you start questing somewhere, not for passing an
