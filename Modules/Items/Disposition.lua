@@ -992,3 +992,47 @@ ns.commands.inv = ns.commands.inventory
 ns:Register("help", "inventory", { order = 44, title = "Inventory", lines = {
     "/flow inventory: every item in your bags with what Flow would do (sell, auction house, keep) and why. It's saved with the diagnostics.",
 } })
+
+-------------------------------------------------------------------------------
+-- Gear the score can't judge (0.35.388, Gear/Score.lua): for an empty slot,
+-- put it on; with an effect, never sold by Flow.
+-------------------------------------------------------------------------------
+-- Something you can wear in a slot that's empty: put it on. (After "equip":
+-- a real upgrade says its number. Not when it scores below nothing.)
+reg("emptySlot", 10.5, function(i)
+    local g, G = i.gear, ns.gear
+    if not (g and g.canUse and g.item and G and G.EmptySlot) then return nil end
+    if (i.minLevel or 0) > (UnitLevel("player") or 1) then return nil end
+    local role = ns:LevelingRole()
+    if (g.diffs and g.diffs[role] or 0) < 0 then return nil end
+    local empty = G.EmptySlot(g.item, function(slot) return GetInventoryItemLink("player", slot) end, function(link) return G:Describe(link) end)
+    if empty then
+        return { action = "equip", emptySlot = true, reason = string.format("your %s slot is empty: put it on", G.SlotName(g.item)) }
+    end
+end)
+
+-- Pure: do you wear, in one of these slots, something with this same effect?
+--   effectOf(slot) -> the worn item's effect text, or nil
+function D.WornHasEffect(effect, slots, effectOf)
+    for _, slot in ipairs(slots or {}) do
+        if effect ~= nil and effectOf(slot) == effect then return true end
+    end
+    return false
+end
+-- Gear you can use with an effect Flow can't put a number on: kept. Before
+-- "unneededGear", which would sell it as no better than what you wear.
+reg("unscoredEffect", 45, function(i)
+    local g, G = i.gear, ns.gear
+    if not (g and g.canUse and i.link and G and G.Effect and G.TooltipLines) then return nil end
+    local ok, lines = pcall(G.TooltipLines, G, i.link)
+    local effect = ok and G.Effect(lines) or nil
+    -- (You wear one with the very same effect: then the scores do compare, and the next rule may sell it.)
+    if effect and g.item and D.WornHasEffect(effect, g.item.slots, function(slot)
+        local worn = GetInventoryItemLink("player", slot)
+        local okW, wl = pcall(G.TooltipLines, G, worn)
+        return worn and okW and G.Effect(wl) or nil
+    end) then return nil end
+    if effect then
+        return { action = "keep", reason = "has an effect Flow can't score (" .. G.EffectShort(effect) .. "): yours to judge. Shift-click it in the Flow Banker to sell" }
+    end
+end)

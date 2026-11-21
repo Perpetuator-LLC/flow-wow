@@ -497,3 +497,51 @@ ns.commands.gear = function(raw)
         ns:Print("/flow gear on|off|offspec. Hover any item to see its scores.")
     end
 end
+
+-------------------------------------------------------------------------------
+-- What the score can't see (0.35.388)
+--
+-- "Flow just sold a relic, and I don't have one equipped ... it says because
+-- it was equivalent, so it's not considering the special things these items
+-- have: the relic reduces the mana cost of shapeshifting by 40." An idol has
+-- no plain stats, so it scored 0 against an empty slot's 0: "not better than
+-- your gear for any role", sold. Two things the score doesn't see, for every
+-- class (Disposition.lua has the rules, KeepSets.lua the sets):
+--   * an empty slot: something you can wear there beats nothing;
+--   * an effect ("Equip:", "Use:", "Chance on hit:"): Flow can't put a number
+--     on it, so it's never Flow's to sell. Your call.
+-------------------------------------------------------------------------------
+-- Pure: would this item fill a slot that's empty? -> true and the slot.
+--   linkOf(slot) -> what's worn there (nil: nothing); describe(link) -> its item
+-- (An off hand under a two-hander isn't empty; a two-hander fills the main hand.)
+function G.EmptySlot(item, linkOf, describe)
+    if type(item) ~= "table" or type(item.slots) ~= "table" then return false end
+    local main = linkOf(16)
+    local mainItem = main and describe and describe(main) or nil
+    local twoHand = mainItem ~= nil and mainItem.equipLoc == "INVTYPE_2HWEAPON"
+    for _, slot in ipairs(item.slots) do
+        local skip = (slot == 17 and twoHand) or (item.equipLoc == "INVTYPE_2HWEAPON" and slot ~= 16)
+        if not skip and not linkOf(slot) then return true, slot end
+    end
+    return false
+end
+-- Pure: the first effect among an item's tooltip lines ({ { left = text } }), or nil.
+function G.Effect(lines)
+    for _, l in ipairs(lines or {}) do
+        local text = type(l) == "table" and l.left or nil
+        if type(text) == "string" and (text:find("^Equip:") or text:find("^Use:") or text:find("^Chance on hit:")) then return text end
+    end
+    return nil
+end
+-- Pure: an effect in a few words, for a reason line.
+function G.EffectShort(text, max)
+    text = tostring(text or "")
+    max = max or 60
+    if #text <= max then return text end
+    return text:sub(1, max - 3) .. "..."
+end
+-- The slot's name as the game has it ("Relic", "Trinket").
+function G.SlotName(item)
+    local name = item and item.equipLoc and _G[item.equipLoc]
+    return type(name) == "string" and name ~= "" and name:lower() or "slot"
+end

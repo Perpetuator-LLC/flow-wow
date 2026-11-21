@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.388
+
+- **Fixed: Flow sold a relic you had no relic for.** An idol has no plain stats, only its
+  effect, so it scored 0 against an empty slot's 0 and was sold as "not better than your
+  gear for any role". Two rules now cover what the score can't see, for every class:
+  - **something you can wear in an empty slot is put on**: it shows as an upgrade on your
+    bags and your Flow key offers it ("Equip Idol of Shifting Tides (that slot is empty)");
+  - **gear with an effect is never sold by Flow**: an item you can use with an "Equip:",
+    "Use:" or "Chance on hit:" line is kept, with the effect in its reason, because Flow
+    can't put a number on it. It's yours to judge: Shift-click it in the Flow Banker to
+    sell it. The exception is when you already wear one with the very same effect.
+- **Sets Flow keeps take those pieces too.** A piece for a slot a spec's set leaves empty
+  now counts as wanted for that set even at score 0. The set of the spec you're in is saved
+  as soon as it's on; the other specs' sets pick it up the next time you put them on (Flow
+  doesn't swap your gear around behind your back to do it).
+- Sets Flow manages are the specs ticked under "Keep set for" on your bags. A set that isn't
+  one of those (Fishing, your own) is never changed.
 ## 0.35.387
 
 - **Fixed: the route sent you to hand in a quest you hadn't done.** "Turn in: Pigments for

@@ -17964,3 +17964,53 @@ ns:Register("test", "quests: an item nothing drops is got from who has it, or ou
     t:eq(Q.HeldIn({ itemDrops = { 16783 } }, function() return 0 end, nameOf), nil, "you don't carry that: nothing to open")
     t:eq(Q.HeldIn({}, function() return 1 end, nameOf), nil, "it comes out of nothing: none")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.388: gear for an empty slot is put on, gear with an effect Flow can't
+-- score is never sold by Flow, and a spec's set takes such pieces too.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear: something for an empty slot beats nothing, and an effect is never Flow's to sell", function(t)
+    local G, D = ns.gear, ns.disposition
+    local worn = { [16] = "staff" }
+    local function linkOf(slot) return worn[slot] end
+    local function describe(link) return link == "staff" and { equipLoc = "INVTYPE_2HWEAPON" } or { equipLoc = "INVTYPE_WEAPON" } end
+    t:ok(G.EmptySlot({ equipLoc = "INVTYPE_RELIC", slots = { 18 } }, linkOf, describe), "a relic with no relic on: it fills an empty slot")
+    worn[18] = "idol"
+    t:ok(not G.EmptySlot({ equipLoc = "INVTYPE_RELIC", slots = { 18 } }, linkOf, describe), "one already on: not empty")
+    t:ok(not G.EmptySlot({ equipLoc = "INVTYPE_SHIELD", slots = { 17 } }, linkOf, describe), "an off hand under a two-hander isn't an empty slot")
+    worn[11] = "ring"
+    t:ok(G.EmptySlot({ equipLoc = "INVTYPE_FINGER", slots = { 11, 12 } }, linkOf, describe), "a ring with one finger bare: empty")
+    worn[16] = nil
+    t:ok(G.EmptySlot({ equipLoc = "INVTYPE_2HWEAPON", slots = { 16, 17 } }, linkOf, describe), "a two-hander with nothing in the main hand: empty")
+    t:ok(not G.EmptySlot(nil, linkOf, describe), "no item: no")
+    t:eq(G.Effect({ { left = "Idol" }, { left = "Equip: Reduces the mana cost of your shapeshifting spells by 40." } }),
+        "Equip: Reduces the mana cost of your shapeshifting spells by 40.", "an Equip effect is found")
+    t:ok(G.Effect({ { left = "Use: Heals you." } }) and G.Effect({ { left = "Chance on hit: Stuns." } }), "Use and Chance on hit too")
+    t:eq(G.Effect({ { left = "+3 Stamina" }, { left = "Durability 30 / 30" } }), nil, "plain stats: no effect")
+    t:eq(G.Effect(nil), nil, "no lines: none")
+    t:ok(#G.EffectShort(string.rep("x", 200)) <= 60, "a long effect is cut short for the reason")
+    t:eq(G.EffectShort("Equip: +1"), "Equip: +1", "a short one is as it is")
+    t:ok(D.WornHasEffect("Equip: A", { 13, 14 }, function(slot) return slot == 14 and "Equip: A" or nil end), "wearing one with the very same effect: the scores compare")
+    t:ok(not D.WornHasEffect("Equip: A", { 13, 14 }, function() return "Equip: B" end), "a different effect: they don't")
+    -- The rules are there, in the right places.
+    local empty, effect, unneeded = ns:Get("disposition", "emptySlot"), ns:Get("disposition", "unscoredEffect"), ns:Get("disposition", "unneededGear")
+    t:ok(empty and effect and unneeded, "both rules are registered")
+    t:ok(empty.order > ns:Get("disposition", "equip").order and empty.order < effect.order, "an empty slot is looked at right after a real upgrade")
+    t:ok(effect.order < unneeded.order, "an effect is looked at before gear is called unneeded")
+    t:eq(empty.check({ gear = nil }), nil, "not gear: neither rule speaks")
+    t:eq(effect.check({ gear = { canUse = false } }), nil, "gear you can't use: not kept for its effect")
+end)
+
+ns:Register("test", "gear sets: a piece for a slot the spec leaves empty is wanted, though it scores 0", function(t)
+    local K = ns.keepSets
+    local picks = K.Best({
+        { link = "[Idol]", loc = "INVTYPE_RELIC", diff = 0, empty = true },
+        { link = "[Belt]", loc = "INVTYPE_WAIST", diff = 0 },
+        { link = "[Bad Ring]", loc = "INVTYPE_FINGER", diff = -2, empty = true },
+        { link = "[Staff]", loc = "INVTYPE_2HWEAPON", diff = 7 },
+    })
+    local links = {}
+    for _, p in ipairs(picks) do links[#links + 1] = p.link end
+    t:eq(table.concat(links, ","), "[Staff],[Idol]", "the upgrade and the piece for the empty slot; not an equal piece for a filled slot, nor a worse one")
+end)

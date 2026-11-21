@@ -90,7 +90,8 @@ function K.SetName(specName) return tostring(specName or "Flow"):sub(1, 16) end
 function K.Best(cands, min)
     local byLoc, out = {}, {}
     for _, c in ipairs(cands or {}) do
-        if c.link and c.loc and (c.diff or 0) >= (min or K.MIN_DIFF) then
+        -- (empty: it would fill a slot the spec has nothing in, 0.35.388: a relic scores 0 and is still worth wearing.)
+        if c.link and c.loc and ((c.diff or 0) >= (min or K.MIN_DIFF) or (c.empty and (c.diff or 0) >= 0)) then
             local cur = byLoc[c.loc]
             if not cur or c.diff > cur.diff then byLoc[c.loc] = c end
         end
@@ -111,7 +112,8 @@ function K.Wants(role)
     D:EachBagItem(function(_, _, link)
         local ok, g = pcall(G.Compare, G, link)
         if ok and g and g.canUse and g.item and g.diffs and (g.item.minLevel or 0) <= level then
-            cands[#cands + 1] = { link = link, loc = g.item.equipLoc, diff = g.diffs[role] or 0 }
+            local empty = G.EmptySlot and G.EmptySlot(g.item, function(slot) return G:CompareLink(role, slot) end, function(l) return G:Describe(l) end) or false
+            cands[#cands + 1] = { link = link, loc = g.item.equipLoc, diff = g.diffs[role] or 0, empty = empty }
         end
     end)
     return K.Best(cands)
@@ -340,6 +342,11 @@ function K.Follow()
     local on = K.SetOn()
     if on and not busy then ns.db.gear.onRole = K.RoleOfSet(on) end   -- (a set went on whole: that's where you are)
     local role = ns.db.gear.onRole
+    -- (Never clicked a set this session: the spec you level as, when Flow keeps its set.)
+    if not role then
+        local main = ns:LevelingRole()
+        if main and K.Keeps(main) then role = main end
+    end
     if not (role and G.sets:GameSet(role)) then return end
     if K.FollowPlan(role, on ~= nil, #K.Wants(role), busy and true or false, K.FollowOn()) == "save" then
         local name = K.Save(role)

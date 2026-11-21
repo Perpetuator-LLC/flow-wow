@@ -1115,7 +1115,7 @@ ns:Register("action", "gear:upgrade", { order = 2, get = function(ctx)
             local enemy = enemyTargeted()
             return { type = "item", item = "item:" .. u.id, icon = itemIcon(u.id), urgent = enemy,
                      label = (enemy and "Before the fight: equip " or "Equip ") .. u.name
-                         .. string.format(" (upgrade +%d)", math.floor(u.diff + 0.5)) }
+                         .. (u.diff >= 0.5 and string.format(" (upgrade +%d)", math.floor(u.diff + 0.5)) or " (that slot is empty)") }
         end
     end
 end })
