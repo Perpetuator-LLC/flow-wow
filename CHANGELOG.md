@@ -11,6 +11,8 @@
   Flow keeps that one from then on; /flow blessing auto, or Settings, "Paladin blessing", goes back.
 - **Druid: Bear Form when tanking.** With "Your spec" set to Feral (Bear) (or /flow spec tank), Flow suggests Bear
   Form (Dire Bear Form once known) when you target an enemy or are in a fight.
+- **Your talents are read on WoW: Forever.** Forever's talents are one sheet with no classic talent API, so Flow saw
+  none and "Auto" spec stayed on the recommended one whatever you'd spent. Flow now reads the sheet's three trees.
 - **Paladin: Righteous Fury for Protection.** Suggested when your spec is Protection (talents or your choice) and
   it's missing or running out between fights.
 

@@ -71,12 +71,43 @@ function ns.RoleFromTrees(specs, trees)
     return nil
 end
 
+-- The trees on a class's talent sheet, left to right. WoW: Forever's
+-- talents are one sheet (C_Traits) with no tree names, so a tree is named by
+-- where it sits.
+ns.TALENT_TREES = {
+    PALADIN = { "Holy", "Protection", "Retribution" },
+    DRUID   = { "Balance", "Feral Combat", "Restoration" },
+}
+
+-- Pure: talents from one sheet ({ x, y, rank }, as ns.talents.Read gives
+-- them) into { { name, points } } per tree, left to right. nil when the
+-- sheet doesn't split into as many trees as `names`.
+function ns.TreesFromNodes(nodes, names)
+    if not (ns.talents and ns.talents.Arrange) or #(nodes or {}) == 0 then return nil end
+    local arranged = ns.talents.Arrange(nodes)
+    if #arranged ~= #(names or {}) then return nil end
+    local out = {}
+    for i, tr in ipairs(arranged) do
+        local points = 0
+        for _, n in ipairs(tr.nodes) do points = points + (tonumber(n.rank) or 0) end
+        out[i] = { name = names[i], points = points }
+    end
+    return out
+end
+
 -- Your talent trees: { { name, points } }, read again when talents change.
+-- "Still not suggesting Righteous Fury": Forever has no classic talent API,
+-- so Flow saw no talents at all, however many points you'd spent.
 local trees
 local function talentTrees()
     if trees then return trees end
     local out = {}
-    if GetNumTalentTabs and GetNumTalents and GetTalentInfo and GetTalentTabInfo then
+    local class = UnitClass and select(2, UnitClass("player"))
+    local names = ns.TALENT_TREES[class or ""]
+    if not GetNumTalentTabs and names and ns.talents and ns.talents.Read then
+        local ok, nodes = pcall(ns.talents.Read)
+        out = (ok and ns.TreesFromNodes(nodes, names)) or {}
+    elseif GetNumTalentTabs and GetNumTalents and GetTalentInfo and GetTalentTabInfo then
         for tab = 1, GetNumTalentTabs() or 0 do
             local a, b = GetTalentTabInfo(tab)
             local name = type(a) == "number" and b or a   -- (some clients put the tab's id first)
@@ -90,9 +121,13 @@ local function talentTrees()
     trees = out
     return out
 end
-for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD" }) do
+for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD",
+                         "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED" }) do
     ns:On(event, function() trees = nil end)
 end
+
+-- Your talent trees, { { name, points } } (empty when Flow can't read them).
+function ns:TalentTrees() return talentTrees() end
 
 -- The spec your talents say (dps/heal/tank), or nil.
 function ns:TalentRole()

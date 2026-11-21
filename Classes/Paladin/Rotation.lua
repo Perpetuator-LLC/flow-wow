@@ -28,27 +28,16 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 end)
 ns:On("PLAYER_REGEN_ENABLED", function() ownSeal = nil end)
 
--- Your spec: the talent tree with the most points (tabs 1 Holy,
--- 2 Protection, 3 Retribution), or nil before you've spent any. Read again
--- only when your talents change.
+-- Your spec: the talent tree with the most points (1 Holy, 2 Protection,
+-- 3 Retribution), or nil before you've spent any. Read by Spec.lua (classic
+-- talents or Forever's talent sheet), again only when your talents change.
 local TREES = { "holy", "prot", "ret" }
-local tree, treeRead
 local function talentTree()
-    if treeRead then return tree end
-    treeRead, tree = true, nil
-    if not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then return nil end
-    local most = 0
-    for tab = 1, math.min(GetNumTalentTabs() or 0, #TREES) do
-        local points = 0
-        for i = 1, GetNumTalents(tab) or 0 do
-            points = points + (tonumber((select(5, GetTalentInfo(tab, i)))) or 0)
-        end
-        if points > most then tree, most = TREES[tab], points end
+    local best, most = nil, 0
+    for i, t in ipairs(ns.TalentTrees and ns:TalentTrees() or {}) do
+        if TREES[i] and (t.points or 0) > most then best, most = TREES[i], t.points end
     end
-    return tree
-end
-for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD" }) do
-    ns:On(event, function() treeRead = false end)
+    return best
 end
 
 local function inGroup()

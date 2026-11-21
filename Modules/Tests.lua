@@ -3710,6 +3710,17 @@ ns:Register("test", "spec: your talents set the role Flow plays you as; Righteou
     t:eq(ns.RoleFromTrees({ dps = { name = "Feral (Cat)" } }, { { name = "Feral Combat", points = 9 } }), nil,
         "a tree no spec is named after: nothing")
     t:eq(ns.RoleFromTrees(specs, {}), nil, "no talent trees: nothing")
+    -- "Still not suggesting Righteous Fury": Forever's one talent sheet (x far apart per tree).
+    local sheet = {
+        { x = 1020, y = 2730, rank = 0 }, { x = 2820, y = 2730, rank = 0 },             -- Holy
+        { x = 5020, y = 2730, rank = 1 }, { x = 6220, y = 2130, rank = 5 },             -- Protection
+        { x = 9080, y = 2730, rank = 0 }, { x = 10880, y = 3330, rank = 0 },            -- Retribution
+    }
+    local fromSheet = ns.TreesFromNodes(sheet, ns.TALENT_TREES.PALADIN)
+    t:eq(fromSheet and fromSheet[2].points, 6, "Forever's sheet: 6 points in the middle tree")
+    t:eq(ns.RoleFromTrees(specs, fromSheet), "tank", "6 points in Protection on Forever: tank")
+    t:eq(ns.TreesFromNodes({ { x = 1, y = 1, rank = 1 } }, ns.TALENT_TREES.PALADIN), nil,
+        "a sheet that isn't three trees: nothing (never a guess)")
     local def = ns:Get("rotation", "PALADIN")
     t:ok(def.wantFury("tank", nil), "tanking: Righteous Fury")
     t:ok(def.wantFury("dps", "prot"), "Protection talents: Righteous Fury")
