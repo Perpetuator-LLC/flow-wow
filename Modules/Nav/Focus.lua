@@ -132,7 +132,12 @@ function F.Keeps(goal, quests, keys)
     if type(goal) ~= "table" or type(goal.key) ~= "string" then return false end
     if keys and keys[goal.key] then return true end
     local id = F.QuestOf(goal.key)
-    return id ~= nil and quests ~= nil and quests[id] == true
+    if id ~= nil and quests ~= nil and quests[id] == true then return true end
+    -- The crossing a line needs to go on (Crossings.lua): its zeppelin or boat.
+    for q in pairs(type(goal.forQuests) == "table" and quests and goal.forQuests or {}) do
+        if quests[q] then return true end
+    end
+    return false
 end
 function F.FilterBy(list, quests, keys)
     local out = {}
@@ -149,6 +154,23 @@ end
 -- Pure: is there anything in these steps the arrow could point at?
 function F.AnyRoutable(list)
     for _, g in ipairs(list or {}) do if F.Routable(g) then return true end end
+    return false
+end
+
+-- Is there a step the arrow could point at on the continent you're on? (A
+-- step across the sea has a place, but not one you can walk to: its
+-- crossing, Crossings.lua, is the step that counts then.)
+function F.AnyHere(list)
+    local N = ns.nav
+    local p = N and N.PlayerPos and N:PlayerPos()
+    local cont = p and p.cont
+    for _, g in ipairs(list or {}) do
+        if F.Routable(g) then
+            if cont == nil or not N.AwayCont then return true end
+            local ok, away = pcall(N.AwayCont, g, cont)
+            if not ok or away == nil then return true end
+        end
+    end
     return false
 end
 
@@ -370,7 +392,7 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
     -- Improvements"): a custom route of one step that has no place left the
     -- route empty and the arrow gone. Then the usual route stays, and the bar
     -- says the lines are waiting.
-    local idle = F.stuck or not F.AnyRoutable(out)
+    local idle = F.stuck or not F.AnyHere(out)
     if idle ~= F.idle then
         F.idle = idle
         if idle and not quiet then ns:Print("Custom route: nothing in it can be done from here right now, so your usual route is showing. Click the bar under the Flow Tracker to clear it.") end

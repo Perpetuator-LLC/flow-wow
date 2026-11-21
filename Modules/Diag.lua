@@ -96,6 +96,7 @@ function D:Snapshot(reason, spread)
         { "clicks", function() if c.clicks then c.clicks("") end end },
         { "gates", function() if c.gates then c.gates("") end end },
         { "rides", function() if c.rides then c.rides("") end end },
+        { "crossings", function() if c.crossings then c.crossings("") end end },
         { "legs", function() if c.legs then c.legs("") end end },
         { "custom route", function() if c.focus then c.focus("") end end },
         { "height", function() if c.height then c.height("") end end },

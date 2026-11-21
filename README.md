@@ -219,6 +219,8 @@ Flow for WoW is a separate project from Flow Engine.
   against your level) and the fishing skill its waters need; hold Shift for the fish and how often.
 - **Hard and elite quests wait while you're solo**: a quest 3 or more levels above you, or an elite
   one, is held off the route (listed, locked) until you can do it or you're in a group.
+- **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
+  at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,
   picks that step's whole quest line (to the spell, for a class quest), and your route shows only
   the lines you picked, planned together. Right-click a step to remove it or its line; the bar

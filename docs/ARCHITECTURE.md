@@ -160,6 +160,11 @@ saves, switches back).
 price or at half the item's usual price (`T.Usual`, from the price history). A purchase is a job of clicks:
 search, `T.Pick` (what's still within the limit and the budget), then the game's own purchase calls.
 
+`Modules/Nav/Crossings.lua` (`ns.crossings`, registry `crossing`): `{ how, faction, a = { name, place, map, x, y }, b = ... }`,
+a zeppelin or boat between two continents. Its `navGoal` gives one step a continent where steps of yours wait
+(`C.Waiting`, `C.Best`: shortest from you to the boarding place plus from the landing to the nearest of them);
+`C.Learn` corrects both ends from a real trip (`ns.db.nav.crossingEnds`).
+
 `Modules/Nav/Focus.lua` (`ns.focus`): a custom route's quest lines (`ns.db.nav.focus`, per character). `F.Line`
 (pure) turns a picked quest into its chain: what's undone before it, what the data chains after it, and on to the
 quest that teaches a class spell. `F.Filter` (called as Nav gathers steps) keeps only the lines' steps and adds the

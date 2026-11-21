@@ -1323,6 +1323,7 @@ function N.ModeKinds(mode, professions)
         professions = mode ~= "quests" and professions ~= false,
         town = mode ~= "quests",
         battlegrounds = mode == "complete",   -- (0.35.357: only "everything" has them)
+        crossings = mode ~= "quests",
     }
     -- (Kinds added since: the bank, flight paths. On, except on "quests only".)
     for _, k in ipairs(N.Kinds()) do

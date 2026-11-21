@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.369
+
+- **New: the route takes you to the zeppelin or the boat.** Steps on another continent were
+  only locked rows with a sentence about how to cross. While any of your steps wait across the
+  sea, the route now has a step for the crossing itself: "Zeppelin to Undercity (3 steps wait
+  in the Eastern Kingdoms)", with the arrow leading to the boarding place. Flow picks the
+  crossing that makes the whole trip shortest: from where you stand to the tower or dock, plus
+  from where it lands to the nearest of those steps (Undercity for Silverpine, Grom'gol for
+  Stranglethorn, the Ratchet boat when that's nearer). It's planned after what's left to do
+  here; on a custom route whose quest line continues across the sea, it's the step you're
+  led to. It works the same way coming back.
+  - Horde: Orgrimmar to Undercity, Orgrimmar to Grom'gol. Alliance: Theramore and Auberdine to
+    Menethil Harbor. Anyone: Ratchet to Booty Bay.
+  - The boarding places are Classic's, so they may be a little off on WoW: Forever: the first
+    time you cross near one, Flow corrects it from where you actually stood and landed.
+  - Route includes has a tick, "Crossing to another continent"; `/flow crossings` lists them.
 ## 0.35.368
 
 - **New: your gear sets as icons on your bags.** On top of the bag window, just left of the

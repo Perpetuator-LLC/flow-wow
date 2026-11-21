@@ -16875,3 +16875,81 @@ ns:Register("test", "click: a gear set icon asks the game for the set; none of i
     ns.db.gear.setIcons = was
     SI.Refresh()
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.369: crossing to another continent is a step on the route.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "crossings: the zeppelin or boat that makes the trip shortest becomes a step", function(t)
+    local C = ns.crossings
+    local uc = { how = "zeppelin", faction = "Horde", a = { name = "Orgrimmar" }, b = { name = "Undercity" } }
+    local gg = { how = "zeppelin", faction = "Horde", a = { name = "Orgrimmar" }, b = { name = "Grom'gol" } }
+    local bb = { how = "boat", a = { name = "Ratchet" }, b = { name = "Booty Bay" } }
+    t:ok(C.Usable(uc, "Horde") and not C.Usable(uc, "Alliance"), "a faction's zeppelin is that faction's")
+    t:ok(C.Usable(bb, "Horde") and C.Usable(bb, "Alliance"), "the Ratchet boat is anyone's")
+    t:ok(not C.Usable(nil, "Horde"), "nothing: no")
+
+    -- Kalimdor is continent 1, the Eastern Kingdoms 0. You're near Orgrimmar.
+    local list = {
+        { key = "org-uc", cr = uc, a = { cont = 1, wx = 1000, wy = 0 }, b = { cont = 0, wx = 5000, wy = 5000 } },
+        { key = "org-gg", cr = gg, a = { cont = 1, wx = 1010, wy = 0 }, b = { cont = 0, wx = -5000, wy = -5000 } },
+        { key = "ratchet", cr = bb, a = { cont = 1, wx = -3000, wy = 0 }, b = { cont = 0, wx = -6000, wy = -6000 } },
+    }
+    local me = { cont = 1, wx = 900, wy = 0 }
+    local silverpine = { { cont = 0, wx = 5200, wy = 5000 } }
+    local best = C.Best(list, me, silverpine)
+    t:eq(best and best.key, "org-uc", "steps in Silverpine: the zeppelin that lands at Undercity")
+    t:eq(best.to.name, "Undercity", "it knows where it lands")
+    t:near(best.yards, 100 + 200, 0.1, "the trip: to the tower, plus from the landing to the step")
+    best = C.Best(list, me, { { cont = 0, wx = -5100, wy = -5000 } })
+    t:eq(best.key, "org-gg", "steps in Stranglethorn: the one that lands at Grom'gol")
+    best = C.Best(list, { cont = 1, wx = -2900, wy = 0 }, { { cont = 0, wx = -6100, wy = -6000 } })
+    t:eq(best.key, "ratchet", "standing in Ratchet with steps in Booty Bay: the boat")
+    -- The way back: the same crossings, boarded at the other end.
+    best = C.Best(list, { cont = 0, wx = 5100, wy = 5000 }, { { cont = 1, wx = 0, wy = 0 } })
+    t:ok(best and best.key ~= nil and best.from.name ~= "Orgrimmar" and best.to.name ~= nil, "from the Eastern Kingdoms it's boarded at the other end")
+    t:eq(best.from.name, "Undercity", "the nearest boarding place there")
+    t:eq(C.Best(list, me, { { cont = 1, wx = 0, wy = 0 } }), nil, "steps on your own continent need no crossing")
+    t:eq(C.Best({}, me, silverpine), nil, "no crossing you can use: none")
+
+    t:eq(C.Text("zeppelin", "Undercity", 3, "the Eastern Kingdoms"), "Zeppelin to Undercity (3 steps wait in the Eastern Kingdoms)", "the step's words")
+    t:eq(C.Text("boat", "Booty Bay", 1, "the Eastern Kingdoms"), "Boat to Booty Bay (1 step waits in the Eastern Kingdoms)", "one step: 'waits'")
+    local q = C.QuestsOf({ { key = "5725:done" }, { key = "pickup:30" }, { key = "bank" } })
+    t:ok(q[5725] and q[30] and not q.bank, "it carries the quests it's for")
+
+    -- Boarding corrects the two ends.
+    local ends = {}
+    local key = C.Learn(ends, list, { cont = 1, wx = 1040, wy = 30 }, { cont = 0, wx = 5010, wy = 4990 })
+    t:eq(key, "org-uc", "a continent change by the Undercity zeppelin's tower is that crossing")
+    t:ok(ends["org-uc"].a.wx == 1040 and ends["org-uc"].b.wx == 5010, "where you stood is the boarding place; where you appear, the landing")
+    t:eq(C.Learn({}, list, { cont = 1, wx = 9000, wy = 9000 }, { cont = 0, wx = 0, wy = 0 }), nil, "far from any boarding place (a hearthstone, a portal): nothing learned")
+    t:eq(C.Learn({}, list, { cont = 1, wx = 1000, wy = 0 }, { cont = 1, wx = 2000, wy = 0 }), nil, "the same continent: no crossing")
+
+    -- On a custom route, the crossing a line needs stays.
+    local F = ns.focus
+    t:ok(F.Keeps({ key = "cross:0", forQuests = { [5725] = true } }, { [5725] = true }, {}), "a line that goes on across the sea keeps its crossing")
+    t:ok(not F.Keeps({ key = "cross:0", forQuests = { [30] = true } }, { [5725] = true }, {}), "a crossing only other quests need is left out")
+end)
+
+ns:Register("test", "crossings: yours are listed, the route's provider and its tick are there", function(t)
+    local C = ns.crossings
+    local ok, list = pcall(C.List)
+    t:ok(ok and type(list) == "table", "the crossings for your faction are read" .. (ok and "" or (": " .. tostring(list))))
+    local faction = UnitFactionGroup("player")
+    for _, e in ipairs(ok and list or {}) do
+        t:ok(e.cr.faction == nil or e.cr.faction == faction, e.key .. " is one you can use")
+        t:ok(e.a.cont ~= nil and e.b.cont ~= nil and e.a.cont ~= e.b.cont, e.key .. " joins two continents")
+    end
+    local def = ns:Get("navGoal", "crossing")
+    local okC, goals = pcall(def.collect)
+    t:ok(okC and (goals == nil or type(goals) == "table"), "the route's provider runs" .. (okC and "" or (": " .. tostring(goals))))
+    for _, g in ipairs(okC and goals or {}) do
+        t:ok(g.key:find("^cross:") and #g.points == 1 and g.weight == C.WEIGHT, "a crossing step: one boarding place, after what's left here")
+    end
+    local kind = ns:Get("routeKind", "crossings")
+    t:ok(kind and kind.default == true and kind.match({ provider = "crossing" }) and not kind.match({ provider = "questie" }), "Route includes has a tick for it, on")
+    t:eq(ns.nav.KindOf({ key = "cross:0", provider = "crossing" }, 20), "crossings", "a crossing step is its own kind")
+    local okL, lines = pcall(C.Lines)
+    t:ok(okL and #lines >= 2, "/flow crossings lists them" .. (okL and "" or (": " .. tostring(lines))))
+    t:ok(pcall(C.Tick), "watching for a continent change doesn't error")
+end)
