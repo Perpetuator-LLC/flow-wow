@@ -2,10 +2,32 @@
 
 ## Unreleased
 
-- **Paladin: cast the seal you want and Flow suggests it from then on.** No settings or command needed: a seal you
-  cast yourself that differs from Flow's suggestion becomes your choice for this character, every fight, until you
-  cast another (it used to last only until the fight ended). Casting the seal Flow suggested changes nothing.
-  /flow seal auto (or Settings, Auto) goes back to your talents.
+- **Your role: set it in Settings, or Flow reads it from your talents.** Settings, Easy keys, "Your role": Auto,
+  DPS, Heal or Tank (also /flow spec dps|heal|tank|auto). Auto is now the talent tree you've put the most points in
+  (before talents, or with two trees tied, your class's usual levelling role); it used to be the recommendation
+  only, whatever your talents. Your choice always wins over your talents, everywhere Flow uses your role: gear,
+  food, a paladin's seal, blessing and Righteous Fury, a druid's Bear Form.
+- **Your talents are read on WoW: Forever.** Forever's talents are one sheet with no classic talent API, so Flow saw
+  none and Auto stayed on the recommended role whatever you'd spent. Flow now reads the sheet's three trees, and
+  tries again a few seconds later when the game hasn't loaded your talents yet (at login), instead of seeing none
+  until your next /reload.
+- **Paladin: Righteous Fury when you tank.** Suggested when your role is Tank (your choice, or Protection talents in
+  Auto) and it's missing or running out between fights. With "Your role" set to DPS or Heal, never, whatever your
+  talents.
+- **Paladin: the seal follows your role.** Tanking: Fury; DPS: Command once you have it; healing in a group: Wisdom;
+  otherwise Righteousness. A seal you pick (Settings, /flow seal) now goes on at once even while another seal is up.
+- **Paladin: cast the seal you want and Flow suggests it from then on.** No settings or command needed: in Auto, a
+  seal you cast yourself that differs from Flow's suggestion is kept for the role you're playing, every fight,
+  until you cast another (it used to last only until the fight ended). Casting the seal Flow suggested, or using
+  Flow's key, changes nothing. A seal you picked in Settings stays: a cast then lasts the fight. /flow seal auto
+  (or Settings, Auto) goes back to your role's seal.
+- **Paladin: the blessing follows your role, and the one you cast.** Healing: Wisdom; tanking: Kings once you have
+  it; otherwise Might (it was always Might). A blessing you pick (Settings, "Paladin blessing", or /flow blessing)
+  stays, and replaces the one you have up. In Auto, cast another blessing on yourself and Flow keeps that one for
+  the role you're playing; casts from Flow's own keys and blessings on someone else don't count. /flow blessing
+  auto, or Auto in Settings, forgets it.
+- **Druid: Bear Form when tanking.** With your role Tank, Flow suggests Bear Form (Dire Bear Form once known) when
+  you target an enemy or are in a fight.
 
 ## 0.35.377
 
