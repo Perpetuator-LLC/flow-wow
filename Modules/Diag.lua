@@ -102,6 +102,7 @@ function D:Snapshot(reason, spread)
         { "quest items", function() if c.questitems then c.questitems("") end end },
         { "quest bags", function() if c.questbags then c.questbags("") end end },
         { "banker", function() if c.banker then c.banker("") end end },
+        { "gear set icons", function() if c.setsicons then c.setsicons("") end end },
         { "keep sets", function() if c.keepsets then c.keepsets("") end end },
         { "facts", function() if c.facts then c.facts("") end end },
         { "leftovers", function() if c.leftovers then c.leftovers("") end end },

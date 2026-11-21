@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.368
+
+- **New: your gear sets as icons on your bags.** On top of the bag window, just left of the
+  Flow Banker tab, there's now a small icon for each of the game's equipment sets (up to
+  twelve), each with the set's own picture. Hover one for its name and how much of it you're
+  wearing; click it to put the set on. The one you're wearing has a gold edge. Out of a fight
+  only: in one the game swaps weapons at most, and Flow says so. Flow Settings, On your
+  screen, "Gear set icons on your bags" turns them off.
 ## 0.35.367
 
 - **Fixed: the arrow vanished after clicking a line in Flow Improvements.** In 0.35.358 that

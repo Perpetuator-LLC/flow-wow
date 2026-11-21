@@ -16817,3 +16817,61 @@ ns:Register("test", "custom route: lines with nothing to do from here wait, and 
     t:ok(Adv.FindGoal("test:offroute", F.all) ~= nil, "a step set aside by the custom route can still be linked")
     F.all = nil
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.368: your gear sets as icons beside the Flow Banker tab.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear: each equipment set is an icon on your bags, the worn one marked", function(t)
+    local SI = ns.setIcons
+    local info = {
+        [3] = { "Restoration", 136041, false, 16, 4 },
+        [1] = { "Feral (Cat)", 132115, true, 17, 17 },
+        [2] = { "Feral (Bear)", 132276, false, 15, 9 },
+        [9] = { "", 1, false, 0, 0 },
+    }
+    local sets, left = SI.List({ 3, 1, 2, 9 }, function(id) return unpack(info[id]) end)
+    t:eq(#sets, 3, "one a named set")
+    t:eq(sets[1].name .. "," .. sets[2].name .. "," .. sets[3].name, "Feral (Bear),Feral (Cat),Restoration", "by name")
+    t:ok(sets[2].worn and not sets[1].worn, "the one you're wearing is marked")
+    t:eq(sets[1].icon, 132276, "each with its own picture")
+    t:eq(left, 0, "none left out")
+    local many = {}
+    for i = 1, 15 do many[i] = i end
+    sets, left = SI.List(many, function(id) return string.format("Set %02d", id), 1, false end)
+    t:ok(#sets == SI.MAX and left == 3, "twelve at most; the rest are counted")
+    local tip = SI.Tip({ name = "Feral (Bear)", worn = false, items = 15, wearing = 9 }, false)
+    t:eq(tip[1], "Feral (Bear)", "the tooltip names the set")
+    t:eq(tip[2], "You're wearing 9 of its 15 pieces.", "how much of it you have on")
+    t:eq(tip[3], "Click: put it on.", "and what a click does")
+    t:eq(SI.Tip({ name = "x", worn = true }, false)[2], "You're wearing it.", "the worn one says so")
+    t:ok(SI.Tip({ name = "x" }, true)[2]:find("after the fight", 1, true), "in a fight: not now")
+    t:ok(pcall(SI.Sets), "your own sets are read")
+    local okL, lines = pcall(SI.Lines)
+    t:ok(okL and #lines >= 2, "/flow setsicons lists them" .. (okL and "" or (": " .. tostring(lines))))
+end)
+
+ns:Register("test", "click: a gear set icon asks the game for the set; none of it errors without sets", function(t)
+    local SI = ns.setIcons
+    t:ok(pcall(SI.Attach), "the icons attach to the bag windows that exist")
+    t:ok(pcall(SI.Refresh), "and draw")
+    t:eq(SI.Use(nil, true), false, "no set: nothing asked")
+    t:eq(SI.Use({ name = "x" }, true), false, "a set with no ID: nothing asked")
+    for _, bar in pairs(SI._Bars()) do
+        local b = bar.icons[1]
+        if b then
+            t:eq(type(b:GetScript("OnClick")), "function", "an icon has its click")
+            t:ok(pcall(function() b:GetScript("OnEnter")(b) end), "hovering it runs")
+            pcall(function() b:GetScript("OnLeave")(b) end)
+            -- (Not clicked here: a click really changes what you wear.)
+            t:ok(b.set == nil or type(b.set.name) == "string", "and it knows its set")
+        end
+        t:ok(bar:GetNumPoints() == 1, "the row hangs by one point, beside the Flow Banker tab")
+    end
+    local was = ns.db.gear.setIcons
+    ns.db.gear.setIcons = false
+    SI.Refresh()
+    for _, bar in pairs(SI._Bars()) do t:ok(not bar:IsShown(), "the setting hides the icons") end
+    ns.db.gear.setIcons = was
+    SI.Refresh()
+end)
