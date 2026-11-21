@@ -22,8 +22,8 @@ local SEALS = { "Seal of Righteousness", "Seal of the Crusader", "Seal of Comman
 -- for one fight is just casting the other one.
 local ownSeal
 ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
-    if unit ~= "player" or not (spellID and GetSpellInfo) then return end
-    local name = GetSpellInfo(spellID)
+    if unit ~= "player" or not spellID then return end
+    local name = A.SpellInfo(spellID)   -- (Flow's own: the bare GetSpellInfo isn't on every client)
     if name and name:find("^Seal of") then ownSeal = name end
 end)
 ns:On("PLAYER_REGEN_ENABLED", function() ownSeal = nil end)

@@ -106,7 +106,7 @@ end
 function ZL.FishList(zoneID, nameOf)
     local f = ZL.FISH[zoneID]
     if not (f and f[2]) then return nil end
-    nameOf = nameOf or function(id) return GetItemInfo and (GetItemInfo(id)) end
+    nameOf = nameOf or function(id) return ns.api.ItemInfo and (ns.api.ItemInfo(id)) end   -- (not the bare GetItemInfo: gone on Forever)
     local rows = {}
     for i = 2, #f do
         rows[#rows + 1] = { name = nameOf(f[i][1]) or f[i][3], pct = f[i][2] }

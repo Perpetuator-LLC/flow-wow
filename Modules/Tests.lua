@@ -9520,11 +9520,9 @@ ns:Register("test", "route: kinds added later follow the older routes; the map l
     local f = _G.FlowTracker
     local r = f and f.rows and f.rows[1]
     if r and r.goal and r.key and r:GetScript("OnEnter") then
-        -- (Pointing lights its area on the minimap; the world map lights it on
-        -- a click. This used to expect the map on pointing too, and failed
-        -- whenever the tracker had a row at the time of the test.)
+        -- (Pointing lights it on the world map again since 0.35.359.)
         t:ok(pcall(r:GetScript("OnEnter"), r), "pointing at a tracker row runs")
-        M.Hover(r.key)
+        t:eq(M._HoverKey(), r.key, "a tracker row under the mouse: lit on the map")
         pcall(r:GetScript("OnLeave"), r)
         t:eq(M._HoverKey(), nil, "the mouse leaves: the map lights it no longer")
         M.Hover(was)
@@ -16699,4 +16697,21 @@ ns:Register("test", "click: a custom route's lines are added, cut and cleared fr
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
     N.RequestCollect("test done")
     pcall(F.UpdateBar)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.365: fixes from the review of pull requests 23 to 28.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "review 23-28: item and spell names come through Flow's own calls", function(t)
+    local ZL = ns.mapZoneLevels
+    local rows = ZL.FishList(1413)
+    t:ok(rows and #rows > 0 and type(rows[1].name) == "string" and rows[1].name ~= "", "the zone card's fish have names (the game's, or the English one until it loads)")
+    local named = ZL.FishList(1413, function() return nil end)
+    t:eq(named[1].name, "Oily Blackmouth", "with no name from the game: the English one")
+    local V = ns.vendor
+    t:eq(V.BoughtBackId(2, { [2] = "|cffffffff|Hitem:2589::|h[Linen Cloth]|h|r" }, nil), 2589, "the item bought back from the vendor's own tab is read from the tab")
+    t:eq(V.BoughtBackId(9, {}, function() return nil end), nil, "nothing there: nothing remembered")
+    t:eq(type(ns.api.SpellInfo), "function", "spell names come from Flow's own call")
+    t:eq(type(ns.api.ItemInfo), "function", "and item names")
 end)

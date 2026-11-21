@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.35.365
+
+- Fixes from the review of pull requests 23 to 28:
+  - buying an item back from the vendor's own Buyback tab said "that item bought back"; it
+    names the item now;
+  - the world map's zone card shows fish names in your game's language where the game has them;
+  - a paladin's own seal cast is noticed on this client too (it relied on a call WoW: Forever
+    doesn't have).
+- Known limit, not fixed here: the paladin's "seal by your talents" reads talents the classic
+  way, which WoW: Forever doesn't offer, so on this client the automatic seal goes by your
+  role (tank: Fury, otherwise Righteousness) until you pick one in Settings or with `/flow seal`.
+
+## 0.35.364
+
+- **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
+  under the cursor shows a small card in the map's top left corner: its name, level range (coloured against your
+  level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
+  and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
+  nothing hovered it shows the zone you're in, in the same corner. Settings "Zone info when hovering the world map" and "World map: your
+  zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
+  Classic fishing tables. Hold Shift for the fish a zone's waters give and how often
+  ("Raw Brilliant Smallfish 54%"), from Wowhead's Classic catch records; zones with few records say
+  "few catches recorded", and zones with almost none (Burning Steppes, Un'Goro) show no list.
+  (Thanks, YourBIMpossible: pull request 24.)
+
+## 0.35.363
+
+- **Paladin seal by your spec, your choice, or the fight.** Automatic now goes by your talents:
+  Retribution Command, Protection (or tanking) Fury, Holy in a group Wisdom, otherwise
+  Righteousness. Settings, Easy keys, "Paladin seal" picks one for this character (also
+  `/flow seal command`, `/flow seal auto`). Cast a different seal and Flow keeps that one until
+  the fight ends.
+  (Thanks, YourBIMpossible: pull request 23.)
+
+## 0.35.362
+
+- **Flow no longer sells crafting materials to a vendor.** Cloth, ore, bars, stone, leather, herbs and every
+  other trade good that none of your professions uses, or that your skill has moved past (Rough Stone for a
+  Blacksmith past 120), now gets the auction house mark instead, on WoW: Forever too, where Flow has no auction
+  prices to go on. The reason says why, with the price when Flow has seen one. One that keeps coming back unsold
+  says so, and still isn't vendored.
+- **Buying something back from the vendor's own Buyback tab now stops Flow selling it again.** Only Flow's own
+  "Buy back" button used to remember, so an item bought back from the tab was sold again on the next visit.
+  (Thanks, YourBIMpossible: pull request 28.)
+
+## 0.35.361
+
+- **Solo, quests you can't do yet wait off the route.** A quest in your log that's 3 or more
+  levels above you is held (listed, locked, "at level 19") until you're within 2 levels of it,
+  unless every mob it needs is near your level; an elite one until you're 3 levels above its
+  mobs. In a group they're routed as before. Settings, Finding your way: "Hold hard and elite
+  quests while solo".
+  (Thanks, YourBIMpossible: pull request 26.)
+
+## 0.35.360
+
+- **The profession arrow sends you for the recipe before its materials**, and no longer to a
+  trainer or vendor on another continent: a recipe you don't have yet gets no "gather for it"
+  steps until you've learned it.
+  (Thanks, YourBIMpossible: pull request 25.)
+
 ## 0.35.359
 
 - **Pointing at a Flow Tracker row lights its step on the world map again.** It only did on a
@@ -475,36 +536,6 @@ the route at all; 4 were for quests that go on across the sea; 3 were leftovers.
   flight master's tooltip says the flight from the one you picked. Right-click one to point
   Flow's arrow there (a left click did that before, which is why a "selection" seemed to stick:
   it was your next step's flight).
-
-## Unreleased
-
-- **Flow no longer sells crafting materials to a vendor.** Cloth, ore, bars, stone, leather, herbs and every
-  other trade good that none of your professions uses, or that your skill has moved past (Rough Stone for a
-  Blacksmith past 120), now gets the auction house mark instead, on WoW: Forever too, where Flow has no auction
-  prices to go on. The reason says why, with the price when Flow has seen one. One that keeps coming back unsold
-  says so, and still isn't vendored.
-- **Buying something back from the vendor's own Buyback tab now stops Flow selling it again.** Only Flow's own
-  "Buy back" button used to remember, so an item bought back from the tab was sold again on the next visit.
-
-## Unreleased
-
-- **Paladin seal by your spec, your choice, or the fight.** Automatic now goes by your talents:
-  Retribution Command, Protection (or tanking) Fury, Holy in a group Wisdom, otherwise
-  Righteousness. Settings, Easy keys, "Paladin seal" picks one for this character (also
-  `/flow seal command`, `/flow seal auto`). Cast a different seal and Flow keeps that one until
-  the fight ends.
-
-## Unreleased
-
-- **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
-  under the cursor shows a small card in the map's top left corner: its name, level range (coloured against your
-  level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
-  and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
-  nothing hovered it shows the zone you're in, in the same corner. Settings "Zone info when hovering the world map" and "World map: your
-  zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
-  Classic fishing tables. Hold Shift for the fish a zone's waters give and how often
-  ("Raw Brilliant Smallfish 54%"), from Wowhead's Classic catch records; zones with few records say
-  "few catches recorded", and zones with almost none (Burning Steppes, Un'Goro) show no list.
 
 ## 0.35.321
 
@@ -4348,8 +4379,7 @@ Flow's first release on CurseForge, for World of Warcraft: Forever. What's in it
 ## 0.17.6
 - Diagnostics Claude can read from disk: Flow logs its errors and takes a snapshot of its checks on
   every `/reload` and logout (saved with Flow's data). `/flow dump` captures one on demand;
-  `tools
-ead-diag.ps1` prints it.
+  `tools\read-diag.ps1` prints it.
 
 ## 0.17.5
 - Profession and class trainers are found by NPC ID (with a name check) as well as by name, and

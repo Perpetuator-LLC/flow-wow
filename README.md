@@ -215,6 +215,10 @@ Flow for WoW is a separate project from Flow Engine.
   arrow can be built; nothing is shown yet.
 - **Trips Flow learns**: each trip from one step to the next is timed, your quickest is kept, and
   the route is ordered by those times instead of the straight line (`/flow legs`).
+- **Zone info on the world map**: hover a zone on a continent map for its name, level range (coloured
+  against your level) and the fishing skill its waters need; hold Shift for the fish and how often.
+- **Hard and elite quests wait while you're solo**: a quest 3 or more levels above you, or an elite
+  one, is held off the route (listed, locked) until you can do it or you're in a group.
 - **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,
   picks that step's whole quest line (to the spell, for a class quest), and your route shows only
   the lines you picked, planned together. Right-click a step to remove it or its line; the bar
@@ -405,6 +409,10 @@ Flow for WoW is a separate project from Flow Engine.
   A step that has you fetch something ("Get from your bank: 5 Mild Spices") is in the Take out
   list too, and the window opens on it at the bank. Flow never moves a thing one way and then
   back: what's parked for a quest across the sea stays parked until you're there.
+- **Materials go to the auction house, never a vendor**; an item bought back from the vendor's own
+  Buyback tab isn't sold again.
+- **Paladin seal**: by your role or talents, your pick in Settings (`/flow seal`), or the seal you
+  cast this fight.
 - **Flow Trader**: when Flow reads the auction house's listings it looks for deals: listed under what
   a vendor pays (a certain gain), or at half an item's usual price or less (buy and post again: a
   guess). Its tab on the auction house lists them, each with a button; every payment is your click

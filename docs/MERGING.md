@@ -44,6 +44,12 @@ rediscovery. Contributors: your side is [CONTRIBUTING.md](../CONTRIBUTING.md).
    - `Flow.toc`: keep both sides' new files; set `## Version:` to this merge's number.
    - `Modules/Tests.lua`: both sides append tests at the end; keep both.
    Then `tools\lint.ps1`, and commit the merge.
+   - **A changelog that merges without a conflict is still wrong.** When our top of the file has
+     moved far from the contributor's base, git puts their `## Unreleased` block where the top
+     used to be, hundreds of lines down, and says nothing. After the merges,
+     `grep -n "^## Unreleased" CHANGELOG.md` must find none: move each block to the top,
+     numbered, with its thanks line. A pull request with no changelog entry gets one written
+     here (0.35.360, 0.35.361).
 6. **Review what came in** (the list below), as its own pass after everything is merged: a
    later pull request often fixes or changes an earlier one. Reviewing can be handed to
    sub-agents, one per pull request, each given the diff and this list; they report, the

@@ -720,7 +720,8 @@ if hooksecurefunc and type(BuybackItem) == "function" then
         local id = V.BoughtBackId(index, buybackSeen, GetBuybackItemLink)
         if V.RememberBoughtBack(id) then
             local link
-            if GetItemInfo then link = select(2, GetItemInfo(id)) end
+            -- (ns.api.ItemInfo: the bare GetItemInfo isn't there on WoW: Forever, so this said "that item".)
+            if ns.api.ItemInfo then link = select(2, ns.api.ItemInfo(id)) end
             ns:Print((link or "that item") .. " bought back. Flow won't sell it again.")
         end
     end)
