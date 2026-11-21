@@ -298,7 +298,8 @@ local function vendorPoints(itemId)
         end
     end
     local pts, onMap = spawnPoints(spawns)
-    return sameContinent(pts), onMap, names
+    -- (4th: every place, the ones across the sea too: a crossing gets you there.)
+    return sameContinent(pts), onMap, names, pts
 end
 
 -- Cooking fires: you can make one anywhere (Basic Campfire) only with Simple
@@ -746,6 +747,27 @@ local TIER_QUEST = { Cooking = { 6610 }, ["First Aid"] = { 6622, 6624 }, Fishing
 --         the trainer for this cap, or nil / false (never looked).
 --   -> { name, cap, level, skill, cost, how = "trainer" | "book" | "quest", book, quests, ready, wait } or nil
 function SP.TierName(max) return max and TIER_NAME[max] or nil end
+-- Pure: the line Flow Improvements shows for a tier you can learn now. It
+-- says how (0.35.386: "it's telling me to learn Expert First Aid, but I went
+-- to the trainer in Thunder Bluff and I can't learn it": that tier is a book).
+--   book: the book's name; sellers: who sells it ({ names })
+function SP.TierAdvice(prof, rank, max, tier, book, sellers)
+    local what = tostring(tier.name) .. " " .. tostring(prof)
+    local head = rank >= max and string.format("%s is capped at %d", prof, max) or string.format("%s %d of %d", prof, rank, max)
+    if tier.how == "book" then
+        local who = (sellers and #sellers > 0) and (" from " .. table.concat(sellers, " or ")) or ""
+        return string.format("%s: %s is a book, not at a trainer: buy %s%s", head, what, tostring(book or "its book"), who)
+    elseif tier.how == "quest" then
+        return string.format("%s: %s is taught by a quest, not at a trainer", head, what)
+    end
+    return rank >= max and string.format("%s: learn %s", head, what) or string.format("%s: you can learn %s now", head, what)
+end
+-- The book of a tier and who sells it to you: name, { sellers }.
+function SP.TierBook(tier)
+    if not (tier and tier.book) then return nil, {} end
+    local _, _, sellers = vendorPoints(tier.book)
+    return itemName(tier.book), sellers or {}
+end
 function SP.TierSeen(prof, max)
     local s = ns.db and ns.db.prof and ns.db.prof.tierSeen and ns.db.prof.tierSeen[prof]
     return (s and s.cap == max) and s or nil
@@ -827,7 +849,11 @@ function SP.TierGoal(prof, level, optional)
                           text = string.format("Read %s (in your bags): %s", name, title),
                           details = { why, "Right-click it in your bags to learn it." } }), tier
         end
-        local pts, _, sellers = vendorPoints(id)
+        local pts, _, sellers, everywhere = vendorPoints(id)
+        -- (0.35.386: the Horde's seller of Expert First Aid is in Kalimdor; from the
+        -- Eastern Kingdoms the step had no place and said "Flow doesn't know who
+        -- sells" it, though it does. Across the sea is a place too.)
+        if #pts == 0 and everywhere and #everywhere > 0 then pts = everywhere end
         return goal({ kind = "merchant", points = pts, npcs = sellers, cost = SP.Price(id),
                       text = string.format("Buy %s: %s", name, title),
                       details = { why, "No trainer teaches it: the book does. Read it once you have it.",

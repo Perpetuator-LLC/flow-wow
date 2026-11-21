@@ -22,6 +22,12 @@
 --   * The note waits until you've been in the zone Z.SETTLE seconds without a
 --     break, so passing through, a zeppelin leaving and the game's flickers
 --     between zones don't bring it up.
+-- 0.35.386: "This thing popping up all the time asking me if I want a quest
+-- here is super annoying ... I have a custom route set ... maybe just wait
+-- until I accept the first quest in that area."
+--   * The note only comes up once you've accepted a quest in that zone (this
+--     session): that's you questing there, not travelling through.
+--   * Never while you're on a custom route: you're on a mission.
 -- Setting: "Say when you're in a zone you haven't picked" (Finding your way).
 
 local _, ns = ...
@@ -53,8 +59,11 @@ function Z.On() return not (ns.db and ns.db.nav and ns.db.nav.zoneNotice == fals
 --   here: the zone you're in; on: is it one of yours; choice: its row in the
 --   Zones list (nil: nothing there for you); dismissed: the zone you said
 --   No thanks to; busy: on a flight, in a dungeon or in a fight.
-function Z.Wanted(here, on, choice, dismissed, busy)
+--   accepted: you took a quest in this zone (false: not yet; nil: not told);
+--   custom: you're on a custom route.
+function Z.Wanted(here, on, choice, dismissed, busy, accepted, custom)
     if not here or on or busy or not choice or dismissed == here then return false end
+    if accepted == false or custom then return false end
     local r, w = choice.route, choice.where
     return ((r and r.steps or 0) > 0) or ((w and w.quests or 0) > 0)
 end
@@ -214,8 +223,24 @@ function Z.Check()
         end
     end
     local settled = Z.Settled(GetTime() - (Z.enteredAt or GetTime()))
-    if settled and Z.Wanted(here, on, choice, Z.Declined(here) and here or nil, busy()) then Z.Show(here, choice) else Z.Hide() end
+    local accepted = here ~= nil and Z.accepted[here] == true
+    local custom = ns.focus and ns.focus.Active and ns.focus.Active() or false
+    if settled and Z.Wanted(here, on, choice, Z.Declined(here) and here or nil, busy(), accepted, custom) then Z.Show(here, choice) else Z.Hide() end
 end
+
+-- The zones you've accepted a quest in since you logged in.
+Z.accepted = {}
+function Z.Accepted(zone)
+    if zone == nil then return false end
+    Z.accepted[zone] = true
+    return true
+end
+ns:On("QUEST_ACCEPTED", function()
+    local N = ns.nav
+    local p = N and N.PlayerPos and N:PlayerPos()
+    local here = p and N.ZoneOf and N.ZoneOf(p.map)
+    if Z.Accepted(here) and C_Timer then C_Timer.After(1, function() pcall(Z.Check) end) end
+end)
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}
     saved.nav.zoneNo = saved.nav.zoneNo or {}
@@ -229,8 +254,8 @@ ns:On("ZONE_CHANGED_NEW_AREA", function() if C_Timer then C_Timer.After(1, funct
 
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "route", label = "Say when you're in a zone you haven't picked",
-        tip = "A bar at the top of the screen when you come into a zone with quests for you that isn't one of your zones "
-            .. "(Flow Router, Route, Zones), with a button to quest there.",
+        tip = "A bar at the top of the screen when you accept a quest in a zone that isn't one of your zones "
+            .. "(Flow Router, Route, Zones), with a button to quest there. Not while you're on a custom route.",
         get = Z.On,
         set = function(on) ns.db.nav.zoneNotice = on and true or false; pcall(Z.Check) end }
 end

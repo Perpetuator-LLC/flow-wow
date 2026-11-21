@@ -317,9 +317,15 @@ ns:Register("advisor", "professions", {
                 out[#out + 1] = { importance = p.rank >= p.max and 60 or 45,
                     -- (Capped: every skill-up since is lost. Red. Close to it: yellow.)
                     urgency = ns.advisor.CapUrgency(p.rank, p.max),
-                    text = p.rank >= p.max
-                        and string.format("%s is capped at %d: learn %s %s", p.name, p.max, tier.name, p.name)
-                        or string.format("%s %d of %d: you can learn %s %s now", p.name, p.rank, p.max, tier.name, p.name),
+                    text = (function()
+                        local SP = ns.skillPlan
+                        local book, sellers
+                        if tier.how == "book" and SP.TierBook then
+                            local ok, n, who = pcall(SP.TierBook, tier)
+                            if ok then book, sellers = n, who end
+                        end
+                        return SP.TierAdvice(p.name, p.rank, p.max, tier, book, sellers)
+                    end)(),
                     improves = { "Professions" }, goalKey = "train:" .. p.name }
             elseif not p.unsure and p.rank + 15 < (ns.skillPlan and ns.skillPlan.Pace(p.name, level) or target) then
                 out[#out + 1] = { importance = 30,

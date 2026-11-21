@@ -17880,3 +17880,51 @@ ns:Register("test", "click: a spec's set icon also brings the set up to date; an
     K.clicks = (K.clicks or 0) + 1
     t:eq(type(K.Follow), "function", "a gear change is looked at")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.386: the zone note waits for a quest accepted there and never comes
+-- on a custom route; a flight path doesn't pull a custom route aside; a tier
+-- that's a book says so and its seller across the sea is a place.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "zone note: only once you've accepted a quest there, never on a custom route", function(t)
+    local Z = ns.zoneNotice
+    local choice = { name = "Silverpine Forest", where = { quests = 5, min = 10, max = 20 } }
+    t:ok(not Z.Wanted(2, false, choice, nil, false, false, false), "travelling through, no quest accepted there: no note")
+    t:ok(Z.Wanted(2, false, choice, nil, false, true, false), "a quest accepted there: the note")
+    t:ok(not Z.Wanted(2, false, choice, nil, false, true, true), "on a custom route: none, even then")
+    t:ok(not Z.Wanted(2, true, choice, nil, false, true, false), "one of your zones already: none")
+    t:ok(not Z.Wanted(2, false, choice, 2, false, true, false), "you said No thanks there: none")
+    local was = Z.accepted
+    Z.accepted = {}
+    t:eq(Z.Accepted(nil), false, "no zone: nothing noted")
+    t:ok(Z.Accepted(987654386) and Z.accepted[987654386] == true, "accepting a quest notes the zone")
+    Z.accepted = was
+    t:ok(pcall(Z.Check), "the note looks again without error")
+end)
+
+ns:Register("test", "custom route: a flight path to learn rides along only when you're at it", function(t)
+    local F = ns.focus
+    local fp = { key = "flightpath:Karos Razok", routeKind = "flightpaths" }
+    t:ok(F.FlightFits(fp, 60), "60 yd away: learn it on the way")
+    t:ok(not F.FlightFits(fp, 400), "400 yd away: your line comes first, it stays off")
+    t:ok(not F.FlightFits(fp, nil), "can't tell how far: off")
+    t:ok(F.FlightFits({ key = "train:class", routeKind = "training" }, 2000), "other errands aren't judged by this")
+    t:ok(F.FLIGHT_NEAR <= 200, "the reach is short (it was 800 yd, the usual route's)")
+end)
+
+ns:Register("test", "professions: a tier that's a book says so, and names who sells it", function(t)
+    local SP = ns.skillPlan
+    local book = { name = "Expert", how = "book" }
+    t:eq(SP.TierAdvice("First Aid", 141, 150, book, "Expert First Aid - Under Wraps", { "Balai" }),
+        "First Aid 141 of 150: Expert First Aid is a book, not at a trainer: buy Expert First Aid - Under Wraps from Balai", "a book, with its seller")
+    t:ok(SP.TierAdvice("First Aid", 150, 150, book, "the book", {}):find("capped at 150", 1, true), "capped: said so")
+    t:ok(not SP.TierAdvice("First Aid", 141, 150, book, "the book", {}):find(" from ", 1, true), "no seller known: none named")
+    t:ok(SP.TierAdvice("Cooking", 225, 225, { name = "Artisan", how = "quest" }):find("taught by a quest", 1, true), "a quest's tier says so")
+    t:eq(SP.TierAdvice("Skinning", 60, 75, { name = "Journeyman", how = "trainer" }), "Skinning 60 of 75: you can learn Journeyman Skinning now", "a trainer's tier reads as before")
+    t:eq(SP.TierAdvice("Skinning", 75, 75, { name = "Journeyman", how = "trainer" }), "Skinning is capped at 75: learn Journeyman Skinning", "and when capped")
+    local okB, name, sellers = pcall(SP.TierBook, { book = 16084 })
+    t:ok(okB and type(sellers) == "table", "the book's sellers are looked up" .. (okB and "" or (": " .. tostring(name))))
+    local okN, none = pcall(SP.TierBook, nil)
+    t:ok(okN and none == nil, "no tier: no book")
+end)

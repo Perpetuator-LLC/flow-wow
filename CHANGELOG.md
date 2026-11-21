@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.386
+
+- **"Quest here?" stops asking while you travel.** The bar about a zone that isn't one of
+  yours came up after 30 seconds in it, whatever you were doing. Now it only comes up once
+  you've **accepted a quest in that zone**, and never while you're on a custom route.
+- **A flight path no longer pulls a custom route aside.** On a custom route, a flight
+  master you don't have is only added when you're within 150 yards of it. It used to be
+  800 yards and came first, so walking past the bat handler in Silverpine turned the arrow
+  away from a quest step that was nearer. Your usual route is unchanged.
+- **Expert First Aid, Cooking and Fishing: Flow Improvements says it's a book.** The line
+  read "you can learn Expert First Aid now", which sends you to a trainer who can't teach
+  it. It now reads "Expert First Aid is a book, not at a trainer: buy Expert First Aid -
+  Under Wraps from (who sells it)", and a tier taught by a quest says that.
+- **Fixed: the step to buy that book had no place when its seller is on the other
+  continent**, and said "Flow doesn't know who sells" it. The seller across the sea is a
+  place now, so the step is on your route with the crossing that gets you there.
 ## 0.35.385
 
 - **Fixed: a gear set put an old weapon back on, and then Flow offered the upgrade again.**

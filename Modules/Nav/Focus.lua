@@ -184,6 +184,25 @@ function F.Errand(goal, replaces)
     if type(goal) ~= "table" or goal.routeKind == nil or goal.forQuests then return false end
     return not replaces(goal.routeKind)
 end
+-- A flight path to learn only rides along when you're all but standing at it
+-- (0.35.386: "I walked a little too close to the bat handler in Silverpine
+-- and it tried to route me there instead of letting me do my quest; my quest
+-- was closer than the flight path"). On your usual route a flight master
+-- within 800 yd is a step that comes first; on a custom route that pulled you
+-- off your line.
+-- Pure: yards: from you to it (nil: can't tell).
+F.FLIGHT_NEAR = 150
+function F.FlightFits(goal, yards, near)
+    if type(goal) ~= "table" or goal.routeKind ~= "flightpaths" then return true end
+    return yards ~= nil and yards <= (near or F.FLIGHT_NEAR)
+end
+local function yardsTo(goal)
+    local pt = goal.points and goal.points[1]
+    local H = ns.hearth
+    if not (pt and H and H.YardsFromYou) then return nil end
+    local ok, d = pcall(H.YardsFromYou, pt)
+    return ok and d or nil
+end
 
 -- Can the route take you to a step now? (It has a place and nothing holds it.)
 function F.Routable(goal)
@@ -549,7 +568,7 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
     for _, g in ipairs(list) do
         if not has[g.key] then
             if dungeonLine and g.provider == "dungeon" then out[#out + 1] = g
-            elseif F.Errand(g, F.Replaces) then out[#out + 1] = g; F.errands = F.errands + 1 end
+            elseif F.Errand(g, F.Replaces) and F.FlightFits(g, g.routeKind == "flightpaths" and yardsTo(g) or nil) then out[#out + 1] = g; F.errands = F.errands + 1 end
         end
     end
     F.kept, F.of = #out, #list
