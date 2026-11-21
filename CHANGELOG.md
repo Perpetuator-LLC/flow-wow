@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.401
+
+- **Stalk With The Earthmother has steps.** It was listed as "no known spot". The quest
+  data's own words say what to do ("buy or catch a Raw Brilliant Smallfish, then use the
+  Knife Set to fillet it in front of Boarton Shadetotem"), and two general rules now use
+  that:
+  - an objective the data can't place, in a quest whose words name whoever takes it, is
+    done at that person: the arrow goes there;
+  - a thing a quest needs first that lies in your bank is fetched at the bank step, before
+    that objective.
+  With the smallfish in your bank the route reads: take 1 Raw Brilliant Smallfish out of
+  your bank, then the objective at Boarton Shadetotem, then the hand-in.
 ## 0.35.400
 
 - **Hold Ctrl as you click an NPC to look at their quests yourself.** Flow accepts new

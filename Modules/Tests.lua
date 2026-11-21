@@ -18440,3 +18440,18 @@ ns:Register("test", "quests: an objective's counts come from its words when the 
     t:eq((Q.Counts(nil)), nil, "nothing: none")
     t:eq(Q.FromBank(select(2, Q.Counts({ text = "0/5 Savannah Lion Tusk" })), 0), 5, "so five are taken out of the bank, not one")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.401: an objective the quest's words place at whoever takes it.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: an objective is placed at the hand-in NPC when the quest's words name them", function(t)
+    local Q = ns.quests
+    local words = "buy or catch a raw brilliant smallfish, then use the knife set to fillet it in front of boarton shadetotem in thunder bluff."
+    t:ok(Q.Names(words, "Boarton Shadetotem"), "the words name who takes the quest: it's done there")
+    t:ok(not Q.Names(words, "Kadrak"), "someone they don't name: no")
+    t:ok(not Q.Names(words, ""), "no name: no")
+    t:ok(not Q.Names(nil, "Boarton Shadetotem"), "no words: no")
+    t:ok(not Q.Names(words, nil), "nobody: no")
+    t:eq(type(ns.questGivers.Text), "function", "(the quest's words are read from the quest data)")
+end)

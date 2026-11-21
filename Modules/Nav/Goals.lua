@@ -352,8 +352,21 @@ local function questGoals(db, q, goals, opts)
     -- (0.35.351), but nothing took their place, so the hand-in counted as
     -- waiting on an objective Flow couldn't place and was never planned. Now
     -- there's a step at a banker to take them out, and the hand-in follows it.
+    -- And what the quest needs FIRST, when that lies in your bank (0.35.401:
+    -- Stalk With The Earthmother wants a Raw Brilliant Smallfish to fillet, and
+    -- 32 of them were in the bank): fetched at the same step.
+    local bankKey
+    if not opts.who then
+        for _, itemId in ipairs(ns.quests.SourceItems(quest)) do
+            if (ns.api.Count and ns.api.Count(itemId) or 0) <= 0 and ns.questBags and ns.questBags.InBank(itemId) then
+                local it = call(db, "GetItem", itemId)
+                inBank[#inBank + 1] = { id = itemId, name = it and it.name or "what it needs first", n = 1, source = true }
+            end
+        end
+    end
     if #inBank > 0 and not opts.who then
         local key = prefix .. q.id .. ":bank"
+        bankKey = key
         local pts, names = {}, {}
         if ns.skillPlan and ns.skillPlan.BankerPoints then
             local okB, p, nm = pcall(ns.skillPlan.BankerPoints)
@@ -363,7 +376,8 @@ local function questGoals(db, q, goals, opts)
         for _, b in ipairs(inBank) do
             fetch[b.id] = b.n
             words[#words + 1] = string.format("%d %s", b.n, b.name)
-            table.insert(turnIn.deps, key)
+            -- (A thing needed first isn't an objective: the hand-in doesn't count it.)
+            if not b.source then table.insert(turnIn.deps, key) end
         end
         if not skip(key) then
             goals[#goals + 1] = {
@@ -472,6 +486,13 @@ local function questGoals(db, q, goals, opts)
             end
             for _, k in ipairs(giverKeys) do table.insert(turnIn.deps, k) end
         end
+        -- The quest's own words name whoever takes it ("fillet it in front of
+        -- Boarton Shadetotem"): the objective is done there (0.35.401).
+        local atFinisher = false
+        if not wp and #extra == 0 and who and #turnIn.points > 0 and ns.questGivers
+            and ns.quests.Names(ns.questGivers.Text(quest), who) then
+            extra, atFinisher = turnIn.points, true
+        end
         if wp or #extra > 0 then
             local key = prefix .. q.id .. ":wp"
             for _ = 1, #missing do table.insert(turnIn.deps, key) end
@@ -479,11 +500,15 @@ local function questGoals(db, q, goals, opts)
                 local d = { "Quest: " .. (title or "?") }
                 for _, m in ipairs(missing) do d[#d + 1] = "Objective: " .. (ns.ProgressText(m.text) or "?") end
                 d[#d + 1] = wp and "Flow's quest data has no place for this: the arrow goes to the game's own marker for the quest."
-                    or "The quest data doesn't say where each objective is done, but it marks these spots for the quest: the arrow goes to the nearest."
+                    or (atFinisher and ("The quest says it's done by " .. tostring(who) .. ": the arrow goes there.")
+                        or "The quest data doesn't say where each objective is done, but it marks these spots for the quest: the arrow goes to the nearest.")
                 if #giverKeys > 0 then d[#d + 1] = "It comes after the people this quest sends you to." end
+                local first = {}
+                for _, k in ipairs(giverKeys) do first[#first + 1] = k end
+                if bankKey then first[#first + 1] = bankKey; d[#d + 1] = "First take what it needs out of your bank." end
                 goals[#goals + 1] = {
                     key = key, points = wp and { wp } or extra, title = title, level = quest.level, kind = "use", area = true,
-                    deps = #giverKeys > 0 and giverKeys or nil,
+                    deps = #first > 0 and first or nil,
                     text = (title and (title .. ": ") or "") .. (ns.ProgressText(missing[1].text) or "see your quest log"),
                     details = d,
                 }
@@ -611,6 +636,11 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     return "unknown"
 end
 
+-- Pure: do a quest's words (lower case) name this person?
+function ns.quests.Names(words, name)
+    if type(words) ~= "string" or type(name) ~= "string" or name == "" then return false end
+    return words:find(name:lower(), 1, true) ~= nil
+end
 -- Pure: an objective's have and need: its numbers, else read from its words ("0/5 Savannah Lion Tusk").
 function ns.quests.Counts(obj)
     if type(obj) ~= "table" then return nil, nil end
