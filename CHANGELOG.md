@@ -4,8 +4,11 @@
 
 - **The Flow key turns on Find Minerals or Find Herbs whenever the minimap tracks nothing.** It used to offer it
   only at a mining or herb step on the route, so after dying or logging in you gathered blind. One press; the game
-  lets an add-on cast only from a key press. It never replaces tracking you chose (Find Fish, Track Beasts).
-  With both skills, Find Minerals, or Find Herbs when an herb step is on the route.
+  lets an add-on cast only from a key press. Away from a gathering step it never replaces tracking you chose
+  (Find Fish, Track Beasts); town tracking (Flight Master, Repair) doesn't count. With both skills, Find
+  Minerals, or Find Herbs when an herb step is on the route. Only when there's nothing else for the key to do,
+  and never in a fight, mounted, on a flight or while you eat or drink (a cast would stand you up). If the
+  minimap still reads it off after you cast it, Flow stops asking instead of asking again.
 
 ## 0.35.377
 
