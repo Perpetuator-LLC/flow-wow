@@ -28,27 +28,16 @@ ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
 end)
 ns:On("PLAYER_REGEN_ENABLED", function() ownSeal = nil end)
 
--- Your spec: the talent tree with the most points (tabs 1 Holy,
--- 2 Protection, 3 Retribution), or nil before you've spent any. Read again
--- only when your talents change.
+-- Your spec: the talent tree with the most points (1 Holy, 2 Protection,
+-- 3 Retribution), or nil before you've spent any. Read by Spec.lua (classic
+-- talents or Forever's talent sheet), again only when your talents change.
 local TREES = { "holy", "prot", "ret" }
-local tree, treeRead
 local function talentTree()
-    if treeRead then return tree end
-    treeRead, tree = true, nil
-    if not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then return nil end
-    local most = 0
-    for tab = 1, math.min(GetNumTalentTabs() or 0, #TREES) do
-        local points = 0
-        for i = 1, GetNumTalents(tab) or 0 do
-            points = points + (tonumber((select(5, GetTalentInfo(tab, i)))) or 0)
-        end
-        if points > most then tree, most = TREES[tab], points end
+    local best, most = nil, 0
+    for i, t in ipairs(ns.TalentTrees and ns:TalentTrees() or {}) do
+        if TREES[i] and (t.points or 0) > most then best, most = TREES[i], t.points end
     end
-    return tree
-end
-for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD" }) do
-    ns:On(event, function() treeRead = false end)
+    return best
 end
 
 local function inGroup()
@@ -109,6 +98,85 @@ local function wantSeal(c)
     return not hasSeal()
 end
 
+-- The blessings you keep on yourself (not Protection, Freedom or Sacrifice:
+-- those are for a moment, not a buff to keep up).
+local BLESSINGS = { "Blessing of Might", "Blessing of Wisdom", "Blessing of Kings",
+                    "Blessing of Salvation", "Blessing of Light", "Blessing of Sanctuary" }
+local IS_BLESSING = {}
+for _, b in ipairs(BLESSINGS) do IS_BLESSING[b] = true end
+
+-- The blessing for your spec, like the seal: healing (or Holy in a group)
+-- Wisdom for mana; tanking (or Protection) Kings once you have it; else
+-- Might; Kings if you have no Might. "Do blessings work the same as seals?"
+local function specBlessing(engine, role, spec, grouped)
+    if (role == "heal" or (spec == "holy" and grouped)) and engine:Knows("Blessing of Wisdom") then
+        return "Blessing of Wisdom"
+    end
+    if (role == "tank" or spec == "prot") and engine:Knows("Blessing of Kings") then return "Blessing of Kings" end
+    if engine:Knows("Blessing of Might") then return "Blessing of Might" end
+    if engine:Knows("Blessing of Kings") then return "Blessing of Kings" end
+    return "Blessing of Might"
+end
+
+-- The blessing Flow suggested last (set in the game, not in tests).
+local lastBlessing
+-- Which blessing Flow puts on you: the one you chose (the last one you cast
+-- on yourself, settings, /flow blessing), if you know it; else your spec's.
+-- `s`: tree / grouped for tests (false = none).
+local function pickBlessing(engine, role, s)
+    local live = s == nil
+    s = s or {}
+    local chosen = ns.db and ns.db.paladinBlessing
+    local pick
+    if chosen and engine:Knows(chosen) then
+        pick = chosen
+    else
+        local spec = s.tree
+        if spec == nil then spec = talentTree() end
+        local grouped = s.grouped
+        if grouped == nil then grouped = inGroup() end
+        pick = specBlessing(engine, role or (ns.LevelingRole and ns:LevelingRole()) or "dps", spec, grouped)
+    end
+    if live then lastBlessing = pick end
+    return pick
+end
+
+-- Pure: you cast `cast` (on yourself: `onYou`); Flow was suggesting
+-- `suggested`. Returns the blessing to keep from now on, or nil (not one
+-- you keep up, cast on someone else, or the one Flow suggested).
+local function blessingFromCast(cast, suggested, onYou)
+    if not (onYou and IS_BLESSING[cast]) then return nil end
+    if cast == suggested then return nil end
+    return cast
+end
+
+-- Did that cast land on you? No target, yourself, or anything that isn't a
+-- friendly player (a blessing then goes on you).
+local function castOnYou()
+    if not UnitExists or not UnitExists("target") then return true end
+    if UnitIsUnit and A.Safe(UnitIsUnit("target", "player")) == true then return true end
+    local friend = UnitIsFriend and A.Safe(UnitIsFriend("player", "target")) == true
+    local player = UnitIsPlayer and A.Safe(UnitIsPlayer("target")) == true
+    return not (friend and player)
+end
+
+ns:PerCharacter("paladinBlessing")
+ns:On("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
+    if unit ~= "player" or not spellID then return end
+    local name = A.SpellInfo(spellID)
+    if not IS_BLESSING[name or ""] then return end
+    local suggested = lastBlessing
+    if suggested == nil then
+        local known = ns.api and ns.api.KnownSpells and ns.api.KnownSpells() or {}
+        suggested = pickBlessing({ Knows = function(_, sp) return known[sp] end })
+    end
+    local keep = blessingFromCast(name, suggested, castOnYou())
+    if not keep or keep == ns.db.paladinBlessing then return end
+    ns.db.paladinBlessing = keep
+    lastBlessing = keep
+    ns:Print(keep .. ": Flow keeps this blessing on you from now on. Cast another on yourself to switch; /flow blessing auto: back to your talents.")
+end)
+
 -- Blessing missing, or under 30 seconds left while you're out of combat.
 local function needBlessing()
     local up, left = A.Buff("player", function(n) return n and n:find("^Blessing of") end)
@@ -129,17 +197,29 @@ local function hasAura()
     return A.Buff("player", function(n) return PALADIN_AURAS[n] end)
 end
 
+-- Righteous Fury: for Protection (your talents, or "Your spec" set to
+-- Protection) and tanking, so what you hit stays on you. Never otherwise:
+-- it only adds threat. "Why isn't it suggesting Righteous Fury if I'm prot?"
+-- Pure: role (dps/heal/tank), tree (holy/prot/ret or nil).
+local function wantFury(role, spec)
+    return role == "tank" or spec == "prot"
+end
+local function needFury(c)
+    local up, left = A.Buff("player", function(n) return n == "Righteous Fury" end)
+    return not up or (not c.inCombat and left < 30)
+end
+
 local buffs = {
     { spell = "Devotion Aura", kind = "buff", reason = "No aura",
       when = function() return not hasAura() end },
-    { spell = "Blessing of Might", kind = "buff", reason = "Blessing missing or running out",
-      when = function(c) return not c.inCombat and needBlessing() end },
-    -- Kings (Forever: baseline at 20) only if you don't have Might.
-    { spell = "Blessing of Kings", kind = "buff", reason = "Blessing missing or running out",
-      when = function(c)
-          return not c.inCombat and needBlessing() and not c.engine:Knows("Blessing of Might")
-      end },
+    { spell = "Righteous Fury", kind = "buff", reason = "Protection: Righteous Fury (threat)",
+      when = function(c) return wantFury(c.role, talentTree()) and needFury(c) end },
 }
+-- One rule per blessing; only the one pickBlessing chooses can fire.
+for _, b in ipairs(BLESSINGS) do
+    buffs[#buffs + 1] = { spell = b, kind = "buff", reason = "Blessing missing or running out",
+        when = function(c) return not c.inCombat and needBlessing() and pickBlessing(c.engine, c.role) == b end }
+end
 -- One rule per seal; only the one pickSeal chooses can fire.
 for _, seal in ipairs(SEALS) do
     buffs[#buffs + 1] = { spell = seal, kind = "buff", reason = "No seal, or running out",
@@ -198,7 +278,8 @@ local function guide(e)
     local function add(s) out[#out + 1] = s end
     add("Before a pull:")
     if k("Devotion Aura") then add("  - Devotion Aura on (stays on; it's on your stance bar).") end
-    if k("Blessing of Might") then add("  - Blessing of Might (re-cast when under 30s left).") end
+    local blessing = pickBlessing(e)
+    if k(blessing) then add("  - " .. blessing .. " (re-cast when under 30s left; to change it, cast another on yourself).") end
     local seal = pickSeal(e)
     if k(seal) then add("  - " .. seal .. ", cast just before you pull (change it: /flow seal).") end
     add("Fight:")
@@ -267,6 +348,36 @@ ns.commands.seal = function(arg)
         .. ". /flow seal <righteousness|crusader|command|justice|light|wisdom|fury|auto>")
 end
 
+-- /flow blessing [name|auto]: the blessing Flow keeps on you.
+ns.commands.blessing = function(arg)
+    arg = (arg or ""):lower():match("^%s*(.-)%s*$"):gsub("^blessing of%s*", "")
+    if arg == "auto" then
+        ns.db.paladinBlessing = nil
+        ns:Print("blessing: back to automatic (by your talents)")
+        return
+    end
+    if arg ~= "" then
+        for _, b in ipairs(BLESSINGS) do
+            if b:lower():gsub("^blessing of%s*", ""):find(arg, 1, true) == 1 then
+                ns.db.paladinBlessing = b
+                ns:Print("blessing: Flow now keeps " .. b .. " on you")
+                return
+            end
+        end
+        ns:Print("no blessing called '" .. arg .. "'. Try: might, wisdom, kings, salvation, light, sanctuary, or auto")
+        return
+    end
+    ns:Print("blessing: " .. (ns.db.paladinBlessing or "automatic")
+        .. ". To change it, cast the one you want on yourself; /flow blessing auto goes back to your talents.")
+end
+
+ns:Register("help", "blessing", { order = 33, title = "Paladin blessing", lines = {
+    "Automatic: by your spec. Healing (or Holy in a group): Wisdom; Protection (or tanking): Kings once you have it; otherwise Might.",
+    "To change it, cast the blessing you want on yourself: Flow keeps that one on you from then on, until you cast another.",
+    "Blessings on your group are separate (Might for melee, Wisdom for casters, Kings for tanks).",
+    "Back to automatic: /flow blessing auto (or Settings, Easy keys, \"Paladin blessing\": Auto).",
+} })
+
 ns:Register("help", "seal", { order = 32, title = "Paladin seal", lines = {
     "Automatic: by your talents. Retribution: Command; Protection (or tanking): Fury; Holy in a group: Wisdom; otherwise Righteousness.",
     "Cast a different seal and Flow keeps that one until the fight ends.",
@@ -278,6 +389,9 @@ ns:Register("rotation", "PALADIN", {
     wantSeal = wantSeal,   -- (tests)
     pickSeal = pickSeal,   -- (tests)
     SetSeal = setSeal,     -- (settings)
+    wantFury = wantFury,   -- (tests)
+    pickBlessing = pickBlessing,         -- (tests)
+    BlessingFromCast = blessingFromCast, -- (tests)
     SEALS = SEALS,         -- (tests)
     groupBuffs = groupBuffs,
     -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).

@@ -3696,6 +3696,63 @@ ns:Register("test", "paladin: a seal goes on whenever you have none", function(t
     end)
 end)
 
+ns:Register("test", "spec: your talents set the role Flow plays you as; Righteous Fury for Protection", function(t)
+    -- "Why isn't it suggesting Righteous Fury if I'm prot? Why don't we have an option to set your spec?"
+    local specs = { dps = { name = "Retribution" }, heal = { name = "Holy" }, tank = { name = "Protection" } }
+    local function tr(h, p, r)
+        return { { name = "Holy", points = h }, { name = "Protection", points = p }, { name = "Retribution", points = r } }
+    end
+    t:eq(ns.RoleFromTrees(specs, tr(0, 11, 2)), "tank", "most points in Protection: tank")
+    t:eq(ns.RoleFromTrees(specs, tr(5, 0, 9)), "dps", "most in Retribution: dps")
+    t:eq(ns.RoleFromTrees(specs, tr(8, 1, 0)), "heal", "most in Holy: heal")
+    t:eq(ns.RoleFromTrees(specs, tr(0, 0, 0)), nil, "no points yet: nothing (the recommended spec)")
+    t:eq(ns.RoleFromTrees(specs, tr(5, 5, 0)), nil, "a tie: nothing")
+    t:eq(ns.RoleFromTrees({ dps = { name = "Feral (Cat)" } }, { { name = "Feral Combat", points = 9 } }), nil,
+        "a tree no spec is named after: nothing")
+    t:eq(ns.RoleFromTrees(specs, {}), nil, "no talent trees: nothing")
+    -- "Still not suggesting Righteous Fury": Forever's one talent sheet (x far apart per tree).
+    local sheet = {
+        { x = 1020, y = 2730, rank = 0 }, { x = 2820, y = 2730, rank = 0 },             -- Holy
+        { x = 5020, y = 2730, rank = 1 }, { x = 6220, y = 2130, rank = 5 },             -- Protection
+        { x = 9080, y = 2730, rank = 0 }, { x = 10880, y = 3330, rank = 0 },            -- Retribution
+    }
+    local fromSheet = ns.TreesFromNodes(sheet, ns.TALENT_TREES.PALADIN)
+    t:eq(fromSheet and fromSheet[2].points, 6, "Forever's sheet: 6 points in the middle tree")
+    t:eq(ns.RoleFromTrees(specs, fromSheet), "tank", "6 points in Protection on Forever: tank")
+    t:eq(ns.TreesFromNodes({ { x = 1, y = 1, rank = 1 } }, ns.TALENT_TREES.PALADIN), nil,
+        "a sheet that isn't three trees: nothing (never a guess)")
+    local def = ns:Get("rotation", "PALADIN")
+    t:ok(def.wantFury("tank", nil), "tanking: Righteous Fury")
+    t:ok(def.wantFury("dps", "prot"), "Protection talents: Righteous Fury")
+    t:ok(not def.wantFury("dps", "ret"), "Retribution: no Righteous Fury")
+    t:ok(not def.wantFury("heal", nil), "healing: no Righteous Fury")
+    -- "Do blessings work the same as seals?"
+    local knowsAll = { Knows = function() return true end }
+    local noKings = { Knows = function(_, s) return s ~= "Blessing of Kings" end }
+    local savedB = ns.db.paladinBlessing
+    ns.db.paladinBlessing = nil
+    local function at(tree, grouped) return { tree = tree or false, grouped = grouped or false } end
+    t:eq(def.pickBlessing(knowsAll, "dps", at("ret")), "Blessing of Might", "Retribution: Might")
+    t:eq(def.pickBlessing(knowsAll, "tank", at()), "Blessing of Kings", "tanking: Kings")
+    t:eq(def.pickBlessing(noKings, "dps", at("prot")), "Blessing of Might", "Protection without Kings yet: Might")
+    t:eq(def.pickBlessing(knowsAll, "heal", at()), "Blessing of Wisdom", "healing: Wisdom")
+    t:eq(def.pickBlessing(knowsAll, "dps", at("holy", true)), "Blessing of Wisdom", "Holy in a group: Wisdom")
+    t:eq(def.pickBlessing(knowsAll, "dps", at("holy", false)), "Blessing of Might", "Holy on your own: Might")
+    ns.db.paladinBlessing = "Blessing of Salvation"
+    t:eq(def.pickBlessing(knowsAll, "dps", at("ret")), "Blessing of Salvation", "your choice wins over your talents")
+    ns.db.paladinBlessing = savedB
+    t:eq(def.BlessingFromCast("Blessing of Wisdom", "Blessing of Might", true), "Blessing of Wisdom",
+        "you cast a different blessing on yourself: Flow keeps it")
+    t:eq(def.BlessingFromCast("Blessing of Wisdom", "Blessing of Might", false), nil,
+        "on a friend: your own blessing stays")
+    t:eq(def.BlessingFromCast("Blessing of Might", "Blessing of Might", true), nil, "the one Flow suggested: Auto stays")
+    t:eq(def.BlessingFromCast("Blessing of Protection", "Blessing of Might", true), nil, "Protection is a moment, not a choice")
+    t:ok(ns.DruidWantsBear("tank", true, false), "druid tank, a fight: Bear Form")
+    t:ok(not ns.DruidWantsBear("tank", true, true), "already a bear: nothing")
+    t:ok(not ns.DruidWantsBear("tank", false, false), "travelling, nothing targeted: nothing")
+    t:ok(not ns.DruidWantsBear("dps", true, false), "not tanking: the form you're in")
+end)
+
 ns:Register("test", "paladin: the seal Flow suggests (talents, your choice, the seal you cast)", function(t)
     local def = ns:Get("rotation", "PALADIN")
     local knowsAll = { Knows = function() return true end }
