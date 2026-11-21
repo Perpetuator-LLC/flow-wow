@@ -18219,3 +18219,48 @@ ns:Register("test", "power bar: an icon shows your mana, rage or energy against 
     probe:Hide()
     t:ok(pcall(P.Lines), "/flow powerbar builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.394: an item on the self button moves the others along, not away.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "self button: an item on it pushes the spell it replaced onto the first press, the rest move along", function(t)
+    local BB, K = ns.buffButton, ns.careKeys
+    if not (BB and K) then return end
+    local thorns = { spell = "Thorns", kind = "buff" }
+    local bandage = { item = "item:3530", kind = "bandage" }
+    t:eq(BB.Displaced(bandage, thorns, nil), thorns, "a bandage on the button: the buff it would have shown is what was pushed off")
+    t:eq(BB.Displaced(thorns, thorns, nil), nil, "the buff itself on the button: nothing was pushed off")
+    t:eq(BB.Displaced(bandage, nil, nil), nil, "an item with nothing behind it: nothing")
+    t:eq(BB.Displaced(bandage, nil, { spell = "Basic Campfire" }).spell, "Basic Campfire", "the campfire counts too")
+    t:eq(BB.Displaced(nil, thorns, nil), nil, "nothing on the button: nothing")
+    local plan = {
+        key = { spell = "Regrowth" }, shift = { spell = "Healing Touch" }, ctrl = { spell = "Rejuvenation" },
+        alt = { item = "item:118" }, more = { item = "item:3530" },
+    }
+    local out, moved = K.Shift(plan, thorns)
+    t:ok(moved, "Thorns isn't on any press: the presses move")
+    t:eq(out.shift.spell, "Thorns", "it takes the first press")
+    t:eq(out.ctrl.spell, "Healing Touch", "the others move one along")
+    t:eq(out.alt.spell, "Rejuvenation", "each of them")
+    t:eq(out.more.item, "item:118", "and the last one (the least likely) drops off")
+    t:eq(out.key.spell, "Regrowth", "the key itself is untouched")
+    t:eq(plan.shift.spell, "Healing Touch", "(the plan it was made from isn't changed)")
+    local same, moved2 = K.Shift(plan, { spell = "Rejuvenation" })
+    t:ok(same == plan and not moved2, "a spell a press casts already: nothing moves")
+    local few = K.Shift({ shift = { spell = "Healing Touch" } }, thorns)
+    t:ok(few.shift.spell == "Thorns" and few.ctrl.spell == "Healing Touch" and few.alt == nil, "with empty presses nothing is lost")
+    t:ok(select(2, K.Shift(plan, bandage)) == false, "an item isn't moved onto a press")
+    t:ok(select(2, K.Shift(plan, nil)) == false, "nothing pushed off: as it was")
+    -- In a fight the presses are as they always are.
+    if not InCombatLockdown() then
+        local was = BB.displaced
+        BB.displaced = { spell = "Test Spell 987654394" }
+        local okF, fightPlan = pcall(K.Now, true)
+        t:ok(okF and not (fightPlan.shift and fightPlan.shift.spell == "Test Spell 987654394"), "for a fight: nothing moved onto Shift")
+        local okN, calmPlan = pcall(K.Now, false)
+        t:ok(okN and calmPlan.shift and calmPlan.shift.spell == "Test Spell 987654394", "out of one: the pushed-off spell is on the first press")
+        BB.displaced = was
+        pcall(K.Now, false)
+    end
+end)

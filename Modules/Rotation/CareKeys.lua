@@ -108,6 +108,30 @@ function K.Plan(o)
     return plan
 end
 
+-- An item took the button, and the spell it pushed off isn't on any press:
+-- that spell goes on the first press and the rest move one along; the last,
+-- the least likely to be needed, drops off (0.35.394: "it should just move
+-- down ... it may shift the smallest icon out, and that's okay"). Out of a
+-- fight only: at the pull the presses are back as they always are, so Shift
+-- is your other heal in every fight.
+-- Pure: plan: { key, shift, ctrl, alt, more }; extra: the pushed-off step.
+-- -> the plan to use, and whether it moved anything
+function K.Shift(plan, extra)
+    if not (type(plan) == "table" and type(extra) == "table" and extra.spell) then return plan, false end
+    for _, slot in ipairs({ "key", "shift", "ctrl", "alt", "more" }) do
+        local s = plan[slot]
+        if s and s.spell == extra.spell then return plan, false end     -- (a press casts it already)
+    end
+    local row = { { spell = extra.spell, unit = extra.unit or "player", kind = extra.kind or "buff",
+                    reason = "What your self button showed before the item on it now", moved = true } }
+    for _, slot in ipairs(K.SLOTS) do
+        if plan[slot] then row[#row + 1] = plan[slot] end
+    end
+    local out = { key = plan.key }
+    for i, slot in ipairs(K.SLOTS) do out[slot] = row[i] end
+    return out, true
+end
+
 -- Pure: a step as the secure button's attributes: kind, what, unit.
 function K.Attributes(s)
     if not s then return nil end
@@ -117,7 +141,7 @@ function K.Attributes(s)
 end
 
 local lastBandage   -- (a bandage on cooldown isn't offered as a step: keep the last one seen)
-function K.Now()
+function K.Now(fight)
     local def = E:Definition()
     local knows = function(spell) return E:Knows(spell) end
     local C, BI = ns.cast, ns.buffItems
@@ -141,7 +165,16 @@ function K.Now()
         local id = tonumber(tostring(lastBandage):match("(%d+)"))
         if id and (A.Count and A.Count(id) or 0) <= 0 then lastBandage = nil end
     end
-    return K.Plan({ quick = quick, heals = heals, hots = hots, emergency = emergency, bandage = lastBandage, cures = cures })
+    local plan = K.Plan({ quick = quick, heals = heals, hots = hots, emergency = emergency, bandage = lastBandage, cures = cures })
+    -- (Out of a fight, with an item on the button: room for what it pushed off.)
+    if not fight and BB.displaced then
+        local moved
+        plan, moved = K.Shift(plan, BB.displaced)
+        K.shifted = moved and BB.displaced.spell or nil
+    else
+        K.shifted = nil
+    end
+    return plan
 end
 
 -------------------------------------------------------------------------------
@@ -331,10 +364,10 @@ local function paint()
 end
 
 -- Sets the four presses. Out of a fight (and in the last moment before one).
-function K.Apply()
+function K.Apply(fight)
     local btn = button()
     if InCombatLockdown() or not btn then return false end
-    local plan = K.Active() and K.Now() or {}
+    local plan = K.Active() and K.Now(fight) or {}
     K.plan = plan
     local changed = false
     for _, slot in ipairs(K.SLOTS) do
@@ -432,7 +465,7 @@ end
 -- quickest heal, or nil (off, or no heal known: the self button's own way).
 function K.FightKey()
     if not K.Active() then return nil end
-    local ok, plan = pcall(K.Now)
+    local ok, plan = pcall(K.Now, true)
     local s = ok and plan and plan.key
     return s and s.spell or nil
 end
@@ -445,7 +478,8 @@ driver:SetScript("OnUpdate", function(_, dt)
     acc = 0
     if not InCombatLockdown() then pcall(K.Apply) end
 end)
-ns:On("PLAYER_REGEN_DISABLED", function() pcall(K.Apply) end)
+-- (The pull: the presses as they always are in a fight, whatever was on the button.)
+ns:On("PLAYER_REGEN_DISABLED", function() pcall(K.Apply, true) end)
 
 -------------------------------------------------------------------------------
 -- Settings, /flow carekeys

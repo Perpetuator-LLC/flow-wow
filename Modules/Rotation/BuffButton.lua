@@ -98,6 +98,20 @@ end
 -- the bandage) and before your buff spells, a fight near or not.
 -- Fishing (at a fishing step without your pole on, or your pole on with no
 -- lure): equip the pole / put on the lure, right after healing up.
+-- What an item pushed off the button (0.35.394). "Heavy wool bandage, or
+-- pots, or water and food come up as an item for self, and it just takes
+-- over that icon ... sometimes I want to cast that other thing, not just
+-- what's being recommended." When the button shows an item, the spell it
+-- would have shown instead is kept (BB.displaced), and the small icons
+-- beside it make room for it (CareKeys.lua, K.Shift).
+-- Pure: shown: what the button shows; then the spells it could have shown.
+function BB.Displaced(shown, spellBuff, camp)
+    if not (type(shown) == "table" and shown.item) then return nil end
+    for _, s in ipairs({ spellBuff or false, camp or false }) do
+        if type(s) == "table" and s.spell and s ~= shown then return s end
+    end
+    return nil
+end
 function BB.Pick(spellBuff, itemBuff, recover, camp, fish)
     if fish then return recover or fish end
     if itemBuff and itemBuff.wellFed then return itemBuff end
@@ -863,6 +877,7 @@ local function tick(_, dt)
     end
     local recover, camp = GetTime() - liveAt < 1 and BB.MineFirst(liveCure, liveRecover) or nil, BB.TakesCamp() and pickCamp(ctx) or nil
     local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
+    BB.displaced = BB.Displaced(s, live, camp)
     -- Nothing due ("I don't want my self button always showing buffs: like the
     -- target button, if I need it show it, else what fits my target", 0.35.208):
     -- with an enemy targeted and heals on this key, your heal, ready; else the

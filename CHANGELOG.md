@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.394
+
+- **An item on the self button no longer hides the spell it replaced.** When a bandage,
+  food, water or a potion comes up on the self button, the spell that was there (your next
+  buff, say) used to be gone until the item was. Now it moves onto the first small icon
+  beside the button (Shift + the key), and the others each move one along; the last and
+  smallest drops off while the item is up. When the item goes, everything is back.
+- Nothing moves if one of the presses already casts that spell.
+- Out of a fight only. At the pull the presses are set as they always are (Shift your
+  other heal, Ctrl your heal over time, Alt your potion), whatever was on the button, so
+  your hands find the same thing in every fight.
 ## 0.35.393
 
 - **New: an icon shows what its spell is waiting for.** A thin bar across the top of the
