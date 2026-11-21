@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.399
+
+- A self-test still expected Bear Form's Ctrl + Shift to be bare, which 0.35.396 changed
+  on purpose (no bare presses: it takes Nature's Grasp when you know none of bear's own
+  for it). The test now checks the new behaviour. Nothing changes in play.
 ## 0.35.398
 
 - **A quest thing in your bank counts as had, everywhere.** With Chen's Empty Keg's horn,
