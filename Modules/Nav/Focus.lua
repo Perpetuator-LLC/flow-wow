@@ -142,6 +142,16 @@ function F.FilterBy(list, quests, keys)
     return out
 end
 
+-- Can the route take you to a step now? (It has a place and nothing holds it.)
+function F.Routable(goal)
+    return type(goal) == "table" and type(goal.points) == "table" and #goal.points > 0 and not goal.blockedBy
+end
+-- Pure: is there anything in these steps the arrow could point at?
+function F.AnyRoutable(list)
+    for _, g in ipairs(list or {}) do if F.Routable(g) then return true end end
+    return false
+end
+
 -- The bar's words: "Custom route: Cure Poison + Aquatic Form".
 function F.Text(titles)
     if #titles == 0 then return "Custom route" end
@@ -200,7 +210,27 @@ function F.Sets()
     return quests, keys, titles
 end
 
+-- The second net: your lines have steps with places, but the route still
+-- came out empty (a step held for money, a step on another continent). After
+-- a few looks with no plan, the lines wait and the usual route shows.
+-- Pure: looks so far with no plan -> the count now, and whether to give up.
+function F.EmptyLooks(count, active, idle, planSteps, limit)
+    if not active or idle or (planSteps or 0) > 0 then return 0, false end
+    count = (count or 0) + 1
+    return count, count >= (limit or 3)
+end
+function F.Watch()
+    local plan = ns.nav and ns.nav.plan
+    local stuck
+    F.empty, stuck = F.EmptyLooks(F.empty, F.Active(), F.idle, plan and #plan or 0)
+    if stuck then
+        F.stuck, F.empty = true, 0
+        if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("custom route: nothing to plan") end
+    end
+end
+
 local function changed(why)
+    F.stuck, F.empty = nil, 0
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
     if ns.nav then
         ns.nav.planDirty = true
@@ -258,6 +288,7 @@ function F.RemoveLine(key)
     return true
 end
 function F.Clear()
+    F.idle, F.stuck, F.empty = nil, nil, 0
     if #lines() == 0 then return false end
     wipe(lines())
     F.UpdateBar()
@@ -279,7 +310,7 @@ end
 -- The route's steps, cut down to your lines (Nav.lua calls this as it
 -- gathers them). Lines whose quests are all done leave; with none left the
 -- route goes back to what it was planned by before.
-function F.Filter(list)
+function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
     local mine = lines()
     if #mine == 0 then return list end
     if not F.Custom() then          -- you chose Shortest or Most XP: the lines go
@@ -312,6 +343,7 @@ function F.Filter(list)
         return list
     end
     local quests, keys = F.Sets()
+    F.all = list   -- (every step, before the cut: Flow Improvements still links to them)
     local out = F.FilterBy(list, quests, keys)
     -- The next quest of a line, where the route wasn't offering it.
     local Q = ns.quests
@@ -333,6 +365,18 @@ function F.Filter(list)
         end
     end
     F.kept, F.of = #out, #list
+    -- Nothing of your lines can be done from here (0.35.367: "I feel like I
+    -- lost my arrow ... I clicked on First Aid 141 of 150 in Flow
+    -- Improvements"): a custom route of one step that has no place left the
+    -- route empty and the arrow gone. Then the usual route stays, and the bar
+    -- says the lines are waiting.
+    local idle = F.stuck or not F.AnyRoutable(out)
+    if idle ~= F.idle then
+        F.idle = idle
+        if idle and not quiet then ns:Print("Custom route: nothing in it can be done from here right now, so your usual route is showing. Click the bar under the Flow Tracker to clear it.") end
+        F.UpdateBar()
+    end
+    if idle then return list end
     return out
 end
 
@@ -377,7 +421,7 @@ function F.UpdateBar()
     local on = F.Active()
     if on then
         local _, _, titles = F.Sets()
-        bar.text:SetText(F.Text(titles))
+        bar.text:SetText(F.Text(titles) .. (F.idle and "  |cff999999(waiting: nothing to do for it here)|r" or ""))
     end
     bar:SetShown(on)
 end
@@ -412,7 +456,7 @@ ns:OnLoad(function(saved)
             end
         end
     end
-    if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(2, function() pcall(F.UpdateBar) end) end
+    if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(2, function() pcall(F.Watch); pcall(F.UpdateBar) end) end
 end)
 ns:PerCharacter("nav.focus")
 

@@ -16671,7 +16671,7 @@ ns:Register("test", "click: a custom route's lines are added, cut and cleared fr
     t:ok(okA and title == "A Test Step", "a step that isn't a quest's is a line of its own" .. (okA and "" or (": " .. tostring(title))))
     t:ok(F.Active(), "and the route is Custom now")
     t:eq(F.AddKey("test:focus-step", "A Test Step"), nil, "picking it again adds nothing")
-    local out = F.Filter({ { key = "test:focus-step" }, { key = "bank" }, { key = "987654340:1" } })
+    local out = F.Filter({ { key = "test:focus-step", points = { { map = 1 } } }, { key = "bank" }, { key = "987654340:1" } }, true)
     t:eq(#out, 1, "only the line's step is on the route")
     local items = F.MenuItems({ key = "test:focus-step" })
     t:eq(#items, 1, "its right-click menu offers to remove it")
@@ -16694,6 +16694,7 @@ ns:Register("test", "click: a custom route's lines are added, cut and cleared fr
     t:eq(#F.Filter({ { key = "bank" } }), 1, "off Custom, the route isn't cut down")
     t:eq(#ns.db.nav.focus, 0, "and the lines are dropped")
     ns.db.nav.focus, ns.db.nav.sorter, N.selection = saved, sorter, sel
+    F.idle, F.stuck = nil, nil
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
     N.RequestCollect("test done")
     pcall(F.UpdateBar)
@@ -16769,4 +16770,50 @@ ns:Register("test", "click: a Flow menu's row stays lit while its section is pop
     end
     M:Close()
     GameTooltip:Hide()
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.367: a custom route that can't be walked doesn't take the arrow away.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "custom route: lines with nothing to do from here wait, and the usual route shows", function(t)
+    local F, N = ns.focus, ns.nav
+    t:ok(F.Routable({ points = { { map = 1 } } }), "a step with a place and nothing holding it can be routed")
+    t:ok(not F.Routable({ points = {} }), "one with no place can't (a book sold across the sea)")
+    t:ok(not F.Routable({ points = { { map = 1 } }, blockedBy = "needs 5s" }), "nor one that's held")
+    t:ok(not F.Routable(nil), "nothing: no")
+    t:ok(F.AnyRoutable({ { points = {} }, { points = { {} } } }) and not F.AnyRoutable({ { points = {} } }) and not F.AnyRoutable({}), "any step the arrow could point at")
+    local n, stuck = F.EmptyLooks(0, true, false, 0)
+    t:ok(n == 1 and not stuck, "one look with no plan: wait")
+    n, stuck = F.EmptyLooks(2, true, false, 0)
+    t:ok(n == 3 and stuck, "three in a row: the lines wait")
+    n, stuck = F.EmptyLooks(2, true, false, 5)
+    t:ok(n == 0 and not stuck, "a plan with steps starts the count again")
+    n = F.EmptyLooks(2, false, false, 0)
+    t:eq(n, 0, "no custom route: nothing to watch")
+
+    if InCombatLockdown() then return end
+    local saved, sorter, sel, idle, stuckWas = ns.db.nav.focus, ns.db.nav.sorter, N.selection, F.idle, F.stuck
+    ns.db.nav.focus = { { key = "test:nowhere", title = "First Aid 141 of 150" } }
+    ns.db.nav.sorter = "custom"
+    F.idle, F.stuck = nil, nil
+    local list = { { key = "test:nowhere", points = {} }, { key = "1:1", points = { { map = 1 } } }, { key = "bank", points = { { map = 1 } } } }
+    local out = F.Filter(list, true)
+    t:eq(#out, 3, "a line whose only step has no place: the whole usual route stays (the arrow isn't lost)")
+    t:ok(F.idle, "and the lines are marked as waiting")
+    t:eq(F.all, list, "every step is still there for Flow Improvements to link to")
+    list[1].points = { { map = 1 } }
+    out = F.Filter(list, true)
+    t:ok(#out == 1 and not F.idle, "once that step has a place, the route is the line again")
+    F.stuck = true
+    t:eq(#F.Filter(list, true), 3, "a route that came out empty anyway: the usual one shows")
+    ns.db.nav.focus, ns.db.nav.sorter, N.selection, F.idle, F.stuck = saved, sorter, sel, idle, stuckWas
+    F.all = nil
+    N.RequestCollect("test done")
+    pcall(F.UpdateBar)
+    -- Flow Improvements finds a step that's off the route while you're on a custom one.
+    F.all = { { key = "test:offroute", text = "Turn in: Something" } }
+    local Adv = ns.advisor
+    t:ok(Adv.FindGoal("test:offroute", F.all) ~= nil, "a step set aside by the custom route can still be linked")
+    F.all = nil
 end)

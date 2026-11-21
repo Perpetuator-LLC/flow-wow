@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.367
+
+- **Fixed: the arrow vanished after clicking a line in Flow Improvements.** In 0.35.358 that
+  click made a custom route of the line's step. For "First Aid 141 of 150" that step has no
+  place Flow can take you to, so the custom route was empty: no arrow, nothing in the Flow
+  Tracker. Now:
+  - a line is only added to your custom route when its step can be walked to from here; for
+    one that can't, the click just opens the step, as it did before;
+  - if a custom route ever has nothing you can do from where you are, your usual route shows
+    again and the bar under the Flow Tracker says the custom route is waiting (click it to
+    clear);
+  - a profession step you picked is on the main arrow, not the faint profession one.
+- **Fixed: Flow Improvements lost its link buttons while you were on a custom route** (Cure
+  Poison and Aquatic Form had none). The steps a custom route sets aside can still be opened
+  and added from there.
 ## 0.35.366
 
 - **The Flow menu shows which section you're in.** Pointing at a folded section (Order, Route

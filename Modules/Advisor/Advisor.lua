@@ -384,7 +384,9 @@ end
 local function goalFor(key)
     local N = ns.nav
     if not (key and N) then return nil end
+    -- (On a custom route the other steps are off the route, but still there to link to: Focus.lua.)
     return Adv.FindGoal(key, N:Goals(), N.blockedGoals, N.hiddenGoals)
+        or Adv.FindGoal(key, ns.focus and ns.focus.all or nil)
 end
 
 -- What a row's link opens: kind ("open", "goal", "spell", "item") and a label,
@@ -409,7 +411,9 @@ function Adv.Open(item, anchor)
         -- Its line joins your custom route (0.35.358: "if the user clicks that
         -- button, it should make that the route; on another one, that also
         -- gets added"), and its card opens as before.
-        if g and ns.focus and ns.focus.AddKey then
+        -- Only a step the route can take you to: one with no place (a book
+        -- sold across the sea) would be a custom route of nothing.
+        if g and ns.focus and ns.focus.AddKey and ns.focus.Routable(g) then
             local okA, title = pcall(ns.focus.AddKey, g.key, g.text or g.title)
             if okA and title then ns:Print("Custom route: " .. tostring(title) .. " added. Only your picked lines are on the route; the bar under the Flow Tracker clears it.") end
         end

@@ -679,7 +679,8 @@ function N:Collect(gathered)
     for _, g in ipairs(held) do blockedGoals[#blockedGoals + 1] = g end
     -- Profession steps (training, skill-ups) get their own faint arrow when
     -- it's on, so the quest arrow never sends you off to them.
-    local quest, prof = N.SplitProfessions(shown, N:ProfPointerOn())
+    -- (On a custom route a profession step you picked is the route: the main arrow has it.)
+    local quest, prof = N.SplitProfessions(shown, N:ProfPointerOn() and not (ns.focus and ns.focus.Active() and not ns.focus.idle))
     N.profGoals = prof
     N.profDirty = true
     goals = quest
