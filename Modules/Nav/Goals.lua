@@ -204,12 +204,16 @@ local function questGoals(db, q, goals, opts)
         -- (What it collects lies in your bank: you have it. No step to go and
         -- collect it again, 0.35.351; Flow Banker brings it out when the
         -- quest can go on.)
-        local banked = od and od.Type == "item" and not opts.who and ns.questBags and ns.questBags.InBank(od.Id, obj.need, obj.have)
+        -- (0.35.400: the counts from the objective's own words where the game gives
+        -- no numbers: without them one in the bank counted as enough of five, and
+        -- the step said "take 1" of each.)
+        local haveN, needN = ns.quests.Counts(obj)
+        local banked = od and od.Type == "item" and not opts.who and ns.questBags and ns.questBags.InBank(od.Id, needN, haveN)
         -- (0.35.398: and a step to go and take it out, so the hand-in can be planned.)
         if banked and not obj.finished then
             local it = call(db, "GetItem", od.Id)
             inBank[#inBank + 1] = { id = od.Id, name = it and it.name or "what it asks for",
-                n = ns.quests.FromBank(obj.need, obj.have) }
+                n = ns.quests.FromBank(needN, haveN) }
         end
         if not obj.finished and od and not skillObj and not banked then
             local spawns, verb, what, elite = {}, nil, nil, false
@@ -607,6 +611,16 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     return "unknown"
 end
 
+-- Pure: an objective's have and need: its numbers, else read from its words ("0/5 Savannah Lion Tusk").
+function ns.quests.Counts(obj)
+    if type(obj) ~= "table" then return nil, nil end
+    local have, need = tonumber(obj.have), tonumber(obj.need)
+    if not need and type(obj.text) == "string" then
+        local h, n = obj.text:match("(%d+)%s*/%s*(%d+)")
+        have, need = have or tonumber(h), tonumber(n)
+    end
+    return have, need
+end
 -- Pure: how many of a thing to take out of the bank for an objective (what's
 -- still missing from your bags; at least one).
 function ns.quests.FromBank(need, have)

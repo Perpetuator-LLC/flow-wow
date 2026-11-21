@@ -3,7 +3,7 @@
 --   * Several rewards to choose from: Flow stops and lets you pick (the big
 --     green arrow marks its pick, Gear/QuestRewards.lua).
 --   * A quest that takes gold from you: left to you.
---   * Hold Shift while you talk to the NPC to do it yourself this time.
+--   * Hold Ctrl (or Shift) while you talk to the NPC to do it yourself this time.
 -- On by default; the box in /flow settings, or /flow turnin on|off.
 --
 -- New quests are accepted for you too (since 0.35.106; before, only quests
@@ -19,7 +19,7 @@ ns.autoTurnIn = AT
 
 function AT.AcceptEnabled()
     if ns.db.quests.autoAccept == false then return false end
-    if IsShiftKeyDown and IsShiftKeyDown() then return false end
+    if AT.Paused() then return false end   -- (Shift or Ctrl held: yours to do)
     return true
 end
 
@@ -43,7 +43,7 @@ local function canTakeMore() return AT.ShouldAccept(AT.AcceptEnabled(), false, f
 
 function AT.Enabled()
     if ns.db.quests.autoTurnIn == false then return false end
-    if IsShiftKeyDown and IsShiftKeyDown() then return false end
+    if AT.Paused() then return false end   -- (Shift or Ctrl held: yours to do)
     return true
 end
 
@@ -172,12 +172,75 @@ ns.commands.accept = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then ns.db.quests.autoAccept = (arg == "on") end
     ns:Print("accept new quests for you: " .. (ns.db.quests.autoAccept == false and "off" or "on")
-        .. "  (not grey or repeatable ones; hold Shift at the NPC to do it yourself; /flow accept on|off)")
+        .. "  (not grey or repeatable ones; hold Ctrl at the NPC to do it yourself; /flow accept on|off)")
 end
 
 ns.commands.turnin = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then ns.db.quests.autoTurnIn = (arg == "on") end
     ns:Print("turn in finished quests for you: " .. (ns.db.quests.autoTurnIn == false and "off" or "on")
-        .. "  (hold Shift at the NPC to do it yourself; /flow turnin on|off)")
+        .. "  (hold Ctrl at the NPC to do it yourself; /flow turnin on|off)")
+end
+
+-------------------------------------------------------------------------------
+-- Hold Ctrl (or Shift) to look first (0.35.400)
+--
+-- "When I get to Mangletooth and try to talk to him, there's like six quests
+-- ... it just automatically goes through the quest. If we hit Control, it
+-- would not automatically go into the quest, because I can't pick what
+-- quests. I just want to look at them. Show it in the tooltip: hold Control
+-- to not auto complete." Shift did this already; Ctrl does now too, and the
+-- NPC's tooltip says so for anyone Flow would act at.
+-------------------------------------------------------------------------------
+-- Pure: is a key held that tells Flow to leave the NPC's quests to you?
+function AT.Held(shift, ctrl) return (shift or ctrl) and true or false end
+function AT.Paused()
+    return AT.Held(IsShiftKeyDown and IsShiftKeyDown() or false, IsControlKeyDown and IsControlKeyDown() or false)
+end
+AT.TIP = "Flow accepts and hands in quests here for you. Hold Ctrl as you click to look at them yourself."
+-- Pure: the tooltip's line for an NPC, or nil. quests: Flow has a step at them
+-- to accept or hand in; accept, turnIn: the two settings.
+function AT.TipFor(quests, accept, turnIn)
+    if not quests or not (accept or turnIn) then return nil end
+    return AT.TIP
+end
+
+-- The NPCs your route has you accept from or hand in to: { [lower name] = true }.
+local npcs, npcsAt = {}, 0
+function AT.QuestNpcs()
+    local now = GetTime()
+    if now - npcsAt < 2 then return npcs end
+    npcsAt = now
+    wipe(npcs)
+    local N = ns.nav
+    for _, list in ipairs({ N and N.Goals and N:Goals() or {}, N and N.blockedGoals or {} }) do
+        for _, g in ipairs(list) do
+            local key = type(g.key) == "string" and g.key or ""
+            if g.kind == "accept" or key:find("^pickup:") or key:find(":done$") or key:find(":giver:", 1, true) then
+                for _, name in ipairs(type(g.npcs) == "table" and g.npcs or {}) do
+                    if type(name) == "string" then npcs[name:lower()] = true end
+                end
+            end
+        end
+    end
+    return npcs
+end
+local function addTip(tt)
+    if not (tt and tt.GetUnit) then return end
+    local ok, _, unit = pcall(tt.GetUnit, tt)
+    unit = ok and ns.api.Safe(unit) or nil
+    if type(unit) ~= "string" or ns.api.Safe(UnitIsPlayer(unit)) then return end
+    local name = ns.api.Safe(UnitName(unit))
+    if type(name) ~= "string" then return end
+    local line = AT.TipFor(AT.QuestNpcs()[name:lower()] == true, ns.db.quests.autoAccept ~= false, ns.db.quests.autoTurnIn ~= false)
+    if line then tt:AddLine(line, 0.6, 0.8, 1, true) end
+end
+AT._addTip = addTip   -- (tests)
+if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tt)
+        if tt ~= GameTooltip then return end
+        pcall(addTip, tt)
+    end)
+elseif GameTooltip and GameTooltip.HookScript then
+    GameTooltip:HookScript("OnTooltipSetUnit", function(tt) pcall(addTip, tt) end)
 end

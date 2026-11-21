@@ -18399,3 +18399,44 @@ ns:Register("test", "quests: a thing in your bank isn't asked for again, and the
     t:ok(pcall(QM.Lines), "/flow quest still lists the marks")
     t:eq(type(QM._banked), "table", "what's in the bank is kept apart from what's still to collect")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.400: Ctrl (or Shift) at an NPC leaves its quests to you; the bank
+-- step counts what the objective asks for.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: holding Ctrl at an NPC stops Flow accepting and handing in for you", function(t)
+    local AT = ns.autoTurnIn
+    t:ok(AT.Held(false, true), "Ctrl held: yours to do")
+    t:ok(AT.Held(true, false), "Shift held, as before")
+    t:ok(not AT.Held(false, false), "neither: Flow does it")
+    t:eq(AT.TipFor(true, true, true), AT.TIP, "an NPC Flow has a quest step at: the tooltip says how to look first")
+    t:ok(AT.TIP:find("Hold Ctrl", 1, true), "and names the key")
+    t:eq(AT.TipFor(false, true, true), nil, "anyone else: no line")
+    t:eq(AT.TipFor(true, false, false), nil, "both switched off: nothing to say")
+    t:ok(AT.TipFor(true, false, true), "only handing in is on: still said")
+    -- The settings go by it: a key held now turns both off for this click.
+    with(AT, "Paused", function() return true end, function()
+        t:ok(not AT.Enabled() and not AT.AcceptEnabled(), "with the key held, neither runs")
+    end)
+    with(AT, "Paused", function() return false end, function()
+        t:eq(AT.Enabled(), ns.db.quests.autoTurnIn ~= false, "without it, handing in goes by your setting")
+        t:eq(AT.AcceptEnabled(), ns.db.quests.autoAccept ~= false, "and accepting by its own")
+    end)
+    t:ok(pcall(AT.QuestNpcs), "the NPCs your route has quests at are listed")
+    t:ok(pcall(AT._addTip, nil), "a tooltip with no unit: nothing, no error")
+end)
+
+ns:Register("test", "quests: an objective's counts come from its words when the game gives no numbers", function(t)
+    local Q = ns.quests
+    local have, need = Q.Counts({ text = "0/5 Savannah Lion Tusk" })
+    t:ok(have == 0 and need == 5, "\"0/5 Savannah Lion Tusk\": none of five")
+    have, need = Q.Counts({ text = "Plainstrider Kidney: 2/5" })
+    t:ok(have == 2 and need == 5, "the other way round")
+    have, need = Q.Counts({ have = 1, need = 3, text = "9/9 Whatever" })
+    t:ok(have == 1 and need == 3, "its own numbers win")
+    have, need = Q.Counts({ text = "Talk to someone" })
+    t:ok(have == nil and need == nil, "no count in it: none")
+    t:eq((Q.Counts(nil)), nil, "nothing: none")
+    t:eq(Q.FromBank(select(2, Q.Counts({ text = "0/5 Savannah Lion Tusk" })), 0), 5, "so five are taken out of the bank, not one")
+end)

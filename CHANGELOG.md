@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.400
+
+- **Hold Ctrl as you click an NPC to look at their quests yourself.** Flow accepts new
+  quests and hands in finished ones the moment you talk to someone, which left no way to
+  read through a list of six and pick. Shift already stopped it; Ctrl does now too. An NPC
+  your route has a quest step at says so in their tooltip: "Flow accepts and hands in
+  quests here for you. Hold Ctrl as you click to look at them yourself."
+- **Fixed: the step to take quest things out of your bank said "1" of each.** "Take 1
+  Savannah Lion Tusk, 1 Plainstrider Kidney" should have been 5 and 5: the game gave no
+  numbers for those objectives, and Flow now reads them from the objective's own words. The
+  same fix stops one in the bank from counting as enough of five.
 ## 0.35.399
 
 - A self-test still expected Bear Form's Ctrl + Shift to be bare, which 0.35.396 changed

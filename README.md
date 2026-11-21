@@ -514,7 +514,7 @@ Flow for WoW is a separate project from Flow Engine.
   Flow's suggestions" button. When an update adds a suggestion, the page shows once more.
 - **Quests accepted and turned in for you**: talk to a quest giver and Flow turns in your
   finished quests (you pick when there's a choice of rewards), then accepts their new ones (not
-  grey or repeatable ones). Hold Shift to do it yourself; `/flow turnin` and `/flow accept` turn
+  grey or repeatable ones). Hold Ctrl (or Shift) as you click the NPC to do it yourself; `/flow turnin` and `/flow accept` turn
   them off.
 - **Nearest repair, vendor, flight master, innkeeper, banker, auctioneer or mailbox**: right-click
   the arrow, or `/flow way repair` / `vendor` / `flight` / `inn` / `bank` / `auction` / `mail`.
