@@ -1743,37 +1743,82 @@ local function muted(text)
     return c and c.hex and ("|cff" .. c.hex .. text .. "|r") or text
 end
 
-local function runMenu(run)
-    local prepared = D:Prepared() == run.key
-    local items = { { title = true, text = run.name } }
-    for _, line in ipairs(D.Summary(run, not ns.party:InGroup(), D.QuestInfo)) do
-        items[#items + 1] = { text = muted(line), disabled = true }
-    end
-    items[#items + 1] = { sep = true }
-    items[#items + 1] = { text = "Route: only this run (its quest givers on the map, then the entrance)",
-        checked = prepared and D:RunOnly(), func = function()
-            if prepared and D:RunOnly() then D:SetRunOnly(false) else D:SetRunOnly(run.key) end
-        end }
-    if prepared then
-        items[#items + 1] = { text = "Cancel this run", func = function() D:Cancel() end }
-    else
-        items[#items + 1] = { text = "Prepare this run", func = function() D:Prepare(run.key) end }
+-- A dungeon's own menu (0.35.383). "There's a lot of useful stuff in the
+-- dungeons menu, but it's not very clear what's happening ... the top is
+-- notes about the dungeon, then they go under More and pick Cancel this run,
+-- and that's what deselects it." It was a list of grey note lines, a line
+-- across, and then its choices folded away under "More". Now it's one flat
+-- menu:
+--   the dungeon's name in gold: point at it for all its notes (the quests,
+--     who gives them, what's skipped), shown beside the menu;
+--   On your route: a tick that stays open (was Prepare this run / Cancel);
+--   Only this run on your route; Add to my custom route; Straight to the
+--     entrance; Quests: include long lead-in chains; your group's entries;
+--   back to all dungeons.
+-- Every entry says what it does when you point at it.
+function D.RunItems(run)
+    local F = ns.focus
+    local function prepared() return D:Prepared() == run.key end
+    local notes = { run.name }
+    for _, line in ipairs(D.Summary(run, not ns.party:InGroup(), D.QuestInfo)) do notes[#notes + 1] = line end
+    local items = {
+        { title = true, text = run.name, tipLines = notes },
+        { text = muted(D.CountText(run) .. "; about " .. ratioText(run) .. " your questing XP per hour (point at the name for more)"),
+          disabled = true },
+    }
+    local onRoute = { text = "On your route", stay = true, checked = prepared(),
+        tip = "Ticked: Flow prepares this run. The quests to pick up for this dungeon go on your route (their unlock quests and the ones on the way too), and after them the entrance. "
+            .. "Your other steps stay where they are. Unticked: the run is cancelled and those steps leave your route. One dungeon run at a time: ticking this one unticks another.",
+        func = function() if prepared() then D:Cancel() else D:Prepare(run.key) end end }
+    onRoute.refresh = function(it) it.checked = prepared() end
+    items[#items + 1] = onRoute
+    local only = { text = "Only this run on your route", stay = true, checked = prepared() and D:RunOnly(),
+        tip = "Ticked: your route is just this run (its quest givers, then the entrance) and the errands on the way: training, selling, repairs, your bank. Everything else waits until you untick it.",
+        func = function() if prepared() and D:RunOnly() then D:SetRunOnly(false) else D:SetRunOnly(run.key) end end }
+    only.refresh = function(it) it.checked = prepared() and D:RunOnly() end
+    items[#items + 1] = only
+    if F and F.AddDungeon then
+        local inCustom = F.HasDungeon(run.key)
+        items[#items + 1] = { text = inCustom and "In your custom route (click: take it out)" or "Add to my custom route",
+            tip = "Your custom route is the quest lines you picked, and nothing else (the bar under the Flow Tracker). This adds the run's quests and its entrance to it, beside whatever else you've added, "
+                .. "and turns the run on. Clear the custom route from that bar or the top of the Flow menu.",
+            func = function()
+                if F.HasDungeon(run.key) then F.RemoveDungeon(run.key)
+                else
+                    local title = F.AddDungeon(run)
+                    if title then ns:Print("Custom route: " .. tostring(title) .. " (the dungeon run) added.") end
+                end
+            end }
     end
     items[#items + 1] = { text = "Straight to the entrance", disabled = not run.entrance,
+        tip = "Sets your waypoint on the dungeon's entrance: the arrow goes there now, and back to your route when you arrive.",
         func = function() D:GoToEntrance(run.key) end }
     local long = charData("dungeonLong")
-    items[#items + 1] = { text = "Include long lead-ins", checked = long[run.dungeon] == true,
+    local lead = { text = "Quests: include long lead-in chains", stay = true, checked = long[run.dungeon] == true,
+        tip = string.format("Some of this dungeon's quests only open after a chain of other quests somewhere else. Flow leaves one out of the run when its chain is longer than %d quests. Ticked: chains up to %d quests are on the run too.",
+            D.MAX_STEPS or 0, D.LONG_STEPS or 0),
         func = function()
             long[run.dungeon] = not long[run.dungeon] or nil
             D.dirty = true
             if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("dungeon lead-in choice") end
         end }
-    items[#items + 1] = { text = "Ask my group in chat who has its quests", func = function() D:AskParty(run) end }
+    lead.refresh = function(it) it.checked = long[run.dungeon] == true end
+    items[#items + 1] = lead
+    items[#items + 1] = { text = "Ask my group in chat who has its quests",
+        tip = "Says in party (or raid) chat which of this run's quests you're missing, so someone who has them can share.",
+        func = function() D:AskParty(run) end }
     local missing = D:PartyMissing(run)
     if #missing > 0 then
-        items[#items + 1] = { text = string.format("Share quests (%d)", #missing), func = function() D:ShareMissing(run) end }
+        items[#items + 1] = { text = string.format("Share quests (%d)", #missing),
+            tip = "Shares the run's quests in your log that someone in your group doesn't have.",
+            func = function() D:ShareMissing(run) end }
     end
-    ns.menu:Open(items)
+    items[#items + 1] = { text = muted("< All dungeons (the Flow menu)"),
+        func = function() C_Timer.After(0.05, function() ns.menu:Open(ns.menu:RouteItems()) end) end }
+    return items
+end
+local function runMenu(run)
+    ns.menu:Open(D.RunItems(run))
 end
 D._runMenu = runMenu   -- (tests)
 
@@ -1789,19 +1834,27 @@ function D:MenuItems()
         local prepared = self:Prepared()
         for i, run in ipairs(list) do
             if i > 6 then break end
+            -- (radio: one run at a time; state: what the folded Dungeons row says; opens: an arrow, it opens the run's menu.)
             items[#items + 1] = {
                 text = string.format("%s: %s", run.name, D.CountText(run)),
                 tipLines = (function()
                     local lines = D.CountLines(run)
                     lines[#lines + 1] = "- about " .. ratioText(run) .. " your questing XP per hour"
+                    lines[#lines + 1] = prepared == run.key and "On your route. Click: its menu (take it off, only this run, custom route, entrance)."
+                        or "Click: its menu (put it on your route, custom route, entrance)."
                     return lines
                 end)(),
-                checked = prepared == run.key,
+                radio = true, checked = prepared == run.key, state = run.name, opens = true, run = run.key,
                 func = function() C_Timer.After(0.05, function() runMenu(run) end) end,
             }
         end
+        if prepared then
+            items[#items + 1] = { text = "Clear the dungeon run (" .. tostring(ns.db.nav.dungeonRun.name or "the one on your route") .. ")",
+                tip = "Takes the run off your route. The same as unticking On your route in its menu.",
+                func = function() D:Cancel() end }
+        end
     end
-    items[#items + 1] = { text = "Suggest dungeons", checked = self:Suggest(),
+    items[#items + 1] = { text = "Suggest dungeons", tip = "The gold key above the Flow Tracker when a dungeon run is worth doing at your level.", checked = self:Suggest(), minor = true,
         func = function() ns.db.nav.dungeonSuggest = not self:Suggest() end }
     return items
 end

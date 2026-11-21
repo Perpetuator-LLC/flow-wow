@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.383
+
+- **A dungeon's menu is one clear menu.** Under Dungeons in the Flow menu, clicking a
+  dungeon used to open a list of grey notes, with its choices folded away under "More",
+  and "Cancel this run" was the only way to untick it. Now:
+  - the dungeon's row has an arrow (it opens a menu) and stays ticked while its run is on;
+    the folded Dungeons row says which run that is;
+  - its menu starts with the dungeon's name in gold: point at it for all the notes (its
+    quests, who gives them, what's skipped), shown beside the menu instead of in it;
+  - **On your route** is a tick: on prepares the run, off cancels it, and the menu stays
+    open;
+  - **Only this run on your route**, **Straight to the entrance** and **Quests: include
+    long lead-in chains** are right there, and every entry says what it does when you
+    point at it (what "prepare" adds to your route, what a long lead-in is);
+  - **< All dungeons** goes back to the Flow menu, and **Clear the dungeon run** is in the
+    Dungeons list while one is on.
+- **New: add a dungeon to your custom route.** "Add to my custom route" in a dungeon's
+  menu puts the run's quests and its entrance in your custom route, beside the quest lines
+  you added from Flow Improvements or "Go here next", and turns the run on. Take it out
+  from the same entry, or clear the custom route as always.
+- Still one dungeon run at a time: ticking another dungeon's "On your route" replaces it.
 ## 0.35.382
 
 - **The Flow menu's counts are of the choices that matter.** "Route includes" said things

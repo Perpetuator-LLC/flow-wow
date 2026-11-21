@@ -17705,3 +17705,102 @@ ns:Register("test", "quest data: the record of a quest Flow can't place can be r
     local okL, all = pcall(QD.Lines)
     t:ok(okL and #all >= 1, "/flow questdata builds" .. (okL and "" or (": " .. tostring(all))))
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.383: a dungeon's menu is one flat menu; a dungeon run can be a line
+-- of your custom route.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: a dungeon's menu is flat, says what each entry does, and its ticks stay open", function(t)
+    local D, M = ns.dungeons, ns.menu
+    -- The folded Dungeons row says which run is on, by its name.
+    t:eq(M.SectionState({ { text = "Ragefire Chasm: 3 quests", radio = true, checked = true, state = "Ragefire Chasm" }, { text = "Suggest dungeons", checked = true, minor = true } }),
+        "Ragefire Chasm", "the Dungeons row says the run that's on")
+    t:eq(M.SectionState({ { text = "Ragefire Chasm: 3 quests", radio = true, checked = false, state = "Ragefire Chasm" }, { text = "Suggest dungeons", checked = true, minor = true } }),
+        nil, "none on: nothing")
+    local runs = D:Available() and D:Runs()
+    local run = runs and runs[1]
+    if not run then t:ok(true, "(no dungeon run at your level to open)") return end
+    if InCombatLockdown() then return end
+    local was, only = ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    with(ns.nav, "Collect", function() end, function()
+        local ok, items = pcall(D.RunItems, run)
+        t:ok(ok and type(items) == "table", "it builds" .. (ok and "" or (": " .. tostring(items))))
+        if not ok then return end
+        t:ok(items[1].title and items[1].text == run.name and items[1].tipLines and #items[1].tipLines >= 2, "first its name, with the dungeon's notes on pointing at it")
+        local by, seps = {}, 0
+        for _, it in ipairs(items) do
+            if it.sep then seps = seps + 1 end
+            if it.text then by[it.text] = it end
+        end
+        t:eq(seps, 0, "no line across: nothing is folded away under More")
+        local on, lead = by["On your route"], by["Quests: include long lead-in chains"]
+        t:ok(on and on.stay and on.tip, "On your route: a tick that stays open and says what it does")
+        t:ok(by["Only this run on your route"] and by["Only this run on your route"].tip, "Only this run: explained")
+        t:ok(by["Straight to the entrance"] and by["Straight to the entrance"].tip, "Straight to the entrance: explained")
+        t:ok(lead and lead.stay and lead.tip and lead.tip:find("chain", 1, true), "the lead-in choice says it's about quests and their chains")
+        -- Click the tick the way a click does: on, then off, the menu still up.
+        ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = {}, nil
+        with(ns, "Print", function() end, function()
+            M:Open(items)
+            t:ok(pcall(M.Click, on), "clicking On your route runs")
+            t:eq(D:Prepared(), run.key, "the run is on")
+            t:ok(on.checked, "its tick shows")
+            t:ok(_G.FlowMenu and _G.FlowMenu:IsShown(), "and the menu stays open")
+            pcall(M.Click, on)
+            t:eq(D:Prepared(), nil, "clicking it again takes the run off")
+            M:Close()
+        end)
+        -- The list: each dungeon row has the arrow, and Clear when one is on.
+        ns.db.nav.dungeonRun = { key = run.key, dungeon = run.dungeon, name = run.name }
+        local okL, list = pcall(D.MenuItems, D)
+        local row, clear
+        for _, it in ipairs(okL and list or {}) do
+            if it.run == run.key then row = it end
+            if type(it.text) == "string" and it.text:find("Clear the dungeon run", 1, true) then clear = it end
+        end
+        t:ok(row and row.opens and row.checked and row.state == run.name, "its row in the list: an arrow, ticked, its name for the Dungeons row")
+        t:ok(clear and pcall(clear.func), "Clear the dungeon run is there, and runs")
+        t:eq(D:Prepared(), nil, "the run is off")
+    end)
+    ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, only
+    if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
+end)
+
+ns:Register("test", "custom route: a dungeon run can be one of its lines", function(t)
+    local F, D = ns.focus, ns.dungeons
+    local mine, log, sorter, was = ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter, ns.db.nav.dungeonRun
+    ns.db.nav.focus, ns.db.nav.focusLog = {}, {}
+    local run = { key = "test:run-987654383", name = "Test Depths", quests = { 987654301, 987654302 }, leadIns = { { id = 987654303 } } }
+    with(ns.nav, "Collect", function() end, function()
+        with(D, "Run", function(_, key) return key == run.key and run or nil end, function()
+            with(D, "Prepare", function() end, function()
+                t:eq(F.AddDungeon(run), "Test Depths", "adding it gives its name")
+                t:ok(F.HasDungeon(run.key), "it's a line now")
+                t:eq(F.AddDungeon(run), nil, "adding it again adds nothing")
+                t:eq(ns.db.nav.sorter, "custom", "the order is Custom")
+                local quests, _, titles = F.Sets()
+                t:ok(quests[987654301] and quests[987654302] and quests[987654303], "the line stands for every quest the run needs, lead-ins too")
+                t:eq(titles[1], "Test Depths", "and is named after the dungeon")
+                t:ok(F.Keeps({ key = "987654302:1" }, quests, {}), "a step of one of its quests is kept")
+                t:ok(F.LineOf("987654303:done") == 1, "a step of the run belongs to that line")
+                t:ok(F.RemoveDungeon(run.key) and not F.HasDungeon(run.key), "it can be taken out again")
+                t:eq(F.RemoveDungeon(run.key), false, "nothing to take out twice")
+            end)
+        end)
+        -- A run that isn't worked out yet: the line waits, it isn't dropped.
+        ns.db.nav.focus = { { dungeon = "test:unknown-run", title = "Unknown" } }
+        with(D, "Run", function() return nil end, function()
+            local ids = F.IdsOf(ns.db.nav.focus[1])
+            t:eq(ids, nil, "a run not worked out yet: no quests")
+            ns.db.nav.sorter = "custom"
+            pcall(F.Filter, { { key = "1:1" } }, true)
+            t:eq(#ns.db.nav.focus, 1, "and its line stays")
+        end)
+    end)
+    t:eq(F.AddDungeon(nil), nil, "no run: nothing")
+    ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter, ns.db.nav.dungeonRun = mine, log, sorter, was
+    F.idle, F.stuck = nil, nil
+    pcall(F.UpdateBar)
+    if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
+end)

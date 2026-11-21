@@ -154,7 +154,7 @@ end
 function Menu.SectionState(sub)
     local ticks, on = 0, 0
     for _, it in ipairs(sub) do
-        if it.radio and it.checked then return it.text end
+        if it.radio and it.checked then return it.state or it.text end   -- (state: a shorter word for it)
         if it.checked ~= nil and not it.radio and not it.minor and not it.disabled then
             ticks = ticks + 1
             if it.checked then on = on + 1 end
@@ -268,7 +268,7 @@ layout = function(f, list, items)
         r.line:SetShown(isLine)
         r.text:SetShown(not isLine)
         r.mark:SetShown(not isLine)
-        r.arrow:SetShown(it.section == true)
+        r.arrow:SetShown(it.section == true or it.opens == true)   -- (opens: the row opens a menu of its own)
         r.hl:SetShown(not (isLine or it.title or it.disabled))
         if not isLine then
             if it.section then

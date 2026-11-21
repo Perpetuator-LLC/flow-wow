@@ -236,6 +236,9 @@ Flow for WoW is a separate project from Flow Engine.
   errands ticked under Route includes: class trainer, weapon skills and riding; repair, selling and
   hearthstone; the bank; flight paths to learn; crossings. Professions start off. These ticks are the
   custom route's own, so your usual route's come back when you clear it.
+- **A dungeon's menu**: under Dungeons in the Flow menu each dungeon opens one menu: its name (point at it
+  for its quests and who gives them), On your route, Only this run, Add to my custom route, Straight to the
+  entrance, and its quest choices, each with a line saying what it does.
 - **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,
   picks that step's whole quest line (to the spell, for a class quest), and your route shows only
   the lines you picked, planned together. Right-click a step to remove it or its line; the bar

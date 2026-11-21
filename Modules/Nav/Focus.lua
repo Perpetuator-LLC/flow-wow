@@ -247,6 +247,16 @@ end
 
 -- One line's quests now ({ ids }, title), or nil for a single step.
 function F.IdsOf(line)
+    if line.dungeon then
+        -- (A dungeon run: every quest it needs. Not worked out yet: nothing, and the line waits.)
+        local D = ns.dungeons
+        local run = D and D.Run and D:Run(line.dungeon)
+        if not run then return nil, line.title end
+        local ids = {}
+        for id in pairs(D.RunIds(run)) do ids[#ids + 1] = id end
+        table.sort(ids)
+        return ids, line.title
+    end
     if not line.quest then return nil, line.title end
     local get, isDone = source()
     if not get then return { line.quest }, line.title end
@@ -340,7 +350,7 @@ function F.LineOf(key)
     local qid = F.QuestOf(key)
     for i, line in ipairs(lines()) do
         if line.key and line.key == key then return i end
-        if qid and line.quest then
+        if qid and (line.quest or line.dungeon) then
             for _, id in ipairs(F.IdsOf(line) or {}) do if id == qid then return i end end
         end
     end
@@ -375,6 +385,44 @@ function F.Clear(why)
     F.Note("cleared: " .. tostring(why or "asked to"))
     F.UpdateBar()
     return true
+end
+
+
+-------------------------------------------------------------------------------
+-- A dungeon run as a line of your custom route (0.35.383)
+--
+-- "Here you have an opportunity to extend it by adding the dungeon into the
+-- custom route ... anywhere we can get to these objectives, whether they're
+-- for dungeons or other quests, add them into our custom queue." A line can
+-- be a dungeon run ({ dungeon = the run's key }): it stands for every quest
+-- the run needs (Dungeons.lua D.RunIds) and the run's own steps (its
+-- pickups and the entrance). Adding one turns the run on, since the entrance
+-- and the quests to pick up are only on the route for the run that's on.
+-------------------------------------------------------------------------------
+function F.HasDungeon(key)
+    for _, line in ipairs(lines()) do if line.dungeon and line.dungeon == key then return true end end
+    return false
+end
+-- -> the run's name, or nil when it was there already
+function F.AddDungeon(run)
+    if not (type(run) == "table" and run.key) or F.HasDungeon(run.key) then return nil end
+    table.insert(lines(), { dungeon = run.key, title = run.name or "a dungeon run" })
+    ns.db.nav.sorter = "custom"
+    local D = ns.dungeons
+    if D and D.Prepared and D:Prepared() ~= run.key and D.Prepare then pcall(D.Prepare, D, run.key) end
+    changed("added the dungeon run " .. tostring(run.name))
+    return run.name or "a dungeon run"
+end
+function F.RemoveDungeon(key)
+    local mine = lines()
+    for i = #mine, 1, -1 do
+        if mine[i].dungeon and mine[i].dungeon == key then
+            table.remove(mine, i)
+            changed("the dungeon run removed: " .. tostring(key))
+            return true
+        end
+    end
+    return false
 end
 
 -- The menu entries for a step of your custom route (right-click it).
@@ -436,7 +484,8 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
         local has = {}
         for _, g in ipairs(out) do has[g.key] = true end
         for _, line in ipairs(mine) do
-            local ids = F.IdsOf(line)
+            -- (A dungeon run's pickups are its own steps, Dungeons.lua.)
+            local ids = not line.dungeon and F.IdsOf(line) or nil
             for _, id in ipairs(ids or {}) do
                 if not isDone(id) and not inLog[id] then
                     local okC, state, q = pcall(Q.ChainNow, Q, id)
@@ -473,8 +522,14 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
     local has = {}
     for _, g in ipairs(out) do has[g.key] = true end
     F.errands = 0
+    -- (With a dungeon run among your lines: the run's own steps, its pickups and entrance.)
+    local dungeonLine = false
+    for _, line in ipairs(mine) do if line.dungeon then dungeonLine = true end end
     for _, g in ipairs(list) do
-        if not has[g.key] and F.Errand(g, F.Replaces) then out[#out + 1] = g; F.errands = F.errands + 1 end
+        if not has[g.key] then
+            if dungeonLine and g.provider == "dungeon" then out[#out + 1] = g
+            elseif F.Errand(g, F.Replaces) then out[#out + 1] = g; F.errands = F.errands + 1 end
+        end
     end
     F.kept, F.of = #out, #list
     return out
@@ -571,7 +626,7 @@ function F.DumpLines()
     for i, line in ipairs(mine) do
         local ids = F.IdsOf(line)
         out[#out + 1] = string.format("  %d. %s: %s%s", i, tostring(line.title or "?"),
-            ids and ("quests " .. table.concat(ids, ", ")) or ("step " .. tostring(line.key)), line.stop and (" (ends before " .. line.stop .. ")") or "")
+            ids and ("quests " .. table.concat(ids, ", ")) or (line.dungeon and ("the dungeon run " .. tostring(line.dungeon) .. " (not worked out yet)") or ("step " .. tostring(line.key))), line.stop and (" (ends before " .. line.stop .. ")") or "")
     end
     if F.of then out[#out + 1] = string.format("  the last gathering kept %d of %d step(s), %d of them errands", F.kept or 0, F.of, F.errands or 0) end
     local ticks = {}
