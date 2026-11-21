@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Flow now suggests the Well Fed food that's best for your fights.** It used to suggest the first Well Fed food
+  in your bags, so Smoked Sagefish (mana every 5 seconds) could come before Dry Pork Ribs (Stamina and Spirit).
+  Now it reads what each food's buff gives and picks by your class: Stamina first for everyone, Strength and
+  Agility for those who hit, mana and Intellect only for those with mana. Food whose buff does nothing for you
+  (mana food on a warrior or rogue) isn't suggested for the buff.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'

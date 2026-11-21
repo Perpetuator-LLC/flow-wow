@@ -3779,6 +3779,29 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(BI.IsBuffFood({ "Roasted Boar Meat", "Use: Restores 294 health over 27 sec. If you spend at least 10 seconds eating you will become well fed." }),
         "food that says Well Fed")
     t:ok(not BI.IsBuffFood({ "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "plain food: no")
+    -- "Why is Flow suggesting I eat my fish buff food instead of combat food?"
+    local ribsTip = { "Dry Pork Ribs", "Use: Restores 552 health over 21 sec. Must remain seated while eating. "
+        .. "If you spend at least 10 seconds eating you will become well fed and gain 6 Stamina and Spirit for 15 min." }
+    local fishTip = { "Smoked Sagefish", "Use: Restores 378 health over 21 sec. Must remain seated while eating. "
+        .. "If you spend at least 10 seconds eating you will become well fed and gain 3 Mana every 5 seconds for 15 min." }
+    local ribs, fish = BI.WellFedGain(ribsTip), BI.WellFedGain(fishTip)
+    t:ok(ribs.Stamina == 6 and ribs.Spirit == 6 and ribs.mp5 == nil, "ribs: 6 Stamina and 6 Spirit (not the 10 seconds)")
+    t:ok(fish.mp5 == 3 and fish.Stamina == nil, "sagefish: 3 mana every 5 seconds")
+    t:eq(BI.WellFedGain({ "Use: ... you will become well fed and increases your Agility by 10 for 10 min." }).Agility, 10,
+         "\"increases your Agility by 10\" read too")
+    t:eq(next(BI.WellFedGain({ "Use: ... you will become well fed." })), nil, "says no more: nothing known")
+    t:eq(BI.FoodScore(fish, "WARRIOR"), 0, "mana food on a warrior: worth nothing")
+    t:ok(BI.FoodScore(ribs, "PALADIN") > BI.FoodScore(fish, "PALADIN"), "a paladin: Stamina and Spirit before mana")
+    t:ok(BI.FoodScore(ribs, "MAGE") > BI.FoodScore(fish, "MAGE"), "a mage too: Stamina is what keeps you up")
+    t:eq(BI.FoodScore({}, "MAGE"), nil, "nothing known: no score")
+    local bag = {
+        { id = 21072, sub = 5, name = "Smoked Sagefish", score = BI.FoodScore(fish, "PALADIN") },
+        { id = 2687, sub = 5, name = "Dry Pork Ribs", score = BI.FoodScore(ribs, "PALADIN") },
+    }
+    t:eq(BI.Pick(bag, none, 7, false, true).id, 2687, "the combat food, though the fish comes first in your bags")
+    bag[2].score, bag[1].score = nil, BI.FoodScore(fish, "WARRIOR")
+    t:eq(BI.Pick(bag, none, 7, false, true).id, 2687, "a food that doesn't say what it gives, before one worth nothing")
+    t:eq(BI.Pick({ bag[1] }, none, 7, true, true), nil, "only food worth nothing to you: not suggested")
     t:ok(not BI.IsBuffFood(nil), "no tooltip yet: no")
     t:eq(BI.CampStep(true, false, false), "sit", "by a campfire without its buffs: sit")
     t:eq(BI.CampStep(true, false, true), "wait", "the minute is running: wait, don't stand up")
@@ -3835,6 +3858,9 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.PickFood({ foods[2] }, true).id, 2, "only Well Fed food: eat it to heal")
     t:eq(BI.PickFood({ foods[2] }, false), nil, "only Well Fed food, and you keep it for the buff: none")
     t:eq(BI.PickFood(foods, true, function(id) return id ~= 1 end).id, 2, "plain food unusable: the Well Fed food")
+    local fishes = { { id = 11, kind = "food", name = "Smoked Sagefish", rank = 20, buff = true, score = 6 },
+                     { id = 12, kind = "food", name = "Dry Pork Ribs", rank = 15, buff = true, score = 12 } }
+    t:eq(BI.PickFood(fishes, true, nil, true).id, 12, "about to fight: the Well Fed food that's best for you, not the highest rank")
     local heal = { { id = 1, kind = "potion", rank = 15 }, { id = 2, kind = "healthstone", rank = 10 },
                    { id = 3, kind = "bandage", rank = 5 }, { id = 4, kind = "bandage", rank = 20 } }
     t:eq(BI.PickEmergency(heal).id, 2, "in a fight: the healthstone before the potion")
