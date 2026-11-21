@@ -660,6 +660,50 @@ ns:Register("action", "gather:interact", { order = 60, get = function(ctx)
              label = verb .. " (stand next to it and press)" }
 end })
 
+-- Anywhere, not just at a gathering step: you know Find Minerals or Find
+-- Herbs and the minimap tracks nothing, so the key turns it on (one press;
+-- the game lets an add-on cast only from a key press, so Flow can't switch
+-- it on by itself). "If I have mining/herb why doesn't it automatically
+-- turn on tracking them?" Dying turns tracking off, too.
+-- Never over tracking you chose (Find Fish, Track Beasts, the other one).
+-- Pure: knows(spell), tracking(spell) -> true/false/nil (can't tell),
+-- anyTracked: true/false/nil; prof: the route's gathering profession, if
+-- any. Returns the spell to turn on, or nil.
+function X.TrackPick(knowsFn, trackingFn, anyTracked, prof)
+    if anyTracked ~= false then return nil end
+    local order = prof == "Herbalism" and { "Find Herbs", "Find Minerals" } or { "Find Minerals", "Find Herbs" }
+    for _, spell in ipairs(order) do
+        if knowsFn(spell) then
+            if trackingFn(spell) ~= false then return nil end
+            return spell
+        end
+    end
+    return nil
+end
+
+-- Is the minimap tracking anything? nil = can't tell.
+local function anyTracking()
+    local M = C_Minimap
+    if M and M.GetNumTrackingTypes and M.GetTrackingInfo then
+        local n = M.GetNumTrackingTypes() or 0
+        for i = 1, n do
+            local a, _, c = M.GetTrackingInfo(i)
+            local active = type(a) == "table" and a.active or (type(a) ~= "table" and c)
+            if active then return true end
+        end
+        if n > 0 then return false end
+    end
+    if GetTrackingTexture then return GetTrackingTexture() ~= nil end
+    return nil
+end
+
+ns:Register("action", "gather:track", { order = 75, get = function(ctx)
+    if (IsMounted and IsMounted()) or (UnitOnTaxi and UnitOnTaxi("player")) then return nil end
+    local spell = X.TrackPick(knows, tracking, anyTracking(), ctx.prof)
+    if not spell then return nil end
+    return { type = "spell", spell = spell, unit = "player", icon = spellIcon(spell), label = "Turn on " .. spell }
+end })
+
 -- Upgrades in your bags: what Flow's gear check says to wear now for your
 -- levelling spec (the bag marks' green arrow), only gear you can use and
 -- are high enough level for. Best first. { id, link, diff, equipLoc, name }

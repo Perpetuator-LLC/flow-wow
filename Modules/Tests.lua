@@ -1443,6 +1443,22 @@ ns:Register("test", "class training fits into the route, after the quests where 
     end
 end)
 
+ns:Register("test", "actions: gathering tracking turned on anywhere, never over your own", function(t)
+    -- "If I have mining/herb why doesn't it automatically turn on tracking them?"
+    local X = ns.actions
+    local both = function() return true end
+    local minerOnly = function(s) return s == "Find Minerals" end
+    local off = function() return false end
+    t:eq(X.TrackPick(minerOnly, off, false), "Find Minerals", "a miner, nothing tracked: Find Minerals")
+    t:eq(X.TrackPick(function(s) return s == "Find Herbs" end, off, false), "Find Herbs", "an herbalist: Find Herbs")
+    t:eq(X.TrackPick(both, off, false), "Find Minerals", "both: Find Minerals")
+    t:eq(X.TrackPick(both, off, false, "Herbalism"), "Find Herbs", "both, an herb step on the route: Find Herbs")
+    t:eq(X.TrackPick(minerOnly, off, true), nil, "something else tracked (Find Fish, Track Beasts): left alone")
+    t:eq(X.TrackPick(minerOnly, off, nil), nil, "can't tell what's tracked: nothing")
+    t:eq(X.TrackPick(function() return false end, off, false), nil, "no gathering skill: nothing")
+    t:eq(X.TrackPick(minerOnly, function() return nil end, false), nil, "can't tell if it's on: nothing")
+end)
+
 ns:Register("test", "actions: fishing steps on the Flow key", function(t)
     local X = ns.actions
     t:ok(X.IsPole(6256), "Fishing Pole is a pole")
