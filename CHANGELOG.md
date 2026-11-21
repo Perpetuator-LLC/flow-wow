@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.397
+
+- **A way to stop a cast always has a press.** Flow already advises your stop when your
+  target starts casting (Bash, War Stomp, Hammer of Justice), and the press that holds it
+  pulses. But only if a press held it: in caster form War Stomp often had none. Now the
+  stop you can cast in the form you're in always gets one: a bare press, else one that was
+  only filled in, else Ctrl + Shift (never over a heal or a potion). Bear Form: Bash.
+  Caster form: War Stomp. Cat Form has nothing that stops a cast, so nothing is shown.
+- Flow doesn't change your form to do it. Shifting to Bear Form for a Bash takes a global
+  cooldown and rage you won't have, by which time the cast is over; that stays your call.
+- `/flow stops` (and the diagnostics) says which stops you know, which press has one, and
+  how many of your target's casts Flow has seen: it can only light the press when the game
+  says the target is casting.
 ## 0.35.396
 
 - **No more bare squares beside the target button.** Each small icon (Shift, Ctrl, Alt,

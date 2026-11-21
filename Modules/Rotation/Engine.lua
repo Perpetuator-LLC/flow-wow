@@ -732,8 +732,11 @@ E.INTERRUPTS = {
 -- What the target is casting or channelling (nil: nothing, or the game hides it).
 function E.TargetCasting()
     local name = A.Safe(UnitCastingInfo and UnitCastingInfo("target"))
-    if name then return name end
-    return A.Safe(UnitChannelInfo and UnitChannelInfo("target"))
+    if not name then name = A.Safe(UnitChannelInfo and UnitChannelInfo("target")) end
+    -- (Counted, for /flow stops: whether the game lets Flow see a cast at all.)
+    if name and name ~= E.castNow then E.castSeen, E.castLast = (E.castSeen or 0) + 1, name end
+    E.castNow = name
+    return name
 end
 -- May Flow ask the game how far a unit is? Out of a fight: about anyone
 -- there. In a fight the game only allows the question about an enemy you
@@ -773,6 +776,7 @@ function E:Interrupt(ctx, casting, near)
             reach = n == true   -- (can't tell: no, it would stomp at nothing)
         end
         if reach and self:Ready(r.spell, not r.near and "target" or nil) then
+            if casting ~= E.stopFor then E.stopFor, E.stopAdvised = casting, (E.stopAdvised or 0) + 1 end
             return { spell = r.spell, kind = "damage", fightType = ctx.fightType,
                      reason = string.format("Stop its %s: %s", casting, r.spell) }
         end

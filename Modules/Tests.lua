@@ -18320,3 +18320,53 @@ ns:Register("test", "easy key: a bare press takes the next useful spell nothing 
         t:ok(#forms["Bear Form"].more > 3, "Bear Form's lists go on too")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.397: a way to stop a cast always has a press.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: your stop always has a press, and lights up when the target casts", function(t)
+    local Q, E = ns.queue, ns.rotation
+    local list = { { spell = "Bash" }, { spell = "Hammer of Justice" }, { spell = "War Stomp", near = true } }
+    t:eq(Q.StopFor(list, function() return true end, function(s) return s == "War Stomp" end), "War Stomp", "caster form: Bash can't be cast, War Stomp can")
+    t:eq(Q.StopFor(list, function() return true end, function(s) return s == "Bash" end), "Bash", "Bear Form: Bash")
+    t:eq(Q.StopFor(list, function() return true end, function() return false end), nil, "Cat Form: nothing stops a cast there")
+    t:eq(Q.StopFor(list, function() return false end, function() return true end), nil, "none known: none")
+    -- On a bare press first.
+    local s = Q.WithStop({ key = { spell = "Wrath" }, shift = { spell = "Moonfire" } }, "War Stomp")
+    t:eq(s.ctrl and s.ctrl.spell, "War Stomp", "a bare press takes it")
+    t:ok(s.ctrl.stop, "and is marked as your stop")
+    -- Every press taken: the farthest one that was only filled in gives way.
+    s = Q.WithStop({ key = { spell = "Wrath" }, shift = { spell = "Moonfire" }, ctrl = { spell = "Hibernate", filler = true },
+        alt = { item = "item:118" }, more = { spell = "Faerie Fire", filler = true } }, "War Stomp")
+    t:eq(s.more.spell, "War Stomp", "no bare press: the last filled-in one gives way")
+    t:eq(s.ctrl.spell, "Hibernate", "the nearer ones stay")
+    -- Nothing filled in: Ctrl + Shift, but never a heal or a potion.
+    s = Q.WithStop({ shift = { spell = "A" }, ctrl = { spell = "B" }, alt = { spell = "C" }, more = { spell = "D" } }, "Bash")
+    t:eq(s.more.spell, "Bash", "all four taken by the class's own spells: Ctrl + Shift")
+    s = Q.WithStop({ shift = { spell = "A" }, ctrl = { spell = "B" }, alt = { spell = "C" }, more = { item = "item:1", kind = "emergency" } }, "Bash")
+    t:eq(s.more.item, "item:1", "a potion there is left alone")
+    -- Already on a press: nothing moves.
+    s = Q.WithStop({ shift = { spell = "Bash" }, ctrl = { spell = "Swipe" } }, "Bash")
+    t:ok(s.shift.spell == "Bash" and s.shift.stop and s.alt == nil, "already on a press: it's marked, nothing else changes")
+    t:eq(Q.WithStop({ shift = { spell = "A" } }, nil).ctrl, nil, "no stop: as it was")
+    -- Through the queue: a caster with War Stomp gets it on a press.
+    local slots = Q.Slots({ spell = "Wrath", kind = "damage" }, { ctrlSpell = "Moonfire", altSpell = "Nature's Grasp", shiftSpell = "Entangling Roots",
+        keySpell = "Wrath", more = { "Hibernate" }, stop = "War Stomp" })
+    local on
+    for _, name in ipairs(Q.ORDER) do if slots[name] and slots[name].spell == "War Stomp" then on = name end end
+    t:ok(on ~= nil, "through the whole queue: War Stomp has a press (" .. tostring(on) .. ")")
+    t:eq(Q.AdviceSlot({ spell = "War Stomp", kind = "damage" }, slots), on, "and that press is the one that pulses when Flow says to stop a cast")
+    -- The advice itself (since 0.35.212): the target casting, a stop ready.
+    local seen, advised = E.castSeen, E.stopAdvised
+    with(E, "Ready", function(_, spell) return spell == "Bash" end, function()
+        local a = E:Interrupt({ inCombat = true, hostile = true }, "Healing Wave", true)
+        t:ok(a and a.spell == "Bash" and a.reason:find("Healing Wave", 1, true), "your target casts: Bash is advised, saying what it stops")
+        t:eq(E:Interrupt({ inCombat = false, hostile = true }, "Healing Wave", true), nil, "not out of a fight")
+    end)
+    with(E, "Ready", function() return false end, function()
+        t:eq(E:Interrupt({ inCombat = true, hostile = true }, "Healing Wave", true), nil, "no stop ready (Cat Form, or on cooldown): nothing advised")
+    end)
+    E.castSeen, E.stopAdvised, E.stopFor = seen, advised, nil
+    t:ok(pcall(Q.StopLines), "/flow stops builds")
+end)

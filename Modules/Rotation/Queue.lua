@@ -140,7 +140,44 @@ function Q.Slots(main, o)
     local have = {}
     if o.keySpell then have[o.keySpell] = true end
     for _, s in pairs(out) do if s.spell then have[s.spell] = true end end
-    return Q.Fill(out, o.more, have)
+    out = Q.Fill(out, o.more, have)
+    -- A way to stop a cast is always on a press, where you have one (0.35.397).
+    return Q.WithStop(out, o.stop)
+end
+
+-- "Having an interrupt on the board at all times would be really valuable"
+-- (0.35.397). Flow has advised your stop when the target casts since 0.35.212
+-- (Engine.lua E:Interrupt: Bash, Hammer of Justice, War Stomp), and the press
+-- that holds it pulses. But only if a press holds it: in caster form War
+-- Stomp was second on two lists and often on none. Now the stop you can cast
+-- in the form you're in always has a press: a bare one, else one that was
+-- only filled in, else Ctrl + Shift.
+-- Pure: stop: the spell (nil: you have none here).
+function Q.WithStop(slots, stop)
+    if not stop then return slots end
+    local step = { spell = stop, kind = "damage", stop = true, reason = "Stops your target's cast: it lights up when one starts" }
+    for _, name in ipairs({ "key", "shift", "ctrl", "alt", "more" }) do
+        local s = slots[name]
+        if s and s.spell == stop then s.stop = true return slots end
+    end
+    for _, name in ipairs(Q.ORDER) do
+        if not slots[name] then slots[name] = step return slots end
+    end
+    for i = #Q.ORDER, 1, -1 do
+        local s = slots[Q.ORDER[i]]
+        if s and s.filler then slots[Q.ORDER[i]] = step return slots end
+    end
+    local m = slots.more
+    if m and m.spell and m.kind ~= "heal" and m.kind ~= "emergency" then slots.more = step end
+    return slots
+end
+-- Pure: the stop to keep on a press: the first you know that this form can
+-- cast. usable(spell) -> can cast now, or could but for mana, rage or energy.
+function Q.StopFor(list, knows, usable)
+    for _, r in ipairs(list or {}) do
+        if r.spell and knows(r.spell) and usable(r.spell) then return r.spell end
+    end
+    return nil
 end
 
 -- Pure: the bare presses filled, nearest the key first, each with the next
@@ -274,5 +311,31 @@ function Q.Now(main, locked)
         emergency = C and C.EmergencyItem and C:EmergencyItem() or nil,
         ctrlSpell = ctrlSpell, altSpell = altSpell, shiftSpell = shiftSpell, friend = friend, options = options,
         keySpell = keySpell, more = Q.MoreList(def, function(spell) return E:Knows(spell) end, E),
+        stop = Q.StopFor(E.INTERRUPTS, function(spell) return E:Knows(spell) end, function(spell)
+            local ok, can, noPower = pcall(ns.api.Usable, spell)
+            return ok and (E.Yes(can, false) or noPower == true)
+        end),
     })
+end
+
+-- /flow stops: what stops a cast for you, where it is, and whether Flow has
+-- seen your target cast (it can only light the press if the game says so).
+function Q.StopLines()
+    local out = {}
+    local names = {}
+    for _, r in ipairs(E.INTERRUPTS or {}) do names[#names + 1] = r.spell .. (E:Knows(r.spell) and " (known)" or "") end
+    out[#out + 1] = "stops Flow knows of: " .. table.concat(names, ", ")
+    local slots = ns.cast and ns.cast.Slots and ns.cast:Slots() or {}
+    local where
+    for _, name in ipairs({ "key", "shift", "ctrl", "alt", "more" }) do
+        local s = slots[name]
+        if s and s.stop then where = (name == "key" and "the key itself" or (Q.NAME[name] .. " + key")) .. ": " .. tostring(s.spell) end
+    end
+    out[#out + 1] = "  on your key now: " .. (where or "none (you know none this form can cast)")
+    out[#out + 1] = string.format("  your target's casts seen this session: %d%s", E.castSeen or 0, E.castLast and (" (the last: " .. tostring(E.castLast) .. ")") or "")
+    out[#out + 1] = string.format("  stops advised this session: %d", E.stopAdvised or 0)
+    return out
+end
+ns.commands.stops = function()
+    for i, l in ipairs(Q.StopLines()) do if i == 1 then ns:Print(l) else print(l) end end
 end

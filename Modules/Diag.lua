@@ -115,6 +115,7 @@ function D:Snapshot(reason, spread)
         { "deaths", function() if ns.deaths then for _, l in ipairs(ns.deaths.Lines()) do print(l) end end end },
         { "second key", function() if c.carekeys then c.carekeys("") end end },
         { "power bars", function() if c.powerbar then c.powerbar("") end end },
+        { "stops", function() if c.stops then c.stops("") end end },
         { "meters", function() if c.meters then c.meters("") end end },
         { "threat", function() if c.threat then c.threat("") end end },
         { "combo points", function() if c.combo then c.combo("") end end },
