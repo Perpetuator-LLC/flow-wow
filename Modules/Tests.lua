@@ -11656,6 +11656,69 @@ ns:Register("test", "route: a hand-in whose objective is off the route (held, an
          "and the town's errands don't call it a turn-in while its objective is on the route")
 end)
 
+ns:Register("test", "route: what waits for a step off the route, in N:Collect's order: chains, needs, hidden, unknown", function(t)
+    -- The same steps through Flow's own functions, in the order N:Collect runs
+    -- them (ResolveNeeds, then HoldForHidden, then HoldForDropped on `present`).
+    local N = ns.nav
+    local function met() return false end
+    local function label(tok) return (tok:gsub("^%w+:", "")) end
+    local function run(list, shownKeys, hiddenKeys)
+        N.ResolveNeeds(list, met, label)
+        local present, shown, hidden = {}, {}, {}
+        for _, g in ipairs(list) do
+            present[g.key] = g
+            if hiddenKeys[g.key] then hidden[#hidden + 1] = g
+            elseif shownKeys[g.key] then shown[#shown + 1] = g end
+        end
+        local kept, waitH = N.HoldForHidden(shown, hidden)
+        local kept2, waitD = N.HoldForDropped(kept, present)
+        local byKey, held = {}, {}
+        for _, g in ipairs(kept2) do byKey[g.key] = "kept" end
+        for _, g in ipairs(waitH) do byKey[g.key] = "hidden"; held[g.key] = g end
+        for _, g in ipairs(waitD) do
+            t:ok(byKey[g.key] == nil, g.key .. " is listed once")
+            byKey[g.key] = "held"; held[g.key] = g
+        end
+        return byKey, held
+    end
+    -- A class quest held (3+ levels above you): its item first, then its
+    -- objective, then its hand-in, which teaches Bear Form. Training needs
+    -- Bear Form softly, a skill step needs it hard.
+    local item = { key = "9101:item:1", text = "Get the Idol", blockedBy = "level 20 quest: back on the route at level 20 (or in a group)" }
+    local obj = { key = "9101:1", text = "Body and Heart: 0/1", deps = { "9101:item:1" } }
+    local turnIn = { key = "9101:done", text = "Turn in: Body and Heart", deps = { "9101:1" }, provides = { "spell:Bear Form" } }
+    local train = { key = "train:class", text = "Class training", needs = { { "spell:Bear Form", soft = true } } }
+    local skill = { key = "x:bear", text = "Maul practice", needs = { "spell:Bear Form" } }
+    -- A hand-in whose one dep Flow doesn't know (done, or never a step): stays.
+    local lone = { key = "9102:done", text = "Turn in: Lone", deps = { "9102:1" } }
+    local on = { [obj.key] = true, [turnIn.key] = true, [train.key] = true, [skill.key] = true, [lone.key] = true }
+    local s, held = run({ item, obj, turnIn, train, skill, lone }, on, {})
+    t:eq(s[obj.key], "held", "an objective waits for the item it needs first, held off the route")
+    t:eq(s[turnIn.key], "held", "and its hand-in down the chain: not \"Turn in\"")
+    t:ok(held[turnIn.key] and held[turnIn.key].blockedBy:find("Body and Heart: 0/1", 1, true) ~= nil, "it names the step it waits for")
+    t:eq(s[train.key], "kept", "a soft need only orders: training stays on the route")
+    t:ok(train.softDeps and train.softDeps[turnIn.key] and train.deps and train.deps[1] == turnIn.key,
+         "(still ordered after the quest, when that's on the route)")
+    t:eq(s[skill.key], "held", "a hard need waits for the quest that teaches it")
+    t:eq(s[lone.key], "kept", "a dep Flow doesn't know of (done) holds nothing")
+    -- Its objective hidden: held for that (named once), not twice.
+    local obj2 = { key = "9103:1", text = "Wolves: 2/10" }
+    local in2 = { key = "9103:done", text = "Turn in: Wolves", deps = { "9103:1" } }
+    s, held = run({ obj2, in2 }, { [in2.key] = true }, { [obj2.key] = true })
+    t:eq(s[in2.key], "hidden", "its objective hidden: it waits, for that reason")
+    t:ok(held[in2.key] and held[in2.key].blockedBy:find("you hid that step", 1, true) ~= nil, "and says so")
+    -- Both on the route: nothing waits.
+    local obj3 = { key = "9104:1", text = "Boars: 1/8" }
+    local in3 = { key = "9104:done", text = "Turn in: Boars", deps = { "9104:1" } }
+    s = run({ obj3, in3 }, { [obj3.key] = true, [in3.key] = true }, {})
+    t:ok(s[obj3.key] == "kept" and s[in3.key] == "kept", "objective and hand-in both on the route: both stay")
+    -- A dep that's soft and hard (two needs, one provider): it binds.
+    local both = { key = "x:both", text = "Both", needs = { { "spell:Bear Form", soft = true }, "spell:Bear Form" } }
+    local q = { key = "9105:done", text = "Turn in: Teacher", provides = { "spell:Bear Form" }, blockedBy = "level 30 quest" }
+    s = run({ q, both }, { [both.key] = true }, {})
+    t:eq(s[both.key], "held", "soft and hard on one step: the hard one holds")
+end)
+
 ns:Register("test", "fishing: on the self button alone while it has a key; the self button is docked by default", function(t)
     local X, BB = ns.actions, ns.buffButton
     t:ok(X.OnBuffOnly({ fish = true }, true), "a fishing step, the self button fishes: not on the Flow key too")
