@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **The Flow key turns on Find Minerals or Find Herbs whenever the minimap tracks nothing.** It used to offer it
+  only at a mining or herb step on the route, so after dying or logging in you gathered blind. One press; the game
+  lets an add-on cast only from a key press. It never replaces tracking you chose (Find Fish, Track Beasts).
+  With both skills, Find Minerals, or Find Herbs when an herb step is on the route.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'
