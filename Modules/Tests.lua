@@ -14336,11 +14336,11 @@ ns:Register("test", "click: the note for a zone you haven't picked: Quest here p
     t:ok(picked and picked[1] == 2 and picked[2] == true, "and picks the zone you're in")
     t:ok(not bar:IsShown(), "the note goes")
     Z.Show(2, choice, true)
-    local was = Z.dismissed
-    t:ok(pcall(bar.later:GetScript("OnClick"), bar.later), "a click on Not now runs")
-    t:eq(Z.dismissed, 2, "not again in this zone until you leave it")
+    local was = Z.Declined(2)
+    t:ok(pcall(bar.later:GetScript("OnClick"), bar.later), "a click on No thanks runs")
+    t:ok(Z.Declined(2), "that zone is never asked about again (0.35.374)")
     t:ok(not bar:IsShown(), "and the note goes")
-    Z.dismissed = was
+    Z.Decline(2, was)
     t:ok(pcall(Z.Check), "looking again runs")
 end)
 
@@ -17150,4 +17150,33 @@ ns:Register("test", "perf: lite mode is on in a raid group, an instance, a battl
     local found = false
     for _, name in ipairs(ns.menu.SECTIONS) do found = found or name == "Custom route" end
     t:ok(found, "(the Flow menu's sections list knows Custom route)")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.374: the zone note waits until you've settled, and No is for good.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "zone note: it waits until you've been in the zone a while, and a No is never asked again", function(t)
+    local Z = ns.zoneNotice
+    t:ok(not Z.Settled(3), "three seconds in a zone (a zeppelin leaving, a flicker between zones): not asked")
+    t:ok(not Z.Settled(Z.SETTLE - 1), "just under the wait: not yet")
+    t:ok(Z.Settled(Z.SETTLE), "after the wait: asked")
+    t:ok(not Z.Settled(nil), "how long isn't known: not asked")
+    t:ok(Z.SETTLE >= 20, "the wait is long enough to cover a loading flicker: " .. tostring(Z.SETTLE) .. " s")
+    local zone = 987654341
+    local was = Z.Declined(zone)
+    t:ok(not Z.Declined(nil), "no zone: nothing declined")
+    Z.Decline(zone, true)
+    t:ok(Z.Declined(zone), "a zone you said No to is remembered")
+    local choice = { name = "Durotar", where = { quests = 4, min = 1, max = 10 } }
+    t:ok(not Z.Wanted(zone, false, choice, Z.Declined(zone) and zone or nil, false), "and never asked about again, however often you come back")
+    t:ok(Z.Wanted(zone + 1, false, choice, Z.Declined(zone + 1) and (zone + 1) or nil, false), "another zone is still asked about")
+    Z.Decline(zone, was)
+    t:eq(Z.Declined(zone), was, "(put back)")
+    -- Coming into a zone starts the wait.
+    local last, entered = Z.lastHere, Z.enteredAt
+    Z.lastHere = -1
+    t:ok(pcall(Z.Check), "a look on entering a zone runs")
+    t:ok(Z.lastHere == -1 or (Z.enteredAt ~= nil and GetTime() - Z.enteredAt < 1), "and the wait starts from now")
+    Z.lastHere, Z.enteredAt = last, entered
 end)

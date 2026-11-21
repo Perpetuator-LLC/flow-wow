@@ -10,9 +10,18 @@
 -- yours, a bar comes up at the top of the screen: "You're in Stonetalon
 -- Mountains: not one of your questing zones", what it holds, and two
 -- buttons: Quest here (it becomes one of your zones, its quests come onto
--- your route) and Not now (until you leave the zone and come back). Its
--- edge pulses orange for a few seconds. Not on a flight, in a dungeon or in
--- a fight. Ctrl-drag moves it.
+-- your route) and No thanks. Its edge pulses orange for a few seconds. Not
+-- on a flight, in a dungeon or in a fight. Ctrl-drag moves it.
+--
+-- 0.35.374: "The zeppelin zones out as you're leaving Durotar and fades back
+-- in after a bit of a loading screen ... I had to say no twice. We should
+-- wait for a little while after being in that zone. And if the user's already
+-- said no, we should never ask them again for that zone."
+--   * No is kept, for this character: that zone is never asked about again.
+--     (Tick it in the Flow Router, Route, Zones, whenever you want it.)
+--   * The note waits until you've been in the zone Z.SETTLE seconds without a
+--     break, so passing through, a zeppelin leaving and the game's flickers
+--     between zones don't bring it up.
 -- Setting: "Say when you're in a zone you haven't picked" (Finding your way).
 
 local _, ns = ...
@@ -22,13 +31,28 @@ ns.zoneNotice = Z
 Z.PULSE = 6       -- seconds the edge pulses
 Z.CHECK = 2       -- seconds between looks
 Z.TOP = -170      -- where it sits, under the top of the screen (until you move it)
+Z.SETTLE = 30     -- seconds in a zone, without a break, before the note may come up
+
+-- Pure: have you been here long enough to be asked?
+function Z.Settled(seconds, wait) return (seconds or 0) >= (wait or Z.SETTLE) end
+
+-- The zones you said No to (this character), never asked about again.
+function Z.Declined(zone)
+    local no = ns.db and ns.db.nav and ns.db.nav.zoneNo
+    return zone ~= nil and no ~= nil and no[zone] == true
+end
+function Z.Decline(zone, on)
+    if not zone then return end
+    ns.db.nav.zoneNo = ns.db.nav.zoneNo or {}
+    ns.db.nav.zoneNo[zone] = on and true or nil
+end
 
 function Z.On() return not (ns.db and ns.db.nav and ns.db.nav.zoneNotice == false) end
 
 -- Pure: does the note show?
 --   here: the zone you're in; on: is it one of yours; choice: its row in the
 --   Zones list (nil: nothing there for you); dismissed: the zone you said
---   Not now to; busy: on a flight, in a dungeon or in a fight.
+--   No thanks to; busy: on a flight, in a dungeon or in a fight.
 function Z.Wanted(here, on, choice, dismissed, busy)
     if not here or on or busy or not choice or dismissed == here then return false end
     local r, w = choice.route, choice.where
@@ -85,7 +109,7 @@ local function build()
     f.later = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.later:SetSize(80, 20)
     f.later:SetPoint("BOTTOMRIGHT", -8, 7)
-    f.later:SetText("Not now")
+    f.later:SetText("No thanks")
     f.go = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.go:SetSize(96, 20)
     f.go:SetPoint("RIGHT", f.later, "LEFT", -6, 0)
@@ -101,8 +125,8 @@ local function build()
     f.later:SetScript("OnClick", function() Z.NotNow() end)
     f.later:SetScript("OnEnter", function(self)
         ns.Tip(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Not now", 1, 1, 1)
-        GameTooltip:AddLine("Until you leave this zone and come back. Your zones are in the Flow Router (Route, Zones).", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("No thanks", 1, 1, 1)
+        GameTooltip:AddLine("Flow won't ask about this zone again. To quest here later, tick it in the Flow Router (Route, Zones).", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     f.later:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -159,7 +183,7 @@ function Z.QuestHere()
         .. " is one of your zones now: its quests are on your route (Flow Router, Route, Zones).")
 end
 function Z.NotNow()
-    Z.dismissed = bar and bar.zone
+    Z.Decline(bar and bar.zone, true)
     Z.Hide()
 end
 
@@ -179,7 +203,7 @@ function Z.Check()
     local here = p and N.ZoneOf and N.ZoneOf(p.map)
     if here ~= Z.lastHere then
         Z.lastHere = here
-        if Z.dismissed ~= here then Z.dismissed = nil end   -- (left the zone: Not now is over)
+        Z.enteredAt = GetTime()   -- (a new zone, or back after a flicker: the wait starts again)
     end
     local on = here and N.ZoneOn(here)
     local choice
@@ -189,8 +213,14 @@ function Z.Check()
             if c.zone == here then choice = c break end
         end
     end
-    if Z.Wanted(here, on, choice, Z.dismissed, busy()) then Z.Show(here, choice) else Z.Hide() end
+    local settled = Z.Settled(GetTime() - (Z.enteredAt or GetTime()))
+    if settled and Z.Wanted(here, on, choice, Z.Declined(here) and here or nil, busy()) then Z.Show(here, choice) else Z.Hide() end
 end
+ns:OnLoad(function(saved)
+    saved.nav = saved.nav or {}
+    saved.nav.zoneNo = saved.nav.zoneNo or {}
+end)
+ns:PerCharacter("nav.zoneNo")
 
 ns:On("PLAYER_LOGIN", function()
     if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(Z.CHECK, function() pcall(Z.Check) end) end

@@ -195,7 +195,7 @@ Flow for WoW is a separate project from Flow Engine.
   `off <zone>`, `first`).
 - **A note when you're in a zone you haven't picked**: a bar at the top of the screen, its edge
   pulsing orange, says so and what the zone holds, with **Quest here** (it becomes one of your
-  zones) and **Not now** (until you leave and come back). Not on a flight, in a dungeon or in a
+  zones) and **No thanks** (Flow never asks about that zone again). It waits until you have been in the zone half a minute. Not on a flight, in a dungeon or in a
   fight; Ctrl-drag moves it. Off in Flow Settings (Finding your way).
 - **Alignment lines**: Ctrl + drag a Flow button and a line shows when it is level with the middle
   of the screen or with Flow's other button or the arrow; let go and it settles on the line.

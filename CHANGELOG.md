@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.374
+
+- **"Quest here?" asks once, and takes No for an answer.** Leaving Durotar on the zeppelin,
+  the note came up, you said no, the game flickered between zones and it asked again.
+  - **No is for good**: the second button is now "No thanks", and Flow never asks about that
+    zone again on this character. To quest there later, tick it in the Flow Router (Route,
+    Zones).
+  - **It waits until you've settled**: the note only comes up after 30 seconds in a zone
+    without a break, so passing through, a zeppelin leaving and the game's flickers between
+    zones don't bring it up.
 ## 0.35.373
 
 - **Fixed: the stutter in the first seconds after the game loads.** It was Flow's own
