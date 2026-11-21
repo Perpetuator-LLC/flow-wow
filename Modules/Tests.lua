@@ -787,17 +787,48 @@ ns:Register("test", "bags: sell decisions", function(t)
     v = rule("neverSell", { id = 999105 })
     t:eq(v and v.action, "keep", "bought back once: never sold again")
     ns.db.sell.never[999105] = nil
-    v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
-    t:eq(v and v.action, "sell", "material nobody of yours uses: sell")
-    with(ns.db.sell, "vendorUnpriced", false, function()
-        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
-        t:eq(v and v.action, "ah", "better material, held for the auction house (the old way, by the setting)")
-    end)
+    -- Bought back from the game's own Buyback tab, not Flow's button.
+    local V = ns.vendor
+    t:eq(V.BoughtBackId(2, { "|Hitem:2841::|h[Bronze Bar]|h", "|Hitem:2840::|h[Copper Bar]|h" }), 2840,
+         "the item at that index, as the tab was before the click")
+    t:eq(V.BoughtBackId(1, {}, function() return "|Hitem:2841::|h[Bronze Bar]|h" end), 2841,
+         "not seen before: the tab as it is now")
+    t:eq(V.BoughtBackId(1, {}, function() return nil end), nil, "nothing there: nothing remembered")
+    local had = ns.db.sell.never[2841]
+    t:ok(V.RememberBoughtBack(2841) and ns.db.sell.never[2841] == true, "bought back: on the never-sell list")
+    v = rule("neverSell", { id = 2841 })
+    t:eq(v and v.action, "keep", "and kept from then on")
+    ns.db.sell.never[2841] = had
+    t:eq(V.RememberBoughtBack(nil), false, "no item: nothing remembered")
+    -- Materials are never vendored: "That should all go on the auction house."
     with(ns.db.sell, "vendorUnpriced", nil, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+        t:eq(v and v.action, "ah", "a plain material nobody of yours uses: the auction house, not a vendor")
+        t:ok(v and v.ahCandidate, "and one whose price the auction scan looks up")
         v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 2, sellPrice = 10 })
-        t:eq(v and v.action, "sell", "better material with no auction price known: to a vendor")
-        t:ok(v and v.ahCandidate, "and still one whose price the auction scan looks up")
+        t:eq(v and v.action, "ah", "a better one with no auction price known: the auction house too")
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10,
+                                     outgrown = { Blacksmithing = "Copper Chain Belt" } })
+        t:ok(v and v.action == "ah" and v.reason:find("Blacksmithing is past it", 1, true) ~= nil,
+             "one your Blacksmithing is past: the auction house, and it says why")
     end)
+    with(ns.db.sell, "vendorUnpriced", false, function()
+        v = rule("unusedMaterial", { classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+        t:eq(v and v.action, "ah", "the setting off: the auction house as well")
+    end)
+    if ns.posting then
+        with(ns.posting, "GaveUp", function() return true, "didn't sell at auction 3 time(s)" end, function()
+            v = rule("unusedMaterial", { id = 999106, classID = 7, subclassID = 99, quality = 1, sellPrice = 10 })
+            t:ok(v and v.action == "ah" and v.reason:find("didn't sell", 1, true) ~= nil,
+                 "one that keeps coming back unsold: still not vendored, and it says so")
+        end)
+    end
+    local money = function(c) return c .. "c" end
+    v = ns.disposition.MaterialVerdict("crafting material none of your professions use", 400, nil, money)
+    t:ok(v.action == "ah" and v.reason:find("400c", 1, true) ~= nil, "a price seen: given in the reason")
+    v = ns.disposition.MaterialVerdict("crafting material none of your professions use", nil, nil, money)
+    t:ok(v.action == "ah" and v.reason:find("never a vendor", 1, true) ~= nil, "none seen: still the auction house")
+    t:eq(rule("unusedMaterial", { classID = 4, quality = 1, sellPrice = 10 }), nil, "not a material: not this rule's")
 end)
 
 ns:Register("test", "gear: weapon speed tips the balance", function(t)

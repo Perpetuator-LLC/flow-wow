@@ -561,18 +561,21 @@ if ns.settings and ns.settings.AddCheck then
         group = "loot",
         label = "Sell what has no auction price",
         note = "(off: hold green items for the auction house)",
-        tip = "Green gear and better materials you have no use for go to the auction house only when Flow has seen a "
+        tip = "Green gear you have no use for goes to the auction house only when Flow has seen a "
             .. "price there that beats the vendor after the house's cut and the listing fee (a listing that doesn't "
             .. "sell costs you the fee). With no price known they're sold to a vendor. Off: they're held with the "
-            .. "auction house mark until you've looked, as Flow used to do.",
+            .. "auction house mark until you've looked, as Flow used to do. Crafting materials always go to the auction house, "
+            .. "never a vendor.",
         get = function() return D.VendorUnpriced() end,
         set = function(on) ns.db.sell.vendorUnpriced = on and true or false; D:Invalidate() end,
     })
 end
 
 -- Crafting materials (trade goods) that none of your professions, learned
--- or planned, use: sell the plain ones; the better ones go to the auction
--- house on a price that's worth it, else to the vendor too (auctionOrVendor).
+-- or planned, use, or that your skill is past: the auction house, never a
+-- vendor. "I don't want this to sell any professional materials. That should
+-- all go on the auction house." With a price Flow has seen, the reason gives
+-- it; one that keeps coming back unsold says so, and still isn't vendored.
 -- Quest and class-quest needs were checked before this.
 -- Pure: "your First Aid is past it (Heavy Linen Bandage)".
 function D.OutgrownText(outgrown)
@@ -581,14 +584,27 @@ function D.OutgrownText(outgrown)
     table.sort(parts)
     return #parts > 0 and table.concat(parts, "; ") or nil
 end
-reg("unusedMaterial", 27, function(i)
-    if i.classID ~= 7 or i.sellPrice <= 0 then return nil end
-    local past = D.OutgrownText(i.outgrown)
-    if past then return auctionOrVendor(i, past) end
-    if (i.quality or 1) >= 2 then
-        return auctionOrVendor(i, "crafting material none of your professions use")
+-- Pure: the verdict for such a material. what: why no profession of yours
+-- wants it; ahPrice: Flow's price each (nil: none seen); unsold: why it
+-- keeps coming back from the auction house (nil: it doesn't).
+function D.MaterialVerdict(what, ahPrice, unsold, money)
+    local reason = what .. "; materials go to the auction house, never a vendor"
+    if type(ahPrice) == "number" and ahPrice > 0 then
+        reason = string.format("%s; about %s each at the auction house", what, (money or ns.Money)(math.floor(ahPrice)))
     end
-    return { action = "sell", reason = "crafting material none of your professions use" }
+    if unsold then reason = reason .. " (" .. unsold .. ")" end
+    return { action = "ah", ahCandidate = true, reason = reason }
+end
+reg("unusedMaterial", 27, function(i)
+    if i.classID ~= 7 then return nil end
+    local what = D.OutgrownText(i.outgrown) or "crafting material none of your professions use"
+    local unsold
+    local P = ns.posting
+    if P and P.GaveUp and i.id then
+        local gave, why = P.GaveUp(i.id)
+        if gave then unsold = why end
+    end
+    return D.MaterialVerdict(what, D:AuctionPrice(i.link), unsold, ns.auction and ns.auction.Money or nil)
 end)
 
 -- Gear you should wear now.
