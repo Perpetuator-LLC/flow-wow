@@ -50,11 +50,65 @@ function ns:ClassSpellSet(class)
     return set
 end
 
--- The role you're levelling as: your own choice (/flow spec dps|heal|tank)
--- or the class recommendation.
-function ns:LevelingRole()
+-- Pure: the role whose spec is your talent tree with the most points.
+-- specs: class data's { dps = { name = "Retribution" }, ... }; trees:
+-- { { name = "Holy", points = 5 }, ... }. nil: no points yet, a tie, or a
+-- tree no role is named after (a druid's Feral Combat is cat and bear).
+function ns.RoleFromTrees(specs, trees)
+    local best, most, tie = nil, 0, false
+    for _, t in ipairs(trees or {}) do
+        local p = t.points or 0
+        if p > most then
+            best, most, tie = t, p, false
+        elseif p == most and p > 0 then
+            tie = true
+        end
+    end
+    if not best or tie then return nil end
+    for role, s in pairs(specs or {}) do
+        if s.name == best.name then return role end
+    end
+    return nil
+end
+
+-- Your talent trees: { { name, points } }, read again when talents change.
+local trees
+local function talentTrees()
+    if trees then return trees end
+    local out = {}
+    if GetNumTalentTabs and GetNumTalents and GetTalentInfo and GetTalentTabInfo then
+        for tab = 1, GetNumTalentTabs() or 0 do
+            local a, b = GetTalentTabInfo(tab)
+            local name = type(a) == "number" and b or a   -- (some clients put the tab's id first)
+            local points = 0
+            for i = 1, GetNumTalents(tab) or 0 do
+                points = points + (tonumber((select(5, GetTalentInfo(tab, i)))) or 0)
+            end
+            out[#out + 1] = { name = name, points = points }
+        end
+    end
+    trees = out
+    return out
+end
+for _, event in ipairs({ "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "PLAYER_ENTERING_WORLD" }) do
+    ns:On(event, function() trees = nil end)
+end
+
+-- The spec your talents say (dps/heal/tank), or nil.
+function ns:TalentRole()
     local d = self:ClassData()
-    return (ns.db.spec and ns.db.spec.role) or (d and d.leveling.role) or "dps"
+    return ns.RoleFromTrees(d and d.specs, talentTrees())
+end
+
+-- The role Flow plays you as (gear, food, seals, Righteous Fury...): your
+-- own choice (Settings, Easy keys, "Your spec"; /flow spec dps|heal|tank);
+-- else the talent tree you've put the most points in; else the class's
+-- recommended levelling spec. "Why don't we have an option to set your spec?"
+function ns:LevelingRole()
+    local chosen = ns.db and ns.db.spec and ns.db.spec.role
+    if chosen then return chosen end
+    local d = self:ClassData()
+    return self:TalentRole() or (d and d.leveling.role) or "dps"
 end
 
 local function unspentPoints()
@@ -72,8 +126,9 @@ local function describe()
         ns.ROLE_COLOR[rec], d.specs[rec].name, ns.ROLE_LABEL[rec]))
     for _, line in ipairs(d.leveling.why) do print("  - " .. line) end
     local mine = ns:LevelingRole()
-    if mine ~= rec then
-        print(string.format("  You chose |cff%s%s|r: gear advice uses that.", ns.ROLE_COLOR[mine], d.specs[mine].name))
+    if mine ~= rec and d.specs[mine] then
+        print(string.format("  Flow plays you as |cff%s%s|r (%s).", ns.ROLE_COLOR[mine], d.specs[mine].name,
+            (ns.db.spec and ns.db.spec.role) and "your choice" or "your talents"))
     end
     local _, class = UnitClass("player")
     print(ns:Get("talentBuild", class or "")
@@ -101,13 +156,13 @@ ns.commands.spec = function(arg)
     arg = (arg or ""):lower()
     if arg == "dps" or arg == "heal" or arg == "tank" then
         ns.db.spec.role = arg
-        ns:Print("gear advice will favour " .. ns.ROLE_LABEL[arg])
+        ns:Print("Flow plays you as " .. ns:RoleName(arg) .. " (gear, food, seals...)")
     elseif arg == "auto" then
         ns.db.spec.role = nil
-        ns:Print("gear advice follows the recommended levelling spec")
+        ns:Print("spec: automatic (your talents; before talents, the recommended levelling spec)")
     else
         describe()
-        print("  /flow spec dps|heal|tank|auto to choose which role gear advice favours")
+        print("  /flow spec dps|heal|tank|auto, or Settings, Easy keys, \"Your spec\"")
     end
 end
 

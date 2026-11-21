@@ -3696,6 +3696,27 @@ ns:Register("test", "paladin: a seal goes on whenever you have none", function(t
     end)
 end)
 
+ns:Register("test", "spec: your talents set the role Flow plays you as; Righteous Fury for Protection", function(t)
+    -- "Why isn't it suggesting Righteous Fury if I'm prot? Why don't we have an option to set your spec?"
+    local specs = { dps = { name = "Retribution" }, heal = { name = "Holy" }, tank = { name = "Protection" } }
+    local function tr(h, p, r)
+        return { { name = "Holy", points = h }, { name = "Protection", points = p }, { name = "Retribution", points = r } }
+    end
+    t:eq(ns.RoleFromTrees(specs, tr(0, 11, 2)), "tank", "most points in Protection: tank")
+    t:eq(ns.RoleFromTrees(specs, tr(5, 0, 9)), "dps", "most in Retribution: dps")
+    t:eq(ns.RoleFromTrees(specs, tr(8, 1, 0)), "heal", "most in Holy: heal")
+    t:eq(ns.RoleFromTrees(specs, tr(0, 0, 0)), nil, "no points yet: nothing (the recommended spec)")
+    t:eq(ns.RoleFromTrees(specs, tr(5, 5, 0)), nil, "a tie: nothing")
+    t:eq(ns.RoleFromTrees({ dps = { name = "Feral (Cat)" } }, { { name = "Feral Combat", points = 9 } }), nil,
+        "a tree no spec is named after: nothing")
+    t:eq(ns.RoleFromTrees(specs, {}), nil, "no talent trees: nothing")
+    local def = ns:Get("rotation", "PALADIN")
+    t:ok(def.wantFury("tank", nil), "tanking: Righteous Fury")
+    t:ok(def.wantFury("dps", "prot"), "Protection talents: Righteous Fury")
+    t:ok(not def.wantFury("dps", "ret"), "Retribution: no Righteous Fury")
+    t:ok(not def.wantFury("heal", nil), "healing: no Righteous Fury")
+end)
+
 ns:Register("test", "paladin: the seal Flow suggests (talents, your choice, the seal you cast)", function(t)
     local def = ns:Get("rotation", "PALADIN")
     local knowsAll = { Knows = function() return true end }

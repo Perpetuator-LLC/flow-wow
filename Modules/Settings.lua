@@ -592,6 +592,20 @@ local function build(parent)
             "Out of combat at a fishing or gathering step, the key equips your pole, puts on a lure, casts and reels in; at veins and herbs it gathers.",
             function() return ns.db.actions.enabled ~= false end,
             function(on) ns.db.actions.enabled = on end)
+        -- Your spec: what Flow plays you as. "Why don't we have a section or an
+        -- option to set your spec?"
+        local cd = ns:ClassData()
+        if cd and cd.specs then
+            local opts = { { "Auto", "auto", 46 } }
+            for _, role in ipairs({ "dps", "heal", "tank" }) do
+                local sp = cd.specs[role]
+                if sp then opts[#opts + 1] = { sp.name, role, math.max(50, #sp.name * 7 + 16) } end
+            end
+            local tip = "What Flow plays you as: the gear it suggests, the food, a paladin's seal and Righteous Fury. Auto (the usual): the talent tree you've put the most points in; before talents, your class's recommended levelling spec. Also /flow spec. This character only."
+            f.specRow, y = choices(f, y, "Your spec", tip, opts,
+                function() return (ns.db.spec and ns.db.spec.role) or "auto" end,
+                function(v) ns.db.spec.role = v ~= "auto" and v or nil end)
+        end
         -- Paladins: the seal Flow suggests. Two rows of buttons, one choice.
         local pal = select(2, UnitClass("player")) == "PALADIN" and ns:Get("rotation", "PALADIN")
         if pal and pal.SetSeal then

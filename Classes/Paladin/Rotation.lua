@@ -129,9 +129,23 @@ local function hasAura()
     return A.Buff("player", function(n) return PALADIN_AURAS[n] end)
 end
 
+-- Righteous Fury: for Protection (your talents, or "Your spec" set to
+-- Protection) and tanking, so what you hit stays on you. Never otherwise:
+-- it only adds threat. "Why isn't it suggesting Righteous Fury if I'm prot?"
+-- Pure: role (dps/heal/tank), tree (holy/prot/ret or nil).
+local function wantFury(role, spec)
+    return role == "tank" or spec == "prot"
+end
+local function needFury(c)
+    local up, left = A.Buff("player", function(n) return n == "Righteous Fury" end)
+    return not up or (not c.inCombat and left < 30)
+end
+
 local buffs = {
     { spell = "Devotion Aura", kind = "buff", reason = "No aura",
       when = function() return not hasAura() end },
+    { spell = "Righteous Fury", kind = "buff", reason = "Protection: Righteous Fury (threat)",
+      when = function(c) return wantFury(c.role, talentTree()) and needFury(c) end },
     { spell = "Blessing of Might", kind = "buff", reason = "Blessing missing or running out",
       when = function(c) return not c.inCombat and needBlessing() end },
     -- Kings (Forever: baseline at 20) only if you don't have Might.
@@ -278,6 +292,7 @@ ns:Register("rotation", "PALADIN", {
     wantSeal = wantSeal,   -- (tests)
     pickSeal = pickSeal,   -- (tests)
     SetSeal = setSeal,     -- (settings)
+    wantFury = wantFury,   -- (tests)
     SEALS = SEALS,         -- (tests)
     groupBuffs = groupBuffs,
     -- Poisons, diseases (and magic, with Cleanse) on you or your group (Engine Dispel).

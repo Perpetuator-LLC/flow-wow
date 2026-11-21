@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Your spec: set it in Settings, or Flow reads it from your talents.** Settings, Easy keys, "Your spec": Auto or
+  one of your class's specs (also /flow spec). Auto is now the talent tree you've put the most points in (before
+  talents, the class's recommended levelling spec); it used to be the recommendation only, whatever your talents.
+  Flow uses it for gear, food and a paladin's seal.
+- **Paladin: Righteous Fury for Protection.** Suggested when your spec is Protection (talents or your choice) and
+  it's missing or running out between fights.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'
