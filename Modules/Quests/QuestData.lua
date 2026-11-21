@@ -15,8 +15,35 @@ local Q = {}
 ns.quests = Q
 
 -- A quest this many levels above you is hard (orange, then red in the
--- quest log): not offered to pick up, and planned last if it's in your log.
+-- quest log): not offered to pick up, and, solo, held off the route if it's
+-- in your log (Goals.lua) until you're within 2 levels.
 Q.HARD_ABOVE = 3
+-- Elite objectives, solo: held until you're this many levels above their mobs.
+Q.ELITE_SOLO_ABOVE = 3
+
+-- Holding hard and elite quests off the route while solo: on unless turned
+-- off in settings.
+function Q.HoldHard() return not (ns.db and ns.db.nav and ns.db.nav.holdHard == false) end
+function Q.SetHoldHard(on)
+    if ns.db and ns.db.nav then ns.db.nav.holdHard = on and nil or false end
+    if ns.nav and ns.nav.Collect then ns.nav:Collect() end
+end
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck{ group = "route", label = "Hold hard and elite quests while solo",
+        tip = "Solo, these quests in your log stay off the route (listed, locked) until you can do them: "
+            .. "one 3 or more levels above you until you're within 2 levels of it (unless every mob it needs is near your level), "
+            .. "and an elite one until you're 3 levels above its mobs. In a group they're routed as usual.",
+        get = Q.HoldHard, set = Q.SetHoldHard }
+end
+-- Joining or leaving a group changes what's held: re-plan then.
+local wasGrouped
+local function groupChanged()
+    local now = IsInGroup ~= nil and IsInGroup() or false
+    if wasGrouped ~= nil and now ~= wasGrouped and Q.HoldHard() and ns.nav and ns.nav.Collect then ns.nav:Collect() end
+    wasGrouped = now
+end
+ns:On("GROUP_ROSTER_UPDATE", groupChanged)
+ns:On("PLAYER_ENTERING_WORLD", groupChanged)
 
 -------------------------------------------------------------------------------
 -- Native game API: completed quests and quest log (always works)

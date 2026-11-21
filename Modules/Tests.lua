@@ -3471,12 +3471,46 @@ ns:Register("test", "party help: a member's quest becomes steps with their name 
     t:eq(#skipped, 1, "skip leaves out what you already cover")
     -- A level-5 quest at level 2 (3 above you): hard, planned after the easy ones.
     local hardGoals = {}
-    ns.quests.QuestGoals(db, q, hardGoals, { level = 2 })
+    ns.quests.QuestGoals(db, q, hardGoals, { level = 2, grouped = true })
     if hardGoals[2] and not hardGoals[2].blockedBy then   -- (a step with no place is listed, locked: 0.35.174)
-        t:ok(hardGoals[2].hard and hardGoals[2].weight == 1.6, "3 levels above you: hard, planned later")
+        t:ok(hardGoals[2].hard and hardGoals[2].weight == 1.6, "3 levels above you, in a group: hard, planned later")
         local easy = {}
-        ns.quests.QuestGoals(db, q, easy, { level = 3 })
-        t:ok(easy[2] and not easy[2].hard, "2 above: not hard")
+        ns.quests.QuestGoals(db, q, easy, { level = 3, grouped = false })
+        t:ok(easy[2] and not easy[2].hard and not easy[2].blockedBy, "2 above: not hard, routed solo")
+        -- Solo (an 18 sent to a level-21 quest): held off the route until level 3.
+        local solo = {}
+        ns.quests.QuestGoals(db, q, solo, { level = 2, grouped = false })
+        t:ok(not ns.quests.HoldHard() or (solo[2] and solo[2].blockedBy and solo[2].blockedBy:find("level 3") ~= nil),
+            "solo, 3 above: held, back at level 3")
+        -- Its mobs known and near your level: routed after all.
+        local near = {
+            GetQuest = db.GetQuest,
+            GetNPC = function(id)
+                local n = db.GetNPC(id)
+                if n and id == 1 then n.minLevel, n.maxLevel = 3, 4 end
+                return n
+            end,
+        }
+        local nearGoals = {}
+        ns.quests.QuestGoals(near, q, nearGoals, { level = 2, grouped = false })
+        t:ok(nearGoals[2] and not nearGoals[2].blockedBy, "solo, 3 above, but its wolves are level 3-4: routed")
+        -- Elite wolves (level 5), solo at your level: held until 3 above them.
+        local eliteDb = {
+            GetQuest = db.GetQuest,
+            GetNPC = function(id)
+                local n = db.GetNPC(id)
+                if n and id == 1 then n.rank, n.minLevel, n.maxLevel = 1, 5, 5 end
+                return n
+            end,
+        }
+        local eSolo, eGroup, eStrong = {}, {}, {}
+        ns.quests.QuestGoals(eliteDb, q, eSolo, { level = 5, grouped = false })
+        ns.quests.QuestGoals(eliteDb, q, eGroup, { level = 5, grouped = true })
+        ns.quests.QuestGoals(eliteDb, q, eStrong, { level = 8, grouped = false })
+        t:ok(not ns.quests.HoldHard() or (eSolo[2] and eSolo[2].elite and eSolo[2].blockedBy and eSolo[2].blockedBy:find("level 8") ~= nil),
+            "elite, solo at its level: held, back at level 8")
+        t:ok(eGroup[2] and eGroup[2].elite and not eGroup[2].blockedBy, "elite in a group: routed")
+        t:ok(eStrong[2] and not eStrong[2].blockedBy, "elite, solo, 3 above its mobs: routed")
     else
         t:ok(true, "(no map for the test zone here: objective step not placed)")
     end
