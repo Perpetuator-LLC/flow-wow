@@ -404,6 +404,30 @@ local function questGoals(db, q, goals, opts)
             local okE, tables = pcall(ns.quests.ExtraSpawns, quest)
             if okE and #tables > 0 then extra = (pointsFrom(tables)) end
         end
+        -- Several people marked for the quest: a step at each, named for who
+        -- they are and what they hand over (0.35.389, QuestGivers.lua:
+        -- Traditions of the Bluff was one step, "go to this area").
+        local giverKeys = {}
+        if not wp and ns.questGivers then
+            local okG, steps = pcall(ns.questGivers.StepsFor, quest, q.id)
+            if not okG then cant("its people couldn't be read: " .. tostring(steps)) end
+            for _, s in ipairs(okG and steps or {}) do
+                local pts = pointsFrom({ s.entry.spawns })
+                local gkey = prefix .. q.id .. ":giver:" .. tostring(s.entry.id or s.entry.name)
+                if #pts > 0 then
+                    giverKeys[#giverKeys + 1] = gkey
+                    if not skip(gkey) then
+                        goals[#goals + 1] = {
+                            key = gkey, points = pts, title = title, level = quest.level, kind = "use",
+                            npcs = s.entry.name and { s.entry.name } or nil, item = s.item and s.item.id or nil,
+                            text = (title and (title .. ": ") or "") .. s.text,
+                            details = { "Quest: " .. (title or "?"), s.why },
+                        }
+                    end
+                end
+            end
+            for _, k in ipairs(giverKeys) do table.insert(turnIn.deps, k) end
+        end
         if wp or #extra > 0 then
             local key = prefix .. q.id .. ":wp"
             for _ = 1, #missing do table.insert(turnIn.deps, key) end
@@ -412,8 +436,10 @@ local function questGoals(db, q, goals, opts)
                 for _, m in ipairs(missing) do d[#d + 1] = "Objective: " .. (ns.ProgressText(m.text) or "?") end
                 d[#d + 1] = wp and "Flow's quest data has no place for this: the arrow goes to the game's own marker for the quest."
                     or "The quest data doesn't say where each objective is done, but it marks these spots for the quest: the arrow goes to the nearest."
+                if #giverKeys > 0 then d[#d + 1] = "It comes after the people this quest sends you to." end
                 goals[#goals + 1] = {
                     key = key, points = wp and { wp } or extra, title = title, level = quest.level, kind = "use", area = true,
+                    deps = #giverKeys > 0 and giverKeys or nil,
                     text = (title and (title .. ": ") or "") .. (ns.ProgressText(missing[1].text) or "see your quest log"),
                     details = d,
                 }

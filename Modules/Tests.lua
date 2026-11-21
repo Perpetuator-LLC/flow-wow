@@ -18014,3 +18014,60 @@ ns:Register("test", "gear sets: a piece for a slot the spec leaves empty is want
     for _, p in ipairs(picks) do links[#links + 1] = p.link end
     t:eq(table.concat(links, ","), "[Staff],[Idol]", "the upgrade and the piece for the empty slot; not an equal piece for a filled slot, nor a worse one")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.389: the people a quest sends you round to are each a step.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: each person a quest marks is a step, named for what they hand over", function(t)
+    local QG = ns.questGivers
+    local quest = {
+        objectivesText = { "Collect a Bundle of Herbs from Nida, a Bundle of Dried Cedar Twigs from Nata, and Sinew Thread from Mahu." },
+        SpecialObjectives = {
+            { Description = "Speak with the elders", spawnList = {
+                [101] = { Id = 101, Name = "Nida Winterhoof", Spawns = { [1638] = { { 50, 50 } } } },
+                [102] = { Id = 102, Name = "Nata Dawnstrider", Spawns = { [1638] = { { 40, 40 } } } },
+                [103] = { Id = 103, Name = "Mahu", Spawns = { [1638] = { { 30, 30 } } } },
+                [104] = { Id = 104, Name = "Nal", Spawns = { [1638] = { { 20, 20 } } } },
+                [105] = { Id = 105, Name = "Nobody Here", Spawns = {} },
+            } },
+        },
+    }
+    local entries = QG.Entries(quest)
+    t:eq(#entries, 4, "the people with a place, not the one without")
+    t:eq(entries[1].name, "Mahu", "in a steady order (by name)")
+    local items = { { id = 1, name = "Bundle of Herbs" }, { id = 2, name = "Bundle of Dried Cedar Twigs" }, { id = 3, name = "Sinew Thread" }, { id = 4, name = "Ceremonial Flint and Tinder" } }
+    local text = QG.Text(quest)
+    t:ok(text:find("bundle of herbs from nida", 1, true), "the quest's own words are read")
+    t:eq(QG.ItemOf({ name = "Nida Winterhoof" }, items, text).id, 1, "Nida hands over the herbs: the words say \"... from Nida\"")
+    t:eq(QG.ItemOf({ name = "Mahu" }, items, text).id, 3, "Mahu the thread")
+    t:eq(QG.ItemOf({ name = "Nal" }, items, text), nil, "nothing in the words about Nal: no item matched")
+    t:eq(QG.ItemOf({ name = "Smith", desc = "Get the Sinew Thread" }, items, "").id, 3, "a mark's own words can name the item too")
+    local have, talked = {}, {}
+    local function steps() return QG.Steps(entries, items, text, function(id) return have[id] end, function(name) return talked[name] end) end
+    local s = steps()
+    t:eq(#s, 4, "four people: four steps")
+    local words = {}
+    for _, x in ipairs(s) do words[#words + 1] = x.text end
+    local all = table.concat(words, "|")
+    t:ok(all:find("Get Bundle of Herbs from Nida Winterhoof", 1, true) and all:find("Get Sinew Thread from Mahu", 1, true), "named for what each hands over")
+    t:ok(all:find("Speak with the elders", 1, true), "one with no item matched: the mark's own words")
+    have[1] = true
+    t:eq(#steps(), 3, "the herbs are in your bags: Nida's step is done")
+    talked["Nal"] = true
+    t:eq(#steps(), 2, "talked to Nal: that step is done")
+    t:eq(#QG.Steps({ entries[1] }, items, text, function() return false end, function() return false end), 0, "a quest with one marked spot keeps its single step")
+    t:eq(#QG.Entries(nil), 0, "no quest: nobody")
+    t:eq(QG.Text({}), "", "no words: none")
+    -- Talking to someone a quest waits on is noted, once.
+    local was, names = ns.db.quests.giverTalked, QG.names
+    ns.db.quests.giverTalked, QG.names = {}, { ["Test Elder 987654389"] = { [987654389] = true } }
+    with(ns.nav, "RequestCollect", function() end, function()
+        t:eq(QG.Talked("Test Elder 987654389"), true, "talking to them is noted")
+        t:eq(QG.Talked("Test Elder 987654389"), false, "once")
+        t:eq(QG.Talked("Somebody Else"), false, "someone no quest waits on: nothing")
+    end)
+    t:ok(ns.db.quests.giverTalked[987654389] and ns.db.quests.giverTalked[987654389]["Test Elder 987654389"], "and kept for that quest")
+    ns.db.quests.giverTalked, QG.names = was, names
+    t:ok(pcall(ns.questDump.Lines), "/flow questdata still builds")
+end)

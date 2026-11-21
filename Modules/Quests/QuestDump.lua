@@ -101,6 +101,17 @@ function QD.Quest(id)
             tostring(type(so) == "table" and (so.Description or so.Text)))
     end
     out[#out + 1] = string.format("  spots marked for the quest as a whole: %d special objective(s), %d with places", nSpecial, nSpots)
+    -- (The people among them, and what Flow makes of each: QuestGivers.lua.)
+    local QG = ns.questGivers
+    if QG then
+        local text = QG.Text(quest)
+        out[#out + 1] = "  the quest's own words: " .. (text ~= "" and text:sub(1, 300) or "none in the data")
+        for _, e in ipairs(QG.Entries(quest)) do
+            out[#out + 1] = string.format("  marked: %s (id %s): %s", tostring(e.name), tostring(e.id), tostring(e.desc))
+        end
+        local okS, steps = pcall(QG.StepsFor, quest, id)
+        for _, s in ipairs(okS and steps or {}) do out[#out + 1] = "  a step of its own: " .. tostring(s.text) end
+    end
     -- The game's own marker and what you carry.
     local okW, wx, wy = pcall(function()
         if C_QuestLog and C_QuestLog.GetNextWaypoint then return select(2, C_QuestLog.GetNextWaypoint(id)) end
@@ -120,6 +131,14 @@ function QD.Lines(arg)
     if id then return QD.Quest(id) end
     local N = ns.nav
     local list = QD.Unknown(N and N.blockedGoals or {}, function(key) return ns.focus and ns.focus.QuestOf(key) end)
+    -- (And the quests placed at spots marked for the quest as a whole, or at its people.)
+    local seen = {}
+    for _, x in ipairs(list) do seen[x] = true end
+    for _, g in ipairs(N and N.Goals and N:Goals() or {}) do
+        local key = type(g.key) == "string" and g.key or ""
+        local qid = (key:find(":wp$") or key:find(":giver:", 1, true)) and tonumber(key:match("(%d+):")) or nil
+        if qid and not seen[qid] and #list < QD.MAX then seen[qid] = true; list[#list + 1] = qid end
+    end
     local out = { string.format("quests with a step Flow can't place: %d (the quest data's record of each)", #list) }
     for _, q in ipairs(list) do
         local ok, lines = pcall(QD.Quest, q)

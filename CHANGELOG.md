@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.389
+
+- **New: the people a quest sends you round to are each a step.** Traditions of the Bluff
+  needs a bundle of herbs, cedar twigs, sinew thread and flint and tinder from four people
+  in Thunder Bluff, and Flow showed one step: go to the nearest marked spot. Now, for any
+  quest whose objective the quest data can't place but which marks two or more people:
+  - each person is a step of its own, at that person;
+  - where the data says what they hand over (the mark's own words name the item, or the
+    quest's text says "... from Nida"), the step reads "Get Bundle of Herbs from Nida
+    Winterhoof" and is done once it's in your bags;
+  - otherwise it's "Talk to (name)", done once you've talked to them;
+  - the objective itself comes after them, then the hand-in.
+- `/flow questdata` (and the diagnostics' "quest data") now also lists these quests, with
+  the quest's own words, the people marked and the steps Flow made of them.
 ## 0.35.388
 
 - **Fixed: Flow sold a relic you had no relic for.** An idol has no plain stats, only its
