@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.395
+
+- **The bar on an icon only shows while its spell is blocked, and it burns down.** As
+  0.35.393 had it, the bar filled up and, in a fight, stayed on every spell with a cost.
+  Now:
+  - it shows only while the game itself says the spell can't be cast for lack of mana,
+    rage or energy (an answer it gives in a fight too);
+  - it's blue for mana, red for rage, yellow for energy;
+  - it starts as long as what you're missing and **burns down** to nothing as that comes
+    in, like a countdown: when it's gone, cast.
 ## 0.35.394
 
 - **An item on the self button no longer hides the spell it replaced.** When a bandage,

@@ -18182,9 +18182,15 @@ ns:Register("test", "power bar: an icon shows your mana, rage or energy against 
     t:eq(P.Pick(nil, plain), nil, "no list: none")
     local c = P.Pick({ { type = 0, cost = 120 } }, hidden)
     t:ok(c and c.type == 0 and c.known == nil and c.cost == 120, "a cost the game hides still counts, and is kept for the game's own bar")
-    t:ok(P.Shows(40, 25), "25 energy for a 40 energy spell: the bar shows")
-    t:ok(not P.Shows(40, 40) and not P.Shows(40, 90), "enough: no bar")
-    t:ok(P.Shows(nil, 25) and P.Shows(40, nil), "either number hidden (in a fight): the bar stays up")
+    -- (0.35.395: only while the game says the spell is blocked for lack of it.)
+    t:ok(P.Shows(true, 40, 25), "blocked, 25 energy for a 40 energy spell: the bar shows")
+    t:ok(not P.Shows(false, 40, 25) and not P.Shows(nil, 40, 25), "not blocked on what it costs: no bar")
+    t:ok(not P.Shows(true, 40, 40) and not P.Shows(true, 40, 90), "enough by the numbers: no bar, whatever the game last said")
+    t:ok(P.Shows(true, nil, 25) and P.Shows(true, 40, nil), "blocked, a number hidden (in a fight): the bar shows")
+    t:ok(not P.Shows(false, nil, nil), "numbers hidden but not blocked: no bar")
+    t:near(P.Left(40, 10), 0.75, 0.001, "three quarters still to burn")
+    t:eq(P.Left(40, 40), 0, "nothing left: cast it")
+    t:eq(P.Left(nil, 10), nil, "hidden: Flow can't say")
     t:near(P.Fill(40, 10), 0.25, 0.001, "a quarter of the way there")
     t:eq(P.Fill(40, 80), 1, "never more than full")
     t:eq(P.Fill(nil, 10), nil, "hidden: Flow can't say how full")
@@ -18197,7 +18203,15 @@ ns:Register("test", "power bar: an icon shows your mana, rage or energy against 
     ns.db.actions = ns.db.actions or {}
     ns.db.actions.powerBar = nil
     with(P, "CostOf", function() return { type = 0, cost = 1e9, known = 1e9 } end, function()
+        t:eq(ns.PaintPower(probe, { spell = "Test Spell" }), false, "a spell the game doesn't say is blocked: no bar")
+        P.BlockedWas = P.Blocked
+        P.Blocked = function() return true end
         local ok, up = pcall(ns.PaintPower, probe, { spell = "Test Spell" })
+        if probe.flowPower then
+            local col = probe.flowPower.colour or { 0, 0, 0 }
+            t:ok(col[3] > col[1] and col[3] > col[2], "what's left is in mana's blue")
+            t:ok(not probe.flowPower.GetReverseFill or probe.flowPower:GetReverseFill() == true, "and burns down: the dark part comes in from the right")
+        end
         t:ok(ok and up == true, "a spell that costs far more than you have: its bar is up" .. (ok and "" or (": " .. tostring(up))))
         t:ok(probe.flowPower and probe.flowPower:IsShown(), "on the icon")
         if probe.flowPower then t:near(probe.flowPower:GetHeight(), 4, 0.5, "thin, across its top") end
@@ -18205,6 +18219,7 @@ ns:Register("test", "power bar: an icon shows your mana, rage or energy against 
         t:eq(ns.PaintPower(probe, { spell = "Test Spell" }), false, "turned off: no bar")
         t:ok(not probe.flowPower:IsShown(), "and it's put away")
         ns.db.actions.powerBar = nil
+        P.Blocked, P.BlockedWas = P.BlockedWas, nil
     end)
     with(P, "CostOf", function() return { type = 0, cost = 0, known = 0 } end, function()
         -- (Only where Flow can read your mana: hidden, the bar stays up by design.)

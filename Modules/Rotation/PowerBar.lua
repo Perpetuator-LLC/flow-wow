@@ -9,15 +9,15 @@
 -- being cast, we know the requirement, and we see ourselves trending
 -- towards it."
 --
--- A thin bar across the top of an icon: empty at none, full at what the
--- spell costs, in the colour of what it costs (mana blue, rage red, energy
--- yellow). It's on the target button's icon and the small icons beside it.
---   * While you have enough, there's no bar: only a spell that's waiting
---     shows one, filling as your mana, rage or energy comes in.
+-- A thin bar across the top of an icon, only while its spell can't be cast
+-- for lack of what it costs (the game's own "not enough" answer, which it
+-- gives in a fight too): in the colour of what's missing (mana blue, rage
+-- red, energy yellow), full when you have none of it and burning down to
+-- nothing as it comes in. When it's gone, the spell can be cast and so is
+-- the bar. It's on the target button's icon and the small icons beside it.
 --   * In a fight this game hides those numbers from add-ons. The bar is the
 --     game's own kind (a StatusBar), which may be handed a hidden number and
---     draws it without Flow reading it. Flow then can't tell "enough" from
---     "not yet", so the bar stays up and a full bar means ready.
+--     draws it without Flow reading it.
 -- "Show what a spell is waiting for on its icon" in Flow Settings (Easy
 -- keys) turns it off.
 -------------------------------------------------------------------------------
@@ -48,11 +48,21 @@ function P.Pick(costs, safe)
     return nil
 end
 
--- Pure: does the bar show? cost, power: the numbers, nil where hidden.
--- Enough: no. Short, or can't tell: yes.
-function P.Shows(cost, power)
-    if type(cost) == "number" and type(power) == "number" then return power < cost end
+-- Pure: does the bar show? Only while the spell is blocked for lack of what
+-- it costs (0.35.395: "we shouldn't show them unless it's actually blocked
+-- from casting on whatever it's blocked on"). The game says so itself
+-- (blocked: its "not enough mana" answer for the spell), in a fight too.
+--   cost, power: the numbers, nil where hidden: with both known and enough,
+--   no bar whatever the game said (it can lag a moment behind).
+function P.Shows(blocked, cost, power)
+    if blocked ~= true then return false end
+    if type(cost) == "number" and type(power) == "number" and power >= cost then return false end
     return true
+end
+-- Pure: how much of the bar is left to burn, 1 (nothing yet) to 0 (cast it).
+function P.Left(cost, power)
+    local fill = P.Fill(cost, power)
+    return fill and (1 - fill) or nil
 end
 -- Pure: how full, 0 to 1 (for the tests and the diagnostics; the bar itself is given the raw numbers).
 function P.Fill(cost, power)
@@ -61,6 +71,12 @@ function P.Fill(cost, power)
 end
 -- Pure: the bar's height on an icon this tall.
 function P.Height(iconHeight) return math.max(P.MIN, math.floor((iconHeight or 0) * P.SHARE + 0.5)) end
+
+-- Is the spell blocked for lack of what it costs? (The game's own answer.)
+function P.Blocked(spell)
+    local ok, _, noPower = pcall(A.Usable, spell)
+    return ok and ns.rotation.Yes(noPower, false) or false
+end
 
 local cache = {}
 function P.CostOf(spell)
@@ -83,9 +99,20 @@ local function build(host)
     bar:SetFrameLevel((host:GetFrameLevel() or 1) + 4)
     bar:SetPoint("TOPLEFT", 1, -1)
     bar:SetPoint("TOPRIGHT", -1, -1)
+    -- It burns down (0.35.395: "just like the cast timer going across, this
+    -- one's burning down as the countdown to when they can cast"). The bar is
+    -- given what you have against the cost, which the game can draw even when
+    -- it hides the numbers; what's LEFT is the part not yet filled. So the
+    -- colour is the bar's background and the fill is dark, growing in from the
+    -- right: the coloured part shrinks to the left and is gone when you can cast.
     bar.back = bar:CreateTexture(nil, "BACKGROUND")
     bar.back:SetAllPoints()
-    bar.back:SetColorTexture(0, 0, 0, 0.7)
+    bar.back:SetColorTexture(1, 1, 1, 1)
+    bar:SetStatusBarColor(0.05, 0.05, 0.05, 1)
+    if bar.SetReverseFill then bar:SetReverseFill(true) end
+    bar.edge = bar:CreateTexture(nil, "BACKGROUND", nil, -1)
+    bar.edge:SetPoint("TOPLEFT", -1, 1); bar.edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    bar.edge:SetColorTexture(0, 0, 0, 0.9)
     bar:Hide()
     host.flowPower = bar
     return bar
@@ -101,7 +128,7 @@ function ns.PaintPower(host, s)
         return false
     end
     local power = UnitPower("player", c.type)
-    if not P.Shows(c.known, A.Safe(power)) then
+    if not P.Shows(P.Blocked(s.spell), c.known, A.Safe(power)) then
         if bar then bar:Hide() end
         return false
     end
@@ -114,7 +141,8 @@ function ns.PaintPower(host, s)
     if not ok then bar:Hide() return false end
     bar:SetHeight(P.Height(host:GetHeight()))
     local col = P.COLORS[c.type] or P.OTHER
-    bar:SetStatusBarColor(col[1], col[2], col[3])
+    bar.back:SetColorTexture(col[1], col[2], col[3], 1)
+    bar.colour = col
     bar:Show()
     return true
 end
@@ -135,8 +163,8 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "key", label = "Show what a spell is waiting for on its icon",
         note = "(a bar filling with your mana, rage or energy)",
-        tip = "A thin bar across the top of the target button's icon and the small icons beside it, while the spell there costs more mana, rage or energy than you have: it fills as that comes in. "
-            .. "In a fight the game hides those numbers from add-ons, so the bar stays up and a full bar means ready.",
+        tip = "A thin bar across the top of the target button's icon and the small icons beside it, only while the spell there can't be cast for lack of mana, rage or energy: "
+            .. "blue, red or yellow, burning down as that comes in. When it's gone you can cast.",
         get = function() return P.On() end,
         set = function(on)
             ns.db.actions = ns.db.actions or {}
