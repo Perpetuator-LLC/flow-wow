@@ -3794,6 +3794,15 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(BI.FoodScore(ribs, "PALADIN") > BI.FoodScore(fish, "PALADIN"), "a paladin: Stamina and Spirit before mana")
     t:ok(BI.FoodScore(ribs, "MAGE") > BI.FoodScore(fish, "MAGE"), "a mage too: Stamina is what keeps you up")
     t:eq(BI.FoodScore({}, "MAGE"), nil, "nothing known: no score")
+    -- "Why isn't it spec specific?"
+    t:ok(BI.FoodScore(ribs, "PALADIN", "dps") > BI.FoodScore(fish, "PALADIN", "dps"), "Retribution: the ribs")
+    t:ok(BI.FoodScore(ribs, "PALADIN", "tank") > BI.FoodScore(fish, "PALADIN", "tank"), "Protection: the ribs")
+    t:ok(BI.FoodScore(fish, "PALADIN", "heal") > BI.FoodScore(ribs, "PALADIN", "heal"), "Holy: the sagefish's mana")
+    t:ok(BI.FoodScore(fish, "SHAMAN", "heal") > BI.FoodScore(ribs, "SHAMAN", "heal"), "Restoration shaman: mana too")
+    t:eq(BI.FoodScore(fish, "WARRIOR", "tank"), 0, "a warrior tank: still nothing from mana")
+    local agi = { Agility = 10 }
+    t:ok(BI.FoodScore(agi, "DRUID", "tank") > 0 and BI.FoodScore(agi, "DRUID", "heal") == 0,
+         "Agility: for a bear, not a tree")
     local bag = {
         { id = 21072, sub = 5, name = "Smoked Sagefish", score = BI.FoodScore(fish, "PALADIN") },
         { id = 2687, sub = 5, name = "Dry Pork Ribs", score = BI.FoodScore(ribs, "PALADIN") },

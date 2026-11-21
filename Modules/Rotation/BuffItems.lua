@@ -72,25 +72,42 @@ function BI.WellFedGain(lines)
     return gain
 end
 
--- What a Well Fed buff is worth to your class in a fight: Stamina for
--- everyone; Strength and Agility for those who hit; Intellect, and mana
--- every 5 seconds, only for those with mana. 0: nothing for you (Smoked
+-- What a Well Fed buff is worth to you in a fight, by your class and the
+-- spec Flow levels you as (ns:LevelingRole(): "/flow spec dps|heal|tank",
+-- else your class's usual one; the same spec gear advice uses):
+--   tank: Stamina most, then Strength/Agility;
+--   heal: mana every 5 seconds most, Intellect, Spirit (priests, druids);
+--   dps:  Stamina, Strength/Agility for those who hit, Intellect and mana
+--         for casters.
+-- Mana counts only for a class with mana. 0: nothing for you (Smoked
 -- Sagefish's mana on a warrior); nil: the tooltip doesn't say what it gives.
 -- "Why is Flow suggesting I eat my fish buff food instead of combat food?"
 -- It ate the first Well Fed food in your bags, Smoked Sagefish before
--- Dry Pork Ribs.
+-- Dry Pork Ribs. "Why isn't it spec specific?": it is now.
 local NO_MANA = { WARRIOR = true, ROGUE = true }
 local STRENGTH = { WARRIOR = true, PALADIN = true, SHAMAN = true, DRUID = true }
 local AGILITY = { ROGUE = true, HUNTER = true, WARRIOR = true, DRUID = true, SHAMAN = true }
 local CASTER = { MAGE = true, PRIEST = true, WARLOCK = true }
-function BI.FoodScore(gain, class)
+local SPIRIT_HEALER = { PRIEST = true, DRUID = true }
+function BI.FoodScore(gain, class, role)
     if type(gain) ~= "table" or next(gain) == nil then return nil end
     local mana = not NO_MANA[class]
-    local score = (gain.Stamina or 0) * 1.5 + (gain.Spirit or 0) * 0.5 + (gain.hp5 or 0) * 2
-        + (gain.Strength or 0) * (STRENGTH[class] and 1 or 0)
-        + (gain.Agility or 0) * (AGILITY[class] and 1 or 0)
-        + (gain.Intellect or 0) * (mana and (CASTER[class] and 1 or 0.5) or 0)
-        + (gain.mp5 or 0) * (mana and 2 or 0)
+    local w
+    if role == "tank" then
+        w = { Stamina = 2, Spirit = 0.25, hp5 = 2, Strength = 1, Agility = 1, Intellect = 0.25, mp5 = 0.5 }
+    elseif role == "heal" then
+        w = { Stamina = 1, Spirit = SPIRIT_HEALER[class] and 1 or 0.25, hp5 = 1,
+              Strength = 0, Agility = 0, Intellect = 1, mp5 = 3 }
+    else
+        local caster = CASTER[class]
+        w = { Stamina = 1.5, Spirit = 0.5, hp5 = 2, Strength = 1, Agility = 1,
+              Intellect = caster and 1 or 0.5, mp5 = caster and 2 or 1 }
+    end
+    if not STRENGTH[class] then w.Strength = 0 end
+    if not AGILITY[class] then w.Agility = 0 end
+    if not mana then w.Intellect, w.mp5 = 0, 0 end
+    local score = 0
+    for stat, weight in pairs(w) do score = score + (gain[stat] or 0) * weight end
     return score
 end
 
@@ -117,6 +134,10 @@ local function myClass()
     if not UnitClass then return nil end
     local _, class = UnitClass("player")
     return class
+end
+
+local function myRole()
+    return ns.LevelingRole and ns:LevelingRole() or nil
 end
 
 -- Stones and oils by name too, in case the client files one as something
@@ -240,7 +261,7 @@ local function carried()
                     or (BI.IsWeaponBuff(name) and ENHANCE_SUB)
                     or (classID == 0 and subID == FOOD_SUB and isBuffFood(id) and FOOD_SUB) or nil
                 if sub and (not A.IsUsableItem or A.IsUsableItem(id)) then
-                    local score = sub == FOOD_SUB and BI.FoodScore(BI.WellFedGain(tipLines(id)), myClass()) or nil
+                    local score = sub == FOOD_SUB and BI.FoodScore(BI.WellFedGain(tipLines(id)), myClass(), myRole()) or nil
                     out[#out + 1] = { id = id, sub = sub, name = name, spell = itemSpell(id), score = score }
                 end
             end
@@ -765,7 +786,7 @@ local function healItems()
         local kind, buff = BI.HealKind(name, classID, subID, lines, spell)
         if kind then
             out[#out + 1] = { id = id, kind = kind, name = name, rank = rankOf(id), buff = buff or nil,
-                              score = buff and BI.FoodScore(BI.WellFedGain(lines), myClass()) or nil }
+                              score = buff and BI.FoodScore(BI.WellFedGain(lines), myClass(), myRole()) or nil }
         end
     end)
     if complete then healCache = out end
