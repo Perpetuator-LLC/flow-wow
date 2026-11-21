@@ -225,6 +225,32 @@ local function druidForms()
                    alt = { "Enrage", "Growl" }, more = { "Demoralizing Roar", "Growl", "Enrage" } }
     local cat = { key = "Claw", ctrl = { "Ferocious Bite", "Rip", "Rake" }, shift = { "Rake", "Rip" },
                   alt = { "Tiger's Fury", "Dash" }, more = { "Rip", "Prowl" } }
+    -- No empty presses (0.35.396: "notice how many little squares are missing ...
+    -- we could have Nature's Grasp or Entangling Roots or sleep: the icons should
+    -- always be filled with useful skills"). At level 22 a cat knows Claw and
+    -- Rake and little else on these lists, so two presses were bare. After each
+    -- press's own spells come the form's other useful ones, then the caster's
+    -- that get you out of trouble (casting one takes you out of the form: its
+    -- tooltip says so). First you know that no other press has, as before.
+    local out = { "Nature's Grasp", "Entangling Roots", "Hibernate", "Moonfire", "Faerie Fire" }
+    local fill = {
+        caster = { "Hibernate", "Faerie Fire", "Starfire", "Insect Swarm", "Soothe Animal", "Thorns" },
+        bear = { "Faerie Fire (Feral)", "Challenging Roar", "Frenzied Regeneration" },
+        cat = { "Faerie Fire (Feral)", "Dash", "Cower", "Prowl" },
+    }
+    local function filled(form, also)
+        for _, slot in ipairs({ "ctrl", "shift", "alt", "more" }) do
+            local list = {}
+            for _, spell in ipairs(form[slot] or {}) do list[#list + 1] = spell end
+            for _, extra in ipairs(also) do
+                for _, spell in ipairs(extra) do list[#list + 1] = spell end
+            end
+            form[slot] = list
+        end
+    end
+    filled(caster, { fill.caster })
+    filled(bear, { fill.bear, out })
+    filled(cat, { fill.cat, out })
     -- Prowling in Cat Form: the opener on the key, the rest as in Cat Form.
     local prowl = { form = "Cat Form", key = { "Ravage", "Pounce", "Shred", "Rake", "Claw" },
                     ctrl = cat.ctrl, shift = cat.shift, alt = cat.alt, more = cat.more }

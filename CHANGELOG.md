@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.396
+
+- **No more bare squares beside the target button.** Each small icon (Shift, Ctrl, Alt,
+  Ctrl + Shift) took the first spell you know from a short list of its own, and stayed
+  empty when you knew none of them: a level 22 cat had Ctrl and Alt bare. Now a bare press
+  takes the next useful spell that no other press has.
+  - **Druids:** after a form's own spells come its other useful ones (Faerie Fire (Feral),
+    Dash, Cower; Challenging Roar, Frenzied Regeneration), and then the ones that get you
+    out of trouble: Nature's Grasp, Entangling Roots, Hibernate, Moonfire. Casting one of
+    those takes you out of the form; its tooltip says so. The same lists are used when you
+    change form in the middle of a fight.
+  - **Every class:** a press left bare takes the next of the fight's other spells.
+- Nothing that was on a press moves: only empty ones are filled, and no spell is on two.
 ## 0.35.395
 
 - **The bar on an icon only shows while its spell is blocked, and it burns down.** As

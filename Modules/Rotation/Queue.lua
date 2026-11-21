@@ -134,8 +134,32 @@ function Q.Slots(main, o)
     -- Shift and what Shift had goes on Ctrl. Not while Shift is your heal
     -- ("Shift + key heals" stays true where the heal lives on this key).
     if not (shift and shift.kind == "heal") then ctrl, shift = shift, ctrl end
-    local out = { key = main, ctrl = ctrl, shift = shift, alt = alt, more = more }
-    return Q.NoRepeats(out, o.keySpell)
+    local out = Q.NoRepeats({ key = main, ctrl = ctrl, shift = shift, alt = alt, more = more }, o.keySpell)
+    -- No empty presses, for any class (0.35.396): what's still bare takes the
+    -- next of the fight's other spells that no press has.
+    local have = {}
+    if o.keySpell then have[o.keySpell] = true end
+    for _, s in pairs(out) do if s.spell then have[s.spell] = true end end
+    return Q.Fill(out, o.more, have)
+end
+
+-- Pure: the bare presses filled, nearest the key first, each with the next
+-- spell of `list` that nothing has yet. slots: { ctrl, shift, alt, more };
+-- taken: { [spell] = true } (added to).
+function Q.Fill(slots, list, taken)
+    taken = taken or {}
+    local at = 1
+    for _, name in ipairs(Q.ORDER) do
+        if not slots[name] then
+            while list and list[at] and taken[list[at]] do at = at + 1 end
+            local spell = list and list[at]
+            if spell then
+                slots[name] = { spell = spell, kind = "damage", filler = true, reason = "Another spell worth having on the key here" }
+                taken[spell] = true
+            end
+        end
+    end
+    return slots
 end
 
 -- Pure: no spell on two presses ("Bash is showing as 2 of my spells on the

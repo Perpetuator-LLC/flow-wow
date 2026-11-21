@@ -18279,3 +18279,44 @@ ns:Register("test", "self button: an item on it pushes the spell it replaced ont
         pcall(K.Now, false)
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.396: no bare presses beside the target button.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "easy key: a bare press takes the next useful spell nothing else has", function(t)
+    local Q = ns.queue
+    local claw = { spell = "Claw", kind = "damage" }
+    -- A level 22 cat: Claw on the key, Rake known, the finishers not yet.
+    local slots = Q.Slots(claw, { ctrlSpell = "Rake", keySpell = "Claw",
+        more = { "Rake", "Faerie Fire (Feral)", "Nature's Grasp", "Entangling Roots", "Hibernate" } })
+    t:eq(slots.shift and slots.shift.spell, "Rake", "your second attack is still the nearest icon")
+    t:eq(slots.more and slots.more.spell, "Faerie Fire (Feral)", "Ctrl + Shift has the next of the form's spells, as before")
+    t:eq(slots.ctrl and slots.ctrl.spell, "Nature's Grasp", "Ctrl was bare: it takes the next one")
+    t:eq(slots.alt and slots.alt.spell, "Entangling Roots", "and Alt the one after")
+    t:ok(slots.ctrl.filler and slots.alt.filler and not slots.shift.filler, "(the ones filled in are marked)")
+    local seen, twice = {}, false
+    for _, name in ipairs({ "key", "shift", "ctrl", "alt", "more" }) do
+        local s = slots[name]
+        if s and s.spell then twice = twice or seen[s.spell] == true; seen[s.spell] = true end
+    end
+    t:ok(not twice, "no spell on two presses")
+    -- What's there is never moved.
+    local full = Q.Fill({ shift = { spell = "A" }, ctrl = { spell = "B" }, alt = { item = "item:1" }, more = { spell = "C" } }, { "X", "Y" }, {})
+    t:ok(full.shift.spell == "A" and full.ctrl.spell == "B" and full.alt.item == "item:1" and full.more.spell == "C", "presses that have something keep it")
+    local some = Q.Fill({ shift = { spell = "A" } }, { "A", "X" }, { A = true })
+    t:ok(some.ctrl.spell == "X" and some.alt == nil, "with one spell to hand out, one press is filled and the rest stay bare")
+    t:eq(Q.Fill({}, nil, {}).shift, nil, "nothing to hand out: nothing")
+    -- The druid's lists reach past each press's own spells.
+    local druid = ns:Get("rotation", "DRUID")
+    local forms = druid and druid.formKeys and druid.formKeys(ns.rotation)
+    if forms then
+        local cat = forms["Cat Form"]
+        local has = {}
+        for _, spell in ipairs(cat.alt) do has[spell] = true end
+        t:eq(cat.alt[1], "Tiger's Fury", "Cat Form's Alt still starts with its own spell")
+        t:ok(has["Nature's Grasp"] and has["Entangling Roots"] and has["Hibernate"], "and goes on to Nature's Grasp, Entangling Roots and Hibernate")
+        t:eq(forms.none.ctrl[1], "Moonfire", "caster: Moonfire still has Ctrl first")
+        t:ok(#forms["Bear Form"].more > 3, "Bear Form's lists go on too")
+    end
+end)
