@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.371
+
+- **Flow Improvements' link button says what it does.** Hovering it now reads "Add to custom
+  route" at the top, then the step on its own line, then the explanation: its quest line
+  becomes your route, with any lines you added before. A step that's already on your custom
+  route says so, and one that can't be walked to from where you are says "Open the step" and
+  why it isn't added.
 ## 0.35.370
 
 - **Quest levels beside steps follow the game's map filter.** The level in brackets after a

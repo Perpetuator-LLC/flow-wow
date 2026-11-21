@@ -17013,3 +17013,27 @@ ns:Register("test", "quest levels: the game's settings are read, and step labels
     t:ok(says == nil or says:find("full XP", 1, true), "a quest at your level says full XP (when levels are coloured)")
     t:eq(QL.For(nil), "", "no level: no tag")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.371: Flow Improvements' link says "Add to custom route" first.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "advice: a line's link says what the click does first, then explains", function(t)
+    local Adv = ns.advisor
+    local tip = Adv.LinkTip("goal", "the step on your route: Turn in: Curing the Sick", "Turn in: Curing the Sick", "add")
+    t:eq(tip[1], "Add to custom route", "the heading is what the click does")
+    t:eq(tip[2], "Turn in: Curing the Sick", "then the step, on a line of its own")
+    t:ok(tip[3]:find("quest line becomes your route", 1, true), "then the explanation")
+    tip = Adv.LinkTip("goal", "x", "Turn in: Curing the Sick", "on")
+    t:eq(tip[1], "On your custom route", "a step that's on it already says so")
+    tip = Adv.LinkTip("goal", "x", "Learn Expert First Aid", "open")
+    t:ok(tip[1] == "Open the step" and tip[3]:find("isn't added", 1, true), "one that can't be walked to: just opens, and says why it isn't added")
+    t:eq(Adv.LinkTip("spell", "Moonfire (put it on a bar or bind a key)")[1], "Open Moonfire (put it on a bar or bind a key)", "a spell's link reads as before")
+    t:eq(Adv.LinkTip("open", nil)[1], "Open it", "a link with nothing named")
+    t:eq(Adv.LinkState(nil), "open", "no step: nothing to add")
+    t:eq(Adv.LinkState({ key = "test:nowhere", points = {} }), "open", "a step with no place can't be added")
+    local state = Adv.LinkState({ key = "test:somewhere", points = { { map = 1 } } })
+    t:ok(state == "add" or state == "on", "a step with a place can")
+    local _, label = Adv.LinkOf({ text = "x", goalKey = "k" }, function() return { key = "k", text = "Turn in: X" } end)
+    t:eq(label, "the step on your route: Turn in: X", "the row's own words name the step")
+end)

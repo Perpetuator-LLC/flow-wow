@@ -394,10 +394,38 @@ end
 function Adv.LinkOf(item, goalOf)
     if item.onClick or item.open then return "open", item.openLabel or "it" end
     local g = item.goalKey and goalOf(item.goalKey)
-    if g then return "goal", "the step on your route: " .. tostring(g.text or g.title or item.goalKey) .. " (and add its quest line to your custom route)" end
+    if g then return "goal", "the step on your route: " .. tostring(g.text or g.title or item.goalKey) end
     if item.spell then return "spell", item.spell .. " (put it on a bar or bind a key)" end
     local link = tostring(item.text or ""):match("(|c%x+|Hitem:.-|h.-|h|r)")
     if link then return "item", link end
+end
+
+-- Pure: the link button's tooltip: what the click does first, as a heading,
+-- then the explanation on lines of its own (0.35.371: "it should just say at
+-- the very top, Add to custom route ... so people understand that these
+-- buttons add to the custom route").
+--   kind, label: Adv.LinkOf's; step: the step's words (a "goal" link);
+--   state: "add" (it can be walked to: its line joins your custom route),
+--          "on" (it's on your custom route already), "open" (it can't be added)
+--   -> { heading, line, ... }
+function Adv.LinkTip(kind, label, step, state)
+    if kind ~= "goal" then return { "Open " .. tostring(label or "it") } end
+    if state == "add" then
+        return { "Add to custom route", tostring(step or "this step"),
+                 "Its whole quest line becomes your route, with any lines you've added before. The step also opens.",
+                 "The bar under the Flow Tracker clears a custom route." }
+    elseif state == "on" then
+        return { "On your custom route", tostring(step or "this step"), "Click: open the step." }
+    end
+    return { "Open the step", tostring(step or "this step"),
+             "It can't be walked to from where you are, so it isn't added to a custom route." }
+end
+-- Which of those a step is now.
+function Adv.LinkState(g)
+    local F = ns.focus
+    if not (g and F) then return "open" end
+    if F.Active() and F.LineOf(g.key) then return "on" end
+    return F.Routable(g) and "add" or "open"
 end
 
 function Adv.Open(item, anchor)
@@ -538,9 +566,14 @@ local function buildPanel()
         end)
         r.hide:SetScript("OnLeave", function() GameTooltip:Hide() end)
         r.link:SetScript("OnEnter", function(self)
-            local _, label = Adv.LinkOf(r.row.item, goalFor)
+            local kind, label = Adv.LinkOf(r.row.item, goalFor)
             ns.Tip(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("Open " .. tostring(label), 1, 1, 1, true)
+            local g = kind == "goal" and goalFor(r.row.item.goalKey) or nil
+            for n, line in ipairs(Adv.LinkTip(kind, label, g and (g.text or g.title), Adv.LinkState(g))) do
+                if n == 1 then GameTooltip:AddLine(line, 1, 0.82, 0)
+                elseif n == 2 and kind == "goal" then GameTooltip:AddLine(line, 1, 1, 1, true)
+                else GameTooltip:AddLine(line, 0.75, 0.75, 0.75, true) end
+            end
             if r.row.item.goalKey and ns.mapOverlay then ns.mapOverlay:Preview(r.row.item.goalKey) end
             GameTooltip:Show()
         end)
@@ -562,7 +595,10 @@ local function buildPanel()
                 if row.kind == "hidden" then
                     GameTooltip:AddLine("Click to bring it back.", 1, 0.65, 0)
                 elseif opens then
-                    GameTooltip:AddLine("Click to open " .. tostring(opens) .. ".", 1, 0.65, 0, true)
+                    local kindR = Adv.LinkOf(row.item, goalFor)
+                    local gR = kindR == "goal" and goalFor(row.item.goalKey) or nil
+                    GameTooltip:AddLine((kindR == "goal" and Adv.LinkState(gR) == "add") and "Click: add to custom route (and open the step)."
+                        or ("Click to open " .. tostring(opens) .. "."), 1, 0.65, 0, true)
                 end
             end
             GameTooltip:Show()
