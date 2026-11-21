@@ -3313,6 +3313,8 @@ end
 function N:OpenInGame(goal)
     if not goal then return end
     local id = tonumber(goal.key:match("^(%d+):"))
+    -- (Its section in the log, opened if it's collapsed: MapOpen.lua, 0.35.391.)
+    if id and ns.mapOpen and ns.mapOpen.ExpandFor then pcall(ns.mapOpen.ExpandFor, id) end
     if id and questLogIndex(id) and C_QuestLog and C_QuestLog.SetSelectedQuest then
         pcall(C_QuestLog.SetSelectedQuest, id)
     end

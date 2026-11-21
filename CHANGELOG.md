@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.391
+
+- **"Select in quest log" opens the quest's section when it's collapsed.** The link's first
+  click opens the log with the quest selected and its second opens the quest itself, by
+  passing your click to the quest's own line in the game's list (which is also what turns
+  the map to the quest's zone). A quest under a collapsed section has no line, so the link
+  gave up and left you to open the section and find it. Flow now opens that section first,
+  on the first click and again if it's still shut when the second is made ready.
+- It's still two clicks on the link when the log is closed: one opens it, one opens the
+  quest. Flow can't do the second for you, because opening a quest's details from an
+  add-on is what blocks the map's own buttons in a later fight.
+- `/flow buttons` says whether this client lets Flow open a section, and what the last try
+  did.
 ## 0.35.390
 
 - **A step's card says "Add to custom route".** The button under a step's details read "Go

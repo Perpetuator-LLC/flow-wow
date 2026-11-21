@@ -18100,3 +18100,44 @@ ns:Register("test", "click: a step's card is tall enough for a long last line, a
         card:Hide()
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.391: "Select in quest log" opens the quest's collapsed section first.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest log link: a quest under a collapsed section has its section opened", function(t)
+    local O = ns.mapOpen
+    local log = {
+        { isHeader = true, isCollapsed = false }, { questID = 11 },
+        { isHeader = true, isCollapsed = true }, { questID = 22 }, { questID = 23 },
+        { isHeader = true, isCollapsed = true },
+    }
+    local function info(i) return log[i] end
+    local header, collapsed, found, shut = O.HeaderFor(#log, info, 22)
+    t:ok(header == 3 and collapsed and found, "the quest's section is the one above it, and it's collapsed")
+    t:eq(table.concat(O.ToExpand(header, collapsed, found, shut), ","), "3", "only its own section is opened")
+    header, collapsed, found, shut = O.HeaderFor(#log, info, 11)
+    t:ok(header == 1 and not collapsed and found, "a quest in an open section")
+    t:eq(#O.ToExpand(header, collapsed, found, shut), 0, "nothing to open")
+    header, collapsed, found, shut = O.HeaderFor(#log, info, 99)
+    t:ok(not found, "a quest the list doesn't show (hidden under a collapsed section)")
+    t:eq(table.concat(O.ToExpand(header, collapsed, found, shut), ","), "6,3", "every collapsed section is opened, the last first so the earlier ones keep their place")
+    t:eq(#select(4, O.HeaderFor(0, info, 22)), 0, "an empty log: nothing")
+    t:eq(#O.ToExpand(nil, false, false, nil), 0, "nothing collapsed: nothing to open")
+    -- In the game: a quest that isn't in your log opens nothing, without error.
+    if not InCombatLockdown() then
+        local was = O.lastExpand
+        -- (Only when no section is collapsed now: the test must not open yours.)
+        local anyShut = #select(4, O.HeaderFor(40, function(i)
+            if C_QuestLog and C_QuestLog.GetInfo then local ok, e = pcall(C_QuestLog.GetInfo, i) return ok and e or nil end
+        end, -1)) > 0
+        if not anyShut then
+            local ok, n = pcall(O.ExpandFor, 987654391)
+            t:ok(ok and n == 0, "a quest you don't have: no section opened" .. (ok and "" or (": " .. tostring(n))))
+        end
+        t:eq(O.ExpandFor(nil), 0, "no quest: nothing")
+        O.lastExpand = was
+    end
+    local okL, lines = pcall(O.Lines)
+    t:ok(okL and table.concat(lines, "\n"):find("the quest log's sections", 1, true), "/flow buttons says whether Flow can open a section")
+end)

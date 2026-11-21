@@ -182,6 +182,93 @@ local function mapZone()
     return info and info.name or (ok and id and tostring(id)) or nil
 end
 
+
+-------------------------------------------------------------------------------
+-- The quest's section in the log, opened (0.35.391)
+--
+-- "I click Select in quest log ... half the time everything's collapsed and
+-- I have to click like 4 things to get to it." The link's second click goes
+-- to the quest's own line in the game's list, and a quest under a collapsed
+-- section has no line: the link gave up and you were left to open the
+-- section, find the quest and click it. Flow now opens the section first.
+-- That's the game's own quest log call (ExpandQuestHeader), not a map or
+-- panel function, so the map stays untainted: the game redraws its list
+-- itself when the log changes.
+-------------------------------------------------------------------------------
+-- Pure: where a quest is in the log.
+--   n: entries; info(i) -> { isHeader, isCollapsed, questID } or nil
+-- -> its section's index (nil: none), is that section collapsed, is the quest
+--    listed at all, the collapsed sections' indexes (last first)
+function O.HeaderFor(n, info, questID)
+    local header, collapsed, found = nil, false, false
+    local shut = {}
+    local mine, mineShut
+    for i = 1, n or 0 do
+        local e = info(i)
+        if type(e) == "table" then
+            if e.isHeader then
+                header, collapsed = i, e.isCollapsed and true or false
+                if collapsed then table.insert(shut, 1, i) end
+            elseif e.questID == questID and questID ~= nil then
+                found, mine, mineShut = true, header, collapsed
+            end
+        end
+    end
+    return mine, mineShut or false, found, shut
+end
+-- Pure: the sections to open, last first (so the earlier indexes still hold).
+function O.ToExpand(header, collapsed, found, shut)
+    if found then return (header and collapsed) and { header } or {} end
+    return shut or {}       -- (not listed: it's under one of the collapsed ones)
+end
+
+local function logEntry(i)
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local ok, e = pcall(C_QuestLog.GetInfo, i)
+        if ok and type(e) == "table" then return e end
+    end
+    if GetQuestLogTitle then
+        local ok, _, _, _, isHeader, isCollapsed, _, _, questID = pcall(GetQuestLogTitle, i)
+        if ok then return { isHeader = isHeader, isCollapsed = isCollapsed, questID = questID } end
+    end
+    return nil
+end
+local function logCount()
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+        local ok, n = pcall(C_QuestLog.GetNumQuestLogEntries)
+        if ok and type(n) == "number" then return n end
+    end
+    if GetNumQuestLogEntries then
+        local ok, n = pcall(GetNumQuestLogEntries)
+        if ok and type(n) == "number" then return n end
+    end
+    return 0
+end
+
+-- Opens the section a quest is under, when it's collapsed. -> how many it opened
+function O.ExpandFor(questID)
+    if not questID then return 0 end
+    local expand = ExpandQuestHeader or (C_QuestLog and C_QuestLog.ExpandQuestHeader) or nil
+    local header, collapsed, found, shut = O.HeaderFor(logCount(), logEntry, questID)
+    local list = O.ToExpand(header, collapsed, found, shut)
+    if #list == 0 then
+        O.lastExpand = string.format("quest %s: %s", tostring(questID), found and "its section was open already" or "not in the log's list, and no section is collapsed")
+        return 0
+    end
+    if not expand then
+        O.lastExpand = string.format("quest %s: %d section(s) to open, but this client has no call to open one", tostring(questID), #list)
+        return 0
+    end
+    local n = 0
+    for _, i in ipairs(list) do
+        local ok = pcall(expand, i)
+        if ok then n = n + 1 end
+    end
+    O.lastExpand = string.format("quest %s: opened %d collapsed section(s) (%s)", tostring(questID), n, found and "its own" or "it wasn't listed, so every collapsed one")
+    ns:Log("buttons", "quest log link: " .. O.lastExpand)
+    return n
+end
+
 local overlay
 
 function O.Disarm()
@@ -283,7 +370,16 @@ function O.Arm(link, kind, before, after, questID, stepMap, follow)
         local ok, b = pcall(O.QuestButton, questID)
         target, path, open = ok and b or nil, "the quest's line in the log", false
         if not target then
+            -- Its section is collapsed (no line for it): open it, and be ready
+            -- for the click a moment later, once the game has redrawn its list.
+            local okX, opened = pcall(O.ExpandFor, questID)
             ns:Log("buttons", "quest log link: no line for quest " .. tostring(questID) .. " in the game's list (QuestScrollFrame " .. (QuestScrollFrame and "there" or "missing") .. ")")
+            if okX and (opened or 0) > 0 and not follow and C_Timer and C_Timer.After then
+                C_Timer.After(0.3, function()
+                    if InCombatLockdown() or not (link.IsVisible and link:IsVisible() and link:IsMouseOver()) then return end
+                    pcall(O.Arm, link, kind, before, after, questID, stepMap, true)
+                end)
+            end
             return false
         end
     end
@@ -324,6 +420,8 @@ function O.Lines()
     out[#out + 1] = "the map's own controls for other zones: " .. (#zc > 0 and table.concat(zc, ", ") or "none of the known ones")
     local okO, ov = pcall(O.MapOverlays)
     out[#out + 1] = "laid over the map: " .. ((okO and #ov > 0) and table.concat(ov, "; ") or (okO and "nothing" or ("unreadable: " .. tostring(ov))))
+    out[#out + 1] = "the quest log's sections: " .. ((ExpandQuestHeader or (C_QuestLog and C_QuestLog.ExpandQuestHeader)) and "Flow can open a collapsed one" or "this client has no call to open one")
+        .. (O.lastExpand and ("; last: " .. O.lastExpand) or "")
     if O.lastTurn then out[#out + 1] = O.lastTurn end
     if O.lastNav then out[#out + 1] = O.lastNav end
     local bar = WorldMapFrame and WorldMapFrame.NavBar
