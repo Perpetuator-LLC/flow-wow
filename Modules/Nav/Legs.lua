@@ -249,6 +249,7 @@ function L.PlanLegs() return L.On() and L.Yards or nil end
 -- A second has passed: where you are, where you're headed.
 function L.Tick()
     if not L.On() then return end
+    if ns.Lite and ns.Lite() then state.anchor = nil return end   -- (a raid, a dungeon: no trips to time)
     local N = ns.nav
     local p = N and N.PlayerPos and N:PlayerPos()
     if not (p and p.wx) then return end

@@ -135,7 +135,12 @@ function D:Snapshot(reason, spread)
                 print(string.format("(run at %s, %.0f ms) tests: %d passed, %d failed (%d checks)",
                     r.at, r.ms, r.passed, r.failed, r.checks))
                 for _, l in ipairs(r.out) do print(l) end
-            else c.test("") end
+            elseif ns.tests and ns.tests.Auto(spread and "login" or "logout", D:IsDev(), false, false) then c.test("")
+            else
+                -- (Not here: after login they'd stall the game for seconds, and a
+                -- release never runs them by itself. Tests.lua, 0.35.373.)
+                print("tests: not run " .. (spread and "after login" or "(only a developer install runs them at reload)") .. ". /flow test runs them.")
+            end
         end },
     }
     local i, total, slowName, slowMs = 0, 0, nil, 0

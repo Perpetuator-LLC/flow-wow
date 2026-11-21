@@ -140,6 +140,7 @@ ns.commands.perf = function(arg)
     arg = (arg or ""):lower()
     if arg == "reset" then P:Reset(); ns:Print("perf counters reset") return end
     ns:Print("performance:")
+    print("  lite mode: " .. ((ns.Lite() and ("on (" .. tostring(ns.liteWhy) .. ")")) or "off") .. (ns.loginFrames.last and ("; " .. ns.loginFrames.last) or ""))
     for _, line in ipairs(P:Report(arg == "quick")) do print(line) end
     print("  /flow perf reset")
 end
@@ -148,6 +149,22 @@ end
 -- the parts you don't need there (route planning, the arrow and minimap at
 -- full speed, map and tracker refreshes) so it never adds to lag in a boss
 -- fight. The rotation, the Flow key and bags keep running as normal.
+-- 0.35.373: a raid group counts wherever you are, and so do battlegrounds
+-- and arenas ("can we detect when in raid mode and then disable parts of the
+-- system?"). What eases off: the route is gathered at most every 20 seconds,
+-- the arrow and minimap run at 2 a second, the world map and tracker refresh
+-- every 2 s, the meters once a second, trips aren't timed, and the self-tests
+-- never run. What stays: the rotation, both buttons, the meters, bags.
+-- Pure: why lite mode is on (a few words), or nil when it isn't.
+function ns.LiteWhy(inInstance, kind, boss, inRaid, setting)
+    if setting == false then return nil end
+    if boss then return "a boss fight" end
+    if inInstance and kind == "raid" then return "in a raid" end
+    if inInstance and kind == "party" then return "in a dungeon" end
+    if inInstance and (kind == "pvp" or kind == "arena") then return "in a battleground" end
+    if inRaid then return "in a raid group" end
+    return nil
+end
 local liteAt, liteVal = 0, false
 function ns.Lite()
     local now = GetTime()
@@ -156,10 +173,27 @@ function ns.Lite()
     local inInstance, kind = false, nil
     if IsInInstance then inInstance, kind = IsInInstance() end
     local boss = IsEncounterInProgress and IsEncounterInProgress() or false
-    liteVal = (inInstance and (kind == "party" or kind == "raid")) or boss or false
-    if ns.db and ns.db.perf and ns.db.perf.lite == false then liteVal = false end
+    local inRaid = IsInRaid and IsInRaid() and true or false
+    ns.liteWhy = ns.LiteWhy(inInstance, kind, boss, inRaid, ns.db and ns.db.perf and ns.db.perf.lite)
+    liteVal = ns.liteWhy ~= nil
     return liteVal
 end
+ns:On("GROUP_ROSTER_UPDATE", function() liteAt = 0 end)
+ns:OnLoad(function(saved)
+    saved.perf = saved.perf or {}
+    -- (Here, not at file level: this file loads before Flow Settings does.)
+    if not (ns.settings and ns.settings.AddCheck) then return end
+    ns.settings:AddCheck({
+        group = "group",
+        label = "Ease off in raids, dungeons and battlegrounds",
+        note = "(lite mode)",
+        tip = "In a raid group, inside a dungeon, raid or battleground, and in a boss fight, Flow stops the work you don't need there so it never adds to lag: "
+            .. "the route is gathered far less often, the arrow, map and tracker refresh slower, trips aren't timed. Your buttons, the rotation and the meters run as always. "
+            .. "/flow perf says whether it's on right now.",
+        get = function() return not (ns.db.perf and ns.db.perf.lite == false) end,
+        set = function(on) ns.db.perf.lite = (not on) and false or nil end,
+    })
+end)
 ns:On("ENCOUNTER_START", function() liteAt = 0 end)
 ns:On("ENCOUNTER_END", function() liteAt = 0 end)
 ns:On("PLAYER_ENTERING_WORLD", function() liteAt = 0 end)

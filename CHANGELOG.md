@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.35.373
+
+- **Fixed: the stutter in the first seconds after the game loads.** It was Flow's own
+  self-tests. They ran 8 seconds after every login, spread over frames since 0.35.336, but
+  they're about 3 seconds of work and single tests take half a second, which no spreading can
+  cut up: the log showed 17 to 21 frames of 150 ms or more after each login, the longest near
+  600 ms. They no longer run by themselves after login, for anyone. `/flow test` still runs
+  them when you ask.
+- **Players no longer pay for them at logout or `/reload` either.** The diagnostics ran every
+  test as you logged out, about 3 seconds each time. Only a developer install does that now.
+- **Lite mode covers raid groups and battlegrounds.** Flow already eased off inside a dungeon
+  or raid and in a boss fight. Now also whenever you're in a raid group, wherever you are, and
+  in a battleground or arena. And it eases off more:
+  - the route is gathered at most once every 20 seconds, however many quest and bag events
+    arrive (each gathering is about 60 ms of work);
+  - the arrow and minimap run at 2 a second, the map and tracker every 2 seconds, the meters
+    once a second; trips aren't timed.
+  Your buttons, the rotation, the meters and your bags run as always. `/flow perf` says
+  whether it's on and why; Flow Settings, In a group, "Ease off in raids, dungeons and
+  battlegrounds" turns it off.
+- Fixed a self-test that failed while you were on a custom route.
 ## 0.35.372
 
 - **"Go here next" works on a step across the sea.** Those steps are locked rows (they can't

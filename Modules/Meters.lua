@@ -547,7 +547,7 @@ local acc = 0
 local driver = CreateFrame("Frame")
 driver:SetScript("OnUpdate", function(_, dt)
     acc = acc + dt
-    if acc < 0.5 then return end
+    if acc < ((ns.Lite and ns.Lite()) and 1 or 0.5) then return end   -- (lite: once a second, with 40 players to read)
     acc = 0
     local ok, err = pcall(M.Update)
     if not ok and err ~= M.lastError then M.lastError = err; ns:Log("meters", "update failed: " .. tostring(err)) end

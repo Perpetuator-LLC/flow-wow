@@ -256,8 +256,10 @@ If anything is there, fix it before other work, even if nobody mentioned it:
 
 1. Code + a test in `Modules/Tests.lua`. For anything the player clicks (a button, a menu, a
    dropdown), add a **click test**: call its OnClick script in a `pcall` the way a click would,
-   and check what should appear did (see "click:" tests). Self-tests run 8 s after every login
-   and print one red chat line if any fail, so a broken button is flagged before it's clicked.
+   and check what should appear did (see "click:" tests). Self-tests run at every `/reload` and
+   logout on a developer install (with the diagnostics), never by themselves on a release, and
+   not after login unless `/flow test login on` (0.35.373: they are about 3 s of work and made
+   the first seconds after login stutter). So a broken button shows in the next diagnostics.
    Anything that builds a menu goes through `ns.menu:RouteItems()`-style safe builders: one
    failing entry must not stop the menu opening.
 2. Before committing, run `powershell -ExecutionPolicy Bypass -File tools\lint.ps1` and get it

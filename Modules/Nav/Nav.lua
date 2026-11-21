@@ -4842,7 +4842,20 @@ local function collectSpread()
     end
     step()
 end
+-- Lite mode (a raid, a dungeon, a battleground): the route is gathered at
+-- most every N.LITE_GATHER seconds, however many quest and bag events come
+-- in (each gathering is some 60 ms of work). Pure: gather now, or later?
+N.LITE_GATHER = 20
+function N.LiteGather(lite, sinceLast, gap)
+    if not lite then return "now" end
+    return (sinceLast or math.huge) >= (gap or N.LITE_GATHER) and "now" or "later"
+end
 collectSoon = function(quiet, why)
+    if N.LiteGather(ns.Lite and ns.Lite(), GetTime() - (N.liteGatherAt or -1000)) == "later" then
+        N.litePending = true
+        return
+    end
+    N.liteGatherAt, N.litePending = GetTime(), nil
     if not quiet then busy = true end
     if pendingCollect then
         -- Waiting the 1 s: this change is picked up anyway. Gathering: the
@@ -4914,6 +4927,8 @@ ns:OnLoad(function(saved)
         -- each rebuild is ~20-40 ms (/flow perf).
         local lite = ns.Lite and ns.Lite()
         if collectAcc > 30 and not lite then collectAcc = 0; collectSoon(true) end
+        -- (What lite mode held back: once its gap has passed, or lite mode has ended.)
+        if N.litePending and N.LiteGather(lite, GetTime() - (N.liteGatherAt or -1000)) == "now" then collectSoon(true, "held back in lite mode") end
         if acc < (lite and 0.5 or 0.1) then return end   -- lite (dungeon, raid, boss): 2 a second
         acc = 0
         local ok, err = pcall(timedUpdate)

@@ -426,7 +426,7 @@ end
 -- Every entry is under a title (nothing loose at the bottom), and no entry
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
-Menu.SECTIONS = { "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
+Menu.SECTIONS = { "Custom route", "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
                   "Zones", "Steps", "Buttons", "Flow windows" }
 
 -- The menu's two ticks for Flow's buttons.

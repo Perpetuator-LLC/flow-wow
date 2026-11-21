@@ -83,7 +83,8 @@ function HP.Look()
 end
 
 ns:OnLoad(function()
-    if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(HP.EVERY, function() pcall(HP.Look) end) end
+    -- (Not in a raid or dungeon: lite mode.)
+    if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(HP.EVERY, function() if not (ns.Lite and ns.Lite()) then pcall(HP.Look) end end) end
 end)
 
 ns.commands.height = function()

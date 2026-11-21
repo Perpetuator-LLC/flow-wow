@@ -89,6 +89,13 @@ function ns.tests.Spread(list, budget, done, defer, clock, busy)
 end
 
 ns.commands.test = function(arg)
+    -- /flow test login on|off: a developer install's run 8 s after login.
+    local login = (arg or ""):lower():match("^login%s*(%a*)$")
+    if login then
+        if login == "on" or login == "off" then ns.db.tests.atLogin = (login == "on") or nil end
+        ns:Print("self-tests after login: " .. (ns.tests.AtLogin() and "on (developer installs only; they make the first seconds stutter)" or "off") .. ". /flow test login on|off")
+        return
+    end
     -- Not in a fight: many tests open Flow's windows, click their buttons and
     -- set the key, none of which the game allows mid-fight. Run in one
     -- (0.35.161) a test failed for that alone, and clicked a line of your
@@ -109,11 +116,33 @@ ns.commands.test = function(arg)
     end
 end
 
--- After every login and /reload: run them all, and if anything fails say so
--- in chat right away (one red line), so a broken button shows up before you
--- click it. The full results are in the diagnostics and /flow test.
+-- When the self-tests run by themselves (0.35.373). "Right when the game
+-- starts ... it still causes lag, it's just spread out now. Imagine somebody
+-- loads the game and they're in a raid." The log had it: 17 to 21 frames of
+-- 150 ms or more in the 40 seconds after login, the longest near 600 ms. The
+-- tests are about 3.3 seconds of work, and single tests take half a second,
+-- which no spreading can cut up. So:
+--   players (a release)     never by themselves: /flow test runs them
+--   a developer install     at /reload and logout, with the diagnostics
+--                           (the screen is going anyway); after login only
+--                           if asked for with /flow test login on, and never
+--                           in a dungeon, a raid or a battleground
+-- Pure: when: "login" | "logout"; -> run them?
+function ns.tests.Auto(when, isDev, atLogin, lite)
+    if not isDev then return false end
+    if when == "logout" then return true end
+    return atLogin == true and not lite
+end
+function ns.tests.AtLogin() return ns.db and ns.db.tests and ns.db.tests.atLogin == true end
+ns:OnLoad(function(saved) saved.tests = saved.tests or {} end)
+
 ns:On("PLAYER_LOGIN", function()
     C_Timer.After(8, function()
+        local dev = ns.diag and ns.diag.IsDev and ns.diag:IsDev() or false
+        if not ns.tests.Auto("login", dev, ns.tests.AtLogin(), ns.Lite and ns.Lite()) then
+            ns:Log("tests", "at login: not run (they cost about 3 s of work; /flow test runs them, a developer install runs them at /reload)")
+            return
+        end
         local list = {}
         for name, fn in ns:Each("test") do list[#list + 1] = { name, fn } end
         local clock = debugprofilestop or function() return GetTime() * 1000 end
@@ -17082,4 +17111,43 @@ ns:Register("test", "click: Go here next on a locked step is offered only when a
     N.planDirty = true
     N.RequestCollect("test done")
     pcall(F.UpdateBar)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.373: the self-tests are off the login path; lite mode covers raid
+-- groups and battlegrounds and holds the route's gathering back.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "tests: they don't run by themselves after login, and never on a release", function(t)
+    local A = ns.tests.Auto
+    t:ok(not A("login", false, true, false), "a release: never after login")
+    t:ok(not A("logout", false, false, false), "a release: not at logout either (it made every reload 3 s longer)")
+    t:ok(A("logout", true, false, false), "a developer install: at reload and logout, with the diagnostics")
+    t:ok(not A("login", true, false, false), "a developer install: not after login unless asked")
+    t:ok(A("login", true, true, false), "asked for (/flow test login on): after login")
+    t:ok(not A("login", true, true, true), "but never in a raid, a dungeon or a battleground")
+    t:eq(type(ns.tests.AtLogin()), "boolean", "the choice is read")
+    t:eq(type(ns.diag:IsDev()), "boolean", "whether this is a developer install is known")
+end)
+
+ns:Register("test", "perf: lite mode is on in a raid group, an instance, a battleground and a boss fight", function(t)
+    local W = ns.LiteWhy
+    t:eq(W(false, nil, false, false, nil), nil, "out in the world, alone or in a party: off")
+    t:eq(W(false, nil, false, true, nil), "in a raid group", "a raid group, wherever you are")
+    t:eq(W(true, "raid", false, true, nil), "in a raid", "inside a raid")
+    t:eq(W(true, "party", false, false, nil), "in a dungeon", "inside a dungeon")
+    t:eq(W(true, "pvp", false, false, nil), "in a battleground", "a battleground")
+    t:eq(W(false, nil, true, false, nil), "a boss fight", "a boss fight anywhere")
+    t:eq(W(true, "raid", true, true, false), nil, "switched off in Flow Settings: never")
+    t:eq(type(ns.Lite()), "boolean", "the game is asked")
+
+    local N = ns.nav
+    t:eq(N.LiteGather(false, 0), "now", "not in lite mode: the route is gathered when something changes")
+    t:eq(N.LiteGather(true, 5), "later", "in lite mode, 5 s after the last gathering: it waits")
+    t:eq(N.LiteGather(true, N.LITE_GATHER), "now", "after the gap: once")
+    t:eq(N.LiteGather(true, nil), "now", "the first one in lite mode goes ahead")
+    t:ok(N.LITE_GATHER >= 15, "the gap is long enough to matter: " .. tostring(N.LITE_GATHER) .. " s")
+    local found = false
+    for _, name in ipairs(ns.menu.SECTIONS) do found = found or name == "Custom route" end
+    t:ok(found, "(the Flow menu's sections list knows Custom route)")
 end)
