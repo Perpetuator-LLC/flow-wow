@@ -140,6 +140,53 @@ local function myRole()
     return ns.LevelingRole and ns:LevelingRole() or nil
 end
 
+local carriedForWhy   -- (carried(), set below: for BI.FoodWhy)
+
+-- Score each Well Fed food for the spec Flow plays you as NOW. (It used to be
+-- scored once, when your bags were read, so changing your spec or talents
+-- kept the old pick until your bags changed: "still giving me the wrong food".)
+local function rescored(items)
+    local class, role = myClass(), myRole()
+    for _, it in ipairs(items or {}) do
+        if it.gain then it.score = BI.FoodScore(it.gain, class, role) end
+    end
+    return items or {}
+end
+
+-- Pure: does the buff item step go before the rotation's own out-of-combat
+-- suggestion (aura, seal, blessing...)? A stone or elixir: when weaponFirst
+-- says so. Food: never; it waits until your buff spells are up. "It's
+-- overriding everything I need to use."
+function BI.ItemUrgent(food, weaponFirst)
+    if food then return false end
+    return weaponFirst and true or false
+end
+
+-- For /flow rot why: the Well Fed foods you carry, best first, with what
+-- each gives and its score for your spec.
+local function gainText(g)
+    local parts = {}
+    for stat, n in pairs(g or {}) do parts[#parts + 1] = n .. " " .. stat end
+    table.sort(parts)
+    return #parts > 0 and table.concat(parts, ", ") or "tooltip says no stats"
+end
+function BI.FoodWhy()
+    local foods = {}
+    for _, it in ipairs(rescored(carriedForWhy and carriedForWhy() or {})) do
+        if it.sub == FOOD_SUB then foods[#foods + 1] = it end
+    end
+    if #foods == 0 then return "Well Fed food: none in your bags" end
+    table.sort(foods, function(a, b) return (a.score or 0.1) > (b.score or 0.1) end)
+    local best = BI.BestBuffFood(foods)
+    local out = {}
+    for _, it in ipairs(foods) do
+        out[#out + 1] = string.format("%s%s (%s; score %s)", it == best and "*" or "", it.name or ("item " .. it.id),
+            gainText(it.gain), it.score and string.format("%.1f", it.score) or "unknown")
+    end
+    return string.format("Well Fed food for %s %s (* = Flow's pick): %s", tostring(myRole()), tostring(myClass()),
+        table.concat(out, "; "))
+end
+
 -- Stones and oils by name too, in case the client files one as something
 -- other than an item enhancement (item data on Forever can differ from
 -- classic). Only real weapon oils: "Oily Blackmouth", "Fire Oil" and "Oil of
@@ -261,14 +308,15 @@ local function carried()
                     or (BI.IsWeaponBuff(name) and ENHANCE_SUB)
                     or (classID == 0 and subID == FOOD_SUB and isBuffFood(id) and FOOD_SUB) or nil
                 if sub and (not A.IsUsableItem or A.IsUsableItem(id)) then
-                    local score = sub == FOOD_SUB and BI.FoodScore(BI.WellFedGain(tipLines(id)), myClass(), myRole()) or nil
-                    out[#out + 1] = { id = id, sub = sub, name = name, spell = itemSpell(id), score = score }
+                    local gain = sub == FOOD_SUB and BI.WellFedGain(tipLines(id)) or nil
+                    out[#out + 1] = { id = id, sub = sub, name = name, spell = itemSpell(id), gain = gain }
                 end
             end
         end
     end
     return out
 end
+carriedForWhy = carried
 
 -- About to kill a lot: at a kill / loot step, or just after a fight.
 function BI.Killing(ctx, now)
@@ -321,7 +369,7 @@ function BI.ItemStep(ctx, preview)
     if ctx and ctx.fishing then return nil end
     local killing = BI.Killing(ctx)
     if not killing and not preview then return nil end
-    local items = carried()
+    local items = rescored(carried())
     if #items == 0 then return nil end
     local enchanted = GetWeaponEnchantInfo and GetWeaponEnchantInfo() and true or false
     local it = BI.Pick(items, function(spell) return (A.Buff("player", spell)) end, mainHand(), enchanted, true)
@@ -331,8 +379,8 @@ function BI.ItemStep(ctx, preview)
     local why = killing and "You're killing here" or "Next time you fight"
     return { type = "item", item = "item:" .. it.id, icon = icon,
              targetSlot = weapon and 16 or nil, soon = not killing or nil, wellFed = food or nil,
-             urgent = BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player"),
-                 ns.rotation and (ns.rotation.hurt or 0) >= ns.rotation.HURT.outStart),
+             urgent = BI.ItemUrgent(food, BI.WeaponFirst(enemyTargeted(), UnitHealth("player"), UnitHealthMax("player"),
+                 ns.rotation and (ns.rotation.hurt or 0) >= ns.rotation.HURT.outStart)),
              label = (weapon and "Put on your weapon: " or food and "Eat: " or "Use: ") .. (it.name or "buff item"),
              reason = weapon and (why .. ": your weapon has no stone or oil on it")
                  or food and (why .. ": you aren't Well Fed")
@@ -786,7 +834,7 @@ local function healItems()
         local kind, buff = BI.HealKind(name, classID, subID, lines, spell)
         if kind then
             out[#out + 1] = { id = id, kind = kind, name = name, rank = rankOf(id), buff = buff or nil,
-                              score = buff and BI.FoodScore(BI.WellFedGain(lines), myClass(), myRole()) or nil }
+                              gain = buff and BI.WellFedGain(lines) or nil }
         end
     end)
     if complete then healCache = out end
@@ -971,7 +1019,7 @@ function BI.PickFood(items, buffFood, ready, preferBuff)
 end
 
 function BI.FoodStep(buffFood, preferBuff)
-    local it = BI.PickFood(healItems(), buffFood, itemReady, preferBuff)
+    local it = BI.PickFood(rescored(healItems()), buffFood, itemReady, preferBuff)
     if not it then return nil end
     local s = useStep(it, "heal", "Eat: " .. it.name, "Hurt after your fight: eat to heal up"
         .. (it.buff and preferBuff and " (and Well Fed for the fights ahead)" or ""))

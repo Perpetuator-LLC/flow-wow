@@ -6136,8 +6136,14 @@ ns:Register("test", "self button: buffs off the main icon, onto their own button
     t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).label, "Bandage",
         "hurt after a fight: the bandage or food before any buff")
     local feast = { item = "item:724", wellFed = true }
-    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Bandage" }).item, "item:724",
+    t:eq(BB.Pick(nil, feast, { label = "Bandage" }).item, "item:724",
         "hurt and not Well Fed: the Well Fed food before the bandage")
+    -- "The food buff is always first... it's overriding everything I need to use."
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Bandage" }).spell, "Aura",
+        "not Well Fed: your buff spell before the food")
+    t:ok(not ns.buffItems.ItemUrgent(true, true), "food never goes before the rotation's buffs on the Flow key")
+    t:ok(ns.buffItems.ItemUrgent(false, true), "a weapon stone still can")
+    t:ok(not ns.buffItems.ItemUrgent(false, false), "enemy targeted or hurt: the stone waits")
     t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, { label = "Bandage" }).item, "item:724",
         "hurt, no fight near yet: the Well Fed food still before the bandage")
     t:eq(BB.Pick({ spell = "Aura" }, nil, nil, { type = "sit" }).spell, "Aura", "by a campfire: your buffs before you sit")
@@ -6147,8 +6153,10 @@ ns:Register("test", "self button: buffs off the main icon, onto their own button
     t:eq(BB.Pick({ spell = "Aura" }, soon).spell, "Aura", "no fight near: a missing buff spell before a stone preview")
     t:eq(BB.Pick(nil, soon).item, "item:2862", "no fight near: the stone shows ahead of time")
     t:eq(BB.Pick(nil, soon, nil, { type = "sit" }).type, "sit", "by a campfire: sit before a stone preview")
-    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).item, "item:724",
-        "not Well Fed, no fight near: the food before a buff spell or the campfire")
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).spell, "Aura",
+        "not Well Fed, no fight near: a buff spell before the food")
+    t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).item, "item:724",
+        "not Well Fed, no buff spell due: the food before the campfire")
     local aura = { spell = "Aura" }
     t:ok(not BB.Bright(aura, false), "no fight near: the next buff is faded")
     t:ok(BB.Bright(aura, true), "a fight near: the buff lights up")
