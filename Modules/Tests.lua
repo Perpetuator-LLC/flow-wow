@@ -18370,3 +18370,31 @@ ns:Register("test", "easy key: your stop always has a press, and lights up when 
     E.castSeen, E.stopAdvised, E.stopFor = seen, advised, nil
     t:ok(pcall(Q.StopLines), "/flow stops builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.398: what a quest asks for, lying in your bank, counts as had.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: a thing in your bank isn't asked for again, and there's a step to take it out", function(t)
+    local QM, Q = ns.questMarks, ns.quests
+    local have, need = QM.Count("0/5")
+    t:ok(have == 0 and need == 5, "an objective's count is read")
+    t:eq((QM.Count("")), nil, "no count: none")
+    t:eq((QM.Count(nil)), nil, "nothing: none")
+    t:eq(Q.FromBank(5, 2), 3, "two in your bags of five: three to take out")
+    t:eq(Q.FromBank(1, 0), 1, "one of one")
+    t:eq(Q.FromBank(nil, nil), 1, "no count known: at least one")
+    t:eq(Q.FromBank(5, 5), 1, "never none")
+    local bank = ns.db.bank
+    local was = bank and bank.items
+    ns.db.bank = ns.db.bank or {}
+    ns.db.bank.items = { [987654398] = 5, [987654399] = 1 }
+    t:ok(QM.InBank(987654398, "0/5"), "five in the bank of five asked for: you have it")
+    t:ok(QM.InBank(987654398, "2/5"), "with two in your bags as well")
+    t:ok(not QM.InBank(987654399, "0/5"), "one in the bank of five asked for: not yet")
+    t:ok(not QM.InBank(987654400, "0/1"), "none in the bank: no")
+    t:ok(not QM.InBank(nil, "0/1"), "no item: no")
+    if bank then bank.items = was else ns.db.bank = nil end
+    t:ok(pcall(QM.Lines), "/flow quest still lists the marks")
+    t:eq(type(QM._banked), "table", "what's in the bank is kept apart from what's still to collect")
+end)

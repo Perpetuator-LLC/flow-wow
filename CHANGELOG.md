@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.398
+
+- **A quest thing in your bank counts as had, everywhere.** With Chen's Empty Keg's horn,
+  kidneys and tusks in the bank, the route had already stopped sending you to collect
+  them, but two things still ignored the bank:
+  - **the marks and tooltips on mobs** said "Thunder Lizard Horn 0/1" on Stormsnout and
+    the rest, as if you still needed the drop (which the game won't even give you while
+    you own it). Mobs are no longer marked for a thing that's in your bank;
+  - **the hand-in was never planned**, because nothing took the place of the steps left
+    out. There's now a step at a banker, "Chen's Empty Keg: take 1 Thunder Lizard Horn, 5
+    Plainstrider Kidney and 5 Savannah Lion Tusk out of your bank", and the hand-in follows
+    it.
+- Flow goes by the bank as it last saw it: open your bank once after an update for it to
+  be current. `/flow quest` lists what it counts as in your bank.
 ## 0.35.397
 
 - **A way to stop a cast always has a press.** Flow already advises your stop when your

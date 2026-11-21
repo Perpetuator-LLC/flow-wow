@@ -190,6 +190,7 @@ local function questGoals(db, q, goals, opts)
         end
     end
     if q.complete then return end
+    local inBank = {}   -- objectives whose things lie in your bank: { id, name, n }
     for i, obj in ipairs(q.objectives) do
         local od = quest.ObjectiveData and quest.ObjectiveData[i]
         -- "Raise your X skill to N": planned by SkillPlan.lua (gather,
@@ -204,6 +205,12 @@ local function questGoals(db, q, goals, opts)
         -- collect it again, 0.35.351; Flow Banker brings it out when the
         -- quest can go on.)
         local banked = od and od.Type == "item" and not opts.who and ns.questBags and ns.questBags.InBank(od.Id, obj.need, obj.have)
+        -- (0.35.398: and a step to go and take it out, so the hand-in can be planned.)
+        if banked and not obj.finished then
+            local it = call(db, "GetItem", od.Id)
+            inBank[#inBank + 1] = { id = od.Id, name = it and it.name or "what it asks for",
+                n = ns.quests.FromBank(obj.need, obj.have) }
+        end
         if not obj.finished and od and not skillObj and not banked then
             local spawns, verb, what, elite = {}, nil, nil, false
             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
@@ -332,6 +339,39 @@ local function questGoals(db, q, goals, opts)
                 cant(string.format("objective %d (%s): a kind Flow can't place (%s)", i, tostring(obj.text or "?"), tostring(od.Type)))
                 missing[#missing + 1] = { key = key, text = obj.text, why = why, kind = "use" }
             end
+        end
+    end
+    -- What the quest asks for is in your bank (0.35.398). "I have a bunch of
+    -- quest items in my bank ... it keeps telling me to come out here to do
+    -- these quests, and I don't need to. Those should have been taken out of
+    -- the bank and turned in." The steps to collect them were already left out
+    -- (0.35.351), but nothing took their place, so the hand-in counted as
+    -- waiting on an objective Flow couldn't place and was never planned. Now
+    -- there's a step at a banker to take them out, and the hand-in follows it.
+    if #inBank > 0 and not opts.who then
+        local key = prefix .. q.id .. ":bank"
+        local pts, names = {}, {}
+        if ns.skillPlan and ns.skillPlan.BankerPoints then
+            local okB, p, nm = pcall(ns.skillPlan.BankerPoints)
+            if okB then pts, names = p or {}, nm or {} end
+        end
+        local fetch, words = {}, {}
+        for _, b in ipairs(inBank) do
+            fetch[b.id] = b.n
+            words[#words + 1] = string.format("%d %s", b.n, b.name)
+            table.insert(turnIn.deps, key)
+        end
+        if not skip(key) then
+            goals[#goals + 1] = {
+                key = key, points = pts, npcs = #names > 0 and names or nil, title = title, level = quest.level, kind = "merchant",
+                fetch = fetch,
+                text = (title and (title .. ": ") or "") .. "take " .. ns.quests.AndList(words) .. " out of your bank",
+                details = { "Quest: " .. (title or "?"),
+                    "You already have what this quest asks for: it's in your bank, where the quest log doesn't count it. Take it out and the quest is ready to hand in.",
+                    "Flow Banker's To sell list has a Take out button for it while the bank is open." },
+                blockedBy = #pts == 0 and "What it asks for is in your bank, and Flow knows no banker to send you to yet (talk to one once)." or nil,
+                blockedShort = #pts == 0 and "in your bank" or nil,
+            }
         end
     end
     -- Something the quest needs you to have before the rest can be done
@@ -567,6 +607,11 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     return "unknown"
 end
 
+-- Pure: how many of a thing to take out of the bank for an objective (what's
+-- still missing from your bags; at least one).
+function ns.quests.FromBank(need, have)
+    return math.max(1, (tonumber(need) or 1) - (tonumber(have) or 0))
+end
 -- Pure: who has an item that nothing drops: the NPCs the quest data lists as
 -- selling it ({ ids }; none: {}).
 function ns.quests.Givers(item)

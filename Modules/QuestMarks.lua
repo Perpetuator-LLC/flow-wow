@@ -96,6 +96,20 @@ end
 
 -- odItem: Questie's objective data for this objective (if available), so
 -- item objectives know which mobs drop the item without having to learn it.
+-- Pure: "3/5" -> have, need (nil, nil when it isn't a count).
+function ns.questMarks.Count(count)
+    local have, need = tostring(count or ""):match("^(%d+)/(%d+)$")
+    return tonumber(have), tonumber(need)
+end
+-- Is enough of an objective's item in your bank (with what's in your bags)?
+function ns.questMarks.InBank(itemId, count)
+    local QB = ns.questBags
+    if not (QB and QB.InBank and itemId) then return false end
+    local have, need = ns.questMarks.Count(count)
+    return QB.InBank(itemId, need, have) and true or false
+end
+local banked = {}   -- [item name, lower case] = its count: asked for, and in your bank
+ns.questMarks._banked = banked   -- (tests, the diagnostics)
 local function addObjective(text, kind, finished, od)
     if finished or not text or text == "" then return end
     local name, count = parseObjective(text)
@@ -104,6 +118,13 @@ local function addObjective(text, kind, finished, od)
         kills[lname] = kills[lname] or {}
         table.insert(kills[lname], count or "")
     elseif kind == "item" then
+        -- (0.35.398: enough of it lies in your bank: you have it. No mark on the
+        -- mobs that drop it, no "0/1" in their tooltips: you wouldn't even get
+        -- the drop. The route has a step to take it out instead, Goals.lua.)
+        if od and od.Type == "item" and ns.questMarks.InBank(od.Id, count) then
+            banked[lname] = count or ""
+            return
+        end
         items[lname] = count or ""
         local item = od and od.Type == "item" and ns.quests:QuestieGet("GetItem", od.Id)
         for _, npcId in ipairs(item and item.npcDrops or {}) do
@@ -124,7 +145,7 @@ local function questieObjectives(questID)
 end
 
 local function readQuests()
-    wipe(kills); wipe(items); wipe(texts); wipe(dropsBy)
+    wipe(kills); wipe(items); wipe(texts); wipe(dropsBy); wipe(banked)
     if C_QuestLog and C_QuestLog.GetInfo and C_QuestLog.GetNumQuestLogEntries then
         for i = 1, C_QuestLog.GetNumQuestLogEntries() do
             local info = C_QuestLog.GetInfo(i)
@@ -448,6 +469,7 @@ function ns.questMarks.Lines()
         add("  collect: " .. name .. " " .. c .. (#from > 0 and (" (drops from " .. table.concat(from, ", ") .. ")") or ""))
         n = n + 1
     end
+    for name, c in pairs(banked) do add("  in your bank: " .. name .. " " .. c .. " (enough with what you carry: not marked on the mobs that drop it)") end
     if n == 0 then add("  no open kill/collect objectives") end
     for mob, pm in pairs(profMobsNow()) do
         add(string.format("  for %s: %s drops %s (%s)", tostring(pm.prof), mob, tostring(pm.loot),
