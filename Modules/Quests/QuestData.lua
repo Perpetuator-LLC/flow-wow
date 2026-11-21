@@ -18,6 +18,48 @@ ns.quests = Q
 -- quest log): not offered to pick up, and, solo, held off the route if it's
 -- in your log (Goals.lua) until you're within 2 levels.
 Q.HARD_ABOVE = 3
+-- (0.35.379) How far above you a quest may be is yours to set (the Flow menu,
+-- "Quest levels"): ns.db.nav.questsAbove levels, +2 as it comes. That's where
+-- the game's quest log turns from yellow to orange (yellow to 2 above you,
+-- orange 3 and 4, red 5 or more), and where levelling guides and Questie's
+-- "available quests" range draw the line too.
+Q.ANY_ABOVE = 99
+Q.ABOVE = {
+    { n = 0, label = "Your level and below" },
+    { n = 1, label = "Up to 1 level above you" },
+    { n = 2, label = "Up to 2 above (yellow in your quest log; as Flow comes)" },
+    { n = 3, label = "Up to 3 above (orange)" },
+    { n = 4, label = "Up to 4 above (orange)" },
+    { n = Q.ANY_ABOVE, label = "Any level (red ones too)" },
+}
+-- Pure: the saved choice -> levels above you (anything else: the default).
+function Q.AboveOf(saved)
+    if type(saved) == "number" and saved >= 0 then return math.floor(saved) end
+    return Q.HARD_ABOVE - 1
+end
+function Q.Above() return Q.AboveOf(ns.db and ns.db.nav and ns.db.nav.questsAbove) end
+-- A quest this many levels above you, or more, is past your limit.
+function Q.HardAbove() return Q.Above() + 1 end
+function Q.SetAbove(n)
+    if not (ns.db and ns.db.nav) then return end
+    ns.db.nav.questsAbove = (n ~= Q.HARD_ABOVE - 1) and n or nil
+    if ns.nav then
+        ns.nav.planDirty = true
+        if ns.nav.Collect then ns.nav:Collect() end
+    end
+end
+-- The Flow menu's "Quest levels" entries: one choice.
+function Q.AboveItems()
+    local items = {}
+    for _, ch in ipairs(Q.ABOVE) do
+        items[#items + 1] = { text = ch.label, radio = true, stay = true, above = ch.n,
+            checked = Q.Above() == ch.n,
+            refresh = function(it) it.checked = Q.Above() == ch.n end,
+            tip = "Quests above this aren't offered to pick up. Solo, one already in your log waits off the route (listed, locked) until you're within this many levels of it, unless every mob it needs is. Elite quests wait until you're 3 above their mobs, whatever you pick here.",
+            func = function() Q.SetAbove(ch.n) end }
+    end
+    return items
+end
 -- Elite objectives, solo: held until you're this many levels above their mobs.
 Q.ELITE_SOLO_ABOVE = 3
 
@@ -31,7 +73,7 @@ end
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck{ group = "route", label = "Hold hard and elite quests while solo",
         tip = "Solo, these quests in your log stay off the route (listed, locked) until you can do them: "
-            .. "one 3 or more levels above you until you're within 2 levels of it (unless every mob it needs is near your level), "
+            .. "one above your limit (Flow menu, Quest levels: 2 levels above you as it comes) until you're within it (unless every mob it needs is near your level), "
             .. "and an elite one until you're 3 levels above its mobs. In a group they're routed as usual.",
         get = Q.HoldHard, set = Q.SetHoldHard }
 end

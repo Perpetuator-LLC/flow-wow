@@ -131,6 +131,63 @@ function C.WhenText(weight)
     return "Planned after what's left to do here: you're far from it."
 end
 
+-------------------------------------------------------------------------------
+-- A cast in place of the crossing (0.35.379)
+--
+-- "One of my shortcuts is to jump over and go back to Kalimdor using my
+-- hearthstone and Crossroads. We also have the Moonglade teleport." Your
+-- hearthstone (ready, and set on the continent your steps wait on) and a
+-- travel spell you know (TravelSpells.lua) are ways across too. Each way is
+-- measured the same: what it costs you here, plus the run from where it lands
+-- to the nearest of your steps there. The shortest is the step.
+--   zeppelin or boat: the run to its boarding place;
+--   a cast: C.CAST_YARDS (ten seconds standing still).
+-- A cast's step is where you stand and comes after what's left to do on this
+-- continent (unless you picked it with "Go here next"); the arrow shows the
+-- cast's icon and your Flow key casts it (TravelIcon.lua).
+-------------------------------------------------------------------------------
+C.CAST_YARDS = 120
+-- Pure: the best cast to `cont`: { cast, yards, near } or nil.
+--   casts: { { kind = "hearth" | "spell", spell, name, land = { cont, wx, wy } } }
+function C.BestCast(casts, cont, targets)
+    local best
+    for _, ca in ipairs(casts or {}) do
+        if ca.land and ca.land.cont == cont then
+            local near
+            for _, t in ipairs(targets or {}) do
+                if t.cont == cont then
+                    local d = dist(ca.land.wx, ca.land.wy, t.wx, t.wy)
+                    if not near or d < near then near = d end
+                end
+            end
+            if near and (not best or C.CAST_YARDS + near < best.yards) then best = { cast = ca, yards = C.CAST_YARDS + near, near = near } end
+        end
+    end
+    return best
+end
+-- Pure: does the cast beat the ride? (No ride: yes.)
+function C.CastWins(castYards, rideYards)
+    if not castYards then return false end
+    return rideYards == nil or castYards < rideYards
+end
+-- Pure: "Hearthstone to The Crossroads (95 steps wait in Kalimdor)".
+function C.CastText(cast, n, continent)
+    local how = cast.kind == "hearth" and ("Hearthstone to " .. tostring(cast.name or "your inn")) or ("Cast " .. tostring(cast.spell))
+    return string.format("%s (%d step%s wait%s in %s)", how, n, n == 1 and "" or "s", n == 1 and "s" or "", tostring(continent or "another continent"))
+end
+-- Pure: the steps to do first, here: every step with a place on this continent.
+--   awayOf(goal) -> the continent it's on when that isn't yours, else nil
+function C.HereKeys(goals, awayOf)
+    local out = {}
+    for _, g in ipairs(goals or {}) do
+        if type(g.key) == "string" and not g.key:find("^cross:") and not g.blockedBy and not g.optional
+            and type(g.points) == "table" and #g.points > 0 and awayOf(g) == nil then
+            out[#out + 1] = g.key
+        end
+    end
+    return out
+end
+
 -- The step's words: "Zeppelin to Undercity (3 steps wait in the Eastern Kingdoms)".
 function C.Text(how, toName, n, continent)
     local ride = how == "boat" and "Boat" or "Zeppelin"
@@ -231,11 +288,41 @@ ns:Register("navGoal", "crossing", {
         local me = N and N.PlayerPos and N:PlayerPos()
         if not (me and me.cont ~= nil and me.wx) then return nil end
         local list = C.List()
-        if #list == 0 then return nil end
+        local casts = C.Casts(me)
+        if #list == 0 and #casts == 0 then return nil end
         local goals = {}
         for cont, e in pairs(C.Waiting(me)) do
             local best = C.Best(list, me, e.targets)
-            if best then
+            local byCast = C.BestCast(casts, cont, e.targets)
+            if byCast and C.CastWins(byCast.yards, best and best.yards) then
+                -- (0.35.379) Your hearthstone or a travel spell is the shorter way over.
+                local n, ca = #e.goals, byCast.cast
+                local key = "cross:" .. tostring(cont)
+                local picked = N.selection and N.selection.first == key
+                local details = {
+                    string.format("%d step%s of yours %s in %s, where the route can't take you on foot:", n, n == 1 and "" or "s", n == 1 and "is" or "are", C.NAMES[cont] or "another continent"),
+                }
+                for i = 1, math.min(5, n) do details[#details + 1] = "- " .. tostring(e.goals[i].text or e.goals[i].title or e.goals[i].key) end
+                if n > 5 then details[#details + 1] = string.format("- and %d more", n - 5) end
+                details[#details + 1] = ca.kind == "hearth"
+                    and string.format("Your hearthstone is ready and set to %s, about %d yd from the nearest of them.", tostring(ca.name), byCast.near)
+                    or string.format("%s lands about %d yd from the nearest of them.", tostring(ca.spell), byCast.near)
+                details[#details + 1] = best and string.format("Shorter than the %s from %s (about %d yd of running against %d).", tostring(best.cr.how), tostring(best.from.name), byCast.yards, best.yards)
+                    or "No zeppelin or boat joins them from here."
+                details[#details + 1] = picked and "You picked it: it's your next step." or "It comes after what's left to do here. \"Go here next\" on it to go now."
+                goals[#goals + 1] = {
+                    key = key, kind = "merchant", weight = 1, toCont = cont,
+                    cast = { kind = ca.kind, spell = ca.spell, text = ca.kind == "hearth" and ("Use your hearthstone (" .. tostring(ca.name) .. ")") or ("Cast " .. tostring(ca.spell)) },
+                    points = { { cont = me.cont, wx = me.wx, wy = me.wy, map = me.map, x = me.x, y = me.y } },
+                    title = "Crossing", text = C.CastText(ca, n, C.NAMES[cont]),
+                    details = details, forQuests = C.QuestsOf(e.goals),
+                    deps = (not picked) and C.HereKeys(N:Goals(), function(g)
+                        local ok, away = pcall(N.AwayCont, g, me.cont)
+                        if not ok then return true end
+                        return away
+                    end) or nil,
+                }
+            elseif best then
                 local n = #e.goals
                 local details = {
                     string.format("%d step%s of yours %s in %s, where the route can't take you on foot:", n, n == 1 and "" or "s", n == 1 and "is" or "are", C.NAMES[cont] or "another continent"),
@@ -259,6 +346,32 @@ ns:Register("navGoal", "crossing", {
         return goals
     end,
 })
+-- The casts that cross from where you are: your hearthstone (ready, bound on
+-- another continent) and the travel spells you know that land on one.
+function C.Casts(me)
+    local out = {}
+    local H, TS = ns.hearth, ns.travelSpells
+    if H and H.BindPoint and C.HearthReady() and ns.api.Count(H.ITEM) > 0 then
+        local ok, p, bind = pcall(H.BindPoint, H)
+        local land = ok and p and world(p) or nil
+        if land and land.cont ~= me.cont then out[#out + 1] = { kind = "hearth", name = bind, land = land } end
+    end
+    if TS and TS.Mine then
+        local ok, mine = pcall(TS.Mine)
+        for _, s in ipairs(ok and mine or {}) do
+            local land = world({ map = s.map, x = 0.5, y = 0.5 })
+            if land and land.cont ~= me.cont then out[#out + 1] = { kind = "spell", spell = s.name, name = s.name, land = land } end
+        end
+    end
+    return out
+end
+-- The cast a crossing step stands for ({ kind, spell, text }), or nil: a ride.
+function C.CastOf(key)
+    for _, g in ipairs(C.last or {}) do
+        if g.key == key then return g.cast end
+    end
+    return nil
+end
 -- Is your hearthstone ready (and set somewhere)? The way back from across the sea.
 function C.HearthReady()
     local H = ns.hearth
@@ -336,7 +449,13 @@ function C.Lines()
     for _, e in ipairs(list) do
         out[#out + 1] = string.format("  %s: %s %s <-> %s%s", e.key, tostring(e.cr.how), tostring(e.cr.a.name), tostring(e.cr.b.name), e.learned and " (corrected from a trip of yours)" or "")
     end
-    for _, g in ipairs(C.last or {}) do out[#out + 1] = "  on your route: " .. tostring(g.text) end
+    for _, g in ipairs(C.last or {}) do out[#out + 1] = "  on your route: " .. tostring(g.text) .. (g.cast and " (a cast)" or "") end
+    local me = ns.nav and ns.nav.PlayerPos and ns.nav:PlayerPos()
+    if me and me.cont ~= nil then
+        local names = {}
+        for _, ca in ipairs(C.Casts(me)) do names[#names + 1] = (ca.kind == "hearth" and "hearthstone to " or "") .. tostring(ca.name) end
+        out[#out + 1] = "  casts that cross from here: " .. (#names > 0 and table.concat(names, ", ") or "none (hearthstone not ready, or set on this continent; no travel spell that lands across the sea)")
+    end
     if #(C.last or {}) == 0 then out[#out + 1] = "  nothing of yours waits on another continent (or no crossing joins them)" end
     return out
 end
@@ -352,5 +471,6 @@ ns.commands.crossings = function(arg)
 end
 ns:Register("help", "crossings", { order = 38, title = "Crossing to another continent", lines = {
     "While steps of yours wait on another continent, your route gets a step at the zeppelin tower or dock that gets you there, by the crossing that makes the whole trip shortest. It comes after what's left to do here.",
+    "When your hearthstone (ready, and set over there) or a travel spell such as Teleport: Moonglade gets you nearer your steps than the zeppelin would, the step is that cast: the arrow shows its icon and your Flow key casts it.",
     "The boarding places are Classic's and may be a little off: Flow corrects each from where you actually board. /flow crossings lists them. Route includes has a tick for the step.",
 } })

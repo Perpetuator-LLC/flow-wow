@@ -244,7 +244,7 @@ local function questGoals(db, q, goals, opts)
             -- A quest 3+ levels above you (orange or red): its mobs hit hard.
             -- Planned later, like elites, so the easier ones come first.
             local myLevel = opts.level or UnitLevel("player")
-            local hard = (quest.level or 0) - myLevel >= ns.quests.HARD_ABOVE
+            local hard = (quest.level or 0) - myLevel >= ns.quests.HardAbove()
             -- Solo, these stay off the route (listed, locked) until you can do
             -- them; in a group, or with holding turned off, they're routed.
             --   hard: until you're within 2 levels (at 18, a level-21 quest's
@@ -262,8 +262,8 @@ local function questGoals(db, q, goals, opts)
                 local grouped = opts.grouped
                 if grouped == nil then grouped = opts.who ~= nil or (IsInGroup ~= nil and IsInGroup()) end
                 if not grouped then
-                    if hard and not (mobMax and mobMax - myLevel < ns.quests.HARD_ABOVE) then
-                        held = (quest.level or 0) - ns.quests.HARD_ABOVE + 1
+                    if hard and not (mobMax and mobMax - myLevel < ns.quests.HardAbove()) then
+                        held = (quest.level or 0) - ns.quests.HardAbove() + 1
                     end
                     if elite then
                         local soloAt = (mobMax or quest.level or 0) + ns.quests.ELITE_SOLO_ABOVE
@@ -293,9 +293,9 @@ local function questGoals(db, q, goals, opts)
                             local d = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(objText) or "?") }
                             if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
                             if held then d[#d + 1] = string.format("%s Held off the route until level %d, or until you're in a group (setting: Hold hard and elite quests while solo).",
-                                    elite and "Elite: hard to solo at this level." or string.format("Level %d: 3 or more levels above you, so its mobs hit hard.", quest.level), held)
+                                    elite and "Elite: hard to solo at this level." or string.format("Level %d: above your limit for quest levels (Flow menu, Quest levels), so its mobs hit hard.", quest.level), held)
                             elseif elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
-                            if hard and not held then d[#d + 1] = string.format("Level %d: 3 or more levels above you, so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
+                            if hard and not held then d[#d + 1] = string.format("Level %d: above your limit for quest levels (Flow menu, Quest levels), so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
                             if verb == "Collect" and what then d[#d + 1] = what .. " drops from (level): chance" end
                             for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
                             -- (Seen for sale at the auction house: it can be bought, QuestBuy.lua.)
@@ -643,7 +643,7 @@ ns:Register("navGoal", "pickups", {
         -- And not ones above you that are hard (orange or red, 3+ levels up):
         -- they come back as you level. (A level-5 tauren was offered level-8
         -- quests and found them very hard; a level-1 one was sent 700 yd for one.)
-        local ceiling = level + ns.quests.HARD_ABOVE - 1
+        local ceiling = level + ns.quests.HardAbove() - 1
         local goals = {}
         for _, q in ipairs(list or {}) do
             if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
@@ -951,7 +951,7 @@ ns:Register("routeKind", "quests", { order = 10, default = true, custom = "lines
 
 ns:Register("routeKind", "newQuests", { order = 20, default = true, custom = "lines",
     label = "New quests", short = "new quests",
-    tip = "Quests to pick up that are still worth the XP at your level (not 3 or more levels above you).",
+    tip = "Quests to pick up that are still worth the XP at your level (and not above your limit: Quest levels, below).",
     match = function(g, level) return pickup(g) and not low(g, level) and not battleground(g) end })
 
 ns:Register("routeKind", "training", { order = 40, default = true,

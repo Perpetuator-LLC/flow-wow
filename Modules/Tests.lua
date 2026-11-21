@@ -3511,6 +3511,8 @@ ns:Register("test", "party quests: a step you've done yourself says so", functio
 end)
 
 ns:Register("test", "party help: a member's quest becomes steps with their name on", function(t)
+    local aboveWas = ns.db.nav.questsAbove   -- (your Quest levels choice: this checks the default)
+    ns.db.nav.questsAbove = nil
     local db = {
         GetQuest = function(id)
             if id == 500 then return { name = "Wolves", level = 5, ObjectiveData = { { Type = "monster", Id = 1 } },
@@ -3581,6 +3583,8 @@ ns:Register("test", "party help: a member's quest becomes steps with their name 
         t:ok(true, "(no map for the test zone here: objective step not placed)")
     end
     t:eq(ns.quests.HARD_ABOVE, 3, "quests 3+ levels up are the hard ones (not offered to pick up)")
+    t:eq(ns.quests.HardAbove(), 3, "and that's the limit until you choose another")
+    ns.db.nav.questsAbove = aboveWas
 end)
 
 ns:Register("test", "core: a file added while the game runs loads on /reload", function(t)
@@ -17427,4 +17431,98 @@ ns:Register("test", "custom route: clearing it notes what did it, and only clear
     ns.db.nav.focus, ns.db.nav.focusLog = mine, log
     F.idle, F.stuck = nil, nil
     pcall(F.UpdateBar)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.379: no hearth step in a zone you haven't picked; how far above you a
+-- quest may be is a choice; a cast can stand in for the zeppelin.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "hearthstone: no step at an inn in a zone that isn't one of yours", function(t)
+    local H = ns.hearth
+    local uc = { name = "Innkeeper Norman", zone = "Undercity", city = true }
+    local xr = { name = "Innkeeper Boorand Plainswind", zone = "The Barrens" }
+    t:ok(H.Offer(uc, xr, nil, nil, true), "a city in one of your zones, your home a village far away: offered")
+    t:ok(not H.Offer(uc, xr, nil, nil, false), "the same city, not one of your zones: you're passing through, no step")
+    t:ok(not H.Offer(uc, nil, nil, nil, false), "also when your home isn't an inn Flow knows")
+    t:ok(H.Offer(uc, xr, nil, nil, nil), "not told either way: as before")
+    local okL, line = pcall(H.Line)
+    t:ok(okL and type(line) == "string", "the diagnostics line still builds")
+end)
+
+ns:Register("test", "click: Quest levels in the Flow menu sets how far above you a quest may be", function(t)
+    local Q, N = ns.quests, ns.nav
+    t:eq(Q.AboveOf(nil), 2, "as it comes: 2 levels above you (yellow in the quest log)")
+    t:eq(Q.AboveOf(4), 4, "your choice")
+    t:eq(Q.AboveOf("x"), 2, "nonsense: the default")
+    t:eq(Q.AboveOf(-1), 2, "below zero: the default")
+    local was = ns.db.nav.questsAbove
+    with(N, "Collect", function() end, function()
+        ns.db.nav.questsAbove = nil
+        t:eq(Q.HardAbove(), 3, "3 or more above you is past the limit")
+        local items = Q.AboveItems()
+        t:eq(#items, #Q.ABOVE, "one entry per choice")
+        local ticked, four, any = 0
+        for _, it in ipairs(items) do
+            if it.checked then ticked = ticked + 1 end
+            if it.above == 4 then four = it end
+            if it.above == Q.ANY_ABOVE then any = it end
+        end
+        t:eq(ticked, 1, "one is ticked")
+        t:ok(four and pcall(four.func), "picking 'up to 4 above' runs")
+        t:eq(Q.Above(), 4, "and is kept")
+        t:eq(Q.HardAbove(), 5, "now 5 or more above is past the limit")
+        four.refresh(four)
+        t:ok(four.checked, "its tick shows")
+        t:ok(any and pcall(any.func) and Q.HardAbove() > 60, "any level: nothing is past the limit")
+        Q.SetAbove(2)
+        t:eq(ns.db.nav.questsAbove, nil, "back to the default: nothing saved")
+    end)
+    ns.db.nav.questsAbove = was
+    -- It's a section of the Flow menu.
+    local ok, items = pcall(ns.menu.RouteItemsRaw, ns.menu)
+    local found = false
+    for _, it in ipairs(ok and items or {}) do if it.title and it.text == "Quest levels" then found = true end end
+    t:ok(found, "the Flow menu has the section")
+end)
+
+ns:Register("test", "crossings: your hearthstone or a travel spell stands in for the zeppelin when it lands nearer", function(t)
+    local C = ns.crossings
+    local casts = {
+        { kind = "hearth", name = "The Crossroads", land = { cont = 1, wx = 0, wy = 0 } },
+        { kind = "spell", spell = "Teleport: Moonglade", name = "Teleport: Moonglade", land = { cont = 1, wx = 5000, wy = 0 } },
+        { kind = "spell", spell = "Elsewhere", land = { cont = 0, wx = 0, wy = 0 } },
+    }
+    local nearXr = { { cont = 1, wx = 300, wy = 0 } }
+    local best = C.BestCast(casts, 1, nearXr)
+    t:ok(best and best.cast.kind == "hearth", "steps by the Crossroads: the hearthstone")
+    t:near(best and best.yards or 0, C.CAST_YARDS + 300, 0.1, "its cost: the cast and the run from the inn")
+    local nearMg = { { cont = 1, wx = 4900, wy = 0 } }
+    t:eq(C.BestCast(casts, 1, nearMg).cast.spell, "Teleport: Moonglade", "steps by Moonglade: the teleport")
+    t:eq(C.BestCast(casts, 2, nearXr), nil, "no cast lands on that continent: none")
+    t:eq(C.BestCast({}, 1, nearXr), nil, "no casts: none")
+    t:eq(C.BestCast(casts, 1, {}), nil, "no step with a place over there: none")
+    t:ok(C.CastWins(420, 3400), "a cast that's shorter than the ride wins")
+    t:ok(not C.CastWins(4000, 3400), "a longer one doesn't")
+    t:ok(C.CastWins(420, nil), "no ride at all: the cast")
+    t:ok(not C.CastWins(nil, 3400), "no cast: the ride")
+    t:eq(C.CastText({ kind = "hearth", name = "The Crossroads" }, 95, "Kalimdor"), "Hearthstone to The Crossroads (95 steps wait in Kalimdor)", "the hearthstone step's words")
+    t:eq(C.CastText({ kind = "spell", spell = "Teleport: Moonglade" }, 1, "Kalimdor"), "Cast Teleport: Moonglade (1 step waits in Kalimdor)", "the teleport's")
+    -- It comes after the steps that have a place here.
+    local keys = C.HereKeys({
+        { key = "fp:1", points = { {} } }, { key = "30:1", points = { {} }, away = 1 }, { key = "cross:1", points = { {} } },
+        { key = "9:1", points = { {} }, blockedBy = "held" }, { key = "noplace" }, { key = "opt", points = { {} }, optional = true },
+    }, function(g) return g.away end)
+    t:eq(table.concat(keys, ","), "fp:1", "after the steps here: not ones across the sea, held, optional or without a place")
+    -- The arrow and the key take the cast from the step.
+    local was = C.last
+    C.last = { { key = "cross:test", cast = { kind = "hearth", text = "Use your hearthstone (The Crossroads)" } }, { key = "cross:ride" } }
+    t:eq(C.CastOf("cross:test").kind, "hearth", "a cast step says so")
+    t:eq(C.CastOf("cross:ride"), nil, "a ride doesn't")
+    t:eq(C.CastOf("other"), nil, "nor any other step")
+    C.last = was
+    t:ok(pcall(C.Lines), "/flow crossings builds")
+    local me = ns.nav:PlayerPos()
+    if me then t:ok(pcall(C.Casts, me), "the casts you have are read") end
+    t:ok(pcall(ns.travelSpells.Mine), "and the travel spells you know")
 end)

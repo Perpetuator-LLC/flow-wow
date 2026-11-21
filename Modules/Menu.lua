@@ -441,7 +441,7 @@ end
 -- Every entry is under a title (nothing loose at the bottom), and no entry
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
-Menu.SECTIONS = { "Custom route", "Order", "Route includes", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
+Menu.SECTIONS = { "Custom route", "Order", "Route includes", "Quest levels", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
                   "Zones", "Steps", "Buttons", "Flow windows" }
 
 -- The menu's two ticks for Flow's buttons.
@@ -558,6 +558,8 @@ function Menu:RouteItemsRaw()
     includes[#includes + 1] = { text = string.format("Unhide all steps (%d)", nHidden), disabled = nHidden == 0,
         func = function() ns.commands.nav("unhide") end }
     section("Route includes", includes)
+    -- How far above you a quest may be (0.35.379, QuestData.lua).
+    section("Quest levels", safe(ns.quests and ns.quests.AboveItems))
 
     -- One click sends the arrow to the nearest of these (your waypoint; the
     -- route carries on after).

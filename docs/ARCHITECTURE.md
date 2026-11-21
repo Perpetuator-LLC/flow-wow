@@ -167,6 +167,11 @@ default for sets of that name: the one the player set (`ns.db.gear.setDefault`, 
 `SR.SetDefault` / `SR.Reset` are the menu's "Make this the default" / "Reset to the default".
 `Modules/Gear/SetIcons.lua` draws the sets on the bag window; `Modules/Gear/KeepSets.lua` builds the specs' sets.
 
+A crossing can be a cast: `C.Casts(me)` (the hearthstone when ready and bound across the sea, the known `travelSpell`s),
+`C.BestCast` / `C.CastWins` against `C.Best`'s ride; the step then carries `goal.cast`, which `N.ShowTravel` shows and the
+Flow key casts. `ns.quests.HardAbove()` (the Flow menu's Quest levels, `ns.db.nav.questsAbove`) is how far above the player
+a quest may be; `H.Offer(..., picked)` gives no hearth step in a zone that isn't ticked.
+
 `Modules/Nav/Crossings.lua` (`ns.crossings`, registry `crossing`): `{ how, faction, a = { name, place, map, x, y }, b = ... }`,
 a zeppelin or boat between two continents. Its `navGoal` gives one step a continent where steps of yours wait
 (`C.Waiting`, `C.Best`: shortest from you to the boarding place plus from the landing to the nearest of them);

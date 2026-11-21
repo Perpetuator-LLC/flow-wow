@@ -67,6 +67,17 @@ function TS.Spell(a, b)
     return nil, s
 end
 
+-- The travel spells you know: { { name, map } } (Crossings.lua: a cast can
+-- stand in for a zeppelin).
+function TS.Mine()
+    local _, class = UnitClass("player")
+    local mine = {}
+    for _, s in ipairs(all()) do
+        if (not s.class or s.class == class) and knows(s.name) then mine[#mine + 1] = s end
+    end
+    return mine
+end
+
 -- The planner's answer for one plan: a step a cast away counts as near.
 -- nil when you know no travel spell (then the planner needn't ask).
 function TS.PlanPort()

@@ -221,6 +221,11 @@ Flow for WoW is a separate project from Flow Engine.
   one, is held off the route (listed, locked) until you can do it or you're in a group.
 - **Quest levels beside steps** follow the game's own map filter (Show quest levels, Quest difficulty
   color): red and orange above you, yellow full XP, green easy, olive when the XP drops, grey for none.
+- **Quest levels**: in the Flow menu, how far above you a quest may be (your level, +1, +2 as it comes, +3,
+  +4, any). Quests above it aren't offered, and solo, one in your log waits off the route until you're within it.
+- **A cast across the sea**: when your hearthstone (ready, set over there) or Teleport: Moonglade gets you
+  nearer your steps than the zeppelin, the crossing step is that cast, on your Flow key.
+- **No "Set hearthstone" where you're passing through**: only in a zone ticked under the Flow Router's Zones.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Errands on a custom route**: a custom route is your quest lines in place of the quest kinds, plus the

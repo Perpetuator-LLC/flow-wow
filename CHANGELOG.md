@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.379
+
+- **No "Set hearthstone" where you're only passing through.** The step is now offered only
+  at an inn in a zone ticked under the Flow Router's Zones. With Undercity unticked, a trip
+  through it for a quest no longer asks you to move your home there (and lose the way back
+  to the Crossroads).
+- **New: Quest levels, in the Flow menu.** How far above you a quest may be: your level, 1,
+  2 (as Flow comes), 3 or 4 levels above, or any. Quests above it aren't offered to pick
+  up, and solo, one already in your log waits off the route until you're within it. Until
+  now this was fixed at 2: the point where the game's quest log turns from yellow to orange.
+  Elite quests still wait until you're 3 levels above their mobs.
+- **Your hearthstone or Teleport: Moonglade can be the crossing.** With steps waiting on
+  another continent, Flow only knew zeppelins and boats. Now it also measures your
+  hearthstone (when it's ready and set over there) and a travel spell you know, each by how
+  far it lands from the nearest of those steps, and the shortest way is the step:
+  "Hearthstone to The Crossroads (95 steps wait in Kalimdor)". The arrow shows the cast's
+  icon and your Flow key casts it. It comes after what's left to do here; "Go here next" on
+  it to go now. `/flow crossings` lists the casts you have.
 ## 0.35.378
 
 - **Fixed: a `/reload` wiped your custom route on a developer install.** One of Flow's

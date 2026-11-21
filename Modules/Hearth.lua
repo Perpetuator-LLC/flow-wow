@@ -114,8 +114,13 @@ H.CITY_REACH = 1500   -- a city home this close to a village's inn: keep the cit
 -- more of them round your home, it stays: "I'm questing in the Crossroads
 -- and just came to Orgrimmar for a dungeon; it tells me to set my hearth
 -- here and I don't think I should" (0.35.212). A city doesn't beat that.
-function H.Offer(here, home, yards, work)
+-- picked (0.35.379): is this inn's zone one of your questing zones (the
+-- Flow Router's Zones)? false: you're passing through, so no step. "Undercity
+-- is turned off in my zones ... I'm just coming through for Trial of the Sea
+-- Lion, and one of my shortcuts is to hearth back to the Crossroads."
+function H.Offer(here, home, yards, work, picked)
     if not here then return false end
+    if picked == false then return false end
     if not home then return true end                       -- as before: your home isn't a known inn
     if home == here or home.zone == here.zone then return false end   -- bound in this zone already
     if work and (work.home or 0) > (work.here or 0) then return false end   -- your quests are round your home
@@ -296,9 +301,15 @@ ns:Register("navGoal", "hearth", {
                 end
             end
         end
+        H.why = nil
         if not here or H:BoundTo(here, bind) then return nil end
         local _, home = H:Home(bind)
-        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil, home and H.Work(here, home) or nil) then return nil end
+        local N = ns.nav
+        local zoneId = N and N.ZoneOf and herePts[1].map and N.ZoneOf(herePts[1].map) or nil
+        local picked = true
+        if zoneId and N.ZoneOn then picked = N.ZoneOn(zoneId) and true or false end
+        if not picked then H.why = string.format("no step at %s: %s isn't one of your zones (Flow Router, Zones)", here.name, tostring(here.zone)) end
+        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil, home and H.Work(here, home) or nil, picked) then return nil end
         return { {
             key = "hearth:" .. hereKey, weight = 1.1, points = herePts,
             title = "Set hearthstone",
@@ -341,9 +352,10 @@ function H.Line()
     local bind = GetBindLocation and GetBindLocation()
     local _, home = H:Home(bind)
     local left = H:CooldownLeft()
-    return string.format("hearthstone: set to %s (%s); %s", tostring(bind),
+    return string.format("hearthstone: set to %s (%s); %s%s", tostring(bind),
         home and (home.name .. (home.city and ", a city" or "")) or "not an inn Flow knows",
-        left == nil and "cooldown unknown" or (left <= 0 and "ready" or string.format("ready in %d min", math.ceil(left / 60))))
+        left == nil and "cooldown unknown" or (left <= 0 and "ready" or string.format("ready in %d min", math.ceil(left / 60))),
+        H.why and ("; " .. H.why) or "")
 end
 
 ns:OnLoad(function(saved) saved.hearth = saved.hearth or {} end)

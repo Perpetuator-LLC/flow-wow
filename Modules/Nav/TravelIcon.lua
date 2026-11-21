@@ -101,6 +101,9 @@ function N.ShowTravel(frame, key, pt, yards)
     if not (frame and frame.arrow) then return nil end
     local saving, bind = hearthSaving(key, pt, yards)
     local act = N.TravelAction(N.port, saving, bind, N.travelSkip[key])
+    -- A crossing done by a cast (0.35.379, Crossings.lua): the step is the cast.
+    local cast = ns.crossings and ns.crossings.CastOf and ns.crossings.CastOf(key)
+    if cast and not N.travelSkip[key] then act = cast end
     N.travelAct, N.travelKey = act, key
     local arrow = frame.arrow
     if not act then
