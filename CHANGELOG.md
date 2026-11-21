@@ -494,6 +494,18 @@ the route at all; 4 were for quests that go on across the sea; 3 were leftovers.
   `/flow seal command`, `/flow seal auto`). Cast a different seal and Flow keeps that one until
   the fight ends.
 
+## Unreleased
+
+- **Zone info when you hover the world map.** On the Kalimdor and Eastern Kingdoms maps, the zone
+  under the cursor shows a small card in the map's top left corner: its name, level range (coloured against your
+  level: red well above you, orange a little above, yellow your level, green easy, grey outgrown)
+  and the fishing skill its waters need, in light blue ("130 (205)": some need more). With
+  nothing hovered it shows the zone you're in, in the same corner. Settings "Zone info when hovering the world map" and "World map: your
+  zone's info without hovering". Ranges from the Classic zones-by-level list; fishing from the
+  Classic fishing tables. Hold Shift for the fish a zone's waters give and how often
+  ("Raw Brilliant Smallfish 54%"), from Wowhead's Classic catch records; zones with few records say
+  "few catches recorded", and zones with almost none (Burning Steppes, Un'Goro) show no list.
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took
@@ -4336,7 +4348,8 @@ Flow's first release on CurseForge, for World of Warcraft: Forever. What's in it
 ## 0.17.6
 - Diagnostics Claude can read from disk: Flow logs its errors and takes a snapshot of its checks on
   every `/reload` and logout (saved with Flow's data). `/flow dump` captures one on demand;
-  `toolsead-diag.ps1` prints it.
+  `tools
+ead-diag.ps1` prints it.
 
 ## 0.17.5
 - Profession and class trainers are found by NPC ID (with a name check) as well as by name, and

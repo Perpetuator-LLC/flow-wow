@@ -13964,6 +13964,63 @@ end)
 -- 0.35.314: flight masters on the world map.
 -------------------------------------------------------------------------------
 
+ns:Register("test", "map zone info: hovering a zone gives its name, level range and fishing skill", function(t)
+    local ZL = ns.mapZoneLevels
+    if not ZL then t:ok(false, "MapZoneLevels.lua not loaded") return end
+    local w = ZL.Card(1436, "Westfall", 15)
+    t:ok(w and w.name == "Westfall" and w.level == "Level 10-20" and w.fish == "Fishing 1", "Westfall's card")
+    t:ok(w and w.r == 1 and w.g == 0.82, "its range coloured by your level (yellow: yours)")
+    t:eq(ZL.Card(1434, "Stranglethorn Vale", 30).fish, "Fishing 130 (205)", "some waters need more")
+    local city = ZL.Card(1453, "Stormwind City", 15)
+    t:ok(city and city.level == nil and city.fish == "Fishing 1", "a city: fishing, no range")
+    t:ok(ZL.Card(1418, "Badlands", 40).fish == nil, "no water: no fishing line")
+    t:eq(ZL.Card(1, "Nowhere", 15), nil, "a zone Flow doesn't know: no card")
+    t:eq(ZL.Card(1436, "Marche de l'Ouest", 15).name, "Marche de l'Ouest", "the map's own (local) name")
+    -- Not hovering: the zone you're in, from a cave or town map up to its zone.
+    local parents = { [9001] = 9000, [9000] = 1436, [1436] = 1415, [1415] = 947 }
+    local up = function(id) return parents[id] end
+    t:eq(ZL.PlayerZone(1436, up), 1436, "in Westfall: Westfall")
+    t:eq(ZL.PlayerZone(9001, up), 1436, "in a mine in Westfall: Westfall")
+    t:eq(ZL.PlayerZone(9999, up), nil, "somewhere Flow doesn't know: nothing")
+    t:eq(ZL.PlayerZone(nil, up), nil, "no map: nothing")
+    t:eq(select(4, ZL.Color(10, 20, 15)), "yellow", "your level: yellow")
+    t:eq(select(4, ZL.Color(18, 30, 15)), "orange", "a little above you: orange")
+    t:eq(select(4, ZL.Color(30, 40, 15)), "red", "well above you: red")
+    t:eq(select(4, ZL.Color(1, 10, 15)), "green", "just outgrown: green")
+    t:eq(select(4, ZL.Color(1, 10, 30)), "grey", "long outgrown: grey")
+    local n = 0
+    for _, z in pairs(ZL.ZONES) do
+        if z[2] then
+            n = n + 1
+            t:ok(z[2] >= 1 and z[3] <= 60 and z[2] < z[3], z[1] .. ": a sane range")
+        end
+        t:ok(z[4] == nil or (z[4] >= 1 and z[4] <= 330 and (z[5] == nil or z[5] > z[4])), z[1] .. ": a sane fishing skill")
+    end
+    t:eq(n, 40, "every levelling zone in the Classic list")
+    -- "Can I click on something, like click on the fishing number": the fish
+    -- a zone's waters give, and how often.
+    local fish, few = ZL.FishList(1429, function() return nil end)
+    t:ok(fish and fish[1].name == "Raw Brilliant Smallfish" and fish[1].pct == 54, "Elwynn: mostly smallfish")
+    t:eq(few, false, "Elwynn has plenty of catches recorded")
+    t:eq(ZL.FishList(1429, function(id) return id == 6291 and "Petit poisson brillant" or nil end)[1].name,
+         "Petit poisson brillant", "the item's local name when the game has it")
+    t:eq(ZL.FishList(1418), nil, "no water: no list")
+    t:eq(ZL.FishList(1, function() return nil end), nil, "a zone Flow doesn't know: no list")
+    local listed = 0
+    for id, f in pairs(ZL.FISH) do
+        listed = listed + 1
+        t:ok(ZL.ZONES[id] and ZL.ZONES[id][4], (ZL.ZONES[id] and ZL.ZONES[id][1] or id) .. ": a zone with water")
+        local sum, last = 0, 101
+        for i = 2, #f do
+            sum = sum + f[i][2]
+            t:ok(f[i][2] >= 3 and f[i][2] <= last, tostring(f[i][3]) .. ": listed most common first")
+            last = f[i][2]
+        end
+        t:ok(sum <= 101 and #f >= 2, tostring(id) .. ": shares that add up")
+    end
+    t:ok(listed >= 35, "most zones have their catches")
+end)
+
 ns:Register("test", "map flights: flight paths you have, ones to learn, and your next step's flight", function(t)
     -- "Don't we have like a Flow Map button on the map or something that can show flight paths?"
     local MF = ns.mapFlights
