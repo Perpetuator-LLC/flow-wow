@@ -78,7 +78,20 @@ function SI.MenuItems(set)
     for _, ch in ipairs(SR and SR.Choices() or {}) do
         items[#items + 1] = { text = string.format("|T%s:14:14|t %s", ch.texture, ch.label), func = function() SR.SetIcon(set, ch.texture) end }
     end
-    items[#items + 1] = { text = "Flow's own choice", func = function() if SR then SR.SetIcon(set, nil) end end }
+    -- (0.35.376) The default: one per set name, for every set Flow knows and any you name.
+    if SR and set and set.name then
+        local def, from = SR.DefaultFor(set.name, nil)
+        local shown = SR.IconFor(set.name, set.icon)
+        items[#items + 1] = { text = def and string.format("Reset to the default (|T%s:14:14|t)", tostring(def)) or "Reset to the default (the game's picture)",
+            func = function() SR.Reset(set) end }
+        if shown and shown ~= def then
+            items[#items + 1] = { text = string.format("Make this the default for %s (|T%s:14:14|t)", set.name, tostring(shown)),
+                func = function() SR.SetDefault(set, shown) end }
+        end
+        if from == "default" then
+            items[#items + 1] = { text = "Forget my default: back to Flow's", func = function() SR.SetDefault(set, nil) end }
+        end
+    end
     items[#items + 1] = { text = "|cff999999Any other: character window, Equipment Manager, pick the set, Change Name/Icon|r", disabled = true }
     items[#items + 1] = { sep = true }
     items[#items + 1] = { title = true, text = "Icon size" }

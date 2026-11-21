@@ -27,9 +27,17 @@
 -- for" (KeepSets.lua) and get their spec's icon here.
 --
 -- The picture a set shows on your bags (SR.IconFor), first that applies:
--- one you picked (right-click its icon), its recipe's, its spec's, the
--- game's own. Picking one also asks the game to use it, so the Equipment
+-- one you picked (right-click its icon), the default for sets of that name,
+-- the game's own. Picking one also asks the game to use it, so the Equipment
 -- Manager shows the same where the game allows.
+--
+-- The default (0.35.376, SR.DefaultFor) is one rule for every set Flow knows:
+-- the one you set ("Make this the default", kept for every character by the
+-- set's name: "Feral (Cat)", "Fishing", ...), else its recipe's, else its
+-- spec's. "Reset to the default" drops your pick and hands the default to the
+-- game, which is how a set that existed before Flow gave sets pictures gets
+-- its own. A new recipe or spec needs nothing more: it has a default by
+-- having an icon.
 -------------------------------------------------------------------------------
 
 local _, ns = ...
@@ -45,8 +53,10 @@ local equip = (C_Item and C_Item.EquipItemByName) or EquipItemByName
 -- Pure: the picture for a set called `name`.
 --   mine: { [set name] = texture } your own picks; recipes: { { name, icon } };
 --   roles: { { name = the role's set name, icon = its spec's } }; game: the game's own
-function SR.Pick(name, mine, recipes, roles, game)
+--   defaults: { [set name] = texture } the defaults you set
+function SR.Pick(name, mine, recipes, roles, game, defaults)
     if mine and name and mine[name] then return mine[name], "yours" end
+    if defaults and name and defaults[name] then return defaults[name], "default" end
     for _, r in ipairs(recipes or {}) do
         if r.name == name and r.icon then return r.icon, "recipe" end
     end
@@ -72,8 +82,14 @@ local function roleSets()
     return out
 end
 function SR.IconFor(name, game)
-    local mine = ns.db and ns.db.gear and ns.db.gear.setIcon
-    return SR.Pick(name, mine, recipes(), roleSets(), game)
+    local gear = ns.db and ns.db.gear
+    return SR.Pick(name, gear and gear.setIcon, recipes(), roleSets(), game, gear and gear.setDefault)
+end
+-- The default picture for sets of this name (your pick for this one set aside):
+-- the default you set, its recipe's, its spec's, else `game`. -> texture, where from
+function SR.DefaultFor(name, game)
+    local gear = ns.db and ns.db.gear
+    return SR.Pick(name, nil, recipes(), roleSets(), game, gear and gear.setDefault)
 end
 
 -- What the game takes for a picture: its file number where it can be looked up, else the path.
@@ -88,18 +104,47 @@ end
 
 -- You picked a picture for a set (nil: back to Flow's own choice). Kept for
 -- this character, and handed to the game so its Equipment Manager matches.
+local function toGame(set, texture)
+    if not (texture and set.id and CE and CE.ModifyEquipmentSet) or InCombatLockdown() then return false end
+    local ok, err = pcall(CE.ModifyEquipmentSet, set.id, set.name, SR.GameIcon(texture))
+    ns:Log("gear", string.format("set icon: %s -> %s (the game: %s)", tostring(set.name), tostring(texture), ok and "asked" or tostring(err)))
+    return ok
+end
 function SR.SetIcon(set, texture)
     if not (set and set.name) then return false end
     ns.db.gear.setIcon = ns.db.gear.setIcon or {}
     ns.db.gear.setIcon[set.name] = texture
-    local asked = false
-    if texture and set.id and CE and CE.ModifyEquipmentSet and not InCombatLockdown() then
-        local ok, err = pcall(CE.ModifyEquipmentSet, set.id, set.name, SR.GameIcon(texture))
-        asked = ok
-        ns:Log("gear", string.format("set icon: %s -> %s (the game: %s)", tostring(set.name), tostring(texture), ok and "asked" or tostring(err)))
-    end
+    local asked = toGame(set, texture)
     if ns.setIcons then ns.setIcons.Refresh() end
     return true, asked
+end
+
+-- "Make this the default": the picture this set shows now becomes the default
+-- for every set of its name, on every character (nil: back to Flow's own).
+-- -> the texture kept
+function SR.SetDefault(set, texture)
+    if not (set and set.name) then return nil end
+    ns.db.gear.setDefault = ns.db.gear.setDefault or {}
+    ns.db.gear.setDefault[set.name] = texture
+    if texture then
+        -- Your pick for this one set said the same thing: the default says it now.
+        if ns.db.gear.setIcon and ns.db.gear.setIcon[set.name] == texture then ns.db.gear.setIcon[set.name] = nil end
+        toGame(set, texture)
+    end
+    if ns.setIcons then ns.setIcons.Refresh() end
+    return texture
+end
+
+-- "Reset to the default": drops your pick for this set and hands the default
+-- to the game too. A set with no default (one of your own making) keeps the
+-- game's picture. -> the default texture or nil, whether the game was asked
+function SR.Reset(set)
+    if not (set and set.name) then return nil, false end
+    if ns.db.gear.setIcon then ns.db.gear.setIcon[set.name] = nil end
+    local texture, from = SR.DefaultFor(set.name, nil)
+    local asked = texture ~= nil and from ~= "game" and toGame(set, texture) or false
+    if ns.setIcons then ns.setIcons.Refresh() end
+    return texture, asked
 end
 
 -- The pictures offered in a set icon's menu: your specs', then a few plain ones.
@@ -174,7 +219,7 @@ function SR.Build(key, done)
     local toPut = SR.ToPutOn(wants, worn)
     if #toPut == 0 then
         -- You're wearing it all: the set is what you have on.
-        local ok, err = saveAs(r.name, r.icon)
+        local ok, err = saveAs(r.name, (SR.DefaultFor(r.name, r.icon)))
         if ns.setIcons then C_Timer.After(0.8, function() ns.setIcons.Refresh() end) end
         return done(ok, ok and string.format("Saved what you're wearing as your %s set.", r.name) or ("Couldn't save the " .. r.name .. " set: " .. tostring(err)))
     end
@@ -191,7 +236,7 @@ function SR.Build(key, done)
             SR.building = nil
             return done(false, string.format("A fight started while Flow was building your %s set: it isn't saved, and you may be wearing some of it.", r.name))
         end
-        local ok, err = saveAs(r.name, r.icon)
+        local ok, err = saveAs(r.name, (SR.DefaultFor(r.name, r.icon)))
         C_Timer.After(0.5, function()
             if not InCombatLockdown() then
                 if back and CE.UseEquipmentSet then pcall(CE.UseEquipmentSet, back.id)
@@ -268,5 +313,7 @@ ns:Register("gearSet", "fishing", {
 ns:OnLoad(function(saved)
     saved.gear = saved.gear or {}
     saved.gear.setIcon = saved.gear.setIcon or {}
+    -- The defaults you set, by set name: shared, so every druid's "Feral (Cat)" gets the same.
+    saved.gear.setDefault = saved.gear.setDefault or {}
 end)
 ns:PerCharacter("gear.setIcon")

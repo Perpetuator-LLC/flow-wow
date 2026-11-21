@@ -162,7 +162,9 @@ search, `T.Pick` (what's still within the limit and the budget), then the game's
 
 `Modules/Gear/SetRecipes.lua` (`ns.setRecipes`, registry `gearSet`): `{ name, icon, what, offer(), wants() }`, a gear set
 Flow can build: `SR.Build(key)` puts the wanted links on, saves the game's equipment set under that name and icon, and
-switches back. `SR.IconFor(name, game)` is the picture a set shows (yours, its recipe's, its spec's, the game's).
+switches back. `SR.IconFor(name, game)` is the picture a set shows (yours, the default, the game's). `SR.DefaultFor(name)` is the
+default for sets of that name: the one the player set (`ns.db.gear.setDefault`, shared), its recipe's, its spec's;
+`SR.SetDefault` / `SR.Reset` are the menu's "Make this the default" / "Reset to the default".
 `Modules/Gear/SetIcons.lua` draws the sets on the bag window; `Modules/Gear/KeepSets.lua` builds the specs' sets.
 
 `Modules/Nav/Crossings.lua` (`ns.crossings`, registry `crossing`): `{ how, faction, a = { name, place, map, x, y }, b = ... }`,

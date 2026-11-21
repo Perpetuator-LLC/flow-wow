@@ -17248,3 +17248,58 @@ ns:Register("test", "click: a gear set icon is bigger, and its right-click menu 
     t:eq(SI.Click(nil, "LeftButton"), nil, "no set: nothing")
     pcall(SI.Refresh)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.376: every gear set has a default picture; the icon's menu resets to
+-- it and lets you set it.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear sets: a default picture per set name, yours before Flow's", function(t)
+    local SR = ns.setRecipes
+    local recipes = { { name = "Fishing", icon = "fish.tga" } }
+    local roles = { { name = "Feral (Cat)", icon = "cat.tga" } }
+    t:eq((SR.Pick("Fishing", nil, recipes, roles, 1, {})), "fish.tga", "no default set: the recipe's")
+    t:eq((SR.Pick("Fishing", nil, recipes, roles, 1, { Fishing = "mine.tga" })), "mine.tga", "the default you set comes before the recipe's")
+    t:eq((SR.Pick("Feral (Cat)", nil, recipes, roles, 1, { ["Feral (Cat)"] = "paw.tga" })), "paw.tga", "and before the spec's")
+    t:eq((SR.Pick("Feral (Cat)", { ["Feral (Cat)"] = "one.tga" }, recipes, roles, 1, { ["Feral (Cat)"] = "paw.tga" })), "one.tga", "a pick for this one set comes before the default")
+    t:eq(select(2, SR.Pick("Fishing", nil, recipes, roles, 1, { Fishing = "mine.tga" })), "default", "and it says it's the default")
+    t:eq((SR.Pick("My PvP Set", nil, recipes, roles, 1, { ["My PvP Set"] = "pvp.tga" })), "pvp.tga", "a set of your own can have a default too")
+    t:eq((SR.DefaultFor("Fishing", 1)), ns.db.gear.setDefault.Fishing or ns:Get("gearSet", "fishing").icon, "Fishing has a default without being told")
+end)
+
+ns:Register("test", "click: a gear set icon's menu sets the default picture and resets to it", function(t)
+    local SI, SR = ns.setIcons, ns.setRecipes
+    local name = "Test Set 987654376"
+    local set = { name = name, icon = 134400 }   -- no id: nothing is asked of the game
+    local wasMine, wasDef = ns.db.gear.setIcon[name], ns.db.gear.setDefault[name]
+    ns.db.gear.setIcon[name], ns.db.gear.setDefault[name] = nil, nil
+    local function entry(start)
+        for _, it in ipairs(SI.MenuItems(set)) do
+            if it.text and it.text:find(start, 1, true) == 1 then return it end
+        end
+    end
+    t:ok(entry("Reset to the default"), "the menu has: Reset to the default")
+    t:ok(not entry("Forget my default"), "no default of yours: nothing to forget")
+    local choice = SR.Choices()[1].texture
+    SR.SetIcon(set, choice)
+    local make = entry("Make this the default")
+    t:ok(make, "with a picture picked: Make this the default")
+    t:ok(make and pcall(make.func), "clicking it runs")
+    t:eq(ns.db.gear.setDefault[name], choice, "the default for sets of that name is kept")
+    t:eq(ns.db.gear.setIcon[name], nil, "and the pick for this one set is folded into it")
+    t:ok(not entry("Make this the default"), "showing the default: nothing to make")
+    -- Another pick, then back to the default.
+    local other = SR.Choices()[2].texture
+    SR.SetIcon(set, other)
+    t:eq((SR.IconFor(name, 134400)), other, "another pick shows")
+    local reset = entry("Reset to the default")
+    t:ok(reset and pcall(reset.func), "clicking Reset runs")
+    t:eq((SR.IconFor(name, 134400)), choice, "and the set shows its default again")
+    -- Forgetting it.
+    local forget = entry("Forget my default")
+    t:ok(forget and pcall(forget.func), "Forget my default runs")
+    t:eq((SR.IconFor(name, 134400)), 134400, "a set Flow doesn't know is back to the game's picture")
+    t:eq((SR.Reset(nil)), nil, "no set: nothing")
+    ns.db.gear.setIcon[name], ns.db.gear.setDefault[name] = wasMine, wasDef
+    pcall(SI.Refresh)
+end)

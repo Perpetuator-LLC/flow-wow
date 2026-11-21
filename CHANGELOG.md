@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.376
+
+- **Every gear set has a default picture, and its icon's menu can put it back or change it.**
+  Right-click a set's icon on your bags:
+  - **Reset to the default** drops the picture you picked for that set and hands the default
+    to the game as well, so the Equipment Manager shows it too. Use it on sets you had before
+    Flow gave sets pictures (your Feral (Cat), Feral (Bear) and Restoration sets): they get
+    their spec's icon;
+  - **Make this the default for (set)** makes the picture the set shows now the default for
+    sets of that name, on all your characters. From then on a reset, or Flow building that
+    set again, uses it;
+  - **Forget my default** goes back to Flow's own.
+- Flow's own default is one rule for everything it builds: a spec's set has its spec's icon,
+  Fishing has the fishing one, and any set added later has one by having an icon. A set of
+  your own making has none until you make one: a reset leaves it with the game's picture.
 ## 0.35.375
 
 - **The gear set icons on your bags are bigger, and have a menu.** They're 26 pixels now (20

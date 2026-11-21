@@ -405,7 +405,9 @@ Flow for WoW is a separate project from Flow Engine.
   tab: hover for its name, click to put it on. The one you're wearing has a gold edge.
 - **Sets Flow builds**: a spec's set gets its spec's icon, and Flow can build a Fishing set (your
   pole): one click on its icon and you're fishing. Right-click a set's icon for its picture, the
-  icons' size and the sets Flow can build.
+  icons' size and the sets Flow can build. Every set has a default picture (its spec's, or Fishing's):
+  "Reset to the default" puts it back, in the game's Equipment Manager too, and "Make this the
+  default" makes the picture you chose the default for sets of that name on all your characters.
 - **Keep set for**: a tick for each of your specs under your bags (below the money line). Unticked, gear that's
   only good for that spec is sold like any other you don't need. Build sets makes the game's own
   equipment sets for the ticked ones (`/flow keepsets`).
