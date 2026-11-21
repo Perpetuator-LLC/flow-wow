@@ -541,6 +541,12 @@ function N:Collect(gathered)
     -- with the ticks, before the blocked steps are set apart, so a blocked
     -- step of another kind isn't listed either.
     if ns.dungeons and ns.dungeons.FilterOnly then list = ns.dungeons:FilterOnly(list) end
+    -- A custom route: only the quest lines you picked (Focus.lua).
+    if ns.focus and ns.focus.Filter then
+        local okF, cut = pcall(ns.focus.Filter, list)
+        if okF and type(cut) == "table" then list = cut
+        elseif not okF then ns:Log("nav", "custom route: " .. tostring(cut)) end
+    end
     -- What steps need first (Needs.lua): after the step that provides it, or
     -- blocked with the reason when nothing on the route does.
     if N.ResolveNeeds then

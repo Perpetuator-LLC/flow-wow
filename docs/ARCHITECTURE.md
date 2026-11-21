@@ -160,6 +160,11 @@ saves, switches back).
 price or at half the item's usual price (`T.Usual`, from the price history). A purchase is a job of clicks:
 search, `T.Pick` (what's still within the limit and the budget), then the game's own purchase calls.
 
+`Modules/Nav/Focus.lua` (`ns.focus`): a custom route's quest lines (`ns.db.nav.focus`, per character). `F.Line`
+(pure) turns a picked quest into its chain: what's undone before it, what the data chains after it, and on to the
+quest that teaches a class spell. `F.Filter` (called as Nav gathers steps) keeps only the lines' steps and adds the
+line's next pickup. `N:Select` is wrapped to add a line; `F.MenuItems(goal)` gives the remove entries.
+
 `Modules/Nav/Legs.lua` (`ns.legs`): times each trip between two steps (`L.Look`, pure, a look a second) and
 keeps the quickest by pair of 40-yard squares (`ns.db.nav.legs`, shared by your characters). The planner's
 `legs` option (`L.Yards`) answers "exact" (the cost) or "area" (stretches the straight line).

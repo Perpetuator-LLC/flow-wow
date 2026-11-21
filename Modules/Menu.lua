@@ -466,6 +466,14 @@ function Menu:RouteItemsRaw()
     end
 
     -- Order (the default first).
+    -- On a custom route: one click out of it, above everything else (0.35.358:
+    -- "I just have to go down to it and hover it").
+    if sort == "custom" then
+        section("Custom route", {
+            { text = "|cffff8080Clear your custom route|r (back to " .. (ns.xpValue:Base() == "xp" and "Most XP" or "Shortest path") .. ")",
+              func = function() if ns.focus then ns.focus.ClearClick() else nav:ClearSelection() end end },
+        })
+    end
     section("Order", {
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },

@@ -8286,7 +8286,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     end
     t:eq(loose, 0, "no entry without a section")
     t:eq(twice, nil, "no section and no entry twice")
-    t:eq(titles[1], "Order", "Order first")
+    t:ok(titles[1] == "Order" or (titles[1] == "Custom route" and titles[2] == "Order"), "Order first (after the way out of a custom route, while you're on one)")
     t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
         and seen["Steps"] and seen.Buttons and seen["Flow windows"], "the sections every Flow menu has")
     t:ok(not seen.Arrow and not seen.Keys and not seen.Extras, "the arrow's look, the keys and the extras are in Flow Settings now")
@@ -16408,4 +16408,113 @@ ns:Register("test", "click: the Battlegrounds tick in Route includes turns its s
         for _, d in ipairs(g.details) do if type(d) == "string" and d:find("^XP: ") then found = true end end
         t:ok(found, "a quest step's details carry its XP for your level")
     end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.358: a custom route is the quest lines you picked, and nothing else.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "custom route: a picked step stands for its whole quest line", function(t)
+    local F = ns.focus
+    t:eq(F.QuestOf("875:1"), 875, "an objective's quest")
+    t:eq(F.QuestOf("875:done"), 875, "its hand-in's")
+    t:eq(F.QuestOf("pickup:875"), 875, "its pickup's")
+    t:eq(F.QuestOf("train:class"), nil, "a trainer isn't a quest")
+
+    -- A chain: 1 -> 2 -> 3 (Curing the Sick) -> 4 (teaches Cure Poison), and a side quest 9 before 3.
+    local quests = {
+        [1] = { id = 1, name = "Lessons Anew", raw = { nextQuestInChain = 2 } },
+        [2] = { id = 2, name = "The Principal Source", raw = { preQuestSingle = { 1 }, nextQuestInChain = 3 } },
+        [3] = { id = 3, name = "Curing the Sick", raw = { preQuestGroup = { 2, 9 }, nextQuestInChain = 4 } },
+        [4] = { id = 4, name = "Power over Poison", raw = { preQuestSingle = { 3 } } },
+        [9] = { id = 9, name = "Gathering the Cure", raw = {} },
+        [20] = { id = 20, name = "Harpy Lieutenants", raw = {} },
+    }
+    local get = function(id) return quests[id] end
+    local done = { [1] = true }
+    local isDone = function(id) return done[id] == true end
+
+    t:eq(table.concat(F.Before(3, get, isDone), ","), "2,9", "before it: what isn't done yet, the earliest first (the done one is left out)")
+    t:eq(table.concat(F.After(2, get), ","), "3,4", "after it: what the quest data chains on")
+    t:eq(#F.After(4, get), 0, "the end of a chain has nothing after it")
+
+    local ids, title = F.Line(3, get, isDone, { { spell = "Cure Poison", id = 4 } })
+    t:eq(table.concat(ids, ","), "2,9,3,4", "the line: what's before, the pick, what follows")
+    t:eq(title, "Cure Poison", "a class quest's line is named after the spell it leads to")
+    ids, title = F.Line(2, get, isDone, { { spell = "Cure Poison", id = 4 } })
+    t:ok(table.concat(ids, ","):find("4", 1, true) and title == "Cure Poison", "picked from an earlier part: still the whole line to the spell")
+    ids, title = F.Line(20, get, isDone, { { spell = "Cure Poison", id = 4 } })
+    t:eq(table.concat(ids, ","), "20", "a quest on its own is a line of one")
+    t:eq(title, "Harpy Lieutenants", "named after the quest")
+    ids = F.Line(3, get, isDone, {})
+    t:eq(table.concat(ids, ","), "2,9,3,4", "without a spell to teach it's still the chain")
+
+    -- "Remove this step and what follows it": the line ends before that quest.
+    t:eq(table.concat(F.Cut({ 2, 9, 3, 4 }, 3), ","), "2,9", "cut at a quest: what comes before it stays")
+    t:eq(#F.Cut({ 2, 9, 3, 4 }, 2), 0, "cut at its first quest: nothing left (the line goes)")
+    t:eq(#F.Cut({ 2, 9, 3, 4 }, nil), 4, "not cut: all of it")
+
+    -- Only the lines' steps stay on the route.
+    local list = { { key = "3:1" }, { key = "3:done" }, { key = "pickup:4" }, { key = "20:1" }, { key = "pickup:77" }, { key = "train:class" }, { key = "bank" } }
+    local out = F.FilterBy(list, { [3] = true, [4] = true }, { ["train:class"] = true })
+    local got = {}
+    for _, g in ipairs(out) do got[#got + 1] = g.key end
+    t:eq(table.concat(got, " "), "3:1 3:done pickup:4 train:class", "the picked lines' steps and the picked single step; not the other hundred")
+    t:eq(#F.FilterBy(list, {}, {}), 0, "no lines' steps: none")
+
+    t:eq(F.Text({ "Cure Poison", "Aquatic Form" }), "Custom route: Cure Poison + Aquatic Form", "the bar names the lines")
+    t:eq(F.Text({ "A", "B", "C", "D", "E" }), "Custom route: A + B + C + 2 more", "many: the first three and a count")
+    t:eq(F.Text({}), "Custom route", "none named")
+end)
+
+ns:Register("test", "quests: spots the quest data marks for a quest as a whole place its unplaced objectives", function(t)
+    local Q = ns.quests
+    local quest = { SpecialObjectives = {
+        { Description = "Deliver the report", spawnList = { [12862] = { Name = "Warsong Scout", Spawns = { [331] = { { 73.0, 60.9 } } } } } },
+        { spawnList = { [12863] = { Spawns = {} }, [12864] = { Spawns = { [331] = { { 62.2, 49.8 } } } } } },
+        { Description = "no spots at all" },
+    } }
+    local spawns = Q.ExtraSpawns(quest)
+    t:eq(#spawns, 2, "each marked spot's spawns, empty ones left out")
+    t:eq(#Q.ExtraSpawns({}), 0, "a quest with none: nothing")
+    t:eq(#Q.ExtraSpawns(nil), 0, "no quest: nothing")
+    t:eq(type(Q.SpawnPoints), "function", "(a quest giver's spawns can be turned into points)")
+end)
+
+ns:Register("test", "click: a custom route's lines are added, cut and cleared from the steps' menus and the bar", function(t)
+    local F, N = ns.focus, ns.nav
+    if InCombatLockdown() then return end
+    local saved, sorter, sel = ns.db.nav.focus, ns.db.nav.sorter, N.selection
+    ns.db.nav.focus = {}
+    t:eq(#F.Filter({ { key = "1:1" }, { key = "bank" } }), 2, "no lines: the route is as it was")
+    local okA, title = pcall(F.AddKey, "test:focus-step", "A Test Step")
+    t:ok(okA and title == "A Test Step", "a step that isn't a quest's is a line of its own" .. (okA and "" or (": " .. tostring(title))))
+    t:ok(F.Active(), "and the route is Custom now")
+    t:eq(F.AddKey("test:focus-step", "A Test Step"), nil, "picking it again adds nothing")
+    local out = F.Filter({ { key = "test:focus-step" }, { key = "bank" }, { key = "987654340:1" } })
+    t:eq(#out, 1, "only the line's step is on the route")
+    local items = F.MenuItems({ key = "test:focus-step" })
+    t:eq(#items, 1, "its right-click menu offers to remove it")
+    t:eq(#F.MenuItems({ key = "bank" }), 0, "a step that isn't in a line has no such entry")
+    t:ok(pcall(items[1].func), "the menu entry's click runs")
+    t:eq(#ns.db.nav.focus, 0, "and the line is gone")
+    F.AddKey("test:focus-step", "A Test Step")
+    t:ok(pcall(F.UpdateBar), "the bar under the Flow Tracker draws")
+    if F.bar then
+        t:ok(F.bar:IsShown() and F.bar.text:GetText() == "Custom route: A Test Step", "it names what you're on")
+        t:eq(type(F.bar:GetScript("OnClick")), "function", "and has its click")
+    end
+    t:ok(F.Clear(), "clearing removes every line")
+    t:eq(#ns.db.nav.focus, 0, "none left")
+    local okD, lines = pcall(F.DumpLines)
+    t:ok(okD and #lines >= 1, "/flow focus lists them" .. (okD and "" or (": " .. tostring(lines))))
+    -- Shortest or Most XP chosen: the lines go by themselves.
+    ns.db.nav.focus = { { key = "test:focus-step", title = "A Test Step" } }
+    ns.db.nav.sorter = "distance"
+    t:eq(#F.Filter({ { key = "bank" } }), 1, "off Custom, the route isn't cut down")
+    t:eq(#ns.db.nav.focus, 0, "and the lines are dropped")
+    ns.db.nav.focus, ns.db.nav.sorter, N.selection = saved, sorter, sel
+    if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
+    N.RequestCollect("test done")
+    pcall(F.UpdateBar)
 end)

@@ -215,6 +215,10 @@ Flow for WoW is a separate project from Flow Engine.
   arrow can be built; nothing is shown yet.
 - **Trips Flow learns**: each trip from one step to the next is timed, your quickest is kept, and
   the route is ordered by those times instead of the straight line (`/flow legs`).
+- **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,
+  picks that step's whole quest line (to the spell, for a class quest), and your route shows only
+  the lines you picked, planned together. Right-click a step to remove it or its line; the bar
+  under the Flow Tracker says what you're on and clears it with a click (`/flow focus`).
 - **Battlegrounds in Route includes**: battleground quests (in your log and to pick up) are a tick
   of their own, off until you want them. Hover any quest step for the XP it gives at your level.
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.

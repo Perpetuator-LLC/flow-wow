@@ -1761,11 +1761,12 @@ local function buildList()
                 local items = {
                     { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
-                    { text = "Go here next (Custom route)", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
+                    { text = "Go here next (Custom route: only its quest line)", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
                     { text = "Point the arrow here (your waypoint)", func = function() M.PointHere(g) end },
                     { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
-                    { sep = true },
                 }
+                for _, it in ipairs(ns.focus and ns.focus.MenuItems(g) or {}) do items[#items + 1] = it end
+                items[#items + 1] = { sep = true }
                 for _, it in ipairs(ns.menu:RouteItems()) do items[#items + 1] = it end
                 ns.menu:Open(items)
             elseif self.blocked then

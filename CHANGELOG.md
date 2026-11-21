@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.35.358
+
+- **A custom route is now the quest lines you pick, and nothing else.** "Go here next" on a
+  step (or its ^ in the Flow Router) used to put that step first and leave the other hundred
+  on the route. Now it picks the step's **quest line**: its quest, the quests you still have
+  to do before it, and the quests that follow it, to the end of the chain. For a class quest
+  that's the whole way to the spell ("Curing the Sick" becomes the line "Cure Poison"). Your
+  route, the Flow Tracker and the Flow Router then show only that line's steps, in the best
+  order; the next quest of the line is added as soon as you can pick it up.
+- **Add more lines.** "Go here next" on another step adds its line, and so does the link
+  button of a line in Flow Improvements (it also still opens the step). Two or three lines are
+  planned together, by the shortest way through all of them. A trainer or a profession step
+  can be picked the same way: a line of one.
+- **Remove a step or a line.** Right-click a step of your custom route: "Remove this step
+  and what follows it" ends its line before that quest (what comes before it stays);
+  "Remove its whole quest line" takes the line out. A line whose quests are done leaves by
+  itself, and when the last one is done the route goes back to Shortest or Most XP.
+- **You can see you're on one, and leave with a click.** A bar under the Flow Tracker says
+  "Custom route: Cure Poison + Aquatic Form" (hover for the lines); click it to clear. The Flow
+  menu has "Clear your custom route" at the very top while you're on one. Picking Shortest or
+  Most XP clears it too. `/flow focus` lists your lines.
+- **The Warsong Reports and quests like it get a place.** Its three "updates" are handed over
+  by people the quest data lists for the quest as a whole, not for each objective, so Flow
+  said "doesn't know where: first you need Warsong Report". Flow now sends you to those spots
+  when a quest's objectives have no place of their own. (It isn't a battleground quest, so
+  the Battlegrounds tick doesn't hide it.)
 ## 0.35.357
 
 - **New: Battlegrounds in Route includes.** Battleground quests sat among your ordinary

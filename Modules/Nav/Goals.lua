@@ -346,15 +346,25 @@ local function questGoals(db, q, goals, opts)
     -- quests only: a party member's has no marker of yours.)
     if #missing > 0 and not opts.who then
         local wp = waypoint(q.id)
-        if wp then
+        -- No marker of the game's: the spots the quest data marks for the quest
+        -- as a whole, apart from its objectives (0.35.358: The Warsong Reports'
+        -- three "updates" are handed over by people the quest data lists that
+        -- way, and Flow said "doesn't know where").
+        local extra = {}
+        if not wp then
+            local okE, tables = pcall(ns.quests.ExtraSpawns, quest)
+            if okE and #tables > 0 then extra = (pointsFrom(tables)) end
+        end
+        if wp or #extra > 0 then
             local key = prefix .. q.id .. ":wp"
             for _ = 1, #missing do table.insert(turnIn.deps, key) end
             if not skip(key) then
                 local d = { "Quest: " .. (title or "?") }
                 for _, m in ipairs(missing) do d[#d + 1] = "Objective: " .. (ns.ProgressText(m.text) or "?") end
-                d[#d + 1] = "Flow's quest data has no place for this: the arrow goes to the game's own marker for the quest."
+                d[#d + 1] = wp and "Flow's quest data has no place for this: the arrow goes to the game's own marker for the quest."
+                    or "The quest data doesn't say where each objective is done, but it marks these spots for the quest: the arrow goes to the nearest."
                 goals[#goals + 1] = {
-                    key = key, points = { wp }, title = title, level = quest.level, kind = "use", area = true,
+                    key = key, points = wp and { wp } or extra, title = title, level = quest.level, kind = "use", area = true,
                     text = (title and (title .. ": ") or "") .. (ns.ProgressText(missing[1].text) or "see your quest log"),
                     details = d,
                 }
@@ -534,6 +544,22 @@ ns:Register("navGoal", "questie", {
 -- Spawn table -> map points (shared by pickups below).
 local function spawnPoints(spawns)
     return (pointsFrom({ spawns }))
+end
+ns.quests.SpawnPoints = spawnPoints   -- (Focus.lua: the next quest of a custom route's line)
+
+-- Pure: the spawn tables the quest data marks for a quest as a whole (its
+-- "special objectives": who to talk to, where to use a thing), apart from
+-- its numbered objectives. quest: the quest as the data gives it.
+--   -> { spawns, ... }, each { [zone] = { { x, y }, ... } }
+function ns.quests.ExtraSpawns(quest)
+    local out = {}
+    local special = type(quest) == "table" and quest.SpecialObjectives or nil
+    for _, so in pairs(type(special) == "table" and special or {}) do
+        for _, entry in pairs(type(so) == "table" and type(so.spawnList) == "table" and so.spawnList or {}) do
+            if type(entry) == "table" and type(entry.Spawns) == "table" and next(entry.Spawns) then out[#out + 1] = entry.Spawns end
+        end
+    end
+    return out
 end
 
 -- Quests you haven't picked up yet that are still worth doing (from the

@@ -97,6 +97,7 @@ function D:Snapshot(reason, spread)
         { "gates", function() if c.gates then c.gates("") end end },
         { "rides", function() if c.rides then c.rides("") end end },
         { "legs", function() if c.legs then c.legs("") end end },
+        { "custom route", function() if c.focus then c.focus("") end end },
         { "height", function() if c.height then c.height("") end end },
         { "quest items", function() if c.questitems then c.questitems("") end end },
         { "quest bags", function() if c.questbags then c.questbags("") end end },

@@ -392,7 +392,7 @@ end
 function Adv.LinkOf(item, goalOf)
     if item.onClick or item.open then return "open", item.openLabel or "it" end
     local g = item.goalKey and goalOf(item.goalKey)
-    if g then return "goal", "the step on your route: " .. tostring(g.text or g.title or item.goalKey) end
+    if g then return "goal", "the step on your route: " .. tostring(g.text or g.title or item.goalKey) .. " (and add its quest line to your custom route)" end
     if item.spell then return "spell", item.spell .. " (put it on a bar or bind a key)" end
     local link = tostring(item.text or ""):match("(|c%x+|Hitem:.-|h.-|h|r)")
     if link then return "item", link end
@@ -406,6 +406,13 @@ function Adv.Open(item, anchor)
         if not ok then ns:Print("couldn't open it: " .. tostring(err)) end
     elseif kind == "goal" then
         local g = goalFor(item.goalKey)
+        -- Its line joins your custom route (0.35.358: "if the user clicks that
+        -- button, it should make that the route; on another one, that also
+        -- gets added"), and its card opens as before.
+        if g and ns.focus and ns.focus.AddKey then
+            local okA, title = pcall(ns.focus.AddKey, g.key, g.text or g.title)
+            if okA and title then ns:Print("Custom route: " .. tostring(title) .. " added. Only your picked lines are on the route; the bar under the Flow Tracker clears it.") end
+        end
         if g and g.points and #g.points > 0 then
             ns.nav:OpenStop(g, anchor)   -- its card: where it is, go here next, point the arrow here
         elseif g then
