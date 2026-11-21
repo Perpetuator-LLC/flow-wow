@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.385
+
+- **Fixed: a gear set put an old weapon back on, and then Flow offered the upgrade again.**
+  The game's set is a snapshot from the day it was built: Feral (Cat) still held a hammer
+  after the Staff of Orgrimmar went on later, so clicking the set's icon swapped the staff
+  out and your Flow key then offered it back. Sets keep up now:
+  - **click a spec's set icon**: the set goes on, then Flow puts on anything in your bags
+    that's better for that spec (the same judgment as the upgrade on your Flow key) and
+    saves the set. It says what it put on;
+  - **put on an upgrade while in a spec's set**, by the Flow key or by hand: the set is
+    saved with it. Only when nothing in your bags is better for that spec than what you now
+    wear, so taking a piece off or putting on something worse never rewrites the set.
+- A set that isn't a spec's (Fishing, one of your own making) is left exactly as saved.
+- "Gear sets keep up with your upgrades" in Flow Settings (Loot and selling) turns it off.
 ## 0.35.384
 
 - **Dungeons wait while you're on a custom route.** A custom route is you on a mission, so:

@@ -178,7 +178,11 @@ function SI.Click(set, button)
         if ns.menu and ns.menu.Open then ns.menu:Open(SI.MenuItems(set)) end
         return "menu"
     end
-    if SI.Use(set) then C_Timer.After(0.6, function() SI.Refresh() end) end
+    if SI.Use(set) then
+        C_Timer.After(0.6, function() SI.Refresh() end)
+        -- (A spec's set is then brought up to date with your bags: KeepSets.lua, 0.35.385.)
+        if ns.keepSets and ns.keepSets.Clicked then pcall(ns.keepSets.Clicked, set.name) end
+    end
     return "use"
 end
 

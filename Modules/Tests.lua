@@ -17833,3 +17833,50 @@ ns:Register("test", "custom route: dungeons wait unless you added the run", func
     pcall(F.UpdateBar)
     t:ok(pcall(ns.dungeons.KeyStatus), "the dungeon key still works out what to show")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.385: a spec's gear set keeps up with your upgrades.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear sets: a spec's set is saved with an upgrade you put on, never with a downgrade", function(t)
+    local K = ns.keepSets
+    t:eq(K.FollowPlan("dps", false, 0, false, true), "save", "in your cat set, something better went on, nothing better left in your bags: the set is saved with it")
+    t:eq(K.FollowPlan("dps", false, 1, false, true), nil, "something in your bags is better than what you now wear (a piece came off, or a worse one went on): the set is left alone")
+    t:eq(K.FollowPlan("dps", true, 0, false, true), nil, "the set is on whole: nothing to save")
+    t:eq(K.FollowPlan(nil, false, 0, false, true), nil, "not in a spec's set (Fishing): nothing")
+    t:eq(K.FollowPlan("dps", false, 0, true, true), nil, "while Flow is swapping gear itself: nothing")
+    t:eq(K.FollowPlan("dps", false, 0, false, false), nil, "turned off: nothing")
+    t:eq(K.TopUpText("Feral (Cat)", { "[Staff of Orgrimmar]" }), "Your Feral (Cat) set was behind: put on [Staff of Orgrimmar] (better for it) and saved the set with it.", "the line after one piece")
+    t:ok(K.TopUpText("Feral (Cat)", { "[A]", "[B]" }):find("[A], [B]", 1, true) and K.TopUpText("x", { "[A]", "[B]" }):find("with them", 1, true), "and after two")
+    t:eq(K.RoleOfSet(nil), nil, "no set: no spec")
+    t:eq(K.RoleOfSet("No Such Set 987654385"), nil, "a set that isn't a spec's: no spec")
+    for _, role in ipairs(ns.gear.ROLES) do
+        local s = ns.gear.sets:GameSet(role)
+        if s then t:eq(K.RoleOfSet(s.name), role, "a spec's own set is known as its: " .. tostring(s.name)) end
+    end
+    t:ok(pcall(K.SetOn), "which set is on whole can be read")
+end)
+
+ns:Register("test", "click: a spec's set icon also brings the set up to date; another kind of set doesn't", function(t)
+    local K = ns.keepSets
+    if InCombatLockdown() then return end
+    local was, follow = ns.db.gear.onRole, ns.db.gear.setFollow
+    local topped
+    -- (TopUp is stood in for: the test must not change your gear.)
+    with(K, "TopUp", function(_, role) topped = role end, function()
+        with(K, "RoleOfSet", function(name) return name == "Cat Test" and "dps" or nil end, function()
+            ns.db.gear.setFollow = nil
+            t:eq(K.Clicked("Cat Test"), true, "a spec's set: Flow will bring it up to date")
+            t:eq(ns.db.gear.onRole, "dps", "and knows which spec you're in")
+            t:eq(K.Clicked("Fishing"), false, "a set of another kind: left as it is")
+            t:eq(ns.db.gear.onRole, nil, "and you're in no spec's set")
+            ns.db.gear.setFollow = false
+            t:eq(K.Clicked("Cat Test"), false, "turned off: the set goes on as it was saved")
+        end)
+    end)
+    t:eq(topped, nil, "(nothing was put on by the test)")
+    ns.db.gear.onRole, ns.db.gear.setFollow = was, follow
+    t:ok(K.FollowOn() == (follow ~= false), "the setting is as you had it")
+    K.clicks = (K.clicks or 0) + 1
+    t:eq(type(K.Follow), "function", "a gear change is looked at")
+end)

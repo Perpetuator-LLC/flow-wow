@@ -237,6 +237,141 @@ function K:BuildAll()
     return #queue
 end
 
+
+-------------------------------------------------------------------------------
+-- A spec's set keeps up with your upgrades (0.35.385)
+--
+-- "I click that gear set and it puts on some hammer I have. It's inferior to
+-- the Staff of Orgrimmar ... then Flow starts to say we have a better
+-- upgrade. Why is the gear set not optimized?" Because the game's set is a
+-- snapshot: it held the hammer from the day it was built, and nothing brought
+-- it up to date when the staff went on later. Two things now do:
+--   * you click a spec's set icon: the set goes on, then Flow puts on
+--     whatever in your bags is better for that spec (the same judgment as the
+--     upgrade on your Flow key) and saves the set (K:TopUp);
+--   * you put on an upgrade while in a spec's set, by the Flow key or by
+--     hand: the set is saved with it (K.Follow). Only when nothing in your
+--     bags is better for that spec than what you now wear, so taking a piece
+--     off, or swapping to something worse, never rewrites the set.
+-- "Gear sets keep up with your upgrades" in Flow Settings turns both off.
+-------------------------------------------------------------------------------
+function K.FollowOn() return not (ns.db and ns.db.gear and ns.db.gear.setFollow == false) end
+
+-- The spec a game set belongs to (by its name), or nil: a set of another kind.
+function K.RoleOfSet(name)
+    if not name then return nil end
+    for _, role in ipairs(G.ROLES) do
+        local s = G.sets:GameSet(role)
+        if s and s.name == name then return role end
+    end
+    return nil
+end
+
+-- The game set you're wearing every piece of now (its name), or nil.
+function K.SetOn()
+    if not (CE and CE.GetEquipmentSetIDs and CE.GetEquipmentSetInfo) then return nil end
+    local ok, ids = pcall(CE.GetEquipmentSetIDs)
+    for _, id in ipairs(ok and ids or {}) do
+        local okI, name, _, _, isOn = pcall(CE.GetEquipmentSetInfo, id)
+        if okI and isOn then return name end
+    end
+    return nil
+end
+
+-- Pure: the chat line after a set was topped up.
+function K.TopUpText(label, links)
+    return string.format("Your %s set was behind: put on %s (better for it) and saved the set with %s.", tostring(label),
+        table.concat(links or {}, ", "), #(links or {}) == 1 and "it" or "them")
+end
+
+-- Puts on what's in your bags that's better for this spec than what you wear,
+-- and saves the spec's set. For right after its set went on. done(ok, text).
+function K:TopUp(role, done)
+    done = done or function(_, text) if text then ns:Print(text) end end
+    if InCombatLockdown() or K.building or K.topping or (ns.setRecipes and ns.setRecipes.building) or not equip then return done(false) end
+    local wants = K.Wants(role)
+    if #wants == 0 then return done(true) end     -- (nothing better: the set is as good as your bags allow)
+    K.topping = role
+    local links = {}
+    for i, w in ipairs(wants) do
+        links[#links + 1] = w.link
+        C_Timer.After((i - 1) * K.STEP, function()
+            if K.topping == role and not InCombatLockdown() then pcall(equip, w.link) end
+        end)
+    end
+    ns:Log("gear", string.format("topping up the %s set: putting on %d piece(s)", role, #wants))
+    C_Timer.After((#wants - 1) * K.STEP + K.SETTLE, function()
+        K.topping = nil
+        if InCombatLockdown() then return done(false, "A fight started while Flow was bringing your " .. ns:RoleName(role) .. " set up to date: it isn't saved.") end
+        local name, why = K.Save(role)
+        K:Refresh()
+        if ns.setIcons then ns.setIcons.Refresh() end
+        done(name ~= nil, name and K.TopUpText(ns:RoleName(role), links) or ("Couldn't save your " .. ns:RoleName(role) .. " set: " .. tostring(why)))
+    end)
+end
+
+-- A set's icon was clicked and the set asked for (SetIcons.lua): which spec
+-- you're in now, and its set brought up to date once the pieces are on.
+function K.Clicked(setName)
+    local role = K.RoleOfSet(setName)
+    ns.db.gear.onRole = role      -- (nil for a set that isn't a spec's: Fishing)
+    K.clicks = (K.clicks or 0) + 1   -- (a later click, or a test, calls off an earlier one's top-up)
+    local mine = K.clicks
+    if not (role and K.FollowOn()) then return false end
+    C_Timer.After(K.SETTLE, function()
+        if K.clicks == mine and ns.db.gear.onRole == role then K:TopUp(role) end
+    end)
+    return true
+end
+
+-- Pure: after your gear changed, save the spec's set with what you wear?
+--   role: the spec you're in (nil: none); setOn: a game set is fully on (then
+--   nothing changed about it); better: how many things in your bags are
+--   better for the spec than what you now wear; busy: Flow is swapping gear.
+function K.FollowPlan(role, setOn, better, busy, on)
+    if on == false or busy or not role or setOn then return nil end
+    if (better or 0) > 0 then return nil end      -- (you took a piece off, or put on something worse)
+    return "save"
+end
+
+function K.Follow()
+    if not (ns.db and ns.db.gear) or InCombatLockdown() or not G.sets:HasEquipmentManager() then return end
+    local busy = K.building or K.topping or (ns.setRecipes and ns.setRecipes.building)
+    local on = K.SetOn()
+    if on and not busy then ns.db.gear.onRole = K.RoleOfSet(on) end   -- (a set went on whole: that's where you are)
+    local role = ns.db.gear.onRole
+    if not (role and G.sets:GameSet(role)) then return end
+    if K.FollowPlan(role, on ~= nil, #K.Wants(role), busy and true or false, K.FollowOn()) == "save" then
+        local name = K.Save(role)
+        if name then
+            ns:Print(string.format("Your %s set now has what you're wearing (you put on something better for it).", ns:RoleName(role)))
+            if ns.setIcons then ns.setIcons.Refresh() end
+        end
+    end
+end
+
+do
+    local pending = false
+    ns:On("PLAYER_EQUIPMENT_CHANGED", function()
+        if pending then return end
+        pending = true
+        C_Timer.After(1.5, function()
+            pending = false
+            local ok, err = pcall(K.Follow)
+            if not ok then ns:Log("gear", "set follow: " .. tostring(err)) end
+        end)
+    end)
+end
+ns:PerCharacter("gear.onRole")
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck{ group = "loot", label = "Gear sets keep up with your upgrades",
+        tip = "When you click a spec's set icon on your bags, Flow also puts on anything in your bags that's better for that spec and saves the set. "
+            .. "And when you put on an upgrade while in a spec's set, the set is saved with it. Off: a set stays exactly as it was last built.",
+        get = function() return K.FollowOn() end,
+        set = function(on) ns.db.gear.setFollow = on and true or false end }
+end
+
 -------------------------------------------------------------------------------
 -- The row on your bags
 -------------------------------------------------------------------------------
