@@ -37,6 +37,14 @@ function BI.IsBuffFood(lines)
     return false
 end
 
+-- Higher rank = a bigger heal: item level, then the level it needs.
+local function rankOf(id)
+    if not A.ItemInfo then return 0 end
+    local ok, _, _, _, ilvl, req = pcall(A.ItemInfo, id)
+    if not ok then return 0 end
+    return (tonumber(ilvl) or 0) + (tonumber(req) or 0) / 1000
+end
+
 -- What a Well Fed food gives, from its tooltip: { Stamina = 6, Spirit = 6 },
 -- { mp5 = 3 } (mana every 5 seconds), { hp5 = 4 }; {} when it says no more
 -- than "well fed". Reads "gain 6 Stamina and Spirit" and "increases your
@@ -800,14 +808,6 @@ function BI.HealKind(name, classID, subID, lines, spell)
         if mana or spell == "Drink" then return "drink", false end
     end
     return nil
-end
-
--- Higher rank = a bigger heal: item level, then the level it needs.
-local function rankOf(id)
-    if not A.ItemInfo then return 0 end
-    local ok, _, _, _, ilvl, req = pcall(A.ItemInfo, id)
-    if not ok then return 0 end
-    return (tonumber(ilvl) or 0) + (tonumber(req) or 0) / 1000
 end
 
 -- The healing items in your bags: { id, kind, name, rank } (cleared when
