@@ -17928,3 +17928,39 @@ ns:Register("test", "professions: a tier that's a book says so, and names who se
     local okN, none = pcall(SP.TierBook, nil)
     t:ok(okN and none == nil, "no tier: no book")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.387: a hand-in waits with its held objective; an item nobody drops is
+-- got from whoever the quest data lists as having it.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a quest's hand-in is off the route while its objective is held off it", function(t)
+    local N = ns.nav
+    local blocked = { { key = "97538:1", blockedBy = "level 26 quest: back on the route at level 24 (or in a group)", blockedShort = "at level 24" } }
+    local kept = {
+        { key = "97538:done", deps = { "97538:1" }, text = "Turn in: Pigments for Paints" },
+        { key = "97485:done", deps = { "97485:wp" }, text = "Turn in: Traditions of the Bluff" },
+        { key = "97485:wp" },
+        { key = "train:class", deps = { "97538:1" } },
+    }
+    local out = N.HoldTurnIns(kept, blocked)
+    local keys = {}
+    for _, g in ipairs(out) do keys[#keys + 1] = g.key end
+    t:eq(table.concat(keys, ","), "97485:done,97485:wp,train:class", "the hand-in whose objective is held leaves the route; one whose steps are on it stays")
+    t:eq(#blocked, 2, "it's listed with the held steps")
+    t:ok(blocked[2].key == "97538:done" and blocked[2].blockedBy:find("isn't finished", 1, true) and blocked[2].blockedBy:find("level 24", 1, true), "with the reason: what's left is waiting, and why")
+    t:eq(blocked[2].blockedShort, "at level 24", "and the same few words beside it")
+    t:eq(#N.HoldTurnIns({ { key = "1:done", deps = { "1:1" } } }, {}), 1, "nothing held: nothing changes")
+    t:eq(#N.HoldTurnIns(nil, nil), 0, "no steps: none")
+end)
+
+ns:Register("test", "quests: an item nothing drops is got from who has it, or out of what you carry", function(t)
+    local Q = ns.quests
+    t:eq(table.concat(Q.Givers({ vendors = { 12863, 12864 } }), ","), "12863,12864", "the NPCs the quest data lists as having it")
+    t:eq(#Q.Givers({}), 0, "none listed: none")
+    t:eq(#Q.Givers(nil), 0, "no item: none")
+    local function nameOf(id) return id == 16783 and "Bundle of Reports" or nil end
+    t:eq(Q.HeldIn({ itemDrops = { 16783 } }, function() return 1 end, nameOf), "Bundle of Reports", "it comes out of something you carry: named")
+    t:eq(Q.HeldIn({ itemDrops = { 16783 } }, function() return 0 end, nameOf), nil, "you don't carry that: nothing to open")
+    t:eq(Q.HeldIn({}, function() return 1 end, nameOf), nil, "it comes out of nothing: none")
+end)

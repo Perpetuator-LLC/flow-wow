@@ -207,6 +207,7 @@ local function questGoals(db, q, goals, opts)
         if not obj.finished and od and not skillObj and not banked then
             local spawns, verb, what, elite = {}, nil, nil, false
             local targets = {}  -- mob / NPC names (the arrow finds their nameplates in the area)
+            local givers = {}   -- who hands the thing over, when nothing drops it
             local mobs = {}     -- { name, min, max, rate }: their levels, and how often they drop it (0.35.232)
             if od.Type == "monster" then
                 local npcRaw
@@ -239,6 +240,16 @@ local function questGoals(db, q, goals, opts)
                 end
                 elite = anyElite and not anyNormal
                 for _, objId in ipairs(item and item.objectDrops or {}) do objectSpawns(db, spawns, objId) end
+                -- Nothing drops it and nothing holds it, but the quest data lists who
+                -- has it (0.35.387: The Warsong Reports' three "updates" are handed
+                -- over by the scout, the runner and the outrider, whom the data files
+                -- as the items' vendors): that's where to go.
+                if #spawns == 0 then
+                    for _, npcId in ipairs(ns.quests.Givers(item)) do
+                        local giver = npcSpawns(db, spawns, npcId)
+                        if giver then targets[#targets + 1] = giver; givers[#givers + 1] = giver end
+                    end
+                end
             end
             local points, known = pointsFrom(spawns)
             -- A quest 3+ levels above you (orange or red): its mobs hit hard.
@@ -292,6 +303,7 @@ local function questGoals(db, q, goals, opts)
                         details = (function()
                             local d = { "Quest: " .. (title or "?"), "Objective: " .. (ns.ProgressText(objText) or "?") }
                             if opts.who then d[#d + 1] = opts.who .. "'s quest: you're helping them (kill credit is shared in a party)." end
+                            if #givers > 0 then d[#d + 1] = "You get it from " .. ns.quests.AndList(givers) .. ": talk to them." end
                             if held then d[#d + 1] = string.format("%s Held off the route until level %d, or until you're in a group (setting: Hold hard and elite quests while solo).",
                                     elite and "Elite: hard to solo at this level." or string.format("Level %d: above your limit for quest levels (Flow menu, Quest levels), so its mobs hit hard.", quest.level), held)
                             elseif elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
@@ -356,6 +368,11 @@ local function questGoals(db, q, goals, opts)
                     }
                     needKeys[#needKeys + 1] = key
                 elseif #points == 0 then
+                    -- (It comes out of something you carry: say so. 0.35.387: Warsong
+                    -- Report is in the Bundle of Reports the quest gave you.)
+                    local holder = ns.quests.HeldIn(item, function(id) return ns.api.Count and ns.api.Count(id) or 0 end,
+                        function(id) local it = call(db, "GetItem", id) return it and it.name end)
+                    if holder then name = string.format("%s (open %s in your bags)", name, holder) end
                     cant(string.format("it needs %s first, and Questie has no spot for where that's found", name))
                     noSpotNeeds[#noSpotNeeds + 1] = name
                 end
@@ -522,6 +539,24 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     g.blockedBy = "Flow doesn't know where: " .. tostring(m and m.why or "no spot") .. ". Your quest log says how. Flow learns the spot when you do it."
     g.blockedShort = ns.nav.NO_SPOT
     return "unknown"
+end
+
+-- Pure: who has an item that nothing drops: the NPCs the quest data lists as
+-- selling it ({ ids }; none: {}).
+function ns.quests.Givers(item)
+    local out = {}
+    for _, id in ipairs(type(item) == "table" and type(item.vendors) == "table" and item.vendors or {}) do
+        if type(id) == "number" then out[#out + 1] = id end
+    end
+    return out
+end
+-- Pure: the name of something you carry that this item comes out of, or nil.
+--   count(id) -> how many you carry; nameOf(id) -> its name
+function ns.quests.HeldIn(item, count, nameOf)
+    for _, id in ipairs(type(item) == "table" and type(item.itemDrops) == "table" and item.itemDrops or {}) do
+        if type(id) == "number" and (count(id) or 0) > 0 then return nameOf(id) or "what holds it" end
+    end
+    return nil
 end
 
 -- Pure: { "A", "B", "C" } -> "A, B and C".

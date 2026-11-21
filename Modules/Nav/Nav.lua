@@ -593,6 +593,8 @@ function N:Collect(gathered)
     end
     -- Gone altogether (trained elsewhere, no longer needed): forget it.
     for key in pairs(deferred) do if not present[key] then deferred[key] = nil end end
+    -- A quest's hand-in waits with the objective it's waiting for (0.35.387).
+    kept = N.HoldTurnIns(kept, blockedGoals)
     N.blockedGoals = blockedGoals
     N.deferredGoals = blockedGoals  -- older name
     list = kept
@@ -1230,6 +1232,35 @@ function N:Hide(key)
     ns.db.nav.hidden = ns.db.nav.hidden or {}
     ns.db.nav.hidden[key] = true
     self:Collect()
+end
+
+-- "It's telling me to go turn in Pigments for Paints, but I don't have any of
+-- the Mirkweed Pods" (0.35.387). The quest's one objective was held off the
+-- route (a level 26 quest at 22), and a held step isn't on the route, so
+-- nothing stood before the hand-in any more: it became step 1. A hand-in
+-- whose objective is off the route is off it too, with the reason.
+-- Pure: kept, blocked: the steps on and off the route. -> the steps still on
+-- (the hand-ins held are added to `blocked`).
+function N.HoldTurnIns(kept, blocked)
+    local off = {}
+    for _, g in ipairs(blocked or {}) do if type(g.key) == "string" then off[g.key] = g end end
+    local out = {}
+    for _, g in ipairs(kept or {}) do
+        local held
+        if type(g.key) == "string" and g.key:find(":done$") then
+            for _, dep in ipairs(g.deps or {}) do
+                if off[dep] then held = off[dep] break end
+            end
+        end
+        if held then
+            g.blockedBy = "Its quest isn't finished yet, and what's left is waiting: " .. tostring(held.blockedBy or "a step of it is off your route")
+            g.blockedShort = held.blockedShort or "not finished"
+            blocked[#blocked + 1] = g
+        else
+            out[#out + 1] = g
+        end
+    end
+    return out
 end
 
 function N:Unhide(key)

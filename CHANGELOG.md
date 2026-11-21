@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.387
+
+- **Fixed: the route sent you to hand in a quest you hadn't done.** "Turn in: Pigments for
+  Paints" was step 1 with 0 of 30 Mirkweed Pods. The quest's objective was held off the
+  route (a level 26 quest at level 22), and with it gone nothing stood before the hand-in.
+  The same happened to Steelsnap and WANTED: Bruuz. A hand-in now waits with its objective:
+  it's listed, locked, with the reason.
+- **The Warsong Reports has places now.** The three "updates" aren't dropped by anything:
+  the scout, the runner and the outrider hand them over, and the quest data lists those
+  three as having the items. Flow goes to them ("You get it from ...: talk to them").
+- When a quest needs something that comes out of an item you carry (a Warsong Report is in
+  the Bundle of Reports), the step's reason says to open it.
 ## 0.35.386
 
 - **"Quest here?" stops asking while you travel.** The bar about a zone that isn't one of
