@@ -146,11 +146,16 @@ end
 -- What a folded section is set to, for its row: the ticked radio's text
 -- ("Shortest path"), how many ticks are on ("4 of 6"), or "on" / "off" for
 -- a single tick. nil: nothing to say.
+-- (0.35.382: "Route includes, it's like 10 of 13, but there's not even that
+-- many options ... all the user cares about are the top-level items." A tick
+-- that hangs off another (minor = true: professions' own arrow, the dungeon
+-- key, "show only my waypoint") or can't be changed now (greyed) isn't
+-- counted.)
 function Menu.SectionState(sub)
     local ticks, on = 0, 0
     for _, it in ipairs(sub) do
         if it.radio and it.checked then return it.text end
-        if it.checked ~= nil and not it.radio then
+        if it.checked ~= nil and not it.radio and not it.minor and not it.disabled then
             ticks = ticks + 1
             if it.checked then on = on + 1 end
         end
@@ -407,7 +412,7 @@ function Menu.KindItems()
                 it.checked = ns.db.nav.profArrow == true
                 it.disabled = not nav:Includes("professions")
             end
-            local own = { text = "      on their own faint arrow", stay = true, func = function() nav:SetProfArrow(ns.db.nav.profArrow ~= true) end,
+            local own = { text = "      on their own faint arrow", stay = true, minor = true, func = function() nav:SetProfArrow(ns.db.nav.profArrow ~= true) end,
                 tip = "Ticked: profession steps get a route of their own and a faint arrow behind the main one, which then only takes you to the rest. "
                     .. "Not ticked: they're steps on the one route, where the Flow key does their steps.",
                 refresh = sub }
@@ -546,7 +551,7 @@ function Menu:RouteItemsRaw()
     -- The dungeon key above the Flow Tracker (Flow's dungeon suggestions): a
     -- tick here too, where you choose what the route has (0.35.226).
     if D and D.Suggest then
-        includes[#includes + 1] = { text = "Dungeon key above the Flow Tracker (suggests runs)", stay = true,
+        includes[#includes + 1] = { text = "Dungeon key above the Flow Tracker (suggests runs)", stay = true, minor = true,
             checked = D:Suggest(),
             tip = "A gold key above your quest list when a dungeon run is worth doing at your level. Hover it for the run; click it to put the run's quests and its entrance on your route.",
             refresh = function(it) it.checked = D:Suggest() end,
@@ -578,7 +583,7 @@ function Menu:RouteItemsRaw()
     if ns.follow and ns.party and ns.party:InGroup() then
         for _, it in ipairs(safe(ns.follow.MenuItems, ns.follow)) do way[#way + 1] = it end
     end
-    way[#way + 1] = { text = "On the map, show only my waypoint while one is set", stay = true,
+    way[#way + 1] = { text = "On the map, show only my waypoint while one is set", stay = true, minor = true,
         checked = ns.db.nav.mapWaypointOnly ~= false,
         tip = "While you have a waypoint of your own, the world map leaves out Flow's route, steps and areas and shows the waypoint alone. Clear the waypoint and the route is back. Pointing at a step in the Flow Router or Flow Tracker still shows that step.",
         refresh = function(it) it.checked = ns.db.nav.mapWaypointOnly ~= false end,

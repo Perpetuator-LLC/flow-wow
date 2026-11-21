@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.382
+
+- **The Flow menu's counts are of the choices that matter.** "Route includes" said things
+  like "10 of 13" because it counted every tick under it. It now counts only the kinds of
+  step: not "on their own faint arrow", not the dungeon key's tick, and not a greyed one
+  that can't be changed. "Your waypoint" no longer shows "on" or "off" for its one map tick.
+- **For the quests Flow can't place: what the quest data says about them.** The diagnostics
+  have a new "quest data" section, and `/flow questdata [quest number]` prints it: for each
+  quest with a "no known spot" or "needs ... first" step, its objectives as the data has
+  them, what each item is said to come from, what it needs first, the spots marked for the
+  quest as a whole, the game's own marker, and what you carry. Nothing on the route changes
+  yet: this is so the fix for The Warsong Reports and Stalk With The Earthmother is built
+  from the data, not guessed.
 ## 0.35.381
 
 - **The Flow Router button on the map has a filled arrow, on the left.** It was a thin

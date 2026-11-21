@@ -17652,3 +17652,56 @@ ns:Register("test", "map: the Flow Router button's arrow is a filled one, and Fl
     local fb = _G.FlowMapFlightsToggle
     if fb then t:ok(fb.hoverGlow ~= nil, "the flight masters button glows") end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.382: the Flow menu's counts are of the top-level ticks; the quest
+-- data's record of the quests Flow can't place is in the diagnostics.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "menu: a section's count is of its top-level ticks", function(t)
+    local M = ns.menu
+    local sub = {
+        { text = "Current quests", checked = true }, { text = "New quests", checked = true }, { text = "Professions", checked = false },
+        { text = "      on their own faint arrow", checked = false, minor = true },
+        { text = "Dungeon key", checked = true, minor = true },
+        { text = "Low-level quests (your custom route instead)", checked = false, disabled = true },
+        { text = "Unhide all steps (0)", disabled = true },
+    }
+    t:eq(M.SectionState(sub), "2 of 3", "ticks that hang off another, and greyed ones, aren't counted")
+    t:eq(M.SectionState({ { text = "Show only my waypoint", checked = true, minor = true } }), nil, "a section with only a minor tick says nothing")
+    t:eq(M.SectionState({ { text = "x", checked = true } }), "on", "one tick is still on or off")
+    -- The real menu: Route includes counts the kinds (and the dungeon run's own tick, where there is one).
+    local ok, items = pcall(M.KindItems)
+    if ok then
+        local kinds, minor = 0, 0
+        for _, it in ipairs(items) do
+            if it.kind and it.checked ~= nil and not it.disabled then kinds = kinds + 1 end
+            if it.minor then minor = minor + 1 end
+        end
+        local state = M.SectionState(items)
+        t:ok(minor >= 1, "professions' own arrow is a minor tick")
+        t:ok(state and tonumber(state:match("of (%d+)")) == kinds, "its count is out of the kinds of step" .. " (" .. tostring(state) .. ", " .. kinds .. " kinds)")
+    end
+end)
+
+ns:Register("test", "quest data: the record of a quest Flow can't place can be read", function(t)
+    local QD = ns.questDump
+    t:eq(QD.Count(nil), 0, "nothing: none")
+    t:eq(QD.Count({ a = 1, 2, 3 }), 3, "entries are counted, whatever their keys")
+    local list = QD.Unknown({
+        { key = "6543:1", blockedBy = "Flow doesn't know where: first you need Warsong Report" },
+        { key = "6543:2", blockedBy = "Flow doesn't know where: no spot" },
+        { key = "1221:2", blockedBy = "level 26 quest: back on the route at level 24" },
+        { key = "76240:1", blockedBy = "Flow doesn't know where: Questie has no spot for Fish Chunks" },
+        { key = "bank" },
+    }, ns.focus.QuestOf)
+    t:eq(table.concat(list, ","), "6543,76240", "the quests with a step nobody can place, once each; not ones held for another reason")
+    t:eq(#QD.Unknown({ { key = "1:1", blockedBy = "Flow doesn't know where" }, { key = "2:1", blockedBy = "Flow doesn't know where" } }, ns.focus.QuestOf, 1), 1, "no more than asked for")
+    t:eq(QD.Short(5), "5", "a plain value")
+    t:eq(QD.Short({ 1, 2 }), "{1, 2}", "a short list")
+    t:ok(QD.Short({ { { { 1 } } } }):find("...", 1, true), "deep tables are cut short")
+    local okQ, lines = pcall(QD.Quest, 987654382)
+    t:ok(okQ and #lines == 1, "a quest the data doesn't have: said so, no error" .. (okQ and "" or (": " .. tostring(lines))))
+    local okL, all = pcall(QD.Lines)
+    t:ok(okL and #all >= 1, "/flow questdata builds" .. (okL and "" or (": " .. tostring(all))))
+end)
