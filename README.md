@@ -219,6 +219,8 @@ Flow for WoW is a separate project from Flow Engine.
   against your level) and the fishing skill its waters need; hold Shift for the fish and how often.
 - **Hard and elite quests wait while you're solo**: a quest 3 or more levels above you, or an elite
   one, is held off the route (listed, locked) until you can do it or you're in a group.
+- **Quest levels beside steps** follow the game's own map filter (Show quest levels, Quest difficulty
+  color): red and orange above you, yellow full XP, green easy, olive when the XP drops, grey for none.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,

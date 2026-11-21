@@ -2416,8 +2416,9 @@ function N:PlanLabels(plan)
     for i, s in ipairs(plan or {}) do
         local isPickup = s.goal.key:find("^pickup:") ~= nil
         if isPickup then pickups = pickups + 1 end
+        -- (The quest's level: shown and coloured as the game's map filter has it, QuestLevels.lua.)
         out[i] = (isPickup and ("!" .. pickups) or tostring(i))
-            .. (s.goal.level and string.format(" [%d]", s.goal.level) or "")
+            .. (s.goal.level and (ns.questLevels and ns.questLevels.For(s.goal.level) or string.format(" [%d]", s.goal.level)) or "")
     end
     return out
 end
@@ -3170,7 +3171,12 @@ function N:FillTooltip(tt, goal, footer)
     local kind = ns.theme.kinds[self:StopKind(goal)]
     local icon = kind and string.format("|T%s:16:16|t ", kind.icon) or ""
     local title = goal.title or goal.text or "?"
-    tt:AddLine(icon .. title .. (goal.level and string.format("  |cff999999[%d]|r", goal.level) or ""), 1, 0.82, 0.25, true)
+    tt:AddLine(icon .. title .. (goal.level and (ns.questLevels and ns.questLevels.For(goal.level, "  ") or string.format("  |cff999999[%d]|r", goal.level)) or ""), 1, 0.82, 0.25, true)
+    -- (What the level's colour says: too high, full XP, dropping, none.)
+    if goal.level and ns.questLevels then
+        local says, hex = ns.questLevels.Says(goal.level)
+        if says then tt:AddLine(string.format("|cff%sLevel %d|r: %s", hex, goal.level, says), 0.8, 0.8, 0.8, true) end
+    end
     -- What to do: the line your eyes should land on.
     local task = goal.text or title
     if goal.title and task:sub(1, #goal.title + 2) == goal.title .. ": " then task = task:sub(#goal.title + 3) end

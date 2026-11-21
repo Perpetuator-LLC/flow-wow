@@ -16953,3 +16953,63 @@ ns:Register("test", "crossings: yours are listed, the route's provider and its t
     t:ok(okL and #lines >= 2, "/flow crossings lists them" .. (okL and "" or (": " .. tostring(lines))))
     t:ok(pcall(C.Tick), "watching for a continent change doesn't error")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.370: a quest's level beside its step follows the game's map filter.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest levels: shown and coloured as the game's two settings say", function(t)
+    local QL = ns.questLevels
+    -- You're level 22.
+    t:eq(QL.Tier(27, 22), "red", "5 above: too high")
+    t:eq(QL.Tier(25, 22), "orange", "3 above: hard")
+    t:eq(QL.Tier(24, 22), "yellow", "2 above: your level")
+    t:eq(QL.Tier(20, 22), "yellow", "2 below: your level, full XP")
+    t:eq(QL.Tier(17, 22), "green", "5 below: easy, still full XP")
+    t:eq(QL.Tier(16, 22), "olive", "6 below: the XP is dropping")
+    t:eq(QL.Tier(13, 22), "olive", "9 below: still some")
+    t:eq(QL.Tier(12, 22), "grey", "10 below: next to none")
+    t:eq(QL.Tier(nil, 22), nil, "no level: no colour")
+    -- (The same steps as the route's XP share.)
+    local X = ns.xpValue
+    t:eq(X.Share(17, 22), 1, "green is full XP by Flow's own count")
+    t:ok(X.Share(16, 22) < 1 and X.Share(13, 22) > X.Share(12, 22), "olive is where it drops; grey is the floor")
+
+    t:eq(QL.Tag(16, 22, true, true), " |cff9aa04a[16]|r", "shown and coloured")
+    t:eq(QL.Tag(16, 22, true, false), " [16]", "Quest difficulty color off: plain")
+    t:eq(QL.Tag(16, 22, false, true), "", "Show quest levels off: no bracket at all")
+    t:eq(QL.Tag(nil, 22, true, true), "", "a step with no quest level: nothing")
+    t:eq(QL.Tag(16, 22, true, true, "  "), "  |cff9aa04a[16]|r", "with the lead its place asks for")
+    t:eq(QL.Tag(16, nil, true, true), " [16]", "your level unknown: plain")
+
+    t:eq(QL.PickColorCvar({ "questPOI", "showQuestLevel", "questDifficultyColorEnabled" }), "questDifficultyColorEnabled", "the game's colour setting is found by its name")
+    t:eq(QL.PickColorCvar({ "questPOI", "showQuestDifficulty" }), "showQuestDifficulty", "a name about quest difficulty will do")
+    t:eq(QL.PickColorCvar({ "questPOI", "showQuestLevel", "questTextContrast" }), nil, "none about difficulty: none")
+
+    -- The map's short label drops the level, coloured or not.
+    local M = ns.mapOverlay
+    t:eq(M.ShortLabel("3 [9]"), "3", "a plain level is dropped for the small pins")
+    t:eq(M.ShortLabel("!2 |cffffff00[18]|r"), "!2", "a coloured one too")
+    t:eq(M.ShortLabel("7"), "7", "a label without one is itself")
+end)
+
+ns:Register("test", "quest levels: the game's settings are read, and step labels carry the tag", function(t)
+    local QL, N = ns.questLevels, ns.nav
+    local show, colored = QL.Now()
+    t:ok(type(show) == "boolean" and type(colored) == "boolean", "Show quest levels and Quest difficulty color are read as yes or no")
+    local okL, lines = pcall(QL.Lines)
+    t:ok(okL and #lines >= 4, "/flow questlevels says what Flow read" .. (okL and "" or (": " .. tostring(lines))))
+    t:ok(pcall(QL.QuestCvars), "listing the game's quest settings doesn't error")
+    local mine = UnitLevel("player")
+    local labels = N:PlanLabels({ { goal = { key = "1:1", level = mine } }, { goal = { key = "pickup:2", level = mine + 6 } }, { goal = { key = "bank" } } })
+    t:eq(labels[3], "3", "a step with no quest level is just its number")
+    if show then
+        t:ok(labels[1]:find("[" .. mine .. "]", 1, true) and labels[2]:find("^!1 "), "with levels shown: the number, then the level in brackets")
+        t:eq(labels[1]:find("|cff", 1, true) ~= nil, colored, "coloured when the game colours by difficulty")
+    else
+        t:eq(labels[1], "1", "with levels hidden in the game: no bracket")
+    end
+    local says = QL.Says(mine)
+    t:ok(says == nil or says:find("full XP", 1, true), "a quest at your level says full XP (when levels are coloured)")
+    t:eq(QL.For(nil), "", "no level: no tag")
+end)

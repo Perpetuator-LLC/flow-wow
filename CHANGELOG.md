@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.370
+
+- **Quest levels beside steps follow the game's map filter.** The level in brackets after a
+  step's number ("3 [16]", in the Flow Tracker, the Flow Router, the world map's pins and a
+  step's tooltip) now goes by the game's own **Show quest levels**: untick it in the map
+  filter and the brackets are gone from Flow too.
+- **And they're coloured by what the quest is worth to you**, while the game's **Quest
+  difficulty color** is on:
+  - **red**: 5 or more levels above you; **orange**: 3 or 4 above (hard);
+  - **yellow**: about your level, full XP; **green**: a few levels below, easy and still full XP;
+  - **olive**: 6 to 9 below, the XP is dropping; **grey**: 10 or more below, next to no XP.
+  A step's tooltip says it in words ("Level 16: well below you: the XP is dropping").
+- Show quest levels is read from the game for certain. The name of the colour setting
+  couldn't be checked from outside the game: Flow looks for it under the names it's likely to
+  have, and `/flow questlevels` says which it found. If it finds none, levels stay coloured.
 ## 0.35.369
 
 - **New: the route takes you to the zeppelin or the boat.** Steps on another continent were

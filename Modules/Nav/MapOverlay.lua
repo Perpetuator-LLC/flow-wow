@@ -116,6 +116,12 @@ M.TARGET_RING_ALPHA = 0.45
 -- red dot smaller, so it looks like it fills the centre of the point").
 M.HOVER_SIZE = 12
 -- top: the step under your mouse (bigger, in the hover colour, on top).
+-- Pure: a checkpoint's label without its quest level ("3 [9]" -> "3"), plain or coloured (QuestLevels.lua).
+function M.ShortLabel(label)
+    local s = tostring(label or ""):gsub(" |cff%x%x%x%x%x%x%[%d+%]|r", "")
+    s = s:gsub(" %[%d+%]", "")
+    return s
+end
 local function pin(c, x, y, label, color, stop, top, target)
     nPins = nPins + 1
     local p = pins[nPins]
@@ -225,7 +231,7 @@ local function pin(c, x, y, label, color, stop, top, target)
     p.bg:SetVertexColor(color[1], color[2], color[3], 1)
     p.liveCol = color
     p.text:SetText(label)
-    p.full, p.short = label, (label:gsub(" %[%d+%]", ""))   -- "3 [9]" and "3" (for the declutter)
+    p.full, p.short = label, M.ShortLabel(label)   -- "3 [9]" and "3" (for the declutter)
     p.top = top and true or false
     p:Show()
     return p
