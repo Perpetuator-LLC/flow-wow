@@ -11622,6 +11622,40 @@ ns:Register("test", "route: a hand-in whose objective you hid leaves the route w
     t:ok(#kept == 2 and #held == 0, "nothing hidden: nothing waits")
 end)
 
+ns:Register("test", "route: a hand-in whose objective is off the route (held, another zone) isn't a turn-in yet", function(t)
+    -- "Flow is telling me to turn in quests I have that are incomplete":
+    -- "Turn in: Deepmoss Spider Eggs" at 0/15, its collect step held.
+    local N = ns.nav
+    local eggs = { key = "1069:1", text = "Deepmoss Spider Eggs: 0/15 Deepmoss Spider Egg",
+                   blockedBy = "level 20 quest: back on the route at level 20 (or in a group)" }
+    local turnIn = { key = "1069:done", text = "Turn in: Deepmoss Spider Eggs", deps = { "1069:1" } }
+    local after = { key = "x:after", text = "After the hand-in", deps = { "1069:done" } }
+    local spores = { key = "848:1", text = "Fungal Spores: 0/4" }
+    local sporesIn = { key = "848:done", text = "Turn in: Fungal Spores", deps = { "848:1" } }
+    local done = { key = "870:done", text = "Turn in: The Forgotten Pools", deps = { "870:1" } }
+    local known = { [eggs.key] = eggs, [turnIn.key] = turnIn, [after.key] = after,
+                    [spores.key] = spores, [sporesIn.key] = sporesIn, [done.key] = done }
+    local kept, held = N.HoldForDropped({ turnIn, after, spores, sporesIn, done }, known)
+    t:eq(#kept, 3, "the hand-in and what follows it are off the route")
+    t:ok(kept[1] == spores and kept[2] == sporesIn and kept[3] == done,
+         "the rest stays: one whose objective is on the route, and one whose objective is done")
+    t:eq(#held, 2, "both are listed as waiting")
+    t:ok(held[1].key == "1069:done" and held[1].blockedBy:find("Deepmoss Spider Eggs: 0/15", 1, true) ~= nil,
+         "the reason names the step it waits for")
+    t:ok(held[1].blockedBy:find("back on the route at level 20", 1, true) ~= nil, "and why that one is off the route")
+    t:ok(held[1] ~= turnIn and turnIn.blockedBy == nil, "the step itself isn't marked (a copy is)")
+    t:eq(held[2].key, "x:after", "down the chain")
+    -- In a zone you didn't pick: not blocked, just not on the route.
+    local away = { key = "1069:1", text = "Deepmoss Spider Eggs: 0/15 Deepmoss Spider Egg" }
+    kept, held = N.HoldForDropped({ turnIn }, { [away.key] = away, [turnIn.key] = turnIn })
+    t:ok(#kept == 0 and held[1] and held[1].blockedBy:find("not on your route", 1, true) ~= nil,
+         "its objective left out with its zone: waits, and says so")
+    kept, held = N.HoldForDropped({ eggs, turnIn }, known)
+    t:ok(#kept == 2 and #held == 0, "its objective on the route: the hand-in stays, after it")
+    t:ok(N.HubBusiness and N.HubBusiness(turnIn, 10, { [eggs.key] = true }) == nil,
+         "and the town's errands don't call it a turn-in while its objective is on the route")
+end)
+
 ns:Register("test", "fishing: on the self button alone while it has a key; the self button is docked by default", function(t)
     local X, BB = ns.actions, ns.buffButton
     t:ok(X.OnBuffOnly({ fish = true }, true), "a fishing step, the self button fishes: not on the Flow key too")
