@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.366
+
+- **The Flow menu shows which section you're in.** Pointing at a folded section (Order, Route
+  includes, Steps...) pops its entries out beside the menu, and the row's highlight went out
+  the moment your mouse moved over to them. The row now stays lit, in orange, for as long as
+  its pop-out is open, also after you set a tick in it.
 ## 0.35.365
 
 - Fixes from the review of pull requests 23 to 28:

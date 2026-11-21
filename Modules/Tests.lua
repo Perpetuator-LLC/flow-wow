@@ -16715,3 +16715,58 @@ ns:Register("test", "review 23-28: item and spell names come through Flow's own 
     t:eq(type(ns.api.SpellInfo), "function", "spell names come from Flow's own call")
     t:eq(type(ns.api.ItemInfo), "function", "and item names")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.366: the row whose section is popped out stays lit.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: a Flow menu's row stays lit while its section is popped out", function(t)
+    local M = ns.menu
+    local a, b = {}, {}
+    t:ok(M.IsOpenRow(a, a, true), "the open section's row: lit")
+    t:ok(not M.IsOpenRow(b, a, true), "another row: not")
+    t:ok(not M.IsOpenRow(a, a, false), "the pop-out put away: not")
+    t:ok(not M.IsOpenRow(nil, nil, true), "nothing open: nothing lit")
+    if InCombatLockdown() then return end
+    local items = {
+        { title = true, text = "This step" }, { text = "Open it", func = function() end },
+        { sep = true },
+        { title = true, text = "Order" }, { text = "Shortest path", radio = true, checked = true, stay = true, func = function() end },
+        { text = "Most XP first", radio = true, stay = true, func = function() end },
+        { sep = true },
+        { title = true, text = "Steps" }, { text = "Three", stay = true, func = function() end },
+    }
+    local ok, err = pcall(M.Open, M, items)
+    t:ok(ok, "a menu opens" .. (ok and "" or (": " .. tostring(err))))
+    if not ok then return end
+    local rows, flyRows = M._Rows()
+    local order, steps, plain
+    for _, r in ipairs(rows) do
+        if r:IsShown() and r.item then
+            if r.item.section and r.item.text == "Order" then order = r end
+            if r.item.section and r.item.text == "Steps" then steps = r end
+            if r.item.text == "Open it" then plain = r end
+        end
+    end
+    t:ok(order and steps and plain, "its rows: an entry and two folded sections")
+    if order and steps and plain then
+        t:ok(not order.openHl:IsShown(), "nothing popped out: no row lit")
+        order:GetScript("OnEnter")(order)
+        t:ok(order.openHl:IsShown() and not steps.openHl:IsShown(), "pointing at Order pops it out and lights its row")
+        order:GetScript("OnLeave")(order)
+        -- The mouse is in the pop-out now: its rows' handlers don't touch the main menu.
+        local first = flyRows[1]
+        if first and first:IsShown() then
+            first:GetScript("OnEnter")(first)
+            t:ok(order.openHl:IsShown(), "moving into the pop-out leaves Order lit")
+            pcall(function() first:GetScript("OnClick")(first) end)   -- (a tick that keeps the menu open: it's drawn again)
+            t:ok(order.openHl:IsShown(), "and so does setting a tick in it")
+        end
+        steps:GetScript("OnEnter")(steps)
+        t:ok(steps.openHl:IsShown() and not order.openHl:IsShown(), "pointing at another section moves the light to it")
+        plain:GetScript("OnEnter")(plain)
+        t:ok(not steps.openHl:IsShown() and not order.openHl:IsShown(), "pointing at a plain entry puts the pop-out away and the light out")
+    end
+    M:Close()
+    GameTooltip:Hide()
+end)

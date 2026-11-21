@@ -76,6 +76,13 @@ local function row(parent, list, i)
     r.hl = r:CreateTexture(nil, "HIGHLIGHT")
     r.hl:SetAllPoints()
     r.hl:SetColorTexture(1, 1, 1, 0.1)
+    -- Lit for as long as this row's section is popped out (Menu.MarkOpen),
+    -- in the route's orange: it stays when the mouse moves into the pop-out.
+    r.openHl = r:CreateTexture(nil, "BACKGROUND")
+    r.openHl:SetAllPoints()
+    local o = ns.theme and ns.theme.arrow or { 1, 0.6, 0.2 }
+    r.openHl:SetColorTexture(o[1], o[2], o[3], Menu.OPEN_ALPHA)
+    r.openHl:Hide()
     r.mark = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.mark:SetPoint("LEFT", 8, 0)
     r.mark:SetWidth(14)
@@ -197,6 +204,22 @@ end
 
 local layout   -- (declared here: a section's row opens the pop-out, which is laid out the same way)
 
+-- The row whose section is popped out stays lit (0.35.366). "When we move
+-- the mouse over to the submenu, we lose the highlighting of what's on the
+-- left, and it can be hard to tell what main menu item we're navigating."
+-- The hover highlight belongs to the mouse; this one belongs to the pop-out.
+Menu.OPEN_ALPHA = 0.28
+-- Pure: is this row's entry the section that's open?
+function Menu.IsOpenRow(item, open, flyShown)
+    return item ~= nil and open ~= nil and item == open and flyShown == true
+end
+function Menu.MarkOpen()
+    local shown = fly ~= nil and fly:IsShown()
+    for _, r in ipairs(rows or {}) do
+        if r.openHl then r.openHl:SetShown(r:IsShown() and Menu.IsOpenRow(r.item, Menu.openSection, shown)) end
+    end
+end
+
 -- Opens a section's pop-out beside its row. (A click never closes it: you
 -- point at the row, it opens, and the click that follows would shut it
 -- again. Pointing at another row, or a click outside, puts it away.)
@@ -212,10 +235,12 @@ function Menu.ShowSection(section, anchor)
     if room >= (fly:GetWidth() or W) + 4 then fly:SetPoint("TOPLEFT", anchor or frame, "TOPRIGHT", 2, PAD)
     else fly:SetPoint("TOPRIGHT", anchor or frame, "TOPLEFT", -2, PAD) end
     fly:Show()
+    Menu.MarkOpen()
 end
 function Menu.HideSection()
     if fly then fly:Hide() end
     Menu.openSection = nil
+    Menu.MarkOpen()
 end
 
 -- Draws `items` into a panel's rows (no positioning: Open does that once).
@@ -294,6 +319,8 @@ layout = function(f, list, items)
     for i = n + 1, #list do list[i]:Hide() end
     f:SetHeight(-y + PAD)
     f:SetWidth(Menu.WidthFor(widest))
+    -- (The menu drawn again, a tick set in the pop-out: the open row stays lit.)
+    if f == frame then Menu.MarkOpen() end
 end
 
 -- A click on an entry. `stay` entries (ticks you set several of, like what
