@@ -1074,7 +1074,11 @@ ns:Register("test", "route: picking the next step makes an orange Custom route u
     local goals = N:Goals() or {}
     local g = goals[#goals]
     if not g then t:ok(true, "(no steps to try)") return end
-    local saved = { sel = N.selection, key = db.selectedKey, sorter = db.sorter, base = db.baseSorter }
+    local saved = { sel = N.selection, key = db.selectedKey, sorter = db.sorter, base = db.baseSorter, focus = db.focus, focusLog = db.focusLog }
+    -- (0.35.378: a pick adds a custom route line and clearing it clears them
+    -- all, so this ran on your real lines and every /reload wiped your custom
+    -- route. It works on lines of its own now.)
+    db.focus, db.focusLog = {}, {}
     local ok, err = pcall(function()
         db.sorter, db.baseSorter = "distance", "distance"
         N:Select(g.key)
@@ -1095,6 +1099,8 @@ ns:Register("test", "route: picking the next step makes an orange Custom route u
     end)
     t:ok(ok, "ran" .. (ok and "" or (": " .. tostring(err))))
     N.selection, db.selectedKey, db.sorter, db.baseSorter = saved.sel, saved.key, saved.sorter, saved.base
+    db.focus, db.focusLog = saved.focus, saved.focusLog
+    if ns.focus then ns.focus.idle, ns.focus.stuck = nil, nil; pcall(ns.focus.UpdateBar) end
     ns.theme:UpdateRoute()
     N.planDirty = true
 end)
@@ -16696,7 +16702,8 @@ ns:Register("test", "click: a custom route's lines are added, cut and cleared fr
     local F, N = ns.focus, ns.nav
     if InCombatLockdown() then return end
     local saved, sorter, sel = ns.db.nav.focus, ns.db.nav.sorter, N.selection
-    ns.db.nav.focus = {}
+    local savedLog = ns.db.nav.focusLog
+    ns.db.nav.focus, ns.db.nav.focusLog = {}, {}
     t:eq(#F.Filter({ { key = "1:1" }, { key = "bank" } }), 2, "no lines: the route is as it was")
     local okA, title = pcall(F.AddKey, "test:focus-step", "A Test Step")
     t:ok(okA and title == "A Test Step", "a step that isn't a quest's is a line of its own" .. (okA and "" or (": " .. tostring(title))))
@@ -16725,6 +16732,7 @@ ns:Register("test", "click: a custom route's lines are added, cut and cleared fr
     t:eq(#F.Filter({ { key = "bank" } }), 1, "off Custom, the route isn't cut down")
     t:eq(#ns.db.nav.focus, 0, "and the lines are dropped")
     ns.db.nav.focus, ns.db.nav.sorter, N.selection = saved, sorter, sel
+    ns.db.nav.focusLog = savedLog
     F.idle, F.stuck = nil, nil
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
     N.RequestCollect("test done")
@@ -17381,4 +17389,42 @@ ns:Register("test", "click: Route includes on a custom route has its own ticks, 
     for k, v in pairs(usualCopy) do if (ns.db.nav.kinds or {})[k] ~= v then same = false end end
     t:ok(same and ns.db.nav.kinds == usual, "none of it touched your usual route's ticks")
     ns.db.nav.focusKinds = mine
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.378: what happened to your custom route's lines is noted.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "custom route: what happened to its lines is noted, the last few kept", function(t)
+    local F = ns.focus
+    local list = F.Noted(nil, "a", 3)
+    t:eq(#list, 1, "the first note")
+    F.Noted(list, "b", 3); F.Noted(list, "c", 3); F.Noted(list, "d", 3)
+    t:eq(table.concat(list, ","), "b,c,d", "past the limit the oldest goes")
+    local was = ns.db.nav.focusLog
+    ns.db.nav.focusLog = {}
+    F.Note("a test note 987654378")
+    t:ok(#ns.db.nav.focusLog == 1 and ns.db.nav.focusLog[1]:find("a test note 987654378", 1, true), "a note is kept with its time")
+    local said = table.concat(F.DumpLines(), "\n")
+    t:ok(said:find("what happened to it last", 1, true) and said:find("a test note 987654378", 1, true), "/flow focus and the diagnostics show it")
+    t:ok(said:find("the order:", 1, true), "with the order and your pick")
+    ns.db.nav.focusLog = was
+end)
+
+ns:Register("test", "custom route: clearing it notes what did it, and only clears the lines in force", function(t)
+    -- 0.35.378: a self-test picked a step and cleared the pick on your real
+    -- lines at every /reload. Tests swap in lines of their own (as here).
+    local F = ns.focus
+    local mine, log = ns.db.nav.focus, ns.db.nav.focusLog
+    local own = { { key = "test:mine-987654378", title = "My Own Line" } }
+    ns.db.nav.focus, ns.db.nav.focusLog = { { key = "test:other", title = "Other" } }, {}
+    t:ok(F.Clear("a test"), "clearing runs")
+    t:eq(#ns.db.nav.focus, 0, "the lines in force are gone")
+    t:eq(#own, 1, "lines set aside are untouched")
+    t:ok(ns.db.nav.focusLog[1] and ns.db.nav.focusLog[1]:find("cleared: a test", 1, true), "and it's noted, with what did it")
+    t:eq(F.Clear("again"), false, "nothing to clear: nothing noted")
+    t:eq(#ns.db.nav.focusLog, 1, "(still one note)")
+    ns.db.nav.focus, ns.db.nav.focusLog = mine, log
+    F.idle, F.stuck = nil, nil
+    pcall(F.UpdateBar)
 end)

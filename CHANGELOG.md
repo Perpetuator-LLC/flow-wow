@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.378
+
+- **Fixed: a `/reload` wiped your custom route on a developer install.** One of Flow's
+  self-tests (which run at each `/reload` there) picked a step and cleared the pick to check
+  the route's colour, and since 0.35.358 a cleared pick clears the custom route's lines: it
+  did that to your real ones. The order still said Custom, with nothing in it, so the usual
+  route showed. The test works on lines of its own now. Installs from CurseForge or a
+  release never ran it.
+- **Flow notes what happens to your custom route.** Each time a line is added, removed,
+  finished or the whole custom route is cleared, Flow keeps a line saying what did it and
+  when (the last 8, per character, across reloads). `/flow focus` shows them with the order
+  and your pick, and so do the diagnostics.
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'

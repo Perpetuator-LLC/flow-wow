@@ -291,7 +291,26 @@ function F.Watch()
     end
 end
 
+-- What happened to your lines, and when (0.35.378): the last few are kept
+-- across reloads and shown by /flow focus and the diagnostics, so "my custom
+-- route was gone" can be answered from what happened, not guessed.
+F.NOTES = 8
+-- Pure: the list with one more note, the oldest dropped past `max`.
+function F.Noted(list, note, max)
+    list = type(list) == "table" and list or {}
+    list[#list + 1] = note
+    while #list > (max or F.NOTES) do table.remove(list, 1) end
+    return list
+end
+function F.Note(what)
+    if not (ns.db and ns.db.nav) then return end
+    local n = #lines()
+    ns.db.nav.focusLog = F.Noted(ns.db.nav.focusLog, string.format("%s %s (%d line(s) now)", date("%m-%d %H:%M:%S"), tostring(what), n))
+    ns:Log("nav", "custom route: " .. tostring(what) .. string.format(" (%d line(s) now)", n))
+end
+
 local function changed(why)
+    F.Note(why)
     F.stuck, F.empty = nil, 0
     if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
     if ns.nav then
@@ -312,7 +331,7 @@ function F.AddKey(key, text)
     local _, title = F.IdsOf(line)
     line.title = title or line.title
     ns.db.nav.sorter = "custom"
-    changed("custom route: a line added")
+    changed("added " .. tostring(line.title) .. " from " .. key)
     return line.title
 end
 
@@ -339,20 +358,21 @@ function F.RemoveFrom(key)
     else
         line.stop = qid
     end
-    changed("custom route: a step removed")
+    changed("a step removed: " .. tostring(key))
     return true
 end
 function F.RemoveLine(key)
     local i = F.LineOf(key)
     if not i then return false end
     table.remove(lines(), i)
-    changed("custom route: a line removed")
+    changed("a line removed: " .. tostring(key))
     return true
 end
-function F.Clear()
+function F.Clear(why)
     F.idle, F.stuck, F.empty = nil, nil, 0
     if #lines() == 0 then return false end
     wipe(lines())
+    F.Note("cleared: " .. tostring(why or "asked to"))
     F.UpdateBar()
     return true
 end
@@ -377,6 +397,7 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
     if #mine == 0 then return list end
     if not F.Custom() then          -- you chose Shortest or Most XP: the lines go
         wipe(mine)
+        F.Note("cleared: the order is no longer Custom")
         F.UpdateBar()
         return list
     end
@@ -389,7 +410,9 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
             for _, id in ipairs(ids) do if inLog[id] or not isDone(id) then left = true end end
             if not left then
                 ns:Print("Custom route: " .. tostring(mine[i].title or "a quest line") .. " is done.")
+                local doneTitle = tostring(mine[i].title or "a quest line")
                 table.remove(mine, i)
+                F.Note("a line left, its quests are done: " .. doneTitle)
             end
         end
     end
@@ -505,7 +528,7 @@ end
 
 -- The bar (or the menu's line) was clicked: the custom route goes.
 function F.ClearClick()
-    F.Clear()
+    F.Clear("you clicked clear (the bar, the menu or /flow focus clear)")
     if ns.nav and ns.nav.ClearSelection then ns.nav:ClearSelection() end
     if ns.xpValue and ns.xpValue:IsCustom() then ns.xpValue:SetMode(ns.xpValue:Base()) end
     F.UpdateBar()
@@ -533,13 +556,14 @@ ns:OnLoad(function(saved)
                 local title = F.AddKey(key, text)
                 if title then ns:Print("Custom route: " .. tostring(title) .. ". Its steps are your route now, with the errands ticked under Route includes; click the bar under the Flow Tracker to clear it.") end
             else
-                F.Clear()
+                F.Clear("your pick was cleared")
             end
         end
     end
     if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(2, function() pcall(F.Watch); pcall(F.UpdateBar) end) end
 end)
 ns:PerCharacter("nav.focus")
+ns:PerCharacter("nav.focusLog")
 
 function F.DumpLines()
     local mine = lines()
@@ -556,6 +580,10 @@ function F.DumpLines()
     end
     table.sort(ticks)
     out[#out + 1] = "  errands on a custom route: " .. table.concat(ticks, ", ")
+    out[#out + 1] = string.format("  the order: %s; your pick: %s", tostring(ns.db.nav.sorter), tostring(ns.db.nav.selectedKey))
+    local notes = ns.db.nav.focusLog or {}
+    out[#out + 1] = "  what happened to it last:" .. (#notes == 0 and " nothing noted yet" or "")
+    for _, n in ipairs(notes) do out[#out + 1] = "    " .. n end
     return out
 end
 ns.commands.focus = function(arg)
