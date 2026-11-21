@@ -17180,3 +17180,71 @@ ns:Register("test", "zone note: it waits until you've been in the zone a while, 
     t:ok(Z.lastHere == -1 or (Z.enteredAt ~= nil and GetTime() - Z.enteredAt < 1), "and the wait starts from now")
     Z.lastHere, Z.enteredAt = last, entered
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.375: bigger gear set icons with a menu; sets get a matching picture;
+-- Flow can build a Fishing set.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "gear sets: each gets a picture that matches it, yours first", function(t)
+    local SR = ns.setRecipes
+    local recipes = { { name = "Fishing", icon = "fish.tga" } }
+    local roles = { { name = "Feral (Cat)", icon = "cat.tga" }, { name = "Restoration", icon = "tree.tga" } }
+    t:eq((SR.Pick("Feral (Cat)", {}, recipes, roles, 134400)), "cat.tga", "a spec's set: its spec's picture")
+    t:eq((SR.Pick("Fishing", {}, recipes, roles, 134400)), "fish.tga", "a set Flow built: its own")
+    t:eq((SR.Pick("Feral (Cat)", { ["Feral (Cat)"] = "mine.tga" }, recipes, roles, 134400)), "mine.tga", "one you picked comes before both")
+    t:eq((SR.Pick("My PvP Set", {}, recipes, roles, 134400)), 134400, "a set of your own making keeps the game's picture")
+    local _, from = SR.Pick("Fishing", {}, recipes, roles, 1)
+    t:eq(from, "recipe", "and it says where the picture is from")
+    t:eq(table.concat(SR.ToPutOn({ "pole", "hat" }, { hat = true }), ","), "pole", "building a set puts on only what you aren't wearing")
+    t:eq(#SR.ToPutOn({ "pole" }, { pole = true }), 0, "wearing it all: nothing to put on")
+    t:eq(#SR.ToPutOn(nil, nil), 0, "nothing wanted: nothing")
+    t:eq(SR.GameIcon(134400), 134400, "a picture's number goes to the game as it is")
+    local fishing = ns:Get("gearSet", "fishing")
+    t:ok(fishing and fishing.name == "Fishing" and fishing.icon:find("Fishing", 1, true), "Fishing is a set Flow can build, with a fishing picture")
+    t:ok(pcall(fishing.offer) and pcall(fishing.wants), "asking whether to offer it, and what goes on, doesn't error")
+    t:ok(pcall(SR.Offers), "the sets worth building are listed")
+    t:ok(#SR.Choices() >= 4, "a set's menu has pictures to choose from")
+    local said
+    SR.Build("no-such-set", function(ok, text) said = { ok, text } end)
+    t:ok(said and said[1] == false, "a set Flow doesn't know: said so, nothing done")
+end)
+
+ns:Register("test", "click: a gear set icon is bigger, and its right-click menu sets the size and the picture", function(t)
+    local SI, SR = ns.setIcons, ns.setRecipes
+    t:eq((SI.SizeOf(nil)), 26, "medium, as it comes: bigger than the 20 it was")
+    t:eq((SI.SizeOf("small")), 20, "small")
+    t:eq((SI.SizeOf("large")), 34, "large")
+    t:eq(select(2, SI.SizeOf("huge")), "medium", "an unknown choice is medium")
+    local set = { id = 987654350, name = "Test Set 987654350" }
+    local items = SI.MenuItems(set)
+    local texts = {}
+    for _, it in ipairs(items) do if it.text then texts[#texts + 1] = it.text end end
+    local all = table.concat(texts, "|")
+    t:ok(all:find("Put it on", 1, true) and all:find("Picture", 1, true) and all:find("Icon size", 1, true), "the menu: put it on, its picture, the icons' size")
+    t:ok(all:find("Equipment Manager", 1, true), "and where the game lets you pick any other picture")
+    -- Size.
+    local was = ns.db.gear.setIconSize
+    for _, it in ipairs(items) do
+        if it.text == "Large" then t:ok(pcall(it.func), "picking Large runs") end
+    end
+    t:eq(ns.db.gear.setIconSize, "large", "and is kept")
+    t:eq(SI.Size(), 34, "the icons are that big now")
+    ns.db.gear.setIconSize = was
+    -- Picture: kept for this set, and put back.
+    local mine = ns.db.gear.setIcon[set.name]
+    local choice = SR.Choices()[1]
+    t:ok(SR.SetIcon({ name = set.name }, choice.texture), "picking a picture runs")
+    t:eq((SR.IconFor(set.name, 1)), choice.texture, "the set shows it")
+    SR.SetIcon({ name = set.name }, nil)
+    t:eq((SR.IconFor(set.name, 1)), 1, "Flow's own choice: back to what it was")
+    ns.db.gear.setIcon[set.name] = mine
+    -- A right-click opens the menu; a click with no set does nothing.
+    if not InCombatLockdown() then
+        local ok, what = pcall(SI.Click, set, "RightButton")
+        t:ok(ok and what == "menu", "a right-click on an icon opens its menu" .. (ok and "" or (": " .. tostring(what))))
+        ns.menu:Close()
+    end
+    t:eq(SI.Click(nil, "LeftButton"), nil, "no set: nothing")
+    pcall(SI.Refresh)
+end)

@@ -160,6 +160,11 @@ saves, switches back).
 price or at half the item's usual price (`T.Usual`, from the price history). A purchase is a job of clicks:
 search, `T.Pick` (what's still within the limit and the budget), then the game's own purchase calls.
 
+`Modules/Gear/SetRecipes.lua` (`ns.setRecipes`, registry `gearSet`): `{ name, icon, what, offer(), wants() }`, a gear set
+Flow can build: `SR.Build(key)` puts the wanted links on, saves the game's equipment set under that name and icon, and
+switches back. `SR.IconFor(name, game)` is the picture a set shows (yours, its recipe's, its spec's, the game's).
+`Modules/Gear/SetIcons.lua` draws the sets on the bag window; `Modules/Gear/KeepSets.lua` builds the specs' sets.
+
 `Modules/Nav/Crossings.lua` (`ns.crossings`, registry `crossing`): `{ how, faction, a = { name, place, map, x, y }, b = ... }`,
 a zeppelin or boat between two continents. Its `navGoal` gives one step a continent where steps of yours wait
 (`C.Waiting`, `C.Best`: shortest from you to the boarding place plus from the landing to the nearest of them);

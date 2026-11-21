@@ -142,7 +142,9 @@ function K.Save(role)
     if InCombatLockdown() then return nil, "in a fight" end
     local has = G.sets:GameSet(role)
     local name = has and has.name or K.SetName(ns:RoleName(role))
-    local icon = (GetInventoryItemTexture and (GetInventoryItemTexture("player", 5) or GetInventoryItemTexture("player", 16))) or 134400
+    -- A spec's set gets its spec's picture (0.35.375: "feral cat should have a cat icon"), else your chest's.
+    local specIcon = ns.setRecipes and ns.setRecipes.GameIcon(ns:RoleIconPath(role)) or nil
+    local icon = specIcon or (GetInventoryItemTexture and (GetInventoryItemTexture("player", 5) or GetInventoryItemTexture("player", 16))) or 134400
     local id = has and has.id or (CE.GetEquipmentSetID and CE.GetEquipmentSetID(name)) or nil
     local ok, err
     if id then ok, err = pcall(CE.SaveEquipmentSet, id)
@@ -220,7 +222,11 @@ function K:BuildAll()
     end
     local function nextOne(i)
         local role = queue[i]
-        if not role then return end
+        -- (After your specs: the other sets Flow can build, Fishing: SetRecipes.lua.)
+        if not role then
+            if ns.setRecipes then ns.setRecipes.BuildOffered() end
+            return
+        end
         K:Build(role, function(ok, text)
             if text then ns:Print(text) end
             if ok then C_Timer.After(K.SETTLE + 0.5, function() nextOne(i + 1) end) end

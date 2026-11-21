@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.35.375
+
+- **The gear set icons on your bags are bigger, and have a menu.** They're 26 pixels now (20
+  before). Right-click one for:
+  - **Icon size**: Small, Medium or Large;
+  - **Picture**: your specs' icons, Fishing, and a few plain ones (shield, sword, staff, armor,
+    bag). The pick is kept for that set and handed to the game, so its Equipment Manager shows
+    the same where the game allows. For any other picture the menu says where the game's own
+    chooser is: character window, Equipment Manager, pick the set, Change Name/Icon;
+  - **Build a set**: the sets Flow can make for you that you don't have yet.
+- **Sets get a picture that matches.** A spec's set shows its spec's icon (Cat Form for Feral
+  (Cat), and so on) instead of whatever the game gave it; a set you made yourself keeps the
+  game's picture unless you pick one.
+- **New: a Fishing set.** With Fishing and a pole in your bags, "Build sets" (and the icon
+  menu) makes a "Fishing" set: Flow puts your pole on, saves the set, and puts your own gear
+  back. From then on its icon is on your bags: one click and the pole is in your hands, and
+  the target button casts as it does whenever you hold one. Click your spec's icon to switch
+  back.
+- For add-on authors: a set Flow can build is one `ns:Register("gearSet", ...)` (its name,
+  icon, when to offer it and what goes on); `Modules/Gear/SetRecipes.lua`.
 ## 0.35.374
 
 - **"Quest here?" asks once, and takes No for an answer.** Leaving Durotar on the zeppelin,

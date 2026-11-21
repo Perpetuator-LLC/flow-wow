@@ -23,7 +23,15 @@ local SI = {}
 ns.setIcons = SI
 
 SI.MAX = 12
-SI.SIZE, SI.GAP = 20, 3
+SI.SIZE, SI.GAP = 26, 3      -- (20 until 0.35.375: "make those buttons a little bigger")
+-- The sizes its right-click menu offers.
+SI.SIZES = { { key = "small", label = "Small", px = 20 }, { key = "medium", label = "Medium", px = 26 }, { key = "large", label = "Large", px = 34 } }
+-- Pure: the size in pixels for a saved choice (anything else: medium).
+function SI.SizeOf(saved)
+    for _, s in ipairs(SI.SIZES) do if s.key == saved then return s.px, s.key end end
+    return SI.SIZE, "medium"
+end
+function SI.Size() return (SI.SizeOf(ns.db and ns.db.gear and ns.db.gear.setIconSize)) end
 SI.FRAMES = { "ContainerFrameCombinedBags", "ContainerFrame1" }
 SI.FALLBACK = "Interface\\Icons\\INV_Chest_Chain_04"
 
@@ -55,7 +63,41 @@ function SI.Tip(set, inCombat)
     if set.worn then out[#out + 1] = "You're wearing it."
     elseif set.items and set.wearing then out[#out + 1] = string.format("You're wearing %d of its %d pieces.", set.wearing, set.items) end
     out[#out + 1] = inCombat and "In a fight the game only swaps weapons: click it after the fight." or (set.worn and "Click: put it on again." or "Click: put it on.")
+    out[#out + 1] = "Right-click: its picture, the icons' size, more sets."
     return out
+end
+
+-- An icon's right-click menu (0.35.375): put it on, pick its picture, the
+-- size of the icons, sets Flow can build, and where the game keeps the rest.
+function SI.MenuItems(set)
+    local SR = ns.setRecipes
+    local items = { { title = true, text = tostring(set and set.name or "Gear set") } }
+    items[#items + 1] = { text = "Put it on", disabled = InCombatLockdown(), func = function() SI.Use(set) end }
+    items[#items + 1] = { sep = true }
+    items[#items + 1] = { title = true, text = "Picture" }
+    for _, ch in ipairs(SR and SR.Choices() or {}) do
+        items[#items + 1] = { text = string.format("|T%s:14:14|t %s", ch.texture, ch.label), func = function() SR.SetIcon(set, ch.texture) end }
+    end
+    items[#items + 1] = { text = "Flow's own choice", func = function() if SR then SR.SetIcon(set, nil) end end }
+    items[#items + 1] = { text = "|cff999999Any other: character window, Equipment Manager, pick the set, Change Name/Icon|r", disabled = true }
+    items[#items + 1] = { sep = true }
+    items[#items + 1] = { title = true, text = "Icon size" }
+    for _, s in ipairs(SI.SIZES) do
+        items[#items + 1] = { text = s.label, radio = true, stay = true,
+            checked = select(2, SI.SizeOf(ns.db.gear.setIconSize)) == s.key,
+            refresh = function(it) it.checked = select(2, SI.SizeOf(ns.db.gear.setIconSize)) == s.key end,
+            func = function() ns.db.gear.setIconSize = s.key; SI.Refresh() end }
+    end
+    local offers = SR and SR.Offers() or {}
+    if #offers > 0 then
+        items[#items + 1] = { sep = true }
+        items[#items + 1] = { title = true, text = "Build a set" }
+        for _, r in ipairs(offers) do
+            items[#items + 1] = { text = string.format("|T%s:14:14|t %s (%s)", tostring(r.icon), r.name, tostring(r.def.what or "its pieces")),
+                disabled = InCombatLockdown(), func = function() SR.Build(r.key) end }
+        end
+    end
+    return items
 end
 
 local CE = C_EquipmentSet
@@ -69,6 +111,8 @@ function SI.Sets()
         -- name, icon, setID, isEquipped, numItems, numEquipped
         local okI, name, icon, _, worn, items, wearing = pcall(CE.GetEquipmentSetInfo, id)
         if not okI then return nil end
+        -- (Its picture: yours, its recipe's or its spec's before the game's own: SetRecipes.lua.)
+        if ns.setRecipes and name then icon = ns.setRecipes.IconFor(name, icon) end
         return name, icon, worn, tonumber(items), tonumber(wearing)
     end)
 end
@@ -93,8 +137,7 @@ local bars = {}   -- [frame path] = the row of icons
 
 local function makeIcon(bar, i)
     local b = CreateFrame("Button", nil, bar)
-    b:SetSize(SI.SIZE, SI.SIZE)
-    b:SetPoint("RIGHT", bar, "RIGHT", -(i - 1) * (SI.SIZE + SI.GAP), 0)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b.edge = b:CreateTexture(nil, "BACKGROUND")
     b.edge:SetPoint("TOPLEFT", -1, 1); b.edge:SetPoint("BOTTOMRIGHT", 1, -1)
     b.tex = b:CreateTexture(nil, "ARTWORK")
@@ -102,9 +145,7 @@ local function makeIcon(bar, i)
     b.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     b.hl = b:CreateTexture(nil, "HIGHLIGHT")
     b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.25)
-    b:SetScript("OnClick", function(self)
-        if SI.Use(self.set) then C_Timer.After(0.6, function() SI.Refresh() end) end
-    end)
+    b:SetScript("OnClick", function(self, button) SI.Click(self.set, button) end)
     b:SetScript("OnEnter", function(self)
         if not self.set then return end
         ns.Tip(self, "ANCHOR_TOPLEFT")
@@ -117,11 +158,22 @@ local function makeIcon(bar, i)
     return b
 end
 
+-- A click on an icon: left puts the set on, right opens its menu.
+function SI.Click(set, button)
+    if not set then return nil end
+    if button == "RightButton" then
+        if ns.menu and ns.menu.Open then ns.menu:Open(SI.MenuItems(set)) end
+        return "menu"
+    end
+    if SI.Use(set) then C_Timer.After(0.6, function() SI.Refresh() end) end
+    return "use"
+end
+
 local function makeBar(frame)
     local GB = ns.gameButtons
     local win = GB.Window(frame)
     local bar = CreateFrame("Frame", nil, frame)
-    bar:SetSize(10, SI.SIZE)
+    bar:SetSize(10, SI.Size())
     bar:SetFrameLevel(math.min((win:GetFrameLevel() or 1) + 520, 9990))
     bar.win = win
     bar.icons = {}
@@ -145,14 +197,19 @@ end
 function SI.Refresh()
     local on = SI.On() and SI.Has()
     local sets = on and SI.Sets() or {}
+    local size = SI.Size()
     for _, bar in pairs(bars) do
         place(bar)
+        bar:SetHeight(size)
         for i = 1, math.max(#sets, #bar.icons) do
             local s = sets[i]
             local b = bar.icons[i]
             if s then
                 b = b or makeIcon(bar, i)
                 bar.icons[i] = b
+                b:SetSize(size, size)
+                b:ClearAllPoints()
+                b:SetPoint("RIGHT", bar, "RIGHT", -(i - 1) * (size + SI.GAP), 0)
                 b.set = s
                 b.tex:SetTexture(s.icon or SI.FALLBACK)
                 -- Gold round the one you're wearing; a thin dark edge round the rest.
@@ -163,7 +220,7 @@ function SI.Refresh()
                 b:Hide()
             end
         end
-        bar:SetWidth(math.max(10, #sets * (SI.SIZE + SI.GAP) - SI.GAP))
+        bar:SetWidth(math.max(10, #sets * (size + SI.GAP) - SI.GAP))
         bar:SetShown(on and #sets > 0)
     end
     SI.count = #sets
