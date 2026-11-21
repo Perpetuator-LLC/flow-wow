@@ -3779,6 +3779,38 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:ok(BI.IsBuffFood({ "Roasted Boar Meat", "Use: Restores 294 health over 27 sec. If you spend at least 10 seconds eating you will become well fed." }),
         "food that says Well Fed")
     t:ok(not BI.IsBuffFood({ "Tough Jerky", "Use: Restores 61 health over 18 sec." }), "plain food: no")
+    -- "Why is Flow suggesting I eat my fish buff food instead of combat food?"
+    local ribsTip = { "Dry Pork Ribs", "Use: Restores 552 health over 21 sec. Must remain seated while eating. "
+        .. "If you spend at least 10 seconds eating you will become well fed and gain 6 Stamina and Spirit for 15 min." }
+    local fishTip = { "Smoked Sagefish", "Use: Restores 378 health over 21 sec. Must remain seated while eating. "
+        .. "If you spend at least 10 seconds eating you will become well fed and gain 3 Mana every 5 seconds for 15 min." }
+    local ribs, fish = BI.WellFedGain(ribsTip), BI.WellFedGain(fishTip)
+    t:ok(ribs.Stamina == 6 and ribs.Spirit == 6 and ribs.mp5 == nil, "ribs: 6 Stamina and 6 Spirit (not the 10 seconds)")
+    t:ok(fish.mp5 == 3 and fish.Stamina == nil, "sagefish: 3 mana every 5 seconds")
+    t:eq(BI.WellFedGain({ "Use: ... you will become well fed and increases your Agility by 10 for 10 min." }).Agility, 10,
+         "\"increases your Agility by 10\" read too")
+    t:eq(next(BI.WellFedGain({ "Use: ... you will become well fed." })), nil, "says no more: nothing known")
+    t:eq(BI.FoodScore(fish, "WARRIOR"), 0, "mana food on a warrior: worth nothing")
+    t:ok(BI.FoodScore(ribs, "PALADIN") > BI.FoodScore(fish, "PALADIN"), "a paladin: Stamina and Spirit before mana")
+    t:ok(BI.FoodScore(ribs, "MAGE") > BI.FoodScore(fish, "MAGE"), "a mage too: Stamina is what keeps you up")
+    t:eq(BI.FoodScore({}, "MAGE"), nil, "nothing known: no score")
+    -- "Why isn't it spec specific?"
+    t:ok(BI.FoodScore(ribs, "PALADIN", "dps") > BI.FoodScore(fish, "PALADIN", "dps"), "Retribution: the ribs")
+    t:ok(BI.FoodScore(ribs, "PALADIN", "tank") > BI.FoodScore(fish, "PALADIN", "tank"), "Protection: the ribs")
+    t:ok(BI.FoodScore(fish, "PALADIN", "heal") > BI.FoodScore(ribs, "PALADIN", "heal"), "Holy: the sagefish's mana")
+    t:ok(BI.FoodScore(fish, "SHAMAN", "heal") > BI.FoodScore(ribs, "SHAMAN", "heal"), "Restoration shaman: mana too")
+    t:eq(BI.FoodScore(fish, "WARRIOR", "tank"), 0, "a warrior tank: still nothing from mana")
+    local agi = { Agility = 10 }
+    t:ok(BI.FoodScore(agi, "DRUID", "tank") > 0 and BI.FoodScore(agi, "DRUID", "heal") == 0,
+         "Agility: for a bear, not a tree")
+    local bag = {
+        { id = 21072, sub = 5, name = "Smoked Sagefish", score = BI.FoodScore(fish, "PALADIN") },
+        { id = 2687, sub = 5, name = "Dry Pork Ribs", score = BI.FoodScore(ribs, "PALADIN") },
+    }
+    t:eq(BI.Pick(bag, none, 7, false, true).id, 2687, "the combat food, though the fish comes first in your bags")
+    bag[2].score, bag[1].score = nil, BI.FoodScore(fish, "WARRIOR")
+    t:eq(BI.Pick(bag, none, 7, false, true).id, 2687, "a food that doesn't say what it gives, before one worth nothing")
+    t:eq(BI.Pick({ bag[1] }, none, 7, true, true), nil, "only food worth nothing to you: not suggested")
     t:ok(not BI.IsBuffFood(nil), "no tooltip yet: no")
     t:eq(BI.CampStep(true, false, false), "sit", "by a campfire without its buffs: sit")
     t:eq(BI.CampStep(true, false, true), "wait", "the minute is running: wait, don't stand up")
@@ -3835,6 +3867,9 @@ ns:Register("test", "buff items: used when you're about to kill a lot, if not on
     t:eq(BI.PickFood({ foods[2] }, true).id, 2, "only Well Fed food: eat it to heal")
     t:eq(BI.PickFood({ foods[2] }, false), nil, "only Well Fed food, and you keep it for the buff: none")
     t:eq(BI.PickFood(foods, true, function(id) return id ~= 1 end).id, 2, "plain food unusable: the Well Fed food")
+    local fishes = { { id = 11, kind = "food", name = "Smoked Sagefish", rank = 20, buff = true, score = 6 },
+                     { id = 12, kind = "food", name = "Dry Pork Ribs", rank = 15, buff = true, score = 12 } }
+    t:eq(BI.PickFood(fishes, true, nil, true).id, 12, "about to fight: the Well Fed food that's best for you, not the highest rank")
     local heal = { { id = 1, kind = "potion", rank = 15 }, { id = 2, kind = "healthstone", rank = 10 },
                    { id = 3, kind = "bandage", rank = 5 }, { id = 4, kind = "bandage", rank = 20 } }
     t:eq(BI.PickEmergency(heal).id, 2, "in a fight: the healthstone before the potion")
@@ -6101,8 +6136,14 @@ ns:Register("test", "self button: buffs off the main icon, onto their own button
     t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).label, "Bandage",
         "hurt after a fight: the bandage or food before any buff")
     local feast = { item = "item:724", wellFed = true }
-    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Bandage" }).item, "item:724",
+    t:eq(BB.Pick(nil, feast, { label = "Bandage" }).item, "item:724",
         "hurt and not Well Fed: the Well Fed food before the bandage")
+    -- "The food buff is always first... it's overriding everything I need to use."
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Bandage" }).spell, "Aura",
+        "not Well Fed: your buff spell before the food")
+    t:ok(not ns.buffItems.ItemUrgent(true, true), "food never goes before the rotation's buffs on the Flow key")
+    t:ok(ns.buffItems.ItemUrgent(false, true), "a weapon stone still can")
+    t:ok(not ns.buffItems.ItemUrgent(false, false), "enemy targeted or hurt: the stone waits")
     t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, { label = "Bandage" }).item, "item:724",
         "hurt, no fight near yet: the Well Fed food still before the bandage")
     t:eq(BB.Pick({ spell = "Aura" }, nil, nil, { type = "sit" }).spell, "Aura", "by a campfire: your buffs before you sit")
@@ -6112,8 +6153,10 @@ ns:Register("test", "self button: buffs off the main icon, onto their own button
     t:eq(BB.Pick({ spell = "Aura" }, soon).spell, "Aura", "no fight near: a missing buff spell before a stone preview")
     t:eq(BB.Pick(nil, soon).item, "item:2862", "no fight near: the stone shows ahead of time")
     t:eq(BB.Pick(nil, soon, nil, { type = "sit" }).type, "sit", "by a campfire: sit before a stone preview")
-    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).item, "item:724",
-        "not Well Fed, no fight near: the food before a buff spell or the campfire")
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).spell, "Aura",
+        "not Well Fed, no fight near: a buff spell before the food")
+    t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, nil, { type = "sit" }).item, "item:724",
+        "not Well Fed, no buff spell due: the food before the campfire")
     local aura = { spell = "Aura" }
     t:ok(not BB.Bright(aura, false), "no fight near: the next buff is faded")
     t:ok(BB.Bright(aura, true), "a fight near: the buff lights up")

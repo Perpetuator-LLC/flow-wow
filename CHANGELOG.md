@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Food no longer jumps ahead of your buffs and rotation.** The self button put Well Fed food before your aura,
+  seal and blessing, and the Flow key put it before the rotation's own suggestion. Now your buff spells come first
+  and food comes when they're up. The food is scored for the spec Flow plays you as at that moment (it used to be
+  scored once, when your bags were read, so a spec or talent change kept the old pick). `/flow rot why` lists your
+  Well Fed foods, what each gives and Flow's pick.
+
+- **Flow now suggests the Well Fed food that's best for your fights.** It used to suggest the first Well Fed food
+  in your bags, so Smoked Sagefish (mana every 5 seconds) could come before Dry Pork Ribs (Stamina and Spirit).
+  Now it reads what each food's buff gives and picks by your class: Stamina first for everyone, Strength and
+  Agility for those who hit, mana and Intellect only for those with mana. Food whose buff does nothing for you
+  (mana food on a warrior or rogue) isn't suggested for the buff.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'
