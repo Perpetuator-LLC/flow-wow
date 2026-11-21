@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.372
+
+- **"Go here next" works on a step across the sea.** Those steps are locked rows (they can't
+  be walked to), so the entry was greyed out. Now picking one adds its quest line to your
+  custom route and makes its zeppelin or boat your next step; Flow says so in chat. In the
+  Flow Tracker's and the Flow Router's right-click menus, and on the step's card.
+- **The crossing comes first when you're standing next to it.** It was always planned after
+  everything left on your continent, wherever you were, so in Orgrimmar with steps waiting in
+  Silverpine the route still sent you back out first. Now, within about 800 yards of the
+  tower or dock:
+  - with your hearthstone ready (the way back is one cast), the crossing is the next step;
+  - without it, the crossing is planned with the rest by its distance;
+  and far from it, it still waits until you've finished here. The step's details say which.
 ## 0.35.371
 
 - **Flow Improvements' link button says what it does.** Hovering it now reads "Add to custom

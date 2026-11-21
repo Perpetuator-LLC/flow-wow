@@ -107,6 +107,30 @@ function C.Best(list, me, targets)
     return best
 end
 
+-- How early the crossing comes (the planner: distance x weight; under 1 is
+-- "worth going out of your way for", over 1 "leave it for later").
+-- 0.35.372: "I'm already in Orgrimmar ... once I get over there and turn
+-- those in, I can just hearth back to the Crossroads. Why did the router not
+-- optimize like that?" Because the crossing was always weighted to come
+-- last (2.5), wherever you stood: the planner counted the walk to the tower
+-- and nothing of the way back. Now:
+--   you're near the boarding place and your hearthstone is ready: first
+--   (the way back costs a cast);
+--   near it without a hearthstone: with the rest, by its distance;
+--   far from it: after what's left here, as before.
+C.CLOSE = 800       -- yards to the boarding place that count as "you're there anyway"
+C.W_NOW, C.W_NEAR = 0.5, 1.1
+function C.Weight(yardsToBoard, hearthReady)
+    if not yardsToBoard or yardsToBoard > C.CLOSE then return C.WEIGHT end
+    return hearthReady and C.W_NOW or C.W_NEAR
+end
+-- Pure: a line for the step's details about when it comes.
+function C.WhenText(weight)
+    if weight == C.W_NOW then return "You're close to it and your hearthstone is ready for the way back, so it comes first." end
+    if weight == C.W_NEAR then return "You're close to it, so it's planned with the rest by its distance (no hearthstone ready for the way back)." end
+    return "Planned after what's left to do here: you're far from it."
+end
+
 -- The step's words: "Zeppelin to Undercity (3 steps wait in the Eastern Kingdoms)".
 function C.Text(how, toName, n, continent)
     local ride = how == "boat" and "Boat" or "Zeppelin"
@@ -219,9 +243,12 @@ ns:Register("navGoal", "crossing", {
                 for i = 1, math.min(5, n) do details[#details + 1] = "- " .. tostring(e.goals[i].text or e.goals[i].title or e.goals[i].key) end
                 if n > 5 then details[#details + 1] = string.format("- and %d more", n - 5) end
                 details[#details + 1] = string.format("Board at %s; it lands at %s. It comes by every few minutes.", tostring(best.from.place or best.from.name), tostring(best.to.place or best.to.name))
-                details[#details + 1] = "Planned after what's left to do here. The boarding place is corrected from where you actually board."
+                local toBoard = dist(me.wx, me.wy, best.board.wx, best.board.wy)
+                local weight = C.Weight(toBoard, C.HearthReady())
+                details[#details + 1] = C.WhenText(weight)
+                details[#details + 1] = "The boarding place is corrected from where you actually board."
                 goals[#goals + 1] = {
-                    key = "cross:" .. tostring(cont), kind = "merchant", crossing = best.key, weight = C.WEIGHT,
+                    key = "cross:" .. tostring(cont), kind = "merchant", crossing = best.key, weight = weight, toCont = cont,
                     points = { { cont = best.board.cont, wx = best.board.wx, wy = best.board.wy, map = best.from.map, x = best.from.x, y = best.from.y } },
                     title = "Crossing", text = C.Text(best.cr.how, best.to.name, n, C.NAMES[cont]),
                     details = details, forQuests = C.QuestsOf(e.goals),
@@ -232,6 +259,47 @@ ns:Register("navGoal", "crossing", {
         return goals
     end,
 })
+-- Is your hearthstone ready (and set somewhere)? The way back from across the sea.
+function C.HearthReady()
+    local H = ns.hearth
+    if not (H and H.CooldownLeft) then return false end
+    local ok, left = pcall(H.CooldownLeft, H)
+    return ok and left ~= nil and left <= 60
+end
+
+-- "Go here next" on a step across the sea (0.35.372: "they just don't even
+-- have points ... if we can make it so that those do, then I can hit go here
+-- next on them, and you can use the gateways to get me there"). The step
+-- itself can't be walked to, but its crossing can: its quest line joins your
+-- custom route and the crossing becomes the next step.
+-- The continent a step waits on, when that isn't yours (nil: it's here).
+function C.AwayOf(goal)
+    local N = ns.nav
+    local me = N and N.PlayerPos and N:PlayerPos()
+    if not (goal and me and me.cont ~= nil) then return nil end
+    local ok, cont = pcall(N.AwayCont, goal.awayRoot or goal, me.cont)
+    return ok and cont or nil
+end
+-- Pure: the crossing step for a continent among the route's, or nil.
+function C.StepFor(cont, steps)
+    for _, g in ipairs(steps or {}) do
+        if g.toCont == cont then return g end
+    end
+end
+function C.CanLead(goal)
+    local cont = C.AwayOf(goal)
+    return cont ~= nil and C.StepFor(cont, C.last) ~= nil
+end
+function C.Lead(goal)
+    local cont = C.AwayOf(goal)
+    local step = cont ~= nil and C.StepFor(cont, C.last) or nil
+    if not step then return false end
+    if ns.focus and ns.focus.AddKey then ns.focus.AddKey(goal.key, goal.text or goal.title) end
+    ns.nav:Select(step.key)
+    ns:Print(string.format("%s is across the sea: %s is your next step.", tostring(goal.text or goal.title or "That step"), tostring(step.text)))
+    return true
+end
+
 ns:Register("routeKind", "crossings", { order = 66, default = true,
     label = "Crossing to another continent (zeppelins, boats)", short = "crossings",
     tip = "While steps of yours wait on another continent, a step at the zeppelin tower or the dock that gets you there, planned after what's left to do here. "

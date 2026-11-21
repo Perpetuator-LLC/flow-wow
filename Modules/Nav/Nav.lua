@@ -4190,7 +4190,11 @@ local function buildCard()
                 if ns.mapOverlay and f.goal then ns.mapOverlay:Focus(f.goal.key, 20) end
             end, nil, N.GoalMap(f.goal))
         end),
-        first = uiLink(f, "Go here next", function() N:Select(f.goal.key); f:Hide() end),
+        first = uiLink(f, "Go here next", function()
+            -- (Across the sea: its zeppelin or boat is the next step, Crossings.lua.)
+            if ns.crossings and ns.crossings.CanLead(f.goal) then ns.crossings.Lead(f.goal) else N:Select(f.goal.key) end
+            f:Hide()
+        end),
     }
     f:HookScript("OnHide", function() if ns.mapOpen then ns.mapOpen.Disarm() end end)
     return f

@@ -340,7 +340,12 @@ local function build()
                     { title = true, text = g.text or g.title or "This step" },
                     { text = "Open it", func = function() ns.nav:OpenStop(g, self) end },
                     { text = "Point the arrow here (your waypoint)", func = function() if ns.mapOverlay then ns.mapOverlay.PointHere(g) end end },
-                    { text = "Go here next (Custom route: only its quest line)", disabled = self.blocked ~= nil, func = function() ns.nav:Select(g.key) end },
+                    -- (A step across the sea can't be walked to, but its zeppelin or boat can: Crossings.lua.)
+                    { text = "Go here next (Custom route: only its quest line)",
+                      disabled = self.blocked ~= nil and not (ns.crossings and ns.crossings.CanLead(g)),
+                      func = function()
+                          if ns.crossings and ns.crossings.CanLead(g) then ns.crossings.Lead(g) else ns.nav:Select(g.key) end
+                      end },
                     { text = "Hide this step", func = function() ns.nav:Hide(g.key) end },
                 }
                 for _, it in ipairs(ns.focus and ns.focus.MenuItems(g) or {}) do items[#items + 1] = it end

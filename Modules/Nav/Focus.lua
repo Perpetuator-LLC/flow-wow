@@ -468,7 +468,10 @@ ns:OnLoad(function(saved)
             local following = ns.party and ns.party.Following and ns.party:Following()
             select(self, key)
             if following then return end
-            if key then
+            if key and key:find("^cross:") then
+                -- (A crossing is picked for the line that needs it: Crossings.lua adds that line.)
+                F.UpdateBar()
+            elseif key then
                 local text
                 for _, g in ipairs(self:Goals() or {}) do if g.key == key then text = g.text or g.title end end
                 local title = F.AddKey(key, text)

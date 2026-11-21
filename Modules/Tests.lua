@@ -16944,7 +16944,7 @@ ns:Register("test", "crossings: yours are listed, the route's provider and its t
     local okC, goals = pcall(def.collect)
     t:ok(okC and (goals == nil or type(goals) == "table"), "the route's provider runs" .. (okC and "" or (": " .. tostring(goals))))
     for _, g in ipairs(okC and goals or {}) do
-        t:ok(g.key:find("^cross:") and #g.points == 1 and g.weight == C.WEIGHT, "a crossing step: one boarding place, after what's left here")
+        t:ok(g.key:find("^cross:") and #g.points == 1 and (g.weight == C.WEIGHT or g.weight == C.W_NOW or g.weight == C.W_NEAR), "a crossing step: one boarding place, weighted by how close you are")
     end
     local kind = ns:Get("routeKind", "crossings")
     t:ok(kind and kind.default == true and kind.match({ provider = "crossing" }) and not kind.match({ provider = "questie" }), "Route includes has a tick for it, on")
@@ -17036,4 +17036,50 @@ ns:Register("test", "advice: a line's link says what the click does first, then 
     t:ok(state == "add" or state == "on", "a step with a place can")
     local _, label = Adv.LinkOf({ text = "x", goalKey = "k" }, function() return { key = "k", text = "Turn in: X" } end)
     t:eq(label, "the step on your route: Turn in: X", "the row's own words name the step")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.372: "Go here next" on a step across the sea leads to its crossing;
+-- the crossing comes first when you're beside it with a hearthstone ready.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "crossings: beside the tower with a hearthstone ready, the crossing comes first", function(t)
+    local C = ns.crossings
+    t:eq(C.Weight(300, true), C.W_NOW, "close to the boarding place, hearthstone ready: first")
+    t:eq(C.Weight(300, false), C.W_NEAR, "close, no hearthstone for the way back: with the rest, by its distance")
+    t:eq(C.Weight(5000, true), C.WEIGHT, "far from it: after what's left here, as before")
+    t:eq(C.Weight(nil, true), C.WEIGHT, "distance unknown: after what's left here")
+    t:ok(C.W_NOW < 1 and C.W_NEAR >= 1 and C.WEIGHT > C.W_NEAR, "first means worth a detour; later means not")
+    t:ok(C.WhenText(C.W_NOW):find("comes first", 1, true) and C.WhenText(C.WEIGHT):find("far from it", 1, true), "the step says why it comes when it does")
+    t:eq(type(C.HearthReady()), "boolean", "whether your hearthstone is ready is read")
+
+    local steps = { { key = "cross:0", toCont = 0, text = "Zeppelin to Undercity" }, { key = "cross:530", toCont = 530 } }
+    t:eq(C.StepFor(0, steps).key, "cross:0", "the crossing for a continent is found among the route's")
+    t:eq(C.StepFor(1, steps), nil, "none for a continent nothing waits on")
+    t:eq(C.StepFor(0, nil), nil, "no crossings: none")
+    t:eq(C.AwayOf(nil), nil, "no step: not across the sea")
+    t:ok(not C.CanLead({ key = "test:here", points = {} }), "a step with no place isn't one a crossing leads to")
+    t:eq(C.Lead({ key = "test:here", points = {} }), false, "and picking it does nothing")
+end)
+
+ns:Register("test", "click: Go here next on a locked step is offered only when a crossing leads to it", function(t)
+    local C = ns.crossings
+    if InCombatLockdown() then return end
+    -- The tracker's and the router's menus ask the same question: a locked
+    -- step is greyed unless its crossing can be the next step.
+    local locked = { key = "test:locked", text = "Trial of the Sea Lion", blockedBy = "It's in Silverpine Forest", points = {} }
+    local disabled = locked.blockedBy ~= nil and not C.CanLead(locked)
+    t:ok(disabled, "locked for another reason: Go here next stays greyed")
+    -- A custom route doesn't take a crossing as a line of its own.
+    local F, N = ns.focus, ns.nav
+    local saved, sorter, sel, key = ns.db.nav.focus, ns.db.nav.sorter, N.selection, ns.db.nav.selectedKey
+    ns.db.nav.focus = {}
+    local ok, err = pcall(N.Select, N, "cross:0")
+    t:ok(ok, "picking a crossing runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(#ns.db.nav.focus, 0, "and adds no line of its own to the custom route")
+    ns.db.nav.focus, ns.db.nav.sorter, N.selection, ns.db.nav.selectedKey = saved, sorter, sel, key
+    if ns.theme and ns.theme.UpdateRoute then ns.theme:UpdateRoute() end
+    N.planDirty = true
+    N.RequestCollect("test done")
+    pcall(F.UpdateBar)
 end)
