@@ -20,8 +20,9 @@
 --                  spell (Curing the Sick, for Cure Poison), the line runs to
 --                  the quest that teaches it and is named after the spell.
 --   anything else  that one step (a trainer, a profession step).
--- While you have lines, the route is only their steps, ordered as always
--- (shortest, the picked step first). The next quest of a line is added as a
+-- While you have lines, the route is their steps, ordered as always
+-- (shortest, the picked step first), and the errands worth doing on the way
+-- (0.35.377, below: "Route includes on a custom route"). The next quest of a line is added as a
 -- step to pick up as soon as it can be, even where Flow wouldn't have offered
 -- it. A line leaves by itself when its quests are done.
 --
@@ -128,9 +129,11 @@ function F.Cut(ids, stop)
 end
 
 -- Does a step belong to your lines? quests: { [questID] = true }; keys: { [step key] = true }
-function F.Keeps(goal, quests, keys)
+--   also(goal): another reason to keep it (an errand ticked for custom routes)
+function F.Keeps(goal, quests, keys, also)
     if type(goal) ~= "table" or type(goal.key) ~= "string" then return false end
     if keys and keys[goal.key] then return true end
+    if also and also(goal) then return true end
     local id = F.QuestOf(goal.key)
     if id ~= nil and quests ~= nil and quests[id] == true then return true end
     -- The crossing a line needs to go on (Crossings.lua): its zeppelin or boat.
@@ -139,12 +142,47 @@ function F.Keeps(goal, quests, keys)
     end
     return false
 end
-function F.FilterBy(list, quests, keys)
+function F.FilterBy(list, quests, keys, also)
     local out = {}
     for _, g in ipairs(list or {}) do
-        if F.Keeps(g, quests, keys) then out[#out + 1] = g end
+        if F.Keeps(g, quests, keys, also) then out[#out + 1] = g end
     end
     return out
+end
+
+-------------------------------------------------------------------------------
+-- Route includes on a custom route (0.35.377)
+--
+-- "I just land in the Undercity and I can get a class trainer, a weapon
+-- skill or riding: those should take me there on my way to do my own custom
+-- path ... really custom routes are just turning [the quest kinds] off."
+--
+-- So a custom route is: your lines in place of the quest kinds (current, new,
+-- low-level, battleground quests: a routeKind with custom = "lines"), plus
+-- every other kind that's ticked. Those other kinds have ticks of their own
+-- while you're on a custom route (ns.db.nav.focusKinds), so what you tick
+-- here doesn't change your usual route. They start on, except a kind
+-- registered with custom = false (professions). A kind added later needs
+-- nothing: it's an errand, on by default.
+-------------------------------------------------------------------------------
+-- Pure: does a custom route stand in for this kind? / does this kind start ticked on one?
+function F.ReplacesDef(def) return type(def) == "table" and def.custom == "lines" end
+function F.KindDefault(def) return not (type(def) == "table" and def.custom == false) end
+function F.Replaces(kind) return F.ReplacesDef(ns:Get("routeKind", kind)) end
+function F.KindOn(kind)
+    local saved = ns.db.nav.focusKinds and ns.db.nav.focusKinds[kind]
+    if saved ~= nil then return saved end
+    return F.KindDefault(ns:Get("routeKind", kind))
+end
+function F.SetKind(kind, on)
+    ns.db.nav.focusKinds = ns.db.nav.focusKinds or {}
+    ns.db.nav.focusKinds[kind] = on and true or false
+end
+-- Pure: an errand step that rides along (its kind passed the custom route's
+-- ticks already, Nav.lua). Not a crossing: that goes by the line that needs it.
+function F.Errand(goal, replaces)
+    if type(goal) ~= "table" or goal.routeKind == nil or goal.forQuests then return false end
+    return not replaces(goal.routeKind)
 end
 
 -- Can the route take you to a step now? (It has a place and nothing holds it.)
@@ -218,6 +256,8 @@ end
 
 function F.Custom() return ns.xpValue and ns.xpValue.IsCustom and ns.xpValue:IsCustom() or false end
 function F.Active() return #lines() > 0 and F.Custom() end
+-- Are the custom route's own ticks in force? (kindsPaused: the self-tests of the usual ticks.)
+function F.KindsOn() return not F.kindsPaused and ns.db ~= nil and ns.db.nav ~= nil and F.Active() end
 
 -- What the route keeps: the quests and the steps of every line; each line's titles.
 function F.Sets()
@@ -386,19 +426,34 @@ function F.Filter(list, quiet)   -- (quiet: no chat line, for the self-tests)
             end
         end
     end
-    F.kept, F.of = #out, #list
+    local linesOnly = out
     -- Nothing of your lines can be done from here (0.35.367: "I feel like I
     -- lost my arrow ... I clicked on First Aid 141 of 150 in Flow
     -- Improvements"): a custom route of one step that has no place left the
     -- route empty and the arrow gone. Then the usual route stays, and the bar
     -- says the lines are waiting.
-    local idle = F.stuck or not F.AnyHere(out)
+    local idle = F.stuck or not F.AnyHere(linesOnly)
     if idle ~= F.idle then
         F.idle = idle
         if idle and not quiet then ns:Print("Custom route: nothing in it can be done from here right now, so your usual route is showing. Click the bar under the Flow Tracker to clear it.") end
         F.UpdateBar()
     end
-    if idle then return list end
+    if idle then
+        -- Your usual route: the quest kinds by your usual ticks again.
+        local usual = {}
+        for _, g in ipairs(list) do
+            if not (g.routeKind and F.Replaces(g.routeKind) and ns.nav and not ns.nav:Includes(g.routeKind)) then usual[#usual + 1] = g end
+        end
+        return usual
+    end
+    -- The errands ticked for custom routes ride along (a trainer, a flight path to learn, the bank...).
+    local has = {}
+    for _, g in ipairs(out) do has[g.key] = true end
+    F.errands = 0
+    for _, g in ipairs(list) do
+        if not has[g.key] and F.Errand(g, F.Replaces) then out[#out + 1] = g; F.errands = F.errands + 1 end
+    end
+    F.kept, F.of = #out, #list
     return out
 end
 
@@ -433,7 +488,7 @@ function F.UpdateBar()
             GameTooltip:AddLine("Custom route", 1, 0.6, 0.2)
             local _, _, titles = F.Sets()
             for _, tl in ipairs(titles) do GameTooltip:AddLine("- " .. tostring(tl), 1, 1, 1, true) end
-            GameTooltip:AddLine("Your route is only these lines' steps. \"Go here next\" on a step, or a line's link in Flow Improvements, adds another.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Your route is these lines' steps, and the errands ticked under Route includes in the Flow menu (trainers, repair, the bank, flight paths...). \"Go here next\" on a step, or a line's link in Flow Improvements, adds another.", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Click: clear it, back to your usual route. Right-click a step to remove it or its line.", 1, 0.82, 0, true)
             GameTooltip:Show()
         end)
@@ -460,6 +515,7 @@ end
 ns:OnLoad(function(saved)
     saved.nav = saved.nav or {}
     saved.nav.focus = saved.nav.focus or {}
+    saved.nav.focusKinds = saved.nav.focusKinds or {}   -- (Route includes on a custom route)
     local N = ns.nav
     if N and N.Select and not F.hooked then
         F.hooked = true
@@ -475,7 +531,7 @@ ns:OnLoad(function(saved)
                 local text
                 for _, g in ipairs(self:Goals() or {}) do if g.key == key then text = g.text or g.title end end
                 local title = F.AddKey(key, text)
-                if title then ns:Print("Custom route: " .. tostring(title) .. ". Only its steps are on your route now; click the bar under the Flow Tracker to clear it.") end
+                if title then ns:Print("Custom route: " .. tostring(title) .. ". Its steps are your route now, with the errands ticked under Route includes; click the bar under the Flow Tracker to clear it.") end
             else
                 F.Clear()
             end
@@ -493,7 +549,13 @@ function F.DumpLines()
         out[#out + 1] = string.format("  %d. %s: %s%s", i, tostring(line.title or "?"),
             ids and ("quests " .. table.concat(ids, ", ")) or ("step " .. tostring(line.key)), line.stop and (" (ends before " .. line.stop .. ")") or "")
     end
-    if F.of then out[#out + 1] = string.format("  the last gathering kept %d of %d step(s)", F.kept or 0, F.of) end
+    if F.of then out[#out + 1] = string.format("  the last gathering kept %d of %d step(s), %d of them errands", F.kept or 0, F.of, F.errands or 0) end
+    local ticks = {}
+    for kind in ns:Each("routeKind") do
+        if not F.Replaces(kind) then ticks[#ticks + 1] = kind .. (F.KindOn(kind) and " on" or " off") end
+    end
+    table.sort(ticks)
+    out[#out + 1] = "  errands on a custom route: " .. table.concat(ticks, ", ")
     return out
 end
 ns.commands.focus = function(arg)

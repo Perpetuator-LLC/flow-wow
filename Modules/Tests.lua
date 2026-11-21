@@ -6747,6 +6747,7 @@ end)
 ns:Register("test", "click: route menu ticks stay open; select all, clear all", function(t)
     local N, M = ns.nav, ns.menu
     local kinds, profs, arrow = ns.db.nav.kinds, ns.db.nav.professions, ns.db.nav.profArrow
+    ns.focus.kindsPaused = true   -- (your usual ticks, whether or not you're on a custom route)
     with(N, "Collect", function() end, function()
         ns.db.nav.kinds = {}
         local items = M.KindItems()
@@ -6778,6 +6779,7 @@ ns:Register("test", "click: route menu ticks stay open; select all, clear all", 
         t:ok(own and not own.disabled, "professions on: their own arrow can be")
         M:Close()
     end)
+    ns.focus.kindsPaused = nil
     ns.db.nav.kinds, ns.db.nav.professions, ns.db.nav.profArrow = kinds, profs, arrow
 end)
 
@@ -17302,4 +17304,81 @@ ns:Register("test", "click: a gear set icon's menu sets the default picture and 
     t:eq((SR.Reset(nil)), nil, "no set: nothing")
     ns.db.gear.setIcon[name], ns.db.gear.setDefault[name] = wasMine, wasDef
     pcall(SI.Refresh)
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.377: a custom route is your lines in place of the quest kinds, plus
+-- the errands ticked under Route includes (their own ticks while it's on).
+-------------------------------------------------------------------------------
+
+ns:Register("test", "custom route: errands ride along, quest kinds are replaced by your lines", function(t)
+    local F = ns.focus
+    t:ok(F.ReplacesDef({ custom = "lines" }) and not F.ReplacesDef({}) and not F.ReplacesDef({ custom = false }), "a kind says whether your lines stand in for it")
+    t:ok(F.KindDefault({}) and F.KindDefault(nil) and not F.KindDefault({ custom = false }), "an errand starts ticked unless its kind says otherwise")
+    for _, kind in ipairs({ "quests", "newQuests", "lowQuests", "battlegrounds" }) do
+        t:ok(F.Replaces(kind), kind .. ": your lines instead")
+    end
+    for _, kind in ipairs({ "training", "town", "banker", "flightpaths", "crossings", "professions" }) do
+        t:ok(not F.Replaces(kind), kind .. ": an errand")
+    end
+    local was = ns.db.nav.focusKinds
+    ns.db.nav.focusKinds = {}
+    t:ok(F.KindOn("training") and F.KindOn("town") and F.KindOn("banker") and F.KindOn("flightpaths") and F.KindOn("crossings"),
+        "on from the start: training, town errands, the bank, flight paths, crossings")
+    t:ok(not F.KindOn("professions"), "professions start off")
+    F.SetKind("professions", true)
+    t:ok(F.KindOn("professions"), "ticking one is kept")
+    ns.db.nav.focusKinds = was
+    -- Which steps ride along.
+    local function replaces(kind) return kind == "quests" end
+    t:ok(F.Errand({ key = "train:class", routeKind = "training" }, replaces), "a trainer step rides along")
+    t:ok(not F.Errand({ key = "30:1", routeKind = "quests" }, replaces), "a quest that isn't in your lines doesn't")
+    t:ok(not F.Errand({ key = "cross:0", routeKind = "crossings", forQuests = { [30] = true } }, replaces), "a crossing goes by the line that needs it")
+    t:ok(not F.Errand({ key = "dungeon:x" }, replaces), "a step of no kind doesn't")
+    local list = {
+        { key = "3:1", routeKind = "quests" }, { key = "30:1", routeKind = "quests" },
+        { key = "train:class", routeKind = "training" }, { key = "fp:1", routeKind = "flightpaths" },
+    }
+    local out = F.FilterBy(list, { [3] = true }, {}, function(g) return F.Errand(g, replaces) end)
+    local keys = {}
+    for _, g in ipairs(out) do keys[#keys + 1] = g.key end
+    t:eq(table.concat(keys, ","), "3:1,train:class,fp:1", "the line's step, the trainer and the flight path; not the other quest")
+end)
+
+ns:Register("test", "click: Route includes on a custom route has its own ticks, and your lines can't be unticked", function(t)
+    local N, M, F = ns.nav, ns.menu, ns.focus
+    local usual, mine = ns.db.nav.kinds, ns.db.nav.focusKinds
+    local usualCopy = {}
+    for k, v in pairs(usual or {}) do usualCopy[k] = v end
+    ns.db.nav.focusKinds = {}
+    with(N, "Collect", function() end, function()
+        with(F, "KindsOn", function() return true end, function()
+            local items = M.KindItems()
+            local by, first
+            by = {}
+            for _, it in ipairs(items) do
+                if it.custom then first = it end
+                if it.kind or it.text then by[it.kind or it.text] = it end
+            end
+            t:ok(first and first.checked and first.disabled and first.text:find("Custom route", 1, true), "the custom route is a ticked row that can't be unticked")
+            t:ok(by.quests and by.quests.disabled and not by.quests.checked, "current quests: greyed, your lines instead")
+            t:ok(by.newQuests and by.newQuests.disabled and by.lowQuests.disabled, "new and low-level quests too")
+            t:ok(by.training and by.training.checked and not by.training.disabled, "training is ticked and can be unticked")
+            t:ok(by.banker and by.banker.checked and by.flightpaths.checked and by.crossings.checked and by.town.checked, "the bank, flight paths, crossings and town errands are ticked")
+            t:ok(by.professions and not by.professions.checked, "professions aren't")
+            M:Open(items)
+            t:ok(pcall(M.Click, by.training), "clicking training runs")
+            t:ok(not F.KindOn("training") and not N:Includes("training"), "it's off for the custom route")
+            pcall(M.Click, by["Select all"])
+            t:ok(F.KindOn("training") and F.KindOn("professions"), "Select all ticks every errand")
+            pcall(M.Click, by["Clear all"])
+            t:ok(not F.KindOn("training") and not F.KindOn("banker"), "Clear all unticks them")
+            t:ok(F.Replaces("quests"), "and your lines are still what the route is")
+            M:Close()
+        end)
+    end)
+    local same = true
+    for k, v in pairs(usualCopy) do if (ns.db.nav.kinds or {})[k] ~= v then same = false end end
+    t:ok(same and ns.db.nav.kinds == usual, "none of it touched your usual route's ticks")
+    ns.db.nav.focusKinds = mine
 end)

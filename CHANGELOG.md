@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.377
+
+- **A custom route now does the errands on the way.** It used to be only your quest lines'
+  steps, so landing in the Undercity with spells to train or a flight path to learn, the
+  route walked you past them. Now a custom route is your lines **in place of the quest
+  kinds**, plus the errands ticked under **Route includes** in the Flow menu:
+  - on from the start: class trainer, weapon skills and riding; repair, selling and
+    hearthstone; the bank; flight paths to learn; crossing to another continent;
+  - off from the start: professions.
+- **Route includes shows it.** On a custom route its first row is your custom route, ticked
+  and greyed (clear the custom route to leave it), and Current quests, New quests, Low-level
+  quests and Battlegrounds are greyed with "your custom route instead". The other ticks are
+  the custom route's own: change them, or use Select all and Clear all, and your usual
+  route's ticks are as you left them when you clear it. Clear all leaves just your lines.
+- A crossing is still only on a custom route for a line that needs it. `/flow focus` lists
+  the errand ticks and how many errand steps the route kept.
+- For add-on authors: a `routeKind` can say `custom = "lines"` (the picked lines stand in
+  for it) or `custom = false` (starts unticked on a custom route).
 ## 0.35.376
 
 - **Every gear set has a default picture, and its icon's menu can put it back or change it.**

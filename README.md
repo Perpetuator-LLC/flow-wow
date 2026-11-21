@@ -223,6 +223,10 @@ Flow for WoW is a separate project from Flow Engine.
   color): red and orange above you, yellow full XP, green easy, olive when the XP drops, grey for none.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
+- **Errands on a custom route**: a custom route is your quest lines in place of the quest kinds, plus the
+  errands ticked under Route includes: class trainer, weapon skills and riding; repair, selling and
+  hearthstone; the bank; flight paths to learn; crossings. Professions start off. These ticks are the
+  custom route's own, so your usual route's come back when you clear it.
 - **Custom route by quest line**: "Go here next" on a step, or a line's link in Flow Improvements,
   picks that step's whole quest line (to the spell, for a class quest), and your route shows only
   the lines you picked, planned together. Right-click a step to remove it or its line; the bar

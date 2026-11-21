@@ -381,12 +381,27 @@ function Menu._Rows() return rows, flyRows end
 function Menu.KindItems()
     local nav = ns.nav
     local items = { { title = true, text = "Route includes" } }
+    -- On a custom route (0.35.377): your lines stand in for the quest kinds
+    -- (ticked and greyed: clear the custom route to leave it), and the other
+    -- kinds are the custom route's own ticks (Focus.lua).
+    local F = ns.focus
+    local custom = F and F.KindsOn and F.KindsOn() or false
+    if custom then
+        local _, _, titles = F.Sets()
+        items[#items + 1] = { text = F.Text(titles), custom = true, checked = true, disabled = true,
+            tip = "Your custom route's quest lines are on the route in place of the quest kinds below. The other ticks are the errands done on the way; they're kept apart from your usual route's. To leave: Clear your custom route, at the top." }
+    end
     for _, k in ipairs(nav.Kinds()) do
         local key, def = k.key, k.def
-        items[#items + 1] = { text = def.label, tip = def.tip, kind = key, stay = true,
-            checked = nav:Includes(key),
-            refresh = function(it) it.checked = nav:Includes(key) end,
-            func = function() nav:SetKind(key, not nav:Includes(key)) end }
+        if custom and F.Replaces(key) then
+            items[#items + 1] = { text = def.label .. " (your custom route instead)", kind = key, disabled = true, checked = false,
+                tip = "On a custom route the quest lines you picked are the quests on your route. Your usual tick here comes back when you clear it." }
+        else
+            items[#items + 1] = { text = def.label, tip = def.tip, kind = key, stay = true,
+                checked = nav:Includes(key),
+                refresh = function(it) it.checked = nav:Includes(key) end,
+                func = function() nav:SetKind(key, not nav:Includes(key)) end }
+        end
         if key == "professions" then
             local function sub(it)
                 it.checked = ns.db.nav.profArrow == true

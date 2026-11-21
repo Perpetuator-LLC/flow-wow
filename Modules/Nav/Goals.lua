@@ -927,20 +927,20 @@ end
 ns.quests.GoalIsBattleground = battleground
 
 -- A quest to pick up far enough under your level is the low kind, else new.
-ns:Register("routeKind", "lowQuests", { order = 30, default = false,
+ns:Register("routeKind", "lowQuests", { order = 30, default = false, custom = "lines",
     label = "Low-level quests (grey ones too; shortest order)", short = "low-level quests",
     tip = "Quests to pick up that are 4 or more levels under you, grey ones too: for doing every quest in a zone. "
         .. "While this is ticked the route goes by the shortest path, since XP would always leave them for last.",
     match = function(g, level) return pickup(g) and low(g, level) and not battleground(g) end })
 
 -- (After the others in the menu; the quest kinds above leave its steps to it.)
-ns:Register("routeKind", "battlegrounds", { order = 68, default = false,
+ns:Register("routeKind", "battlegrounds", { order = 68, default = false, custom = "lines",
     label = "Battlegrounds (their quests)", short = "battlegrounds",
     tip = "Quests done in a battleground or handed in for its marks (Warsong Gulch, Arathi Basin, Alterac Valley): the ones in your log, and the ones to pick up. "
         .. "Off: they're left out of your route and its lists. On: hover one for the XP it gives at your level.",
     match = function(g) return battleground(g) end })
 
-ns:Register("routeKind", "quests", { order = 10, default = true,
+ns:Register("routeKind", "quests", { order = 10, default = true, custom = "lines",
     label = "Current quests", short = "current quests",
     tip = "The quests in your log: their objectives, then their turn-ins.",
     match = function(g)
@@ -949,7 +949,7 @@ ns:Register("routeKind", "quests", { order = 10, default = true,
             or (g.provider == nil and type(g.key) == "string" and g.key:find("^%d+:") ~= nil)
     end })
 
-ns:Register("routeKind", "newQuests", { order = 20, default = true,
+ns:Register("routeKind", "newQuests", { order = 20, default = true, custom = "lines",
     label = "New quests", short = "new quests",
     tip = "Quests to pick up that are still worth the XP at your level (not 3 or more levels above you).",
     match = function(g, level) return pickup(g) and not low(g, level) and not battleground(g) end })
@@ -959,7 +959,7 @@ ns:Register("routeKind", "training", { order = 40, default = true,
     tip = "Your class trainer when spells are waiting, a weapon master when a weapon in your bags would be an upgrade, and riding.",
     match = function(g) return g.key == "train:class" or g.provider == "weaponskill" or g.provider == "mount" end })
 
-ns:Register("routeKind", "professions", { order = 50, default = true,
+ns:Register("routeKind", "professions", { order = 50, default = true, custom = false,
     label = "Professions", short = "professions",
     tip = "Profession trainers, and gathering, fishing and crafting stops when a skill is behind your level. "
         .. "On the route with everything else, or on their own faint arrow (the line below).",

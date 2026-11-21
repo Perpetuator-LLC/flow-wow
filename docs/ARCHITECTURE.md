@@ -172,6 +172,11 @@ a zeppelin or boat between two continents. Its `navGoal` gives one step a contin
 (`C.Waiting`, `C.Best`: shortest from you to the boarding place plus from the landing to the nearest of them);
 `C.Learn` corrects both ends from a real trip (`ns.db.nav.crossingEnds`).
 
+A `routeKind` may say what it does on a custom route (`custom`): `"lines"` for the quest kinds (the picked lines stand in
+for them), `false` for a kind that starts unticked there (professions), nothing for an errand that starts ticked. While a
+custom route is on, `N:Includes` / `N:SetKind` / `N:SetAllKinds` read and write the custom route's own ticks
+(`ns.db.nav.focusKinds`, `F.KindOn`) for the other kinds, and `F.Filter` keeps those steps beside the lines' (`F.Errand`).
+
 `Modules/Nav/Focus.lua` (`ns.focus`): a custom route's quest lines (`ns.db.nav.focus`, per character). `F.Line`
 (pure) turns a picked quest into its chain: what's undone before it, what the data chains after it, and on to the
 quest that teaches a class spell. `F.Filter` (called as Nav gathers steps) keeps only the lines' steps and adds the

@@ -536,7 +536,14 @@ function N:Collect(gathered)
     -- current quests, new quests, training, professions...). Steps no kind
     -- claims stay: a dungeon run you prepared, party steps. First of all, so
     -- a step never waits on (or is listed as blocked by) a kind you left out.
-    list = N.FilterKinds(list, function(kind) return N:Includes(kind) end, UnitLevel("player"))
+    -- (On a custom route, 0.35.377: the quest kinds are all gathered, since the
+    -- lines you picked choose among them; the rest go by the custom route's own ticks.)
+    local FK = ns.focus
+    local customOn = FK and FK.KindsOn and FK.KindsOn()
+    list = N.FilterKinds(list, function(kind)
+        if customOn and FK.Replaces(kind) then return true end
+        return N:Includes(kind)
+    end, UnitLevel("player"))
     -- "Only the dungeon run" (Dungeons.lua): just the prepared run's steps. Here
     -- with the ticks, before the blocked steps are set apart, so a blocked
     -- step of another kind isn't listed either.
@@ -1234,8 +1241,11 @@ end
 -- What the route is made of: one tick per kind of step (0.35.157), in place
 -- of the three routes (Quests only / Optimal / Completionist) and their
 -- Professions switch. Each kind is a registration (Goals.lua has Flow's):
---   ns:Register("routeKind", key, { order, label, short, tip, default,
+--   ns:Register("routeKind", key, { order, label, short, tip, default, custom,
 --       match = function(goal, yourLevel) return true or false end })
+-- custom (0.35.377) is what the kind does on a custom route: "lines" for the
+-- quest kinds (your picked lines stand in for them), false for a kind that
+-- starts unticked there (professions), nothing for one that starts ticked.
 -- A step takes the first kind that matches it (lowest order first). A step
 -- no kind claims is always on the route: a dungeon run you prepared and
 -- party steps are there because you asked for them.
@@ -1258,19 +1268,38 @@ function N.KindOf(goal, level)
         if ok and yes then return k.key end
     end
 end
+-- On a custom route the kinds that aren't quests (trainers, errands, the bank,
+-- flight paths, crossings, professions) have ticks of their own (Focus.lua,
+-- 0.35.377), so leaving it gives you your usual ticks back untouched.
+local function customTick(kind)
+    local F = ns.focus
+    return F and F.KindsOn and F.KindsOn() and not F.Replaces(kind)
+end
 function N:Includes(kind)
+    if customTick(kind) then return ns.focus.KindOn(kind) end
     local saved = ns.db.nav.kinds and ns.db.nav.kinds[kind]
     if saved ~= nil then return saved end
     local def = ns:Get("routeKind", kind)
     return not def or def.default ~= false
 end
 function N:SetKind(kind, on)
+    if customTick(kind) then
+        ns.focus.SetKind(kind, on)
+        return self:Collect()
+    end
     ns.db.nav.kinds = ns.db.nav.kinds or {}
     ns.db.nav.kinds[kind] = on and true or false
     if kind == "professions" then ns.db.nav.professions = on and true or false end   -- (its older saved name)
     self:Collect()
 end
 function N:SetAllKinds(on)
+    if ns.focus and ns.focus.KindsOn and ns.focus.KindsOn() then
+        -- (Select all / Clear all on a custom route: its own ticks; your lines stay.)
+        for _, k in ipairs(N.Kinds()) do
+            if not ns.focus.Replaces(k.key) then ns.focus.SetKind(k.key, on) end
+        end
+        return self:Collect()
+    end
     local kinds = {}
     for _, k in ipairs(N.Kinds()) do kinds[k.key] = on and true or false end
     ns.db.nav.kinds = kinds
