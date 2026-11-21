@@ -486,6 +486,14 @@ the route at all; 4 were for quests that go on across the sea; 3 were leftovers.
 - **Buying something back from the vendor's own Buyback tab now stops Flow selling it again.** Only Flow's own
   "Buy back" button used to remember, so an item bought back from the tab was sold again on the next visit.
 
+## Unreleased
+
+- **Paladin seal by your spec, your choice, or the fight.** Automatic now goes by your talents:
+  Retribution Command, Protection (or tanking) Fury, Holy in a group Wisdom, otherwise
+  Righteousness. Settings, Easy keys, "Paladin seal" picks one for this character (also
+  `/flow seal command`, `/flow seal auto`). Cast a different seal and Flow keeps that one until
+  the fight ends.
+
 ## 0.35.321
 
 - **Leaving junk behind: a skinner is told, instead of Flow working round it.** 0.35.320 took
