@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Flow no longer says "Turn in" for a quest you haven't finished.** When a quest's objective was off the route
+  (a quest 3 or more levels above you held until you level, an elite, a zone you didn't pick), its hand-in had
+  nothing left to wait for, so "Turn in: Deepmoss Spider Eggs" showed at 0/15. Now the hand-in waits off the
+  route with its objective, listed with the reason, and comes back when the objective does.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'
