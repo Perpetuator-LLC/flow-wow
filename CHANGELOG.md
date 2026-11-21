@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.392
+
+- **"Set hearthstone" now comes when you start questing somewhere, not for passing an
+  inn.** The step is only offered at an inn you've **accepted a quest near** (within 500
+  yards), so a town you walk through no longer asks for your home.
+- **It can now be offered at a second inn of the zone your home is in.** With your home at
+  the Crossroads, Camp Taurajo was never offered, because both are in the Barrens. Once
+  you've accepted quests at Camp Taurajo and more of your quests' steps are round it than
+  round the Crossroads, the step is there.
+- The earlier rules still apply on top: only in a zone ticked under the Flow Router's
+  Zones, and your home stays while most of your quests are round it. The diagnostics'
+  hearthstone line says why a step wasn't offered.
+- Quests accepted before this version aren't counted: the step appears after the next
+  quest you accept by that inn.
 ## 0.35.391
 
 - **"Select in quest log" opens the quest's section when it's collapsed.** The link's first

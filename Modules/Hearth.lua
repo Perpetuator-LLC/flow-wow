@@ -118,11 +118,17 @@ H.CITY_REACH = 1500   -- a city home this close to a village's inn: keep the cit
 -- Flow Router's Zones)? false: you're passing through, so no step. "Undercity
 -- is turned off in my zones ... I'm just coming through for Trial of the Sea
 -- Lion, and one of my shortcuts is to hearth back to the Crossroads."
-function H.Offer(here, home, yards, work, picked)
+-- accepted (0.35.392): have you accepted a quest by this inn? false: no step
+-- (you're not questing from here). true also lets a second inn of your
+-- home's zone be offered, when more of your quests are round it.
+function H.Offer(here, home, yards, work, picked, accepted)
     if not here then return false end
-    if picked == false then return false end
+    if picked == false or accepted == false then return false end
     if not home then return true end                       -- as before: your home isn't a known inn
-    if home == here or home.zone == here.zone then return false end   -- bound in this zone already
+    if home == here then return false end
+    if home.zone == here.zone then                         -- bound in this zone already
+        return accepted == true and work ~= nil and (work.here or 0) > (work.home or 0)
+    end
     if work and (work.home or 0) > (work.here or 0) then return false end   -- your quests are round your home
     if here.city and not home.city then return true end    -- a city beats a village
     if home.city and not here.city and (not yards or yards <= H.CITY_REACH) then return false end
@@ -309,14 +315,16 @@ ns:Register("navGoal", "hearth", {
         local picked = true
         if zoneId and N.ZoneOn then picked = N.ZoneOn(zoneId) and true or false end
         if not picked then H.why = string.format("no step at %s: %s isn't one of your zones (Flow Router, Zones)", here.name, tostring(here.zone)) end
-        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil, home and H.Work(here, home) or nil, picked) then return nil end
+        local accepted = H.AcceptedAt(hereKey)
+        if picked and not accepted then H.why = string.format("no step at %s: you haven't accepted a quest by it", here.name) end
+        if not H.Offer(here, home, home and H.Between(home, herePts[1]) or nil, home and H.Work(here, home) or nil, picked, accepted) then return nil end
         return { {
             key = "hearth:" .. hereKey, weight = 1.1, points = herePts,
             title = "Set hearthstone",
             text = string.format("Set hearthstone: %s (%s)", here.name, here.town),
             details = { string.format("Your hearthstone is set to %s. %s Set it here:", bind,
                             here.city and (here.town .. " is a city: your trainers and the bank are here, and it's the place to come back to from a far trip.")
-                                or ("Questing around " .. here.town .. "?")),
+                                or ("You've taken quests around " .. here.town .. ".")),
                         "talk to the innkeeper and choose \"Make this inn your home\".",
                         "Right-click this step on the map to hide it." },
         } }
@@ -358,7 +366,58 @@ function H.Line()
         H.why and ("; " .. H.why) or "")
 end
 
-ns:OnLoad(function(saved) saved.hearth = saved.hearth or {} end)
+ns:OnLoad(function(saved)
+    saved.hearth = saved.hearth or {}
+    saved.hearth.accepted = saved.hearth.accepted or {}
+end)
+
+-------------------------------------------------------------------------------
+-- Accepting quests by an inn is what asks for the step (0.35.392)
+--
+-- "I started doing quests in Camp Taurajo, and it didn't tell me to make my
+-- hearthstone there ... when a user starts accepting quests in a new area,
+-- that becomes the central point, and that's our trigger. Otherwise it can
+-- be really annoying, telling them to set their hearthstone in all these
+-- random locations."
+--   * The step is only offered at an inn you've accepted a quest near
+--     (within H.NEAR yards), remembered for this character.
+--   * That also lets it be offered at a second inn of the zone your home is
+--     in (Camp Taurajo with your home at the Crossroads), when more of your
+--     quests' steps are round it than round your home.
+-------------------------------------------------------------------------------
+H.NEAR = 500
+-- Pure: the inn a quest was accepted by: the nearest within reach, or nil.
+--   inns: { { key, yards } } (yards: from you to it, nil: can't tell)
+function H.NearestInn(inns, reach)
+    local best
+    for _, i in ipairs(inns or {}) do
+        if i.yards and i.yards <= (reach or H.NEAR) and (not best or i.yards < best.yards) then best = i end
+    end
+    return best and best.key or nil
+end
+function H.AcceptedAt(key)
+    local a = ns.db and ns.db.hearth and ns.db.hearth.accepted
+    return key ~= nil and a ~= nil and (a[key] or 0) > 0
+end
+-- You accepted a quest: noted for the inn you're by. -> its key, or nil
+function H.NoteAccept()
+    if not (ns.db and ns.db.hearth and ns.places) then return nil end
+    local inns = {}
+    for key, inn in ns:Each("innkeeper") do
+        local pts = ns.places:Points(inn.name)
+        if pts and pts[1] then inns[#inns + 1] = { key = key, yards = H.YardsFromYou(pts[1]) } end
+    end
+    local key = H.NearestInn(inns)
+    if not key then return nil end
+    ns.db.hearth.accepted = ns.db.hearth.accepted or {}
+    ns.db.hearth.accepted[key] = (ns.db.hearth.accepted[key] or 0) + 1
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("a quest accepted by an inn") end
+    return key
+end
+ns:On("QUEST_ACCEPTED", function()
+    if C_Timer and C_Timer.After then C_Timer.After(0.5, function() pcall(H.NoteAccept) end) end
+end)
+ns:PerCharacter("hearth.accepted")
 
 -- Setting it removes the step. (The innkeeper you're talking to tells Flow
 -- what the game calls this home.)

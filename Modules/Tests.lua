@@ -18141,3 +18141,29 @@ ns:Register("test", "quest log link: a quest under a collapsed section has its s
     local okL, lines = pcall(O.Lines)
     t:ok(okL and table.concat(lines, "\n"):find("the quest log's sections", 1, true), "/flow buttons says whether Flow can open a section")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.392: the hearthstone step is asked for by accepting quests at an inn.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "hearthstone: the step comes when you accept quests by an inn, not for passing one", function(t)
+    local H = ns.hearth
+    local xr = { name = "Innkeeper Boorand Plainswind", zone = "The Barrens" }
+    local ct = { name = "Innkeeper Byula", zone = "The Barrens" }
+    local uc = { name = "Innkeeper Norman", zone = "Undercity", city = true }
+    t:ok(not H.Offer(uc, xr, nil, nil, true, false), "a city you're passing through, no quest accepted there: no step")
+    t:ok(H.Offer(uc, xr, nil, nil, true, true), "quests accepted there: offered")
+    t:ok(H.Offer(ct, xr, 900, { here = 6, home = 2 }, true, true), "Camp Taurajo with your home at the Crossroads, quests accepted there and more of them round it: offered")
+    t:ok(not H.Offer(ct, xr, 900, { here = 2, home = 6 }, true, true), "most of your quests still round the Crossroads: your home stays")
+    t:ok(not H.Offer(ct, xr, 900, { here = 6, home = 2 }, true, false), "no quest accepted at Camp Taurajo: no step")
+    t:ok(not H.Offer(ct, xr, 900, { here = 6, home = 2 }, true, nil), "not told (as before): a second inn of your home's zone isn't offered")
+    t:ok(not H.Offer(xr, xr, 0, nil, true, true), "your home already: none")
+    t:eq(H.NearestInn({ { key = "crossroads", yards = 900 }, { key = "taurajo", yards = 60 } }), "taurajo", "a quest accepted 60 yd from Camp Taurajo's inn counts for it")
+    t:eq(H.NearestInn({ { key = "crossroads", yards = 900 } }), nil, "no inn within reach: for none")
+    t:eq(H.NearestInn({ { key = "x" } }), nil, "can't tell how far: none")
+    local was = ns.db.hearth.accepted
+    ns.db.hearth.accepted = { taurajo = 2 }
+    t:ok(H.AcceptedAt("taurajo") and not H.AcceptedAt("crossroads") and not H.AcceptedAt(nil), "what's been accepted where is kept by inn")
+    ns.db.hearth.accepted = was
+    t:ok(pcall(H.Line), "the diagnostics line builds")
+end)
