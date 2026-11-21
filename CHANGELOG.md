@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.380
+
+- **New: the minimap shows what your next step needs, and only that.** While your next
+  step is at a banker, an auctioneer, your class trainer, a profession trainer, a flight
+  master, a repairer, an innkeeper or a mailbox, Flow ticks that kind in the game's minimap
+  tracking, and unticks it when the step is done. So you can keep the tracking menu all
+  unticked and see just the one kind you're heading to.
+  - A kind you ticked yourself is left alone and stays on: Flow only unticks what it ticked.
+  - Find Herbs, Find Minerals and other tracking spells are never touched, and nothing
+    changes in a fight.
+  - **Let Flow show what your next step needs** is a tick at the bottom of the game's
+    tracking menu, and "The minimap shows what your next step needs" in Flow Settings
+    (Finding your way). Unticking it takes Flow's ticks back.
+  - `/flow tracking` lists the kinds this client has, which are on, and which one your step
+    needs.
+- For add-on authors: which kind goes with which step is one `ns:Register("trackFor", ...)`
+  (`Modules/Nav/Tracking.lua`).
 ## 0.35.379
 
 - **No "Set hearthstone" where you're only passing through.** The step is now offered only

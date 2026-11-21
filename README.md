@@ -226,6 +226,10 @@ Flow for WoW is a separate project from Flow Engine.
 - **A cast across the sea**: when your hearthstone (ready, set over there) or Teleport: Moonglade gets you
   nearer your steps than the zeppelin, the crossing step is that cast, on your Flow key.
 - **No "Set hearthstone" where you're passing through**: only in a zone ticked under the Flow Router's Zones.
+- **The minimap shows what your next step needs**: while it's at a banker, auctioneer, trainer, flight
+  master, repairer, innkeeper or mailbox, Flow ticks that kind in the game's minimap tracking and unticks it
+  after. A kind you ticked yourself stays on. The tick to turn it off is at the bottom of the game's
+  tracking menu and in Flow Settings.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Errands on a custom route**: a custom route is your quest lines in place of the quest kinds, plus the

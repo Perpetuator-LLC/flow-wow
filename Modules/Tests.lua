@@ -17526,3 +17526,84 @@ ns:Register("test", "crossings: your hearthstone or a travel spell stands in for
     if me then t:ok(pcall(C.Casts, me), "the casts you have are read") end
     t:ok(pcall(ns.travelSpells.Mine), "and the travel spells you know")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.380: the minimap's tracking shows what your next step needs.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "minimap tracking: Flow ticks the kind your step needs and only unticks what it ticked", function(t)
+    local T = ns.tracking
+    local types = {
+        { name = "Banker", active = false }, { name = "Flight Master", active = true },
+        { name = "Class Trainer", active = false }, { name = "Find Herbs", active = false, spell = true },
+    }
+    local want = T.Match(types, { "banker" })
+    t:ok(want.Banker and not want["Flight Master"], "the game's kind is found by a word of its name")
+    t:eq(next(T.Match(types, { "herbs" })), nil, "a spell's tracking is never Flow's")
+    local tick, untick, keep = T.Plan(types, want, {}, true)
+    t:eq(table.concat(tick, ","), "Banker", "a step at a banker: Banker is ticked")
+    t:eq(#untick, 0, "nothing unticked")
+    t:ok(keep.Banker, "and remembered as Flow's")
+    -- The step is done: Flow's tick goes, yours stays.
+    types[1].active = true
+    tick, untick, keep = T.Plan(types, {}, { Banker = true }, true)
+    t:eq(table.concat(untick, ","), "Banker", "the step done: Banker is unticked")
+    t:eq(#tick, 0, "nothing ticked")
+    t:eq(next(keep), nil, "nothing left of Flow's")
+    -- A kind you ticked yourself is left alone, before and after.
+    local fm = T.Match(types, { "flight" })
+    tick, untick, keep = T.Plan(types, fm, {}, true)
+    t:eq(#tick + #untick, 0, "a step at a flight master with Flight Master on already: nothing changes")
+    t:eq(keep["Flight Master"], nil, "and it isn't Flow's to untick later")
+    tick, untick = T.Plan(types, {}, {}, true)
+    t:eq(#tick + #untick, 0, "no step that needs one: your ticks stay as they are")
+    -- Still wanted on the next look: kept, not ticked again.
+    tick, untick, keep = T.Plan(types, want, { Banker = true }, true)
+    t:ok(#tick == 0 and #untick == 0 and keep.Banker, "still on that step: stays ticked, stays Flow's")
+    -- You unticked Flow's by hand: forgotten, not fought over.
+    types[1].active = false
+    tick, untick, keep = T.Plan(types, {}, { Banker = true }, true)
+    t:ok(#tick == 0 and #untick == 0 and keep.Banker == nil, "unticked by hand: just forgotten")
+    -- Turned off: Flow's ticks are taken back.
+    types[1].active = true
+    tick, untick = T.Plan(types, want, { Banker = true }, false)
+    t:ok(#tick == 0 and untick[1] == "Banker", "managing turned off: Flow's tick is taken back, nothing ticked")
+    -- Which kind a step needs.
+    local list = {}
+    for key, def in ns:Each("trackFor") do list[#list + 1] = { key = key, def = def } end
+    table.sort(list, function(a, b) return a.key < b.key end)
+    local function ruleOf(g) local r = T.RuleFor(g, list) return r and r.key end
+    t:eq(ruleOf({ key = "bank", provider = "banker" }), "banker", "the bank step")
+    t:eq(ruleOf({ key = "train:class" }), "classTrainer", "your class trainer")
+    t:eq(ruleOf({ key = "train:Skinning" }), "professionTrainer", "a profession trainer")
+    t:eq(ruleOf({ key = "flightpath:Michael Garrett", provider = "flightpath" }), "flightMaster", "a flight path to learn")
+    t:eq(ruleOf({ key = "qbuy:862:1", provider = "questbuy" }), "auctioneer", "buying at the auction house")
+    t:eq(ruleOf({ key = "repair", provider = "repair" }), "repair", "a repairer")
+    t:eq(ruleOf({ key = "hearth:undercity", provider = "hearth" }), "innkeeper", "an innkeeper")
+    t:eq(ruleOf({ key = "wp", waypoint = true, text = "Your waypoint: Banker" }), "banker", "a waypoint to the nearest banker")
+    t:eq(ruleOf({ key = "875:1", provider = "questie" }), nil, "a quest step: none")
+    t:eq(ruleOf(nil), nil, "no step: none")
+end)
+
+ns:Register("test", "click: the minimap tracking tick turns Flow's managing on and off, and reads the game's kinds", function(t)
+    local T = ns.tracking
+    if InCombatLockdown() then return end
+    local was, mine = ns.db.nav.trackManage, ns.db.nav.trackMine
+    -- (Tick is stood in for: the test must not change the game's tracking.)
+    with(T, "Tick", function() end, function()
+        ns.db.nav.trackManage = nil
+        t:ok(T.On(), "on as it comes")
+        t:eq(T.Toggle(), false, "a click turns it off")
+        t:eq(ns.db.nav.trackManage, false, "and that's kept")
+        t:eq(T.Toggle(), true, "another turns it on")
+    end)
+    ns.db.nav.trackManage, ns.db.nav.trackMine = was, mine
+    local okT, types = pcall(T.Types)
+    t:ok(okT and type(types) == "table", "the game's kinds are read" .. (okT and "" or (": " .. tostring(types))))
+    local first = okT and types[1]
+    if first then t:ok(type(first.name) == "string" and type(first.active) == "boolean", "a kind has a name and is on or off") end
+    local okL, lines = pcall(T.Lines)
+    t:ok(okL and #lines >= 2, "/flow tracking builds" .. (okL and "" or (": " .. tostring(lines))))
+    t:ok(not (_G.Menu and _G.Menu.ModifyMenu) or T.hooked, "where the game lets add-ons add to its menus, Flow's tick is asked for")
+    t:ok(issecurevariable("C_Minimap"), "taint: the game's minimap table is untouched")
+end)
