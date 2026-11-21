@@ -58,7 +58,8 @@ local buffs = {
     -- buttons were suggesting to use stealth"). Only with an enemy targeted:
     -- prowling slows you, so it isn't asked for while you travel. Once you
     -- prowl, the target key holds your opener (the cat list below).
-    -- Tanking ("Your spec": Feral (Bear), or /flow spec tank): into Bear Form
+    -- Tanking (your role: "Your role" Tank, /flow spec tank, or Auto with
+    -- tank talents; ns:LevelingRole()): into Bear Form
     -- when there's a fight to take, the druid's Righteous Fury. Dire Bear
     -- Form first once you know it. Not while you travel with nothing targeted.
     { spell = "Dire Bear Form", kind = "buff", reason = "Tanking: Bear Form",
