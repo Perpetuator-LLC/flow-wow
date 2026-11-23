@@ -69,6 +69,9 @@ Flow for WoW is a separate project from Flow Engine.
   next buff or person.
 - **Craft the right amount**: on the profession window, Flow says how many to make to reach your
   target, with a Make N button for exactly that many, and tells you when to stop.
+- **Flow Batch**: a tab on any profession window (smelting, curing hides, bandages...) lists
+  everything your bags hold the materials for, with how many you can make. Tick the ones you
+  want, leave the count empty for all you can or type a number, and press Make once per recipe.
 - **Flow Actions** (same key, out of combat, at your route step): at a fishing spot it equips
   your Fishing Pole, puts on your best lure, casts, then reels in when the bobber splashes; at a
   mining or herb step it turns on Find Minerals / Find Herbs and gathers; when you leave it puts

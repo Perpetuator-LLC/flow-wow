@@ -17382,3 +17382,92 @@ ns:Register("test", "click: Route includes on a custom route has its own ticks, 
     t:ok(same and ns.db.nav.kinds == usual, "none of it touched your usual route's ticks")
     ns.db.nav.focusKinds = mine
 end)
+
+ns:Register("test", "craftBatch: what your bags make, one row per recipe, by name", function(t)
+    local B = ns.craftBatch
+    local bags = { [2770] = 25, [2771] = 4, [2318] = 7, [2934] = 0 }
+    local function bagsOf(id) return bags[id] or 0 end
+    local known = {
+        ["Copper Bar"] = { reagents = { [2770] = 1 }, diff = "grey" },
+        ["Tin Bar"] = { reagents = { [2771] = 1 } },
+        ["Bronze Bar"] = { reagents = { [2770] = 1, [2771] = 1 } },
+        ["Light Armor Kit"] = { reagents = { [2318] = 3 } },
+        ["Cured Light Hide"] = { reagents = { [2934] = 1 } },   -- none in your bags
+        ["Half read"] = { reagents = { [2770] = 1 }, partial = true },
+        ["No materials"] = { reagents = {} },
+    }
+    local rows = B.Rows(known, bagsOf)
+    local names, by = {}, {}
+    for _, r in ipairs(rows) do names[#names + 1] = r.recipe; by[r.recipe] = r.count end
+    t:eq(table.concat(names, ","), "Bronze Bar,Copper Bar,Light Armor Kit,Tin Bar", "only what you can make, by name; grey recipes too")
+    t:eq(by["Copper Bar"], 25, "Copper Bar: one per ore")
+    t:eq(by["Bronze Bar"], 4, "Bronze Bar: the material you run out of first")
+    t:eq(by["Light Armor Kit"], 2, "3 leather each: 7 makes 2")
+    t:eq(B.CanMake(known["Half read"], bagsOf), 0, "a partly read recipe: Flow can't tell, so none")
+    t:eq(#B.Rows(nil, bagsOf), 0, "no recipes read yet: an empty list")
+end)
+
+ns:Register("test", "craftBatch: the ticks become what each press of Make does", function(t)
+    local B = ns.craftBatch
+    local rows = { { recipe = "Bronze Bar", count = 4 }, { recipe = "Copper Bar", count = 25 }, { recipe = "Tin Bar", count = 4 } }
+    local q = B.Queue(rows, { ["Copper Bar"] = "all", ["Bronze Bar"] = 10 })
+    t:eq(#q, 2, "two ticked of three")
+    t:eq(q[1].recipe .. " " .. q[1].n, "Bronze Bar 4", "a count over what your bags make is cut to it")
+    t:eq(q[2].recipe .. " " .. q[2].n, "Copper Bar 25", "empty count: all of it")
+    t:eq(B.Queue(rows, { ["Tin Bar"] = 3 })[1].n, 3, "a count under it is kept")
+    t:eq(#B.Queue(rows, { ["Gold Bar"] = "all" }), 0, "a tick for something you can't make does nothing")
+    t:eq(B.ButtonText({}, false), "Tick what to make", "nothing ticked")
+    t:eq(B.ButtonText(q, false), "Make 4 x Bronze Bar (1 of 2)", "the next press, and how many recipes are ticked")
+    t:eq(B.ButtonText({ q[2] }, false), "Make 25 x Copper Bar", "the last one")
+    t:eq(B.ButtonText(q, true), "Making...", "while a batch is going")
+    t:eq(B.ParseCount(""), "all", "empty box: all")
+    t:eq(B.ParseCount(" 12 "), 12, "a number")
+    t:eq(B.ParseCount("0"), nil, "zero isn't a count")
+end)
+
+ns:Register("test", "craftBatch: Make starts the next ticked recipe and unticks it, never while busy", function(t)
+    local B, H = ns.craftBatch, ns.craftHint
+    local saved = B.picks
+    B.picks = { ["Copper Bar"] = 5, ["Tin Bar"] = "all" }
+    local rows = { { recipe = "Copper Bar", count = 25 }, { recipe = "Tin Bar", count = 4 } }
+    local made = {}
+    local function craft(recipe, n) made[#made + 1] = recipe .. " " .. n; return true end
+    with(ns, "Print", function() end, function()
+        with(B, "Busy", function() return true end, function()
+            t:eq(B.MakeNext(rows, craft), false, "busy: nothing starts")
+        end)
+        with(B, "Busy", function() return false end, function()
+            t:ok(B.MakeNext(rows, craft), "first press")
+            t:ok(B.MakeNext(rows, craft), "second press")
+            t:eq(B.MakeNext(rows, craft), false, "nothing left ticked")
+            B.picks = { ["Tin Bar"] = "all" }
+            t:eq(B.MakeNext(rows, function() return false end), false, "the window wouldn't start it")
+            t:ok(B.picks["Tin Bar"], "so it stays ticked")
+            -- The button itself: no profession window in a test, so its click
+            -- must run and start nothing.
+            local f = B.Frame()
+            with(H, "Craft", craft, function()
+                with(B, "CurrentRows", function() return {} end, function()
+                    t:ok(pcall(f.make:GetScript("OnClick"), f.make), "click: Make runs")
+                    t:ok(pcall(f.all:GetScript("OnClick"), f.all), "click: Tick all runs")
+                    t:ok(pcall(f.clear:GetScript("OnClick"), f.clear), "click: Clear runs")
+                end)
+            end)
+            t:eq(next(B.picks), nil, "Clear unticks everything")
+        end)
+    end)
+    t:eq(table.concat(made, ","), "Copper Bar 5,Tin Bar 4", "one recipe per press, in the list's order, each for its count")
+    B.picks = saved
+end)
+
+ns:Register("test", "click: the Flow Batch tab on a profession window opens and closes it", function(t)
+    local B = ns.craftBatch
+    local def = ns:Get("gameButton", "batch")
+    t:ok(def and def.label == "Flow Batch", "registered on the profession window")
+    local f = B.Frame()
+    local was = f:IsShown()
+    t:ok(pcall(def.click), "click: runs")
+    t:ok(pcall(def.click), "click again: runs")
+    if not was then f:Hide() end
+    t:ok(not f:IsShown() or was, "left as it was")
+end)

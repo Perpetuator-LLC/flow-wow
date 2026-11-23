@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Flow Batch: make several things at once, in any profession.** A new **Flow Batch** tab on
+  the profession window lists every recipe your bags hold the materials for (Copper Bar, Tin
+  Bar, Light Armor Kit, Cured Light Hide...), each with how many you can make. Tick the ones
+  you want (three of the eight, say), leave the count empty for all you can or type a number,
+  and press **Make**: each press starts the next ticked recipe for its count and unticks it.
+  The button says what the next press makes, and waits while the last batch is still going.
+  Crafting has to start from your click, so it's one press per recipe, not one for all of
+  them. `/flow batch` opens it too.
+
 ## 0.35.377
 
 - **A custom route now does the errands on the way.** It used to be only your quest lines'
