@@ -233,6 +233,8 @@ Flow for WoW is a separate project from Flow Engine.
   master, repairer, innkeeper or mailbox, Flow ticks that kind in the game's minimap tracking and unticks it
   after. A kind you ticked yourself stays on. The tick to turn it off is at the bottom of the game's
   tracking menu and in Flow Settings.
+- **Where your hearthstone goes**: point at your Hearthstone with the map open and a red dot marks the inn
+  it's set to; its tooltip names the place.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Errands on a custom route**: a custom route is your quest lines in place of the quest kinds, plus the

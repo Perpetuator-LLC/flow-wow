@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.410
+
+- **New: point at your Hearthstone and the map shows where it goes.** With the world map
+  open, hovering your Hearthstone (in your bags or on a bar) puts a red dot with a white
+  ring on the inn it's set to, with the inn's name beside it. It goes when the tooltip
+  does. The Hearthstone's tooltip also says where it takes you, and says so when that inn
+  isn't on the map you have open. Flow knows the place for the inns in its list.
 ## 0.35.409
 
 - **Fixed: Leaders of the Fang sent you back to Nara Wildmane for its gems.** 0.35.401 put

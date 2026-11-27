@@ -19160,3 +19160,33 @@ ns:Register("test", "quests: being named in a quest's words isn't being where it
     t:ok(not Q.DoneAt(stalk, "Nara Wildmane"), "someone else: no")
     t:ok(not Q.DoneAt(nil, "Nara Wildmane") and not Q.DoneAt(stalk, ""), "no words, or nobody: no")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.410: pointing at your Hearthstone shows where it goes on the map.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "hearthstone: pointing at it shows where it takes you on the map", function(t)
+    local HP = ns.hearthPin
+    t:ok(HP.IsHearth("|cffffffff|Hitem:6948::::::::22:::::|h[Hearthstone]|h|r"), "the Hearthstone, by its number")
+    t:ok(HP.IsHearth("|Hitem:999999::|h[Hearthstone]|h"), "or by its name, on a client that numbers it differently")
+    t:ok(not HP.IsHearth("|Hitem:2589::|h[Linen Cloth]|h"), "another item: no")
+    t:ok(not HP.IsHearth(nil), "nothing: no")
+    t:ok(HP.Shows(true, true, 0.4, 0.6), "pointing at it with the map open and the inn on that map: the dot shows")
+    t:ok(not HP.Shows(false, true, 0.4, 0.6), "not pointing at it: no dot")
+    t:ok(not HP.Shows(true, false, 0.4, 0.6), "the map closed: no dot")
+    t:ok(not HP.Shows(true, true, nil, nil), "the inn isn't on the map shown: no dot")
+    t:ok(HP.TipLine("Camp Taurajo", true, true):find("red dot", 1, true), "its tooltip says the dot is where it takes you")
+    t:ok(HP.TipLine("Camp Taurajo", true, false):find("isn't on the map", 1, true), "or that the inn is off the map you have open")
+    t:ok(HP.TipLine("Camp Taurajo", true, nil):find("Open the map", 1, true), "or to open the map")
+    t:ok(HP.TipLine("Somewhere", false, nil):find("doesn't know", 1, true), "an inn Flow has no place for: said so")
+    t:eq((HP.OnMap(nil)), nil, "no place: nowhere on the map")
+    -- Not pointing at it: nothing shows, and looking again doesn't error.
+    local was = HP.hovering
+    HP.hovering = false
+    local ok, shown = pcall(HP.Update)
+    t:ok(ok and shown == false, "with the mouse elsewhere the dot is away" .. (ok and "" or (": " .. tostring(shown))))
+    HP.hovering = true
+    t:ok(pcall(HP.Update), "pointing at it: looking runs, map open or not")
+    HP.hovering = was
+    pcall(HP.Update)
+end)
