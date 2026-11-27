@@ -240,6 +240,9 @@ function K.ColumnMiddle(index)
 end
 -- Docked: SHIFT, CTRL, ALT and C+S written once, between the two rows, one
 -- over each column, always all four (they name Flow's presses too).
+K.NAME_FONT = 9
+-- Pure: how far above the self button a name's middle is: half the gap between the rows.
+function K.NameY(gap) return (tonumber(gap) or 0) / 2 end
 local dockNames = {}
 function K.DockNames(btn, show, side)
     for index, slot in ipairs(K.SLOTS) do
@@ -251,11 +254,15 @@ function K.DockNames(btn, show, side)
         end
         if fs then
             if show then
-                local sz = K.SIZES[index] or K.SIZES[#K.SIZES]
-                fs:SetFont(STANDARD_TEXT_FONT, math.max(8, math.floor(sz * 0.3)), "OUTLINE")
+                -- One size for all four and the middle of the gap between the rows
+                -- (0.35.414: each was sized by its icon and stood on the lower row, so
+                -- SHIFT sat higher and bigger than C+S and none was in the middle).
+                fs:SetFont(STANDARD_TEXT_FONT, K.NAME_FONT, "OUTLINE")
                 fs:SetText(K.LABEL[slot])
+                if fs.SetJustifyH then fs:SetJustifyH("CENTER") end
+                if fs.SetJustifyV then fs:SetJustifyV("MIDDLE") end
                 fs:ClearAllPoints()
-                fs:SetPoint("BOTTOM", btn, side == "right" and "TOPRIGHT" or "TOPLEFT", K.ColumnCentre(index, side), 2)
+                fs:SetPoint("CENTER", btn, side == "right" and "TOPRIGHT" or "TOPLEFT", K.ColumnCentre(index, side), K.NameY(BB.DOCK_GAP))
                 fs:Show()
             else
                 fs:Hide()

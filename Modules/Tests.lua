@@ -19293,3 +19293,30 @@ ns:Register("test", "quest journal: what you did is kept with where it stood on 
     t:ok(pcall(J.Lines), "/flow journal builds")
     ns.db.journal = was
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.414: docked, the modifier names sit in the middle of the gap.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "self button: docked, the modifier names are one size and midway between the two rows", function(t)
+    local K, BB = ns.careKeys, ns.buffButton
+    if not (K and BB) then return end
+    t:eq(K.NameY(17), 8.5, "half the gap between the rows")
+    t:eq(K.NameY(nil), 0, "no gap known: on the edge")
+    t:ok(K.NAME_FONT >= 8 and K.NAME_FONT <= 11, "one readable size for all four")
+    -- The names that exist now: all the same size, all at the same height.
+    local sizes, ys = {}, {}
+    for _, fs in pairs(K._dockNames or {}) do
+        if fs.IsShown and fs:IsShown() then
+            local _, size = fs:GetFont()
+            sizes[math.floor((size or 0) + 0.5)] = true
+            local _, _, _, _, y = fs:GetPoint(1)
+            ys[math.floor((y or 0) * 10 + 0.5)] = true
+        end
+    end
+    local nSizes, nYs = 0, 0
+    for _ in pairs(sizes) do nSizes = nSizes + 1 end
+    for _ in pairs(ys) do nYs = nYs + 1 end
+    t:ok(nSizes <= 1, "the names shown are one size")
+    t:ok(nYs <= 1, "and on one line")
+end)

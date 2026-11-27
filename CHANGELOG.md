@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.414
+
+- **Docked self button: SHIFT, CTRL, ALT and C+S line up.** Each name was sized by the icon
+  above it and stood on the lower row, so SHIFT sat bigger and higher than C+S and none of
+  them was in the middle. They're one size now, on one line, midway between the two rows
+  and centred on their columns.
 ## 0.35.413
 
 - **New: a quest journal.** Flow now notes every quest you take and hand in and every level
