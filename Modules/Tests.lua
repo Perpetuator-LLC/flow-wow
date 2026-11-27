@@ -19405,3 +19405,57 @@ ns:Register("test", "combo points: under the cast bar while your target casts, b
     under, what = PC.Under(plate, nil, shown)
     t:ok(under == plate and what == "plate", "no unit frame: under the nameplate itself")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.418: a failed quest is one step (abandon, take it again); an escort's
+-- step says what to do when the escort is lost.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: a failed quest is one step at its giver, and an escort says what to do when they're gone", function(t)
+    local Q = ns.quests
+    t:eq(Q.Failed(true, nil), true, "the game says failed")
+    t:eq(Q.Failed(nil, -1), true, "the older quest log's -1")
+    t:eq(Q.Failed(false, 1), false, "complete isn't failed")
+    t:eq(Q.Failed(nil, nil), false, "nothing known: not failed")
+    t:eq(Q.IsEscort({ { text = "Escort Gilthares Firebough back to Ratchet", finished = false } }), true, "an escort")
+    t:eq(Q.IsEscort({ { text = "Escort Gilthares Firebough back to Ratchet", finished = true } }), false, "done: no longer one")
+    t:eq(Q.IsEscort({ { text = "Plainstrider Kidney: 0/5", finished = false } }), false, "not an escort")
+    -- The quest data as the builder is handed it (a table of its own, as the party help test uses).
+    local db = {
+        GetQuest = function(id)
+            if id == 898 then return { name = "Free From the Hold", level = 20, Starts = { NPC = { 7 } }, Finisher = { NPC = { 8 } },
+                                        ObjectiveData = { { Type = "event" } } } end
+        end,
+        GetNPC = function(id)
+            if id == 7 then return { name = "Gilthares Firebough", spawns = { [17] = { { 62, 55 } } } } end
+            if id == 8 then return { name = "Captain Brightsun", spawns = { [17] = { { 62, 39 } } } } end
+        end,
+    }
+    local objectives = { { text = "Escort Gilthares Firebough back to Ratchet", finished = false } }
+    local goals = {}
+    Q.QuestGoals(db, { id = 898, title = "Free From the Hold", complete = false, failed = true, objectives = objectives }, goals, {})
+    t:eq(#goals, 1, "failed: one step, no objective and no hand-in")
+    local g = goals[1] or {}
+    t:eq(g.key, "898:failed", "its key")
+    t:eq(g.text, "Failed: abandon Free From the Hold and take it again", "its words")
+    t:eq(g.npcs and g.npcs[1], "Gilthares Firebough", "at the one who gives it")
+    t:ok(g.details and g.details[3] and g.details[3]:find("Gilthares Firebough", 1, true) ~= nil, "the tooltip says who from")
+    -- Not failed: the usual steps, and each but the hand-in carries the escort's line.
+    local usual = {}
+    Q.QuestGoals(db, { id = 898, title = "Free From the Hold", complete = false, objectives = objectives }, usual, {})
+    local handIn, noted = false, 0
+    for _, s in ipairs(usual) do
+        if s.key == "898:done" then handIn = true; t:ok(not s.escort, "the hand-in has no escort line") end
+        if s.key == "898:failed" then t:ok(false, "no failed step for a quest that hasn't failed") end
+        if s.escort then
+            noted = noted + 1
+            t:eq(s.details[#s.details], Q.EscortLine("Gilthares Firebough"), "the escort's line, naming who gives it")
+        end
+    end
+    t:ok(handIn, "the hand-in is still there")
+    t:eq(noted, #usual - 1, "every other step of it carries the line")
+    -- Your own quest log says failed or not for every quest (true or false, never nil).
+    for _, q in ipairs(Q.LogEntries()) do
+        t:eq(type(q.failed), "boolean", "the log says whether " .. tostring(q.title) .. " failed")
+    end
+end)

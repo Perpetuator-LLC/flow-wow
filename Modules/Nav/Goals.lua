@@ -15,7 +15,23 @@ local function isDaily(quest)
     return quest and quest.questFlags and bit and bit.band(quest.questFlags, 0x1000) ~= 0 or false
 end
 
--- Your quest log: { { id, title, complete, objectives = { {text, finished} } } }
+-- Pure: has the game marked a quest failed? isFailed: what C_QuestLog.IsFailed
+-- gave; isComplete: the older quest log's sixth value (-1 = failed).
+-- (0.35.418: Flow read only "complete or not". With the escort of Free From
+-- the Hold gone, the route went on pointing at the end of the escort.)
+function ns.quests.Failed(isFailed, isComplete)
+    return isFailed == true or isComplete == -1
+end
+-- The game's word on one quest log line, by either way of asking.
+local function readFailed(index, questID)
+    local ok, failed = pcall(function()
+        local a = C_QuestLog and C_QuestLog.IsFailed and C_QuestLog.IsFailed(questID)
+        local b = GetQuestLogTitle and select(6, GetQuestLogTitle(index))
+        return ns.quests.Failed(a, b)
+    end)
+    return ok and failed == true
+end
+-- Your quest log: { { id, title, complete, failed, objectives = { {text, finished} } } }
 local function questLog()
     local out = {}
     if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
@@ -24,6 +40,7 @@ local function questLog()
             if info and not info.isHeader and info.questID then
                 local q = { id = info.questID, title = info.title, objectives = {} }
                 q.complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(info.questID) or false
+                q.failed = readFailed(i, info.questID)
                 for _, o in ipairs(C_QuestLog.GetQuestObjectives(info.questID) or {}) do
                     q.objectives[#q.objectives + 1] = { text = o.text, finished = o.finished }
                 end
@@ -34,7 +51,7 @@ local function questLog()
         for i = 1, GetNumQuestLogEntries() do
             local title, _, _, isHeader, _, isComplete, _, id = GetQuestLogTitle(i)
             if not isHeader and id then
-                local q = { id = id, title = title, complete = isComplete == 1, objectives = {} }
+                local q = { id = id, title = title, complete = isComplete == 1, failed = ns.quests.Failed(nil, isComplete), objectives = {} }
                 for j = 1, GetNumQuestLeaderBoards(i) do
                     local text, _, finished = GetQuestLogLeaderBoard(j, i)
                     q.objectives[#q.objectives + 1] = { text = text, finished = finished }
@@ -136,6 +153,30 @@ local function questGoals(db, q, goals, opts)
         return
     end
     local title = q.title or quest.name
+    -- Who gives the quest, and where: for a failed quest, and for an escort.
+    local startSpawns, starter = {}, nil
+    local starts = type(quest.Starts) == "table" and quest.Starts or {}
+    for _, id in ipairs(starts.NPC or {}) do starter = npcSpawns(db, startSpawns, id) or starter end
+    for _, id in ipairs(starts.GameObject or {}) do starter = objectSpawns(db, startSpawns, id) or starter end
+    -- Failed (the escort died or vanished, the time ran out): nothing in it
+    -- can be done or handed in any more. One step instead of its objectives
+    -- and its hand-in: abandon it, and take it again where it's given.
+    if q.failed and not opts.who then
+        local key = prefix .. q.id .. ":failed"
+        if not skip(key) then
+            local pts = pointsFrom(startSpawns)
+            goals[#goals + 1] = {
+                key = key, points = pts, npcs = starter and { starter } or nil, title = title, level = quest.level,
+                kind = "use", failed = true,
+                text = ns.quests.FailedText(title),
+                details = ns.quests.FailedLines(title, starter),
+                blockedBy = #pts == 0 and ("Flow doesn't know where " .. (starter or "its giver") .. " stands. Abandon it in your quest log and take it again.") or nil,
+                blockedShort = #pts == 0 and ns.nav.NO_SPOT or nil,
+            }
+        end
+        return
+    end
+    opts.starter = starter   -- (the escort note below)
     -- Where the quest is handed in. For unfinished quests this is a later
     -- step that the planner puts after the objectives (deps), so it can
     -- decide "finish, then turn in on the way".
@@ -726,6 +767,51 @@ function ns.quests.AndList(list)
     if n == 0 then return "" end
     if n == 1 then return tostring(list[1]) end
     return table.concat(list, ", ", 1, n - 1) .. " and " .. tostring(list[n])
+end
+
+-- Pure: the step text for a quest the game has marked failed.
+function ns.quests.FailedText(title)
+    return "Failed: abandon " .. (title or "this quest") .. " and take it again"
+end
+-- Pure: its tooltip lines.
+function ns.quests.FailedLines(title, giver)
+    return {
+        "Quest: " .. (title or "?"),
+        "The game has marked it failed: nothing in it can be finished or handed in now.",
+        "Abandon it in your quest log (Flow doesn't abandon quests for you), then take it again from "
+            .. (giver or "whoever gave it") .. ": the arrow goes there.",
+    }
+end
+-- Pure: is one of a quest's objectives still to do an escort ("Escort Gilthares
+-- Firebough back to Ratchet")? Read from the objective's words, so English only.
+function ns.quests.IsEscort(objectives)
+    for _, o in ipairs(objectives or {}) do
+        if not o.finished and type(o.text) == "string" and o.text:find("^%s*Escort ") then return true end
+    end
+    return false
+end
+-- Pure: what an escort's step says about losing them.
+function ns.quests.EscortLine(giver)
+    return "An escort: it starts with " .. (giver or "the quest giver")
+        .. ". If they're gone (dead, or vanished), abandon the quest and take it again from them."
+end
+-- An escort's steps say what to do when the escort is lost: the game doesn't
+-- always mark the quest failed, and the step itself points at the end.
+do
+    local build = questGoals
+    questGoals = function(db, q, goals, opts)
+        opts = opts or {}
+        local from = #goals + 1
+        build(db, q, goals, opts)   -- (sets opts.starter)
+        if q.failed or q.complete or not ns.quests.IsEscort(q.objectives) then return end
+        for i = from, #goals do
+            local g = goals[i]
+            if g.kind ~= "turnin" and g.kind ~= "daily" and type(g.details) == "table" then
+                g.escort = true
+                g.details[#g.details + 1] = ns.quests.EscortLine(opts.starter)
+            end
+        end
+    end
 end
 ns.quests.QuestGoals = questGoals   -- (Party.lua, tests)
 

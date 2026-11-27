@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.418
+
+- **A failed quest gets a step that says what to do.** With the escort of Free From the Hold
+  gone mid-quest, the route went on pointing at the end of the escort in Ratchet. Flow only
+  read "complete or not" from the quest log. It now also reads "failed": a failed quest's
+  objectives and hand-in leave the route, and one step takes their place, at whoever gives
+  the quest: "Failed: abandon Free From the Hold and take it again". Flow doesn't abandon
+  quests for you.
+- **An escort's step says what to do when the escort is lost.** The game doesn't always
+  mark the quest failed, so the tooltip of an escort's step now says who it starts with,
+  and to abandon and retake it there if they're gone. (Read from the objective's words:
+  "Escort ...", so English only.)
+- The diagnostics say for each quest in your log whether the game has marked it failed.
 ## 0.35.417
 
 - **Combo points no longer cover your target's cast bar.** The combo point bar hangs right

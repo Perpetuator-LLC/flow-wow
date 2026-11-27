@@ -147,7 +147,7 @@ function X.Lines()
     -- Your quest log.
     local log = ns.quests and ns.quests.LogEntries and ns.quests.LogEntries() or {}
     for _, q in ipairs(log) do
-        add("quest", { { "id", q.id }, { "complete", q.complete and true or false }, { "n", #(q.objectives or {}) }, { "title", q.title } })
+        add("quest", { { "id", q.id }, { "complete", q.complete and true or false }, { "failed", q.failed and true or false }, { "n", #(q.objectives or {}) }, { "title", q.title } })
         for i, o in ipairs(q.objectives or {}) do
             add("obj", { { "quest", q.id }, { "i", i }, { "done", o.finished and true or false }, { "text", o.text } })
         end
