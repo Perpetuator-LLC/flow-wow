@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.413
+
+- **New: a quest journal.** Flow now notes every quest you take and hand in and every level
+  you gain: when, where, at what level, the XP a hand-in gave, and what the route had as
+  its next step at that moment (so it can be seen later where you left the route, and
+  whether that was quicker). `/flow journal` shows the last events and a summary: how many
+  hand-ins were the route's next step, how many weren't on it at all, how long a quest is
+  held on average. It's kept for each character, on your computer only.
+- The journey before this version can't be rebuilt: the game keeps which quests are done,
+  not when or in what order, and Flow kept nothing either.
 ## 0.35.412
 
 - **Fixed: a step's details ended a list before it began.** For a thing nothing is known to

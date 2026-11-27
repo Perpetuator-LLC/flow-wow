@@ -19,6 +19,15 @@ them. Two things are needed for that, and they're separate:
 Put together they make one graph. An optimiser turns it into an order. That order, with the
 learned times, is the payload Flow ships and updates.
 
+## Part 0: what the player did (built in 0.35.413, local only)
+
+`Modules/Quests/Journal.lua` keeps, per character, every quest taken and handed in and every
+level gained: when, where, at what level, the XP a hand-in gave, what the route's next step was
+at that moment and where on the route the thing done stood (`rank`: 1 = it was the next step,
+nothing = it wasn't on the route). It is the measure every later part needs: without it there
+is no telling whether a change to the planner made a player's hour better or worse. The journey
+before 0.35.413 can't be rebuilt: the game keeps which quests are done, not when.
+
 ## Part 1: trips (built in 0.35.350, local only)
 
 `Modules/Nav/Legs.lua` times every trip from one step to the next and keeps your quickest for

@@ -235,6 +235,8 @@ Flow for WoW is a separate project from Flow Engine.
   tracking menu and in Flow Settings.
 - **Where your hearthstone goes**: point at your Hearthstone with the map open and a red dot marks the inn
   it's set to; its tooltip names the place.
+- **Quest journal**: Flow notes every quest you take and hand in and every level, with the time, the
+  place and what the route had as its next step then. `/flow journal` shows it. It stays on your computer.
 - **Crossing to another continent**: while steps of yours wait across the sea, the route gets a step
   at the zeppelin tower or dock that gets you there by the shortest trip (`/flow crossings`).
 - **Errands on a custom route**: a custom route is your quest lines in place of the quest kinds, plus the

@@ -106,6 +106,7 @@ function D:Snapshot(reason, spread)
         { "quest bags", function() if c.questbags then c.questbags("") end end },
         { "quest data", function() if c.questdata then c.questdata("") end end },
         { "repeatables", function() if c.repeatables then c.repeatables("") end end },
+        { "quest journal", function() if c.journal then c.journal("25") end end },
         { "banker", function() if c.banker then c.banker("") end end },
         { "gear set icons", function() if c.setsicons then c.setsicons("") end end },
         { "keep sets", function() if c.keepsets then c.keepsets("") end end },

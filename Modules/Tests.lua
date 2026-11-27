@@ -19250,3 +19250,46 @@ ns:Register("test", "step details: no heading with nothing under it, no bracket 
     t:eq(foot[3], "(Change the route on the world map)", "the closing bracket stays with its line")
     t:eq(N.FooterLines("Click: open it. ^: go here next (Custom route). Right-click: menu.")[2], "^: go here next (Custom route)", "a bracket in the middle of a hint is untouched")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.413: a journal of the quests you take and hand in, against the route.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quest journal: what you did is kept with where it stood on the route", function(t)
+    local J = ns.journal
+    local function questOf(key) return tonumber(tostring(key):match("^pickup:(%d+)$") or tostring(key):match("^(%d+):")) end
+    local plan = { { goal = { key = "train:class" } }, { goal = { key = "871:1" } }, { goal = { key = "871:done" } }, { goal = { key = "pickup:5041" } } }
+    t:eq(J.Rank(plan, 871, questOf), 2, "a quest's first step on the route: second")
+    t:eq(J.Rank(plan, 5041, questOf), 4, "a quest to pick up: fourth")
+    t:eq(J.Rank(plan, 999, questOf), nil, "a quest that isn't on the route: nothing")
+    t:eq(J.Rank(nil, 871, questOf), nil, "no route: nothing")
+    local list = {}
+    for i = 1, 5 do J.Add(list, { e = "a", t = i }, 3) end
+    t:eq(#list, 3, "the journal keeps its last events")
+    t:eq(list[1].t, 3, "and drops the oldest")
+    local s = J.Summary({
+        { e = "a", t = 1000, q = 1 }, { e = "a", t = 1060, q = 2 }, { e = "a", t = 1100, q = 3 },
+        { e = "d", t = 1600, q = 1, xp = 500, rank = 1 },
+        { e = "d", t = 2260, q = 2, xp = 700, rank = 3 },
+        { e = "l", t = 2300 },
+        { e = "d", t = 4600, q = 3, xp = 300 },
+    })
+    t:eq(s.accepted, 3, "three taken")
+    t:eq(s.done, 3, "three handed in")
+    t:eq(s.levels, 1, "one level")
+    t:eq(s.next, 1, "one hand-in was the route's next step")
+    t:eq(s.near, 2, "two were in its first three")
+    t:eq(s.off, 1, "one wasn't on the route at all")
+    t:eq(s.xp, 1500, "the XP they gave")
+    t:near(s.hours, 1, 0.001, "an hour from first to last")
+    t:near(s.held, (600 + 1200 + 3500) / 3 / 60, 0.01, "the average time a quest was held")
+    t:eq(J.Summary({}).done, 0, "an empty journal: nothing")
+    -- A real note is kept for this character, and put back.
+    local was = ns.db.journal
+    ns.db.journal = {}
+    local ok, e = pcall(J.Note, "a", 987654413)
+    t:ok(ok and e and e.q == 987654413 and e.e == "a" and e.t, "taking a quest is noted with the time" .. (ok and "" or (": " .. tostring(e))))
+    t:eq(#ns.db.journal, 1, "in the journal")
+    t:ok(pcall(J.Lines), "/flow journal builds")
+    ns.db.journal = was
+end)
