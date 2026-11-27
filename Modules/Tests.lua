@@ -19377,3 +19377,31 @@ ns:Register("test", "quests: a thing used at each objective is fetched once for 
     t:eq(Q.SourceFromBank(0, 0, 5), 1, "no objective counted: still the one it needs")
     t:eq(Q.SourceFromBank(2, 0, 0), 0, "none in the bank: nothing to fetch")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.417: combo points step under the nameplate's cast bar while it casts.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "combo points: under the cast bar while your target casts, back under the health bar after", function(t)
+    local PC = ns.plateCombo
+    local health, power, cast = { n = "health" }, { n = "power" }, { n = "cast" }
+    local plate = { n = "plate" }
+    local showing = { [health] = true }
+    local function shown(f) return showing[f] == true end
+    local uf = { healthBar = health, powerBar = power, castBar = cast }
+    local under, what = PC.Under(plate, uf, shown)
+    t:ok(under == health and what == "health", "not casting: right under the health bar")
+    showing[cast] = true
+    under, what = PC.Under(plate, uf, shown)
+    t:ok(under == cast and what == "cast", "casting: under the cast bar, so both can be read")
+    showing[power] = true
+    under, what = PC.Under(plate, uf, shown)
+    t:ok(under == cast and what == "cast", "with a power bar too: still under the cast bar, the lowest of them")
+    showing[cast] = nil
+    under, what = PC.Under(plate, uf, shown)
+    t:ok(under == power and what == "power", "the cast over: back under the power bar")
+    local _, named = PC.Under(plate, { healthBar = health, CastBar = cast }, function(f) return f == cast or f == health end)
+    t:eq(named, "cast", "the cast bar is found under its other names too")
+    under, what = PC.Under(plate, nil, shown)
+    t:ok(under == plate and what == "plate", "no unit frame: under the nameplate itself")
+end)

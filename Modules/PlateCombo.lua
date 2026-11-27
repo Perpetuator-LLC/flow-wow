@@ -74,9 +74,18 @@ end
 -- Pure: what the bar hangs under: the nameplate's power bar when it shows
 -- one, else its health bar, else the nameplate itself.
 --   uf: the nameplate's unit frame (or nil); shown(frame) -> is it showing
---   -> frame, "power" | "health" | "plate"
+--   -> frame, "cast" | "power" | "health" | "plate"
+PC.CAST_BARS = { "castBar", "CastBar", "castingBar", "CastingBar", "CastingBarFrame" }
 function PC.Under(plate, uf, shown)
     if type(uf) == "table" then
+        -- While it casts, its cast bar comes out under the health bar, right
+        -- where the points sit (0.35.417: "the combo points on nameplates cover
+        -- the casting bar"). Then the points hang under the cast bar, and go
+        -- back up when the cast is over.
+        for _, key in ipairs(PC.CAST_BARS) do
+            local c = uf[key]
+            if c and shown(c) then return c, "cast" end
+        end
         for _, key in ipairs({ "powerBar", "PowerBar", "manabar", "ManaBar" }) do
             local p = uf[key]
             if p and shown(p) then return p, "power" end
@@ -280,7 +289,7 @@ function PC.PlateParts()
     if type(uf) ~= "table" then return "the nameplate has no UnitFrame" end
     local names = {}
     for k, v in pairs(uf) do
-        if type(k) == "string" and type(v) == "table" and (k:lower():find("bar") or k:lower():find("health") or k:lower():find("power")) then
+        if type(k) == "string" and type(v) == "table" and (k:lower():find("bar") or k:lower():find("health") or k:lower():find("power") or k:lower():find("cast")) then
             names[#names + 1] = k .. (isShown(v) and "" or " (hidden)")
         end
     end

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.417
+
+- **Combo points no longer cover your target's cast bar.** The combo point bar hangs right
+  under the nameplate's health bar, which is where the game draws the cast bar when your
+  target casts. While it casts, the points now step down under the cast bar, and go back up
+  when the cast is over, so both can be read. `/flow combo` says what the points are hung
+  under and lists the nameplate's parts.
 ## 0.35.416
 
 - **The bank step asks for enough of a thing a quest uses at each objective.** The Angry
