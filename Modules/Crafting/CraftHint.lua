@@ -40,6 +40,7 @@ local function openProfession()
     end
     return prof, frame
 end
+H.OpenProfession = openProfession   -- (Flow Batch)
 
 -- The plan's craft steps for a profession (from the skill planner).
 function H.CraftStops(prof)
