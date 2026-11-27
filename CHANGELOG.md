@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.415
+
+- **Fixed: Flow Talents couldn't spend your points** ("the game has no talent called
+  Improved Wrath"). The game renamed that talent to Starlight Wrath. It's the first talent
+  of the druid's build, and since it could never be taken under its old name, no point
+  after it could be either. The build uses the new name (and still fits a client with the
+  old one).
+- So a rename can't do that again, for any class: a talent the game doesn't have, under
+  any of its names, is left out of the build and the window says which, instead of
+  standing in the way of every point after it.
 ## 0.35.414
 
 - **Docked self button: SHIFT, CTRL, ALT and C+S line up.** Each name was sized by the icon

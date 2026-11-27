@@ -151,7 +151,7 @@ function T.Picks(build)
         local name = b[1]
         for _ = 1, b[2] or 1 do
             count[name] = (count[name] or 0) + 1
-            picks[#picks + 1] = { name = name, rank = count[name], level = T.FIRST_LEVEL + #picks, why = b.why }
+            picks[#picks + 1] = { name = name, rank = count[name], level = T.FIRST_LEVEL + #picks, why = b.why, also = b.also }
         end
     end
     return picks
@@ -166,6 +166,36 @@ function T.Plan(picks)
         e.ranks, e.to = p.rank, p.level
     end
     return plan
+end
+
+-- The build against the talents the game really has (0.35.415). "Couldn't
+-- take them: the game has no talent called Improved Wrath": the game had
+-- renamed that talent, the build's first, and since it could never be taken
+-- no point after it could be either. Now a pick goes by whichever of its
+-- names the game has (`also`), and a pick the game has under no name is left
+-- out and said so, instead of standing in the way of the rest.
+-- Pure: picks; known: { [talent name] = true } -> the picks that fit (a copy
+-- where the name changed), and the names left out.
+function T.Fit(picks, known)
+    local out, gone, said = {}, {}, {}
+    for _, p in ipairs(picks or {}) do
+        local name = known[p.name] and p.name or nil
+        for _, alt in ipairs((not name) and p.also or {}) do
+            if known[alt] then name = alt break end
+        end
+        if name == p.name then
+            out[#out + 1] = p
+        elseif name then
+            local c = {}
+            for k, v in pairs(p) do c[k] = v end
+            c.name = name
+            out[#out + 1] = c
+        elseif not said[p.name] then
+            said[p.name] = true
+            gone[#gone + 1] = p.name
+        end
+    end
+    return out, gone
 end
 
 -- The build's points you don't have yet, in order (have: { [name] = rank }).
@@ -416,10 +446,13 @@ end
 -- { node, state, text, plan } } } } }.
 function T.View(nodes, unspent, bld, level)
     local trees = T.Arrange(nodes)
-    local picks = T.Picks(bld)
+    local have, known = {}, {}
+    for _, n in ipairs(nodes) do have[n.name] = n.rank; known[n.name] = true end
+    -- (Only what the game has, under the name it has it: T.Fit. With no trees read, the build as written.)
+    local picks, gone = T.Picks(bld), {}
+    if next(known) then picks, gone = T.Fit(picks, known) end
+    T.gone = gone
     local plan = T.Plan(picks)
-    local have = {}
-    for _, n in ipairs(nodes) do have[n.name] = n.rank end
     local missing = T.Missing(picks, have)
     local nowList, now = {}, {}
     for i = 1, math.min(unspent or 0, #missing) do nowList[i] = missing[i]; now[missing[i].name] = true end
@@ -447,6 +480,10 @@ function T.View(nodes, unspent, bld, level)
         return v
     end
     v.what = string.format("%s  |cff888888(%s at level 60)|r", bld.name or "Levelling build", table.concat(ends, " / "))
+    if #gone > 0 then
+        v.gone = gone
+        v.what = v.what .. "  |cffff8080(not in this game, left out: " .. table.concat(gone, ", ") .. ")|r"
+    end
     if #nowList > 0 then
         v.now = string.format("|cffffd200Take now (%d point%s): %s|r", #nowList, #nowList == 1 and "" or "s", T.Names(nowList))
     elseif (unspent or 0) > 0 then

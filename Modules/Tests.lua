@@ -7044,7 +7044,7 @@ ns:Register("test", "talents: the druid build fits Forever's druid trees", funct
     if not (T and build) then t:ok(false, "no druid build") return end
     local nodes = {}
     local function add(name, x, y, max) nodes[#nodes + 1] = { name = name, x = x, y = y, rank = 0, max = max } end
-    add("Improved Wrath", 1620, 2130, 5); add("Genesis", 2220, 2130, 5)
+    add("Starlight Wrath", 1620, 2130, 5); add("Genesis", 2220, 2130, 5)
     add("Ferocity", 5620, 2130, 5); add("Furor", 6220, 2130, 5)
     add("Feral Swiftness", 5020, 2730, 2); add("Feral Instinct", 5620, 2730, 3); add("Brutal Impact", 6220, 2730, 2); add("Thick Hide", 6820, 2730, 3)
     add("Shredding Attacks", 5020, 3330, 3); add("Savage Fury", 5620, 3330, 2); add("Feral Charge", 6220, 3330, 1); add("Sharpened Claws", 6820, 3330, 2)
@@ -7057,7 +7057,7 @@ ns:Register("test", "talents: the druid build fits Forever's druid trees", funct
     t:eq(#problems, 0, "every point can be taken in its order" .. (problems[1] and (": " .. problems[1]) or ""))
     local picks = T.Picks(build)
     t:eq(#picks, 51, "51 points: levels 10 to 60")
-    t:eq(picks[1].name, "Improved Wrath", "Wrath first: you cast until Cat Form")
+    t:eq(picks[1].name, "Starlight Wrath", "Wrath first: you cast until Cat Form")
     t:eq(picks[#picks].level, 60, "the last one at 60")
     local v = T.View(nodes, 2, build, 11)
     t:ok(v.what:find("5 / 41 / 5", 1, true) ~= nil, "ends 5 / 41 / 5: " .. v.what)
@@ -19319,4 +19319,42 @@ ns:Register("test", "self button: docked, the modifier names are one size and mi
     for _ in pairs(ys) do nYs = nYs + 1 end
     t:ok(nSizes <= 1, "the names shown are one size")
     t:ok(nYs <= 1, "and on one line")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.415: a talent the game renamed or dropped doesn't stop the build.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "talents: a renamed or missing talent never blocks the points after it", function(t)
+    local T = ns.talents
+    local picks = T.Picks({ order = { { "Starlight Wrath", 2, also = { "Improved Wrath" } }, { "Gone Talent", 1 }, { "Ferocity", 1 } } })
+    t:eq(#picks, 4, "four points in the build")
+    -- The game has it under its new name.
+    local fit, gone = T.Fit(picks, { ["Starlight Wrath"] = true, Ferocity = true })
+    t:eq(#fit, 3, "the three the game has")
+    t:eq(fit[1].name, "Starlight Wrath", "under the name the game uses")
+    t:eq(table.concat(gone, ","), "Gone Talent", "the one it doesn't have is named, once")
+    t:eq(fit[3].name, "Ferocity", "and the point after it is still there")
+    -- A client that still has the old name.
+    fit = T.Fit(picks, { ["Improved Wrath"] = true, Ferocity = true })
+    t:eq(fit[1].name, "Improved Wrath", "an older client: its old name")
+    t:eq(picks[1].name, "Starlight Wrath", "(the build itself isn't changed)")
+    -- With the first talent taken and one point to spend, the next is offered, not the missing one.
+    local missing = T.Missing(T.Fit(picks, { ["Starlight Wrath"] = true, Ferocity = true }), { ["Starlight Wrath"] = 2 })
+    t:eq(missing[1] and missing[1].name, "Ferocity", "the next point to take is one the game has")
+    -- Through the view, as the window does it.
+    local nodes = {
+        { name = "Starlight Wrath", x = 1620, y = 2130, rank = 2, max = 5 },
+        { name = "Ferocity", x = 5620, y = 2130, rank = 0, max = 5 },
+        { name = "Nature's Focus", x = 9680, y = 2130, rank = 0, max = 5 },
+    }
+    local ok, v = pcall(T.View, nodes, 1, { name = "Test build", order = { { "Starlight Wrath", 2, also = { "Improved Wrath" } }, { "Gone Talent", 1 }, { "Ferocity", 1 } } }, 12)
+    t:ok(ok, "the view builds" .. (ok and "" or (": " .. tostring(v))))
+    if ok then
+        t:eq(v.take[1] and v.take[1].name, "Ferocity", "\"Take these points\" spends on Ferocity")
+        t:ok(v.what:find("left out: Gone Talent", 1, true), "and the window says which talent isn't in this game")
+    end
+    -- The druid's build fits the trees the game showed on 2026-11-27.
+    local druid = ns:Get("talentBuild", "DRUID")
+    if druid then t:eq(druid.order[1][1], "Starlight Wrath", "the druid's first talent, by the game's name for it now") end
 end)

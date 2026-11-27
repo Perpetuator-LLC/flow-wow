@@ -107,7 +107,9 @@ ns:Register("talentBuild", "DRUID", {
     role = "dps",
     trees = { "Balance", "Feral", "Restoration" },
     order = {
-        { "Improved Wrath", 5, why = "Until Cat Form at 20 you kill with Wrath: this makes it quicker to cast." },
+        -- (The game renamed it: "Improved Wrath" in 0.35.152's read, "Starlight Wrath"
+        -- by 2026-11-27. `also`: the names it has had, so either client fits.)
+        { "Starlight Wrath", 5, also = { "Improved Wrath" }, why = "Until Cat Form at 20 you kill with Wrath: this makes it quicker to cast." },
         { "Ferocity", 5, why = "Claw, Rake, Maul and Swipe cost less: ready for Bear Form now and Cat Form at 20." },
         { "Feral Swiftness", 2, why = "Faster on your feet in Cat Form: less time between kills." },
         { "Thick Hide", 3, why = "More armor from your gear: everything that hits you hurts less." },
