@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.402
+
+- **Flow no longer says "Turn in" for a quest you haven't finished.** When a quest's objective was off the route
+  (a quest 3 or more levels above you held until you level, an elite, a zone you didn't pick), its hand-in had
+  nothing left to wait for, so "Turn in: Deepmoss Spider Eggs" showed at 0/15. Now the hand-in waits off the
+  route with its objective, listed with the reason, and comes back when the objective does. A step that only
+  goes after another one to save a trip still stays: class training isn't held back because the quest that
+  teaches Bear Form is.
+  (Thanks, YourBIMpossible: pull request 29.)
+
 ## 0.35.401
 
 - **Stalk With The Earthmother has steps.** It was listed as "no known spot". The quest
