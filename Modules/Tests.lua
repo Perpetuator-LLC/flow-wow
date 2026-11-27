@@ -19459,3 +19459,42 @@ ns:Register("test", "quests: a failed quest is one step at its giver, and an esc
         t:eq(type(q.failed), "boolean", "the log says whether " .. tostring(q.title) .. " failed")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.419: repeatable hand-ins are a tick in Route includes.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: repeatable hand-ins are a kind of their own in Route includes", function(t)
+    local N = ns.nav
+    local def = ns:Get("routeKind", "repeatables")
+    t:ok(def and def.default == true, "the kind exists and starts ticked")
+    t:ok(def.label:find("Repeatable", 1, true) ~= nil, "its tick is named")
+    local keys = {}
+    for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
+    t:ok(table.concat(keys, ","):find("repeatables", 1, true) ~= nil, "it's in the Route includes list")
+    local step = { key = "repeat:Mangletooth", kind = "accept", optional = true, repeatable = true, level = 20, provider = "pickups" }
+    t:eq(N.KindOf(step, 20), "repeatables", "an NPC's repeatables step is this kind")
+    t:eq(N.KindOf({ key = "pickup:987654341", provider = "pickups", level = 20 }, 20), "newQuests", "a quest to pick up is still new quests")
+    local list = { step, { key = "748:2", provider = "questie", text = "Poison Water" } }
+    local out = N.FilterKinds(list, function(k) return k ~= "repeatables" end, 20)
+    t:eq(#out, 1, "unticked: the step is left out")
+    t:eq(out[1].key, "748:2", "the ordinary quest stays")
+    t:eq(#N.FilterKinds(list, function() return true end, 20), 2, "ticked: it's on the route")
+    t:ok(N.ModeKinds("optimal", true).repeatables and not N.ModeKinds("quests", true).repeatables, "the older routes: on, except on quests only")
+    -- On a custom route it rides along like the other errands (a tick of its own there).
+    t:ok(ns.focus.KindDefault(def) and not ns.focus.ReplacesDef(def), "a custom route keeps it, with its own tick")
+end)
+
+ns:Register("test", "click: the Repeatable hand-ins tick in Route includes turns its step on and off, and goes back", function(t)
+    local N = ns.nav
+    if InCombatLockdown() then return end
+    local kinds = ns.db.nav.kinds
+    local focusKinds = ns.db.nav.focusKinds
+    local was = N:Includes("repeatables")
+    local ok, err = pcall(N.SetKind, N, "repeatables", not was)
+    t:ok(ok, "ticking it runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(N:Includes("repeatables"), not was, "and flips whether the step is on your route")
+    pcall(N.SetKind, N, "repeatables", was)
+    t:eq(N:Includes("repeatables"), was, "and back")
+    ns.db.nav.kinds, ns.db.nav.focusKinds = kinds, focusKinds
+end)

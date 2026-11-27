@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.419
+
+- **Repeatable hand-ins are a tick in Route includes.** The one step for an NPC's repeatable
+  hand-ins (Mangletooth's Blood Shard blessings, since 0.35.411) belonged to no kind, so
+  nothing in the menu turned it off. "Repeatable hand-ins (when you carry what they take)"
+  is now a tick of its own, on by default. Unticked, the step leaves your route and its
+  lists. It no longer depends on "New quests" either: with that off and this on, the step
+  still shows. On a custom route it has its own tick, like the other errands.
 ## 0.35.418
 
 - **A failed quest gets a step that says what to do.** With the escort of Free From the Hold

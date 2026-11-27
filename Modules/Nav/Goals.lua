@@ -920,7 +920,10 @@ ns:Register("navGoal", "pickups", {
         -- 4 levels below you. "Low-level quests": the ones under that too
         -- (grey ones included). Neither ticked: nothing to pick up.
         local new, low = ns.nav:Includes("newQuests"), ns.nav:Includes("lowQuests")
-        if not (new or low) then return nil end
+        -- (0.35.419: an NPC's repeatable hand-ins have a tick of their own, so
+        -- they can be on your route with both of those off, or off with them on.)
+        local reps = ns.nav:Includes("repeatables")
+        if not (new or low or reps) then return nil end
         local floor = low and -math.huge or level - ns.nav.LOW_QUEST_BELOW
         -- And not ones above you that are hard (orange or red, 3+ levels up):
         -- they come back as you level. (A level-5 tauren was offered level-8
@@ -936,7 +939,7 @@ ns:Register("navGoal", "pickups", {
             if okS then ordinary, repeats = o, r end
         end
         for _, q in ipairs(ordinary) do
-            if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
+            if (new or low) and (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
                 and not (ns.dungeons and ns.dungeons:Claims(q.id)) then
                 local g = {
                     key = "pickup:" .. q.id, weight = 0.9, level = q.level,
@@ -955,8 +958,8 @@ ns:Register("navGoal", "pickups", {
                 goals[#goals + 1] = g
             end
         end
-        if RP then
-            RP.last, RP.skipped = {}, {}
+        if RP then RP.last, RP.skipped = {}, {} end
+        if RP and reps then
             local role = ns:LevelingRole()
             for _, grp in ipairs(repeats) do
                 local inLevel = false
@@ -1267,6 +1270,15 @@ ns:Register("routeKind", "newQuests", { order = 20, default = true, custom = "li
     label = "New quests", short = "new quests",
     tip = "Quests to pick up that are still worth the XP at your level (and not above your limit: Quest levels, below).",
     match = function(g, level) return pickup(g) and not low(g, level) and not battleground(g) end })
+
+-- (0.35.419: "that recent fix for repeatable quests, perhaps we make that a
+-- toggle in the Route includes?" The step of 0.35.411 belonged to no kind, so
+-- nothing could turn it off.)
+ns:Register("routeKind", "repeatables", { order = 25, default = true,
+    label = "Repeatable hand-ins (when you carry what they take)", short = "repeatable hand-ins",
+    tip = "One step at an NPC with repeatable hand-ins (Mangletooth's Blood Shard blessings), only while you carry or bank what they take and it's on your way. "
+        .. "Off: they're left out of your route and its lists.",
+    match = function(g) return g.repeatable == true or (type(g.key) == "string" and g.key:find("^repeat:") ~= nil) end })
 
 ns:Register("routeKind", "training", { order = 40, default = true,
     label = "Class trainer, weapon skills, riding", short = "training",

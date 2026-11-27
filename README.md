@@ -252,6 +252,8 @@ Flow for WoW is a separate project from Flow Engine.
   under the Flow Tracker says what you're on and clears it with a click (`/flow focus`).
 - **Battlegrounds in Route includes**: battleground quests (in your log and to pick up) are a tick
   of their own, off until you want them. Hover any quest step for the XP it gives at your level.
+- **Repeatable hand-ins in Route includes**: the one step for an NPC's repeatable hand-ins
+  (Mangletooth's Blood Shard blessings) is a tick of its own, on until you untick it.
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
 - **Your own waypoint** (Ctrl or Alt-click the map, `/way 45.2 63.1`, or "Point the arrow
   here") isn't a step on the route: the arrow turns green and points there along a green line
