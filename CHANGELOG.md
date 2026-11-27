@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.409
+
+- **Fixed: Leaders of the Fang sent you back to Nara Wildmane for its gems.** 0.35.401 put
+  an objective Flow can't place at whoever takes the quest whenever the quest's words name
+  them, and nearly every quest's words do ("bring the gems to Nara Wildmane"). It now needs
+  the words to say the thing is done in front of them (as Stalk With The Earthmother's do),
+  and never applies to a dungeon's quest. The four gems are listed again as inside Wailing
+  Caverns, and the hand-in waits for them: the dungeon run (Flow menu, Dungeons, Wailing
+  Caverns, On your route) takes you to the entrance.
+- A self-test about the paladin's seal failed for everyone: it expected Seal of
+  Righteousness for DPS, which 0.35.405 changed to Seal of Command once it's known.
+  Corrected.
 ## 0.35.408
 
 Fixes from the review of pull requests 29 to 34.

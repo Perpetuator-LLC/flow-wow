@@ -4023,7 +4023,10 @@ ns:Register("test", "paladin: the seal Flow suggests (your role, your choice, th
         t:eq(def.pickSeal(knowsAll, "dps", at(false, "Seal of Light")), "Seal of Light",
             "a different seal cast mid-fight wins over your choice")
         ns.db.paladinSeal = "Seal of Fury"
-        t:eq(def.pickSeal(noFury, "dps", at()), "Seal of Righteousness", "a seal you don't know yet: the usual one")
+        -- (0.35.409: DPS gets Command once it's known, 0.35.405; this still expected Righteousness and failed.)
+        t:eq(def.pickSeal(noFury, "dps", at()), "Seal of Command", "a seal you chose but don't know yet: your role's")
+        t:eq(def.pickSeal({ Knows = function(_, s) return s ~= "Seal of Fury" and s ~= "Seal of Command" end }, "dps", at()),
+            "Seal of Righteousness", "and with neither known: the usual one")
         def.SetSeal("Seal of Light")
         t:eq(ns.db.paladinSeal, "Seal of Light", "the settings row sets your choice")
         def.SetSeal(nil)
@@ -19140,4 +19143,20 @@ ns:Register("test", "review fixes: tracking offer is cheap and can be off; a cro
     t:eq(K.RoleChanged(nil, "tank", false), nil, "the first look: nothing to compare")
     t:ok(K.MostlyOn(10, 9) and K.MostlyOn(10, 10), "all but one piece of a set on: you're in it")
     t:ok(not K.MostlyOn(10, 6) and not K.MostlyOn(0, 0), "half of it, or an empty set: you're not")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.409: an objective goes to the hand-in NPC only when the quest's words
+-- say it's done in front of them.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: being named in a quest's words isn't being where it's done", function(t)
+    local Q = ns.quests
+    local stalk = "buy or catch a raw brilliant smallfish, then use the knife set to fillet it in front of boarton shadetotem in thunder bluff."
+    local fang = "bring the gems of cobrahn, anacondra, pythas and serpentis to nara wildmane in thunder bluff."
+    t:ok(Q.DoneAt(stalk, "Boarton Shadetotem"), "\"fillet it in front of Boarton Shadetotem\": done at him")
+    t:ok(not Q.DoneAt(fang, "Nara Wildmane"), "\"bring the gems to Nara Wildmane\": she takes them, they aren't got from her")
+    t:ok(Q.Names(fang, "Nara Wildmane"), "(though the words do name her)")
+    t:ok(not Q.DoneAt(stalk, "Nara Wildmane"), "someone else: no")
+    t:ok(not Q.DoneAt(nil, "Nara Wildmane") and not Q.DoneAt(stalk, ""), "no words, or nobody: no")
 end)

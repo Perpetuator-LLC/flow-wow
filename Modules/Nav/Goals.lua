@@ -489,8 +489,13 @@ local function questGoals(db, q, goals, opts)
         -- The quest's own words name whoever takes it ("fillet it in front of
         -- Boarton Shadetotem"): the objective is done there (0.35.401).
         local atFinisher = false
+        -- (0.35.409: only where the words say it's done "in front of" them, and
+        -- never for a dungeon's quest. Nearly every quest's words name who takes
+        -- it, "bring the gems to Nara Wildmane", so naming alone sent Leaders of
+        -- the Fang's four gems to Nara in Thunder Bluff instead of Wailing Caverns.)
         if not wp and #extra == 0 and who and #turnIn.points > 0 and ns.questGivers
-            and ns.quests.Names(ns.questGivers.Text(quest), who) then
+            and not (ns.dungeons and ns.dungeons.Of and ns.dungeons.Of(q.id))
+            and ns.quests.DoneAt(ns.questGivers.Text(quest), who) then
             extra, atFinisher = turnIn.points, true
         end
         if wp or #extra > 0 then
@@ -636,6 +641,18 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     return "unknown"
 end
 
+-- Pure: do a quest's words (lower case) say the thing is done at this person
+-- ("... fillet it in front of Boarton Shadetotem")? Being named isn't enough:
+-- the one you hand a quest in to is named in almost every quest.
+ns.quests.AT_WORDS = { "in front of ", "in the presence of ", "while standing before ", "while standing next to " }
+function ns.quests.DoneAt(words, name)
+    if type(words) ~= "string" or type(name) ~= "string" or name == "" then return false end
+    local who = name:lower()
+    for _, lead in ipairs(ns.quests.AT_WORDS) do
+        if words:find(lead .. who, 1, true) then return true end
+    end
+    return false
+end
 -- Pure: do a quest's words (lower case) name this person?
 function ns.quests.Names(words, name)
     if type(words) ~= "string" or type(name) ~= "string" or name == "" then return false end
