@@ -124,9 +124,29 @@ function B.MakeNext(rows, craft)
         ns:Print("Flow Batch: couldn't start " .. q.recipe .. " in this profession window.")
         return false
     end
+    -- (Kept for a moment: if the game refuses the craft, its tick comes back.)
+    B.started = { recipe = q.recipe, pick = B.picks[q.recipe], at = GetTime() }
     B.picks[q.recipe] = nil
     return true
 end
+
+-- The game refused what Make just started ("Requires Forge", no room in your
+-- bags): the recipe was found, so it was unticked, and nothing was made.
+-- Pure: the tick to put back ({ recipe, pick }), or nil. started: what Make
+-- last started; now: the time; busy: a craft is under way (then it took).
+B.REFUSE_WINDOW = 1.5
+function B.Refused(started, now, busy)
+    if not started or busy then return nil end
+    if (now or 0) - (started.at or 0) > B.REFUSE_WINDOW then return nil end
+    return started
+end
+ns:On("UI_ERROR_MESSAGE", function()
+    local back = B.Refused(B.started, GetTime(), B.Busy())
+    if not back then return end
+    B.started = nil
+    B.picks[back.recipe] = back.pick
+    if B.Refresh then pcall(B.Refresh, B) end
+end)
 
 local function rowFor(i)
     local r = frame.rows[i]
@@ -214,7 +234,11 @@ local function build()
     f.make = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.make:SetSize(WIDTH - 16, 24)
     f.make:SetScript("OnClick", function()
-        B.MakeNext(B.CurrentRows())
+        -- (Only the rows: B.CurrentRows also returns the profession and its window,
+        -- and handed on whole the profession's name became MakeNext's `craft`, so
+        -- every press of Make ended in an error and made nothing. 0.35.408.)
+        local rows = B.CurrentRows()
+        B.MakeNext(rows)
         B:Refresh()
     end)
     f.rows = {}
@@ -291,7 +315,7 @@ local function soon()
     C_Timer.After(0.4, function() pending = nil; pcall(B.Refresh, B) end)
 end
 for _, ev in ipairs({ "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_UPDATE", "BAG_UPDATE_DELAYED",
-    "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_INTERRUPTED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do
+    "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do
     ns:On(ev, soon)
 end
 ns:On("TRADE_SKILL_CLOSE", function() if frame then frame:Hide() end end)

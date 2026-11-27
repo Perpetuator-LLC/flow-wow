@@ -50,6 +50,11 @@ rediscovery. Contributors: your side is [CONTRIBUTING.md](../CONTRIBUTING.md).
      `grep -n "^## Unreleased" CHANGELOG.md` must find none: move each block to the top,
      numbered, with its thanks line. A pull request with no changelog entry gets one written
      here (0.35.360, 0.35.361).
+   - **A stacked pull request's changelog lines merge into the lower one's section.** When 32
+     builds on 33 and both wrote into one `## Unreleased` block, merging 33 numbers the block and
+     merging 32 then adds its bullet inside that numbered section, with no conflict. Diff the two
+     heads' changelogs (`git diff refs/pr/33 refs/pr/32 -- CHANGELOG.md`) and move the upper one's
+     lines into a section of its own (0.35.406).
 6. **Review what came in** (the list below), as its own pass after everything is merged: a
    later pull request often fixes or changes an earlier one. Reviewing can be handed to
    sub-agents, one per pull request, each given the diff and this list; they report, the
@@ -88,6 +93,7 @@ time. Each line: what to look for, and why it bites on WoW: Forever.
 | A test that depends on the player (in a fight, dead, their route ticks, their language) or leaves something behind | It fails for the next player, or at the next run. Pass values in; put back what you change (0.35.170: the press audit test counted its own leftover). |
 | A test that stands in for a game global (`with(_G, ...)`) | Taints it for the session and blocks the Flow key. Lint refuses it. |
 | Hard-coded colours, a title bar built by hand | `ns.theme`, `ns.theme:TitleBar`. |
+| A click test whose stand-in returns fewer values than the real function | It passes while the real click fails: `B.MakeNext(B.CurrentRows())` handed on three values and every press of Make errored (0.35.408). Stand-ins return what the real one returns. |
 | Something clickable with no click test | CLAUDE.md, "Every change": call its OnClick in a `pcall`. |
 | Skill numbers and item facts taken from memory | Check them (0.35.169: Thorium at 245, not 230). Wrong data sends the route to the wrong place. |
 | A view not named "Flow <Name>", or text that says "restart the game" | CLAUDE.md, "Style"; a `/reload` is always enough. |

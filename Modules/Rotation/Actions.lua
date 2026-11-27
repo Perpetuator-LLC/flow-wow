@@ -749,12 +749,26 @@ end
 -- of a pull, a heal, food or drink.
 -- (The tracking list is read at most twice a second, A.Tracking; your auras,
 -- for eating, only when there's a spell to offer.)
+-- (0.35.408, from the review of pull request 31.) Your auras are read at most
+-- once a second for this: the key asks ten times a second, and while a miner
+-- chose to track nothing the offer stands, so the read never stopped.
+-- And it can be switched off: "Offer Find Herbs / Find Minerals on your Flow
+-- key" in Flow Settings (Easy keys), for a gatherer who tracks nothing on purpose.
+X.EAT_KEEP = 1
+local eatAt, eatWas = 0, nil
+function X.EatingCached(now, read)
+    if eatWas ~= nil and now >= eatAt and now - eatAt < X.EAT_KEEP then return eatWas end
+    eatAt, eatWas = now, read()
+    return eatWas
+end
+function X.TrackOn() return not (ns.db and ns.db.actions and ns.db.actions.findTracking == false) end
 ns:Register("action", "gather:track", { order = 75, get = function(ctx)
+    if not X.TrackOn() then return nil end
     local list, tex = A.Tracking(), A.TrackingTexture()
     local spell = X.TrackPick(knows, tracking, X.AnyTracked(list, tex), ctx.prof)
     if not spell then return nil end
     if not X.TrackAllowed(ask(InCombatLockdown), ask(IsMounted), ask(UnitOnTaxi, "player"),
-        ask(ns.rotation.EatingNow)) then return nil end
+        X.EatingCached(GetTime(), function() return ask(ns.rotation.EatingNow) end)) then return nil end
     return { type = "spell", spell = spell, unit = "player", icon = spellIcon(spell), label = "Turn on " .. spell }
 end })
 
@@ -1301,4 +1315,15 @@ ns.commands.action = function(arg)
         tostring(ctx.goal and ctx.goal.key), tostring(ctx.prof), tostring(ctx.at), tostring(ctx.fishing), tostring(ctx.pole), tostring(X.CanInteract())))
 
     print("  /flow action on|off   /flow action loot on|off (the key loots your kills)")
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck{ group = "key", label = "Offer Find Herbs / Find Minerals on your Flow key",
+        note = "(when you track nothing)",
+        tip = "With Herbalism or Mining and no tracking on, your Flow key offers to turn it on when it has nothing else to do. Off: Flow leaves your tracking alone.",
+        get = function() return X.TrackOn() end,
+        set = function(on)
+            ns.db.actions = ns.db.actions or {}
+            ns.db.actions.findTracking = on and true or false
+        end }
 end

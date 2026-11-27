@@ -175,6 +175,13 @@ function C.CastText(cast, n, continent)
     local how = cast.kind == "hearth" and ("Hearthstone to " .. tostring(cast.name or "your inn")) or ("Cast " .. tostring(cast.spell))
     return string.format("%s (%d step%s wait%s in %s)", how, n, n == 1 and "" or "s", n == 1 and "s" or "", tostring(continent or "another continent"))
 end
+-- Pure: a list of step keys as { [key] = true } (nil for none).
+function C.SoftOf(keys)
+    if type(keys) ~= "table" or #keys == 0 then return nil end
+    local out = {}
+    for _, k in ipairs(keys) do out[k] = true end
+    return out
+end
 -- Pure: the steps to do first, here: every step with a place on this continent.
 --   awayOf(goal) -> the continent it's on when that isn't yours, else nil
 function C.HereKeys(goals, awayOf)
@@ -322,6 +329,11 @@ ns:Register("navGoal", "crossing", {
                         return away
                     end) or nil,
                 }
+                -- (Those only say "after what's left here": they order, never hold.
+                -- Without this a step that left the route since the last look took
+                -- the crossing with it, N.HoldForDropped: 0.35.408.)
+                local cg = goals[#goals]
+                cg.softDeps = C.SoftOf(cg.deps)
             elseif best then
                 local n = #e.goals
                 local details = {

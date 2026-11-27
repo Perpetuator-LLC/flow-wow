@@ -336,6 +336,48 @@ function K.FollowPlan(role, setOn, better, busy, on)
     return "save"
 end
 
+-- Pure: are you wearing a set, give or take the one piece you just changed?
+function K.MostlyOn(items, wearing)
+    return (items or 0) > 0 and (wearing or 0) >= items - 1
+end
+
+-- Your role changed by itself (0.35.408). Since 0.35.405 the role you level as
+-- follows your talents, so a paladin with most points in Protection goes from
+-- DPS to Tank at the first login after the update. Gear that was "yours" is
+-- then gear for another role, which Flow sells unless that role's set is
+-- kept. So the role you just left is ticked under "Keep set for" (untick it
+-- if you really are done with it), and Flow says what happened.
+-- Pure: the role to start keeping, or nil. last, now: the roles; kept: is
+-- `last` kept already.
+function K.RoleChanged(last, now, kept)
+    if not last or not now or last == now or kept then return nil end
+    return last
+end
+K.ROLE_LOOKS = 3   -- looks, 5 s apart
+function K.WatchRole()
+    if not (ns.db and ns.db.gear and ns.LevelingRole) then return end
+    local now = ns:LevelingRole()
+    local last = ns.db.gear.lastRole
+    -- (A new role counts once it has held for K.ROLE_LOOKS looks: at login the
+    -- talents aren't read for a few seconds and the role is the class's for a moment.)
+    if last ~= nil and now ~= last then
+        if K.roleSeen == now then K.roleLooks = (K.roleLooks or 0) + 1 else K.roleSeen, K.roleLooks = now, 1 end
+        if K.roleLooks < K.ROLE_LOOKS then return end
+    end
+    K.roleSeen, K.roleLooks = nil, 0
+    local keep = K.RoleChanged(last, now, last ~= nil and K.Keeps(last))
+    if keep then
+        K:Tick(keep, true, true)
+        ns:Print(string.format("Your role is now %s (it was %s). Flow keeps your %s gear too, so none of it is sold: untick it under your bags (Keep set for) if you're done with it.",
+            ns:RoleName(now), ns:RoleName(keep), ns:RoleName(keep)))
+    end
+    ns.db.gear.lastRole = now
+end
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(5, function() if not InCombatLockdown() then pcall(K.WatchRole) end end)
+end
+ns:PerCharacter("gear.lastRole")
+
 function K.Follow()
     if not (ns.db and ns.db.gear) or InCombatLockdown() or not G.sets:HasEquipmentManager() then return end
     local busy = K.building or K.topping or (ns.setRecipes and ns.setRecipes.building)
@@ -343,9 +385,16 @@ function K.Follow()
     if on and not busy then ns.db.gear.onRole = K.RoleOfSet(on) end   -- (a set went on whole: that's where you are)
     local role = ns.db.gear.onRole
     -- (Never clicked a set this session: the spec you level as, when Flow keeps its set.)
+    -- (0.35.408: only while you're wearing all but one piece of that set. Your
+    -- role can now change by itself, from your talents: without this, the new
+    -- role's set was saved over with whatever the old role had on.)
     if not role then
         local main = ns:LevelingRole()
-        if main and K.Keeps(main) then role = main end
+        local s = main and K.Keeps(main) and G.sets:GameSet(main) or nil
+        if s and CE and CE.GetEquipmentSetInfo then
+            local okI, _, _, _, _, items, wearing = pcall(CE.GetEquipmentSetInfo, s.id)
+            if okI and K.MostlyOn(tonumber(items), tonumber(wearing)) then role = main end
+        end
     end
     if not (role and G.sets:GameSet(role)) then return end
     if K.FollowPlan(role, on ~= nil, #K.Wants(role), busy and true or false, K.FollowOn()) == "save" then

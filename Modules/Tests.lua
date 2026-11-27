@@ -3820,9 +3820,11 @@ ns:Register("test", "spec: your talents set the role Flow plays you as, ties and
     t:eq((ns.DominantTree(nil)), nil, "no trees: no tree")
     -- "Still not suggesting Righteous Fury": Forever's one talent sheet (x far apart per tree).
     local sheet = {
-        { x = 1020, y = 2730, rank = 0 }, { x = 2820, y = 2730, rank = 0 },             -- Holy
+        -- (0.35.408: columns 600 apart, as on the real sheet. They were 1800 apart,
+        -- wider than the gap that parts two trees, so this read five trees and failed.)
+        { x = 1020, y = 2730, rank = 0 }, { x = 1620, y = 2730, rank = 0 },             -- Holy
         { x = 5020, y = 2730, rank = 1 }, { x = 6220, y = 2130, rank = 5 },             -- Protection
-        { x = 9080, y = 2730, rank = 0 }, { x = 10880, y = 3330, rank = 0 },            -- Retribution
+        { x = 9080, y = 2730, rank = 0 }, { x = 9680, y = 3330, rank = 0 },             -- Retribution
     }
     local fromSheet = ns.TreesFromNodes(sheet, ns.TALENT_TREES.PALADIN)
     t:eq(fromSheet and fromSheet[2].points, 6, "Forever's sheet: 6 points in the middle tree")
@@ -19035,13 +19037,16 @@ ns:Register("test", "craftBatch: Make starts the next ticked recipe and unticks 
             -- The button itself: no profession window in a test, so its click
             -- must run and start nothing.
             local f = B.Frame()
+            local open = f:IsShown()
             with(H, "Craft", craft, function()
-                with(B, "CurrentRows", function() return {} end, function()
+                -- (As the real one answers: the rows, the profession, its window.)
+                with(B, "CurrentRows", function() return {}, nil, nil end, function()
                     t:ok(pcall(f.make:GetScript("OnClick"), f.make), "click: Make runs")
                     t:ok(pcall(f.all:GetScript("OnClick"), f.all), "click: Tick all runs")
                     t:ok(pcall(f.clear:GetScript("OnClick"), f.clear), "click: Clear runs")
                 end)
             end)
+            if open then f:Show() end   -- (0.35.408: with no profession the refresh closed the window you had open)
             t:eq(next(B.picks), nil, "Clear unticks everything")
         end)
     end)
@@ -19059,4 +19064,80 @@ ns:Register("test", "click: the Flow Batch tab on a profession window opens and 
     t:ok(pcall(def.click), "click again: runs")
     if not was then f:Hide() end
     t:ok(not f:IsShown() or was, "left as it was")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.408: fixes from the review of pull requests 29 to 34.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: Flow Batch's Make starts a craft when the profession window is really there", function(t)
+    local B, H = ns.craftBatch, ns.craftHint
+    if not (B and H) then return end
+    local saved, started = B.picks, B.started
+    B.picks = { ["Copper Bar"] = 2 }
+    local made = {}
+    local f = B.Frame()
+    local open = f:IsShown()
+    with(ns, "Print", function() end, function()
+        with(B, "Busy", function() return false end, function()
+            with(B, "Refresh", function() end, function()
+                with(H, "Craft", function(recipe, n) made[#made + 1] = recipe .. " " .. tostring(n) return true end, function()
+                    -- (What the real one returns: the rows, the profession's name and its window.)
+                    with(B, "CurrentRows", function() return { { recipe = "Copper Bar", count = 9 } }, "Mining", UIParent end, function()
+                        local ok, err = pcall(f.make:GetScript("OnClick"), f.make)
+                        t:ok(ok, "the click runs" .. (ok and "" or (": " .. tostring(err))))
+                    end)
+                end)
+            end)
+        end)
+    end)
+    t:eq(made[1], "Copper Bar 2", "and starts the ticked recipe (the profession's name isn't taken for the craft call)")
+    t:eq(B.picks["Copper Bar"], nil, "its tick goes")
+    -- The game refuses it a moment later: the tick comes back.
+    local st = { recipe = "Copper Bar", pick = 2, at = 100 }
+    t:eq(B.Refused(st, 100.5, false), st, "refused half a second after Make: the tick is put back")
+    t:eq(B.Refused(st, 103, false), nil, "an error long after: nothing to do with it")
+    t:eq(B.Refused(st, 100.5, true), nil, "a craft under way: it took")
+    t:eq(B.Refused(nil, 100, false), nil, "nothing started: nothing")
+    B.picks, B.started = saved, started
+    if open then f:Show() else f:Hide() end
+end)
+
+ns:Register("test", "review fixes: tracking offer is cheap and can be off; a crossing's order never holds it; talents and roles", function(t)
+    local X, C, K = ns.actions, ns.crossings, ns.keepSets
+    -- Find Herbs / Find Minerals: the aura read is kept a second, and there's a switch.
+    local reads = 0
+    local function read() reads = reads + 1 return false end
+    X.EatingCached(1000, read); X.EatingCached(1000.3, read); X.EatingCached(1000.9, read)
+    t:eq(reads, 1, "three asks within a second: one read")
+    X.EatingCached(1001.2, read)
+    t:eq(reads, 2, "after a second: read again")
+    ns.db.actions = ns.db.actions or {}
+    local was = ns.db.actions.findTracking
+    ns.db.actions.findTracking = false
+    t:ok(not X.TrackOn(), "switched off: no offer")
+    ns.db.actions.findTracking = nil
+    t:ok(X.TrackOn(), "on as it comes")
+    ns.db.actions.findTracking = was
+    -- A cast crossing's "after what's left here" only orders.
+    local soft = C.SoftOf({ "fp:1", "train:class" })
+    t:ok(soft and soft["fp:1"] and soft["train:class"], "its deps are marked as ordering only")
+    t:eq(C.SoftOf({}), nil, "none: nothing")
+    local N = ns.nav
+    if N.HoldForDropped then
+        local cross = { key = "cross:1", deps = { "fp:1" }, softDeps = soft }
+        local kept, held = N.HoldForDropped({ cross }, { ["cross:1"] = cross, ["fp:1"] = { key = "fp:1", text = "Learn the flight path" } })
+        t:ok(#kept == 1 and #held == 0, "a step it only comes after leaves the route: the crossing stays")
+    end
+    -- Talents that never read are asked for less and less often.
+    t:eq(ns.TalentRetry(5, 1), 5, "the first miss: again in 5 seconds")
+    t:eq(ns.TalentRetry(5, 3), 20, "the third: in 20")
+    t:eq(ns.TalentRetry(5, 12), 60, "never longer than a minute")
+    -- A role that changes by itself keeps the old role's gear.
+    t:eq(K.RoleChanged("dps", "tank", false), "dps", "from DPS to Tank: DPS gear is kept")
+    t:eq(K.RoleChanged("dps", "tank", true), nil, "kept already: nothing to do")
+    t:eq(K.RoleChanged("dps", "dps", false), nil, "no change: nothing")
+    t:eq(K.RoleChanged(nil, "tank", false), nil, "the first look: nothing to compare")
+    t:ok(K.MostlyOn(10, 9) and K.MostlyOn(10, 10), "all but one piece of a set on: you're in it")
+    t:ok(not K.MostlyOn(10, 6) and not K.MostlyOn(0, 0), "half of it, or an empty set: you're not")
 end)

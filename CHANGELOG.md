@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.35.408
+
+Fixes from the review of pull requests 29 to 34.
+
+- **Flow Batch: Make works.** Every press of Make ended in an error and made nothing (the
+  profession's name was handed on where the craft call belongs). Fixed. And when the game
+  refuses a craft just started ("Requires Forge", no room in your bags), its tick comes
+  back instead of being lost.
+- **Your role changing by itself no longer costs you gear.** Since 0.35.405 the role you
+  level as follows your talents, so it can change at an update or with one talent point.
+  When it does, Flow ticks "Keep set for" for the role you just left, so its gear isn't
+  marked to sell, and says so. And a spec's gear set is only saved from what you're wearing
+  when you're wearing all but one piece of it, so a new role's set isn't overwritten with
+  the old role's gear.
+- **Find Herbs / Find Minerals on the key can be switched off**: "Offer Find Herbs / Find
+  Minerals on your Flow key" in Flow Settings (Easy keys), for a gatherer who tracks
+  nothing on purpose. While it's offered, Flow reads your auras once a second, not ten
+  times.
+- **A hearthstone or teleport crossing isn't dropped from the route** because a step it was
+  only planned after left the route.
+- A talent sheet Flow can't read is tried again less and less often (up to once a minute),
+  not every five seconds for the whole session.
+- A self-test from pull request 33 would have failed at every login (its made-up talent
+  sheet read as five trees); corrected.
 ## 0.35.407
 
 - **Flow Batch: make several things at once, in any profession.** A new **Flow Batch** tab on

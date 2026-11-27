@@ -121,21 +121,26 @@ end
 -- once kept "no talents" until the next /reload.
 -- read: () -> trees or nil (nil = the game couldn't say); clock: () -> seconds.
 -- Its own functions are passed in, so the tests can run it.
+-- Pure: how long to wait after the n-th miss in a row.
+function ns.TalentRetry(base, n) return math.min(60, base * 2 ^ math.max(0, (n or 1) - 1)) end
 function ns.TalentCache(read, clock, retry)
-    local cache = { trees = nil, retryAt = nil }
+    local cache = { trees = nil, retryAt = nil, tries = 0 }
     function cache:Get()
         if self.trees then return self.trees end
         local now = clock()
         if self.retryAt and now < self.retryAt then return {} end
         local ok, trees = pcall(read)
         if ok and type(trees) == "table" and #trees > 0 then
-            self.trees, self.retryAt = trees, nil
+            self.trees, self.retryAt, self.tries = trees, nil, 0
             return trees
         end
-        self.retryAt = now + (retry or 5)
+        -- (Each miss waits twice as long as the last, up to a minute: a client
+        -- whose sheet never reads isn't walked every five seconds for good. 0.35.408.)
+        self.tries = self.tries + 1
+        self.retryAt = now + ns.TalentRetry(retry or 5, self.tries)
         return {}
     end
-    function cache:Forget() self.trees, self.retryAt = nil, nil end
+    function cache:Forget() self.trees, self.retryAt, self.tries = nil, nil, 0 end
     return cache
 end
 
