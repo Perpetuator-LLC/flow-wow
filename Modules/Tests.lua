@@ -19190,3 +19190,44 @@ ns:Register("test", "hearthstone: pointing at it shows where it takes you on the
     HP.hovering = was
     pcall(HP.Update)
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.411: an NPC's repeatable hand-ins are one optional step.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: an NPC's repeatable hand-ins are one optional step, naming the one for your role", function(t)
+    local R = ns.repeatables
+    t:ok(R.Is({ specialFlags = 1 }), "the quest data flags it repeatable")
+    t:ok(R.Is({ IsRepeatable = true }), "or says so outright")
+    t:ok(not R.Is({ specialFlags = 0 }) and not R.Is({}) and not R.Is(nil), "an ordinary quest isn't")
+    t:eq(table.concat(R.Takes({ ObjectiveData = { { Type = "item", Id = 5075 }, { Type = "monster", Id = 9 } }, requiredSourceItems = { 5075, 77 } }), ","),
+        "5075,77", "what it takes: its items, once each")
+    local starter = { name = "Mangletooth", spawns = { [17] = { { 44.5, 59.3 } } } }
+    local list = {
+        { id = 5042, name = "Agamaggan's Strength", level = 20, raw = { specialFlags = 1 }, starter = starter },
+        { id = 5044, name = "Wisdom of Agamaggan", level = 20, raw = { specialFlags = 1 }, starter = starter },
+        { id = 5043, name = "Agamaggan's Agility", level = 20, raw = { specialFlags = 1 }, starter = starter },
+        { id = 870, name = "The Forgotten Pools", level = 13, raw = {}, starter = { name = "Tonga Runetotem" } },
+    }
+    local ordinary, groups = R.Split(list, R.Is, function() return { 5075 } end)
+    t:eq(#ordinary, 1, "the ordinary quest is still one to pick up")
+    t:eq(#groups, 1, "Mangletooth's three are one group")
+    t:eq(#groups[1].quests, 3, "with all three in it")
+    local function buffOf(id) return ns:Get("repeatBuff", id) end
+    t:eq(R.Pick(groups[1].quests, "tank", buffOf).id, 5042, "tanking: Strength")
+    t:eq(R.Pick(groups[1].quests, "heal", buffOf).id, 5044, "healing: Intellect")
+    t:eq(R.Pick(groups[1].quests, "dps", buffOf).id, 5043, "damage: Agility before Strength")
+    t:eq(R.Pick({ { id = 987654411, name = "Unknown" } }, "dps", buffOf), nil, "one Flow knows nothing about: no pick")
+    groups[1].points = { { map = 1413, x = 0.445, y = 0.593 } }
+    local function name() return "Blood Shard" end
+    local step = R.Step(groups[1], function() return 14 end, function() return 5 end, "tank", buffOf, name)
+    t:ok(step and step.optional and step.key == "repeat:Mangletooth", "one step, optional: only when it's on your way")
+    t:eq(step.text, "Mangletooth: Agamaggan's Strength for Strength (you carry 14 Blood Shard)", "it names the one for your role and what you carry")
+    t:eq(step.fetch, nil, "carrying them: nothing to fetch")
+    t:ok(table.concat(step.details, "\n"):find("for the role you play", 1, true), "the list marks the one for you")
+    step = R.Step(groups[1], function() return 0 end, function() return 5 end, "tank", buffOf, name)
+    t:ok(step and step.fetch and step.fetch[5075] and step.text:find("5 Blood Shard in your bank", 1, true), "only in your bank: the step says so, and they can be taken out")
+    t:eq(R.Step(groups[1], function() return 0 end, function() return 0 end, "tank", buffOf, name), nil, "nothing they take, anywhere: no step at all")
+    t:eq(R.Text("Someone", 2, nil, 0, 0, nil), "Someone: 2 repeatable hand-ins", "no pick known: said plainly")
+    t:ok(pcall(R.Lines), "/flow repeatables builds")
+end)

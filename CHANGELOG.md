@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.411
+
+- **Repeatable hand-ins are one optional step, not a row of quests.** Mangletooth in Camp
+  Taurajo trades Blood Shards for buffs through six repeatable quests, and Flow listed all
+  six as quests to pick up, in an order that meant nothing. Now, for any NPC:
+  - a repeatable quest is never a step to pick up;
+  - the NPC's repeatables together are one optional step, on your route only when it's on
+    your way: "Mangletooth: Agamaggan's Strength for Strength (you carry 14 Blood Shard)";
+  - it names the one that suits the role you play (tank: Strength; damage: Agility; healer:
+    Intellect) and lists the others. What each gives is as in classic, not checked here:
+    read its text before you hand anything in;
+  - it's only offered while you have what they take. If that's in your bank, the step says
+    so and Flow Banker offers to take it out;
+  - Flow never hands these in for you.
+- `/flow repeatables` lists them. For add-on authors: `ns:Register("repeatBuff", questID,
+  { gives, roles })`.
 ## 0.35.410
 
 - **New: point at your Hearthstone and the map shows where it goes.** With the world map

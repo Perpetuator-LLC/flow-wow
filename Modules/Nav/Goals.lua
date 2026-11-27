@@ -812,7 +812,15 @@ ns:Register("navGoal", "pickups", {
         -- quests and found them very hard; a level-1 one was sent 700 yd for one.)
         local ceiling = level + ns.quests.HardAbove() - 1
         local goals = {}
-        for _, q in ipairs(list or {}) do
+        -- Repeatable hand-ins aren't quests to pick up: an NPC's are one optional
+        -- step (0.35.411, Repeatables.lua: Mangletooth's six were six steps).
+        local RP = ns.repeatables
+        local ordinary, repeats = list or {}, {}
+        if RP then
+            local okS, o, r = pcall(RP.Split, list, RP.Is, RP.Takes)
+            if okS then ordinary, repeats = o, r end
+        end
+        for _, q in ipairs(ordinary) do
             if (q.level or 0) >= floor and (q.level or 0) <= ceiling and q.starter and q.starter.spawns
                 and not (ns.dungeons and ns.dungeons:Claims(q.id)) then
                 local g = {
@@ -830,6 +838,30 @@ ns:Register("navGoal", "pickups", {
                 -- (Modules/Quests/QuestNeeds.lua).
                 if ns.quests.PickupNeed then ns.quests:PickupNeed(g, q.id, q.raw, q.starter.name) end
                 goals[#goals + 1] = g
+            end
+        end
+        if RP then
+            RP.last, RP.skipped = {}, {}
+            local role = ns:LevelingRole()
+            for _, grp in ipairs(repeats) do
+                local inLevel = false
+                for _, q in ipairs(grp.quests) do
+                    if (q.level or 0) >= floor and (q.level or 0) <= ceiling then inLevel = true end
+                end
+                if inLevel and grp.spawns then
+                    grp.points = spawnPoints(grp.spawns)
+                    local okG, step = pcall(RP.Step, grp,
+                        function(id) return ns.api.Count and ns.api.Count(id) or 0 end,
+                        function(id) local items = ns.db.bank and ns.db.bank.items return items and items[id] or 0 end,
+                        role, function(id) return ns:Get("repeatBuff", id) end,
+                        function(id) local it = ns.quests:QuestieGet("GetItem", id) return it and it.name end)
+                    if okG and step and #step.points > 0 then
+                        goals[#goals + 1] = step
+                        RP.last[#RP.last + 1] = step
+                    elseif okG then
+                        RP.skipped[#RP.skipped + 1] = tostring(grp.who)
+                    end
+                end
             end
         end
         if ns.quests.ClassQuestSteps then
