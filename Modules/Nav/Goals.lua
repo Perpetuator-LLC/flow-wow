@@ -357,9 +357,15 @@ local function questGoals(db, q, goals, opts)
     local bankKey
     if not opts.who then
         for _, itemId in ipairs(ns.quests.SourceItems(quest)) do
-            if (ns.api.Count and ns.api.Count(itemId) or 0) <= 0 and ns.questBags and ns.questBags.InBank(itemId) then
+            -- (0.35.416: one for each objective still to do, less what you carry. The
+            -- Angry Scytheclaws uses a Sunscale Feather at each of three nests: with
+            -- one in your bags and nine in the bank, Flow asked for none, or for one.)
+            local carried = ns.api.Count and ns.api.Count(itemId) or 0
+            local banked = ns.db.bank and ns.db.bank.items and ns.db.bank.items[itemId] or 0
+            local take = ns.quests.SourceFromBank(ns.quests.Unfinished(q.objectives), carried, banked)
+            if take > 0 then
                 local it = call(db, "GetItem", itemId)
-                inBank[#inBank + 1] = { id = itemId, name = it and it.name or "what it needs first", n = 1, source = true }
+                inBank[#inBank + 1] = { id = itemId, name = it and it.name or "what it needs first", n = take, source = true }
             end
         end
     end
@@ -651,6 +657,19 @@ function ns.quests.Unplaced(g, questID, index, m, learned, dungeon)
     return "unknown"
 end
 
+-- Pure: how many of a quest's objectives are still to do.
+function ns.quests.Unfinished(objectives)
+    local n = 0
+    for _, o in ipairs(objectives or {}) do if not o.finished then n = n + 1 end end
+    return n
+end
+-- Pure: how many of a thing a quest needs first to take out of the bank: one
+-- for each objective still to do (it may be used up at each), less what you
+-- carry, and no more than the bank holds.
+function ns.quests.SourceFromBank(unfinished, carried, banked)
+    local want = math.max(1, tonumber(unfinished) or 1) - (tonumber(carried) or 0)
+    return math.max(0, math.min(want, tonumber(banked) or 0))
+end
 -- Pure: do a quest's words (lower case) say the thing is done at this person
 -- ("... fillet it in front of Boarton Shadetotem")? Being named isn't enough:
 -- the one you hand a quest in to is named in almost every quest.

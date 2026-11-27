@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.416
+
+- **The bank step asks for enough of a thing a quest uses at each objective.** The Angry
+  Scytheclaws uses a Sunscale Feather at each of three raptor nests. Flow asked for one
+  feather from the bank, or none once you carried one. It now asks for one for each
+  objective still to do, less what you carry, and never more than the bank holds: with one
+  in your bags and nine banked, "take 2 Sunscale Feather out of your bank".
+- Three self-tests failed when the game was reloaded with a Ctrl key binding: since
+  0.35.400 a held Ctrl stops Flow accepting and handing in quests, and they still only
+  allowed for Shift. Corrected; nothing changes in play.
 ## 0.35.415
 
 - **Fixed: Flow Talents couldn't spend your points** ("the game has no talent called

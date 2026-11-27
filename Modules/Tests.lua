@@ -3519,7 +3519,8 @@ ns:Register("test", "quests: finished ones are turned in for you, choices left t
         t:ok(not AT.Enabled(), "the settings box turns it off")
     end)
     with(ns.db.quests, "autoTurnIn", nil, function()
-        t:ok(AT.Enabled() or IsShiftKeyDown(), "on by default")
+        -- (0.35.416: or Ctrl, which stops it too since 0.35.400: a /reload on a Ctrl key binding failed this.)
+        t:ok(AT.Enabled() or AT.Paused(), "on by default")
     end)
 end)
 
@@ -3542,7 +3543,7 @@ ns:Register("test", "quests: new ones are accepted for you", function(t)
         t:ok(not AT.AcceptEnabled(), "the settings box turns it off")
     end)
     with(ns.db.quests, "autoAccept", nil, function()
-        t:ok(AT.AcceptEnabled() or IsShiftKeyDown(), "on by default")
+        t:ok(AT.AcceptEnabled() or AT.Paused(), "on by default")
     end)
     t:ok(type(ns.commands.accept) == "function", "/flow accept on|off")
 end)
@@ -17072,7 +17073,8 @@ ns:Register("test", "click: Flow Deaths opens from the meters; a line and its po
     t:eq(M.Click("LeftButton"), nil, "while they count damage a left-click does nothing")
     ns.db.meters.mode = mode
     local f = D._Frame()
-    t:ok(f and f:IsShown(), "the window is up")
+    -- (With Ctrl held the click moves the meters instead: the line above allows for it, and so must this.)
+    t:ok((f and f:IsShown()) or IsControlKeyDown(), "the window is up")
     if not f then return end
     -- A made-up death in the window: hovering works both ways.
     local keepRows, keepPts = D.rows, D.points
@@ -19357,4 +19359,21 @@ ns:Register("test", "talents: a renamed or missing talent never blocks the point
     -- The druid's build fits the trees the game showed on 2026-11-27.
     local druid = ns:Get("talentBuild", "DRUID")
     if druid then t:eq(druid.order[1][1], "Starlight Wrath", "the druid's first talent, by the game's name for it now") end
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.416: what a quest needs first, one for each objective still to do.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: a thing used at each objective is fetched once for each, less what you carry", function(t)
+    local Q = ns.quests
+    t:eq(Q.Unfinished({ { finished = false }, { finished = true }, { finished = false } }), 2, "two objectives still to do")
+    t:eq(Q.Unfinished(nil), 0, "none")
+    t:eq(Q.SourceFromBank(3, 1, 9), 2, "three nests, one feather carried, nine in the bank: two more")
+    t:eq(Q.SourceFromBank(3, 0, 9), 3, "none carried: three")
+    t:eq(Q.SourceFromBank(3, 3, 9), 0, "enough carried: none")
+    t:eq(Q.SourceFromBank(3, 0, 2), 2, "never more than the bank holds")
+    t:eq(Q.SourceFromBank(1, 0, 32), 1, "one objective: one, however many are banked")
+    t:eq(Q.SourceFromBank(0, 0, 5), 1, "no objective counted: still the one it needs")
+    t:eq(Q.SourceFromBank(2, 0, 0), 0, "none in the bank: nothing to fetch")
 end)
