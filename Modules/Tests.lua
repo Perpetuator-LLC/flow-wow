@@ -19231,3 +19231,22 @@ ns:Register("test", "quests: an NPC's repeatable hand-ins are one optional step,
     t:eq(R.Text("Someone", 2, nil, 0, 0, nil), "Someone: 2 repeatable hand-ins", "no pick known: said plainly")
     t:ok(pcall(R.Lines), "/flow repeatables builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.412: no "drops from" heading with nothing under it; no bracket on a
+-- line of its own.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "step details: no heading with nothing under it, no bracket alone on a line", function(t)
+    local Q, N = ns.quests, ns.nav
+    t:eq(#Q.DropLines("Piece of Krom'zar's Banner", {}), 0, "an item nothing is known to drop: no \"drops from\" heading")
+    local lines = Q.DropLines("Wolf Meat", { "- Prairie Wolf (5-6): 40%" })
+    t:eq(lines[1], "Wolf Meat drops from (level): chance", "with a mob to list: the heading")
+    t:eq(lines[2], "- Prairie Wolf (5-6): 40%", "and the mob under it")
+    t:eq(#Q.DropLines(nil, { "- Kolkar Wrangler (10-11)" }), 1, "a kill step: its mobs, no heading")
+    t:eq(#Q.DropLines("Thing", nil), 0, "no lines at all: nothing")
+    local foot = N.FooterLines("Click: open it. Right-click: menu. (Change the route on the world map.)")
+    t:eq(#foot, 3, "three hints: three lines, not four")
+    t:eq(foot[3], "(Change the route on the world map)", "the closing bracket stays with its line")
+    t:eq(N.FooterLines("Click: open it. ^: go here next (Custom route). Right-click: menu.")[2], "^: go here next (Custom route)", "a bracket in the middle of a hint is untouched")
+end)

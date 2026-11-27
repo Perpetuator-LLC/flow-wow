@@ -319,8 +319,7 @@ local function questGoals(db, q, goals, opts)
                                     elite and "Elite: hard to solo at this level." or string.format("Level %d: above your limit for quest levels (Flow menu, Quest levels), so its mobs hit hard.", quest.level), held)
                             elseif elite then d[#d + 1] = "Elite: hard to solo at this level. Group up or come back stronger." end
                             if hard and not held then d[#d + 1] = string.format("Level %d: above your limit for quest levels (Flow menu, Quest levels), so its mobs hit hard. Flow plans it after the easier ones; bring a friend or come back a level or two later.", quest.level) end
-                            if verb == "Collect" and what then d[#d + 1] = what .. " drops from (level): chance" end
-                            for _, l in ipairs(ns.quests.MobLines(mobs, verb == "Collect")) do d[#d + 1] = l end
+                            for _, l in ipairs(ns.quests.DropLines(verb == "Collect" and what or nil, ns.quests.MobLines(mobs, verb == "Collect"))) do d[#d + 1] = l end
                             -- (Seen for sale at the auction house: it can be bought, QuestBuy.lua.)
                             if od.Type == "item" and ns.questBuy and not opts.who then
                                 local okB, line = pcall(ns.questBuy.LineFor, od.Id, what, ns.questBuy.LeftOf(q.id, i))
@@ -566,6 +565,17 @@ end
 -- level ... what levels are in what areas for my objective", 0.35.232).
 --   mobs: { { name, min, max, rate } }; drops: it's an item they drop.
 ns.quests.MOB_LINES = 6
+-- Pure: the "drops from" heading and its lines, the heading only when there
+-- are lines under it (0.35.412: Counterattack!'s banner comes from a warlord
+-- the quest data doesn't list, and the step read "Piece of Krom'zar's Banner
+-- drops from (level): chance" with nothing after it).
+--   what: the item's name (nil: not something you collect); lines: ns.quests.MobLines
+function ns.quests.DropLines(what, lines)
+    local out = {}
+    if what and #(lines or {}) > 0 then out[1] = what .. " drops from (level): chance" end
+    for _, l in ipairs(lines or {}) do out[#out + 1] = l end
+    return out
+end
 function ns.quests.MobLines(mobs, drops, max)
     local list, seen = {}, {}
     for _, m in ipairs(mobs or {}) do

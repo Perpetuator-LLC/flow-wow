@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.412
+
+- **Fixed: a step's details ended a list before it began.** For a thing nothing is known to
+  drop (the Piece of Krom'zar's Banner in Counterattack!), the tooltip said "Piece of
+  Krom'zar's Banner drops from (level): chance" with nothing under it. The heading now only
+  shows when there's a mob to list.
+- **Fixed: a ")" on a line of its own** at the bottom of a step's tooltip on the Flow
+  Tracker: "(Change the route on the world map)" was split from its closing bracket.
 ## 0.35.411
 
 - **Repeatable hand-ins are one optional step, not a row of quests.** Mangletooth in Camp

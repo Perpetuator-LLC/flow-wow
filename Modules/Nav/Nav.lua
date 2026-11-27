@@ -3270,7 +3270,13 @@ function N.FooterLines(footer)
     local out = {}
     for part in tostring(footer or ""):gmatch("[^%.]+%.?") do
         part = part:gsub("^%s+", ""):gsub("%s+$", "")
-        if part ~= "" and part ~= "." then out[#out + 1] = (part:gsub("%.$", "")) end
+        -- (A closing bracket left over after a full stop, "... the world map.)",
+        -- belongs to the line before it: it was a line of its own, 0.35.412.)
+        if part:find("^[%)%]]+$") and #out > 0 then
+            out[#out] = out[#out] .. part
+        elseif part ~= "" and part ~= "." then
+            out[#out + 1] = (part:gsub("%.$", ""))
+        end
     end
     return out
 end
