@@ -159,11 +159,17 @@ local roots = {
 -- caster form under four or five attackers doesn't keep up; a bear takes far
 -- less. So:
 --   caster: War Stomp when it's ready (everything round you is stunned: time
---           for one cast); badly hurt: the usual heals go on from there;
---           else Rejuvenation (it keeps ticking in Bear Form), then Bear Form.
---   cat:    Bear Form (not while badly hurt: then the heals say so first).
---   bear:   Demoralizing Roar on all of them; badly hurt: Bash the one on
---           you (a stun to get a heal off behind); else Swipe.
+--           for one cast), Nature's Grasp (the next that hits you is rooted:
+--           step back); badly hurt: the usual heals go on from there; else
+--           Rejuvenation (it keeps ticking in Bear Form), then Bear Form.
+--   cat:    Bear Form; badly hurt: a heal (casting it leaves the form).
+--   bear:   badly hurt: Bash the one on you, then a heal (casting it leaves
+--           the form); else Demoralizing Roar on all of them, then Swipe.
+-- (0.35.443, from a fight that was lost: War Stomp was shown 75 times and
+-- Demoralizing Roar 58, neither was cast, and nothing behind them was ever
+-- shown: no heal in Bear Form with the low-health warning on for 53 s. The
+-- engine now moves on from advice that isn't taken, and the badly-hurt
+-- steps come first.)
 -- The parts are pure, so they can be checked without a fight.
 ns.DRUID_BAD_HURT = 40   -- Flow's estimate of how hurt you are (Engine E.hurt), from here "badly"
 local function formName()
@@ -176,13 +182,25 @@ local function badlyHurt(c)
     return c.lowHealth == true or ((c.engine and c.engine.hurt) or 0) >= ns.DRUID_BAD_HURT
 end
 function ns.DruidStomp(form) return form == "caster" end
+function ns.DruidGrasp(form, hasGrasp) return form == "caster" and not hasGrasp end
 function ns.DruidPreHot(form, bad, hasRejuv) return form == "caster" and not bad and not hasRejuv end
 function ns.DruidToBear(form, bad) return (form == "caster" or form == "cat") and not bad end
 function ns.DruidBash(form, bad) return form == "bear" and bad == true end
+function ns.DruidShiftHeal(form, bad) return (form == "bear" or form == "cat") and bad == true end
+function ns.DruidRoar(form, bad, missing) return form == "bear" and not bad and missing == true end
 function ns.DruidSwipe(form, bad) return form == "bear" and not bad end
 local overwhelmed = {
     { spell = "War Stomp", kind = "emergency", reason = "Several on you: stun them all, then heal or shift",
       when = function() return ns.DruidStomp(formName()) end },
+    { spell = "Nature's Grasp", kind = "buff", reason = "Several on you: the next that hits you is rooted, then step back",
+      when = function() return ns.DruidGrasp(formName(), not needBuff("Nature's Grasp", 0)) end },
+    -- Badly hurt in a form: a stun, then a heal (casting it leaves the form).
+    { spell = "Bash", target = true, kind = "emergency", reason = "Badly hurt: stun the one on you, then heal behind it",
+      when = function(c) return c.hostile and ns.DruidBash(formName(), badlyHurt(c)) end },
+    { spell = "Regrowth", kind = "heal", shift = true, reason = "Badly hurt: heal now (casting it takes you out of the form)",
+      when = function(c) return ns.DruidShiftHeal(formName(), badlyHurt(c)) and needBuff("Regrowth", 3) end },
+    { spell = "Healing Touch", kind = "heal", shift = true, reason = "Badly hurt: heal now (casting it takes you out of the form)",
+      when = function(c) return ns.DruidShiftHeal(formName(), badlyHurt(c)) end },
     { spell = "Rejuvenation", kind = "heal", reason = "Several on you: a heal that keeps ticking in Bear Form",
       when = function(c) return ns.DruidPreHot(formName(), badlyHurt(c), not needBuff("Rejuvenation", 2)) end },
     { spell = "Dire Bear Form", kind = "buff", reason = "Several on you: Bear Form takes far less damage",
@@ -190,9 +208,7 @@ local overwhelmed = {
     { spell = "Bear Form", kind = "buff", reason = "Several on you: Bear Form takes far less damage",
       when = function(c) return ns.DruidToBear(formName(), badlyHurt(c)) and not c.engine:Knows("Dire Bear Form") end },
     { spell = "Demoralizing Roar", reason = "Several on you: weaken all of them",
-      when = function(c) return inBear() and c.hostile and missingOnTarget("Demoralizing Roar") end },
-    { spell = "Bash", target = true, kind = "emergency", reason = "Badly hurt: stun the one on you, then heal behind it",
-      when = function(c) return c.hostile and ns.DruidBash(formName(), badlyHurt(c)) end },
+      when = function(c) return c.hostile and ns.DruidRoar(formName(), badlyHurt(c), missingOnTarget("Demoralizing Roar")) end },
     { spell = "Swipe", target = true, reason = "Several on you: hit them all",
       when = function(c) return c.hostile and ns.DruidSwipe(formName(), badlyHurt(c)) end },
 }

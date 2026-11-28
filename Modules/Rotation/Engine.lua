@@ -898,19 +898,51 @@ function E.OverwhelmedOn() return not (ns.db and ns.db.rotation and ns.db.rotati
 function E.IsOverwhelmed(inCombat, attackers, at, on)
     return on ~= false and inCombat == true and (attackers or 0) >= (at or E.OVERWHELMED)
 end
+-- Advice that isn't taken doesn't hold the icon (0.35.443). A piece of this
+-- advice shown for E.OW_PATIENCE seconds and not cast steps aside for
+-- E.OW_REST seconds, and the next one that's ready is shown. (Flow can't
+-- always tell that a spell can't be cast: the game hides some of what it
+-- would go by, and then one line would sit on the icon for the whole fight.)
+-- rule.shift: a spell that's cast by leaving the form you're in (a druid's
+-- heal in Bear Form): it's advised without asking the game whether it's
+-- usable now, which in the form it isn't.
+E.OW_PATIENCE, E.OW_REST = 3, 12
+function E.OutOfPatience(since, now, patience)
+    return since ~= nil and (now - since) > (patience or E.OW_PATIENCE)
+end
+local owSince, owSkip = {}, {}
+local function owReady(self, rule, ctx)
+    if not rule.shift then return ruleReady(self, rule, ctx) end
+    if not self:Knows(rule.spell) then return false end
+    if not rule.when then return true end
+    local ok, w = pcall(rule.when, ctx)
+    return ok and w and true or false
+end
 function E:Overwhelmed(ctx, def)
     local list = def and def.overwhelmed
     if not (list and E.IsOverwhelmed(ctx.inCombat and true or false, ctx.attackers, def.overwhelmedAt, E.OverwhelmedOn())) then
         E.overwhelmedSaid = nil
+        owSince, owSkip = {}, {}
         return nil
     end
+    local now = GetTime()
     for _, rule in ipairs(list) do
-        if ruleReady(self, rule, ctx) then
-            if E.overwhelmedSaid ~= rule.spell then
-                E.overwhelmedSaid = rule.spell
-                ns:Log("rotation", string.format("several on you (%d): advising %s", ctx.attackers or 0, tostring(rule.spell)))
+        local resting = owSkip[rule.spell] ~= nil and owSkip[rule.spell] > now
+        if not resting and owReady(self, rule, ctx) then
+            owSince[rule.spell] = owSince[rule.spell] or now
+            if E.OutOfPatience(owSince[rule.spell], now) then
+                -- Shown and not pressed: the next piece of advice gets its turn.
+                owSkip[rule.spell], owSince[rule.spell] = now + E.OW_REST, nil
+                ns:Log("rotation", string.format("several on you: %s shown %d s and not cast, moving on", tostring(rule.spell), E.OW_PATIENCE))
+            else
+                if E.overwhelmedSaid ~= rule.spell then
+                    E.overwhelmedSaid = rule.spell
+                    ns:Log("rotation", string.format("several on you (%d): advising %s", ctx.attackers or 0, tostring(rule.spell)))
+                end
+                return suggest(rule, ctx, string.format(" (%d on you)", ctx.attackers or 0))
             end
-            return suggest(rule, ctx, string.format(" (%d on you)", ctx.attackers or 0))
+        elseif not resting then
+            owSince[rule.spell] = nil
         end
     end
     return nil
@@ -1926,3 +1958,43 @@ if ns.settings and ns.settings.AddCheck then
         set = function(on) ns.db.rotation.overwhelmed = on and true or false end,
     })
 end
+
+-------------------------------------------------------------------------------
+-- Why isn't Flow buffing my group? Said in the log (0.35.443)
+-------------------------------------------------------------------------------
+-- "Flow's not suggesting that I buff my party until I select one of them."
+-- Flow looks at your group every second while nothing else is to press, so
+-- something holds it back in those moments, and the diagnostics only showed
+-- your group at the instant of a reload. Now, while you're in a group and out
+-- of a fight, what Flow sees of it goes into the log whenever it changes: the
+-- reason it's held (an enemy targeted, a form that can't cast, a city), and
+-- each person with each buff (has it, missing, can't cast now).
+E.GROUP_NOTE_EVERY = 15
+-- Pure: the lines as one, shortened.
+function E.GroupNoteText(lines, max)
+    local parts = {}
+    for i = 2, math.min(#(lines or {}), (max or 8) + 1) do
+        parts[#parts + 1] = (tostring(lines[i]):gsub("^%s+", ""))
+    end
+    return table.concat(parts, " | ")
+end
+function E:GroupNote()
+    if not (IsInGroup and IsInGroup()) or InCombatLockdown() then return nil end
+    local def = self:Definition()
+    if not (def and def.groupBuffs) then return nil end
+    local ok, lines = pcall(self.GroupWhy, self, self:Context(), def)
+    if not ok or type(lines) ~= "table" or #lines < 2 then return nil end
+    local text = E.GroupNoteText(lines)
+    if text ~= "" and text ~= E.lastGroupNote then
+        E.lastGroupNote = text
+        ns:Log("group", "group buffs: " .. text)
+    end
+    return text
+end
+if C_Timer and C_Timer.NewTicker then
+    C_Timer.NewTicker(E.GROUP_NOTE_EVERY, function() pcall(E.GroupNote, E) end)
+end
+ns:On("GROUP_ROSTER_UPDATE", function()
+    E.lastGroupNote = nil
+    if C_Timer and C_Timer.After then C_Timer.After(2, function() pcall(E.GroupNote, E) end) end
+end)

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.443
+
+- **Several enemies on you: advice that isn't taken no longer holds the icon.** In a fight
+  that was lost (three on you, one an elite, 96 seconds), the icon said "War Stomp" 75
+  times and "Demoralizing Roar" 58 times. Neither was cast, and nothing behind them was
+  ever shown: no heal in Bear Form, with the game's low-health warning on for the last 53
+  seconds. A piece of this advice that's shown for three seconds and not cast now steps
+  aside for twelve, and the next one gets its turn.
+- **Badly hurt in Bear or Cat Form: stun, then heal.** Bash the one on you, then Regrowth,
+  then Healing Touch. The heals are advised in the form (casting one takes you out of it).
+  Before, a bear was only ever told Demoralizing Roar.
+- **Nature's Grasp** is part of it in caster form, after War Stomp: the next mob that hits
+  you is rooted, and you can step back.
+- **Why isn't Flow buffing my group?** Flow looks at your group every second while nothing
+  else is to press; something holds it back until you select someone, and the diagnostics
+  didn't show what. While you're in a group and out of a fight, what Flow sees of it now
+  goes into the log whenever it changes: what's holding it (an enemy targeted, a form that
+  can't cast, a city) and each person with each buff. Nothing changes in play yet.
 ## 0.35.442
 
 - **"Bags nearly full: hand in N finished quests" can be clicked.** It was only words. Click

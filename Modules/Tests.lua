@@ -20442,6 +20442,11 @@ ns:Register("test", "rotation: with several enemies on you a druid is told War S
     t:ok(not ns.DruidToBear("caster", true), "badly hurt in caster form: heal first, bear after")
     t:ok(not ns.DruidToBear("bear", false), "in Bear Form already: no")
     t:ok(ns.DruidBash("bear", true) and not ns.DruidBash("bear", false), "Bash: a bear that's badly hurt")
+    t:ok(ns.DruidGrasp("caster", false) and not ns.DruidGrasp("caster", true) and not ns.DruidGrasp("bear", false), "Nature's Grasp: in caster form, when it isn't up")
+    t:ok(ns.DruidShiftHeal("bear", true) and ns.DruidShiftHeal("cat", true), "badly hurt in a form: a heal, which leaves the form")
+    t:ok(not ns.DruidShiftHeal("bear", false) and not ns.DruidShiftHeal("caster", true), "not otherwise (in caster form the usual heals do it)")
+    t:ok(ns.DruidRoar("bear", false, true) and not ns.DruidRoar("bear", true, true) and not ns.DruidRoar("bear", false, false),
+        "Demoralizing Roar: a bear that isn't badly hurt, when it's missing")
     t:ok(ns.DruidSwipe("bear", false) and not ns.DruidSwipe("bear", true) and not ns.DruidSwipe("cat", false), "Swipe: a bear that isn't")
     local def = ns:Get("rotation", "DRUID")
     t:ok(def and type(def.overwhelmed) == "table" and #def.overwhelmed >= 5, "the druid's rotation has the plan")
@@ -20566,4 +20571,53 @@ ns:Register("test", "click: \"hand in N finished quests\" puts those hand-ins fi
     t:eq(quest, 987654822, "the finished quest's")
     t:ok(okAgain, "the second click runs too")
     -- The bank line's click isn't run here: it would move your waypoint.
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.443: advice that isn't taken moves on; the badly-hurt steps come
+-- first; why a group isn't being buffed goes into the log.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "rotation: several on you: advice that isn't pressed steps aside, and a badly hurt bear is told to stun and heal", function(t)
+    local E = ns.rotation
+    t:ok(not E.OutOfPatience(100, 102), "shown two seconds: it stays")
+    t:ok(E.OutOfPatience(100, 104), "shown four seconds and not cast: the next gets its turn")
+    t:ok(not E.OutOfPatience(nil, 104), "not shown yet: nothing to wait out")
+    t:ok(E.OW_REST > E.OW_PATIENCE, "it stays aside longer than it was shown")
+    local def = ns:Get("rotation", "DRUID")
+    local at, shift = {}, {}
+    for i, r in ipairs(def.overwhelmed) do
+        at[r.spell] = at[r.spell] or i
+        if r.shift then shift[r.spell] = true end
+    end
+    t:ok(at["War Stomp"] < at["Nature's Grasp"] and at["Nature's Grasp"] < at["Rejuvenation"], "War Stomp, Nature's Grasp, then the heal over time")
+    t:ok(at["Bash"] < at["Demoralizing Roar"], "badly hurt, Bash comes before the roar (it was behind it, and never shown)")
+    t:ok(at["Bash"] < at["Regrowth"] and at["Regrowth"] < at["Healing Touch"], "then Regrowth, then Healing Touch")
+    t:ok(shift["Regrowth"] and shift["Healing Touch"], "both advised in a form (casting one leaves it)")
+    t:ok(at["Healing Touch"] < at["Demoralizing Roar"], "the heals before the roar and Swipe")
+    -- The engine's step with a plan of its own: the first line steps aside after its patience, the second shows.
+    local plan = { overwhelmed = {
+        { spell = "A 987654443", shift = true, reason = "first", when = function() return true end },
+        { spell = "B 987654443", shift = true, reason = "second", when = function() return true end },
+    } }
+    local knows = E.Knows
+    local ctx = { inCombat = true, attackers = 4, fightType = "aoe", engine = E }
+    local saw = {}
+    E.Knows = function(_, spell) return spell == "A 987654443" or spell == "B 987654443" end   -- (Flow's own)
+    local ok, err = pcall(function()
+        E:Overwhelmed({ inCombat = false, attackers = 0, engine = E }, plan)   -- (a clean start)
+        local first = E:Overwhelmed(ctx, plan)
+        saw[1] = first and first.spell
+        saw.note = first and first.reason
+    end)
+    E.Knows = knows
+    t:ok(ok, "the step runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(saw[1], "A 987654443", "the first line is shown")
+    t:ok(type(saw.note) == "string" and saw.note:find("4 on you", 1, true) ~= nil, "with how many are on you")
+    pcall(E.Overwhelmed, E, { inCombat = false, attackers = 0, engine = E }, plan)   -- (put away)
+    -- The group note.
+    t:eq(E.GroupNoteText({ "group buffs (...)", "  held: you're in a form that can't cast them", "  1 other(s) in the group, 1 near enough" }),
+        "held: you're in a form that can't cast them | 1 other(s) in the group, 1 near enough", "what Flow sees of your group, in one line")
+    t:eq(E.GroupNoteText({ "only a heading" }), "", "nothing to say: nothing")
+    t:ok(pcall(E.GroupNote, E), "the note runs (it says nothing out of a group)")
 end)
