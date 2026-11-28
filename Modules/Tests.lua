@@ -20831,42 +20831,44 @@ ns:Register("test", "banker: Find looks in your bags and your bank and says wher
     t:ok(pcall(B._BagSearchChanged, nil), "the bag search note copes with no search box")
 end)
 
-ns:Register("test", "minimap: at the edge, with the game's arrow there too, Flow's mark is four corners round it", function(t)
+ns:Register("test", "minimap: at the edge, with the game's arrow there too, Flow's mark is the same ring of eight over it", function(t)
     local P = ns.minimapPin
+    -- (0.35.452: the ring, as in view. 0.35.449 and 0.35.451 had four marks of their own there.)
     t:eq(P.Look(false, false), "ring", "in view: the ring of eight, as before")
-    t:eq(P.Look(false, true), "ring", "in view with the game's pin: the ring still (its middle is clear)")
+    t:eq(P.Look(false, true), "ring", "in view with the game's pin: the ring still")
     t:eq(P.Look(true, false), "dot", "at the edge: the solid dot, as before")
-    t:eq(P.Look(true, true), "corners", "at the edge with the game's arrow: four corners round it")
-    local pts = P.CornerPoints(10)
-    t:eq(#pts, 4, "four marks")
-    for _, pt in ipairs(pts) do
-        t:ok(math.abs(math.sqrt(pt[1] * pt[1] + pt[2] * pt[2]) - 10) < 0.01, "each at the radius")
-        t:ok(math.abs(pt[1]) > 5 and math.abs(pt[2]) > 5, "on a diagonal: none straight above, below or beside the arrow")
+    t:eq(P.Look(true, true), "ring", "at the edge with the game's arrow: the same ring")
+    t:eq(P.Inset(false), P.EDGE_INSET, "the dot sits at the rim")
+    t:eq(P.Inset(true), P.ARROW_INSET, "the ring sits further in, where the game's arrow is")
+    t:ok(P.ARROW_INSET > P.EDGE_INSET, "which is further from the rim")
+    -- Turned so the arrow's tip is between two dots, whichever way it points.
+    local step = 2 * math.pi / P.RING_DOTS
+    for _, angle in ipairs({ 0, math.pi / 2, math.pi, -math.pi / 2, 0.3, 2.1, -1.7 }) do
+        local turn = P.TurnFor(angle)
+        t:ok(turn >= 0 and turn < 1, "a turn within one step")
+        local nearest = math.huge
+        for _, pt in ipairs(P.RingPoints(P.RING_DOTS, P.RING_RADIUS, turn)) do
+            local diff = math.abs((math.atan2(pt[2], pt[1]) - angle + math.pi) % (2 * math.pi) - math.pi)
+            if diff < nearest then nearest = diff end
+        end
+        t:ok(math.abs(nearest - step / 2) < 0.01, string.format("the arrow at %.1f points midway between two dots", angle))
     end
-    -- The pin itself: the corners show and the dot goes; back to a dot, and to the ring.
+    -- The pin itself: the ring at the edge too, the same eight dots, and it can be turned and put back.
     if Minimap then
         local p = ns.nav:PlayerPos()
-        if p and p.wx then pcall(P.Update, P, p, { cont = p.cont, wx = p.wx + 5000, wy = p.wy }, { key = "987654449:1", text = "A far step" }, { 1, 0.5, 0 }) end
+        if p and p.wx then pcall(P.Update, P, p, { cont = p.cont, wx = p.wx + 5000, wy = p.wy }, { key = "987654452:1", text = "A far step" }, { 1, 0.5, 0 }) end
         local pin = P.Pin()
         if pin and pin.SetLook then
-            pin:SetLook("corners", 1, 0.5, 0)
-            t:ok(pin.corners[1].dot:IsShown() and not pin.dot:IsShown() and not pin.around[1].dot:IsShown(), "corners: the four marks, no solid dot, no ring")
-            pin:SetLook("dot", 1, 0.5, 0)
-            t:ok(pin.dot:IsShown() and not pin.corners[1].dot:IsShown(), "dot: as before")
+            t:eq(#pin.around, P.RING_DOTS, "eight dots")
+            t:eq(pin.corners, nil, "and no marks of another kind")
             pin:SetLook("ring", 1, 0.5, 0)
-            t:ok(pin.around[1].dot:IsShown() and not pin.corners[1].dot:IsShown() and not pin.dot:IsShown(), "ring: as before")
+            t:ok(pin.around[1].dot:IsShown() and not pin.dot:IsShown(), "ring: the eight dots, no solid dot")
+            pin:SetLook("dot", 1, 0.5, 0)
+            t:ok(pin.dot:IsShown() and not pin.around[1].dot:IsShown(), "dot: as before")
+            t:ok(pcall(pin.SetTurn, pin, 0.2) and pcall(pin.SetTurn, pin, P.RING_TURN), "the ring turns, and turns back")
+            t:eq(pin.turn, P.RING_TURN, "back to its usual turn (the gaps above and below)")
         end
         if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
     end
     t:ok(ns.gamePin.Shown() == true or ns.gamePin.Shown() == false, "the game pin says whether it's showing")
-end)
-
--- 0.35.451: the four corner marks sit round the game's arrow, not at its tail.
-ns:Register("test", "minimap: the corner marks are centred where the game's arrow is, and wide enough to go round it", function(t)
-    local P = ns.minimapPin
-    t:eq(P.Inset("dot"), P.EDGE_INSET, "the solid dot: at the rim, as before")
-    t:eq(P.Inset("corners"), P.CORNER_INSET, "the corners: further in, where the game's arrow is")
-    t:ok(P.CORNER_INSET > P.EDGE_INSET + 15, "a good way in from the dot's place")
-    t:ok(P.CORNER_RADIUS >= 16, "and wide enough to go round the arrow")
-    t:ok(P.CORNER_INSET - P.CORNER_RADIUS * math.sqrt(0.5) >= 8, "the outer marks stay inside the rim")
 end)

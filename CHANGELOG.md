@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.452
+
+- **At the minimap's edge, Flow's mark is the same ring of eight it is in view.** The four
+  wide marks of 0.35.451 were far too big. With the game's arrow at the edge, Flow now
+  draws its usual ring of eight dots over it, at its usual size, turned so the arrow's tip
+  points between two dots. In view nothing changes.
 ## 0.35.451
 
 - **The four marks sit round the game's arrow at the minimap's edge.** They sat in a small

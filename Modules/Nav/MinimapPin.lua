@@ -36,26 +36,27 @@ function P.RingPoints(n, radius, turn)
     return out
 end
 -- Pure: which look? "ring" in view, "dot" at the edge.
--- (0.35.449) "corners": at the edge while the game draws its own arrow there
--- for the same spot (GamePin.lua): "we have the circle on the edge and the
--- arrow goes under and it looks funny." Four small marks in the route colour
--- round the game's arrow, the middle left clear, so the two read as one.
--- (0.35.451, from a picture: the four marks sat in a small square at the tail of the
--- game's arrow. The game draws its arrow further in from the rim than Flow's dot, and
--- it's bigger than the marks' square was. So the marks are wider, and their middle is
--- P.CORNER_INSET in from the rim, where the arrow's middle is. P.EDGE_INSET: the dot's.)
-P.CORNER_RADIUS, P.CORNER_DOT = 19, 3
-P.EDGE_INSET, P.CORNER_INSET = 6, 28
--- Pure: how far in from the rim the mark's middle sits.
-function P.Inset(look) return look == "corners" and P.CORNER_INSET or P.EDGE_INSET end
+-- At the edge while the game draws its own arrow there for the same spot
+-- (GamePin.lua): the ring too, the same eight dots at the same size, over the
+-- game's arrow. (0.35.449 had four marks of their own there, 0.35.451 made
+-- them wider: "way too big ... the 8 dots around the icon when it's in the
+-- minimap is fine. Probably just use that same one." 0.35.452.)
+-- The game draws its arrow further in from the rim than Flow's dot sat:
+-- P.ARROW_INSET, against P.EDGE_INSET for the dot.
+P.EDGE_INSET, P.ARROW_INSET = 6, 28
 function P.Look(edge, gamePin)
     if not edge then return "ring" end
-    return gamePin and "corners" or "dot"
+    return gamePin and "ring" or "dot"
 end
--- Pure: where the four corner marks sit ({ x, y } each).
-function P.CornerPoints(radius)
-    local d = (radius or P.CORNER_RADIUS) * math.sqrt(0.5)
-    return { { d, d }, { -d, d }, { -d, -d }, { d, -d } }
+-- Pure: how far in from the rim the mark's middle sits at the edge.
+function P.Inset(gamePin) return gamePin and P.ARROW_INSET or P.EDGE_INSET end
+-- Pure: how far to turn the ring so the game's arrow points between two of
+-- its dots. angle: the way the arrow points, in radians (0 = east, counter-
+-- clockwise); n: how many dots. -> a turn, in steps between two dots.
+function P.TurnFor(angle, n)
+    n = n or P.RING_DOTS
+    local step = 2 * math.pi / n
+    return ((angle or 0) / step + 0.5) % 1
 end
 
 local pin, profPin
@@ -92,28 +93,21 @@ local function makePin(name)
         dot:SetColorTexture(1, 1, 1, 1)
         pin.around[i] = { back = back, dot = dot }
     end
-    pin.corners = {}
-    for i, pt in ipairs(P.CornerPoints()) do
-        local back = pin:CreateTexture(nil, "BORDER")
-        back:SetSize(P.CORNER_DOT + 2, P.CORNER_DOT + 2)
-        back:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
-        back:SetColorTexture(0, 0, 0, 0.9)
-        local dot = pin:CreateTexture(nil, "ARTWORK")
-        dot:SetSize(P.CORNER_DOT, P.CORNER_DOT)
-        dot:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
-        dot:SetColorTexture(1, 1, 1, 1)
-        pin.corners[i] = { back = back, dot = dot }
+    -- The ring turned to an angle (P.TurnFor): only moved when it changes.
+    function pin:SetTurn(turn)
+        turn = turn or P.RING_TURN
+        if self.turn ~= nil and math.abs(self.turn - turn) < 0.02 then return end
+        self.turn = turn
+        for i, pt in ipairs(P.RingPoints(P.RING_DOTS, P.RING_RADIUS, turn)) do
+            local a = self.around[i]
+            a.back:ClearAllPoints(); a.back:SetPoint("CENTER", self, "CENTER", pt[1], pt[2])
+            a.dot:ClearAllPoints(); a.dot:SetPoint("CENTER", self, "CENTER", pt[1], pt[2])
+        end
     end
     function pin:SetLook(look, r, g, b)
         local ring = look == "ring"
-        local corners = look == "corners"
         self.look = look
-        for _, part in ipairs({ self.edge, self.ring, self.hole, self.dot }) do part:SetShown(not ring and not corners) end
-        for _, a in ipairs(self.corners) do
-            a.back:SetShown(corners)
-            a.dot:SetShown(corners)
-            a.dot:SetVertexColor(r or 1, g or 1, b or 1, 1)
-        end
+        for _, part in ipairs({ self.edge, self.ring, self.hole, self.dot }) do part:SetShown(not ring) end
         for _, a in ipairs(self.around) do
             a.back:SetShown(ring)
             a.dot:SetShown(ring)
@@ -435,7 +429,7 @@ function P:Update(p, pt, goal, col, here)
     local gamePin = edge and GP ~= nil and GP.Shown ~= nil and GP.Shown() or false
     local look = P.Look(edge, gamePin)
     if edge then
-        local inset = P.Inset(look)
+        local inset = P.Inset(gamePin)
         x, y = x / d * (radius - inset), y / d * (radius - inset)
     end
     -- No arrow colour given: your waypoint, or a party member you follow, green.
@@ -444,6 +438,9 @@ function P:Update(p, pt, goal, col, here)
     pin.ring:SetVertexColor(col[1], col[2], col[3], 1)
     pin:SetSize(edge and 12 or 16, edge and 12 or 16)
     if pin.SetLook then pin:SetLook(look, col[1], col[2], col[3]) end
+    -- In view: the gaps above and below (the game's up and down arrows). Over the
+    -- game's arrow at the edge: turned so its tip points between two dots.
+    if pin.SetTurn then pin:SetTurn((edge and gamePin) and P.TurnFor(math.atan2(y, x)) or P.RING_TURN) end
     pin:SetAlpha((edge and not gamePin) and 0.8 or 1)
     pin:ClearAllPoints()
     pin:SetPoint("CENTER", Minimap, "CENTER", x, y)
