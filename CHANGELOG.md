@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.448
+
+- **Flow Banker: Deposit all, Take all, Do both.** At a bank the window had one button,
+  Deposit or Take out depending on the view you were on, and each needed room that the
+  other would have made. Now the button on the right is "Deposit all" or "Take all", and
+  "Do both" beside it does the two in one click: it starts on the side that has room
+  (putting away first frees your bags; with a full bank and room in your bags it takes out
+  first) and goes round again while one made room for the other.
+- **The views say what happens at the bank**: "Deposit" (what goes in: materials kept for
+  later, spare stacks, quest things with nothing to do here) and "Withdraw" (what comes
+  out: what a quest or a step of your route needs, and what Flow would now sell). They
+  were "To bank" and "To sell".
 ## 0.35.447
 
 - **Say what a profession is for.** Flow kept every material a profession of yours could

@@ -692,8 +692,21 @@ local function build()
     -- On the right, "All my choices" on the left (0.35.269: in the middle it
     -- lay over that button's end).
     f.go:SetPoint("BOTTOMRIGHT", -10, 8)
-    f.go:SetText("Deposit")
+    f.go:SetText("Deposit all")
     f.go:SetScript("OnClick", function() B:GoClick() end)
+    -- Do both (0.35.448): in the middle, at a bank, whichever view you're on.
+    f.both = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.both:SetSize(90, 22)
+    f.both:SetPoint("RIGHT", f.go, "LEFT", -6, 0)
+    f.both:SetText("Do both")
+    f.both:SetScript("OnClick", function() B:Both() end)
+    f.both:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Do both", 1, 0.82, 0)
+        GameTooltip:AddLine("Puts away everything under Deposit and takes out everything under Withdraw, starting on the side that has room, and goes round again while one made room for the other.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.both:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     return f
 end
@@ -703,8 +716,9 @@ end
 -- "prices": what Flow last saw at the auction house.
 B.TAB_GAP = 12
 B.VIEWS = {
-    { key = "put", label = "To bank" },   -- (was "To put away" until 0.35.221)
-    { key = "sell", label = "To sell" },
+    -- (0.35.448: named for what happens at the bank: what goes in, what comes out. They were "To bank" and "To sell".)
+    { key = "put", label = "Deposit" },
+    { key = "sell", label = "Withdraw" },
     { key = "bank", label = "In your bank" },
     { key = "prices", label = "Auction prices" },
 }
@@ -1131,11 +1145,12 @@ function B:Fill()
     f.go:SetShown(B.view == "put" or (B.view == "sell" and (B.takeCount or 0) > 0))
     if B.view == "sell" then
         f.go:SetEnabled(bankOpen and (B.takeCount or 0) > 0)
-        f.go:SetText(bankOpen and "Take out" or "At a bank")
+        f.go:SetText(bankOpen and "Take all" or "At a bank")
     else
         f.go:SetEnabled(bankOpen and putCount > 0)
-        f.go:SetText(bankOpen and "Deposit" or "At a bank")
+        f.go:SetText(bankOpen and "Deposit all" or "At a bank")
     end
+    if f.both then f.both:SetShown(bankOpen and (B.view == "put" or B.view == "sell")) end
 end
 
 -- How many sell or keep choices (and buy-backs) you've made.
@@ -1158,7 +1173,67 @@ function B:ResetSell(quiet)
     return n
 end
 
--- The button at the bottom right: Deposit ("To bank") or Take out ("To sell").
+-- Deposit all, Take all, Do both (0.35.448). "When we open the bank, it should
+-- just say take all, deposit all, do both. And then it can just figure out
+-- where the room is and start there ... it just pushes everything that it
+-- needs to from one area to the other area and cycles the other ones through
+-- too." The window had one button, which was Deposit or Take out by the view
+-- you were on, and each needed room on the other side that the other would
+-- have made.
+-- Pure: which goes first. Putting things away frees your bags for what comes
+-- out, so that's first, unless the bank is full and your bags have room.
+--   bagsFree, bankFree: free slots (nil: not known); put, take: stacks to move
+-- -> "put" | "take" | nil (nothing to move)
+function B.FirstMove(bagsFree, bankFree, put, take)
+    put, take = put or 0, take or 0
+    if put <= 0 and take <= 0 then return nil end
+    if take <= 0 then return "put" end
+    if put <= 0 then return "take" end
+    if bankFree ~= nil and bankFree <= 0 and (bagsFree or 0) > 0 then return "take" end
+    return "put"
+end
+-- Free slots in your bank as Flow last saw it (nil: not seen).
+function B.BankFree()
+    local parts = ns.db.bank and ns.db.bank.parts
+    if type(parts) ~= "table" or #parts == 0 then return nil end
+    local free = 0
+    for _, p in ipairs(parts) do free = free + math.max(0, (p.slots or 0) - (p.used or 0)) end
+    return free
+end
+-- How many stacks in your bank are to come out.
+function B.TakeStacks()
+    local want = {}
+    for _, r in ipairs(B.TakeOut(true)) do want[r.id] = true end
+    local SP = ns.skillPlan
+    if not (SP and SP.BankSlotsWith) then return 0 end
+    local ok, slots = pcall(SP.BankSlotsWith, want)
+    return ok and type(slots) == "table" and #slots or 0
+end
+B.ROUNDS = 3   -- "Do both" goes round this often at most (one side's room is made by the other)
+-- Do both: one way, then the other, and again while that made room for more.
+function B:Both(round)
+    round = round or 1
+    if not bankOpen or InCombatLockdown() then return nil end
+    local bags = ns.export and ns.export.BagsFree and ns.export.BagsFree() or nil
+    local first = B.FirstMove(bags, B.BankFree(), B.Stacks(B.List()), B.TakeStacks())
+    if not first then
+        if round == 1 then ns:Print("Flow Banker: nothing to put away or take out.") end
+        return nil
+    end
+    local moved = (first == "put" and self:Deposit() or self:Withdraw()) or 0
+    C_Timer.After(moved * B.STEP + 1.2, function()
+        if not bankOpen or InCombatLockdown() then return end
+        local second = (first == "put" and self:Withdraw() or self:Deposit()) or 0
+        C_Timer.After(second * B.STEP + 1.2, function()
+            if bankOpen and round < B.ROUNDS and moved + second > 0 and (B.Stacks(B.List()) + B.TakeStacks()) > 0 then
+                self:Both(round + 1)
+            end
+        end)
+    end)
+    return first
+end
+
+-- The button at the bottom right: Deposit all ("Deposit") or Take all ("Withdraw").
 function B:GoClick()
     if B.view == "sell" then return B:Withdraw() end
     return B:Deposit()

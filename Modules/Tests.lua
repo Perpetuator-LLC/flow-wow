@@ -11246,7 +11246,7 @@ ns:Register("test", "banker: auction prices are searched by any part of the name
     t:eq(#B.Filter(rows, nil), 4, "no search: everything")
     t:eq(#B.Filter(rows, "zzz"), 0, "no match: none")
     t:eq(#B.Filter(rows, "[%"), 0, "odd characters are taken as they are, no error")
-    t:eq(B.VIEWS[1].label, "To bank", "the first view is called To bank")
+    t:eq(B.VIEWS[1].label, "Deposit", "the first view is called Deposit (it was To bank until 0.35.448)")
 end)
 
 ns:Register("test", "banker: every choice you've made, also for things not in your bags", function(t)
@@ -15929,7 +15929,7 @@ ns:Register("test", "click: Flow Banker's To sell view opens, and Alt-click lets
     t:ok(f and f.all:IsShown() and not f.search:IsShown(), "the choices button, no search box")
     t:eq(f and f.go:IsShown(), (B.takeCount or 0) > 0, "Take out shows only with something in the bank to sell")
     if f and f.go:IsShown() then
-        t:eq(f.go:GetText(), B.AtBank() and "Take out" or "At a bank", "and says where it works")
+        t:eq(f.go:GetText(), B.AtBank() and "Take all" or "At a bank", "and says where it works")
         t:eq(f.go:IsEnabled(), B.AtBank(), "enabled at a bank")
     end
     if not B.AtBank() then
@@ -20742,4 +20742,41 @@ ns:Register("test", "click: Flow Professions' sell ticks and Later button", func
     ns.db.prof.gold, ns.db.prof.later = gold, later
     P.Changed = changed
     t:ok(ok, "no errors" .. (ok and "" or (": " .. tostring(err))))
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.448: Flow Banker: Deposit all, Take all, Do both.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: Flow Banker's Do both starts on the side that has room", function(t)
+    local B = ns.banker
+    t:eq(B.FirstMove(0, 10, 5, 3), "put", "bags full, room in the bank: put away first")
+    t:eq(B.FirstMove(4, 0, 5, 3), "take", "bank full, room in your bags: take out first")
+    t:eq(B.FirstMove(0, 0, 5, 3), "put", "both full: put away first (it's tried, and the other side follows)")
+    t:eq(B.FirstMove(4, nil, 5, 3), "put", "the bank's room not known: put away first")
+    t:eq(B.FirstMove(4, 10, 0, 3), "take", "nothing to put away: take out")
+    t:eq(B.FirstMove(4, 10, 5, 0), "put", "nothing to take out: put away")
+    t:eq(B.FirstMove(4, 10, 0, 0), nil, "nothing to move: nothing")
+    t:eq(B.VIEWS[1].label, "Deposit", "the views say what happens: Deposit")
+    t:eq(B.VIEWS[2].label, "Withdraw", "and Withdraw")
+    t:ok(pcall(B.BankFree), "the bank's free slots are read")
+    t:ok(pcall(B.TakeStacks), "the stacks to come out are counted")
+    -- Away from a bank, Do both does nothing (and says nothing).
+    if not B.AtBank() then
+        local ok, did = pcall(B.Both, B)
+        t:ok(ok and did == nil, "away from a bank: Do both does nothing" .. (ok and "" or (": " .. tostring(did))))
+    end
+    -- The button is there, and its click runs.
+    if InCombatLockdown() then return end
+    local shown = B._Frame() and B._Frame():IsShown()
+    local okS = pcall(B.Show, B, "put")
+    local f = B._Frame()
+    t:ok(okS and f and f.both, "the window has a Do both button")
+    if f and f.both then
+        t:eq(f.both:GetText(), "Do both", "called Do both")
+        t:eq(f.both:IsShown() and true or false, B.AtBank() and true or false, "shown at a bank only")
+        if not B.AtBank() then t:ok(pcall(f.both:GetScript("OnClick"), f.both), "its click runs") end
+        t:eq(f.go:GetText(), B.AtBank() and "Deposit all" or "At a bank", "the button on the right: Deposit all")
+    end
+    if f and not shown then f:Hide() end
 end)
