@@ -8591,7 +8591,7 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.179: the beam's seam, the key's bind above the icon, the "Waypoint"
--- hint, "Go to the nearest...", Shortest path first.
+-- hint, "Nearest...", Shortest path first.
 -------------------------------------------------------------------------------
 
 ns:Register("test", "modern arrow: the beam and its mirror meet with no crack", function(t)
@@ -8669,18 +8669,18 @@ ns:Register("test", "route menu: Go to the nearest..., and Shortest path above M
     local nearest, old, shortest, xp
     for i, it in ipairs(items) do
         local text = it.text or ""
-        if it.title and text == "Go to the nearest..." then nearest = i end
+        if it.title and text == "Nearest..." then nearest = i end
         if it.title and text:find("your waypoint", 1, true) then old = i end
         if text:find("Shortest path", 1, true) then shortest = shortest or i end
         if text:find("Most XP first", 1, true) then xp = xp or i end
     end
-    t:ok(nearest ~= nil, "its section is called \"Go to the nearest...\"")
+    t:ok(nearest ~= nil, "its section is called \"Nearest...\"")
     t:eq(old, nil, "with no \"(your waypoint)\" after it")
     t:ok(shortest and xp and shortest < xp, "Shortest path (the default) comes above Most XP first")
     -- Folded, the section's row reads the same.
     local row
     for _, it in ipairs(ns.menu.Fold(items)) do
-        if it.section and it.text == "Go to the nearest..." then row = it end
+        if it.section and it.text == "Nearest..." then row = it end
     end
     t:ok(row and #row.sub >= 5, "folded: one row, the places inside")
     -- The Flow Router's row of route states: the default first too.
@@ -8872,7 +8872,7 @@ ns:Register("test", "flow menu: clean sections in one order, nothing loose, noth
     t:eq(loose, 0, "no entry without a section")
     t:eq(twice, nil, "no section and no entry twice")
     t:ok(titles[1] == "Order" or (titles[1] == "Custom route" and titles[2] == "Order"), "Order first (after the way out of a custom route, while you're on one)")
-    t:ok(seen.Order and seen["Route includes"] and seen["Go to the nearest..."] and seen["Your waypoint"]
+    t:ok(seen.Order and seen["Route includes"] and seen["Nearest..."] and seen["Your waypoint"]
         and seen["Steps"] and seen.Buttons and seen["Flow windows"], "the sections every Flow menu has")
     t:ok(not seen.Arrow and not seen.Keys and not seen.Extras, "the arrow's look, the keys and the extras are in Flow Settings now")
     t:ok(texts["Flow Settings"] and texts["Flow Improvements"], "Flow's windows are a click away")
@@ -19589,4 +19589,21 @@ ns:Register("test", "transit: the quickest way over walks and flights, and the a
     -- With what you really know: it builds, and the diagnostics line does.
     t:ok(pcall(T.Lines), "/flow transit builds")
     t:ok(type(ns.commands.transit) == "function", "/flow transit")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.423: a narrower Flow menu.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "Flow menu: short words, so the menu is narrow", function(t)
+    local Q = ns.quests
+    for _, it in ipairs(Q.AboveItems()) do
+        t:ok(type(it.state) == "string" and #it.state <= 3, "Quest levels shows a short word beside it: " .. tostring(it.state))
+    end
+    local picked
+    for _, it in ipairs(Q.AboveItems()) do if it.above == 2 then picked = it end end
+    t:eq(picked and picked.state, "+2", "two levels above: +2")
+    local seen = {}
+    for _, name in ipairs(ns.menu and ns.menu.SECTIONS or {}) do seen[name] = true end
+    t:ok(seen["Nearest..."] and not seen["Go to the nearest..."], "\"Nearest...\" in place of \"Go to the nearest...\"")
 end)

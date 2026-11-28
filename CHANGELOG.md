@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.423
+
+- **A narrower Flow menu.** Four of its texts were long enough to set its width:
+  - "Quest levels" shows "+2" beside it (or "+0", "+3", "any") in place of "Up to 2 above
+    (yellow in your quest log; as Flow comes)". The full words are still inside it.
+  - "Go to the nearest..." is "Nearest...".
+  - The greyed "Custom route (pick a step: its ^ or Go here next)" row under Order is gone;
+    "Custom route" shows there only while you're on one.
+  - "Finish the selected zones first (Zones, below)" is "Finish selected zones". (It acts on
+    the zones ticked under Zones, which can be more than the one you're in.)
 ## 0.35.422
 
 - **When flying is quicker, the arrow takes you to the flight master.** At Camp Taurajo with

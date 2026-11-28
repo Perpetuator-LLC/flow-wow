@@ -45,7 +45,7 @@ T.LABEL = "Let Flow show what your next step needs"
 -- Which kind a step needs
 -------------------------------------------------------------------------------
 local function keyOf(g) return type(g.key) == "string" and g.key or "" end
--- (A waypoint from "Go to the nearest...": its words say what it is.)
+-- (A waypoint from "Nearest...": its words say what it is.)
 local function says(g, word)
     return g.waypoint == true and type(g.text) == "string" and g.text:lower():find(word, 1, true) ~= nil
 end

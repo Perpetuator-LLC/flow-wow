@@ -446,7 +446,7 @@ end
 -- Every entry is under a title (nothing loose at the bottom), and no entry
 -- is in two places. A section with nothing in it is left out. The menu
 -- folds each section into one row (Menu.Fold).
-Menu.SECTIONS = { "Custom route", "Order", "Route includes", "Quest levels", "Go to the nearest...", "Your waypoint", "Dungeons", "Party",
+Menu.SECTIONS = { "Custom route", "Order", "Route includes", "Quest levels", "Nearest...", "Your waypoint", "Dungeons", "Party",
                   "Zones", "Steps", "Buttons", "Flow windows" }
 
 -- The menu's two ticks for Flow's buttons.
@@ -521,21 +521,25 @@ function Menu:RouteItemsRaw()
               func = function() if ns.focus then ns.focus.ClearClick() else nav:ClearSelection() end end },
         })
     end
-    section("Order", {
+    local order = {
         { text = ns.theme:ModeText("distance", "Shortest path"), radio = true, checked = sort == "distance", func = function() ns.xpValue:SetMode("distance") end },
         { text = ns.theme:ModeText("xp", "Most XP first"), radio = true, checked = sort == "xp", func = function() ns.xpValue:SetMode("xp") end },
         -- On while you've picked the next step yourself (a ^ / Go here next);
         -- the two above put you back on an optimised route.
-        { text = sort == "custom" and ns.theme:ModeText("custom", "Custom route (your pick)")
-                or "|cff777777Custom route (pick a step: its ^ or Go here next)|r",
-          radio = true, checked = sort == "custom", disabled = sort ~= "custom",
-          func = function() ns.xpValue:SetMode("custom") end },
+        -- (0.35.423: only shown while you're on one. Off it, the greyed row
+        -- "Custom route (pick a step: its ^ or Go here next)" made the menu wide.)
+    }
+    if sort == "custom" then
+        order[#order + 1] = { text = ns.theme:ModeText("custom", "Custom route"), radio = true, checked = true,
+            func = function() ns.xpValue:SetMode("custom") end }
+    end
+    order[#order + 1] =
         -- (0.35.311: was "Finish the area you're in first", which stays in
         -- Flow Settings. The zones to finish are ticked under Zones below.)
-        { text = "Finish the selected zones first (Zones, below)", checked = nav.ZonesFirstOn(),
-          tip = "On: the route does the zones ticked under Zones first, and the rest after them. Off: an unticked zone is left out of the route.",
-          func = function() nav.SetZonesFirst(not nav.ZonesFirstOn()) end },
-    })
+        { text = "Finish selected zones", checked = nav.ZonesFirstOn(),
+          tip = "On: the route does the zones ticked under Zones (below) first, and the rest after them. Off: an unticked zone is left out of the route.",
+          func = function() nav.SetZonesFirst(not nav.ZonesFirstOn()) end }
+    section("Order", order)
 
     -- Route includes: the kinds of steps, the dungeon run on its own
     -- (Dungeons.lua, pull request 20), and the steps you hid.
@@ -571,7 +575,7 @@ function Menu:RouteItemsRaw()
     local function nearest(label, kind)
         return { text = label, func = function() if ns.services then ns.services:GoTo(kind) end end }
     end
-    section("Go to the nearest...", {
+    section("Nearest...", {
         nearest("Repair", "repair"), nearest("Vendor (sell)", "vendor"), nearest("Flight master", "flight"),
         nearest("Innkeeper", "inn"), nearest("Mailbox", "mail"), nearest("Banker", "bank"),
     })

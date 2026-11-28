@@ -193,7 +193,7 @@ Flow for WoW is a separate project from Flow Engine.
   (good XP for your level, quests in one place, mobs close together). Tick a zone to quest there:
   the route only takes quests in your zones (per character; a trainer or vendor is wherever it
   is). Under a line: Quest in the zone you're in, Select all zones, Select no zones and Current
-  zone only. With "Finish the selected zones first" (Order) on, an unticked zone isn't left out:
+  zone only. With "Finish selected zones" (Order) on, an unticked zone isn't left out:
   its quests come after your zones'. `/flow zones` (`all`, `none`, `here`, `on <zone>`,
   `off <zone>`, `first`).
 - **A note when you're in a zone you haven't picked**: a bar at the top of the screen, its edge

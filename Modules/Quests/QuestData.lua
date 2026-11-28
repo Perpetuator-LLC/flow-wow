@@ -25,12 +25,13 @@ Q.HARD_ABOVE = 3
 -- "available quests" range draw the line too.
 Q.ANY_ABOVE = 99
 Q.ABOVE = {
-    { n = 0, label = "Your level and below" },
-    { n = 1, label = "Up to 1 level above you" },
-    { n = 2, label = "Up to 2 above (yellow in your quest log; as Flow comes)" },
-    { n = 3, label = "Up to 3 above (orange)" },
-    { n = 4, label = "Up to 4 above (orange)" },
-    { n = Q.ANY_ABOVE, label = "Any level (red ones too)" },
+    -- (short: what the Flow menu shows beside "Quest levels" while it's closed.)
+    { n = 0, short = "+0", label = "Your level and below" },
+    { n = 1, short = "+1", label = "Up to 1 level above you" },
+    { n = 2, short = "+2", label = "Up to 2 above (yellow in your quest log; as Flow comes)" },
+    { n = 3, short = "+3", label = "Up to 3 above (orange)" },
+    { n = 4, short = "+4", label = "Up to 4 above (orange)" },
+    { n = Q.ANY_ABOVE, short = "any", label = "Any level (red ones too)" },
 }
 -- Pure: the saved choice -> levels above you (anything else: the default).
 function Q.AboveOf(saved)
@@ -52,7 +53,7 @@ end
 function Q.AboveItems()
     local items = {}
     for _, ch in ipairs(Q.ABOVE) do
-        items[#items + 1] = { text = ch.label, radio = true, stay = true, above = ch.n,
+        items[#items + 1] = { text = ch.label, state = ch.short, radio = true, stay = true, above = ch.n,
             checked = Q.Above() == ch.n,
             refresh = function(it) it.checked = Q.Above() == ch.n end,
             tip = "Quests above this aren't offered to pick up. Solo, one already in your log waits off the route (listed, locked) until you're within this many levels of it, unless every mob it needs is. Elite quests wait until you're 3 above their mobs, whatever you pick here.",
