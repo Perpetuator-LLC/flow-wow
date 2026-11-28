@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.453
+
+- The ring at the minimap's edge sat at the tail of the game's arrow, too far in from the
+  rim. It's moved out to the arrow's middle.
 ## 0.35.452
 
 - **At the minimap's edge, Flow's mark is the same ring of eight it is in view.** The four

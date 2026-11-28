@@ -43,7 +43,9 @@ end
 -- minimap is fine. Probably just use that same one." 0.35.452.)
 -- The game draws its arrow further in from the rim than Flow's dot sat:
 -- P.ARROW_INSET, against P.EDGE_INSET for the dot.
-P.EDGE_INSET, P.ARROW_INSET = 6, 28
+-- (0.35.453: 28 put the ring at the arrow's tail. The picture it was measured from was
+-- twice life size, so the arrow's middle is about 13 further in than the dot, not 22.)
+P.EDGE_INSET, P.ARROW_INSET = 6, 19
 function P.Look(edge, gamePin)
     if not edge then return "ring" end
     return gamePin and "ring" or "dot"
