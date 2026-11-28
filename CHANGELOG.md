@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.445
+
+- **The arrow to your corpse says about how long the run is.** It only said the yards; now
+  "350 yd ~40s", by the speed you're moving at (a ghost's usual run while you stand still).
 ## 0.35.444
 
 - **Your buffs come before healing up.** After a fight the self button said Bandage (or

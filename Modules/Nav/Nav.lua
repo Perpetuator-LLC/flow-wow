@@ -4737,6 +4737,17 @@ end
 -- While you're dead: a red arrow to your corpse (as a ghost), or "Release
 -- your spirit" before that. Returns true when it took over the arrow.
 local CORPSE_RED = { 1, 0.2, 0.2 }
+-- Pure: the corpse arrow's second line: how far, and about how long (0.35.445:
+-- "when running back to your corpse, it should show an estimated time": it
+-- only said the yards). speed: yards a second as you move now; standing
+-- still, a ghost's run (N.GHOST_SPEED: a quarter faster than the living).
+N.GHOST_SPEED = 8.75
+function N.CorpseText(yards, speed, here)
+    if here then return "Here: resurrect" end
+    if not (type(speed) == "number" and speed > 0.5) then speed = N.GHOST_SPEED end
+    local t = N.FormatSeconds((yards or 0) / speed)
+    return string.format("%d yd%s", yards or 0, t ~= "" and (" " .. t) or "")
+end
 function N:ShowCorpse(p)
     frame.text:SetText("|cffff4040Your corpse|r")
     local pos = UnitIsGhost("player") and C_DeathInfo and C_DeathInfo.GetCorpseMapPosition
@@ -4756,7 +4767,7 @@ function N:ShowCorpse(p)
     frame.arrow:SetVertexColor(CORPSE_RED[1], CORPSE_RED[2], CORPSE_RED[3])
     frame.arrow:SetArrived(d < ARRIVED * 2)
     if b and facing then frame.arrow:SetRotation(-(b + facing)); frame.arrow:Show() end
-    frame.sub:SetText(d < ARRIVED * 2 and "Here: resurrect" or string.format("%d yd", d))
+    frame.sub:SetText(N.CorpseText(d, A.Safe(GetUnitSpeed("player")), d < ARRIVED * 2))
     if ns.minimapPin then
         pcall(ns.minimapPin.Update, ns.minimapPin, p, { cont = cont, wx = wx, wy = wy }, { text = "Your corpse" }, CORPSE_RED)
     end

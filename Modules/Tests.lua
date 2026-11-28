@@ -20632,3 +20632,13 @@ ns:Register("test", "rotation: several on you: advice that isn't pressed steps a
     t:eq(E.GroupNoteText({ "only a heading" }), "", "nothing to say: nothing")
     t:ok(pcall(E.GroupNote, E), "the note runs (it says nothing out of a group)")
 end)
+
+-- 0.35.445: the corpse arrow says about how long the run back is.
+ns:Register("test", "arrow: running back to your corpse it says how far and about how long", function(t)
+    local N = ns.nav
+    t:eq(N.CorpseText(350, 8.75, false), "350 yd ~40s", "as a ghost: the yards and the time")
+    t:eq(N.CorpseText(350, 0, false), "350 yd ~40s", "standing still: a ghost's usual speed")
+    t:eq(N.CorpseText(350, nil, false), "350 yd ~40s", "speed hidden: the same")
+    t:eq(N.CorpseText(1750, 17.5, false), "1750 yd ~1m 40s", "on a faster run: by your real speed")
+    t:eq(N.CorpseText(10, 8.75, true), "Here: resurrect", "at your corpse: resurrect")
+end)
