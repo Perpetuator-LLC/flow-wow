@@ -31,10 +31,13 @@ function L.Enabled() return ns.db.loot.skipJunk == true end
 -- are always taken; locked slots (someone else's roll) are left alone. A
 -- value the game hides is unwrapped first (nil): an item whose quality Flow
 -- can't read is taken, never left as junk.
-function L.Take(slotType, quality, isQuestItem, locked)
+-- skin (0.35.429): it's a corpse you can skin, so its junk is taken too (a
+-- corpse can only be skinned once it's empty).
+function L.Take(slotType, quality, isQuestItem, locked, skin)
     local Safe = ns.api and ns.api.Safe or function(v) return v end
     if Safe(locked) then return false end
     if Safe(isQuestItem) then return true end
+    if skin then return true end
     local ITEM = (Enum and Enum.LootSlotType and Enum.LootSlotType.Item) or LOOT_SLOT_ITEM or 1
     if Safe(slotType) == ITEM and Safe(quality) == 0 then return false end
     return true
@@ -62,13 +65,29 @@ L.NOTE_SECONDS = 2.5
 
 -- Pure: the warning for a skinner, or nil. on: the setting; hasSkinning: you
 -- have the profession.
-L.SKIN_WARNING = "with \"Leave junk behind when looting\" on, a corpse that still has its junk can't be skinned: "
-    .. "the game lets you skin only an empty corpse. You have Skinning, so you may want it off: /flow loot junk."
+L.SKIN_WARNING = "with \"Leave junk behind when looting\" on, Flow still takes the junk from a corpse you can skin "
+    .. "(a dead beast you're looting), since the game lets you skin only an empty corpse. Other corpses keep their junk."
 function L.SkinWarning(on, hasSkinning)
     if on and hasSkinning then return L.SKIN_WARNING end
     return nil
 end
 local function hasSkinning() return (ns.api.Skill and ns.api.Skill("Skinning")) ~= nil end
+-- Pure: is the corpse you're looting one you'd skin? You have Skinning, your
+-- target is dead, it's a kind that has a hide, and it's the corpse the loot
+-- is from (source nil: can't tell, taken as yes).
+L.SKINNED = { Beast = true, Dragonkin = true }
+function L.SkinHere(skinning, dead, kind, targetGuid, source)
+    if not (skinning and dead and kind and L.SKINNED[kind]) then return false end
+    return source == nil or targetGuid == nil or targetGuid == source
+end
+local function skinHere(source)
+    if not hasSkinning() then return false end
+    local Safe = ns.api.Safe
+    local ok, yes = pcall(function()
+        return L.SkinHere(true, Safe(UnitIsDead("target")), Safe(UnitCreatureType("target")), Safe(UnitGUID("target")), source)
+    end)
+    return ok and yes == true
+end
 L.seen = {}        -- [loot source] = true: Flow closed this corpse's window once
 L.told = false     -- the chat note went out this session
 L.SEEN_MAX = 200
@@ -142,11 +161,12 @@ local function loot()
     busy = true
     local source = sourceOf()
     local again = source ~= nil and L.seen[source] == true
+    local skin = skinHere(source)
     local left, junk, took, names = 0, 0, 0, {}
     for i = (ns.api.Safe(GetNumLootItems()) or 0), 1, -1 do
         local _, name, _, _, quality, locked, isQuestItem = GetLootSlotInfo(i)
         local slotType = GetLootSlotType and GetLootSlotType(i)
-        if L.Take(slotType, quality, isQuestItem, locked) then
+        if L.Take(slotType, quality, isQuestItem, locked, skin) then
             LootSlot(i)
             took = took + 1
         else
@@ -161,7 +181,7 @@ local function loot()
     -- Only junk left, the first time: close the window (the corpse keeps it).
     -- Opened again: it stays open, for you to take what you like.
     local close = L.ShouldClose(left, junk, source, L.seen)
-    ns:Log("loot", string.format("took %d, left %d (%d junk)%s%s", took, left, junk,
+    ns:Log("loot", string.format("took %d, left %d (%d junk)%s%s%s", took, left, junk, skin and ", junk taken too: a corpse to skin" or "",
         close and ", closed the window" or "", again and " (opened again: left open for you)" or ""))
     if close then
         if source then

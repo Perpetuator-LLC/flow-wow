@@ -3774,8 +3774,9 @@ ns:Register("test", "loot: leave junk behind, take everything else", function(t)
     t:eq(L.JunkWords({}), "Flow left the junk: grey items", "names hidden: grey items")
     -- "the fact that it left junk on them means I can't skin them": a skinner is told.
     local warn = L.SkinWarning(true, true)
-    t:ok(warn ~= nil and warn:find("can't be skinned", 1, true) ~= nil and warn:find("/flow loot junk", 1, true) ~= nil,
-        "on, with Skinning: the warning, and how to turn it off")
+    -- (0.35.429: it no longer says to turn the option off: junk is taken from a corpse you can skin.)
+    t:ok(warn ~= nil and warn:find("corpse you can skin", 1, true) ~= nil,
+        "on, with Skinning: the note says junk is still taken from a corpse you can skin")
     t:eq(L.SkinWarning(true, false), nil, "no Skinning: nothing to say")
     t:eq(L.SkinWarning(false, true), nil, "off: nothing to say")
 end)
@@ -19962,4 +19963,124 @@ ns:Register("test", "route: a quest done where a step of yours is gets picked up
     t:eq(plain[2].deps, nil, "and nothing is added")
     ns.db.nav.overlapFirst = was
     t:ok(pcall(O.Lines), "/flow overlap builds")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.429: quality borders in your bags, a glint round the easy buttons,
+-- and room made at a corpse when your bags are full.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: every item gets a border in its quality's colour", function(t)
+    local BB = ns.bagBorder
+    local r, g, b = BB.Color(0)
+    t:ok(r == g and g == b and r < 0.8, "poor: grey")
+    r, g, b = BB.Color(1)
+    t:ok(r == 1 and g == 1 and b == 1, "common: white")
+    r, g, b = BB.Color(2)
+    t:ok(g > r and g > b, "uncommon: green")
+    r, g, b = BB.Color(3)
+    t:ok(b > r and b > g, "rare: blue")
+    r, g, b = BB.Color(4)
+    t:ok(r > g and b > g, "epic: purple")
+    t:eq(BB.Color(nil), nil, "quality not known yet: no border")
+    t:eq(BB.Color(99), nil, "a quality Flow doesn't know: none")
+    -- On a button of Flow's own: painted, recoloured, cleared, and off.
+    local was = ns.db.bags.borders
+    ns.db.bags.borders = nil
+    local host = CreateFrame("Button", nil, UIParent)
+    host:SetSize(37, 37)
+    t:ok(BB.Paint(host, 0), "a grey item is given a border")
+    t:ok(host.flowBorder and host.flowBorder:IsShown(), "it shows")
+    t:eq(#host.flowBorder.edges, 4, "four edges")
+    local er, eg, eb = host.flowBorder.edges[1]:GetVertexColor()
+    t:ok(math.abs(er - 0.62) < 0.01 and math.abs(eg - 0.62) < 0.01 and math.abs(eb - 0.62) < 0.01, "in grey")
+    BB.Paint(host, 3)
+    er, eg, eb = host.flowBorder.edges[1]:GetVertexColor()
+    t:ok(eb > er and eb > eg, "a rare item in its place: blue")
+    t:ok(not BB.PaintLink(host, nil), "an empty slot: none")
+    t:ok(not host.flowBorder:IsShown(), "and the old one is hidden")
+    ns.db.bags.borders = false
+    t:ok(not BB.Paint(host, 3), "turned off: none")
+    ns.db.bags.borders = was
+    host:Hide()
+    t:ok(type(ns.commands.bagborders) == "function", "/flow bagborders")
+end)
+
+ns:Register("test", "easy buttons: a glint runs round the edge, then rests", function(t)
+    local S = ns.sheen
+    local side, off, strength = S.At(0.0001, 58, 58, 2, 6)
+    t:eq(side, "top", "it starts along the top")
+    t:ok(off < 1 and strength < 0.1, "from the corner, faint")
+    side = S.At(0.6, 58, 58, 2, 6)
+    t:eq(side, "right", "then down the right")
+    side = S.At(1.1, 58, 58, 2, 6)
+    t:eq(side, "bottom", "along the bottom")
+    side, off = S.At(1.9, 58, 58, 2, 6)
+    t:eq(side, "left", "and up the left")
+    t:ok(off > 0 and off < 58, "within that side")
+    local _, _, mid = S.At(1.0, 58, 58, 2, 6)
+    t:eq(mid, 1, "full strength in the middle of the trip")
+    t:eq(S.At(2.5, 58, 58, 2, 6), nil, "then it rests")
+    t:eq(S.At(7.9, 58, 58, 2, 6), nil, "for the whole rest")
+    t:eq((S.At(8.1, 58, 58, 2, 6)), "top", "and starts again")
+    t:eq(S.At(1, 0, 0, 2, 6), nil, "no size yet: nothing")
+    t:ok(S.REST >= 2 * S.RUN, "it rests longer than it runs: it's for looks, not a signal")
+    t:ok(type(ns.commands.sheen) == "function", "/flow sheen")
+end)
+
+ns:Register("test", "loot: junk is taken from a corpse you can skin, and full bags get a way to make room", function(t)
+    local L, R = ns.lootFilter, ns.lootRoom
+    local ITEM = (Enum and Enum.LootSlotType and Enum.LootSlotType.Item) or LOOT_SLOT_ITEM or 1
+    t:ok(not L.Take(ITEM, 0, false, false), "a grey item stays, as before")
+    t:ok(L.Take(ITEM, 0, false, false, true), "on a corpse you can skin it's taken")
+    t:ok(not L.Take(ITEM, 0, false, true, true), "never a locked slot")
+    t:ok(L.SkinHere(true, true, "Beast", "g1", "g1"), "a dead beast, the corpse you're looting, and you skin")
+    t:ok(L.SkinHere(true, true, "Beast", "g1", nil), "the loot's source not known: taken as that corpse")
+    t:ok(not L.SkinHere(false, true, "Beast", "g1", "g1"), "no Skinning: no")
+    t:ok(not L.SkinHere(true, true, "Humanoid", "g1", "g1"), "a kind with no hide: no")
+    t:ok(not L.SkinHere(true, false, "Beast", "g1", "g1"), "your target is alive: no")
+    t:ok(not L.SkinHere(true, true, "Beast", "g1", "g2"), "the loot is from another corpse: no")
+    t:ok(not L.SkinHere(true, true, nil, "g1", "g1"), "its kind hidden: no")
+    -- Making room.
+    local items = {
+        { bag = 0, slot = 1, id = 1, name = "Cracked Bill", quality = 0, price = 4, count = 3 },
+        { bag = 0, slot = 2, id = 2, name = "Broken Fang", quality = 0, price = 30, count = 1 },
+        { bag = 0, slot = 3, id = 3, name = "Linen Cloth", quality = 1, price = 1, count = 1 },
+        { bag = 0, slot = 4, id = 4, name = "Grey Quest Thing", quality = 0, price = 0, count = 1, quest = true },
+    }
+    local pick, worth = R.Cheapest(items)
+    t:eq(pick and pick.name, "Cracked Bill", "the grey stack a vendor pays least for")
+    t:eq(worth, 12, "its whole stack's worth")
+    t:eq(R.Cheapest({ items[3], items[4] }), nil, "no grey item (a white one, a quest item): nothing is destroyed")
+    t:eq(R.Text(pick, worth), "Make room: destroy 3 x Cracked Bill (worth 12c)", "the button names what it destroys")
+    t:eq(R.Text(nil), "Bags full, and no grey item to destroy", "and says when it can't")
+    t:eq(R.Money(12345), "1g 23s 45c", "money in words")
+    t:eq(R.Money(0), "nothing", "worth nothing")
+    t:ok(R.Wants(0, 1), "bags full and something on the corpse: offered")
+    t:ok(not R.Wants(2, 1), "room in your bags: not offered")
+    t:ok(not R.Wants(0, 0), "nothing on the corpse: not offered")
+    t:ok(not R.Wants(nil, 1), "free slots not known: not offered")
+    -- With your own bags: reading only.
+    t:ok(pcall(R.Scan), "your bags read")
+    t:ok(pcall(R.Free), "free slots read")
+    local ok, shown = pcall(R.Update)
+    t:ok(ok, "the button's check runs with no loot window open")
+    t:ok(not shown, "and shows nothing")
+end)
+
+ns:Register("test", "click: the make-room button does nothing when there's nothing to destroy", function(t)
+    local R = ns.lootRoom
+    -- (Destroying is never tried here: that's your item. The click with nothing picked must be harmless.)
+    t:eq((select(1, R.Destroy(nil))), false, "nothing picked: nothing destroyed")
+    local okD, done, why = pcall(R.Destroy, { bag = 0, slot = 1, id = -987654429, name = "Not An Item", count = 1 })
+    t:ok(okD and done == false and why ~= nil, "a stack that isn't in that slot any more: refused, with why")
+    local b = R._button()
+    if b then
+        local pick = b.pick
+        b.pick = nil
+        t:ok(pcall(b:GetScript("OnClick"), b), "its click runs")
+        b.pick = pick
+    else
+        t:ok(true, "(the button isn't built until your bags are full at a corpse)")
+    end
 end)

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.35.429
+
+- **A clear quality border on every item in your bags.** A solid edge in the quality's
+  colour, with a dark line inside it so it reads against any icon: grey for poor, white
+  for common, green, blue, purple and up. The game only draws a thin glow, and none at all
+  for white or grey. Flow Settings, Loot and selling; `/flow bagborders on|off`.
+- **A glint round the easy buttons' edges.** A short lighter streak runs once round the
+  coloured edge of the target button and the self button, then nothing for six seconds.
+  It's only for looks: it's a lighter shade of the edge's own colour, never pulses, and
+  has nothing to do with what the button would cast. Flow Settings, On your screen;
+  `/flow sheen on|off`.
+- **Bags full at a corpse: one click makes room.** The game can't destroy an item that's
+  still on a corpse, only one in your bags. So with the loot window open, your bags full
+  and something left on the corpse, a red button appears by the loot window: "Make room:
+  destroy 3 x Cracked Bill (worth 12c)". It names the grey stack in your bags a vendor
+  would pay least for (never a quest item, never better than grey). Click it and Flow
+  destroys that stack and takes what's on the corpse, so it can be skinned. With no grey
+  item in your bags it says so and destroys nothing.
+- **With Skinning, junk is taken from a corpse you can skin**, even with "Leave junk
+  behind when looting" on: a dead beast or dragonkin that's your target and the corpse
+  you're looting. Other corpses keep their junk as before. So you no longer have to turn
+  that option off to skin.
 ## 0.35.428
 
 - **Quests done in the same place are picked up first.** Killing Stormhides for Chen's

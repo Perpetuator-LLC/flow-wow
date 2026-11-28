@@ -237,6 +237,8 @@ end
 
 local function paint(button, bag, slot)
     local link = bag and slot and (C_Container and C_Container.GetContainerItemLink or GetContainerItemLink)(bag, slot)
+    -- The quality's border (BagBorder.lua, 0.35.429): on every item, whether or not Flow's marks are on.
+    if ns.bagBorder then pcall(ns.bagBorder.PaintLink, button, link) end
     if not link or not ns.db.bags.enabled then clear(button) return end
     local v = D:Decide(bag, slot, link)
     if not v then clear(button) return end

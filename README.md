@@ -261,6 +261,11 @@ Flow for WoW is a separate project from Flow Engine.
 - **Quests done in the same place are picked up first**: when a quest you could pick up is done
   where a step of your route is (the same mobs, the same field) and its giver is close, Flow has
   you take it before that step, so one visit does both (`/flow overlap`).
+- **Clear quality borders in your bags**: a solid edge round every bag item in its quality's colour,
+  grey and white too (`/flow bagborders`).
+- **Bags full at a corpse**: a red button by the loot window destroys the cheapest grey stack you
+  carry (it names it) and takes what's on the corpse, so it can be skinned. With Skinning, junk is
+  taken from a corpse you can skin even with "Leave junk behind" on.
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
