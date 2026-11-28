@@ -1320,6 +1320,21 @@ function D.TakeNow(q, available)
     return not ok or yes ~= false
 end
 
+-- Pure: is there still something to do inside? A quest of the run that's in
+-- your log and not finished, one to pick up first, or one that starts in
+-- there. (0.35.440: "I have one quest that's complete, and I wanted to just
+-- wrap that up ... what it actually shows is Enter Ragefire Chasm ... it
+-- shouldn't be telling me to go into the instance." With only a finished
+-- quest left, the run is its hand-in.)
+--   complete(id) -> true when that quest in your log is finished
+function D.WorkInside(run, complete)
+    if #(run.pickups or {}) + #(run.leadIns or {}) + #(run.inside or {}) + #(run.followups or {}) > 0 then return true end
+    for _, id in ipairs(run.ready or {}) do
+        if not complete(id) then return true end
+    end
+    return false
+end
+
 ns:Register("navGoal", "dungeon", {
     collect = function()
         local key = D:Prepared()
@@ -1364,7 +1379,12 @@ ns:Register("navGoal", "dungeon", {
         -- just came out. (It used to appear only once every pickup was in
         -- your log: until then the route didn't say where the run went.)
         local been = ns.db.nav.dungeonIn
-        if run.entrance and not currentDungeon() and not (been and been.key == run.dungeon) then
+        local finished = {}
+        for _, q in ipairs(ns.quests.LogEntries and ns.quests.LogEntries() or {}) do
+            if q.complete then finished[q.id] = true end
+        end
+        local inside = D.WorkInside(run, function(id) return finished[id] == true end)
+        if run.entrance and inside and not currentDungeon() and not (been and been.key == run.dungeon) then
             local details = { string.format("%d quests for this run.", run.count) }
             if #needed > 0 then details[#details + 1] = string.format("After the %d pickup%s.", #needed, #needed > 1 and "s" or "") end
             for _, u in ipairs(unplaced) do details[#details + 1] = "Not on the map (find the giver yourself): " .. u .. "." end
@@ -1772,14 +1792,17 @@ D.MODES = {
     { key = "with", text = "With my questing",
       tip = "Flow plans this dungeon along with everything else: the quests you can pick up for it go on your route (and a short chain that opens one, up to 3 quests), and after them the entrance. Your other steps stay." },
     { key = "only", text = "Only this dungeon",
-      tip = "Your route is just this dungeon: every quest you can get for it, the chains of other quests that open them (up to 6 quests each), then the entrance. Errands on the way stay: training, selling, repairs, your bank. Everything else waits until you pick another of these." },
+      tip = "A custom route of just this dungeon (the order then says Custom route): every quest you can get for it, the chains of other quests that open them (up to 6 quests each), then the entrance. Errands on the way stay: training, selling, repairs, your bank. Everything else waits until you pick another of these." },
 }
 -- Pure: which of the three a run is on.
 function D.ModeOf(prepared, only)
     if not prepared then return "off" end
     return only and "only" or "with"
 end
-function D:RunMode(key) return D.ModeOf(self:Prepared() == key, self:RunOnly()) end
+function D:RunMode(key)
+    local F = ns.focus
+    return D.ModeOf(self:Prepared() == key, self:RunOnly() or (F and F.OnlyDungeon and F.OnlyDungeon(key)) or false)
+end
 function D:SetRunMode(run, mode)
     local long = charData("dungeonLong")
     local wantLong = (mode == "only") or nil
@@ -1787,11 +1810,33 @@ function D:SetRunMode(run, mode)
         long[run.dungeon] = wantLong
         D.dirty = true
     end
+    -- (0.35.440: "Only this dungeon" is a custom route of just this run, so the
+    -- order says Custom route and not Most XP first: "when the user starts doing
+    -- things for dungeons, switch to the custom route, because that's what
+    -- we're doing." It was a tick of its own under the usual order.)
+    local F = ns.focus
+    local function leaveCustom()
+        if F and F.HasDungeon and F.HasDungeon(run.key) then
+            F.RemoveDungeon(run.key)
+            if F.Active and not F.Active() and ns.xpValue and ns.xpValue:IsCustom() then ns.xpValue:SetMode(ns.xpValue:Base()) end
+        end
+    end
     if mode == "off" then
+        leaveCustom()
         if self:Prepared() == run.key then self:Cancel() end
     elseif mode == "only" then
-        self:SetRunOnly(run.key)
+        if F and F.AddDungeon and F.Clear then
+            ns.db.nav.dungeonOnly = nil
+            if not (F.OnlyDungeon and F.OnlyDungeon(run.key)) then
+                F.Clear("only this dungeon")
+                F.AddDungeon(run)
+            end
+            if ns.nav and ns.nav.Collect then ns.nav:Collect() end
+        else
+            self:SetRunOnly(run.key)
+        end
     else
+        leaveCustom()
         ns.db.nav.dungeonOnly = nil
         if self:Prepared() ~= run.key then self:Prepare(run.key)
         elseif ns.nav and ns.nav.Collect then ns.nav:Collect() end

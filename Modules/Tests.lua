@@ -19570,7 +19570,7 @@ ns:Register("test", "transit: the quickest way over walks and flights, and the a
     t:ok(hsec < way.sec, "and it counts its own seconds")
 
     -- The words.
-    t:eq(T.Text(way, 112), "112 yd to the flight master: fly Taurajo to Crossroads", "on the way to them")
+    t:eq(T.Text(way, 112), "112 yd to the flight master: fly from Taurajo to Crossroads", "on the way to them")
     t:eq(T.Text(way, 8), "Talk to the flight master: fly to Crossroads", "standing at them")
     t:ok(N.HowText("fly", nil, nil, way):find("the arrow takes you to the flight master at Taurajo", 1, true) ~= nil, "the card says where the arrow goes")
     t:ok(T.Hint(way, N.FormatSeconds):find("Fly to Crossroads", 1, true) ~= nil, "and where to fly")
@@ -19625,7 +19625,7 @@ ns:Register("test", "transit: hearthstone then a flight, a travel spell then a f
     t:eq(way and way.kind, "hearth", "the quickest way starts with the hearthstone")
     t:eq(way and way.from, "Taurajo", "then a flight from the inn's flight master")
     t:eq(way and way.to, "Crossroads", "to the one by the step")
-    t:eq(T.Say(way), "hearthstone to Camp Taurajo, then fly Taurajo to Crossroads", "in words")
+    t:eq(T.Say(way), "hearthstone to Camp Taurajo, then fly from Taurajo to Crossroads", "in words")
     t:ok(T.Hint(way, N.FormatSeconds):find("Flow never casts it for you", 1, true) ~= nil, "the card says it's your call")
     -- On cooldown for most of an hour: the way without it (here: walk to a flight master and fly).
     local waiting = { { to = "@inn", sec = 3000, kind = "hearth", name = "Camp Taurajo", from = "you" } }
@@ -19646,7 +19646,7 @@ ns:Register("test", "transit: hearthstone then a flight, a travel spell then a f
     local far = { cont = 1, wx = 6000, wy = -1000 }   -- the far north, no flight master near
     local mage = T.Plan(far, { cont = 1, wx = -900, wy = -3700 }, magePlaces, 7, flightSec, nil, nil, T.JumpWays(magePlaces, port))
     t:eq(mage and mage.kind, "cast", "the quickest way starts with the teleport")
-    t:eq(T.Say(mage), "cast Teleport: Orgrimmar, then fly Orgrimmar to Ratchet", "then the city's flight master")
+    t:eq(T.Say(mage), "cast Teleport: Orgrimmar, then fly from Orgrimmar to Ratchet", "then the city's flight master")
     -- One whose landing has no flight out (Moonglade): you don't fly on from it.
     local druid = masters()
     druid[#druid + 1] = { name = "@spell:Teleport: Moonglade", cont = 1, wx = 1650, wy = -4350, landing = true, onward = false }
@@ -19786,6 +19786,9 @@ ns:Register("test", "click: a dungeon's three choices and its quest rows", funct
     if not run then t:ok(true, "(no dungeon run at your level to open)") return end
     if InCombatLockdown() then return end
     local was, only = ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    -- ("Only this dungeon" is a custom route since 0.35.440: yours is put back after.)
+    local focusWas, focusLogWas, sorterWas = ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter
+    ns.db.nav.focus, ns.db.nav.focusLog = {}, {}
     local long = ns.db.nav.dungeonLong
     local longWas = type(long) == "table" and long[run.dungeon]
     local collect, say = ns.nav.Collect, ns.Print
@@ -19808,6 +19811,9 @@ ns:Register("test", "click: a dungeon's three choices and its quest rows", funct
         t:ok(_G.FlowMenu and _G.FlowMenu:IsShown(), "and the menu stays open")
         t:ok(pcall(M.Click, by.only), "clicking Only this dungeon runs")
         t:eq(D:RunMode(run.key), "only", "only this dungeon")
+        t:ok(ns.focus.OnlyDungeon(run.key), "as a custom route of just this run")
+        t:eq(ns.db.nav.sorter, "custom", "so the order says Custom route")
+        t:ok(not D:RunOnly(), "and not as a tick under the usual order")
         t:ok(pcall(M.Click, by.off), "clicking Off my route runs")
         t:eq(D:Prepared(), nil, "the run is off")
         -- A quest row's click runs (a quest to go and get moves your waypoint: put back after).
@@ -19838,6 +19844,7 @@ ns:Register("test", "click: a dungeon's three choices and its quest rows", funct
     ns.nav.Collect, ns.Print = collect, say
     t:ok(ok, "no errors" .. (ok and "" or (": " .. tostring(err))))
     ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, only
+    ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter = focusWas, focusLogWas, sorterWas
     if type(ns.db.nav.dungeonLong) == "table" then ns.db.nav.dungeonLong[run.dungeon] = longWas or nil end
     D.dirty = true
     if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
@@ -20459,4 +20466,32 @@ ns:Register("test", "rotation: with several enemies on you a druid is told War S
     -- The engine's look at the fight says how many are on you.
     local okC, c = pcall(E.Context, E)
     t:ok(okC and type(c.attackers) == "number", "the engine counts the enemies on you: " .. tostring(okC and c.attackers))
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.440: a dungeon run with only a finished quest left is its hand-in, not
+-- the entrance.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "dungeons: with only a finished quest left there's no step to enter the dungeon", function(t)
+    local D = ns.dungeons
+    local function done(set) return function(id) return set[id] == true end end
+    t:ok(not D.WorkInside({ ready = { 5 }, pickups = {}, leadIns = {}, inside = {}, followups = {} }, done({ [5] = true })),
+        "one quest, in your log and finished: nothing to do inside")
+    t:ok(D.WorkInside({ ready = { 5, 6 }, pickups = {}, leadIns = {}, inside = {}, followups = {} }, done({ [5] = true })),
+        "another still to do: go in")
+    t:ok(D.WorkInside({ ready = { 5 }, pickups = { 7 }, leadIns = {}, inside = {}, followups = {} }, done({ [5] = true })), "one to pick up first: go in")
+    t:ok(D.WorkInside({ ready = {}, pickups = {}, leadIns = {}, inside = { 8 }, followups = {} }, done({})), "one that starts inside: go in")
+    t:ok(D.WorkInside({ ready = {}, pickups = {}, leadIns = { { id = 9 } }, inside = {}, followups = {} }, done({})), "a chain to do first: go in")
+    t:ok(not D.WorkInside({}, done({})), "nothing at all: no")
+    -- The custom route knows when it's just one run.
+    local F = ns.focus
+    local mine = ns.db.nav.focus
+    ns.db.nav.focus = { { dungeon = "test:only-987654440", title = "Test Depths" } }
+    t:ok(F.OnlyDungeon("test:only-987654440"), "a custom route of just this run")
+    t:ok(not F.OnlyDungeon("test:other"), "not another run")
+    ns.db.nav.focus = { { dungeon = "test:only-987654440" }, { key = "987654441:1" } }
+    t:ok(not F.OnlyDungeon("test:only-987654440"), "with another line beside it: not only this dungeon")
+    ns.db.nav.focus = mine
+    t:eq(D.ModeOf(true, true), "only", "which is what Only this dungeon means")
 end)

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.440
+
+- **A dungeon with only a finished quest left is its hand-in, not "Enter".** You picked
+  Ragefire Chasm to hand in the one quest you'd finished, and the route said "Enter
+  Ragefire Chasm". The entrance step was added to every run. It's now only there while
+  something is left to do inside: a quest of the run in your log that isn't finished, one
+  to pick up first, or one that starts in there.
+- **"Only this dungeon" is a custom route.** It was a tick of its own, so the order still
+  said "Most XP first" while the route was only the dungeon. It now makes a custom route
+  of just that run (clearing any other custom route), and the order says Custom route.
+  "With my questing" and "Off my route" take the run out of the custom route again.
+- The arrow's line for a flight reads "fly from Camp Taurajo, The Barrens to Orgrimmar,
+  Durotar": "fly Camp Taurajo, The Barrens to Orgrimmar, Durotar" read as three places.
 ## 0.35.439
 
 - **With several enemies on you, the icon shows a way out before more heals.** In a fight

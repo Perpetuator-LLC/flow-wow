@@ -441,6 +441,11 @@ function F.HasDungeon(key)
     for _, line in ipairs(lines()) do if line.dungeon and line.dungeon == key then return true end end
     return false
 end
+-- Is the custom route just this dungeon run? (Dungeons.lua: "Only this dungeon".)
+function F.OnlyDungeon(key)
+    local mine = lines()
+    return key ~= nil and #mine == 1 and mine[1].dungeon == key
+end
 -- -> the run's name, or nil when it was there already
 function F.AddDungeon(run)
     if not (type(run) == "table" and run.key) or F.HasDungeon(run.key) then return nil end

@@ -210,7 +210,7 @@ end
 function T.Say(way)
     local parts, flyFrom, flyTo = {}, nil, nil
     local function flush()
-        if flyFrom then parts[#parts + 1] = string.format("fly %s to %s", tostring(flyFrom), tostring(flyTo)) end
+        if flyFrom then parts[#parts + 1] = string.format("fly from %s to %s", tostring(flyFrom), tostring(flyTo)) end
         flyFrom, flyTo = nil, nil
     end
     for _, w in ipairs(way and way.hops or {}) do
@@ -231,7 +231,7 @@ function T.Text(way, yards)
     if not way then return "" end
     yards = math.floor((yards or 0) + 0.5)
     if yards <= T.AT then return string.format("Talk to the flight master: fly to %s", tostring(way.to)) end
-    return string.format("%d yd to the flight master: fly %s to %s", yards, tostring(way.from), tostring(way.to))
+    return string.format("%d yd to the flight master: fly from %s to %s", yards, tostring(way.from), tostring(way.to))
 end
 
 -- Pure: the card's line about it.
