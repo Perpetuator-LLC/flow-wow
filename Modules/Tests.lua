@@ -3093,7 +3093,10 @@ ns:Register("test", "travel by air: flight times, quicker by air, landing, the n
         t:ok(air and math.abs(air.sec - (70 / 7 + 80)) < 0.01, "walk to A, fly, walk from B")
         t:eq(N.AirRoute(p, { cont = 0, wx = 300, wy = 0 }, 250, 7), nil, "a short walk: walk")
         t:eq(N.AirRoute(p, { cont = 1, wx = 300, wy = 0 }, 250, 7), nil, "another continent: no air route")
-        t:ok(N.TravelTextNow(p, pt, 2330):find("by air", 1, true), "the arrow says by air")
+        -- (On a flight when the tests run, the line is about your landing: 0.35.447, a reload in the air failed this.)
+        if not (UnitOnTaxi and UnitOnTaxi("player")) then
+            t:ok(N.TravelTextNow(p, pt, 2330):find("by air", 1, true), "the arrow says by air")
+        end
         ns.db.flights = {}
         t:ok(not N.TravelTextNow(p, pt, 2330):find("by air", 1, true), "no flight masters known: on foot")
         N.taxiTrip = nil
@@ -20675,4 +20678,68 @@ ns:Register("test", "game pin: Flow's pin follows your step, never replaces your
     t:ok(not GP.On() or ns.db.nav.gamePin == true, "it's off unless you turned it on")
     t:ok(pcall(GP.Lines), "/flow gamepin builds")
     t:ok(type(ns.commands.gamepin) == "function", "/flow gamepin")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.447: what a profession is for: gather to sell, and a profession for
+-- later.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "professions: gather to sell, and keep materials for a profession you'll take up later", function(t)
+    local P = ns.professions
+    t:ok(P.Keeps(true, false, false, false), "a profession you have: its materials are kept")
+    t:ok(not P.Keeps(true, false, false, true), "one you gather with to sell: not kept for it")
+    t:ok(P.Keeps(false, false, true, false), "your Later profession: kept, though you don't have it")
+    t:ok(P.Keeps(false, true, false, false), "one in your plan: kept, as before")
+    t:ok(not P.Keeps(false, false, false, false), "a profession that's none of these: not kept")
+    t:eq(P.NextLater(nil, nil), "Alchemy", "the first choice")
+    t:eq(P.NextLater("Alchemy", nil), "Blacksmithing", "then the next")
+    t:eq(P.NextLater("Enchanting", nil), nil, "after the last: none again")
+    t:eq(P.NextLater(nil, function(n) return n == "Alchemy" end), "Blacksmithing", "one you have already isn't offered")
+    t:eq(P.LaterText("Alchemy"), "Later: Alchemy (its materials are kept)", "the button's words")
+    t:eq(P.LaterText(nil), "Later: none", "none")
+    -- Your choices are saved for this character, and put back here.
+    local gold, later = ns.db.prof.gold, ns.db.prof.later
+    local changed = P.Changed
+    P.Changed = function() end   -- (Flow's own: nothing is worked out again for a test)
+    ns.db.prof.gold, ns.db.prof.later = nil, nil
+    t:ok(not P.ForGold("Skinning"), "nothing chosen: kept")
+    t:ok(P.SetGold("Skinning", true) and P.ForGold("Skinning"), "Skinning to sell")
+    t:ok(not P.SetGold("Alchemy", true), "only a gathering profession can be gathered to sell")
+    P.SetGold("Skinning", false)
+    t:ok(not P.ForGold("Skinning"), "and back")
+    P.SetLater("Alchemy")
+    t:eq(P.Later(), "Alchemy", "Alchemy for later")
+    ns.db.prof.gold, ns.db.prof.later = gold, later
+    P.Changed = changed
+    t:ok(type(ns.commands.gather) == "function", "/flow gather")
+end)
+
+ns:Register("test", "click: Flow Professions' sell ticks and Later button", function(t)
+    local P = ns.professions
+    if InCombatLockdown() then return end
+    local gold, later = ns.db.prof.gold, ns.db.prof.later
+    local changed = P.Changed
+    P.Changed = function() end
+    local ok, err = pcall(function()
+        P:Open()
+        local f = P._Frame()
+        t:ok(f and f.sells and #f.sells == 3, "a sell tick beside Mining, Herbalism and Skinning")
+        t:ok(f.later and f.later:GetText():find("^Later: ") ~= nil, "and a Later button that says what's chosen")
+        local s = f.sells[1]
+        local was = s:GetChecked()
+        s:SetChecked(not was)
+        s:GetScript("OnClick")(s)
+        t:eq(P.ForGold(s.name), not was, "ticking sell is saved at once")
+        s:SetChecked(was and true or false)
+        s:GetScript("OnClick")(s)
+        ns.db.prof.later = nil
+        f.later:GetScript("OnClick")(f.later)
+        t:ok(P.Later() ~= nil, "a click on Later picks a profession: " .. tostring(P.Later()))
+        t:eq(f.later:GetText(), P.LaterText(P.Later()), "and the button says which")
+        f:Hide()
+    end)
+    ns.db.prof.gold, ns.db.prof.later = gold, later
+    P.Changed = changed
+    t:ok(ok, "no errors" .. (ok and "" or (": " .. tostring(err))))
 end)

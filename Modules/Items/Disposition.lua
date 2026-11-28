@@ -419,9 +419,16 @@ reg("professionMaterial", 25, function(i)
     -- profession window, Flow's levelling guides, then by kind of material).
     local found, order, planned = {}, {}, {}
     for _, p in ipairs(ns:ProfessionPlan() or {}) do planned[p.name] = true end
+    -- (0.35.447, Professions.lua: a profession you gather with to sell keeps
+    -- nothing; one you mean to take up later keeps its materials.)
+    local PR = ns.professions
+    local later = PR and PR.Later and PR.Later() or nil
     local function add(prof, what)
         -- Professions you have, and ones in your plan you haven't learned yet.
-        if not (ns.api.Skill(prof) or planned[prof]) or found[prof] then return end
+        if found[prof] then return end
+        if PR and PR.Keeps then
+            if not PR.Keeps(ns.api.Skill(prof) ~= nil, planned[prof] == true, later == prof, PR.ForGold(prof)) then return end
+        elseif not (ns.api.Skill(prof) or planned[prof]) then return end
         local past = D.OutgrownBy(i.id, ns.api.Skill(prof) or 0, ns:Get("profGuide", prof))
         if past then
             i.outgrown = i.outgrown or {}
@@ -446,7 +453,7 @@ reg("professionMaterial", 25, function(i)
     local parts = {}
     for _, prof in ipairs(order) do
         local what = found[prof]
-        parts[#parts + 1] = "for " .. prof .. (type(what) == "string" and (": " .. what) or "")
+        parts[#parts + 1] = "for " .. prof .. (type(what) == "string" and (": " .. what) or "") .. (prof == later and " (your profession for later)" or "")
     end
     return { action = "keep", icon = PROF_ICON[order[1]], reason = table.concat(parts, "; ") }
 end)

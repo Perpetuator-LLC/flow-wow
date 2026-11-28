@@ -117,6 +117,49 @@ local function build()
         ns:Print(#plan .. " profession(s) in your plan. The route will take you to their trainers.")
         f:Hide()
     end)
+    -- What a profession is for (0.35.447): "sell" beside each gathering
+    -- profession, and one crafting profession for later. Saved at the click.
+    f.sells = {}
+    for _, c in ipairs(f.checks) do
+        if P.GATHER[c.name] then
+            local s = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+            s:SetSize(18, 18)
+            s:SetPoint("LEFT", c, "LEFT", 122, 0)
+            s.label = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+            s.label:SetPoint("LEFT", s, "RIGHT", 0, 0)
+            s.label:SetText("sell")
+            s.name = c.name
+            s:SetScript("OnClick", function(self)
+                P.SetGold(self.name, self:GetChecked() and true or false)
+                f.status:SetText(self:GetChecked() and ("|cffffd200" .. self.name .. ": what you gather with it is sold, not kept.|r")
+                    or (self.name .. ": its materials are kept for your professions."))
+            end)
+            s:SetScript("OnEnter", function(self)
+                ns.Tip(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine("Gather with " .. self.name .. " to sell", 1, 0.82, 0)
+                GameTooltip:AddLine("Ticked: what only this profession would use isn't kept for it. The Flow Seller takes it to the auction house or the vendor. "
+                    .. "A material another profession of yours uses (or your Later one) is still kept.", 1, 1, 1, true)
+                GameTooltip:Show()
+            end)
+            s:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            f.sells[#f.sells + 1] = s
+        end
+    end
+    f.later = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.later:SetSize(160, 22)
+    f.later:SetPoint("TOPLEFT", 186, -168)
+    f.later:SetScript("OnClick", function(self)
+        P.SetLater(P.NextLater(P.Later(), function(name) return ns.api.Skill(name) ~= nil end))
+        self:SetText(P.LaterText(P.Later()))
+        f.status:SetText(P.Later() and ("|cffffd200" .. P.Later() .. " later: its materials are kept; no trainer on your route yet.|r") or "Nothing kept for later.")
+    end)
+    f.later:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("A profession for later", 1, 0.82, 0)
+        GameTooltip:AddLine("Click to choose one crafting profession you mean to take up later. Its materials are kept for it, and Flow doesn't send you to its trainer until you tick it on the left.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.later:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     return f
 end
@@ -130,6 +173,8 @@ function P:Fill(plan)
         -- (A profession you have whose skill the game doesn't report here: "(yours)", not "(0)".)
         c.label:SetText(c.name .. (unsure and " |cff888888(yours)|r" or (have and string.format(" |cff888888(%d)|r", have) or "")))
     end
+    for _, s in ipairs(frame.sells or {}) do s:SetChecked(P.ForGold(s.name)) end
+    if frame.later then frame.later:SetText(P.LaterText(P.Later())) end
 end
 
 P._Frame = function() return frame end   -- (the Flow button on the profession window; tests)
@@ -148,6 +193,98 @@ end
 
 ns:OnLoad(function(saved) saved.prof = saved.prof or {} end)
 ns:PerCharacter("prof")   -- your profession plan
+
+-------------------------------------------------------------------------------
+-- What a profession is for (0.35.447)
+-------------------------------------------------------------------------------
+-- "I thought this was mostly for leveling since I'm skinning and herbalism
+-- for making money. So shouldn't we just be selling the leather, or is that
+-- part of the plan to save it until later? ... If we're going to do alchemy
+-- later, we should be saving the herbs ... maybe in the professions thing for
+-- Flow we can have the user say plan to do this next."
+--
+-- Flow kept every material a profession of yours could use, so leather stayed
+-- "for Skinning" and herbs "for Herbalism", whatever you gather them for. Two
+-- choices, in the Flow Professions window, say what you mean:
+--   * "sell" beside a gathering profession: you gather with it for gold. What
+--     only it would use is no longer kept for it: the Flow Seller takes it to
+--     the auction house or the vendor like any material you don't use.
+--   * "Later": one crafting profession you mean to take up later. Its
+--     materials are kept for it (and go to the bank with your other
+--     materials), though Flow doesn't send you to its trainer yet.
+-- So "Herbalism and Skinning for gold now, Alchemy later" is: sell ticked on
+-- both, Later set to Alchemy: leather is sold, herbs are kept.
+P.GATHER = { Mining = true, Herbalism = true, Skinning = true }
+P.LATER = { "Alchemy", "Blacksmithing", "Engineering", "Leatherworking", "Tailoring", "Enchanting" }
+
+function P.ForGold(name)
+    local g = ns.db and ns.db.prof and ns.db.prof.gold
+    return g ~= nil and g[name] == true
+end
+function P.SetGold(name, on)
+    if not (ns.db and ns.db.prof and P.GATHER[name]) then return false end
+    ns.db.prof.gold = ns.db.prof.gold or {}
+    ns.db.prof.gold[name] = on and true or nil
+    P.Changed()
+    return true
+end
+function P.Later() return ns.db and ns.db.prof and ns.db.prof.later or nil end
+function P.SetLater(name)
+    if not (ns.db and ns.db.prof) then return end
+    ns.db.prof.later = name
+    P.Changed()
+end
+-- Pure: the next choice for "Later" after `current` (nil = none), skipping
+-- the professions you have already. has(name) -> true when you have it.
+function P.NextLater(current, has)
+    local list = {}
+    for _, name in ipairs(P.LATER) do
+        if not (has and has(name)) then list[#list + 1] = name end
+    end
+    if current == nil then return list[1] end
+    for i, name in ipairs(list) do
+        if name == current then return list[i + 1] end   -- (after the last: none again)
+    end
+    return list[1]
+end
+-- Pure: does a profession's use of a material keep it in your bags?
+--   has: you have the profession; planned: it's in your plan; later: it's
+--   your "Later" profession; gold: you gather with it to sell
+function P.Keeps(has, planned, later, gold)
+    if gold then return false end
+    return (has or planned or later) and true or false
+end
+function P.LaterText(name)
+    return "Later: " .. (name and (name .. " (its materials are kept)") or "none")
+end
+-- A choice changed: what's kept is worked out again.
+function P.Changed()
+    if ns.disposition and ns.disposition.Invalidate then pcall(ns.disposition.Invalidate, ns.disposition) end
+    if ns.bagIcons and ns.bagIcons.MarkDirty then ns.bagIcons.MarkDirty() end
+    if ns.advisor and ns.advisor.Refresh then pcall(ns.advisor.Refresh, ns.advisor) end
+end
+
+-- /flow gather: what each gathering profession is for, and your "Later".
+--   /flow gather <profession> sell | keep     /flow gather later <profession> | none
+ns.commands.gather = function(arg)
+    local a = (arg or ""):lower()
+    for name in pairs(P.GATHER) do
+        if a:find(name:lower(), 1, true) then
+            if a:find("sell", 1, true) then P.SetGold(name, true) elseif a:find("keep", 1, true) then P.SetGold(name, false) end
+        end
+    end
+    if a:find("^later") then
+        local pick
+        for _, name in ipairs(P.LATER) do if a:find(name:lower(), 1, true) then pick = name end end
+        if pick or a:find("none", 1, true) then P.SetLater(pick) end
+    end
+    local parts = {}
+    for _, name in ipairs({ "Mining", "Herbalism", "Skinning" }) do
+        if ns.api.Skill(name) then parts[#parts + 1] = name .. ": " .. (P.ForGold(name) and "to sell" or "kept for your professions") end
+    end
+    ns:Print("what you gather: " .. (#parts > 0 and table.concat(parts, "; ") or "no gathering profession") .. ". " .. P.LaterText(P.Later())
+        .. ". (/flow gather skinning sell | keep; /flow gather later alchemy | none; or the Flow Professions window)")
+end
 
 -- Offered quietly from level 3 (advice list), never as a pop-up.
 ns:Register("advisor", "choosePro", {

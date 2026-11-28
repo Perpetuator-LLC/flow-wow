@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.447
+
+- **Say what a profession is for.** Flow kept every material a profession of yours could
+  use, so leather stayed "for Skinning" and herbs "for Herbalism" whatever you gather them
+  for, and your bags filled. Two choices in the Flow Professions window:
+  - **"sell"** beside Mining, Herbalism and Skinning: you gather with it for gold. What
+    only it would use is no longer kept: the Flow Seller takes it to the auction house or
+    the vendor.
+  - **"Later"**: one crafting profession you mean to take up later (Alchemy,
+    Leatherworking...). Its materials are kept for it and go to the bank with your other
+    materials; Flow doesn't send you to its trainer until you tick it.
+  So "Herbalism and Skinning for gold now, Alchemy later" is sell on both and Later set to
+  Alchemy: leather is sold, herbs are kept ("for Alchemy (your profession for later)").
+  Also `/flow gather skinning sell`, `/flow gather later alchemy`.
+- A self-test failed when the game was reloaded during a flight (the arrow's line is about
+  your landing then). Corrected; nothing changes in play.
 ## 0.35.446
 
 - **A try-out for above and below: the game's own pin on your next step** (`/flow gamepin

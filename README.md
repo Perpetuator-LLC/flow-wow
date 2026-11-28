@@ -274,6 +274,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **Several enemies on you**: with three or more on you the target button's icon shows your class's
   way out before more heals (a druid: War Stomp, Rejuvenation, Bear Form, then Demoralizing Roar and
   Swipe). A class adds its own with `overwhelmed` in its rotation.
+- **What a profession is for**: in Flow Professions, tick "sell" beside a gathering profession you
+  gather with for gold (its materials are sold, not kept), and pick one crafting profession for
+  "Later" (its materials are kept, with no trainer on your route yet). `/flow gather`.
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
