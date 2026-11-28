@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.439
+
+- **With several enemies on you, the icon shows a way out before more heals.** In a fight
+  with five mobs the target button's icon said Regrowth or Healing Touch for nearly the
+  whole fight, and a heal cast under five attackers doesn't keep up. With three or more
+  enemies on you, a druid is now told, in order:
+  - in caster form: War Stomp when it's ready (everything round you is stunned: time for
+    one cast), then Rejuvenation (it keeps ticking in Bear Form), then Bear Form;
+  - in Cat Form: Bear Form;
+  - in Bear Form: Demoralizing Roar on all of them, then Swipe; badly hurt, Bash the one
+    on you to get a heal off behind the stun.
+  While you're badly hurt in caster form the usual heal advice still comes first.
+- The key itself can't change in a fight, so this is the icon's advice: press it on your
+  bars, or on the key's modifiers where it's there (War Stomp, Swipe and Bash are).
+- Flow Settings, Easy keys: "With several enemies on you, advise getting out of trouble
+  first" (on). Other classes have no such plan yet; a rotation adds one with `overwhelmed`.
 ## 0.35.438
 
 - Two self-tests failed since 0.35.431: with "Next step only", the Flow Tracker and the map

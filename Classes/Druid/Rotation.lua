@@ -155,6 +155,48 @@ local roots = {
       end },
 }
 
+-- Several enemies on you (Engine: def.overwhelmed, 0.35.439). Healing in
+-- caster form under four or five attackers doesn't keep up; a bear takes far
+-- less. So:
+--   caster: War Stomp when it's ready (everything round you is stunned: time
+--           for one cast); badly hurt: the usual heals go on from there;
+--           else Rejuvenation (it keeps ticking in Bear Form), then Bear Form.
+--   cat:    Bear Form (not while badly hurt: then the heals say so first).
+--   bear:   Demoralizing Roar on all of them; badly hurt: Bash the one on
+--           you (a stun to get a heal off behind); else Swipe.
+-- The parts are pure, so they can be checked without a fight.
+ns.DRUID_BAD_HURT = 40   -- Flow's estimate of how hurt you are (Engine E.hurt), from here "badly"
+local function formName()
+    if inBear() then return "bear" end
+    if inCat() then return "cat" end
+    if caster() then return "caster" end
+    return nil
+end
+local function badlyHurt(c)
+    return c.lowHealth == true or ((c.engine and c.engine.hurt) or 0) >= ns.DRUID_BAD_HURT
+end
+function ns.DruidStomp(form) return form == "caster" end
+function ns.DruidPreHot(form, bad, hasRejuv) return form == "caster" and not bad and not hasRejuv end
+function ns.DruidToBear(form, bad) return (form == "caster" or form == "cat") and not bad end
+function ns.DruidBash(form, bad) return form == "bear" and bad == true end
+function ns.DruidSwipe(form, bad) return form == "bear" and not bad end
+local overwhelmed = {
+    { spell = "War Stomp", kind = "emergency", reason = "Several on you: stun them all, then heal or shift",
+      when = function() return ns.DruidStomp(formName()) end },
+    { spell = "Rejuvenation", kind = "heal", reason = "Several on you: a heal that keeps ticking in Bear Form",
+      when = function(c) return ns.DruidPreHot(formName(), badlyHurt(c), not needBuff("Rejuvenation", 2)) end },
+    { spell = "Dire Bear Form", kind = "buff", reason = "Several on you: Bear Form takes far less damage",
+      when = function(c) return ns.DruidToBear(formName(), badlyHurt(c)) end },
+    { spell = "Bear Form", kind = "buff", reason = "Several on you: Bear Form takes far less damage",
+      when = function(c) return ns.DruidToBear(formName(), badlyHurt(c)) and not c.engine:Knows("Dire Bear Form") end },
+    { spell = "Demoralizing Roar", reason = "Several on you: weaken all of them",
+      when = function(c) return inBear() and c.hostile and missingOnTarget("Demoralizing Roar") end },
+    { spell = "Bash", target = true, kind = "emergency", reason = "Badly hurt: stun the one on you, then heal behind it",
+      when = function(c) return c.hostile and ns.DruidBash(formName(), badlyHurt(c)) end },
+    { spell = "Swipe", target = true, reason = "Several on you: hit them all",
+      when = function(c) return c.hostile and ns.DruidSwipe(formName(), badlyHurt(c)) end },
+}
+
 local casterDamage = {
     { spell = "Moonfire", target = true, reason = "Moonfire missing on the target",
       when = function(c) return c.hostile and caster() and missingOnTarget("Moonfire") end },
@@ -191,6 +233,7 @@ local function guide(e)
     if k("Entangling Roots") then add("  - It comes for you again: Entangling Roots on your bar, step back, keep casting.") end
     if k("War Stomp") then add("  - It starts casting close to you: War Stomp on your bar stops it.") end
     if k("Bear Form") then
+        add("Several on you (the icon says so): War Stomp, Rejuvenation, then Bear Form.")
         add("Bear Form (tough pulls, several mobs):")
         if k("Demoralizing Roar") then add("  1. Demoralizing Roar.") end
         if k("Maul") then add("  2. Maul on every swing (the cast key stays on Maul).") end
@@ -282,6 +325,8 @@ ns:Register("rotation", "DRUID", {
     -- Self-heals, considered before anything else (see Engine HealDecision).
     -- In Cat or Bear Form they're not usable, so they're skipped there.
     heals = { "Regrowth", "Healing Touch", "Rejuvenation" },
+    -- Several enemies on you: this before the heals (Engine E:Overwhelmed).
+    overwhelmed = overwhelmed,
     -- Spells that wait for your next swing instead of going off at once: the
     -- target button blinks red while one waits (Display.lua, E.UpdateQueued).
     nextSwing = { "Maul" },

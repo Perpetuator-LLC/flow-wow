@@ -20412,3 +20412,51 @@ ns:Register("test", "route: a named mob near you comes before one more of a roam
         t:eq(#plan, #goals, "as many steps planned as there are (" .. tostring(groups) .. " group(s) among them)")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.439: several enemies on you: the class's plan comes before "heal".
+-------------------------------------------------------------------------------
+
+ns:Register("test", "rotation: with several enemies on you a druid is told War Stomp, a heal over time and Bear Form before more heals", function(t)
+    local E = ns.rotation
+    t:ok(E.IsOverwhelmed(true, 5, nil, true), "five on you in a fight: yes")
+    t:ok(E.IsOverwhelmed(true, 3, nil, true), "three: yes")
+    t:ok(not E.IsOverwhelmed(true, 2, nil, true), "two: the usual advice")
+    t:ok(not E.IsOverwhelmed(false, 5, nil, true), "not in a fight: no")
+    t:ok(not E.IsOverwhelmed(true, 5, nil, false), "turned off: no")
+    t:ok(E.IsOverwhelmed(true, 2, 2, true), "a class may set its own number")
+    t:ok(not E.IsOverwhelmed(true, nil, nil, true), "no count: no")
+    -- The druid's plan, part by part.
+    t:ok(ns.DruidStomp("caster") and not ns.DruidStomp("bear") and not ns.DruidStomp("cat"), "War Stomp: in caster form")
+    t:ok(ns.DruidPreHot("caster", false, false), "then Rejuvenation, when it isn't on you")
+    t:ok(not ns.DruidPreHot("caster", false, true), "not when it's ticking already")
+    t:ok(not ns.DruidPreHot("caster", true, false), "not when badly hurt: the heals take over")
+    t:ok(ns.DruidToBear("caster", false) and ns.DruidToBear("cat", false), "then Bear Form, from caster or cat")
+    t:ok(not ns.DruidToBear("caster", true), "badly hurt in caster form: heal first, bear after")
+    t:ok(not ns.DruidToBear("bear", false), "in Bear Form already: no")
+    t:ok(ns.DruidBash("bear", true) and not ns.DruidBash("bear", false), "Bash: a bear that's badly hurt")
+    t:ok(ns.DruidSwipe("bear", false) and not ns.DruidSwipe("bear", true) and not ns.DruidSwipe("cat", false), "Swipe: a bear that isn't")
+    local def = ns:Get("rotation", "DRUID")
+    t:ok(def and type(def.overwhelmed) == "table" and #def.overwhelmed >= 5, "the druid's rotation has the plan")
+    local order = {}
+    for i, r in ipairs(def and def.overwhelmed or {}) do order[r.spell] = order[r.spell] or i end
+    t:ok(order["War Stomp"] and order["Rejuvenation"] and order["Bear Form"] and order["War Stomp"] < order["Rejuvenation"]
+        and order["Rejuvenation"] < order["Bear Form"], "War Stomp, then Rejuvenation, then Bear Form")
+    t:ok(order["Demoralizing Roar"] and order["Swipe"] and order["Demoralizing Roar"] < order["Swipe"], "in Bear Form: the roar before Swipe")
+    -- The engine's step, with rules of its own (Flow's own functions and tables only).
+    local said
+    local plan = { overwhelmed = {
+        { spell = "A spell nobody knows 987654439", when = function() said = "asked"; return true end },
+    } }
+    local ctx = { inCombat = true, attackers = 5, fightType = "aoe", engine = E }
+    local ok, s = pcall(E.Overwhelmed, E, ctx, plan)
+    t:ok(ok and s == nil, "a plan whose spell you don't know: the usual advice goes on")
+    t:eq(said, nil, "and its rule isn't even asked")
+    ok, s = pcall(E.Overwhelmed, E, { inCombat = true, attackers = 2, engine = E }, plan)
+    t:ok(ok and s == nil, "two on you: the plan isn't used")
+    ok, s = pcall(E.Overwhelmed, E, ctx, {})
+    t:ok(ok and s == nil, "a class with no plan: nothing changes")
+    -- The engine's look at the fight says how many are on you.
+    local okC, c = pcall(E.Context, E)
+    t:ok(okC and type(c.attackers) == "number", "the engine counts the enemies on you: " .. tostring(okC and c.attackers))
+end)

@@ -66,7 +66,11 @@ function E:Context()
     local ok, dtps = pcall(T.DTPS, T)
     if not ok then dtps = 0 end
     local okT, ttd = pcall(T.TargetTTD, T)
+    -- (How many enemies are on you: the fight's kind goes by it, and so does E:Overwhelmed.)
+    local okI, info = pcall(function() return ns.fight and ns.fight:Info() or nil end)
+    if not okI then info = nil end
     return {
+        attackers = info and tonumber(info.attackers) or 0,
         hp = hp,
         maxHp = maxHp,
         hpPct = maxHp > 0 and hp / maxHp or 1,
@@ -77,7 +81,7 @@ function E:Context()
         inCombat = UnitAffectingCombat("player"),
         hostile = hostileTarget(),
         casting = A.Casting(),
-        fightType = ns.fight and ns.fight:Classify() or "normal",
+        fightType = ns.fight and ns.fight:Classify(info) or "normal",
         role = ns.LevelingRole and ns:LevelingRole() or "dps",
         lowHealth = A.LowHealthWarning(),   -- the game's red low-health warning is on
         loc = A.LossOfControl(),            -- "STUN", "FEAR"... when something holds you
@@ -871,6 +875,47 @@ function E:EngageStep(ctx)
              reason = "Start attacking: auto attack on now, your opener with the next press" }
 end
 
+-------------------------------------------------------------------------------
+-- Several enemies on you (0.35.439)
+-------------------------------------------------------------------------------
+-- "I accidentally pulled like 5 guys ... they're just taking my health down
+-- so much that I just have to sit there and heal." In that 58 s fight the
+-- icon said Regrowth or Healing Touch for 101 of 115 looks: with several
+-- enemies on you the heal advice won every time, and a heal cast under five
+-- attackers doesn't keep up.
+-- A class can now say what to do instead: def.overwhelmed, a list of rules
+-- like its priority list (spell, when, reason), tried in order while
+-- E.OVERWHELMED or more enemies are on you (def.overwhelmedAt: its own
+-- number). The first that's ready is the advice, ahead of the heals; with
+-- none ready the usual order goes on (so a rule can step aside for a heal
+-- by not matching). The key itself can't change in a fight: this is the
+-- icon's advice, for a press on your bars or on one of the key's modifiers.
+-- Flow Settings, Easy keys: "With several enemies on you, advise getting out
+-- of trouble first".
+E.OVERWHELMED = 3
+function E.OverwhelmedOn() return not (ns.db and ns.db.rotation and ns.db.rotation.overwhelmed == false) end
+-- Pure: is it that kind of fight?
+function E.IsOverwhelmed(inCombat, attackers, at, on)
+    return on ~= false and inCombat == true and (attackers or 0) >= (at or E.OVERWHELMED)
+end
+function E:Overwhelmed(ctx, def)
+    local list = def and def.overwhelmed
+    if not (list and E.IsOverwhelmed(ctx.inCombat and true or false, ctx.attackers, def.overwhelmedAt, E.OverwhelmedOn())) then
+        E.overwhelmedSaid = nil
+        return nil
+    end
+    for _, rule in ipairs(list) do
+        if ruleReady(self, rule, ctx) then
+            if E.overwhelmedSaid ~= rule.spell then
+                E.overwhelmedSaid = rule.spell
+                ns:Log("rotation", string.format("several on you (%d): advising %s", ctx.attackers or 0, tostring(rule.spell)))
+            end
+            return suggest(rule, ctx, string.format(" (%d on you)", ctx.attackers or 0))
+        end
+    end
+    return nil
+end
+
 function E:Choose()
     local def = self:Definition()
     if not def then return nil end
@@ -882,6 +927,10 @@ function E:Choose()
     -- Stunned, feared, charmed...: break free first, if you can.
     local brk = self:BreakFree(ctx)
     if brk then return brk end
+
+    -- Several enemies on you: your class's plan for that, before the heals.
+    local many = self:Overwhelmed(ctx, def)
+    if many then return many end
 
     -- Healing: items and spells in a fight, your recovery order out of one.
     local h = self:HealStep(ctx, def)
@@ -1863,5 +1912,17 @@ if ns.settings and ns.settings.AddCheck then
             .. "is out of reach, the game may say \"You are too far away\".)",
         get = function() return E.AutoAttackOn() end,
         set = function(on) ns.db.rotation.autoAttack = on and true or false end,
+    })
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "key",
+        label = "With several enemies on you, advise getting out of trouble first",
+        note = "(a stun, a heal over time, Bear Form)",
+        tip = "With three or more enemies on you, the target button's icon shows your class's way out before it shows more heals: for a druid War Stomp, Rejuvenation and Bear Form, then Demoralizing Roar and Swipe. "
+            .. "The key itself can't change in a fight: press what the icon shows on your bars. Off: the usual advice.",
+        get = function() return E.OverwhelmedOn() end,
+        set = function(on) ns.db.rotation.overwhelmed = on and true or false end,
     })
 end

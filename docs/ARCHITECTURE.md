@@ -73,6 +73,9 @@ Events: `ns:On(event, fn)`. Saved data ready: `ns:OnLoad(fn(db))`. Slash subcomm
 
 ## Adding a class
 
+A rotation may carry `overwhelmed`: rules like its priority list, tried (ahead of the heals) while
+`E.OVERWHELMED` or more enemies are on you (`overwhelmedAt` for its own number). See the druid's.
+
 1. Create `Classes/<Class>/` with:
    - `Data.lua`: `ns:Register("class", "<TOKEN>", {...})` with specs, levelling recommendation,
      stat weights per role, weapon speed preference, armor/weapon proficiency.

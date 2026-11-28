@@ -271,6 +271,9 @@ Flow for WoW is a separate project from Flow Engine.
   while it's next (`/flow areas`).
 - **A dark band behind the game's red messages** ("Inventory is full") at the top of the screen, so
   they read over any ground (`/flow errorband`).
+- **Several enemies on you**: with three or more on you the target button's icon shows your class's
+  way out before more heals (a druid: War Stomp, Rejuvenation, Bear Form, then Demoralizing Roar and
+  Swipe). A class adds its own with `overwhelmed` in its rotation.
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.
