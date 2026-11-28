@@ -19523,3 +19523,70 @@ ns:Register("test", "quests: a repeatable hand-in is never opened, accepted or h
         if ns.quests:QuestieGet("GetQuest", 905) then t:eq(AT.RepeatNow(905), false, "The Angry Scytheclaws isn't") end
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.422: the leg to your next step is a travel graph; a quicker flight
+-- sends the arrow to the flight master.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "transit: the quickest way over walks and flights, and the arrow's words for it", function(t)
+    local T, N = ns.transit, ns.nav
+    -- Dijkstra over ways given by hand.
+    local sec, path = T.Shortest({
+        { a = "x", b = "y", sec = 100, kind = "walk" },
+        { a = "x", b = "m", sec = 10, kind = "walk" }, { a = "m", b = "n", sec = 30, kind = "fly" },
+        { a = "n", b = "y", sec = 5, kind = "walk" }, { a = "y", b = "x", sec = 1, kind = "walk" },
+    }, "x", "y")
+    t:eq(sec, 45, "the quickest way's seconds")
+    t:eq(#path, 3, "by three ways")
+    t:eq(path[2] and path[2].kind, "fly", "the middle one a flight")
+    t:eq(T.Shortest({ { a = "x", b = "m", sec = 10 } }, "x", "y"), nil, "no way there: nil")
+    t:eq((T.Shortest({}, "x", "x")), 0, "already there: no time")
+
+    -- Camp Taurajo to the Crossroads, as the saved numbers had it (yards; 9.1 yd a second).
+    local function flightSec(a, b)
+        local m = { Taurajo = { -2380.7, -1882.7 }, Crossroads = { -441.8, -2596.1 }, Ratchet = { -894.6, -3773.0 } }
+        local dx, dy = m[a][1] - m[b][1], m[a][2] - m[b][2]
+        return math.sqrt(dx * dx + dy * dy) / 24 + 10
+    end
+    local masters = {
+        { name = "Taurajo", cont = 1, wx = -2380.7, wy = -1882.7 }, { name = "Crossroads", cont = 1, wx = -441.8, wy = -2596.1 },
+        { name = "Ratchet", cont = 1, wx = -894.6, wy = -3773.0 }, { name = "Undercity", cont = 0, wx = 1568.6, wy = 268.0 },
+    }
+    local you, step = { cont = 1, wx = -2375.9, wy = -1994.4 }, { cont = 1, wx = -482.6, wy = -2669.7 }
+    local way = T.Plan(you, step, masters, 9.1, flightSec, 2010)
+    t:ok(way ~= nil, "a 2010 yd walk with a flight master at each end: fly")
+    t:eq(way and way.from, "Taurajo", "from Camp Taurajo")
+    t:eq(way and way.to, "Crossroads", "to the Crossroads")
+    t:ok(way and way.sec < way.walkSec * T.SAVES, "and it saves enough")
+    -- The flight master nearest the step isn't always the one to fly to: here the walk on is what counts.
+    local far = T.Plan(you, { cont = 1, wx = -700, wy = -3200 }, masters, 9.1, flightSec)
+    t:ok(far == nil or far.to == "Crossroads" or far.to == "Ratchet", "the pair is picked by its time")
+    -- A short walk, standing at the flight master you'd land at, another continent: walk.
+    t:eq(T.Plan(you, { cont = 1, wx = -2300, wy = -2100 }, masters, 9.1, flightSec), nil, "a short walk: walk")
+    t:eq(T.Plan({ cont = 1, wx = -450, wy = -2600 }, step, masters, 9.1, flightSec), nil, "landed at the Crossroads: walk the rest")
+    t:eq(T.Plan(you, { cont = 0, wx = 1500, wy = 300 }, masters, 9.1, flightSec), nil, "another continent: not this leg's business")
+    t:eq(T.Plan(you, step, { masters[1] }, 9.1, flightSec, 2010), nil, "one flight master: nothing to fly")
+    -- A flight master up in a walled place is no walk from the open ground below it.
+    t:eq(T.WalledOf("Thunder Bluff, Mulgore", { { region = 1456, name = "Thunder Bluff" } }), 1456, "a flight master in a walled place, by name")
+    t:eq(T.WalledOf("Crossroads, The Barrens", { { region = 1456, name = "Thunder Bluff" } }), nil, "one out in the open")
+    local walledIn = { { name = "Taurajo", cont = 1, wx = -2380.7, wy = -1882.7, walled = 1456 }, masters[2] }
+    t:eq(T.Plan(you, step, walledIn, 9.1, flightSec, 2010), nil, "the only flight master near you is behind a wall: walk")
+    local inside = { cont = 1, wx = -2375.9, wy = -1994.4, region = 1456 }
+    t:ok(T.Plan(inside, step, walledIn, 9.1, flightSec, 2010) ~= nil, "inside that place with them: fly")
+    -- An extra way (as a hearthstone would be) is searched like any other.
+    local ways = T.Edges(you, step, masters, 9.1, flightSec, 2010, { { a = T.YOU, b = "Crossroads", sec = 12, kind = "hearth" } })
+    local hsec, hpath = T.Shortest(ways, T.YOU, T.STEP)
+    t:eq(hpath[1] and hpath[1].kind, "hearth", "an extra way is taken when it's the quickest")
+    t:ok(hsec < way.sec, "and it counts its own seconds")
+
+    -- The words.
+    t:eq(T.Text(way, 112), "112 yd to the flight master: fly Taurajo to Crossroads", "on the way to them")
+    t:eq(T.Text(way, 8), "Talk to the flight master: fly to Crossroads", "standing at them")
+    t:ok(N.HowText("fly", nil, nil, way):find("the arrow takes you to the flight master at Taurajo", 1, true) ~= nil, "the card says where the arrow goes")
+    t:ok(T.Hint(way, N.FormatSeconds):find("Fly to Crossroads", 1, true) ~= nil, "and where to fly")
+    t:eq(N.HowText("direct"), "Straight line: no known trail yet.", "no flight: as before")
+    -- With what you really know: it builds, and the diagnostics line does.
+    t:ok(pcall(T.Lines), "/flow transit builds")
+    t:ok(type(ns.commands.transit) == "function", "/flow transit")
+end)

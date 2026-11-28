@@ -2839,6 +2839,11 @@ end
 function N.AirRoute(p, pt, walkYd, speed)
     if not (p and pt and pt.wx and p.cont == pt.cont and walkYd) then return nil end
     speed = speed or N.TravelSpeed()
+    -- (0.35.422: the quickest pair of flight masters, found over the leg's own
+    -- travel graph, Transit.lua. It used to be the one nearest you to the one
+    -- nearest the step, whether or not that pair was the quickest.)
+    local TR = ns.transit
+    if TR then return TR.Plan(p, pt, TR.Masters(), speed, N.FlightSeconds, walkYd, N.AIR_SAVES) end
     local from, d1 = nearestFlightMaster(p.cont, p.wx, p.wy)
     local to, d2 = nearestFlightMaster(pt.cont, pt.wx, pt.wy)
     if not (from and to) or from == to then return nil end
@@ -3830,10 +3835,25 @@ local function steer(p, choice)
     if RD then way, named = RD.Way(p, pt) end
     N.ride, N.rideHint = way, RD and RD.HintOf(way or named) or nil
     if way then
-        N.via = nil
+        N.via, N.fly = nil, nil
         local wx, wy, how, len = steerTo(p, way.point, way.toNpc, choice.goal.key .. ":ride", false)
         if how == "path" then return wx, wy, "path", len end
         return wx, wy, "ride", way.toNpc
+    end
+    -- Quicker by flight (0.35.422): the arrow leads to the flight master, and
+    -- says where to fly. It only said "by air" in small text and pointed
+    -- straight at the step (Camp Taurajo to the Crossroads, on foot). A flight
+    -- master inside a walled place only counts from inside it (Transit.lua).
+    N.fly = nil
+    local TR = ns.transit
+    local fly = TR and TR.Way(p, pt, direct) or nil
+    if fly and fly.point then
+        local toMaster = dist(p.wx, p.wy, fly.point.wx, fly.point.wy)
+        fly.toMaster = toMaster
+        N.fly, N.via = fly, nil
+        local wx, wy, how, len = steerTo(p, fly.point, toMaster, choice.goal.key .. ":fly", false)
+        if how == "path" then return wx, wy, "path", len end
+        return wx, wy, "fly", toMaster
     end
     -- The step is in another region: by a gate you've used, never straight
     -- through the cliff. The gate is where to walk to until you're through.
@@ -3885,6 +3905,15 @@ function N.LegVia(a, b, live)
     -- at them; the rest is by air.
     if live and N.ride and N.ride.point then
         local pt, lastPt = N.ride.point, out and out[#out]
+        out = out or {}
+        if not lastPt or dist(lastPt.wx, lastPt.wy, pt.wx, pt.wy) > ARRIVED then
+            out[#out + 1] = { cont = pt.cont, wx = pt.wx, wy = pt.wy }
+        end
+        return out
+    end
+    -- To a flight master (0.35.422): the walk ends at them too.
+    if live and N.fly and N.fly.point then
+        local pt, lastPt = N.fly.point, out and out[#out]
         out = out or {}
         if not lastPt or dist(lastPt.wx, lastPt.wy, pt.wx, pt.wy) > ARRIVED then
             out[#out + 1] = { cont = pt.cont, wx = pt.wx, wy = pt.wy }
@@ -3943,7 +3972,11 @@ function N.GateText(via, yards)
 end
 
 -- One line for the arrow's panel: how it's taking you there.
-function N.HowText(how, via, ride)
+function N.HowText(how, via, ride, fly)
+    if fly then
+        return string.format("Quicker by air: the arrow takes you to the flight master at %s. Fly to %s; the arrow goes on from there.",
+            tostring(fly.from), tostring(fly.to))
+    end
     if ride then
         return string.format("It's far from here: the arrow takes you to %s (%s).", ride.name, ride.how or "a ride out")
     end
@@ -3968,7 +4001,7 @@ end
 -- reached): the world map draws its path again then.
 function N.PathStamp()
     local via = N.via
-    return (N.how or "") .. (N.ride and (":ride:" .. N.ride.name) or "")
+    return (N.how or "") .. (N.ride and (":ride:" .. N.ride.name) or "") .. (N.fly and (":fly:" .. tostring(N.fly.from)) or "")
         .. (route and (":" .. tostring(route.goalKey) .. ":" .. route.idx .. ":" .. #route.nodes) or "")
         .. ((via and via.points[1]) and (":g" .. #via.points .. ":" .. via.points[1].wx) or "")
 end
@@ -4191,7 +4224,7 @@ local function showPanel()
     local hs = ns.hearth and ns.hearth.Advice and current.point and current.point.map
         and ns.hearth:Advice(current.point.map, current.point.x, current.point.y, (N.ride and N.ride.yards) or current.d)
     if hs then lines[#lines + 1] = "|cff66ccff" .. hs .. "|r" end
-    lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via, N.ride) .. "|r"
+    lines[#lines + 1] = "|cff888888" .. N.HowText(N.how, N.via, N.ride, N.fly) .. "|r"
     -- The whole trip, in the order Flow plans to do it.
     if N.plan and #N.plan > 1 then
         lines[#lines + 1] = " "
@@ -4874,6 +4907,10 @@ local function update()
         -- that's a flight away).
         frame.sub:SetText(ns.rides.Text(N.ride, how == "path" and length or N.ride.toNpc))
         frame.arrow:SetArrived(false)
+    elseif N.fly then
+        -- The flight master and how far they are (the step itself is a flight away).
+        frame.sub:SetText(ns.transit.Text(N.fly, N.fly.toMaster))
+        frame.arrow:SetArrived((N.fly.toMaster or 99) <= ns.transit.AT)
     else
         frame.sub:SetText(string.format("%d yd%s%s%s", choice.d,
             N.TravelText(p, choice.point, (how == "path" or how == "gate") and length or choice.d),

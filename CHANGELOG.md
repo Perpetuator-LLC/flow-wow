@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.35.422
+
+- **When flying is quicker, the arrow takes you to the flight master.** At Camp Taurajo with
+  a hand-in at the Crossroads next, Flow knew the flight was quicker, but only said so in
+  small text ("by air") and on the hover card. The arrow still pointed straight at the
+  Crossroads, on foot. Now the arrow leads to the flight master and its line says where to
+  fly: "112 yd to the flight master: fly Camp Taurajo to Crossroads", then "Talk to the
+  flight master: fly to Crossroads". After you land it goes on to the step. The world map's
+  dotted path ends at the flight master too.
+- **The flight is picked by its time, not by nearness.** Flow used to consider one flight
+  only: from the flight master nearest you to the one nearest the step. The way to your next
+  step is now worked out over every flight master you know on the continent (walks and
+  flights, each by its seconds, the quickest way through them). A flight is only the way
+  when it takes under four fifths of the walk, as before.
+- A flight master inside a walled place (Thunder Bluff, Orgrimmar) only counts as a walk
+  away while you're inside it.
+- `/flow transit` prints the way to your next step, place by place; it's in the diagnostics.
+- Not changed yet: the order of your steps still prices a flight by the nearest flight
+  masters, and your hearthstone, teleports, boats and zeppelins are still worked out apart
+  from this.
 ## 0.35.421
 
 - The "Repeatable hand-ins" tick of 0.35.419 sits after "Low-level quests" in Route includes,

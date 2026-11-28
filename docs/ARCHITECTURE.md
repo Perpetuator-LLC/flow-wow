@@ -99,6 +99,24 @@ Tracker (damage taken, target TTD, heal sizes)        FightTypes (boss/aoe/elite
 Advisor <--- trainer data, class spells, bags, skills, talents, profiler insights
 ```
 
+### How the route is built (two layers)
+
+1. **Which step next** (`Modules/Nav/Planner.lua`). Places are the steps: each objective, hand-in,
+   quest to pick up and errand is one, with the spots it can be done at. Between two steps there is
+   one cost, in running yards: the least of the straight line, a trip you've made (`Legs.lua`), a
+   flight (`N.TravelYards`: the flight masters nearest each end), a travel spell, a ride, and the
+   walk round by a gate. Order rules are `deps` / `softDeps` / `blockedBy`. The search takes the 30
+   nearest steps, builds an order by nearest-first, then improves the first 14 by moving and
+   reversing stretches. It does not try every order.
+2. **How to get to that step** (`Modules/Nav/Transit.lua`, 0.35.422). One leg is a small graph of
+   its own: you, the step, and every flight master you know on the continent; the ways between
+   them are walks and flights, each costing its seconds. Dijkstra's algorithm gives the quickest
+   way, and when it has a flight in it that takes under `T.SAVES` of the walk, the arrow leads to
+   the flight master (`N.fly`) and says where to fly. `T.Edges` takes `extra` ways: a hearthstone,
+   a teleport, a boat or a zeppelin belong there as more ways between places. Today those are still
+   worked out apart (`Hearth.lua`, `TravelSpells.lua`, `Crossings.lua`, `Rides.lua`), and layer 1
+   still prices a flight by the nearest flight masters. `/flow transit` prints the leg.
+
 ### Route weights
 
 The planner (`Modules/Nav/Planner.lua`) minimises sum(distance x weight). A step's weight is
