@@ -20228,42 +20228,47 @@ end)
 
 -------------------------------------------------------------------------------
 -- 0.35.433: a dark band behind the game's red messages.
+-- (0.35.436: measured from the lines the game is drawing, not guessed.)
 -------------------------------------------------------------------------------
 
-ns:Register("test", "screen: a dark band behind the game's red messages, as wide and tall as they are", function(t)
+ns:Register("test", "screen: the dark band is the box of the game's red lines that are showing", function(t)
     local EB = ns.errorBand
-    local list = {}
-    EB.Add(list, "Inventory is full.", 100, 180)
-    EB.Add(list, "Out of range.", 101, 120)
-    t:eq(#list, 2, "two lines up")
-    EB.Add(list, "Inventory is full.", 102, 180)
-    t:eq(#list, 2, "the same line again takes its own place, it isn't a third")
-    t:eq(list[2].text, "Inventory is full.", "and it's the newest now")
-    EB.Add(list, "A", 103, 10); EB.Add(list, "B", 104, 10)
-    t:eq(#list, EB.MAX_LINES, "never more lines than the game shows")
-    local n, width, strength = EB.Showing({ { text = "a", at = 100, width = 180 }, { text = "b", at = 103, width = 120 } }, 104, 5, 3)
-    t:eq(n, 2, "both showing")
-    t:eq(width, 180, "as wide as the longest")
-    t:eq(strength, 1, "full strength while a line is fresh")
-    n, width, strength = EB.Showing({ { text = "a", at = 100, width = 180 }, { text = "b", at = 103, width = 120 } }, 109.5, 5, 3)
-    t:eq(n, 1, "the older line has gone")
-    t:eq(width, 120, "the band narrows to what's left")
-    t:ok(strength > 0.4 and strength < 0.6, "and fades with it")
-    t:eq((EB.Showing({ { text = "a", at = 100, width = 180 } }, 120, 5, 3)), 0, "all gone: no band")
-    t:eq((EB.Showing({}, 1)), 0, "nothing said: no band")
-    -- The band itself: Flow's own frame, behind the game's (which isn't touched). Put away after.
-    if UIErrorsFrame and EB.On() then
-        local kept = {}
-        for i, m in ipairs(EB._list()) do kept[i] = m end
-        local ok, shown = pcall(EB.Note, "Flow test line")
-        t:ok(ok and shown, "a line noted" .. (ok and "" or (": " .. tostring(shown))))
+    -- Three lines up (the same words twice among them), as in the picture that showed it wrong.
+    local top, bottom, width, strength, n = EB.Box({
+        { top = 700, bottom = 680, width = 270, alpha = 1 },
+        { top = 678, bottom = 658, width = 320, alpha = 1 },
+        { top = 656, bottom = 636, width = 320, alpha = 0.4 },
+    })
+    t:eq(n, 3, "all three lines count, a repeated one too")
+    t:eq(top, 700, "from the top of the first")
+    t:eq(bottom, 636, "to the bottom of the last")
+    t:eq(width, 320, "as wide as the longest")
+    t:eq(strength, 1, "as strong as the least faded")
+    -- A line that has faded out, or has no words, isn't covered.
+    top, bottom, width, strength, n = EB.Box({
+        { top = 700, bottom = 680, width = 270, alpha = 0 },
+        { top = 678, bottom = 658, width = 0, alpha = 1 },
+        { top = 656, bottom = 636, width = 200, alpha = 0.5 },
+    })
+    t:eq(n, 1, "only the line still showing")
+    t:eq(top, 656, "the band is that line's")
+    t:eq(strength, 0.5, "and fades as it does")
+    t:eq(width, 200, "its own width")
+    t:eq(bottom, 636, "its own bottom")
+    t:eq(EB.Box({}), nil, "nothing showing: no band")
+    t:eq(EB.Box({ { top = nil, bottom = 1, width = 10, alpha = 1 } }), nil, "a line the game won't place: none")
+    -- With the game's own frame: reading it runs, and the band (when there is one) is Flow's own.
+    if UIErrorsFrame then
+        local ok, lines = pcall(EB.Lines, UIErrorsFrame)
+        t:ok(ok and type(lines) == "table", "the game's lines are read" .. (ok and "" or (": " .. tostring(lines))))
+        local okU, shown = pcall(EB.Update)
+        t:ok(okU and type(shown) == "number", "the band is placed" .. (okU and "" or (": " .. tostring(shown))))
         local band = EB._band()
-        t:ok(band and band:GetName() == "FlowErrorBand", "the band is Flow's own frame")
-        t:ok(band and not band:IsMouseEnabled(), "and takes no clicks")
-        local live = EB._list()
-        for i = #live, 1, -1 do live[i] = nil end
-        for i, m in ipairs(kept) do live[i] = m end
-        if band and #kept == 0 then band:Hide() end
+        if band then
+            t:eq(band:GetName(), "FlowErrorBand", "the band is Flow's own frame")
+            t:ok(not band:IsMouseEnabled(), "and takes no clicks")
+            if okU and shown == 0 then t:ok(not band:IsShown(), "no lines: it's away") end
+        end
     end
     t:ok(type(ns.commands.errorband) == "function", "/flow errorband")
 end)

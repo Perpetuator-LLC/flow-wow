@@ -1,7 +1,7 @@
 -------------------------------------------------------------------------------
 -- Flow - ErrorBand.lua
 -- A dark band behind the game's red messages at the top of the screen
--- (0.35.433).
+-- (0.35.433; measured from the lines themselves since 0.35.436).
 --
 -- "When errors happen, there's red text that appears at the top of the screen,
 -- but it's really hard to read sometimes, especially on a reddish or brownish
@@ -10,10 +10,17 @@
 --
 -- The game writes those lines ("Inventory is full", "Out of range") into its
 -- own frame, UIErrorsFrame, with nothing behind them. Flow puts a frame of
--- its own behind that one: a soft black band as wide as the longest line
--- showing and as tall as the lines showing, which fades out with them.
--- Nothing of the game's frame is changed: Flow only listens for lines being
--- added to it (hooksecurefunc) and draws behind it.
+-- its own behind that one: a soft black band with faded ends.
+--
+-- "The black background timing is off" (0.35.436, with a picture: three lines
+-- up, the band behind the top one only). The first version guessed: it
+-- counted the lines it heard being added and how long each should stay. It
+-- counted a line said twice as one (the game shows it twice) and its clock
+-- wasn't the game's. Now nothing is guessed: several times a second Flow
+-- looks at the lines the game's frame is drawing (its text pieces: which
+-- are shown, where each is, how wide its words are, how faded it is) and
+-- the band is exactly their box, as strong as the least faded of them.
+-- Reading only: nothing of the game's frame is changed.
 -- Flow Settings, On your screen; /flow errorband on|off.
 -------------------------------------------------------------------------------
 
@@ -23,66 +30,66 @@ ns.errorBand = EB
 
 EB.ALPHA = 0.6      -- how dark the band is
 EB.PAD_X, EB.PAD_Y = 14, 3
-EB.MAX_LINES = 3    -- the game shows this many at once
-EB.HOLD, EB.FADE = 5, 3   -- seconds a line stays, then fades (read from the game's frame when it says)
-EB.FALLBACK_WIDTH = 320   -- a line whose words the game hides
+EB.END = 24         -- the faded ends
+EB.EVERY = 0.05     -- seconds between looks
 
 function EB.On() return not (ns.db and ns.db.screen and ns.db.screen.errorBand == false) end
 
--- Pure: note a line. list: { { text, at, width } } oldest first. The game
--- shows a line already up again in place (it doesn't add a second): so does this.
-function EB.Add(list, text, now, width, max)
-    for i, m in ipairs(list) do
-        if text ~= nil and m.text == text then
-            table.remove(list, i)
-            break
+-- Pure: the box of the lines showing.
+--   lines: { { top, bottom, width, alpha } } (screen units; alpha 0..1)
+-- -> top, bottom, width, strength (the least faded line's), how many; nil with none
+function EB.Box(lines, floor)
+    local top, bottom, width, strength, n
+    for _, l in ipairs(lines or {}) do
+        if type(l.top) == "number" and type(l.bottom) == "number" and (l.width or 0) > 0 and (l.alpha or 0) > (floor or 0.03) then
+            n = (n or 0) + 1
+            if not top or l.top > top then top = l.top end
+            if not bottom or l.bottom < bottom then bottom = l.bottom end
+            if not width or l.width > width then width = l.width end
+            if not strength or l.alpha > strength then strength = l.alpha end
         end
     end
-    list[#list + 1] = { text = text, at = now, width = width }
-    while #list > (max or EB.MAX_LINES) do table.remove(list, 1) end
-    return list
+    if not n then return nil end
+    return top, bottom, width, strength, n
 end
 
--- Pure: what's showing now: how many lines, the widest, and how strong the
--- band is (1, then down to 0 as the last line fades); 0 lines: nothing.
-function EB.Showing(list, now, hold, fade)
-    hold, fade = hold or EB.HOLD, fade or EB.FADE
-    local n, width, strength = 0, 0, 0
-    for _, m in ipairs(list or {}) do
-        local age = now - m.at
-        if age < hold + fade then
-            n = n + 1
-            if (m.width or 0) > width then width = m.width end
-            local s = age <= hold and 1 or (1 - (age - hold) / fade)
-            if s > strength then strength = s end
+-- The lines the game's frame is drawing now, as EB.Box wants them.
+function EB.Lines(frame)
+    local out = {}
+    if not (frame and frame.GetRegions and frame:IsShown()) then return out end
+    local Safe = ns.api and ns.api.Safe or function(v) return v end
+    local frameAlpha = Safe(frame:GetAlpha()) or 1
+    for _, r in ipairs({ frame:GetRegions() }) do
+        if r.GetObjectType and r:GetObjectType() == "FontString" and r:IsShown() then
+            local ok, text = pcall(r.GetText, r)
+            text = ok and text or nil
+            -- (A line whose words the game hides still has a width.)
+            local okW, w = pcall(r.GetStringWidth, r)
+            w = okW and Safe(w) or nil
+            local shown = (type(text) ~= "string") or text ~= ""
+            if shown and type(w) == "number" and w > 0 then
+                out[#out + 1] = { top = Safe(r:GetTop()), bottom = Safe(r:GetBottom()), width = w,
+                                  alpha = (Safe(r:GetAlpha()) or 1) * frameAlpha }
+            end
         end
     end
-    return n, width, strength
+    return out
 end
 
-local list, band, measure = {}, nil, nil
-
-local function times()
-    local f = UIErrorsFrame
-    local hold = f and f.GetTimeVisible and tonumber(f:GetTimeVisible()) or EB.HOLD
-    local fade = f and f.GetFadeDuration and tonumber(f:GetFadeDuration()) or EB.FADE
-    return hold, fade
-end
-
+local band
 local function build()
-    local f = UIErrorsFrame
     band = CreateFrame("Frame", "FlowErrorBand", UIParent)
     band:SetFrameStrata("LOW")
     band:EnableMouse(false)
     band.mid = band:CreateTexture(nil, "BACKGROUND")
     band.mid:SetColorTexture(0, 0, 0, 1)
-    band.mid:SetPoint("TOPLEFT", 24, 0)
-    band.mid:SetPoint("BOTTOMRIGHT", -24, 0)
+    band.mid:SetPoint("TOPLEFT", EB.END, 0)
+    band.mid:SetPoint("BOTTOMRIGHT", -EB.END, 0)
     -- Soft ends: black fading out to nothing.
     local function fadeEnd(left)
         local t = band:CreateTexture(nil, "BACKGROUND")
         t:SetColorTexture(1, 1, 1, 1)
-        t:SetWidth(24)
+        t:SetWidth(EB.END)
         if left then t:SetPoint("TOPLEFT"); t:SetPoint("BOTTOMLEFT") else t:SetPoint("TOPRIGHT"); t:SetPoint("BOTTOMRIGHT") end
         local ok = false
         if t.SetGradient and CreateColor then
@@ -92,51 +99,47 @@ local function build()
         return t
     end
     band.left, band.right = fadeEnd(true), fadeEnd(false)
-    measure = band:CreateFontString(nil, "ARTWORK")
-    measure:Hide()
     band:Hide()
-    band:SetScript("OnUpdate", function(self)
-        local hold, fade = times()
-        local n, width, strength = EB.Showing(list, GetTime(), hold, fade)
-        if n == 0 or not EB.On() or not (f and f:IsShown()) then self:Hide() return end
-        local _, size = f:GetFont()
-        local line = (tonumber(size) or 16) + (f.GetSpacing and tonumber(f:GetSpacing()) or 0)
-        self:SetSize(width + 2 * (EB.PAD_X + 24), n * line + 2 * EB.PAD_Y)
-        self:ClearAllPoints()
-        -- (The lines fill the game's frame from the top, or from the bottom: as it says.)
-        local top = not (f.GetInsertMode and tostring(f:GetInsertMode()):upper() == "BOTTOM")
-        if top then self:SetPoint("TOP", f, "TOP", 0, EB.PAD_Y) else self:SetPoint("BOTTOM", f, "BOTTOM", 0, -EB.PAD_Y) end
-        self:SetAlpha(EB.ALPHA * strength)
-    end)
     return band
 end
 
--- A line was added to the game's frame.
-function EB.Note(text)
-    if not (EB.On() and UIErrorsFrame) then return false end
-    band = band or build()
-    text = ns.api and ns.api.Safe and ns.api.Safe(text) or text
-    local width = EB.FALLBACK_WIDTH
-    if type(text) == "string" then
-        local font, size, flags = UIErrorsFrame:GetFont()
-        if font then
-            measure:SetFont(font, size, flags)
-            measure:SetText(text)
-            width = math.min(measure:GetStringWidth() or width, UIErrorsFrame:GetWidth() or 512)
-        end
-    else
-        text = nil
+-- Looks at the game's lines and puts the band behind them (or away).
+function EB.Update()
+    local f = UIErrorsFrame
+    if not (f and EB.On()) then
+        if band then band:Hide() end
+        return 0
     end
-    EB.Add(list, text, GetTime(), width)
+    local top, bottom, width, strength, n = EB.Box(EB.Lines(f))
+    if not n then
+        if band then band:Hide() end
+        return 0
+    end
+    band = band or build()
+    -- (The lines' places are in the game frame's own scale: brought to the band's.)
+    local k = (f:GetEffectiveScale() or 1) / (band:GetEffectiveScale() or 1)
+    local cx = f:GetCenter()
+    band:ClearAllPoints()
+    band:SetPoint("TOP", UIParent, "BOTTOMLEFT", (cx or 0) * k, top * k + EB.PAD_Y)
+    band:SetSize(width * k + 2 * (EB.PAD_X + EB.END), (top - bottom) * k + 2 * EB.PAD_Y)
+    band:SetAlpha(EB.ALPHA * math.min(1, strength))
     band:Show()
-    return true
+    EB.last = n
+    return n
 end
 EB._band = function() return band end   -- (tests)
-EB._list = function() return list end
 
-if UIErrorsFrame and hooksecurefunc then
-    hooksecurefunc(UIErrorsFrame, "AddMessage", function(_, text) pcall(EB.Note, text) end)
-end
+local driver, acc = CreateFrame("Frame"), 0
+driver:SetScript("OnUpdate", function(_, dt)
+    acc = acc + dt
+    if acc < EB.EVERY then return end
+    acc = 0
+    local ok, err = pcall(EB.Update)
+    if not ok and not EB.failed then
+        EB.failed = true
+        ns:Log("screen", "error band failed: " .. tostring(err))
+    end
+end)
 
 ns.commands.errorband = function(arg)
     arg = (arg or ""):lower()
@@ -144,7 +147,9 @@ ns.commands.errorband = function(arg)
         ns.db.screen = ns.db.screen or {}
         ns.db.screen.errorBand = (arg == "on")
     end
-    ns:Print("the dark band behind the game's red messages: " .. (EB.On() and "on" or "off") .. " (/flow errorband on|off)")
+    local lines = UIErrorsFrame and EB.Lines(UIErrorsFrame) or {}
+    ns:Print(string.format("the dark band behind the game's red messages: %s (/flow errorband on|off); lines showing now: %d%s",
+        EB.On() and "on" or "off", #lines, EB.failed and "; it failed once, see the log" or ""))
 end
 
 if ns.settings and ns.settings.AddCheck then

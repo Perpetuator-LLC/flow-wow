@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.436
+
+- **Fixed: the dark band behind the red messages covered one line of three, and at the wrong
+  times.** It guessed: it counted the lines as they were added and how long each should
+  stay, counted a line said twice as one, and kept its own clock. It now looks at the lines
+  the game is drawing, several times a second, and is exactly their box: as tall as the
+  lines showing, as wide as the longest, and it fades as they fade.
 ## 0.35.435
 
 - **A quest's objectives that are near each other are done together.** At the Razormane
