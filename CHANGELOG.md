@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.441
+
+- **Fixed: the arrow pointed at another step's mobs.** With "Wrongly Blamed, Justly
+  Corrected" as your next step, the tracker, the Flow Router and the map all led south-east
+  to the soldiers, and the arrow said "Next group: 463 yd (Ishamuhale)" and pointed north.
+  While you work a kill or collect step the arrow leads from one group of mobs to the next,
+  and it chose among the groups of every such step near the front of your route. Your step
+  had no group of its own planned, so it took the first one planned at all: the zhevras of
+  the tenth step. It now only leads to groups of the step you're on, and of steps that are
+  in the same area with it.
 ## 0.35.440
 
 - **A dungeon with only a finished quest left is its hand-in, not "Enter".** You picked

@@ -136,6 +136,23 @@ function H.Planned(groups, hops, x, y, worked, now, skip, rest)
     return nil
 end
 
+-- Pure: the groups the arrow may lead to: those of the step you're on, and
+-- of the steps that are in its area with it (Areas.lua).
+-- (0.35.441: "for the quest Wrongly Blamed it's pointing me 463 yards north
+-- to Ishamuhale ... the tracker, the router and the map are all showing to go
+-- there. The only thing that's not aligned is the arrow." The hop looked at
+-- the groups of every kill and collect step near the front of the route.
+-- Your step had no group of its own planned, so the first planned group was
+-- taken: the zhevras of Ishamuhale, the tenth step, the other way.)
+--   key: your step's; area: its area group or nil; areaOf(key) -> a step's area group
+function H.Mine(groups, key, area, areaOf)
+    local out = {}
+    for _, g in ipairs(groups or {}) do
+        if g.key == key or (area ~= nil and areaOf and areaOf(g.key) == area) then out[#out + 1] = g end
+    end
+    return out
+end
+
 -- Pure: the arrow's second line.
 --   state "in": inTitle (nil: the step you're on), nextYards (nil: none near)
 --   state "go": yards, title (nil: the step you're on)
@@ -198,6 +215,14 @@ function H.Tick()
     if not (p and p.wx) then return end
     local now = GetTime()
     local list = refreshGroups(p, now)
+    -- Only the groups of the step you're on, and of the steps in its area (H.Mine).
+    do
+        local areaOf = {}
+        for _, e in ipairs(N.plan or {}) do
+            if e.goal and e.goal.areaGroup then areaOf[e.goal.key] = e.goal.areaGroup end
+        end
+        list = H.Mine(list, goal.key, goal.areaGroup, function(key) return areaOf[key] end)
+    end
     if #list == 0 then started = false return end
     local here = H.Inside(list, p.wx, p.wy)
     -- Leaving a group, or standing in it with nothing to do: it's worked.

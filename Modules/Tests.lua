@@ -20495,3 +20495,30 @@ ns:Register("test", "dungeons: with only a finished quest left there's no step t
     ns.db.nav.focus = mine
     t:eq(D.ModeOf(true, true), "only", "which is what Only this dungeon means")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.441: the arrow's hop from group to group stays with the step you're on.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "arrow: it hops between the groups of your step and its area, never to a later step's group", function(t)
+    local H = ns.areaHop
+    local groups = {
+        { id = "a", key = "97250:1", title = "Wrongly Blamed", x = 0, y = 0 },
+        { id = "b", key = "882:item:10338", title = "Ishamuhale", x = 400, y = 0 },
+        { id = "c", key = "843:1", title = "Gann's Reclamation", x = 50, y = 50 },
+    }
+    local areaOf = function(key) return key == "843:1" and "area:1" or (key == "97250:1" and "area:1") or nil end
+    local mine = H.Mine(groups, "97250:1", nil, areaOf)
+    t:eq(#mine, 1, "a step in no area: only its own groups")
+    t:eq(mine[1].title, "Wrongly Blamed", "its own")
+    mine = H.Mine(groups, "97250:1", "area:1", areaOf)
+    t:eq(#mine, 2, "a step in an area: the groups of the steps in it too")
+    t:ok(mine[1].title == "Wrongly Blamed" and mine[2].title == "Gann's Reclamation", "and not the far step's")
+    t:eq(#H.Mine(groups, "999:1", nil, areaOf), 0, "a step with no groups: none, so the arrow leads the usual way")
+    -- As it was: the plan's first group belongs to a later step. It's no longer offered.
+    local hops = { { key = "882:item:10338", wx = 400, wy = 0 } }
+    local list = H.Mine(groups, "97250:1", nil, areaOf)
+    t:eq((H.Planned(list, hops, 100, 100, {}, 100, nil)), nil, "the planned group of a later step isn't the next group")
+    local nextG = H.Next(list, 100, 100, {}, 100, nil)
+    t:ok(nextG == nil or nextG.key == "97250:1", "and the nearest one offered is your own step's")
+end)
