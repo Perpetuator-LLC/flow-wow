@@ -688,6 +688,12 @@ function N:Collect(gathered)
             ns:Log("nav", "hold for dropped: " .. tostring(keptD))
         end
     end
+    -- A quest to pick up that's done where a step of yours is comes before that
+    -- step (Overlap.lua, 0.35.428): one visit does both.
+    if ns.overlap then
+        local okO, errO = pcall(ns.overlap.Apply, shown)
+        if not okO then ns:Log("nav", "overlap failed: " .. tostring(errO)) end
+    end
     -- "Along the way" goals (loot meat for an optional profession): never a
     -- step of their own, so the route never sends you off to grind them.
     -- They're listed in the arrow panel and step cards, and their mobs are

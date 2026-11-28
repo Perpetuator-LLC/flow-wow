@@ -1261,13 +1261,10 @@ ns:Register("test", "menus: Most XP, Shortest and Custom route", function(t)
             if it.text and it.text:find(label, 1, true) then seen[label] = it end
         end
     end
-    t:ok(seen["Most XP first"] and seen["Shortest path"] and seen["Custom route"], "all three route states")
+    -- (0.35.423: Custom route is only listed while you're on one; this still asked for it always.)
+    t:ok(seen["Most XP first"] and seen["Shortest path"], "both orders")
     t:ok(not seen["From selected"], "no old From selected")
-    local c = seen["Custom route"]
-    if c then
-        t:eq(c.checked and true or false, ns.xpValue:IsCustom(), "Custom route ticked only while it's on")
-        t:eq(c.disabled and true or false, not ns.xpValue:IsCustom(), "greyed out on Most XP or Shortest")
-    end
+    if not ns.xpValue:IsCustom() then t:eq(seen["Custom route"], nil, "Custom route isn't listed while you're not on one") end
 end)
 
 ns:Register("test", "router: Custom route button greyed out on Most XP or Shortest", function(t)
@@ -19894,4 +19891,75 @@ ns:Register("test", "route: the plan keeps to your zones (nearer steps outside t
     local keys = {}
     for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
     t:ok(table.concat(keys, ","):find("^quests,newQuests,lowQuests,training,professions,town,repeatables") ~= nil, "Route includes: " .. table.concat(keys, ","))
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.428: a quest done in the same place as a step of yours is picked up first.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a quest done where a step of yours is gets picked up before that step", function(t)
+    local O = ns.overlap
+    local function at(x, y) return { cont = 1, wx = x, wy = y } end
+    -- Stormhides for Chen's Empty Keg, in a field; Field to Clear's Stormhides in the same field; its giver close by.
+    local field = { at(0, 0), at(80, 40), at(160, -30), at(240, 60) }
+    local same = { at(20, 10), at(150, -10), at(700, 700) }
+    local elsewhere = { at(2000, 2000), at(2100, 2050) }
+    t:eq(O.Near(same, field, 150), 2, "two of the new quest's spots are among the step's")
+    t:ok(O.Shares(same, field, 150), "so it's done in the same place")
+    t:ok(not O.Shares(elsewhere, field, 150), "a quest done across the zone isn't")
+    t:ok(O.Shares({ at(10, 10) }, field, 150), "a quest with one spot: that one is enough")
+    t:ok(not O.Shares({}, field, 150), "no spots known: no")
+    t:eq(O.Least({ at(0, 0) }, { at(30, 40) }), 50, "the least distance between two lists of spots")
+    t:eq(O.Least({ at(0, 0) }, { { cont = 0, wx = 1, wy = 1 } }), nil, "another continent: none")
+    local asked = 0
+    local pickups = {
+        { key = "pickup:987654401", giver = { at(300, 100) }, spots = function() asked = asked + 1 return same end },
+        { key = "pickup:987654402", giver = { at(310, 100) }, spots = function() return elsewhere end },
+        { key = "pickup:987654403", giver = { at(5000, 5000) }, spots = function() asked = asked + 100 return same end },
+    }
+    local steps = { { key = "987654404:1", points = field }, { key = "987654405:1", points = { at(9000, 9000) } } }
+    local links = O.Links(pickups, steps, 150, 700)
+    t:eq(#links, 1, "one pickup goes first")
+    t:eq(links[1] and links[1].pickup, "pickup:987654401", "the one done in the same field")
+    t:eq(links[1] and links[1].step, "987654404:1", "before the step it shares the field with")
+    t:eq(asked, 1, "a quest whose giver is far isn't even looked up")
+    -- What counts as a step of yours.
+    t:ok(O.IsStep({ key = "822:1", points = { {} } }), "an objective of a quest in your log")
+    t:ok(not O.IsStep({ key = "822:done", points = { {} } }), "not its hand-in")
+    t:ok(not O.IsStep({ key = "822:1", points = { {} }, blockedBy = "locked" }), "not a locked step")
+    t:ok(not O.IsStep({ key = "pickup:5", points = { {} } }), "not a quest to pick up")
+    -- On the route's own steps: the step waits for the pickup in order only, and both say so.
+    local was = ns.db.nav.overlapFirst
+    ns.db.nav.overlapFirst = nil
+    local spots = O.SpotsOf
+    O.SpotsOf = function(id) return id == 987654401 and same or {} end   -- (Flow's own: this quest isn't in the quest data)
+    local shared = { "987654404:0" }
+    local goals = {
+        { key = "pickup:987654401", title = "Field to Clear", text = "Accept: Field to Clear", points = { at(300, 100) }, details = { "Level 23 quest." } },
+        { key = "987654404:1", title = "Chen's Empty Keg", text = "Chen's Empty Keg: 0 -> 5 Lightning Gland", points = field, deps = shared, details = { "Quest: Chen's Empty Keg" } },
+        { key = "987654404:done", title = "Chen's Empty Keg", points = { at(4000, 0) }, deps = { "987654404:1" } },
+    }
+    local ok, n = pcall(O.Apply, goals)
+    O.SpotsOf = spots
+    t:ok(ok and n == 1, "one pickup put first" .. (ok and "" or (": " .. tostring(n))))
+    local step, pick = goals[2], goals[1]
+    t:eq(step.deps[#step.deps], "pickup:987654401", "the step waits for the pickup")
+    t:ok(step.softDeps and step.softDeps["pickup:987654401"], "in order only: it doesn't wait when the pickup leaves the route")
+    t:eq(#shared, 1, "a list of deps that was shared is left as it was")
+    t:ok(pick.keep, "the pickup always makes the plan")
+    t:ok(pick.details[1]:find("done in the same place as Chen's Empty Keg", 1, true) ~= nil, "the pickup's card says why it's first")
+    t:ok(step.details[#step.details]:find("After you pick up Field to Clear", 1, true) ~= nil, "and the step's card says what it waits for")
+    -- The planner keeps that order.
+    local okP, planned = pcall(ns.planner.Plan, ns.planner, at(0, 0), goals, {})
+    local order = {}
+    for i, s in ipairs(okP and planned or {}) do order[s.goal.key] = order[s.goal.key] or i end
+    t:ok(order["pickup:987654401"] and order["987654404:1"] and order["pickup:987654401"] < order["987654404:1"],
+        "you're standing among the mobs, and the plan still has you pick the quest up first")
+    -- Off: nothing is changed.
+    ns.db.nav.overlapFirst = false
+    local plain = { { key = "pickup:987654401", points = { at(300, 100) } }, { key = "987654404:1", points = field } }
+    t:eq(O.Apply(plain), 0, "turned off: no step waits")
+    t:eq(plain[2].deps, nil, "and nothing is added")
+    ns.db.nav.overlapFirst = was
+    t:ok(pcall(O.Lines), "/flow overlap builds")
 end)

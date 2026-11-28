@@ -258,6 +258,9 @@ Flow for WoW is a separate project from Flow Engine.
   knows for it with an icon (done, in your log, to pick up, after other quests, starts inside, not
   yet, not for you); point at one for what it asks and the next thing to do to get it, click one
   to go to its giver. Three choices put it on your route: Off, With my questing, Only this dungeon.
+- **Quests done in the same place are picked up first**: when a quest you could pick up is done
+  where a step of your route is (the same mobs, the same field) and its giver is close, Flow has
+  you take it before that step, so one visit does both (`/flow overlap`).
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.

@@ -108,6 +108,9 @@ Advisor <--- trainer data, class spells, bags, skills, talents, profiler insight
    walk round by a gate. Order rules are `deps` / `softDeps` / `blockedBy`. The search takes the 30
    nearest steps, builds an order by nearest-first, then improves the first 14 by moving and
    reversing stretches. It does not try every order.
+   Before the search, `Modules/Nav/Overlap.lua` puts a quest to pick up before a step of yours
+   when the quest's own objectives lie among that step's spots and its giver is within `O.GIVER`
+   yards: the step gets the pickup as an order-only dep (`softDeps`) and the pickup `keep`.
 2. **How to get to that step** (`Modules/Nav/Transit.lua`, 0.35.422 and 0.35.424). One leg is a
    small graph of its own. Places: you, the step, every flight master you know, the inn your
    hearthstone is set to, where each travel spell you know lands. Ways, each costing its seconds:

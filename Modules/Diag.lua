@@ -100,6 +100,7 @@ function D:Snapshot(reason, spread)
         { "minimap tracking", function() if c.tracking then c.tracking("") end end },
         { "quest levels", function() if c.questlevels then c.questlevels("") end end },
         { "legs", function() if c.legs then c.legs("") end end },
+        { "overlap", function() if c.overlap then c.overlap("") end end },
         { "transit", function() if c.transit then c.transit("") end end },
         { "custom route", function() if c.focus then c.focus("") end end },
         { "height", function() if c.height then c.height("") end end },

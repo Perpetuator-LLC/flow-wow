@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.428
+
+- **Quests done in the same place are picked up first.** Killing Stormhides for Chen's
+  Empty Keg, you walked into Field to Clear, which wants the same Stormhides. The route
+  ordered steps only by the walk between them: "Accept: Field to Clear" was one more spot
+  to visit, before or after the Stormhides as the distance fell. Now, before the route is
+  planned, Flow works out where each nearby quest you could pick up is done. When that's
+  among the spots of a step of yours, and its giver is within 700 yards, the pickup comes
+  before that step, so one visit does both. Both cards say so ("Take it first: it's done
+  in the same place as ..."). It goes by where things are, so it catches the same mobs
+  and different mobs in the same field.
+- Flow Settings, Quests: "Pick up quests done in the same place first" (on). `/flow
+  overlap` lists what was put first in the last plan; it's in the diagnostics.
+- A self-test still expected "Custom route" under Order when you aren't on one (it left
+  with 0.35.423). Corrected; nothing changes in play.
 ## 0.35.427
 
 - **Fixed: the route went to a zone you hadn't ticked, ahead of the ones you had.** With
