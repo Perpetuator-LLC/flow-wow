@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.454
+
+- **Flow Banker's buttons no longer overlap.** "Do both" lay over the end of the button on
+  the left. The three are narrower now and clear of each other.
+- **The left button says what it does.** It's "My choices" (it was "All my choices"): it
+  lists every thing you've switched yourself, to the bank or to stay with you, also things
+  that aren't in your bags now. Point at it for that; "In my bags" leads back.
+- The line above the grid says what the button will do: "Deposit all puts the 7 green ones
+  in your bank; the grey ones stay with you."
+- The ring at the minimap's edge sits a little further out, so its outer dots are on the
+  rim and the game's arrow is in its middle.
 ## 0.35.453
 
 - The ring at the minimap's edge sat at the tail of the game's arrow, too far in from the

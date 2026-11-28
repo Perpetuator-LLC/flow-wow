@@ -679,7 +679,7 @@ local function build()
     -- "To bank": the things in your bags, or every choice you've made (also
     -- for things you don't carry now).
     f.all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.all:SetSize(110, 22)
+    f.all:SetSize(96, 22)   -- (0.35.454: three buttons in a row: 96, 76 and 112 wide, clear of each other)
     f.all:SetPoint("BOTTOMLEFT", 10, 8)
     f.all:SetScript("OnClick", function()
         if B.view == "sell" then B:ResetSell() return end
@@ -687,8 +687,17 @@ local function build()
         B.offset = 0
         B:Fill()
     end)
+    -- What the left button does, said when you point at it (0.35.454: "what does that all choices button do? It's not clear").
+    f.all:SetScript("OnEnter", function(self)
+        ns.Tip(self, "ANCHOR_TOP")
+        for i, l in ipairs(B.AllTip(B.view, B.allRules)) do
+            if i == 1 then GameTooltip:AddLine(l, 1, 0.82, 0) else GameTooltip:AddLine(l, 1, 1, 1, true) end
+        end
+        GameTooltip:Show()
+    end)
+    f.all:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.go = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.go:SetSize(120, 22)
+    f.go:SetSize(112, 22)
     -- On the right, "All my choices" on the left (0.35.269: in the middle it
     -- lay over that button's end).
     f.go:SetPoint("BOTTOMRIGHT", -10, 8)
@@ -696,7 +705,7 @@ local function build()
     f.go:SetScript("OnClick", function() B:GoClick() end)
     -- Do both (0.35.448): in the middle, at a bank, whichever view you're on.
     f.both = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.both:SetSize(90, 22)
+    f.both:SetSize(76, 22)
     f.both:SetPoint("RIGHT", f.go, "LEFT", -6, 0)
     f.both:SetText("Do both")
     f.both:SetScript("OnClick", function() B:Both() end)
@@ -1222,7 +1231,7 @@ function B:FillGrid(show)
             return string.format("Every choice you've made (%d), also for things not in your bags. Click to flip one, right-click to drop it.%s", #cells,
                 (below > 0 or offset > 0) and " Scroll for more." or "")
         end
-        return string.format("Green: to the bank (%d). Grey: stays with you. Click one to change it; right-click: Flow's own choice.%s", n,
+        return string.format("Deposit all puts the %d green one(s) in your bank; the grey ones stay with you. Click one to switch it; right-click: back to Flow's choice.%s", n,
             (below > 0 or offset > 0) and " Scroll for more." or "")
     end
     if not bank.seenAt then return "Flow hasn't seen inside your bank yet. Open it once and Flow remembers what's there." end
@@ -1271,7 +1280,7 @@ function B:Fill()
         f.all:SetText("Reset to Flow's")
         f.all:SetEnabled(B.ChoiceCount() > 0)
     else
-        f.all:SetText(B.allRules and "In my bags" or "All my choices")
+        f.all:SetText(B.allRules and "In my bags" or "My choices")
         f.all:SetEnabled(true)
     end
     f.search:SetShown(B.view == "prices" or B.view == "find")
@@ -1285,6 +1294,18 @@ function B:Fill()
         f.go:SetText(bankOpen and "Deposit all" or "At a bank")
     end
     if f.both then f.both:SetShown(bankOpen and (B.view == "put" or B.view == "sell")) end
+end
+
+-- Pure: the left button's tooltip: a heading, then what a click does.
+function B.AllTip(view, allRules)
+    if view == "sell" then
+        return { "Reset to Flow's", "Drops every sell-or-keep choice you've made by clicking a line here, so Flow decides again what's sold." }
+    end
+    if allRules then
+        return { "In my bags", "Back to the things in your bags now." }
+    end
+    return { "My choices", "Lists every thing you've switched yourself (to the bank, or to stay with you), also things that aren't in your bags now. "
+        .. "Click one there to flip it; right-click to drop your choice and let Flow decide." }
 end
 
 -- How many sell or keep choices (and buy-backs) you've made.

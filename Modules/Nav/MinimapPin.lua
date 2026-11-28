@@ -45,7 +45,8 @@ end
 -- P.ARROW_INSET, against P.EDGE_INSET for the dot.
 -- (0.35.453: 28 put the ring at the arrow's tail. The picture it was measured from was
 -- twice life size, so the arrow's middle is about 13 further in than the dot, not 22.)
-P.EDGE_INSET, P.ARROW_INSET = 6, 19
+-- (0.35.454: "almost perfect ... a little bit further": 15, so the outer dots sit on the rim.)
+P.EDGE_INSET, P.ARROW_INSET = 6, 15
 function P.Look(edge, gamePin)
     if not edge then return "ring" end
     return gamePin and "ring" or "dot"

@@ -20872,3 +20872,26 @@ ns:Register("test", "minimap: at the edge, with the game's arrow there too, Flow
     end
     t:ok(ns.gamePin.Shown() == true or ns.gamePin.Shown() == false, "the game pin says whether it's showing")
 end)
+
+-- 0.35.454: Flow Banker's three buttons are clear of each other, and the left one says what it does.
+ns:Register("test", "banker: the three buttons at the bottom don't overlap, and the left one explains itself", function(t)
+    local B = ns.banker
+    t:eq(B.AllTip("put", false)[1], "My choices", "the left button: My choices")
+    t:ok(B.AllTip("put", false)[2]:find("every thing you've switched yourself", 1, true) ~= nil, "and what it lists")
+    t:eq(B.AllTip("put", true)[1], "In my bags", "in that list: back to your bags")
+    t:eq(B.AllTip("sell", false)[1], "Reset to Flow's", "on Withdraw: back to Flow's choices")
+    if InCombatLockdown() then return end
+    local shown = B._Frame() and B._Frame():IsShown()
+    pcall(B.Show, B, "put")
+    local f = B._Frame()
+    if f and f.all and f.both and f.go then
+        local allRight = 10 + f.all:GetWidth()
+        local goLeft = f:GetWidth() - 10 - f.go:GetWidth()
+        local bothLeft = goLeft - 6 - f.both:GetWidth()
+        t:ok(bothLeft >= allRight + 4, string.format("Do both starts clear of the left button (%d against %d)", bothLeft, allRight))
+        t:ok(f.all:GetScript("OnEnter") ~= nil and pcall(f.all:GetScript("OnEnter"), f.all), "pointing at the left button shows what it does")
+        GameTooltip:Hide()
+        t:ok(f.note:GetText() == nil or not f.note:GetText():find("Green: to the bank", 1, true), "the line above says what Deposit all will do")
+    end
+    if f and not shown then f:Hide() end
+end)
