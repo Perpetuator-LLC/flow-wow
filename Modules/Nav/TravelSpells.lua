@@ -21,7 +21,17 @@ ns.travelSpells = TS
 TS.YARDS = 120   -- what a ten-second cast is worth, in running yards
 
 -- (The classic map numbers; Moonglade is 1450.)
-ns:Register("travelSpell", "Teleport: Moonglade", { map = 1450, class = "DRUID", from = "your class trainer, from level 10" })
+-- fly = false: no flight path leaves from where it lands (Moonglade's flight
+-- masters only carry druids home: Rides.lua), so the travel graph (Transit.lua)
+-- doesn't fly on from there.
+ns:Register("travelSpell", "Teleport: Moonglade", { map = 1450, class = "DRUID", from = "your class trainer, from level 10", fly = false })
+-- A mage's teleports (0.35.424): each lands in a city, with its flight master
+-- a walk away. (Classic's names and levels; they need a Rune of Teleportation,
+-- which Flow doesn't check.)
+for name, map in pairs({ ["Teleport: Orgrimmar"] = 1454, ["Teleport: Undercity"] = 1458, ["Teleport: Thunder Bluff"] = 1456,
+                         ["Teleport: Stormwind"] = 1453, ["Teleport: Ironforge"] = 1455, ["Teleport: Darnassus"] = 1457 }) do
+    ns:Register("travelSpell", name, { map = map, class = "MAGE", from = "a portal trainer" })
+end
 
 -- Pure: the travel spell that reaches spot b from spot a, or nil. A spell
 -- fits when b is in its zone and a isn't (you don't teleport across the
@@ -48,7 +58,7 @@ local list
 local function all()
     if not list then
         list = {}
-        for name, s in ns:Each("travelSpell") do list[#list + 1] = { name = name, map = s.map, class = s.class, from = s.from } end
+        for name, s in ns:Each("travelSpell") do list[#list + 1] = { name = name, map = s.map, class = s.class, from = s.from, fly = s.fly } end
     end
     return list
 end

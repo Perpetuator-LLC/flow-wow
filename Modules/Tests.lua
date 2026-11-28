@@ -19607,3 +19607,98 @@ ns:Register("test", "Flow menu: short words, so the menu is narrow", function(t)
     for _, name in ipairs(ns.menu and ns.menu.SECTIONS or {}) do seen[name] = true end
     t:ok(seen["Nearest..."] and not seen["Go to the nearest..."], "\"Nearest...\" in place of \"Go to the nearest...\"")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.424: the hearthstone and travel spells in the travel graph, and the
+-- planner priced by it.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "transit: hearthstone then a flight, a travel spell then a flight, and the planner's price", function(t)
+    local T, N = ns.transit, ns.nav
+    local spots = { Taurajo = { -2380.7, -1882.7 }, Crossroads = { -441.8, -2596.1 }, Ratchet = { -894.6, -3773.0 },
+                    Orgrimmar = { 1677.6, -4315.7 } }
+    local function flightSec(a, b)
+        local dx, dy = spots[a][1] - spots[b][1], spots[a][2] - spots[b][2]
+        return math.sqrt(dx * dx + dy * dy) / 24 + 10
+    end
+    local function masters()
+        return {
+            { name = "Taurajo", cont = 1, wx = -2380.7, wy = -1882.7 }, { name = "Crossroads", cont = 1, wx = -441.8, wy = -2596.1 },
+            { name = "Ratchet", cont = 1, wx = -894.6, wy = -3773.0 }, { name = "Orgrimmar", cont = 1, wx = 1677.6, wy = -4315.7, walled = 1454 },
+        }
+    end
+    -- Far out in the wilds (no flight master near), stone set to Camp Taurajo and ready; the step is at the Crossroads.
+    local you, step = { cont = 1, wx = -5400, wy = -2400 }, { cont = 1, wx = -482.6, wy = -2669.7 }
+    local places = masters()
+    places[#places + 1] = { name = "@inn", cont = 1, wx = -2375.9, wy = -1994.4, landing = true }
+    local hearth = { { to = "@inn", sec = 20, kind = "hearth", name = "Camp Taurajo", from = "you" } }
+    local way = T.Plan(you, step, places, 9.1, flightSec, nil, nil, T.JumpWays(places, hearth))
+    t:eq(way and way.kind, "hearth", "the quickest way starts with the hearthstone")
+    t:eq(way and way.from, "Taurajo", "then a flight from the inn's flight master")
+    t:eq(way and way.to, "Crossroads", "to the one by the step")
+    t:eq(T.Say(way), "hearthstone to Camp Taurajo, then fly Taurajo to Crossroads", "in words")
+    t:ok(T.Hint(way, N.FormatSeconds):find("Flow never casts it for you", 1, true) ~= nil, "the card says it's your call")
+    -- On cooldown for most of an hour: the way without it (here: walk to a flight master and fly).
+    local waiting = { { to = "@inn", sec = 3000, kind = "hearth", name = "Camp Taurajo", from = "you" } }
+    local later = T.Plan(you, step, places, 9.1, flightSec, nil, nil, T.JumpWays(places, waiting))
+    t:ok(later == nil or later.kind == "fly", "a hearthstone on cooldown isn't the way")
+    -- Standing at Camp Taurajo already: the stone saves nothing over the flight, so it's the flight.
+    local near = T.Plan({ cont = 1, wx = -2300, wy = -1900 }, step, places, 9.1, flightSec, nil, nil, T.JumpWays(places, hearth))
+    t:eq(near and near.kind, "fly", "by the inn already: the flight, not the stone")
+    -- A hearthstone that saves a little, not two minutes: left out.
+    local closeBy = { cont = 1, wx = -2380, wy = -2500 }   -- 500 yd from the inn; the step is a walk past it
+    local short = T.Plan(closeBy, { cont = 1, wx = -2376, wy = -1900 }, places, 9.1, flightSec, nil, nil, T.JumpWays(places, hearth))
+    t:eq(short, nil, "a 600 yd walk: not worth the hearthstone")
+
+    -- A mage's teleport lands in Orgrimmar; its flight master is a walk away there; the step is at Ratchet.
+    local magePlaces = masters()
+    magePlaces[#magePlaces + 1] = { name = "@spell:Teleport: Orgrimmar", cont = 1, wx = 1600, wy = -4400, landing = true, walled = 1454 }
+    local port = { { to = "@spell:Teleport: Orgrimmar", sec = 20, kind = "cast", name = "Teleport: Orgrimmar", from = "any" } }
+    local far = { cont = 1, wx = 6000, wy = -1000 }   -- the far north, no flight master near
+    local mage = T.Plan(far, { cont = 1, wx = -900, wy = -3700 }, magePlaces, 7, flightSec, nil, nil, T.JumpWays(magePlaces, port))
+    t:eq(mage and mage.kind, "cast", "the quickest way starts with the teleport")
+    t:eq(T.Say(mage), "cast Teleport: Orgrimmar, then fly Orgrimmar to Ratchet", "then the city's flight master")
+    -- One whose landing has no flight out (Moonglade): you don't fly on from it.
+    local druid = masters()
+    druid[#druid + 1] = { name = "@spell:Teleport: Moonglade", cont = 1, wx = 1650, wy = -4350, landing = true, onward = false }
+    local noFly = T.Plan(far, { cont = 1, wx = -900, wy = -3700 }, druid, 7, flightSec, nil, nil,
+        T.JumpWays(druid, { { to = "@spell:Teleport: Moonglade", sec = 20, kind = "cast", name = "Teleport: Moonglade", from = "any" } }))
+    t:ok(noFly == nil or noFly.from == nil, "no flight on from a landing that has none")
+
+    -- The planner's price: every pair of places solved once, then a trip through its nearest places.
+    local D = T.Hubs(magePlaces, 7, flightSec, port)
+    t:eq(D[1][1], 0, "a place to itself: nothing")
+    t:ok(math.abs(D[1][2] - flightSec("Taurajo", "Crossroads")) < 0.01, "two flight masters: the flight")
+    t:eq(D[1][5], 20, "anywhere to the teleport's landing: the cast")
+    t:ok(D[5][4] < 30, "from the landing to the city's flight master: a short walk")
+    t:eq(D[5][1] < math.huge, true, "and on from there by flight")
+    local a, b = { cont = 1, wx = -2376, wy = -1994, }, { cont = 1, wx = -482, wy = -2670 }
+    local fromA = T.Nearest(magePlaces, function(m)
+        if m.landing or m.walled or m.cont ~= a.cont then return nil end
+        return math.sqrt((a.wx - m.wx) ^ 2 + (a.wy - m.wy) ^ 2)
+    end, 7, 3)
+    local toB = T.Nearest(magePlaces, function(m) return math.sqrt((b.wx - m.wx) ^ 2 + (b.wy - m.wy) ^ 2) end, 7, 3)
+    t:eq(#fromA, 3, "the three flight masters nearest the start")
+    t:eq(magePlaces[fromA[1].i].name, "Taurajo", "nearest first")
+    local sec = T.Through(fromA, toB, D)
+    local straight = math.sqrt((a.wx - b.wx) ^ 2 + (a.wy - b.wy) ^ 2) / 7
+    t:ok(sec and sec < straight, "Camp Taurajo to the Crossroads: quicker through the places than on foot")
+    t:eq(T.Through({}, toB, D), nil, "nothing to board: no such way")
+
+    -- The spells Flow knows of.
+    t:ok(ns:Get("travelSpell", "Teleport: Orgrimmar") ~= nil and ns:Get("travelSpell", "Teleport: Stormwind") ~= nil, "a mage's teleports are listed")
+    t:eq(ns:Get("travelSpell", "Teleport: Moonglade").fly, false, "Moonglade's has no flight on")
+    -- With what you really know: each part builds, and changes nothing.
+    t:ok(pcall(T.Spells), "your travel spells")
+    t:ok(pcall(T.Hearth), "your hearthstone")
+    local okC, cost = pcall(T.PlanCost)
+    t:ok(okC, "the planner's price builds")
+    if okC and cost then
+        local p = N:PlayerPos()
+        if p and p.wx then
+            local okR, yards = pcall(cost, p, { cont = p.cont, wx = p.wx + 3000, wy = p.wy, map = p.map })
+            t:ok(okR and (yards == nil or type(yards) == "number"), "and prices a trip from where you stand")
+        end
+    end
+    t:ok(pcall(T.Lines), "/flow transit builds")
+end)

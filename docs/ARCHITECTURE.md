@@ -103,19 +103,25 @@ Advisor <--- trainer data, class spells, bags, skills, talents, profiler insight
 
 1. **Which step next** (`Modules/Nav/Planner.lua`). Places are the steps: each objective, hand-in,
    quest to pick up and errand is one, with the spots it can be done at. Between two steps there is
-   one cost, in running yards: the least of the straight line, a trip you've made (`Legs.lua`), a
-   flight (`N.TravelYards`: the flight masters nearest each end), a travel spell, a ride, and the
+   one cost, in running yards: the least of the straight line, a trip you've made (`Legs.lua`), the
+   travel graph of layer 2 (`T.PlanCost`: flights and travel spells), a travel spell, a ride, and the
    walk round by a gate. Order rules are `deps` / `softDeps` / `blockedBy`. The search takes the 30
    nearest steps, builds an order by nearest-first, then improves the first 14 by moving and
    reversing stretches. It does not try every order.
-2. **How to get to that step** (`Modules/Nav/Transit.lua`, 0.35.422). One leg is a small graph of
-   its own: you, the step, and every flight master you know on the continent; the ways between
-   them are walks and flights, each costing its seconds. Dijkstra's algorithm gives the quickest
-   way, and when it has a flight in it that takes under `T.SAVES` of the walk, the arrow leads to
-   the flight master (`N.fly`) and says where to fly. `T.Edges` takes `extra` ways: a hearthstone,
-   a teleport, a boat or a zeppelin belong there as more ways between places. Today those are still
-   worked out apart (`Hearth.lua`, `TravelSpells.lua`, `Crossings.lua`, `Rides.lua`), and layer 1
-   still prices a flight by the nearest flight masters. `/flow transit` prints the leg.
+2. **How to get to that step** (`Modules/Nav/Transit.lua`, 0.35.422 and 0.35.424). One leg is a
+   small graph of its own. Places: you, the step, every flight master you know, the inn your
+   hearthstone is set to, where each travel spell you know lands. Ways, each costing its seconds:
+   walks, flights, your hearthstone (you to your inn, when the game says it's ready), a travel
+   spell (from anywhere to where it lands). Dijkstra's algorithm (`T.Shortest`) gives the quickest
+   way, so "hearthstone, then fly" is found when that's it. A way that starts with a flight sends
+   the arrow to the flight master (`N.fly`); one that starts with a cast is said on the arrow's
+   line (`N.jump`), and Flow never casts for you. A flight or travel spell has to take under
+   `T.SAVES` of the walk; a way with the hearthstone in it has to save `T.HEARTH_SAVE` seconds.
+   Layer 1 prices each trip between two steps over the same places (`T.PlanCost`: all pairs of
+   places solved once a plan, each step's nearest `T.NEAR` places tried), without the hearthstone:
+   it's one use an hour and the planner prices each trip on its own. Boats and zeppelins are steps
+   of their own (`Crossings.lua`); the rides out of Moonglade are `Rides.lua`. `/flow transit`
+   prints the leg.
 
 ### Route weights
 

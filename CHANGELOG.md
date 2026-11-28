@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.424
+
+- **Your hearthstone and travel spells are part of the way to your next step.** The trip to
+  your next step was worked out over walks and flights (0.35.422). It now also has the inn
+  your hearthstone is set to (when the game says the stone is ready, or how long is left)
+  and where each travel spell you know lands. So "hearthstone, then fly" is found when
+  that's the quickest way, not only "walk" or "fly". When the quickest way starts with a
+  cast, the arrow's line says so: "Quicker: hearthstone to Camp Taurajo, then fly Camp
+  Taurajo to Crossroads". Flow never casts it for you. A way with the hearthstone in it
+  has to save two minutes and a quarter of the trip, since the stone is one use an hour.
+- **A mage's teleports** (Orgrimmar, Undercity, Thunder Bluff, Stormwind, Ironforge,
+  Darnassus) are travel spells Flow knows: a step in that city is a cast away, and the
+  city's flight master is a short walk from where you land. Flow doesn't check for a Rune
+  of Teleportation.
+- **The order of your steps is priced the same way.** A trip between two steps used to
+  count a flight only between the flight masters nearest its two ends. It's now priced
+  over every flight master and travel spell you know. Your hearthstone isn't counted in the
+  order of steps, only on the trip you're making now.
+- A flight master inside a city you're outside of counts when Flow knows the gate in, and
+  the arrow goes by the gate. Flying into a city and walking out to a step counts too.
+- `/flow transit` also says whether your hearthstone was counted, and why not.
+- Not changed: boats and zeppelins stay steps of their own, and Teleport: Moonglade isn't
+  flown on from (only the druids' own flight masters leave from there).
 ## 0.35.423
 
 - **A narrower Flow menu.** Four of its texts were long enough to set its width:
