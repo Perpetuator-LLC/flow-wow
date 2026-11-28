@@ -537,7 +537,7 @@ function Menu:RouteItemsRaw()
         -- (0.35.311: was "Finish the area you're in first", which stays in
         -- Flow Settings. The zones to finish are ticked under Zones below.)
         { text = "Finish selected zones", checked = nav.ZonesFirstOn(),
-          tip = "On: the route does the zones ticked under Zones (below) first, and the rest after them. Off: an unticked zone is left out of the route.",
+          tip = "On: the route does the zones ticked under Zones (below) first; quests already in your log in other zones come after them. Off: an unticked zone is left out of the route. Either way Flow never offers a quest to pick up in a zone you haven't ticked.",
           func = function() nav.SetZonesFirst(not nav.ZonesFirstOn()) end }
     section("Order", order)
 

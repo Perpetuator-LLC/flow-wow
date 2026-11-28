@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.35.427
+
+- **Fixed: the route went to a zone you hadn't ticked, ahead of the ones you had.** With
+  The Barrens and Thunder Bluff ticked and "Finish selected zones" on, the route at the
+  Crossroads was eighteen low-level quests to pick up in Durotar, and none of your Barrens
+  steps. Flow plans the thirty nearest steps, and that cut went by nearness alone: the
+  Durotar quests were nearer than the Barrens steps they were meant to wait for, and took
+  their places. Steps outside your zones now only make the cut after every step inside them.
+- **A zone you haven't ticked never offers a quest to pick up.** With "Finish selected
+  zones" on, an unticked zone stayed on the route "for after", new quests and all. Now only
+  what's already in your quest log there stays for after; Flow doesn't send you to pick up
+  quests (or to repeatable hand-ins) in a zone that's off. With no zone ticked, no new
+  quests are offered anywhere.
+- The diagnostics now check this on every snapshot ("zones check" under /flow nav why), so
+  a plan that breaks your zones is flagged without anyone having to notice it.
+- The "Repeatable hand-ins" tick in Route includes sits after the errands. (One self-test
+  still failed over where 0.35.421 had put it.)
 ## 0.35.426
 
 - **A dungeon's menu lists its quests, one by one.** Flow menu, Dungeons, then a dungeon:

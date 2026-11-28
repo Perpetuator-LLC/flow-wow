@@ -639,6 +639,15 @@ function N:Collect(gathered)
             if N.ZonesFirstOn() then
                 for _, z in ipairs(summary) do z.later, z.off = z.off, false end
                 N.zoneLeftOut = 0
+                -- (0.35.427: but never a quest to pick up there. "I only have The
+                -- Barrens and Thunder Bluff set up as my zones, and it is telling me
+                -- to go pick up a bunch of low-level quests in Durotar." What stays
+                -- for after is what's already in your log.)
+                local okP, keptP, dropped = pcall(N.DropNewInOff, shown, function(g)
+                    local zone = N.ZONE_PROVIDERS[g.provider or ""] and N.GoalZone(g) or nil
+                    return zone ~= nil and sel ~= nil and not sel[zone]
+                end)
+                if okP then shown, N.zoneLeftOut = keptP, dropped end
             else
                 shown, N.zoneLeftOut = keptZ, left
             end
@@ -843,6 +852,16 @@ N.ZONE_PROVIDERS = { questie = true, pickups = true, native = true }
 --   zoneOf(goal) -> zone or nil; nameOf(zone) -> name
 --   log: steps of quests in your log (not ones to pick up); classSpells:
 --   { [spell] = true } for class-quest steps there
+-- Pure: without the quests to pick up (and repeatable hand-ins) in zones that
+-- are off. off(goal) -> true when its zone isn't one of yours. -> kept, how many left out
+function N.DropNewInOff(goals, off)
+    local kept, dropped = {}, 0
+    for _, g in ipairs(goals or {}) do
+        local new = type(g.key) == "string" and (g.key:find("^pickup:") or g.key:find("^repeat:"))
+        if new and off(g) then dropped = dropped + 1 else kept[#kept + 1] = g end
+    end
+    return kept, dropped
+end
 function N.ZoneFilter(goals, off, zoneOf, nameOf)
     local isOff = type(off) == "function" and off or function(zone) return (off or {})[zone] == true end
     local byZone, order, kept, left = {}, {}, {}, 0
@@ -3467,6 +3486,7 @@ function N:Options(sel)
     end
     -- (0.35.424: a trip is priced over every flight master and travel spell you
     -- know, Transit.lua, not by the flight masters nearest its two ends.)
+    N.planHere, N.planAway = here, away   -- (the zones check in /flow nav why)
     local okT, cost = pcall(function() return ns.transit and ns.transit.PlanCost() end)
     return { first = first, tour = tour, here = here, away = away, air = (okT and cost) or N.PlanAir(), walk = ns.gates and ns.gates.PlanWalk() or nil,
              port = ns.travelSpells and ns.travelSpells.PlanPort() or nil,
@@ -5286,6 +5306,14 @@ ns.commands.nav = function(arg)
         local here = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
         print("  your map: " .. tostring(here) .. ", Elwynn zone lookup: " .. tostring(ns.quests:UiMapForArea(12)))
         print("  plan: " .. (N.plan and #N.plan or 0) .. " stop(s)")
+        -- (0.35.427) Does the plan keep to your zones? Said here so a snapshot shows it.
+        do
+            local keys = {}
+            for _, s in ipairs(N.plan or {}) do keys[#keys + 1] = s.goal and s.goal.key end
+            local fault = ns.planner.ZoneFault(keys, N.planHere, N.planAway)
+            print("  zones check: " .. (fault > 0 and string.format("WRONG: %d step(s) outside your zones are planned while steps inside them are left off", fault)
+                or "the plan keeps to your zones"))
+        end
         -- The route itself (also saved in the diagnostics for Claude to check).
         local free, max = ns.quests:FreeSlots()
         print(string.format("  quest log: %d free of %d; bound to %s", free, max, tostring(GetBindLocation and GetBindLocation())))

@@ -193,6 +193,14 @@ function P.OnFoot(pts, ported)
     return walk
 end
 
+-- Pure: a step's place in the cut: chosen steps, then milestones and kept
+-- hand-ins, then the rest, and last the steps that wait for your zones.
+function P.CutRank(isForced, special, waits)
+    if isForced then return 3 end
+    if special then return 2 end
+    return waits and 0 or 1
+end
+
 local function candidates(p, goals)
     local stops = {}
     for _, g in ipairs(goals) do
@@ -225,8 +233,14 @@ local function candidates(p, goals)
         -- (goal.keep: a finished quest's hand-in that frees bag slots while
         -- your bags are nearly full, QuestBags.lua, 0.35.344. With 130 quests
         -- to pick up nearer by it never made the 30, and its items stayed.)
-        local fa = forced(a.key) and 2 or ((a.goal.milestone or a.goal.keep) and 1 or 0)
-        local fb = forced(b.key) and 2 or ((b.goal.milestone or b.goal.keep) and 1 or 0)
+        -- (0.35.427: and a step that waits for your zones, OPT.away, comes after
+        -- every step that doesn't. The cut went by nearness alone: at the
+        -- Crossroads with The Barrens ticked, eighteen quests to pick up in
+        -- Durotar were nearer than the Barrens steps they were meant to wait
+        -- for, took their places among the 30, and the route was Durotar.)
+        local away = OPT.away
+        local fa = P.CutRank(forced(a.key), a.goal.milestone or a.goal.keep, away and away[a.key])
+        local fb = P.CutRank(forced(b.key), b.goal.milestone or b.goal.keep, away and away[b.key])
         if fa ~= fb then return fa > fb end
         return a.near * (a.goal.weight or 1) < b.near * (b.goal.weight or 1)
     end)
@@ -379,6 +393,33 @@ local function expand(p, stops)
     return extra
 end
 P._expand = function(p, stops) return expand(p, stops) end   -- (tests)
+-- (tests) The steps that make the cut, as keys in a set.
+P._cut = function(p, goals, opts)
+    local keep = OPT
+    OPT = opts or {}
+    nearPt, nearD = {}, {}
+    local ok, stops = pcall(candidates, p, goals)
+    OPT = keep
+    local set = {}
+    for _, s in ipairs(ok and stops or {}) do set[s.key] = true end
+    return set, ok
+end
+-- Pure: is the plan against your zones? How many of its steps wait for your
+-- zones (away) while a step of your zones (here) isn't on it at all.
+--   planKeys: { key, ... } the plan in order; here, away: { [key] = true }
+function P.ZoneFault(planKeys, here, away)
+    if not (here and away) then return 0 end
+    local on, waiting = {}, 0
+    for _, k in ipairs(planKeys or {}) do
+        on[k] = true
+        if away[k] then waiting = waiting + 1 end
+    end
+    if waiting == 0 then return 0 end
+    for k in pairs(here) do
+        if not on[k] then return waiting end
+    end
+    return 0
+end
 
 -- Walks an order from your position. Returns weighted cost, legs, points.
 -- (The legs are straight yards, what the route shows; the cost counts flights.)

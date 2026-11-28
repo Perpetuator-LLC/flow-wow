@@ -19839,3 +19839,59 @@ ns:Register("test", "click: a dungeon's three choices and its quest rows", funct
     D.dirty = true
     if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.427: steps outside your zones never push steps inside them off the
+-- plan, and a zone that's off never offers a quest to pick up.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: the plan keeps to your zones (nearer steps outside them don't take the places)", function(t)
+    local P, N = ns.planner, ns.nav
+    t:eq(P.CutRank(true, false, true), 3, "a step you chose: first, whatever its zone")
+    t:eq(P.CutRank(false, true, true), 2, "a milestone or a kept hand-in next")
+    t:eq(P.CutRank(false, false, false), 1, "a step of your zones")
+    t:eq(P.CutRank(false, false, true), 0, "a step that waits for your zones: last")
+    -- You're at the Crossroads: forty steps of your zone 3,400 yd south, eighteen quests to pick up
+    -- in a zone that's off 2,900 yd east. The cut is thirty steps.
+    local you = { cont = 1, wx = 0, wy = 0 }
+    local goals, here, away = {}, {}, {}
+    for i = 1, 40 do
+        local key = "9876541" .. string.format("%02d", i) .. ":1"
+        goals[#goals + 1] = { key = key, points = { { cont = 1, wx = -3400 - i, wy = 10 * i } } }
+        here[key] = true
+    end
+    for i = 1, 18 do
+        local key = "pickup:9876542" .. string.format("%02d", i)
+        goals[#goals + 1] = { key = key, points = { { cont = 1, wx = 20 * i, wy = -2900 } } }
+        away[key] = true
+    end
+    local cut, ok = P._cut(you, goals, { here = here, away = away })
+    t:ok(ok, "the cut runs")
+    local inZone, outside = 0, 0
+    for key in pairs(cut) do
+        if here[key] then inZone = inZone + 1 elseif away[key] then outside = outside + 1 end
+    end
+    t:eq(outside, 0, "none of the nearer steps outside your zones make the cut")
+    t:ok(inZone >= 30, "the cut is steps of your zones: " .. inZone)
+    -- With no zones to keep to, nearness decides, as before.
+    local free = P._cut(you, goals, {})
+    local near = 0
+    for key in pairs(free) do if away[key] then near = near + 1 end end
+    t:eq(near, 18, "no zones picked: the nearer ones are all in")
+    -- The check the diagnostics print.
+    t:eq(P.ZoneFault({ "a", "b" }, { a = true, b = true }, { x = true }), 0, "a plan of your zones' steps: fine")
+    t:eq(P.ZoneFault({ "a", "b", "x" }, { a = true, b = true }, { x = true }), 0, "a step outside after all of yours: fine")
+    t:eq(P.ZoneFault({ "a", "x", "y" }, { a = true, b = true }, { x = true, y = true }), 2, "two outside while one of yours is left off: wrong")
+    t:eq(P.ZoneFault({ "x" }, nil, nil), 0, "no zones to keep to: nothing to check")
+    -- A zone that's off never offers a quest to pick up; what's in your log stays.
+    local list = { { key = "pickup:987654301", zone = "off" }, { key = "repeat:Someone", zone = "off" }, { key = "987654302:1", zone = "off" },
+                   { key = "pickup:987654303", zone = "on" }, { key = "987654302:done", zone = "off" } }
+    local kept, dropped = N.DropNewInOff(list, function(g) return g.zone == "off" end)
+    t:eq(dropped, 2, "the quest to pick up and the repeatable in the zone that's off are left out")
+    t:eq(#kept, 3, "your log's steps there stay (for after), and so does the pickup in your zone")
+    t:eq(kept[1].key, "987654302:1", "in their order")
+    -- The Repeatable hand-ins tick sits after the errands, not among the quest kinds.
+    local keys = {}
+    for _, k in ipairs(N.Kinds()) do keys[#keys + 1] = k.key end
+    t:ok(table.concat(keys, ","):find("^quests,newQuests,lowQuests,training,professions,town,repeatables") ~= nil, "Route includes: " .. table.concat(keys, ","))
+end)
