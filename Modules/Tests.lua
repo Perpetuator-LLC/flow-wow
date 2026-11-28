@@ -19702,3 +19702,29 @@ ns:Register("test", "transit: hearthstone then a flight, a travel spell then a f
     end
     t:ok(pcall(T.Lines), "/flow transit builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.425: a hand-in doesn't make an inn the place you're questing from.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "hearthstone: a hand-in or a locked step doesn't move your home; it takes a clear lead", function(t)
+    local H = ns.hearth
+    local xr = { name = "Innkeeper Boorand Plainswind", town = "the Crossroads", zone = "The Barrens" }
+    local ct = { name = "Innkeeper Byula", town = "Camp Taurajo", zone = "The Barrens" }
+    -- What counts as questing somewhere.
+    t:ok(H.Counts({ key = "905:1" }), "an objective counts")
+    t:ok(not H.Counts({ key = "905:done" }), "a hand-in doesn't")
+    t:ok(not H.Counts({ key = "1221:2", blockedBy = "level 26 quest" }), "a locked step doesn't")
+    t:ok(not H.Counts({ key = "pickup:843" }), "a quest to pick up doesn't")
+    t:ok(not H.Counts({ key = "905:1" }, { ["893:1"] = true }), "a step that isn't on your route doesn't")
+    t:ok(H.Counts({ key = "893:1" }, { ["893:1"] = true }), "one that is does")
+    -- A clear lead.
+    t:ok(not H.Lead({ here = 2, home = 0 }), "two steps: too few to move for")
+    t:ok(H.Lead({ here = 3, home = 1 }), "three against one: a lead")
+    t:ok(not H.Lead({ here = 4, home = 3 }), "four against three: not a lead")
+    -- At the Crossroads to hand in, your home at Camp Taurajo, quests accepted here before.
+    t:ok(not H.Offer(xr, ct, 2000, { here = 1, home = 6 }, true, true), "your steps are round Camp Taurajo: your home stays")
+    t:ok(not H.Offer(xr, ct, 2000, { here = 4, home = 3 }, true, true), "a step more round the Crossroads: not enough to move")
+    t:ok(H.Offer(xr, ct, 2000, { here = 6, home = 1 }, true, true), "nearly all of them round the Crossroads: offered")
+    t:ok(not H.Offer(xr, ct, 2000, { here = 0, home = 0 }, true, true), "nothing left to do round either: a second inn of your home's zone isn't offered")
+end)

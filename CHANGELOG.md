@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.425
+
+- **Fixed: "Set hearthstone" at an inn you only came to for a hand-in.** At the Crossroads
+  to hand in a quest, with your home at Camp Taurajo and the rest of your route round it,
+  Flow told you to set your hearthstone at the Crossroads. Three things were wrong:
+  - Hand-ins counted as questing round an inn. They don't now: you go there once and leave.
+  - Steps that aren't on your route counted too (locked ones, ones in a zone that's off).
+    Only the objectives on your route count now.
+  - One step more round this inn was enough to move your home. It now takes a clear lead:
+    at least three steps round this inn, and twice as many as round your home.
+- "You've accepted a quest by this inn" now counts from when you last set your hearthstone.
+  It never ran out, so quests taken at an inn days ago still made it a place you were
+  "questing from".
 ## 0.35.424
 
 - **Your hearthstone and travel spells are part of the way to your next step.** The trip to

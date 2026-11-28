@@ -121,11 +121,37 @@ H.CITY_REACH = 1500   -- a city home this close to a village's inn: keep the cit
 -- accepted (0.35.392): have you accepted a quest by this inn? false: no step
 -- (you're not questing from here). true also lets a second inn of your
 -- home's zone be offered, when more of your quests are round it.
+-- (0.35.425) "It says, you're questing up in this area, so you should set your
+-- Hearthstone here. But we're just turning in quests ... I'm heading back to
+-- Camp Taurajo ... hearthing back there would be ideal. So setting my hearth
+-- in Crossroads is not ideal." At the Crossroads for a hand-in, with the home
+-- at Camp Taurajo: one more of the log's steps lay nearer the Crossroads, and
+-- that was enough. Hand-ins counted, and so did steps that weren't on the
+-- route at all (locked, too high, in a zone that's off).
+-- Moving your home from one inn to another now takes a clear lead: at least
+-- H.LEAD_MIN steps round this inn, and H.LEAD_TIMES as many as round your home.
+H.LEAD_MIN, H.LEAD_TIMES = 3, 2
+function H.Lead(work)
+    local here, home = work and work.here or 0, work and work.home or 0
+    return here >= H.LEAD_MIN and here >= home * H.LEAD_TIMES
+end
+-- Pure: does a step say where you're questing? One of your log's quests'
+-- objectives that's on your route now and can be done: not a hand-in (you go
+-- there once and leave), not a locked step.
+--   onRoute: { [key] = true } the plan's steps, or nil when there's no plan to go by
+function H.Counts(g, onRoute)
+    if type(g) ~= "table" or type(g.key) ~= "string" then return false end
+    if not g.key:find("^%d+:") or g.key:find(":done$") then return false end
+    if g.blockedBy then return false end
+    if onRoute and not onRoute[g.key] then return false end
+    return true
+end
 function H.Offer(here, home, yards, work, picked, accepted)
     if not here then return false end
     if picked == false or accepted == false then return false end
     if not home then return true end                       -- as before: your home isn't a known inn
     if home == here then return false end
+    if work and (work.here or 0) + (work.home or 0) > 0 and not H.Lead(work) then return false end
     if home.zone == here.zone then                         -- bound in this zone already
         return accepted == true and work ~= nil and (work.here or 0) > (work.home or 0)
     end
@@ -156,7 +182,17 @@ function H.Work(here, home)
     if not (N and N.Goals) then return nil end
     local ok, goals = pcall(N.Goals, N)
     if not ok or type(goals) ~= "table" then return nil end
-    return H.Nearer(goals, here, home, function(inn, pt) return H.Between(inn, pt) end)
+    -- (0.35.425: only what's on your route now, and not hand-ins. See H.Counts.)
+    local onRoute
+    if type(N.plan) == "table" and #N.plan > 0 then
+        onRoute = {}
+        for _, s in ipairs(N.plan) do if s.goal and s.goal.key then onRoute[s.goal.key] = true end end
+    end
+    local kept = {}
+    for _, g in ipairs(goals) do
+        if H.Counts(g, onRoute) then kept[#kept + 1] = g end
+    end
+    return H.Nearer(kept, here, home, function(inn, pt) return H.Between(inn, pt) end)
 end
 
 -- A step that's a travel spell away waits for the "Set hearthstone" step,
@@ -424,6 +460,10 @@ ns:PerCharacter("hearth.accepted")
 ns:On("HEARTHSTONE_BOUND", function()
     local bind = GetBindLocation and GetBindLocation()
     ns:Print("hearthstone set to " .. tostring(bind))
+    -- (0.35.425: "accepted a quest by this inn" counts from when you last set
+    -- your home. It never ran out: quests taken at the Crossroads days ago
+    -- still made its inn one you were "questing from".)
+    if ns.db and ns.db.hearth then ns.db.hearth.accepted = {} end
     local who = UnitName and (UnitName("npc") or UnitName("target"))
     if type(who) == "string" then pcall(H.Learn, bind, who) end
     if ns.nav then ns.nav:Collect() end
