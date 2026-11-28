@@ -18258,23 +18258,9 @@ ns:Register("test", "click: a dungeon's menu is flat, says what each entry does,
             if it.text then by[it.text] = it end
         end
         t:eq(seps, 0, "no line across: nothing is folded away under More")
-        local on, lead = by["On your route"], by["Quests: include long lead-in chains"]
-        t:ok(on and on.stay and on.tip, "On your route: a tick that stays open and says what it does")
-        t:ok(by["Only this run on your route"] and by["Only this run on your route"].tip, "Only this run: explained")
+        -- (0.35.426: the ticks became three choices: "click: a dungeon's three choices and its quest rows".)
         t:ok(by["Straight to the entrance"] and by["Straight to the entrance"].tip, "Straight to the entrance: explained")
-        t:ok(lead and lead.stay and lead.tip and lead.tip:find("chain", 1, true), "the lead-in choice says it's about quests and their chains")
-        -- Click the tick the way a click does: on, then off, the menu still up.
-        ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = {}, nil
-        with(ns, "Print", function() end, function()
-            M:Open(items)
-            t:ok(pcall(M.Click, on), "clicking On your route runs")
-            t:eq(D:Prepared(), run.key, "the run is on")
-            t:ok(on.checked, "its tick shows")
-            t:ok(_G.FlowMenu and _G.FlowMenu:IsShown(), "and the menu stays open")
-            pcall(M.Click, on)
-            t:eq(D:Prepared(), nil, "clicking it again takes the run off")
-            M:Close()
-        end)
+        t:ok(by["With my questing"] and by["Only this dungeon"] and by["Off my route"], "the three choices")
         -- The list: each dungeon row has the arrow, and Clear when one is on.
         ns.db.nav.dungeonRun = { key = run.key, dungeon = run.dungeon, name = run.name }
         local okL, list = pcall(D.MenuItems, D)
@@ -19727,4 +19713,129 @@ ns:Register("test", "hearthstone: a hand-in or a locked step doesn't move your h
     t:ok(not H.Offer(xr, ct, 2000, { here = 4, home = 3 }, true, true), "a step more round the Crossroads: not enough to move")
     t:ok(H.Offer(xr, ct, 2000, { here = 6, home = 1 }, true, true), "nearly all of them round the Crossroads: offered")
     t:ok(not H.Offer(xr, ct, 2000, { here = 0, home = 0 }, true, true), "nothing left to do round either: a second inn of your home's zone isn't offered")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.426: a dungeon's quests as rows, three plain choices, a level range.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "dungeons: each quest says what it is for you and the next thing to do", function(t)
+    local DQ, D = ns.dungeonQuests, ns.dungeons
+    t:eq(DQ.Kind({ state = "done" }), "done", "handed in: done")
+    t:eq(DQ.Kind({ state = "ready" }, true), "complete", "in your log and finished: ready to hand in")
+    t:eq(DQ.Kind({ state = "ready" }, false), "on", "in your log")
+    t:eq(DQ.Kind({ state = "pickup", level = 15 }, nil, 14, 2), "get", "to pick up")
+    t:eq(DQ.Kind({ state = "pickup", level = 18 }, nil, 14, 2), "later", "four levels above you: not this run")
+    t:eq(DQ.Kind({ state = "unlock", level = 15, info = {} }, nil, 14, 2), "chain", "opens after other quests")
+    t:eq(DQ.Kind({ state = "inside", level = 15 }, nil, 14, 2), "inside", "starts inside")
+    t:eq(DQ.Kind({ state = "followup", level = 15 }, nil, 14, 2), "inside", "opens during the run")
+    t:eq(DQ.Kind({ state = "nextrun", info = "from level 20" }), "later", "not yet")
+    t:eq(DQ.Kind({ state = "toolong", info = "a long lead-in (5 quests)" }), "later", "a long chain: not yet")
+    t:eq(DQ.Kind({ state = "notforyou", info = "another class's" }), "cant", "not for you")
+    for _, k in ipairs(DQ.ORDER) do
+        t:ok(type(DQ.ICONS[k]) == "string" and DQ.ICONS[k]:find("^Interface\\") ~= nil, "a picture for " .. k)
+        t:ok(DQ.WORDS[k] ~= nil, "and words for it")
+    end
+    -- The next thing to do.
+    local who = { giver = "Thrall", zone = "Orgrimmar" }
+    t:eq(DQ.Next({ state = "pickup" }, "get", who)[1], "Next: pick it up from Thrall, Orgrimmar.", "to pick up: who from and where")
+    local chain = DQ.Next({ state = "unlock", info = { { id = 1, name = "First Part", level = 14 }, { id = 2, name = "Second Part", inLog = true } } }, "chain", who,
+        function(id) return id == 1 and { giver = "Rahauro", zone = "Thunder Bluff" } or {} end)
+    t:eq(chain[1], "It opens after 2 other quests:", "a chain: how many come first")
+    t:eq(chain[2], "1. First Part (14): from Rahauro, Thunder Bluff", "the first, with who gives it")
+    t:eq(chain[3], "2. Finish Second Part (in your log).", "one you're on already")
+    t:eq(chain[4], "3. Then pick it up from Thrall, Orgrimmar.", "then the quest itself")
+    t:ok(DQ.Next({ state = "notforyou", info = "another class's" }, "cant")[1]:find("another class's", 1, true) ~= nil, "not for you: why")
+    t:ok(DQ.Next({ state = "nextrun", info = "after an earlier part" }, "later")[1]:find("done inside and handed in first", 1, true) ~= nil,
+        "after an earlier part of the dungeon's chain: said plainly")
+    t:ok(DQ.Next({ state = "nextrun", info = "from level 20" }, "later")[1]:find("from level 20", 1, true) ~= nil, "a level to reach: said")
+    t:ok(DQ.Next({ state = "toolong", info = "a long lead-in (5 quests)" }, "later")[2]:find("Only this dungeon", 1, true) ~= nil, "a long chain: which choice takes it")
+    t:ok(DQ.Next({ state = "inside" }, "inside")[1]:find("nothing to do before you go in", 1, true) ~= nil, "starts inside: nothing to do first")
+    t:ok(DQ.Next({ state = "pickup", level = 18 }, "later", who, nil, 14)[1]:find("level 18", 1, true) ~= nil, "too high: its level and yours")
+    -- Levels, order, tally.
+    t:eq(DQ.Levels({ { level = 15 }, { level = 13 }, { level = 16 }, { level = 0 } }), "13-16", "the range of a dungeon's quests")
+    t:eq(DQ.Levels({ { level = 15 } }), "15", "one level")
+    t:eq(DQ.Levels({}), nil, "none")
+    local rows = DQ.Sort({ { kind = "done", name = "A", level = 13 }, { kind = "get", name = "B", level = 16 }, { kind = "on", name = "C", level = 15 },
+                           { kind = "get", name = "D", level = 14 } })
+    t:eq(rows[1].name .. rows[2].name .. rows[3].name .. rows[4].name, "CDBA", "in your log first, then to get (by level), done last")
+    t:eq(DQ.Tally(rows), "1 done, 1 in your log, 2 to get", "how many of each")
+    -- The three choices.
+    t:eq(D.ModeOf(false, false), "off", "not on your route")
+    t:eq(D.ModeOf(true, false), "with", "with your questing")
+    t:eq(D.ModeOf(true, true), "only", "only this dungeon")
+    t:eq(#D.MODES, 3, "three choices")
+    -- A run cut from entries keeps every quest, whatever its state.
+    local cut = D.CutRuns({
+        { id = 1, name = "Got", level = 15, dungeon = 9, dungeonName = "Test Depths", state = "ready" },
+        { id = 2, name = "Did", level = 14, dungeon = 9, dungeonName = "Test Depths", state = "done" },
+        { id = 3, name = "Never", level = 15, dungeon = 9, dungeonName = "Test Depths", state = "notforyou", info = "another class's" },
+    }, 15, 10)
+    t:eq(cut[1] and #cut[1].list, 3, "the run lists all three quests")
+    t:eq(cut[1] and DQ.Levels(cut[1].list), "14-15", "and so its levels")
+    t:ok(pcall(DQ.Lines), "/flow dungeonquests builds")
+end)
+
+ns:Register("test", "click: a dungeon's three choices and its quest rows", function(t)
+    local D, M, DQ = ns.dungeons, ns.menu, ns.dungeonQuests
+    local runs = D:Available() and D:Runs()
+    local run = runs and runs[1]
+    if not run then t:ok(true, "(no dungeon run at your level to open)") return end
+    if InCombatLockdown() then return end
+    local was, only = ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly
+    local long = ns.db.nav.dungeonLong
+    local longWas = type(long) == "table" and long[run.dungeon]
+    local collect, say = ns.nav.Collect, ns.Print
+    ns.nav.Collect, ns.Print = function() end, function() end
+    local ok, err = pcall(function()
+        local items = D.RunItems(run)
+        local by, quests = {}, 0
+        for _, it in ipairs(items) do
+            if it.mode then by[it.mode] = it end
+            if it.quest then quests = quests + 1 end
+        end
+        t:ok(by.off and by.with and by.only, "the three choices are there")
+        t:ok(by.with.radio and by.with.stay and by.with.tip, "one choice, it stays open, and says what it does")
+        t:eq(quests, #run.list, "a row for every quest of the dungeon")
+        ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = {}, nil
+        M:Open(items)
+        t:ok(pcall(M.Click, by.with), "clicking With my questing runs")
+        t:eq(D:Prepared(), run.key, "the run is on your route")
+        t:eq(D:RunMode(run.key), "with", "with your questing")
+        t:ok(_G.FlowMenu and _G.FlowMenu:IsShown(), "and the menu stays open")
+        t:ok(pcall(M.Click, by.only), "clicking Only this dungeon runs")
+        t:eq(D:RunMode(run.key), "only", "only this dungeon")
+        t:ok(pcall(M.Click, by.off), "clicking Off my route runs")
+        t:eq(D:Prepared(), nil, "the run is off")
+        -- A quest row's click runs (a quest to go and get moves your waypoint: put back after).
+        local set, sent = ns.waypoint.Set, 0
+        ns.waypoint.Set = function() sent = sent + 1 end   -- (Flow's own: your waypoint stays where it is)
+        local okRows, errRows = pcall(function()
+            for _, it in ipairs(items) do
+                if it.quest then
+                    t:ok(type(it.tipLines) == "table" and #it.tipLines >= 3, "a quest row says what it is and what's next: " .. tostring(it.tipLines and it.tipLines[1]))
+                    local before = sent
+                    t:ok(pcall(it.func), "and its click runs")
+                    if it.kind == "get" and it.tipLines[#it.tipLines]:find("^Click:") then
+                        t:eq(sent, before + 1, "a quest to go and get: the waypoint goes to its giver")
+                    end
+                end
+            end
+        end)
+        ns.waypoint.Set = set
+        t:ok(okRows, "the quest rows work" .. (okRows and "" or (": " .. tostring(errRows))))
+        M:Close()
+        -- The Dungeons list says the level of each dungeon's quests.
+        local list = D:MenuItems()
+        local levels = DQ.Levels(run.list)
+        for _, it in ipairs(list) do
+            if it.run == run.key and levels then t:ok(it.text:find(levels, 1, true) ~= nil, "its row in the Dungeons list has the levels: " .. it.text) end
+        end
+    end)
+    ns.nav.Collect, ns.Print = collect, say
+    t:ok(ok, "no errors" .. (ok and "" or (": " .. tostring(err))))
+    ns.db.nav.dungeonRun, ns.db.nav.dungeonOnly = was, only
+    if type(ns.db.nav.dungeonLong) == "table" then ns.db.nav.dungeonLong[run.dungeon] = longWas or nil end
+    D.dirty = true
+    if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
 end)

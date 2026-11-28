@@ -254,6 +254,10 @@ Flow for WoW is a separate project from Flow Engine.
   of their own, off until you want them. Hover any quest step for the XP it gives at your level.
 - **Repeatable hand-ins in Route includes**: the one step for an NPC's repeatable hand-ins
   (Mangletooth's Blood Shard blessings) is a tick of its own, on until you untick it.
+- **A dungeon's quests, one by one**: a dungeon's menu (Flow menu, Dungeons) lists every quest Flow
+  knows for it with an icon (done, in your log, to pick up, after other quests, starts inside, not
+  yet, not for you); point at one for what it asks and the next thing to do to get it, click one
+  to go to its giver. Three choices put it on your route: Off, With my questing, Only this dungeon.
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.

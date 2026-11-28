@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.35.426
+
+- **A dungeon's menu lists its quests, one by one.** Flow menu, Dungeons, then a dungeon:
+  under its choices is every quest Flow knows for that dungeon, each with an icon for what
+  it is for you: done (a green tick), in your log and ready to hand in, in your log, to
+  pick up (a yellow "!"), starts inside or not yet (a yellow "?"), not for you (a red
+  cross). Before, they were lines of a tooltip, and the ones you'd done, couldn't do or
+  weren't ready for were only numbers.
+- **Point at a quest for what it asks and the next thing to do to get it.** Who gives it
+  and where; for one that opens after other quests, those quests in order with their
+  givers, even when they have nothing to do with the dungeon; for one you can't get, why
+  (another class's, an earlier part that has to be done inside first, a level to reach, a
+  chain that's too long). Click a quest you can go and get: your waypoint goes to its
+  giver, or to the giver of the first quest of its chain.
+- **Three plain choices in place of the ticks.** "Off my route", "With my questing" (its
+  quests go on your route with everything else, then the entrance) and "Only this dungeon"
+  (your route is just this dungeon: every quest you can get and the chains that open them,
+  then the entrance). "Quests: include long lead-in chains" is gone: "Only this dungeon"
+  takes the long chains (up to 6 quests), "With my questing" the short ones (up to 3).
+  "Straight to the entrance" and "Add to my custom route" stay.
+- **The level of each dungeon's quests** is beside its name in the Dungeons list ("Ragefire
+  Chasm 13-16: 5 of 6") and in its menu.
+- `/flow dungeonquests` prints the same list; it's in the diagnostics.
 ## 0.35.425
 
 - **Fixed: "Set hearthstone" at an inn you only came to for a hand-in.** At the Crossroads
