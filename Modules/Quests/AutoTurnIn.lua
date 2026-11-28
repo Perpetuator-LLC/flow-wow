@@ -56,12 +56,48 @@ function AT.Reward(nChoices)
     return nil
 end
 
--- The first finished quest in an NPC's list ({ { id, complete }, ... }):
--- its position and id, or nil.
+-- The first finished quest in an NPC's list ({ { id, complete, repeatable }, ... }):
+-- its position and id, or nil. A repeatable hand-in is left to you.
 function AT.PickFinished(list)
     for i, q in ipairs(list or {}) do
-        if q.complete then return i, q.id end
+        if q.complete and not q.repeatable then return i, q.id end
     end
+end
+
+-- Pure: is a quest a repeatable hand-in? flagged: the game's own word for it;
+-- rawOf(id) -> the quest as the quest data has it; is(raw) -> repeatable.
+-- (0.35.420: "on the Razorhide quests it accepted it twice in a row ... we
+-- wasted 1 buff/mats". Only the list of new quests left repeatables alone,
+-- and only by the game's flag. With Blood Shards in your bags Mangletooth's
+-- blessings can be handed in at once, and every later page went through:
+-- Complete, then the reward, then the next one when his window came back.)
+function AT.IsRepeat(id, flagged, rawOf, is)
+    if flagged then return true end
+    if type(id) ~= "number" or not rawOf or not is then return false end
+    local raw = rawOf(id)
+    return raw ~= nil and is(raw) == true
+end
+-- The same, from the game's flag and Flow's quest data.
+function AT.RepeatNow(id, flagged)
+    local R = ns.repeatables
+    local ok, yes = pcall(AT.IsRepeat, id, flagged,
+        function(i) return ns.quests and ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", i) end,
+        R and R.Is)
+    return ok and yes == true
+end
+-- On a quest's own page (offered, "have you finished?", the reward): is it a
+-- repeatable hand-in? Then it's yours to press. say: tell the player once.
+local toldRepeat
+local function leftRepeat(say)
+    local id = GetQuestID and GetQuestID()
+    if not AT.RepeatNow(id) then return false end
+    local title = tostring(GetTitleText and GetTitleText())
+    ns:Log("quests", "auto turn-in: left to you (a repeatable hand-in): " .. title)
+    if say and toldRepeat ~= title then
+        toldRepeat = title
+        ns:Print(title .. " is a repeatable hand-in: Flow leaves those to you, so nothing is spent that you didn't choose.")
+    end
+    return true
 end
 
 local function log(what) ns:Log("quests", "auto turn-in: " .. what) end
@@ -74,7 +110,7 @@ local function gossipTurnIn(G)
     if G and G.GetActiveQuests and G.SelectActiveQuest then
         local list = {}
         for _, q in ipairs(G.GetActiveQuests() or {}) do
-            list[#list + 1] = { id = q.questID, complete = q.isComplete, title = q.title }
+            list[#list + 1] = { id = q.questID, complete = q.isComplete, title = q.title, repeatable = AT.RepeatNow(q.questID, q.repeatable) }
         end
         local i, id = AT.PickFinished(list)
         if id then log("opening " .. tostring(list[i].title)); G.SelectActiveQuest(id); return true end
@@ -91,7 +127,7 @@ local function gossipNew(G)
         local list = {}
         for _, q in ipairs(G.GetAvailableQuests() or {}) do
             list[#list + 1] = { id = q.questID, title = q.title, trivial = q.isTrivial,
-                                repeatable = q.repeatable or (q.frequency and q.frequency > 0) }
+                                repeatable = AT.RepeatNow(q.questID, q.repeatable or (q.frequency and q.frequency > 0)) }
         end
         local i, id = AT.PickAvailable(list)
         if id then logAccept("opening " .. tostring(list[i].title)); G.SelectAvailableQuest(id) end
@@ -139,6 +175,7 @@ ns:On("QUEST_DETAIL", function()
     local fromPlayer = UnitExists("npc") and UnitIsPlayer("npc") and true or false
     if not AT.ShouldAccept(AT.AcceptEnabled(), fromPlayer, freeSlots()) then return end
     if QuestGetAutoAccept and QuestGetAutoAccept() then return end   -- the game took it already
+    if leftRepeat() then return end
     logAccept("accepted " .. tostring(GetTitleText and GetTitleText()))
     AcceptQuest()
 end)
@@ -146,6 +183,7 @@ end)
 -- "Have you finished?": press Complete (not for quests that take your gold).
 ns:On("QUEST_PROGRESS", function()
     if not (AT.Enabled() and IsQuestCompletable and IsQuestCompletable()) then return end
+    if leftRepeat(true) then return end
     if GetQuestMoneyToGet and (GetQuestMoneyToGet() or 0) > 0 then
         log("left to you (it takes gold): " .. tostring(GetTitleText and GetTitleText()))
         return
@@ -156,6 +194,7 @@ end)
 -- The reward page: take it, unless there's a choice to make.
 ns:On("QUEST_COMPLETE", function()
     if not AT.Enabled() then return end
+    if leftRepeat() then return end
     local n = GetNumQuestChoices and GetNumQuestChoices() or 0
     local pick = AT.Reward(n)
     local title = GetTitleText and GetTitleText()

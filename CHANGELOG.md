@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.420
+
+- **Fixed: Flow handed in a repeatable quest for you, twice.** At Mangletooth with Blood
+  Shards in your bags, Flow's automatic hand-in took Razorhide, and took it again when his
+  window came back: a second buff over the first, and the shards for it gone. Flow was only
+  meant to leave repeatables alone, and did so only in the list of new quests. It now leaves
+  a repeatable hand-in to you at every point: it isn't opened from an NPC's list, isn't
+  accepted, and neither Complete nor the reward is pressed for it. Flow says so once in
+  chat. This goes by the game's own flag and by the quest data, so it holds for every
+  repeatable hand-in, not only Mangletooth's.
 ## 0.35.419
 
 - **Repeatable hand-ins are a tick in Route includes.** The one step for an NPC's repeatable

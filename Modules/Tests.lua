@@ -19498,3 +19498,28 @@ ns:Register("test", "click: the Repeatable hand-ins tick in Route includes turns
     t:eq(N:Includes("repeatables"), was, "and back")
     ns.db.nav.kinds, ns.db.nav.focusKinds = kinds, focusKinds
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.420: Flow never hands in (or accepts) a repeatable hand-in for you.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "quests: a repeatable hand-in is never opened, accepted or handed in for you", function(t)
+    local AT = ns.autoTurnIn
+    local i, id = AT.PickFinished({ { id = 5046, complete = true, repeatable = true }, { id = 7, complete = true } })
+    t:eq(i, 2, "the finished repeatable is passed over")
+    t:eq(id, 7, "for the ordinary finished quest")
+    t:eq(AT.PickFinished({ { id = 5046, complete = true, repeatable = true } }), nil, "only a repeatable: nothing opened")
+    local function rawOf(q) if q == 5046 then return { specialFlags = 1 } elseif q == 7 then return { specialFlags = 0 } end end
+    local is = ns.repeatables.Is
+    t:eq(AT.IsRepeat(5046, nil, rawOf, is), true, "the quest data says repeatable")
+    t:eq(AT.IsRepeat(7, nil, rawOf, is), false, "an ordinary quest")
+    t:eq(AT.IsRepeat(7, true, rawOf, is), true, "the game's own flag is enough")
+    t:eq(AT.IsRepeat(999, nil, rawOf, is), false, "a quest the data doesn't have: not held back")
+    t:eq(AT.IsRepeat(nil, nil, rawOf, is), false, "no quest number: not held back")
+    t:eq(AT.RepeatNow(nil), false, "nothing open: no")
+    -- With the quest data loaded: Mangletooth's Razorhide is one, an ordinary quest isn't.
+    if ns.quests and ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", 5046) then
+        t:eq(AT.RepeatNow(5046), true, "Razorhide [5046] is left to you")
+        if ns.quests:QuestieGet("GetQuest", 905) then t:eq(AT.RepeatNow(905), false, "The Angry Scytheclaws isn't") end
+    end
+end)
