@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.434
+
+- **One stack of what you use up stays with you; the spare stacks go to the bank.** Three
+  stacks of Heavy Wool Bandage and three of Wool Bandage took most of a row. Things you
+  use up (food, water, potions, bandages, scrolls) never went to the bank at all, however
+  many stacks you carried. Now Flow Banker keeps one stack of each with you, the fullest,
+  and lists the others to put away ("spare: one stack stays with you"); bandages you make
+  later top that stack up.
+- **Of bandages you keep the best kind you carry.** A lesser kind (Wool Bandage beside
+  Heavy Wool Bandage) is all spare.
+- Your own choice for an item in the Flow Banker window (carry it, or bank it) still
+  decides for all of it, and anything a step on your route uses stays. Cloth and other
+  materials go to the bank as before.
+- Two self-tests failed on the last reload: one when you reload while prowling (the cat
+  key is on your opener then, as it should be), and one because a new setting said "easy
+  buttons": it's "A glint round the target and self buttons' edges" now.
 ## 0.35.433
 
 - **A dark band behind the game's red messages.** The lines the game writes at the top of

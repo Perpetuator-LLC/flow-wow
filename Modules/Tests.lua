@@ -3426,7 +3426,10 @@ ns:Register("test", "druid: suggestions follow your form", function(t)
         t:ok(rule("Claw").when(ctx) and rule("Rake").when(ctx), "cat: Rake and Claw")
         t:ok(not rule("Wrath").when(ctx), "cat: no Wrath")
         t:ok(not rule("Ferocious Bite").when(ctx), "cat: no Bite at 2 combo points")
-        t:eq(def.pullLock(nil, ctx.engine), "Claw", "cat: the key stays on Claw")
+        -- (Prowling when the tests run, the key is on your opener: 0.35.434, a reload in stealth failed this.)
+        local lock = def.pullLock(nil, ctx.engine)
+        local hidden = IsStealthed and ns.api.Safe(IsStealthed()) or false
+        t:ok(lock == "Claw" or (hidden and lock ~= "Wrath" and lock ~= nil), "cat: the key stays on Claw (or your opener while you prowl): " .. tostring(lock))
     end)
     check("Cat Form", 5, function()
         t:ok(rule("Ferocious Bite").when(ctx), "cat: Bite at 5 combo points")
@@ -20263,4 +20266,51 @@ ns:Register("test", "screen: a dark band behind the game's red messages, as wide
         if band and #kept == 0 then band:Hide() end
     end
     t:ok(type(ns.commands.errorband) == "function", "/flow errorband")
+end)
+
+-------------------------------------------------------------------------------
+-- 0.35.434: one stack of what you use up stays with you; the spare stacks go
+-- to the bank.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: one stack of a consumable stays with you, the spare stacks go to the bank", function(t)
+    local B = ns.banker
+    local heavy = { id = 3531, name = "Heavy Wool Bandage", action = "keep", kind = "Consumable: Bandages", count = 52, stacks = 3, sell = 57 }
+    local wool = { id = 3530, name = "Wool Bandage", action = "keep", kind = "Consumable: Bandages", count = 40, stacks = 2, sell = 28 }
+    local water = { id = 1179, name = "Ice Cold Milk", action = "keep", kind = "Consumable: Food & Drink", count = 25, stacks = 2, sell = 6 }
+    local potion = { id = 858, name = "Lesser Healing Potion", action = "keep", kind = "Consumable: Potions", count = 3, stacks = 1, sell = 25 }
+    local cloth = { id = 2589, name = "Linen Cloth", action = "keep", kind = "Trade Goods: Cloth", rule = "professionMaterial", count = 44, stacks = 3, sell = 13 }
+    local rows = { heavy, wool, water, potion, cloth }
+    t:eq(B.BestBandage(rows), 3531, "the best bandage you carry: the one worth most")
+    t:eq(B.BestBandage({ cloth }), nil, "no bandage: none")
+    local n, why = B.Spare(heavy, {}, {}, 3531)
+    t:eq(n, 2, "three stacks of your best bandage: two are spare")
+    t:eq(why, B.SPARE_WHY, "and why")
+    n, why = B.Spare(wool, {}, {}, 3531)
+    t:eq(n, 2, "a lesser bandage: all of it is spare")
+    t:eq(why, B.LESSER_WHY, "because you carry a better one")
+    t:eq((B.Spare(water, {}, {}, 3531)), 1, "two stacks of water: one is spare")
+    t:eq((B.Spare(potion, {}, {}, 3531)), 0, "one stack of potions: nothing spare")
+    t:eq((B.Spare(cloth, {}, {}, 3531)), 0, "cloth isn't used up: not by this rule")
+    t:eq((B.Spare(heavy, { [3531] = true }, {}, 3531)), 0, "a step on your route uses it: all of it stays")
+    t:eq((B.Spare(heavy, {}, { [3531] = "carry" }, 3531)), 0, "you chose to carry it: all of it stays")
+    -- The list: the cloth as before, and the spare stacks counted as such.
+    local list = B.Pick(rows, {}, {}, nil)
+    local by = {}
+    for _, r in ipairs(list) do by[r.id] = r end
+    t:ok(by[2589] and not by[2589].spare, "the cloth goes to the bank, as before")
+    t:ok(by[3531] and by[3531].spare and by[3531].stacks == 2 and by[3531].keepStacks == 1, "two of the three stacks of Heavy Wool Bandage, one stays")
+    t:ok(by[3530] and by[3530].stacks == 2 and by[3530].keepStacks == 0, "both stacks of Wool Bandage")
+    t:ok(by[1179] and by[1179].stacks == 1, "one stack of water")
+    t:eq(by[858], nil, "the potions stay")
+    t:eq(heavy.stacks, 3, "the inventory's own row isn't changed")
+    t:eq(B.Stacks(list), 3 + 2 + 2 + 1, "eight stacks to put away in all")
+    -- Which slots move: all but the fullest.
+    local move = B.SpareSlots({ { bag = 0, slot = 3, count = 12 }, { bag = 1, slot = 1, count = 20 }, { bag = 0, slot = 9, count = 20 } }, 1)
+    t:eq(#move, 2, "two of three slots move")
+    t:ok(move[1].count == 20 and move[1].bag == 1 and move[2].count == 12, "the fullest stack stays (bag 0, slot 9), the other full one and the part stack go")
+    t:eq(#B.SpareSlots({ { bag = 0, slot = 1, count = 5 } }, 0), 1, "keep none: it moves")
+    t:eq(#B.SpareSlots({ { bag = 0, slot = 1, count = 5 } }, 1), 0, "keep one of one: nothing moves")
+    -- With your own bags: the list builds.
+    t:ok(pcall(B.List), "your list builds")
 end)

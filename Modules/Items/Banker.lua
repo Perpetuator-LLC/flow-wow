@@ -7,8 +7,9 @@
 --
 -- What goes to the bank: things Flow keeps for you but that nothing on your
 -- route uses now: profession materials, trade goods you told Flow never to
--- sell. What never goes: quest items, tools, recipes, your
--- hearthstone, food, water, bandages, potions, scrolls and anything to
+-- sell; and the spare stacks of anything you use up (one stack of food,
+-- water, potions or bandages stays with you: B.Spare, 0.35.434). What never
+-- goes: quest items, tools, recipes, your hearthstone and anything to
 -- equip; and any material a crafting step on your route asks for (those you
 -- need now or soon).
 --
@@ -83,11 +84,79 @@ function B.Banks(row, needed, rules, waits)
     return false, "you carry it"
 end
 
--- Pure: the rows to bank, biggest first.
+-- Spare stacks (0.35.434). "I only need one stack of wool bandages, even if
+-- we're making a lot extra for leveling up first aid ... I've had three
+-- stacks of heavy wool bandages and three stacks of wool bandages ... taking
+-- up almost a row of my inventory just on these." Consumables never went to
+-- the bank at all, however many stacks you carried.
+--   * Of anything you use up (food, water, potions, bandages, scrolls) you
+--     keep B.KEEP_STACKS stack with you, the fullest; the other stacks are
+--     spare, and go to the bank with the rest.
+--   * Of bandages you keep the best kind you carry; a lesser kind is all spare.
+--   * Your own choice for an item (carry / bank, in the window) decides for
+--     all of it, and what a step on your route uses stays.
+B.KEEP_STACKS = 1
+B.BANDAGES = "Consumable: Bandages"
+B.SPARE_WHY = "spare: one stack stays with you"
+B.LESSER_WHY = "spare: you carry a better bandage"
+-- Pure: the best bandage among the rows: the one a vendor pays most for (a
+-- better bandage is worth more). -> its item ID, or nil with none.
+function B.BestBandage(rows)
+    local best, price
+    for _, r in ipairs(rows or {}) do
+        if type(r) == "table" and r.action == "keep" and r.kind == B.BANDAGES and r.id then
+            local p = r.sell or 0
+            if not price or p > price then best, price = r.id, p end
+        end
+    end
+    return best
+end
+-- Pure: how many stacks of a row are spare, and why.
+function B.Spare(row, needed, rules, bestBandage)
+    if type(row) ~= "table" or row.action ~= "keep" or not row.id then return 0 end
+    local kind = row.kind or ""
+    if not kind:find("^Consumable") then return 0 end
+    if rules and rules[row.id] then return 0 end           -- your own choice decides for all of it
+    if needed and needed[row.id] then return 0 end         -- a step on your route uses it
+    local stacks = row.stacks or 1
+    if kind == B.BANDAGES and bestBandage and row.id ~= bestBandage then return stacks, B.LESSER_WHY end
+    local spare = math.max(0, stacks - B.KEEP_STACKS)
+    return spare, spare > 0 and B.SPARE_WHY or nil
+end
+-- Pure: which of an item's bag slots to move, keeping the `keep` fullest.
+--   slots: { { bag, slot, count } } -> the ones to move
+function B.SpareSlots(slots, keep)
+    local sorted = {}
+    for _, s in ipairs(slots or {}) do sorted[#sorted + 1] = s end
+    table.sort(sorted, function(a, b)
+        if (a.count or 0) ~= (b.count or 0) then return (a.count or 0) > (b.count or 0) end
+        if a.bag ~= b.bag then return a.bag < b.bag end
+        return a.slot < b.slot
+    end)
+    local out = {}
+    for i = (keep or 0) + 1, #sorted do out[#out + 1] = sorted[i] end
+    return out
+end
+
+-- Pure: the rows to bank, biggest first. A row of spare stacks (B.Spare) is a
+-- copy that counts only the spare ones: .spare, .keepStacks (how many stay).
 function B.Pick(rows, needed, rules, waits)
     local out = {}
+    local best = B.BestBandage(rows)
     for _, r in ipairs(rows or {}) do
-        if B.Banks(r, needed, rules, waits) then out[#out + 1] = r end
+        if B.Banks(r, needed, rules, waits) then out[#out + 1] = r
+        else
+            local n, why = B.Spare(r, needed, rules, best)
+            if n > 0 then
+                local c = {}
+                for k, v in pairs(r) do c[k] = v end
+                local each = (r.count or 1) / math.max(1, r.stacks or 1)
+                c.spare, c.keepStacks, c.stacks = true, (r.stacks or 1) - n, n
+                c.count = math.max(1, math.floor(each * n + 0.5))
+                c.reason = why
+                out[#out + 1] = c
+            end
+        end
     end
     table.sort(out, function(a, b)
         if (a.stacks or 0) ~= (b.stacks or 0) then return (a.stacks or 0) > (b.stacks or 0) end
@@ -429,17 +498,30 @@ end
 -- Stops when the bank closes or a fight starts.
 function B:Deposit()
     if not bankOpen or not useItem or InCombatLockdown() then return 0 end
+    -- (want[id]: true for all of it, or how many stacks stay with you: B.Spare.)
     local want = {}
-    for _, r in ipairs(B.List()) do if r.id then want[r.id] = true end end
-    local slots = {}
+    for _, r in ipairs(B.List()) do
+        if r.id then want[r.id] = r.spare and (r.keepStacks or B.KEEP_STACKS) or true end
+    end
+    local slots, spare = {}, {}
     local cont = contNow()
     ns.disposition:EachBagItem(function(bag, slot, link)
         local id = tonumber(link:match("item:(%d+)"))
-        if id and want[id] then
+        if id and want[id] == true then
             slots[#slots + 1] = { bag, slot }
             B.moved[id] = { dir = "in", cont = cont }
+        elseif id and want[id] then
+            local info = C_Container and C_Container.GetContainerItemInfo and C_Container.GetContainerItemInfo(bag, slot)
+            spare[id] = spare[id] or {}
+            table.insert(spare[id], { bag = bag, slot = slot, count = info and ns.api.Safe(info.stackCount) or 1 })
         end
     end)
+    for id, list in pairs(spare) do
+        for _, s in ipairs(B.SpareSlots(list, want[id])) do
+            slots[#slots + 1] = { s.bag, s.slot }
+            B.moved[id] = { dir = "in", cont = cont }
+        end
+    end
     for i, s in ipairs(slots) do
         C_Timer.After((i - 1) * B.STEP, function()
             if bankOpen and not InCombatLockdown() then pcall(useItem, s[1], s[2]) end

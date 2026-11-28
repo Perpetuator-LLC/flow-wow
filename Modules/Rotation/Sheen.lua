@@ -128,13 +128,13 @@ ns.commands.sheen = function(arg)
         ns.db.rotation = ns.db.rotation or {}
         ns.db.rotation.sheen = (arg == "on")
     end
-    ns:Print("the glint round the easy buttons' edges: " .. (S.On() and "on" or "off") .. " (/flow sheen on|off)")
+    ns:Print("the glint round the target and self buttons' edges: " .. (S.On() and "on" or "off") .. " (/flow sheen on|off)")
 end
 
 if ns.settings and ns.settings.AddCheck then
     ns.settings:AddCheck({
         group = "screen",
-        label = "A glint round the easy buttons' edges",
+        label = "A glint round the target and self buttons' edges",
         note = "(only for looks)",
         tip = "A short lighter streak runs once round the coloured edge of the target button and the self button, then rests a few seconds. It's only for looks: it never means a spell is ready.",
         get = function() return S.On() end,
