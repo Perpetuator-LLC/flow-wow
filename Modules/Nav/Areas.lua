@@ -21,6 +21,8 @@
 --   * areas join up (A with B, B with C), but only while the whole group
 --     stays within AR.SPAN yards across: a chain of mobs along a whole zone
 --     isn't one area;
+--   * two objectives of the same quest within AR.SAME_QUEST yards of each
+--     other are one area too (three named mobs of one camp, a spot each);
 --   * a quest to pick up that Overlap.lua put before one of those steps is
 --     in its group too.
 -- Nothing here names a zone, a quest or a class: it's only where things are.
@@ -46,6 +48,7 @@ ns.areas = AR
 
 AR.RADIUS = 150     -- yards: two spots this close are the same place
 AR.SPAN = 900       -- yards: a group isn't wider than this
+AR.SAME_QUEST = 600 -- yards: two objectives of one quest this near each other are one area (0.35.435)
 AR.MAX_POINTS = 12  -- spots of a step looked at
 
 function AR.On() return not (ns.db and ns.db.nav and ns.db.nav.areaGroups == false) end
@@ -74,8 +77,9 @@ end
 -- Pure: the groups.
 --   steps: { { key, points = { { cont, wx, wy } } } }
 --   shares(a, b) -> true when the spots of a lie among the spots of b (Overlap's O.Shares)
+--   also(stepA, stepB) -> true when the two belong together for another reason (optional)
 -- -> groupOf = { [key] = group id }, groups = { { id, keys = { ... } } } (only groups of two or more)
-function AR.Groups(steps, shares, maxSpan)
+function AR.Groups(steps, shares, maxSpan, also)
     maxSpan = maxSpan or AR.SPAN
     local parent, box = {}, {}
     for i, s in ipairs(steps or {}) do
@@ -93,7 +97,8 @@ function AR.Groups(steps, shares, maxSpan)
         for j = i + 1, #steps do
             local a, b = find(i), find(j)
             if a ~= b and box[a] and box[b] and box[a].cont == box[b].cont and span(box[a], box[b]) <= maxSpan
-                and (shares(steps[i].points, steps[j].points) or shares(steps[j].points, steps[i].points)) then
+                and (shares(steps[i].points, steps[j].points) or shares(steps[j].points, steps[i].points)
+                    or (also and also(steps[i], steps[j]))) then
                 parent[b] = a
                 box[a] = { cont = box[a].cont, x1 = math.min(box[a].x1, box[b].x1), x2 = math.max(box[a].x2, box[b].x2),
                            y1 = math.min(box[a].y1, box[b].y1), y2 = math.max(box[a].y2, box[b].y2) }
@@ -117,6 +122,19 @@ function AR.Groups(steps, shares, maxSpan)
     end
     table.sort(groups, function(a, b) return a.id < b.id end)
     return groupOf, groups
+end
+
+-- Pure: are two steps objectives of the same quest, near each other? (0.35.435:
+-- "it had me kill Lok and Nak, and now it's having me take off to do Field to
+-- Clear again ... I still haven't killed Kuz, and so it should be guiding me
+-- to finish that while I'm here." The three skulls of Betrayal from Within
+-- are one spot each, 500 yards apart: no two of them shared a place, so they
+-- were no group, and the route left for the Stormhides between two of them.)
+--   least: the least distance between the two steps' spots, or nil
+function AR.SameQuest(keyA, keyB, least, reach)
+    local qa, qb = tostring(keyA):match("^(%d+):"), tostring(keyB):match("^(%d+):")
+    if not (qa and qa == qb) then return false end
+    return least ~= nil and least <= (reach or AR.SAME_QUEST)
 end
 
 -- Pure: how many of the plan's first steps are one group with its very first
@@ -167,7 +185,8 @@ function AR.Apply(goals)
         if O.IsStep(g) then steps[#steps + 1] = { key = g.key, points = worldPoints(g) } end
     end
     if #steps < 2 then return 0 end
-    local groupOf, groups = AR.Groups(steps, function(a, b) return O.Shares(a, b, AR.RADIUS, AR.MAX_POINTS) end)
+    local groupOf, groups = AR.Groups(steps, function(a, b) return O.Shares(a, b, AR.RADIUS, AR.MAX_POINTS) end, nil,
+        function(a, b) return AR.SameQuest(a.key, b.key, O.Least(a.points, b.points, AR.MAX_POINTS)) end)
     -- A quest to pick up that goes before one of the steps (Overlap.lua) is of its group.
     for _, g in ipairs(goals or {}) do
         local id = g.overlapKey and groupOf[g.overlapKey]

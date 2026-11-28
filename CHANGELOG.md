@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.435
+
+- **A quest's objectives that are near each other are done together.** At the Razormane
+  camp, with Lok's and Nak's skulls taken, the route left for the Stormhides of Field to
+  Clear and came back for Kuz afterwards. Steps were grouped into an area only when their
+  spots lay within 150 yards of each other, and the three skulls of Betrayal from Within
+  are one spot each, about 500 yards apart: no group, so nothing kept the route there.
+  Now two objectives of the same quest within 600 yards of each other are one area as
+  well, and the route finishes them before it goes on.
 ## 0.35.434
 
 - **One stack of what you use up stays with you; the spare stacks go to the bank.** Three

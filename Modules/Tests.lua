@@ -20314,3 +20314,39 @@ ns:Register("test", "banker: one stack of a consumable stays with you, the spare
     -- With your own bags: the list builds.
     t:ok(pcall(B.List), "your list builds")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.435: a quest's objectives near each other are one area, though they
+-- share no spot.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a quest's objectives near each other are done together (three named mobs of one camp)", function(t)
+    local AR, P, O = ns.areas, ns.planner, ns.overlap
+    local function at(x, y) return { cont = 1, wx = x, wy = y } end
+    t:ok(AR.SameQuest("879:1", "879:3", 504), "two objectives of one quest, 504 yd apart: together")
+    t:ok(not AR.SameQuest("879:1", "879:3", 900), "900 yd apart: not one area")
+    t:ok(not AR.SameQuest("879:1", "893:1", 50), "two quests: not by this rule")
+    t:ok(not AR.SameQuest("879:1", "879:3", nil), "no distance known: no")
+    t:ok(not AR.SameQuest("pickup:879", "pickup:879", 10), "not quests to pick up")
+    -- As it was at the Razormane camp: Lok and Kuz 504 yd apart, the Stormhides between and a little off.
+    local was = ns.db.nav.areaGroups
+    ns.db.nav.areaGroups = nil
+    local goals = {
+        { key = "987654879:3", title = "Betrayal", text = "Betrayal: Lok", points = { at(0, 0) }, details = {} },
+        { key = "987654879:1", title = "Betrayal", text = "Betrayal: Kuz", points = { at(30, 504) }, details = {} },
+        { key = "987654093:2", title = "Field", text = "Field: Stormhide", points = { at(330, 80), at(380, 140) }, details = {} },
+        { key = "987654250:1", title = "Blamed", text = "Blamed: Soldier", points = { at(700, 350) }, details = {} },
+    }
+    t:eq(AR.Apply(goals), 1, "one group")
+    t:ok(goals[1].areaGroup and goals[1].areaGroup == goals[2].areaGroup, "the two skulls")
+    t:eq(goals[3].areaGroup, nil, "the Stormhides aren't of it")
+    local okP, plan = pcall(P.Plan, P, at(-150, 0), goals, {})
+    t:ok(okP and plan and #plan == 4, "the planner takes them")
+    if okP and plan then
+        local pos = {}
+        for i, s in ipairs(plan) do pos[s.goal.key] = i end
+        t:eq(math.abs((pos["987654879:3"] or 0) - (pos["987654879:1"] or 9)), 1, "Lok and Kuz are next to each other in the plan, whatever lies between them")
+    end
+    ns.db.nav.areaGroups = was
+    t:eq(O.Least({ at(0, 0) }, { at(30, 504) }) < AR.SAME_QUEST, true, "(504 yd is within the reach)")
+end)
