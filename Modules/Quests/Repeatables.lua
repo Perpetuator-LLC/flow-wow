@@ -152,6 +152,92 @@ function R.Split(list, isRepeat, takes)
     return ordinary, groups
 end
 
+
+-------------------------------------------------------------------------------
+-- What an item in your bags buys from repeatable hand-ins (0.35.430).
+--
+-- "I hover over Blood Shards and it tells me Flow: keep, to your bank at the
+-- next visit. We don't want to keep these items in my bank if they're not
+-- useful ... it should be my option, which one of those repeatable quests are
+-- we going to do that's going to give me the buff? And if not, then I should
+-- choose to destroy the item ... if I get rid of this blood shard, what am I
+-- giving up?"
+--
+-- A Blood Shard was "kept for a quest you haven't done" (Spirit of the Wind,
+-- one of Mangletooth's six), and so on its way to the bank. Now an item that
+-- repeatable hand-ins take says so: who takes it and where, every hand-in it
+-- can buy with what each gives, which one suits the role you play, and that
+-- you can sell it instead. It stays in your bags (it's no use in the bank),
+-- and its line in Flow Improvements sets your waypoint on the NPC.
+-------------------------------------------------------------------------------
+
+-- The words the Banker and the bags' advice know such an item by.
+R.ANY_TIME = "as often as you like"
+
+-- Pure: what an item buys.
+--   quests: { { id, name, who } } the repeatable quests that take it (one NPC's)
+--   role: the role you play; buffOf(id) -> { gives, roles } or nil;
+--   where: "The Barrens 44.5, 59.3" or nil; price: copper a vendor pays each
+-- -> { who, best = quest or nil, list = { "Name (what it gives)" ... }, text }, or nil
+function R.ItemUse(quests, role, buffOf, where, price)
+    if not quests or #quests == 0 then return nil end
+    local sorted = {}
+    for _, q in ipairs(quests) do sorted[#sorted + 1] = q end
+    table.sort(sorted, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    local who = sorted[1].who or "someone"
+    local best = R.Pick(sorted, role, buffOf)
+    local list = {}
+    for _, q in ipairs(sorted) do
+        local def = buffOf(q.id)
+        list[#list + 1] = tostring(q.name) .. ((def and def.gives) and (" (" .. def.gives .. ")") or "")
+            .. ((best and q.id == best.id) and " <- for the role you play" or "")
+    end
+    local text = string.format("%s%s takes it for a hand-in of your choice, %s: %s. Keep it with you for those; if you'd sooner have the slot, %s: no other quest uses it",
+        tostring(who), where and (" (" .. where .. ")") or "", R.ANY_TIME, table.concat(list, "; "),
+        (price or 0) > 0 and "sell it" or "destroy it")
+    return { who = who, best = best, list = list, text = text }
+end
+
+-- The repeatable quests that take an item, from the quests the quest data
+-- ties it to. related: { { id } } (Leftovers.lua's L.Related).
+local uses = {}
+function R.ForItem(itemId, related, price)
+    local now = GetTime and GetTime() or 0
+    local kept = uses[itemId]
+    if kept and now - kept.at < 20 then return kept.use or nil end
+    local Q = ns.quests
+    local quests, point
+    for _, e in ipairs(related or {}) do
+        local raw = Q and Q.QuestieGet and Q:QuestieGet("GetQuest", e.id)
+        if raw and R.Is(raw) then
+            local takes = false
+            for _, id in ipairs(R.Takes(raw)) do if id == itemId then takes = true end end
+            if takes then
+                local npcId = type(raw.Starts) == "table" and type(raw.Starts.NPC) == "table" and raw.Starts.NPC[1]
+                local npc = npcId and Q:QuestieGet("GetNPC", npcId)
+                quests = quests or {}
+                quests[#quests + 1] = { id = e.id, name = raw.name, level = tonumber(raw.level), who = npc and npc.name }
+                if npc and npc.spawns and not point and Q.SpawnPoints then
+                    local okP, pts = pcall(Q.SpawnPoints, npc.spawns)
+                    point = okP and pts and pts[1] or nil
+                end
+            end
+        end
+    end
+    local use
+    if quests then
+        local where
+        if point and point.map then
+            local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(point.map)
+            where = string.format("%s %.1f, %.1f", info and info.name or "map " .. tostring(point.map), (point.x or 0) * 100, (point.y or 0) * 100)
+        end
+        use = R.ItemUse(quests, ns.LevelingRole and ns:LevelingRole() or nil, function(id) return ns:Get("repeatBuff", id) end, where, price)
+        if use then use.point = point end
+    end
+    uses[itemId] = { at = now, use = use or false }
+    return use
+end
+
 function R.Lines()
     local out = { "repeatable hand-ins as one step: " .. tostring(#(R.last or {})) }
     for _, g in ipairs(R.last or {}) do out[#out + 1] = "  " .. tostring(g.text) .. (g.fetch and " [in your bank]" or "") end

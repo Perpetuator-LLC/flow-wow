@@ -156,7 +156,9 @@ function QG.Plan(rows, quests, where)
                 g.ids[#g.ids + 1] = r.id
             else
                 local e = { title = tostring(r.name), slots = slots, items = { label }, ids = { r.id }, why = r.reason }
-                table.insert(r.action == "sell" and plan.sell or plan.bank, e)
+                -- (0.35.430: what repeatable hand-ins take isn't for the bank, and isn't "no use here".)
+                local spent = type(r.reason) == "string" and r.reason:find("as often as you like", 1, true) ~= nil
+                if not spent then table.insert(r.action == "sell" and plan.sell or plan.bank, e) end
             end
         end
     end
@@ -211,6 +213,25 @@ function QG.Names(list, max)
     return table.concat(parts, ", ") .. (more > 0 and string.format(" and %d more", more) or "")
 end
 
+-- Pure: the same by item (0.35.430): "Incantations from the Nether, Spells of
+-- Shadow (for The Power to Destroy...)". The line named only the quest, and
+-- there's no item called that in your bags.
+function QG.ItemNames(list, max)
+    local parts = {}
+    for i = 1, math.min(max or 3, #list) do
+        local e = list[i]
+        local items = {}
+        for _, label in ipairs(e.items or {}) do items[#items + 1] = (tostring(label):gsub("^1 x ", "")) end
+        if e.quest and #items > 0 then
+            parts[#parts + 1] = string.format("%s (for %s)", table.concat(items, ", "), tostring(e.title))
+        else
+            parts[#parts + 1] = #items > 0 and table.concat(items, ", ") or tostring(e.title)
+        end
+    end
+    local more = #list - #parts
+    return table.concat(parts, "; ") .. (more > 0 and string.format(" and %d more", more) or "")
+end
+
 -- Pure: what Flow Improvements says: nothing with room to spare.
 function QG.Advice(plan, free)
     local out = {}
@@ -226,7 +247,7 @@ function QG.Advice(plan, free)
     if #plan.bank > 0 then
         out[#out + 1] = { importance = tight - 5, improves = { "Bag space" }, urgency = urgency,
             text = string.format("Bags nearly full: %d slot(s) of quest items have no use here. Flow Banker puts them away: %s",
-                QG.Slots(plan.bank), QG.Names(plan.bank, 3)) }
+                QG.Slots(plan.bank), QG.ItemNames(plan.bank, 3)) }
     end
     if #plan.sell > 0 then
         out[#out + 1] = { importance = tight - 10, improves = { "Bag space" }, urgency = urgency,

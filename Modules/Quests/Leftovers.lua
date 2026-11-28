@@ -128,8 +128,18 @@ ns:Register("advisor", "leftovers", {
         local ok, list = pcall(L.Now)
         for i, it in ipairs(ok and list or {}) do
             if i > 3 then break end
-            out[#out + 1] = { importance = 25, improves = { "Bag space" },
+            local entry = { importance = 25, improves = { "Bag space" },
                 text = L.ImproveText(it), goalKey = L.StepKey(it.id) }
+            -- What repeatable hand-ins take: the link sets your waypoint on who takes it.
+            local okF, _, _, use = pcall(L.For, it.id, it.name, it.sell)
+            if okF and type(use) == "table" and use.point and ns.waypoint then
+                entry.goalKey = nil
+                entry.openLabel = "your waypoint on " .. tostring(use.who)
+                entry.onClick = function()
+                    ns.waypoint:Set(use.point.map, use.point.x, use.point.y, tostring(use.who) .. ": repeatable hand-ins")
+                end
+            end
+            out[#out + 1] = entry
         end
         return out
     end,
@@ -383,6 +393,12 @@ function L.For(id, name, price)
     local related = L.Related(id)
     if #related == 0 and not L.scan[id] then
         return "keep", "no quest in your log uses it; Flow is looking through the quest data for one"
+    end
+    -- Something repeatable hand-ins take (a Blood Shard, 0.35.430): what it buys, and from whom.
+    local R = ns.repeatables
+    if R and R.ForItem then
+        local okU, use = pcall(R.ForItem, id, related, price)
+        if okU and use then return "keep", use.text, use end
     end
     return L.Advice(related, price, UnitLevel and UnitLevel("player") or nil)
 end

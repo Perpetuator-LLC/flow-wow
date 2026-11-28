@@ -20084,3 +20084,45 @@ ns:Register("test", "click: the make-room button does nothing when there's nothi
         t:ok(true, "(the button isn't built until your bags are full at a corpse)")
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.430: an item repeatable hand-ins take says what it buys, and stays
+-- out of the bank; the bags advice names items, not their quest.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "bags: what repeatable hand-ins take says what it buys, and isn't banked", function(t)
+    local R, B, QG = ns.repeatables, ns.banker, ns.questBags
+    local buffs = { [1] = { gives = "agility", roles = { "dps" } }, [2] = { gives = "run speed", roles = {} } }
+    local function buffOf(id) return buffs[id] end
+    local use = R.ItemUse({ { id = 2, name = "Spirit of the Wind", who = "Mangletooth" }, { id = 1, name = "Agamaggan's Agility", who = "Mangletooth" } },
+        "dps", buffOf, "The Barrens 44.5, 59.3", 25)
+    t:eq(use and use.who, "Mangletooth", "who takes it")
+    t:eq(use and use.best and use.best.id, 1, "the hand-in for the role you play")
+    t:eq(use and #use.list, 2, "every hand-in it can buy")
+    t:eq(use and use.list[1], "Agamaggan's Agility (agility) <- for the role you play", "each with what it gives, yours marked")
+    t:ok(use.text:find("Mangletooth (The Barrens 44.5, 59.3) takes it", 1, true) ~= nil, "the line says who and where")
+    t:ok(use.text:find(R.ANY_TIME, 1, true) ~= nil, "and that it's any time")
+    t:ok(use.text:find("sell it", 1, true) ~= nil, "a vendor buys it: sell it for the slot")
+    local none = R.ItemUse({ { id = 2, name = "Spirit of the Wind", who = "Mangletooth" } }, "dps", buffOf, nil, 0)
+    t:ok(none.text:find("destroy it", 1, true) ~= nil, "no vendor price: destroy it for the slot")
+    t:eq(R.ItemUse({}, "dps", buffOf), nil, "nothing takes it: nothing to say")
+    -- The Banker leaves it with you; a leftover that waits for a quest still goes to the bank.
+    local row = { action = "keep", id = 5075, rule = "leftover", reason = use.text, kind = "Quest" }
+    local banks, why = B.Banks(row, {}, {}, nil)
+    t:eq(banks, false, "what's spent at an NPC isn't banked")
+    t:ok(type(why) == "string" and why:find("no use in the bank", 1, true) ~= nil, "and the Banker says why")
+    t:eq((B.Banks({ action = "keep", id = 1, rule = "leftover", reason = "no quest in your log uses it, but one you haven't done does: X", kind = "Quest" }, {}, {}, nil)),
+        true, "a leftover that waits for a quest: banked, as before")
+    -- The bags advice names the items.
+    t:eq(QG.ItemNames({ { title = "The Power to Destroy...", quest = 5725, items = { "1 x Incantations from the Nether", "1 x Spells of Shadow" } } }, 3),
+        "Incantations from the Nether, Spells of Shadow (for The Power to Destroy...)", "a quest's things, by their own names")
+    t:eq(QG.ItemNames({ { title = "Small Furry Paw", items = { "3 x Small Furry Paw" } } }, 3), "3 x Small Furry Paw", "a leftover: itself")
+    t:eq(QG.ItemNames({ { title = "A", items = { "1 x a" } }, { title = "B", items = { "1 x b" } } }, 1), "a and 1 more", "more than fit: counted")
+    -- With the quest data: a Blood Shard is one of these (when Questie has loaded).
+    if ns.quests and ns.quests.QuestieGet and ns.quests:QuestieGet("GetQuest", 5046) and ns.leftovers then
+        local related = ns.leftovers.Related(5075)
+        local ok, shard = pcall(R.ForItem, 5075, related, 25)
+        t:ok(ok, "Blood Shard: read from the quest data" .. (ok and "" or (": " .. tostring(shard))))
+        if ok and shard then t:ok(#shard.list >= 2, "more than one hand-in takes it: " .. #shard.list) end
+    end
+end)

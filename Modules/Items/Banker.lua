@@ -70,6 +70,10 @@ function B.Banks(row, needed, rules, waits)
     -- you, whatever kind of thing it is (Earthroot for Gathering the Cure
     -- was on its way to the bank the day before the hand-in).
     if waits and row.id and waits[row.id] then return true, "its quest (" .. tostring(waits[row.id]) .. ") continues on another continent" end
+    -- (0.35.430: not what repeatable hand-ins take, a Blood Shard: it's spent at the NPC, any time.)
+    if row.rule == "leftover" and type(row.reason) == "string" and row.reason:find("as often as you like", 1, true) then
+        return false, "it's spent at an NPC, any time: no use in the bank"
+    end
     if row.rule == "leftover" then return true, "it waits for a quest you don't have yet" end
     if type(row.reason) == "string" and row.reason:find("for your quest", 1, true) then return false, "your quest needs it" end
     if stays(row.kind) then return false, "you carry it" end

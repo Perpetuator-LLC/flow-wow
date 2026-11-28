@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.430
+
+- **Blood Shards say what they buy, and stay out of the bank.** A Blood Shard was "kept
+  for a quest you haven't done" and marked for the bank at your next visit. It's what
+  Mangletooth's repeatable hand-ins take, so its tooltip and its line in Flow Improvements
+  now say: who takes it and where, every hand-in it can buy with what each gives, which
+  one suits the role you play, and that you can sell it instead if you'd sooner have the
+  slot. The Banker leaves it with you. This holds for anything a repeatable hand-in takes,
+  not only Blood Shards.
+- **Its line in Flow Improvements sets your waypoint on the NPC who takes it** when you
+  click it, so you can go and see the hand-ins.
+- **"Bags nearly full" names the items, not their quest.** It said "3 slot(s) of quest
+  items have no use here ... The Power to Destroy... (2), Blood Shard (1)": there's no
+  item called The Power to Destroy. It now reads "Incantations from the Nether, Spells of
+  Shadow (for The Power to Destroy...)". And what a repeatable hand-in takes is no longer
+  counted as having "no use here".
 ## 0.35.429
 
 - **A clear quality border on every item in your bags.** A solid edge in the quality's
