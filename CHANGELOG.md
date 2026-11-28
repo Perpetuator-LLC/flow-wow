@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.433
+
+- **A dark band behind the game's red messages.** The lines the game writes at the top of
+  the screen ("Inventory is full", "Out of range") have nothing behind them, and red on a
+  red or brown ground is hard to read. Flow now draws a soft black band behind them: as
+  wide as the longest line showing, as tall as the lines showing, with faded ends, and it
+  fades out when they do. The game's own frame isn't changed. Flow Settings, On your
+  screen; `/flow errorband on|off`.
 ## 0.35.432
 
 - **The top right bag mark sits out over the corner.** The profession and quest marks in the

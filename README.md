@@ -269,6 +269,8 @@ Flow for WoW is a separate project from Flow Engine.
 - **Everything in an area together**: steps of your quests done in the same place are one group. The
   route does all of a group before going on, and the Flow Tracker and the map show the whole group
   while it's next (`/flow areas`).
+- **A dark band behind the game's red messages** ("Inventory is full") at the top of the screen, so
+  they read over any ground (`/flow errorband`).
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.

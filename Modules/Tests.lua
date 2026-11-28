@@ -20222,3 +20222,45 @@ ns:Register("test", "bag icons: both corners' marks sit out over the border", fu
     t:ok(k.x > 0 and k.y > 0, "top right: out to the right and up")
     t:ok(k.x >= -a.x and k.y >= a.y, "at least as far out as the left one")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.433: a dark band behind the game's red messages.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "screen: a dark band behind the game's red messages, as wide and tall as they are", function(t)
+    local EB = ns.errorBand
+    local list = {}
+    EB.Add(list, "Inventory is full.", 100, 180)
+    EB.Add(list, "Out of range.", 101, 120)
+    t:eq(#list, 2, "two lines up")
+    EB.Add(list, "Inventory is full.", 102, 180)
+    t:eq(#list, 2, "the same line again takes its own place, it isn't a third")
+    t:eq(list[2].text, "Inventory is full.", "and it's the newest now")
+    EB.Add(list, "A", 103, 10); EB.Add(list, "B", 104, 10)
+    t:eq(#list, EB.MAX_LINES, "never more lines than the game shows")
+    local n, width, strength = EB.Showing({ { text = "a", at = 100, width = 180 }, { text = "b", at = 103, width = 120 } }, 104, 5, 3)
+    t:eq(n, 2, "both showing")
+    t:eq(width, 180, "as wide as the longest")
+    t:eq(strength, 1, "full strength while a line is fresh")
+    n, width, strength = EB.Showing({ { text = "a", at = 100, width = 180 }, { text = "b", at = 103, width = 120 } }, 109.5, 5, 3)
+    t:eq(n, 1, "the older line has gone")
+    t:eq(width, 120, "the band narrows to what's left")
+    t:ok(strength > 0.4 and strength < 0.6, "and fades with it")
+    t:eq((EB.Showing({ { text = "a", at = 100, width = 180 } }, 120, 5, 3)), 0, "all gone: no band")
+    t:eq((EB.Showing({}, 1)), 0, "nothing said: no band")
+    -- The band itself: Flow's own frame, behind the game's (which isn't touched). Put away after.
+    if UIErrorsFrame and EB.On() then
+        local kept = {}
+        for i, m in ipairs(EB._list()) do kept[i] = m end
+        local ok, shown = pcall(EB.Note, "Flow test line")
+        t:ok(ok and shown, "a line noted" .. (ok and "" or (": " .. tostring(shown))))
+        local band = EB._band()
+        t:ok(band and band:GetName() == "FlowErrorBand", "the band is Flow's own frame")
+        t:ok(band and not band:IsMouseEnabled(), "and takes no clicks")
+        local live = EB._list()
+        for i = #live, 1, -1 do live[i] = nil end
+        for i, m in ipairs(kept) do live[i] = m end
+        if band and #kept == 0 then band:Hide() end
+    end
+    t:ok(type(ns.commands.errorband) == "function", "/flow errorband")
+end)
