@@ -658,6 +658,52 @@ local function build(p, stops)
     return order
 end
 
+-- Pure: the same visits with each group's brought together (Areas.lua,
+-- 0.35.431). When the order reaches the first visit of a group, the group's
+-- other visits follow it at once, in the order they had. One that waits for
+-- a step still further on (a dep that's in the order and hasn't come yet)
+-- stays where it was. Returns `order` itself when nothing moves.
+--   order: { visit, ... } each with .key; groupOf(visit) -> a group or nil;
+--   depsOf(visit) -> { key, ... } or nil
+function P.Together(order, groupOf, depsOf)
+    local n = #order
+    local present, placed, taken, out = {}, {}, {}, {}
+    for _, s in ipairs(order) do present[s.key] = true end
+    local function ready(s)
+        for _, d in ipairs(depsOf(s) or {}) do
+            if present[d] and not placed[d] then return false end
+        end
+        return true
+    end
+    local function put(i)
+        taken[i] = true
+        out[#out + 1] = order[i]
+        placed[order[i].key] = true
+    end
+    for i = 1, n do
+        if not taken[i] then
+            put(i)
+            local g = groupOf(order[i])
+            if g ~= nil then
+                local again = true
+                while again do
+                    again = false
+                    for j = i + 1, n do
+                        if not taken[j] and groupOf(order[j]) == g and ready(order[j]) then
+                            put(j)
+                            again = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for i = 1, n do
+        if out[i] ~= order[i] then return out end
+    end
+    return order
+end
+
 -- Returns the trip: { { goal, point, leg, cum }, ..., dropped = { text } }
 function P:Plan(p, goals, opts)
     OPT = {}   -- (a copy: the area rule adds to it)
@@ -684,6 +730,13 @@ function P:Plan(p, goals, opts)
     end
     local dropped
     order, dropped = prune(p, order)
+    -- The steps of an area are done together (Areas.lua, 0.35.431): kept only
+    -- when the order still obeys every rule it obeyed before.
+    do
+        local okT, together = pcall(P.Together, order, function(s) return s.goal and s.goal.areaGroup end,
+            function(s) return s.goal and s.goal.deps end)
+        if okT and together ~= order and valid(together) then order = together end
+    end
     local _, legs, pts = walk(p, order)
     -- One line a step, at its first visit; its later visits ride on it
     -- (entry.visits) and on plan.hops, the groups in the order they're

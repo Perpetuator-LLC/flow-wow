@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.35.431
+
+- **Everything in an area is done together.** Steps of your quests that are done in the
+  same place (the same field, the same camp) are now one group. Flow works the groups out
+  from where each step's spots are: two steps are in the same area when their spots lie
+  within 150 yards of each other, areas join up, and a group is never wider than 900
+  yards. Nothing in it names a zone, a quest or a class.
+- **The route treats a group as one stop.** Once it reaches a group it does all of its
+  steps before going on, in the order the planner found, with a quest to pick up before
+  the step it's for. A step that has to wait for something outside the group stays where
+  it was. Before, steps in one field usually came out next to each other only because
+  they were near each other.
+- **The Flow Tracker and the map show the whole group while it's next**, even on "Next
+  step only". Each of its lines ends "(this area: 4 steps)", and each card names the
+  others ("In this area with ...").
+- Flow Settings, Finding your way: "Do everything in an area together" (on). `/flow
+  areas` lists the groups of the last plan; it's in the diagnostics.
+- Not in it yet: one line that folds a whole group, and deciding when a group is "done
+  enough" to leave (a rare drop holds you there until it's done or you skip the step).
 ## 0.35.430
 
 - **Blood Shards say what they buy, and stay out of the bank.** A Blood Shard was "kept

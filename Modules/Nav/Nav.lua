@@ -694,6 +694,11 @@ function N:Collect(gathered)
         local okO, errO = pcall(ns.overlap.Apply, shown)
         if not okO then ns:Log("nav", "overlap failed: " .. tostring(errO)) end
     end
+    -- Steps done in the same area are one group (Areas.lua, 0.35.431).
+    if ns.areas then
+        local okG, errG = pcall(ns.areas.Apply, shown)
+        if not okG then ns:Log("nav", "area groups failed: " .. tostring(errG)) end
+    end
     -- "Along the way" goals (loot meat for an optional profession): never a
     -- step of their own, so the route never sends you off to grind them.
     -- They're listed in the arrow panel and step cards, and their mobs are
@@ -2611,6 +2616,8 @@ function N:StopVisible(i, pointed)
     if pointed then return true end
     if self:AreaMode() then return self:StopInArea(i) end
     local limit = self:StopsShown()
+    -- (0.35.431: the whole group your next step leads shows, however few steps you asked for.)
+    if limit ~= nil and ns.areas and N.plan then limit = math.max(limit, ns.areas.Lead(N.plan)) end
     return limit == nil or i <= limit
 end
 -- Your next n steps (nil: all of them); this turns the area choice off.
@@ -2677,6 +2684,8 @@ function N:FormatStop(i, goal, label)
     -- Cure Poison at all": on WoW: Forever it's "The Principal Source", not the
     -- trainer, and the row only said the quest's name).
     if goal.classQuest then where = where .. string.format(" |cff888888(for %s)|r", goal.classQuest) end
+    -- One of an area's steps (Areas.lua): says how many there are here.
+    if goal.areaGroup and (goal.areaSize or 0) > 1 then where = where .. string.format(" |cff888888(this area: %d steps)|r", goal.areaSize) end
     return string.format("%s|cff%s%s|r |cff%s%s|r%s", icon, numColor, label or tostring(i),
         textColor, goal.text or goal.title or "?", where)
 end

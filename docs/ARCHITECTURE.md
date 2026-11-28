@@ -111,6 +111,8 @@ Advisor <--- trainer data, class spells, bags, skills, talents, profiler insight
    Before the search, `Modules/Nav/Overlap.lua` puts a quest to pick up before a step of yours
    when the quest's own objectives lie among that step's spots and its giver is within `O.GIVER`
    yards: the step gets the pickup as an order-only dep (`softDeps`) and the pickup `keep`.
+   `Modules/Nav/Areas.lua` then sorts the log's objective steps into groups by place (`goal.areaGroup`);
+   after the search `P.Together` pulls each group's steps together where every dep still holds.
 2. **How to get to that step** (`Modules/Nav/Transit.lua`, 0.35.422 and 0.35.424). One leg is a
    small graph of its own. Places: you, the step, every flight master you know, the inn your
    hearthstone is set to, where each travel spell you know lands. Ways, each costing its seconds:

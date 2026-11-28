@@ -20126,3 +20126,89 @@ ns:Register("test", "bags: what repeatable hand-ins take says what it buys, and 
         if ok and shard then t:ok(#shard.list >= 2, "more than one hand-in takes it: " .. #shard.list) end
     end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.431: steps done in the same area are one group: planned together,
+-- shown together.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: steps done in the same area are one group, and the plan does a group together", function(t)
+    local AR, P, O, N = ns.areas, ns.planner, ns.overlap, ns.nav
+    local function at(x, y) return { cont = 1, wx = x, wy = y } end
+    local function shares(a, b) return O.Shares(a, b, 150, 12) end
+    -- A field with three quests' mobs, a camp 3,000 yd away with two, and one step on its own.
+    local steps = {
+        { key = "1:1", points = { at(0, 0), at(100, 50), at(200, 0) } },
+        { key = "2:1", points = { at(50, 20), at(150, 40) } },
+        { key = "3:1", points = { at(210, 30), at(260, 80) } },
+        { key = "4:1", points = { at(3000, 0), at(3050, 40) } },
+        { key = "5:1", points = { at(3020, 10), at(3060, 60) } },
+        { key = "6:1", points = { at(9000, 9000) } },
+    }
+    local groupOf, groups = AR.Groups(steps, shares)
+    t:eq(#groups, 2, "two groups")
+    t:ok(groupOf["1:1"] and groupOf["1:1"] == groupOf["2:1"] and groupOf["2:1"] == groupOf["3:1"], "the three in the field are one (3 joins by way of 1)")
+    t:ok(groupOf["4:1"] and groupOf["4:1"] == groupOf["5:1"] and groupOf["4:1"] ~= groupOf["1:1"], "the two at the camp are another")
+    t:eq(groupOf["6:1"], nil, "a step on its own is in none")
+    -- A chain of mobs along a whole zone isn't one area.
+    local chain = {}
+    for i = 1, 12 do chain[i] = { key = i .. ":1", points = { at(i * 120, 0), at(i * 120 + 60, 0) } } end
+    local _, long = AR.Groups(chain, shares, 400)
+    t:ok(#long >= 2, "a long chain is cut into areas no wider than the span: " .. #long)
+    for _, g in ipairs(long) do t:ok(#g.keys <= 5, "none of them is the whole chain") end
+    -- Bringing a group together in an order.
+    local function item(key, group, deps) return { key = key, goal = { areaGroup = group, deps = deps } } end
+    local function groupOfItem(s) return s.goal.areaGroup end
+    local function depsOf(s) return s.goal.deps end
+    local function keys(list) local out = {} for i, s in ipairs(list) do out[i] = s.key end return table.concat(out, " ") end
+    local order = { item("a1", "A"), item("x"), item("a2", "A"), item("b1", "B"), item("a3", "A"), item("b2", "B") }
+    t:eq(keys(P.Together(order, groupOfItem, depsOf)), "a1 a2 a3 x b1 b2", "each group's steps follow its first")
+    local tidy = { item("a1", "A"), item("a2", "A"), item("x") }
+    t:ok(P.Together(tidy, groupOfItem, depsOf) == tidy, "already together: the same order back")
+    -- A step that waits for something further on stays where it was.
+    local waits = { item("a1", "A"), item("x"), item("a2", "A", { "x" }), item("a3", "A") }
+    t:eq(keys(P.Together(waits, groupOfItem, depsOf)), "a1 a3 x a2", "a2 waits for x, so it stays after it; a3 joins a1")
+    -- One that waits for another of its own group comes right after it.
+    local inner = { item("p", "A"), item("x"), item("s", "A", { "p" }) }
+    t:eq(keys(P.Together(inner, groupOfItem, depsOf)), "p s x", "a pickup and the step it's for, together")
+    -- A dep that isn't in the order holds nothing.
+    local gone = { item("a1", "A"), item("x"), item("a2", "A", { "not-planned" }) }
+    t:eq(keys(P.Together(gone, groupOfItem, depsOf)), "a1 a2 x", "a dep that isn't planned doesn't hold it")
+    -- What shows: the whole group the next step leads.
+    t:eq(AR.Lead({ { goal = { areaGroup = "A" } }, { goal = { areaGroup = "A" } }, { goal = {} }, { goal = { areaGroup = "A" } } }), 2, "two of the group lead the plan")
+    t:eq(AR.Lead({ { goal = {} }, { goal = { areaGroup = "A" } } }), 1, "the next step is in no group: just it")
+    t:eq(AR.Lead({}), 1, "no plan: one")
+    t:eq(AR.CardLine({ "Chen's Empty Keg", "Field to Clear" }),
+        "In this area with Chen's Empty Keg; Field to Clear: Flow has you do them together, then move on.", "the card names the others")
+    t:eq(AR.CardLine({}), nil, "none: nothing")
+    -- On the route's own steps, and through the planner.
+    local was = ns.db.nav.areaGroups
+    ns.db.nav.areaGroups = nil
+    local far = { key = "987654431:1", title = "Far", text = "Far: 0 -> 5", points = { at(60, 2000) }, details = {} }
+    local goals = {
+        { key = "987654432:1", title = "Glands", text = "Glands: 0 -> 5", points = { at(0, 300), at(80, 340), at(160, 300) }, details = {} },
+        { key = "987654433:1", title = "Stalkers", text = "Stalkers: 0 -> 7", points = { at(40, 320), at(120, 330) }, details = {} },
+        { key = "987654434:1", title = "Hides", text = "Hides: 0 -> 7", points = { at(150, 310), at(200, 380) }, details = {} },
+        far,
+    }
+    local n = AR.Apply(goals)
+    t:eq(n, 1, "one group among the route's steps")
+    t:ok(goals[1].areaGroup and goals[1].areaGroup == goals[2].areaGroup and goals[2].areaGroup == goals[3].areaGroup, "the three in the field")
+    t:eq(goals[1].areaSize, 3, "each knows how many there are here")
+    t:eq(far.areaGroup, nil, "the far one is in none")
+    t:ok(goals[1].details[#goals[1].details]:find("In this area with", 1, true) ~= nil, "its card says who it's with")
+    t:ok(N:FormatStop(1, goals[1], "1"):find("this area: 3 steps", 1, true) ~= nil, "and its line says how many steps are here")
+    local okP, plan = pcall(P.Plan, P, at(0, 0), goals, {})
+    t:ok(okP and plan and #plan == 4, "the planner takes them")
+    if okP and plan then
+        local firstFar
+        for i, s in ipairs(plan) do if s.goal.key == far.key then firstFar = i end end
+        t:ok(firstFar == 1 or firstFar == 4, "the three of the field are next to each other in the plan (the far one at " .. tostring(firstFar) .. ")")
+    end
+    ns.db.nav.areaGroups = false
+    local off = { { key = "987654432:1", points = { at(0, 300), at(80, 340) } }, { key = "987654433:1", points = { at(40, 320), at(120, 330) } } }
+    t:eq(AR.Apply(off), 0, "turned off: no groups")
+    t:eq(off[1].areaGroup, nil, "and nothing is marked")
+    ns.db.nav.areaGroups = was
+    t:ok(pcall(AR.Lines), "/flow areas builds")
+end)

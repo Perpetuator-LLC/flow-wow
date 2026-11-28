@@ -189,6 +189,7 @@ function O.Apply(goals)
         s.softDeps[p.key] = true
         p.keep = true   -- (it always makes the plan: the step it's before is on it)
         p.overlap = s.title or s.text
+        p.overlapKey = s.key   -- (Areas.lua: it's of that step's group)
         if type(p.details) == "table" then
             table.insert(p.details, 1, string.format("Take it first: it's done in the same place as %s, which is on your route.", tostring(s.title or s.text)))
         end

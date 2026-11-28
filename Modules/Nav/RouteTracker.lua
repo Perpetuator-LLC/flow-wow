@@ -497,9 +497,12 @@ function RT:Refresh()
         local here = RT.Here()
         local idx = here and ns.nav.HereStops(plan, ns.nav:PlayerPos()) or {}
         if not here then
-            for i = 1, math.min(#plan, ns.nav:StopsShown() or ROWS) do idx[i] = i end
+            -- (0.35.431: the whole group your next step leads, however few steps you asked for.)
+            local want = ns.nav:StopsShown()
+            if want and ns.areas then want = math.max(want, ns.areas.Lead(plan)) end
+            for i = 1, math.min(#plan, want or ROWS) do idx[i] = i end
         end
-        local nRows = here and ROWS or math.min(ROWS, ns.nav:StopsShown() or ROWS)
+        local nRows = here and ROWS or math.min(ROWS, math.max(ns.nav:StopsShown() or ROWS, ns.areas and ns.areas.Lead(plan) or 1))
         local nPlan = math.min(#idx, nRows)
         for i = 1, ROWS do
             local r = frame.rows[i]
