@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.450
+
+- **The game's own marker on your next step is on by default.** It was a try-out you had to
+  turn on (`/flow gamepin on`). Tried in the game, it works: the game draws its marker for
+  Flow's step, with its up and down arrows. Flow Settings, Finding your way: "The game's
+  own marker on your next step"; `/flow gamepin off` turns it off. A pin you set yourself
+  is still never replaced.
 ## 0.35.449
 
 - **Flow Banker: Find.** A new "Find" view with a search box: type any part of a name and

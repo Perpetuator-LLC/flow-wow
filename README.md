@@ -277,6 +277,9 @@ Flow for WoW is a separate project from Flow Engine.
 - **What a profession is for**: in Flow Professions, tick "sell" beside a gathering profession you
   gather with for gold (its materials are sold, not kept), and pick one crafting profession for
   "Later" (its materials are kept, with no trainer on your route yet). `/flow gather`.
+- **The game's own marker on your next step**: Flow hands the game your step as its map pin, so the
+  game draws its marker for it, with its up and down arrows (Flow Settings, Finding your way;
+  `/flow gamepin off`). A pin of your own is never replaced.
 - **Flights on the way**: when flying is quicker than walking to your next step, the arrow leads
   to the flight master and says where to fly (`/flow transit` shows the way it worked out).
 - **Where next**: `/flow where` lists the same zones in chat, the most XP first.

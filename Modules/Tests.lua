@@ -20675,7 +20675,13 @@ ns:Register("test", "game pin: Flow's pin follows your step, never replaces your
     ns.db.nav.gamePinAt = nil
     t:ok(not GP.IsOurs(1413, 0.491, 0.770), "nothing pinned: nothing is Flow's")
     ns.db.nav.gamePinAt = was
-    t:ok(not GP.On() or ns.db.nav.gamePin == true, "it's off unless you turned it on")
+    -- (0.35.450: on unless you turn it off.)
+    local pinWas = ns.db.nav.gamePin
+    ns.db.nav.gamePin = nil
+    t:ok(GP.On(), "nothing chosen: on")
+    ns.db.nav.gamePin = false
+    t:ok(not GP.On(), "turned off: off")
+    ns.db.nav.gamePin = pinWas
     t:ok(pcall(GP.Lines), "/flow gamepin builds")
     t:ok(type(ns.commands.gamepin) == "function", "/flow gamepin")
 end)

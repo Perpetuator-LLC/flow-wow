@@ -1,7 +1,7 @@
 -------------------------------------------------------------------------------
 -- Flow - Nav/GamePin.lua
 -- A try-out: the game's own waypoint on Flow's next step, so the game draws
--- its marker for it (0.35.446). Off unless you turn it on.
+-- its marker for it (0.35.446; on unless you turn it off since 0.35.450).
 --
 -- "Is there a way for us to control elevation so that our dot on the minimap
 -- is showing the up or down arrow, just using the same up down arrow that
@@ -34,7 +34,9 @@ ns.gamePin = GP
 
 GP.NEAR = 0.002   -- two map spots this close (a share of the map) are the same spot
 
-function GP.On() return ns.db ~= nil and ns.db.nav ~= nil and ns.db.nav.gamePin == true end
+-- (On unless you turn it off, since 0.35.450: tried in the game, the game draws its marker
+-- for the step, with its up and down arrows. It was off unless turned on.)
+function GP.On() return ns.db ~= nil and ns.db.nav ~= nil and ns.db.nav.gamePin ~= false end
 
 -- Pure: are two spots the same? ({ map, x, y } each)
 function GP.Same(a, b)
@@ -147,8 +149,23 @@ end
 ns.commands.gamepin = function(arg)
     arg = (arg or ""):lower()
     if arg == "on" or arg == "off" then
-        ns.db.nav.gamePin = (arg == "on") or nil
+        ns.db.nav.gamePin = (arg == "on")
         pcall(GP.Tick)
     end
     for _, l in ipairs(GP.Lines()) do print(l) end
+end
+
+if ns.settings and ns.settings.AddCheck then
+    ns.settings:AddCheck({
+        group = "route",
+        label = "The game's own marker on your next step",
+        note = "(with its up and down arrows)",
+        tip = "Flow hands the game your next step as its map pin, so the game draws its own marker for it in the world and on the minimap, with the little arrows that say above or below. "
+            .. "A pin you set yourself is never replaced. Off: Flow's own marks only.",
+        get = function() return GP.On() end,
+        set = function(on)
+            ns.db.nav.gamePin = on and true or false
+            pcall(GP.Tick)
+        end,
+    })
 end
