@@ -21,8 +21,9 @@ ns.bagBorder = BB
 
 BB.THICK = 2
 -- Poor, common, uncommon, rare, epic, legendary, artifact, heirloom.
+-- (Poor is a dark grey, 0.35.432: the game's own light grey was hard to tell from white.)
 BB.COLORS = {
-    [0] = { 0.62, 0.62, 0.62 }, [1] = { 1, 1, 1 }, [2] = { 0.12, 1, 0 }, [3] = { 0, 0.44, 0.87 },
+    [0] = { 0.36, 0.36, 0.36 }, [1] = { 1, 1, 1 }, [2] = { 0.12, 1, 0 }, [3] = { 0, 0.44, 0.87 },
     [4] = { 0.64, 0.21, 0.93 }, [5] = { 1, 0.5, 0 }, [6] = { 0.9, 0.8, 0.5 }, [7] = { 0, 0.8, 1 },
 }
 

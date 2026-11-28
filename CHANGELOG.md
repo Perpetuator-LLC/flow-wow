@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.432
+
+- **The top right bag mark sits out over the corner.** The profession and quest marks in the
+  top right of a bag item were drawn inside the border; the ones in the top left sit out
+  over it. The right one is now up and out too, a little further, so more of the item's
+  own picture shows.
+- **Poor items have a darker grey border**, so it no longer looks like the white of a
+  common item.
 ## 0.35.431
 
 - **Everything in an area is done together.** Steps of your quests that are done in the

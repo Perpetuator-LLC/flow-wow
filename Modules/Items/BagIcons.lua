@@ -74,7 +74,9 @@ end
 -- give its own, letters sit a little inside the edge).
 B.CORNER = {
     action = { point = "TOPLEFT", x = -2, y = 2 },     -- what Flow will do with it
-    kind   = { point = "TOPRIGHT", x = -1, y = -1 },   -- what it is
+    -- (0.35.432: up and out over the corner, as the left one is, and a little further: it sat
+    -- inside the border and covered more of the item's own picture.)
+    kind   = { point = "TOPRIGHT", x = 3, y = 3 },     -- what it is
 }
 
 -- The marks, by their order (built once: every registration is made as the

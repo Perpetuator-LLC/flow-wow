@@ -19973,7 +19973,7 @@ end)
 ns:Register("test", "bags: every item gets a border in its quality's colour", function(t)
     local BB = ns.bagBorder
     local r, g, b = BB.Color(0)
-    t:ok(r == g and g == b and r < 0.8, "poor: grey")
+    t:ok(r == g and g == b and r <= 0.45, "poor: a dark grey, well away from white")
     r, g, b = BB.Color(1)
     t:ok(r == 1 and g == 1 and b == 1, "common: white")
     r, g, b = BB.Color(2)
@@ -19993,7 +19993,8 @@ ns:Register("test", "bags: every item gets a border in its quality's colour", fu
     t:ok(host.flowBorder and host.flowBorder:IsShown(), "it shows")
     t:eq(#host.flowBorder.edges, 4, "four edges")
     local er, eg, eb = host.flowBorder.edges[1]:GetVertexColor()
-    t:ok(math.abs(er - 0.62) < 0.01 and math.abs(eg - 0.62) < 0.01 and math.abs(eb - 0.62) < 0.01, "in grey")
+    local grey = BB.COLORS[0][1]
+    t:ok(math.abs(er - grey) < 0.01 and math.abs(eg - grey) < 0.01 and math.abs(eb - grey) < 0.01, "in grey")
     BB.Paint(host, 3)
     er, eg, eb = host.flowBorder.edges[1]:GetVertexColor()
     t:ok(eb > er and eb > eg, "a rare item in its place: blue")
@@ -20211,4 +20212,13 @@ ns:Register("test", "route: steps done in the same area are one group, and the p
     t:eq(off[1].areaGroup, nil, "and nothing is marked")
     ns.db.nav.areaGroups = was
     t:ok(pcall(AR.Lines), "/flow areas builds")
+end)
+
+-- 0.35.432: the top right mark sits out over the corner, as the top left one does.
+ns:Register("test", "bag icons: both corners' marks sit out over the border", function(t)
+    local B = ns.bagIcons
+    local a, k = B.CORNER.action, B.CORNER.kind
+    t:ok(a.x < 0 and a.y > 0, "top left: out to the left and up")
+    t:ok(k.x > 0 and k.y > 0, "top right: out to the right and up")
+    t:ok(k.x >= -a.x and k.y >= a.y, "at least as far out as the left one")
 end)
