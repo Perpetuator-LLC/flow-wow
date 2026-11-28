@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.438
+
+- Two self-tests failed since 0.35.431: with "Next step only", the Flow Tracker and the map
+  show the whole area group your next step leads, and the tests still expected step two to
+  be hidden. Corrected; nothing changes in play.
 ## 0.35.437
 
 - **A named mob near you comes before one more of a roaming kill.** With Lok and Nak dead,
