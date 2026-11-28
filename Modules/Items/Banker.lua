@@ -719,8 +719,9 @@ B.VIEWS = {
     -- (0.35.448: named for what happens at the bank: what goes in, what comes out. They were "To bank" and "To sell".)
     { key = "put", label = "Deposit" },
     { key = "sell", label = "Withdraw" },
-    { key = "bank", label = "In your bank" },
-    { key = "prices", label = "Auction prices" },
+    { key = "find", label = "Find" },   -- (0.35.449: one search over your bags and your bank)
+    { key = "bank", label = "Bank" },
+    { key = "prices", label = "Prices" },
 }
 B.view, B.offset = "put", 0
 
@@ -800,6 +801,129 @@ function B.Filter(rows, text)
     return out
 end
 
+-------------------------------------------------------------------------------
+-- Find (0.35.449): one search over your bags and your bank
+-------------------------------------------------------------------------------
+-- "I really like the Flow Banker to have a search area, and as soon as the
+-- user starts to type in it, it searches everything from bags to bank ... and
+-- it just shows you if you have it, where it is."
+-- The "Find" view: type any part of a name, and each thing you have is a
+-- line saying how many are in your bags and how many in your bank (the bank
+-- as Flow last saw it open). /flow find <text> says the same in chat. And
+-- when you type in the game's own bag search, a small note under it says
+-- what your bank holds by that name. Not the guild bank: Flow has never read
+-- one.
+-- Pure: the things whose name holds `text`. bags, bank: { [itemID] = count };
+-- name(id) -> its name. -> { { id, name, bags, bank } } by name; no text: {}.
+function B.FindRows(bags, bank, text, name)
+    text = type(text) == "string" and text:lower():gsub("^%s+", ""):gsub("%s+$", "") or ""
+    local out = {}
+    if text == "" then return out end
+    local seen = {}
+    for _, src in ipairs({ bags or {}, bank or {} }) do
+        for id in pairs(src) do
+            if type(id) == "number" and not seen[id] then
+                seen[id] = true
+                local n = name and name(id) or nil
+                if type(n) == "string" and n:lower():find(text, 1, true) then
+                    out[#out + 1] = { id = id, name = n, bags = tonumber(bags and bags[id]) or 0, bank = tonumber(bank and bank[id]) or 0 }
+                end
+            end
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return out
+end
+-- Pure: one thing's line.
+function B.FindLine(r)
+    local parts = {}
+    if (r.bags or 0) > 0 then parts[#parts + 1] = r.bags .. " in your bags" end
+    if (r.bank or 0) > 0 then parts[#parts + 1] = r.bank .. " in your bank" end
+    return string.format("%s  |cff999999%s|r", tostring(r.name), table.concat(parts, ", "))
+end
+-- What's in your bags now: { [itemID] = count }.
+function B.BagCounts()
+    local out = {}
+    local D = ns.disposition
+    if not (D and D.Inventory) then return out end
+    local ok, rows = pcall(D.Inventory, D)
+    for _, r in ipairs(ok and rows or {}) do
+        if r.id then out[r.id] = (out[r.id] or 0) + (r.count or 1) end
+    end
+    return out
+end
+-- Looks now. -> rows, and whether Flow has ever seen inside your bank.
+function B.Find(text)
+    local bank = ns.db.bank or {}
+    return B.FindRows(B.BagCounts(), bank.items, text, nameOf), bank.seenAt ~= nil
+end
+ns.commands.find = function(arg)
+    local rows, seen = B.Find(arg)
+    if (arg or "") == "" then ns:Print("/flow find <part of a name>: looks in your bags and your bank. Or the Find view of the Flow Banker.") return end
+    ns:Print(string.format("\"%s\": %d thing(s) in your bags and your bank%s", tostring(arg), #rows, seen and "" or " (Flow hasn't seen inside your bank yet: open it once)"))
+    for i, r in ipairs(rows) do
+        if i > 20 then print(string.format("  ... and %d more", #rows - 20)) break end
+        print("  " .. B.FindLine(r))
+    end
+end
+
+-- The game's own bag search: a note under it with what your bank holds by that name.
+B.BAG_FIND_MIN, B.BAG_FIND_MAX = 3, 5
+-- Pure: the note's lines for a search (nil: nothing to say).
+function B.BagFindLines(rows, max)
+    local out = {}
+    for _, r in ipairs(rows or {}) do
+        if (r.bank or 0) > 0 then
+            if #out >= (max or B.BAG_FIND_MAX) then out[#out + 1] = "..." break end
+            out[#out + 1] = string.format("%d x %s", r.bank, tostring(r.name))
+        end
+    end
+    if #out == 0 then return nil end
+    table.insert(out, 1, "In your bank:")
+    return out
+end
+local bagNote
+local function bagSearchChanged(box)
+    local text = box and box.GetText and box:GetText() or ""
+    local lines
+    if type(text) == "string" and #text >= B.BAG_FIND_MIN and not (ns.db.banker and ns.db.banker.off) then
+        local ok, rows = pcall(B.Find, text)
+        lines = ok and B.BagFindLines(rows) or nil
+    end
+    if not lines then
+        if bagNote then bagNote:Hide() end
+        return
+    end
+    if not bagNote then
+        bagNote = CreateFrame("Frame", "FlowBagFind", UIParent)
+        bagNote:SetFrameStrata("DIALOG")
+        bagNote:EnableMouse(false)
+        bagNote.bg = bagNote:CreateTexture(nil, "BACKGROUND")
+        bagNote.bg:SetAllPoints()
+        bagNote.bg:SetColorTexture(0.05, 0.05, 0.08, 0.92)
+        bagNote.text = bagNote:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        bagNote.text:SetPoint("TOPLEFT", 6, -5)
+        bagNote.text:SetJustifyH("LEFT")
+    end
+    bagNote.text:SetText(table.concat(lines, "\n"))
+    bagNote:SetSize(math.max(120, bagNote.text:GetStringWidth() + 12), bagNote.text:GetStringHeight() + 10)
+    bagNote:ClearAllPoints()
+    bagNote:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 0, -2)
+    bagNote:Show()
+end
+B._BagNote = function() return bagNote end   -- (tests)
+B._BagSearchChanged = bagSearchChanged
+ns:On("PLAYER_LOGIN", function()
+    local box = _G.BagItemSearchBox
+    if box and box.HookScript then
+        box:HookScript("OnTextChanged", function(self) pcall(bagSearchChanged, self) end)
+        box:HookScript("OnHide", function() if bagNote then bagNote:Hide() end end)
+    end
+end)
+
 -- What a view shows now: the line above the list, and its lines of text.
 function B.ViewLines(view)
     local now = time()
@@ -835,6 +959,16 @@ function B.ViewLines(view)
             return string.format("%d of %d item(s) with \"%s\" in the name (the cheapest buyout Flow last saw):", #rows, #all, tostring(B.filter)), out
         end
         return string.format("The cheapest buyout Flow last saw, for %d item(s). Search below.", #rows), out
+    elseif view == "find" then
+        local rows, seen = B.Find(B.filter)
+        local out = {}
+        for _, r in ipairs(rows) do out[#out + 1] = B.FindLine(r) end
+        local text = type(B.filter) == "string" and B.filter or ""
+        if text:gsub("%s", "") == "" then
+            return "Type part of a name below: Flow looks in your bags and your bank and says where each thing is.", out
+        end
+        return string.format("%d thing(s) with \"%s\" in the name%s:", #rows, text,
+            seen and "" or " (your bank isn't in it yet: open it once and Flow remembers what's there)"), out
     elseif view == "sell" then
         local D = ns.disposition
         local okR, rows = pcall(D.Inventory, D)
@@ -1140,8 +1274,8 @@ function B:Fill()
         f.all:SetText(B.allRules and "In my bags" or "All my choices")
         f.all:SetEnabled(true)
     end
-    f.search:SetShown(B.view == "prices")
-    f.search.label:SetShown(B.view == "prices")
+    f.search:SetShown(B.view == "prices" or B.view == "find")
+    f.search.label:SetShown(B.view == "prices" or B.view == "find")
     f.go:SetShown(B.view == "put" or (B.view == "sell" and (B.takeCount or 0) > 0))
     if B.view == "sell" then
         f.go:SetEnabled(bankOpen and (B.takeCount or 0) > 0)

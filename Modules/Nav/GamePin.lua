@@ -64,6 +64,10 @@ function GP.IsOurs(map, x, y)
     return GP.Same(ours(), { map = map, x = x, y = y })
 end
 
+-- Is the game drawing its pin for Flow's step now? (MinimapPin.lua: Flow's mark goes round the game's arrow then.)
+-- Looked up once a second (GP.Tick): the minimap asks many times a second.
+function GP.Shown() return GP.shown == true end
+
 -- The game's pin as it is: { map, x, y } or nil.
 function GP.Pin()
     if not (C_Map and C_Map.HasUserWaypoint and C_Map.GetUserWaypoint and C_Map.HasUserWaypoint()) then return nil end
@@ -86,6 +90,7 @@ function GP.Tick()
         step = { map = cur.point.map, x = cur.point.x, y = cur.point.y }
     end
     local what = GP.Decide(GP.On(), step, GP.Pin(), ours())
+    GP.shown = (what == "keep" or what == "set") and GP.On() and step ~= nil
     if what == "leave" then
         if ours() then setOurs(nil) end
     elseif what == "set" then
@@ -94,6 +99,7 @@ function GP.Tick()
                 GP.refused = step.map
                 ns:Log("nav", "game pin: the game takes no pin on map " .. tostring(step.map))
             end
+            GP.shown = false
             return "refused"
         end
         setOurs(step)   -- (first: the pin is Flow's from the moment it's there)

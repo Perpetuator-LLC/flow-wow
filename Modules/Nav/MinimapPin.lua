@@ -36,7 +36,20 @@ function P.RingPoints(n, radius, turn)
     return out
 end
 -- Pure: which look? "ring" in view, "dot" at the edge.
-function P.Look(edge) return edge and "dot" or "ring" end
+-- (0.35.449) "corners": at the edge while the game draws its own arrow there
+-- for the same spot (GamePin.lua): "we have the circle on the edge and the
+-- arrow goes under and it looks funny." Four small marks in the route colour
+-- round the game's arrow, the middle left clear, so the two read as one.
+P.CORNER_RADIUS, P.CORNER_DOT = 9, 3
+function P.Look(edge, gamePin)
+    if not edge then return "ring" end
+    return gamePin and "corners" or "dot"
+end
+-- Pure: where the four corner marks sit ({ x, y } each).
+function P.CornerPoints(radius)
+    local d = (radius or P.CORNER_RADIUS) * math.sqrt(0.5)
+    return { { d, d }, { -d, d }, { -d, -d }, { d, -d } }
+end
 
 local pin, profPin
 local function makePin(name)
@@ -72,10 +85,28 @@ local function makePin(name)
         dot:SetColorTexture(1, 1, 1, 1)
         pin.around[i] = { back = back, dot = dot }
     end
+    pin.corners = {}
+    for i, pt in ipairs(P.CornerPoints()) do
+        local back = pin:CreateTexture(nil, "BORDER")
+        back:SetSize(P.CORNER_DOT + 2, P.CORNER_DOT + 2)
+        back:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
+        back:SetColorTexture(0, 0, 0, 0.9)
+        local dot = pin:CreateTexture(nil, "ARTWORK")
+        dot:SetSize(P.CORNER_DOT, P.CORNER_DOT)
+        dot:SetPoint("CENTER", pin, "CENTER", pt[1], pt[2])
+        dot:SetColorTexture(1, 1, 1, 1)
+        pin.corners[i] = { back = back, dot = dot }
+    end
     function pin:SetLook(look, r, g, b)
         local ring = look == "ring"
+        local corners = look == "corners"
         self.look = look
-        for _, part in ipairs({ self.edge, self.ring, self.hole, self.dot }) do part:SetShown(not ring) end
+        for _, part in ipairs({ self.edge, self.ring, self.hole, self.dot }) do part:SetShown(not ring and not corners) end
+        for _, a in ipairs(self.corners) do
+            a.back:SetShown(corners)
+            a.dot:SetShown(corners)
+            a.dot:SetVertexColor(r or 1, g or 1, b or 1, 1)
+        end
         for _, a in ipairs(self.around) do
             a.back:SetShown(ring)
             a.dot:SetShown(ring)
@@ -399,8 +430,10 @@ function P:Update(p, pt, goal, col, here)
     pin.dot:SetVertexColor(col[1], col[2], col[3], 1)
     pin.ring:SetVertexColor(col[1], col[2], col[3], 1)
     pin:SetSize(edge and 12 or 16, edge and 12 or 16)
-    if pin.SetLook then pin:SetLook(P.Look(edge), col[1], col[2], col[3]) end
-    pin:SetAlpha(edge and 0.8 or 1)
+    local GP = ns.gamePin
+    local gamePin = edge and GP ~= nil and GP.Shown ~= nil and GP.Shown() or false
+    if pin.SetLook then pin:SetLook(P.Look(edge, gamePin), col[1], col[2], col[3]) end
+    pin:SetAlpha((edge and not gamePin) and 0.8 or 1)
     pin:ClearAllPoints()
     pin:SetPoint("CENTER", Minimap, "CENTER", x, y)
     pin.goal, pin.yards = goal, math.floor(math.sqrt(east * east + south * south))

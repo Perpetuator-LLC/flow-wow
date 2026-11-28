@@ -20780,3 +20780,77 @@ ns:Register("test", "click: Flow Banker's Do both starts on the side that has ro
     end
     if f and not shown then f:Hide() end
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.449: Find over bags and bank; Flow's minimap mark goes round the
+-- game's arrow at the edge.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "banker: Find looks in your bags and your bank and says where each thing is", function(t)
+    local B = ns.banker
+    local names = { [2592] = "Wool Cloth", [3530] = "Wool Bandage", [2589] = "Linen Cloth", [4306] = "Silk Cloth" }
+    local function name(id) return names[id] end
+    local bags, bank = { [2592] = 14, [3530] = 20 }, { [2592] = 34, [2589] = 40 }
+    local rows = B.FindRows(bags, bank, "wool", name)
+    t:eq(#rows, 2, "two things with wool in the name")
+    t:eq(rows[1].name, "Wool Bandage", "by name")
+    t:ok(rows[1].bags == 20 and rows[1].bank == 0, "the bandages: only in your bags")
+    t:ok(rows[2].bags == 14 and rows[2].bank == 34, "the cloth: in both")
+    t:eq(#B.FindRows(bags, bank, "CLOTH", name), 2, "any case; a thing only in your bank counts")
+    t:eq(#B.FindRows(bags, bank, "", name), 0, "nothing typed: nothing listed")
+    t:eq(#B.FindRows(bags, bank, "  ", name), 0, "only spaces: nothing")
+    t:eq(#B.FindRows(bags, bank, "dragon", name), 0, "nothing by that name")
+    t:eq(#B.FindRows(nil, nil, "wool", name), 0, "no bags, no bank: nothing")
+    t:ok(B.FindLine(rows[2]):find("14 in your bags, 34 in your bank", 1, true) ~= nil, "a line says where and how many")
+    t:ok(B.FindLine(rows[1]):find("20 in your bags", 1, true) ~= nil and not B.FindLine(rows[1]):find("bank", 1, true), "a thing in one place says only that")
+    -- The note under the game's bag search: what your bank holds by that name.
+    local note = B.BagFindLines(rows)
+    t:eq(note and note[1], "In your bank:", "a heading")
+    t:eq(note and note[2], "34 x Wool Cloth", "then what's there")
+    t:eq(B.BagFindLines({ rows[1] }), nil, "nothing of it in your bank: no note")
+    -- With your own things: it looks, builds its view, and its command is there.
+    t:ok(pcall(B.Find, "a"), "looking in your bags and bank runs")
+    local filter = B.filter
+    B.filter = "a"
+    local ok, head, lines = pcall(B.ViewLines, "find")
+    t:ok(ok and type(head) == "string" and type(lines) == "table", "the Find view builds" .. (ok and "" or (": " .. tostring(head))))
+    B.filter = ""
+    ok, head = pcall(B.ViewLines, "find")
+    t:ok(ok and head:find("Type part of a name", 1, true) ~= nil, "nothing typed: it says what to do")
+    B.filter = filter
+    local has
+    for _, v in ipairs(B.VIEWS) do if v.key == "find" then has = v.label end end
+    t:eq(has, "Find", "the window has a Find view")
+    t:ok(type(ns.commands.find) == "function", "/flow find")
+    t:ok(pcall(B._BagSearchChanged, nil), "the bag search note copes with no search box")
+end)
+
+ns:Register("test", "minimap: at the edge, with the game's arrow there too, Flow's mark is four corners round it", function(t)
+    local P = ns.minimapPin
+    t:eq(P.Look(false, false), "ring", "in view: the ring of eight, as before")
+    t:eq(P.Look(false, true), "ring", "in view with the game's pin: the ring still (its middle is clear)")
+    t:eq(P.Look(true, false), "dot", "at the edge: the solid dot, as before")
+    t:eq(P.Look(true, true), "corners", "at the edge with the game's arrow: four corners round it")
+    local pts = P.CornerPoints(10)
+    t:eq(#pts, 4, "four marks")
+    for _, pt in ipairs(pts) do
+        t:ok(math.abs(math.sqrt(pt[1] * pt[1] + pt[2] * pt[2]) - 10) < 0.01, "each at the radius")
+        t:ok(math.abs(pt[1]) > 5 and math.abs(pt[2]) > 5, "on a diagonal: none straight above, below or beside the arrow")
+    end
+    -- The pin itself: the corners show and the dot goes; back to a dot, and to the ring.
+    if Minimap then
+        local p = ns.nav:PlayerPos()
+        if p and p.wx then pcall(P.Update, P, p, { cont = p.cont, wx = p.wx + 5000, wy = p.wy }, { key = "987654449:1", text = "A far step" }, { 1, 0.5, 0 }) end
+        local pin = P.Pin()
+        if pin and pin.SetLook then
+            pin:SetLook("corners", 1, 0.5, 0)
+            t:ok(pin.corners[1].dot:IsShown() and not pin.dot:IsShown() and not pin.around[1].dot:IsShown(), "corners: the four marks, no solid dot, no ring")
+            pin:SetLook("dot", 1, 0.5, 0)
+            t:ok(pin.dot:IsShown() and not pin.corners[1].dot:IsShown(), "dot: as before")
+            pin:SetLook("ring", 1, 0.5, 0)
+            t:ok(pin.around[1].dot:IsShown() and not pin.corners[1].dot:IsShown() and not pin.dot:IsShown(), "ring: as before")
+        end
+        if ns.nav.RequestCollect then ns.nav.RequestCollect("test done") end
+    end
+    t:ok(ns.gamePin.Shown() == true or ns.gamePin.Shown() == false, "the game pin says whether it's showing")
+end)

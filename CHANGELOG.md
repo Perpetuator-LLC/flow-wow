@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.449
+
+- **Flow Banker: Find.** A new "Find" view with a search box: type any part of a name and
+  each thing you have is a line saying how many are in your bags and how many in your bank
+  (the bank as Flow last saw it open). `/flow find wool` says the same in chat. And when
+  you type in the game's own bag search, a small note under it says what your bank holds
+  by that name. The guild bank isn't in it: Flow has never read one.
+- The window's last two views are now called "Bank" and "Prices" (they were "In your bank"
+  and "Auction prices"), so five fit.
+- **At the minimap's edge, Flow's mark goes round the game's arrow.** With `/flow gamepin
+  on` the game draws its own arrow at the edge for your step, and Flow's solid dot sat on
+  top of it. There it's now four small marks in your route's colour round the arrow, the
+  middle left clear, so the two read as one. In view, the ring of eight is as it was.
 ## 0.35.448
 
 - **Flow Banker: Deposit all, Take all, Do both.** At a bank the window had one button,
