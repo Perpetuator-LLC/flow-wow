@@ -20860,3 +20860,13 @@ ns:Register("test", "minimap: at the edge, with the game's arrow there too, Flow
     end
     t:ok(ns.gamePin.Shown() == true or ns.gamePin.Shown() == false, "the game pin says whether it's showing")
 end)
+
+-- 0.35.451: the four corner marks sit round the game's arrow, not at its tail.
+ns:Register("test", "minimap: the corner marks are centred where the game's arrow is, and wide enough to go round it", function(t)
+    local P = ns.minimapPin
+    t:eq(P.Inset("dot"), P.EDGE_INSET, "the solid dot: at the rim, as before")
+    t:eq(P.Inset("corners"), P.CORNER_INSET, "the corners: further in, where the game's arrow is")
+    t:ok(P.CORNER_INSET > P.EDGE_INSET + 15, "a good way in from the dot's place")
+    t:ok(P.CORNER_RADIUS >= 16, "and wide enough to go round the arrow")
+    t:ok(P.CORNER_INSET - P.CORNER_RADIUS * math.sqrt(0.5) >= 8, "the outer marks stay inside the rim")
+end)

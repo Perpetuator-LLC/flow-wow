@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.451
+
+- **The four marks sit round the game's arrow at the minimap's edge.** They sat in a small
+  square at the arrow's tail: the game draws its arrow further in from the rim than Flow's
+  dot was, and bigger than the square. The marks are wider now and centred where the arrow
+  is.
 ## 0.35.450
 
 - **The game's own marker on your next step is on by default.** It was a try-out you had to

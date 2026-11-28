@@ -40,7 +40,14 @@ end
 -- for the same spot (GamePin.lua): "we have the circle on the edge and the
 -- arrow goes under and it looks funny." Four small marks in the route colour
 -- round the game's arrow, the middle left clear, so the two read as one.
-P.CORNER_RADIUS, P.CORNER_DOT = 9, 3
+-- (0.35.451, from a picture: the four marks sat in a small square at the tail of the
+-- game's arrow. The game draws its arrow further in from the rim than Flow's dot, and
+-- it's bigger than the marks' square was. So the marks are wider, and their middle is
+-- P.CORNER_INSET in from the rim, where the arrow's middle is. P.EDGE_INSET: the dot's.)
+P.CORNER_RADIUS, P.CORNER_DOT = 19, 3
+P.EDGE_INSET, P.CORNER_INSET = 6, 28
+-- Pure: how far in from the rim the mark's middle sits.
+function P.Inset(look) return look == "corners" and P.CORNER_INSET or P.EDGE_INSET end
 function P.Look(edge, gamePin)
     if not edge then return "ring" end
     return gamePin and "corners" or "dot"
@@ -423,16 +430,20 @@ function P:Update(p, pt, goal, col, here)
     if not x then pin:Hide() return end
     local radius = Minimap:GetWidth() / 2
     local d = math.sqrt(x * x + y * y)
-    local edge = d > radius - 6
-    if edge then x, y = x / d * (radius - 6), y / d * (radius - 6) end
+    local edge = d > radius - P.EDGE_INSET
+    local GP = ns.gamePin
+    local gamePin = edge and GP ~= nil and GP.Shown ~= nil and GP.Shown() or false
+    local look = P.Look(edge, gamePin)
+    if edge then
+        local inset = P.Inset(look)
+        x, y = x / d * (radius - inset), y / d * (radius - inset)
+    end
     -- No arrow colour given: your waypoint, or a party member you follow, green.
     col = col or ((goal and (goal.key == "user:wp" or goal.key == "user:follow")) and ns.theme.waypoint or ns.theme.route)
     pin.dot:SetVertexColor(col[1], col[2], col[3], 1)
     pin.ring:SetVertexColor(col[1], col[2], col[3], 1)
     pin:SetSize(edge and 12 or 16, edge and 12 or 16)
-    local GP = ns.gamePin
-    local gamePin = edge and GP ~= nil and GP.Shown ~= nil and GP.Shown() or false
-    if pin.SetLook then pin:SetLook(P.Look(edge, gamePin), col[1], col[2], col[3]) end
+    if pin.SetLook then pin:SetLook(look, col[1], col[2], col[3]) end
     pin:SetAlpha((edge and not gamePin) and 0.8 or 1)
     pin:ClearAllPoints()
     pin:SetPoint("CENTER", Minimap, "CENTER", x, y)
