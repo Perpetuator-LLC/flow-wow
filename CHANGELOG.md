@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.421
+
+- The "Repeatable hand-ins" tick of 0.35.419 sits after "Low-level quests" in Route includes,
+  not between it and "New quests". (One self-test failed over the order; nothing else changes.)
+
 ## 0.35.420
 
 - **Fixed: Flow handed in a repeatable quest for you, twice.** At Mangletooth with Blood

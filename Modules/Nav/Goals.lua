@@ -1274,7 +1274,7 @@ ns:Register("routeKind", "newQuests", { order = 20, default = true, custom = "li
 -- (0.35.419: "that recent fix for repeatable quests, perhaps we make that a
 -- toggle in the Route includes?" The step of 0.35.411 belonged to no kind, so
 -- nothing could turn it off.)
-ns:Register("routeKind", "repeatables", { order = 25, default = true,
+ns:Register("routeKind", "repeatables", { order = 35, default = true,
     label = "Repeatable hand-ins (when you carry what they take)", short = "repeatable hand-ins",
     tip = "One step at an NPC with repeatable hand-ins (Mangletooth's Blood Shard blessings), only while you carry or bank what they take and it's on your way. "
         .. "Off: they're left out of your route and its lists.",
