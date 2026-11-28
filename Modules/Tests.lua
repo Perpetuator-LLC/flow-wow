@@ -6497,24 +6497,35 @@ ns:Register("test", "self button: buffs off the main icon, onto their own button
     t:eq(BB.Pick({ spell = "Aura" }, nil).spell, "Aura", "the buff spell when the weapon needs nothing")
     t:eq(BB.Pick(nil, { item = "item:2862" }).item, "item:2862", "the stone when no buff spell is due")
     t:ok(BB.Pick(nil, nil) == nil, "nothing due: nothing")
-    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).label, "Bandage",
-        "hurt after a fight: the bandage or food before any buff")
+    -- (0.35.444: your buffs first, then healing up. It was the other way round.)
+    t:eq(BB.Pick({ spell = "Aura" }, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).spell, "Aura",
+        "hurt after a fight: your buff spell before the bandage or food")
+    t:eq(BB.Pick(nil, { item = "item:2862" }, { label = "Bandage" }, { type = "sit" }).label, "Bandage",
+        "no buff spell due: the bandage before the weapon stone")
     local feast = { item = "item:724", wellFed = true }
     local bandage = { label = "Bandage", bandage = true }
     t:eq(BB.Pick(nil, feast, bandage).item, "item:724",
         "hurt and not Well Fed: the Well Fed food before the bandage")
-    t:eq(BB.Pick({ spell = "Aura" }, feast, bandage).item, "item:724",
-        "hurt, a bandage due: the Well Fed food (it heals too) before a buff spell")
+    t:eq(BB.Pick({ spell = "Aura" }, feast, bandage).spell, "Aura",
+        "hurt, a bandage due: your buff spell first, then the Well Fed food (it heals too)")
     -- "The food buff is always first... it's overriding everything I need to use."
     t:eq(BB.Pick({ spell = "Aura" }, feast, nil).spell, "Aura",
         "not Well Fed, not hurt: your buff spell before the food")
     -- Healing up is never pushed back by the Well Fed food or a buff spell.
-    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Drink" }).label, "Drink",
-        "low on mana after a fight: the drink before the Well Fed food and the buff spell")
-    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Cure Poison" }).label, "Cure Poison",
-        "poisoned: the cure first")
-    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Holy Light" }).label, "Holy Light",
-        "hurt: the heal spell before the food")
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Drink" }).spell, "Aura",
+        "low on mana after a fight: the buff spell first (the drink then refills what it cost)")
+    t:eq(BB.Pick(nil, feast, { label = "Drink" }).label, "Drink", "no buff spell due: the drink before the Well Fed food")
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Cure Poison" }, nil, nil, true).label, "Cure Poison",
+        "poisoned: the cure first, before any buff")
+    t:eq(BB.Pick({ spell = "Aura" }, feast, { label = "Holy Light" }).spell, "Aura",
+        "hurt: the buff spell, then the heal spell")
+    t:eq(BB.Pick(nil, feast, { label = "Holy Light" }).label, "Holy Light", "no buff spell due: the heal spell before the food")
+    -- What counts as a buff that's due.
+    t:ok(BB.BuffFirst({ spell = "Aura" }, { label = "Bandage" }, false), "a buff spell due, and healing up to do: the buff first")
+    t:ok(not BB.BuffFirst({ spell = "Aura", later = true }, { label = "Bandage" }, false), "a buff that's still on (the faded next one): healing up first")
+    t:ok(not BB.BuffFirst({ idle = true, label = "no buffs due" }, { label = "Bandage" }, false), "no buffs due: healing up")
+    t:ok(not BB.BuffFirst({ spell = "Aura" }, { label = "Cure Poison" }, true), "a cure is never pushed back")
+    t:ok(not BB.BuffFirst({ spell = "Aura" }, nil, false), "nothing to heal up: the usual order")
     t:eq(BB.Pick(nil, { item = "item:724", wellFed = true, soon = true }, { label = "Drink" }).label, "Drink",
         "no fight near yet: the drink first too")
     t:ok(not ns.buffItems.ItemUrgent(true, true), "food never goes before the rotation's buffs on the Flow key")

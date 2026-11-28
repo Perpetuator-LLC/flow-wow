@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.444
+
+- **Your buffs come before healing up.** After a fight the self button said Bandage (or
+  eat, or drink) while Mark of the Wild or Thorns was missing. A buff spell that's due now
+  comes first; then the bandage, the food, the drink and the heal spell, so the drink
+  refills what the buffs cost. A cure still comes before everything (a poison or a curse
+  is hurting you now), and a buff that's still on (the faded "next" one) doesn't jump
+  ahead.
 ## 0.35.443
 
 - **Several enemies on you: advice that isn't taken no longer holds the icon.** In a fight

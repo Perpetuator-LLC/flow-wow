@@ -115,8 +115,21 @@ function BB.Displaced(shown, spellBuff, camp)
     end
     return nil
 end
-function BB.Pick(spellBuff, itemBuff, recover, camp, fish)
+-- Your buffs before you heal up (0.35.444). "Buffing should be suggested before
+-- the user drinks and eats ... right now it keeps telling me to bandage, and
+-- I'd really like it to make sure that my buffs are on. Then we'll go into
+-- eating and drinking. So that way I'm ready, and any mana that was consumed
+-- gets refilled." A buff spell that's due now comes before the bandage, the
+-- food, the drink and the heal spell. Not before a cure (a poison or a curse
+-- is hurting you now), and not a buff that's still on (the faded "next" one).
+-- Pure. cure: the recovery step is a cure.
+function BB.BuffFirst(spellBuff, recover, cure)
+    if not (type(spellBuff) == "table" and spellBuff.spell) or spellBuff.idle or spellBuff.later then return false end
+    return recover ~= nil and not cure
+end
+function BB.Pick(spellBuff, itemBuff, recover, camp, fish, cure)
     if fish then return recover or fish end
+    if BB.BuffFirst(spellBuff, recover, cure) then return spellBuff end
     if itemBuff and itemBuff.wellFed then
         if recover then return recover.bandage and itemBuff or recover end
         return spellBuff or itemBuff
@@ -884,7 +897,7 @@ local function tick(_, dt)
         edge:SetColorTexture(0.1, 0.6, 1, 0.9)
     end
     local recover, camp = GetTime() - liveAt < 1 and BB.MineFirst(liveCure, liveRecover) or nil, BB.TakesCamp() and pickCamp(ctx) or nil
-    local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx))
+    local s = BB.Pick(live, pickItem(ctx), recover, camp, pickFish(ctx), recover ~= nil and recover == liveCure)
     BB.displaced = BB.Displaced(s, live, camp)
     -- Nothing due ("I don't want my self button always showing buffs: like the
     -- target button, if I need it show it, else what fits my target", 0.35.208):
