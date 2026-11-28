@@ -240,13 +240,18 @@ function QG.Advice(plan, free)
     -- (Full bags lose loot: red. Nearly full: yellow.)
     local urgency = free <= 1 and "now" or "soon"
     if #plan.turnin > 0 then
-        out[#out + 1] = { importance = tight, improves = { "Bag space" }, urgency = urgency,
+        -- (what, quests: for the click, QG.Clickable.)
+        local ids = {}
+        for _, g in ipairs(plan.turnin) do ids[#ids + 1] = g.quest end
+        out[#out + 1] = { importance = tight, improves = { "Bag space" }, urgency = urgency, what = "turnin", quests = ids,
             text = string.format("Bags nearly full: hand in %d finished quest(s) to free %d slot(s): %s",
                 #plan.turnin, QG.Slots(plan.turnin), QG.Names(plan.turnin, 3)) }
     end
     if #plan.bank > 0 then
-        out[#out + 1] = { importance = tight - 5, improves = { "Bag space" }, urgency = urgency,
-            text = string.format("Bags nearly full: %d slot(s) of quest items have no use here. Flow Banker puts them away: %s",
+        -- (0.35.442: it says where they are and what clears them. "I just don't know how I
+        -- clear those. Are they in my bags and my bank?")
+        out[#out + 1] = { importance = tight - 5, improves = { "Bag space" }, urgency = urgency, what = "bank",
+            text = string.format("Bags nearly full: %d slot(s) in your bags hold quest items with nothing to do on this continent: %s. Put them in your bank (Flow Banker lists them there), or hand the quest in across the sea",
                 QG.Slots(plan.bank), QG.ItemNames(plan.bank, 3)) }
     end
     if #plan.sell > 0 then
@@ -463,10 +468,56 @@ function QG.InBank(itemId, need, have)
     return QG.Banked(items and itemId and items[itemId] or 0, need, have)
 end
 
+-- The lines of Flow Improvements can be clicked (0.35.442). "Bags nearly full:
+-- hand in 5 finished quests to free 11 slots. I'm like, yes, I want to do
+-- that. But there's no thing for me to click on to make that happen ... I
+-- would like to make that a priority item."
+--   hand in: your custom route becomes those hand-ins (each finished quest a
+--     line of it), so they come first; errands on the way stay. Clear it from
+--     the bar under the Flow Tracker and your usual order is back.
+--   put in your bank: your waypoint goes to the nearest banker.
+-- Pure: the keys of the steps to put first.
+function QG.HandInKeys(quests)
+    local keys = {}
+    for _, id in ipairs(quests or {}) do
+        if type(id) == "number" then keys[#keys + 1] = id .. ":done" end
+    end
+    return keys
+end
+-- Makes your custom route of the finished quests' hand-ins. -> how many were added
+function QG.GoHandIn(quests)
+    local F = ns.focus
+    if not (F and F.AddKey) then return 0 end
+    local n = 0
+    for _, key in ipairs(QG.HandInKeys(quests)) do
+        if F.AddKey(key) then n = n + 1 end
+    end
+    if n > 0 then
+        ns:Print(string.format("Custom route: the hand-ins of %d finished quest(s) come first now. Clear it from the bar under the Flow Tracker to go back to your usual order.", n))
+    else
+        ns:Print("Those hand-ins are on your custom route already.")
+    end
+    if ns.nav and ns.nav.RequestCollect then ns.nav.RequestCollect("hand-ins first") end
+    return n
+end
+-- Adds what a click does to the advice (QG.Advice's entries).
+function QG.Clickable(list)
+    for _, e in ipairs(list or {}) do
+        if e.what == "turnin" and e.quests and #e.quests > 0 and ns.focus then
+            local quests = e.quests
+            e.openLabel = "a custom route of these hand-ins: they come first"
+            e.onClick = function() QG.GoHandIn(quests) end
+        elseif e.what == "bank" and ns.services and ns.services.GoTo then
+            e.openLabel = "your waypoint on the nearest banker"
+            e.onClick = function() ns.services:GoTo("bank") end
+        end
+    end
+    return list
+end
 ns:Register("advisor", "questBags", {
     check = function()
         local now = QG.Now()
-        return QG.Advice(now.plan, now.free)
+        return QG.Clickable(QG.Advice(now.plan, now.free))
     end,
 })
 

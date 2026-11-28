@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.442
+
+- **"Bags nearly full: hand in N finished quests" can be clicked.** It was only words. Click
+  it in Flow Improvements and those hand-ins become your custom route, so they come first;
+  errands on the way stay. Clear the custom route from the bar under the Flow Tracker and
+  your usual order is back.
+- **The other bags line says where the items are and how to clear them**: "2 slot(s) in
+  your bags hold quest items with nothing to do on this continent: Incantations from the
+  Nether, Spells of Shadow (for The Power to Destroy...). Put them in your bank (Flow
+  Banker lists them there), or hand the quest in across the sea". Click it: your waypoint
+  goes to the nearest banker.
 ## 0.35.441
 
 - **Fixed: the arrow pointed at another step's mobs.** With "Wrongly Blamed, Justly

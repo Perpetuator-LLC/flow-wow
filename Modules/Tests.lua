@@ -20522,3 +20522,48 @@ ns:Register("test", "arrow: it hops between the groups of your step and its area
     local nextG = H.Next(list, 100, 100, {}, 100, nil)
     t:ok(nextG == nil or nextG.key == "97250:1", "and the nearest one offered is your own step's")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.442: the bags lines of Flow Improvements can be clicked, and say where
+-- the items are.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "click: \"hand in N finished quests\" puts those hand-ins first, and the bank line leads to a banker", function(t)
+    local QG, F = ns.questBags, ns.focus
+    t:eq(table.concat(QG.HandInKeys({ 879, 822, 893 }), " "), "879:done 822:done 893:done", "the hand-in steps of the finished quests")
+    t:eq(#QG.HandInKeys({ "x", nil }), 0, "nothing that isn't a quest")
+    local plan = {
+        slots = 5,
+        turnin = { { title = "Chen's Empty Keg", slots = 3, quest = 987654822, items = {} } },
+        bank = { { title = "The Power to Destroy...", slots = 2, quest = 987654725, items = { "1 x Incantations from the Nether", "1 x Spells of Shadow" } } },
+        sell = {}, stuck = {}, finish = {},
+    }
+    local adv = QG.Advice(plan, 0)
+    t:eq(adv[1].what, "turnin", "the hand-in line knows what it is")
+    t:eq(adv[1].quests[1], 987654822, "and which quests")
+    t:ok(adv[2].text:find("in your bags", 1, true) ~= nil, "the other line says the items are in your bags")
+    t:ok(adv[2].text:find("Incantations from the Nether, Spells of Shadow (for The Power to Destroy...)", 1, true) ~= nil, "names them, with their quest")
+    t:ok(adv[2].text:find("Put them in your bank", 1, true) ~= nil and adv[2].text:find("across the sea", 1, true) ~= nil, "and says the two ways to clear them")
+    QG.Clickable(adv)
+    t:ok(type(adv[1].onClick) == "function" and adv[1].openLabel ~= nil, "the hand-in line can be clicked")
+    t:ok(type(adv[2].onClick) == "function" and adv[2].openLabel:find("banker", 1, true) ~= nil, "the bank line can too")
+    -- Click the hand-in line the way a click does: your custom route becomes that hand-in. Put back after.
+    if InCombatLockdown() then return end
+    local mine, log, sorter = ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter
+    ns.db.nav.focus, ns.db.nav.focusLog = {}, {}
+    local say, collect = ns.Print, ns.nav.RequestCollect
+    ns.Print, ns.nav.RequestCollect = function() end, function() end
+    local ok, err = pcall(adv[1].onClick)
+    local okAgain = pcall(adv[1].onClick)
+    local lines = ns.db.nav.focus
+    local count, quest = #lines, lines[1] and lines[1].quest
+    ns.Print, ns.nav.RequestCollect = say, collect
+    ns.db.nav.focus, ns.db.nav.focusLog, ns.db.nav.sorter = mine, log, sorter
+    if F.UpdateBar then pcall(F.UpdateBar) end
+    if collect then pcall(collect, "test done") end
+    t:ok(ok, "the click runs" .. (ok and "" or (": " .. tostring(err))))
+    t:eq(count, 1, "one line on the custom route, and a second click adds no second")
+    t:eq(quest, 987654822, "the finished quest's")
+    t:ok(okAgain, "the second click runs too")
+    -- The bank line's click isn't run here: it would move your waypoint.
+end)
