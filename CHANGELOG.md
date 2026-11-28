@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.437
+
+- **A named mob near you comes before one more of a roaming kill.** With Lok and Nak dead,
+  the next step was "Field to Clear: 6 -> 7 Stormhide" and Kuz was step two, 121 yards
+  away. As a walk that's right: a Stormhide's nearest spawn spot was 3 yards from where you
+  stood. But a spawn spot is only where one can be; with no Stormhide there, the arrow sat
+  on an empty field while Kuz stood nearby. A step with many spots gets done as you go (its
+  mobs are marked wherever you are); a step with one spot only gets done by going there.
+  So when the route starts with a roaming step and a single-spot step is within 250 yards
+  of you, that one is now your next step.
+- Steps that aren't in an area group are planned exactly as before. Grouping only adds
+  "these go together"; it never takes a step off the route. A self-test now checks that
+  every step is on the plan whether it's in a group or not.
 ## 0.35.436
 
 - **Fixed: the dark band behind the red messages covered one line of three, and at the wrong

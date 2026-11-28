@@ -26,6 +26,8 @@
 --   * a quest to pick up that Overlap.lua put before one of those steps is
 --     in its group too.
 -- Nothing here names a zone, a quest or a class: it's only where things are.
+-- A step that's in no group is planned exactly as it always was: grouping
+-- only ever adds "these go together", it never takes a step off the route.
 --
 -- A group then counts as one stop of the route:
 --   * the planner keeps its steps together (Planner: P.Together): once the

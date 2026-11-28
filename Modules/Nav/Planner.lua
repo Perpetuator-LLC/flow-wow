@@ -658,6 +658,40 @@ local function build(p, stops)
     return order
 end
 
+-- Pure: a certain thing close by comes before a roaming one (0.35.437).
+-- "I just reloaded and it still isn't having me go kill Kuz." The plan was
+-- right as far as the walk goes: one more Stormhide, whose nearest spawn spot
+-- was 3 yards from where you stood, then Kuz 121 yards on. But a Stormhide
+-- spot is only where one can be: with none there the arrow sat on an empty
+-- field while a named mob stood two hundred yards away. A step with many
+-- spots is done as you go (its mobs are marked wherever you are); a step
+-- with one spot is only done by going there.
+-- So when the plan starts with a roaming step and a step with a single spot
+-- is within `reach` yards of you, that one goes first.
+--   order: the visits; isRoaming(visit), isCertain(visit) -> true / false;
+--   nearOf(visit) -> yards from you, or nil
+-- Returns `order` itself when nothing moves.
+P.CERTAIN_REACH = 250   -- yards from you
+P.ROAM_SPOTS = 4        -- a step with this many spots or more is a roaming one
+function P.CertainFirst(order, isRoaming, isCertain, nearOf, reach)
+    local first = order[1]
+    if not (first and isRoaming(first)) then return order end
+    local best, bestD
+    for j = 2, #order do
+        local s = order[j]
+        if s.key ~= first.key and isCertain(s) then
+            local d = nearOf(s)
+            if type(d) == "number" and d <= (reach or P.CERTAIN_REACH) and (not bestD or d < bestD) then best, bestD = j, d end
+        end
+    end
+    if not best then return order end
+    local out = { order[best] }
+    for i, s in ipairs(order) do
+        if i ~= best then out[#out + 1] = s end
+    end
+    return out
+end
+
 -- Pure: the same visits with each group's brought together (Areas.lua,
 -- 0.35.431). When the order reaches the first visit of a group, the group's
 -- other visits follow it at once, in the order they had. One that waits for
@@ -736,6 +770,14 @@ function P:Plan(p, goals, opts)
         local okT, together = pcall(P.Together, order, function(s) return s.goal and s.goal.areaGroup end,
             function(s) return s.goal and s.goal.deps end)
         if okT and together ~= order and valid(together) then order = together end
+    end
+    -- A certain thing close by before a roaming one (P.CertainFirst, 0.35.437), under the same rules.
+    do
+        local okC, sooner = pcall(P.CertainFirst, order,
+            function(s) return s.goal and s.goal.area == true and #(s.goal.points or NONE) >= P.ROAM_SPOTS end,
+            function(s) return s.goal and #(s.goal.points or NONE) == 1 and not s.goal.optional end,
+            function(s) return s.near end)
+        if okC and sooner ~= order and valid(sooner) then order = sooner end
     end
     local _, legs, pts = walk(p, order)
     -- One line a step, at its first visit; its later visits ride on it

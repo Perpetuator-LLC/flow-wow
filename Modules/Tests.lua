@@ -20355,3 +20355,58 @@ ns:Register("test", "route: a quest's objectives near each other are done togeth
     ns.db.nav.areaGroups = was
     t:eq(O.Least({ at(0, 0) }, { at(30, 504) }) < AR.SAME_QUEST, true, "(504 yd is within the reach)")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.437: a certain thing close by comes before a roaming one; and every
+-- step is planned, in a group or not.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "route: a named mob near you comes before one more of a roaming kill, and no step is ever left out for not being in a group", function(t)
+    local P, AR = ns.planner, ns.areas
+    local function item(key, spots, near, optional)
+        local points = {}
+        for i = 1, spots do points[i] = { cont = 1, wx = i, wy = 0 } end
+        return { key = key, near = near, goal = { key = key, area = spots > 1 or nil, points = points, optional = optional } }
+    end
+    local function roaming(s) return s.goal.area == true and #s.goal.points >= P.ROAM_SPOTS end
+    local function certain(s) return #s.goal.points == 1 and not s.goal.optional end
+    local function near(s) return s.near end
+    local function keys(list) local out = {} for i, s in ipairs(list) do out[i] = s.key end return table.concat(out, " ") end
+    -- One more Stormhide (42 spots, the nearest 3 yd off), Kuz 121 yd on, the dwarves 600 yd away.
+    local order = { item("stormhide", 42, 3), item("kuz", 1, 121), item("dwarves", 20, 600) }
+    t:eq(keys(P.CertainFirst(order, roaming, certain, near)), "kuz stormhide dwarves", "the named mob first, the roaming kill after")
+    -- Not when it's far, when the plan doesn't start with a roaming step, or for an optional step.
+    local farOff = { item("stormhide", 42, 3), item("kuz", 1, 900) }
+    t:ok(P.CertainFirst(farOff, roaming, certain, near) == farOff, "a named mob 900 yd away: the order stays")
+    local fixed = { item("chest", 1, 10), item("kuz", 1, 121) }
+    t:ok(P.CertainFirst(fixed, roaming, certain, near) == fixed, "the plan starts with a certain step already: the order stays")
+    local opt = { item("stormhide", 42, 3), item("flightpath", 1, 60, true) }
+    t:ok(P.CertainFirst(opt, roaming, certain, near) == opt, "an optional step doesn't jump the queue")
+    local two = { item("stormhide", 42, 3), item("far-chest", 1, 200), item("kuz", 1, 121) }
+    t:eq(keys(P.CertainFirst(two, roaming, certain, near)), "kuz stormhide far-chest", "of two, the nearer")
+    t:ok(P.CertainFirst({}, roaming, certain, near) ~= nil, "no plan: nothing to do")
+    -- Through the planner, as it was: you stand on a Stormhide spot, Kuz is 121 yd away.
+    local stormhides = {}
+    for i = 0, 9 do stormhides[#stormhides + 1] = { cont = 1, wx = 3 + i * 90, wy = (i % 3) * 80 } end
+    local goals = {
+        { key = "987654093:2", text = "Field: 6 -> 7 Stormhide", area = true, points = stormhides, details = {} },
+        { key = "987654879:1", text = "Betrayal: Kuz", points = { { cont = 1, wx = -60, wy = 105 } }, details = {} },
+        { key = "987654843:1", text = "Gann: dwarves", area = true, points = { { cont = 1, wx = 500, wy = 600 }, { cont = 1, wx = 540, wy = 640 } }, details = {} },
+    }
+    local was = ns.db.nav.areaGroups
+    ns.db.nav.areaGroups = nil
+    local groups = AR.Apply(goals)
+    local okP, plan = pcall(P.Plan, P, { cont = 1, wx = 0, wy = 0 }, goals, {})
+    ns.db.nav.areaGroups = was
+    t:ok(okP and plan, "the planner runs" .. (okP and "" or (": " .. tostring(plan))))
+    if okP and plan then
+        t:eq(plan[1].goal.key, "987654879:1", "Kuz is the next step")
+        -- Every step is on the plan, whether it's in a group or not (" .. groups .. " group(s) here).
+        local on = {}
+        for _, s in ipairs(plan) do on[s.goal.key] = true end
+        for _, g in ipairs(goals) do
+            t:ok(on[g.key], (g.areaGroup and "in a group" or "in no group") .. ", and planned: " .. g.text)
+        end
+        t:eq(#plan, #goals, "as many steps planned as there are (" .. tostring(groups) .. " group(s) among them)")
+    end
+end)
