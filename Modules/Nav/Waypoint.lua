@@ -25,6 +25,8 @@ function W:Get()
             -- :GetXY on that broke the arrow's menu once a waypoint was set).
             local x, y
             if type(pos.GetXY) == "function" then x, y = pos:GetXY() else x, y = pos.x, pos.y end
+            -- (The pin Flow put on your step for the game to track, GamePin.lua, isn't a waypoint of yours.)
+            if x and y and ns.gamePin and ns.gamePin.IsOurs(pt.uiMapID, x, y) then return ns.db.nav.waypoint end
             if x and y then return { map = pt.uiMapID, x = x, y = y, note = ns.db.nav.waypointNote } end
         end
     end

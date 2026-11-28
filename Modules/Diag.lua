@@ -104,6 +104,7 @@ function D:Snapshot(reason, spread)
         { "overlap", function() if c.overlap then c.overlap("") end end },
         { "transit", function() if c.transit then c.transit("") end end },
         { "custom route", function() if c.focus then c.focus("") end end },
+        { "game pin", function() if c.gamepin then c.gamepin("") end end },
         { "height", function() if c.height then c.height("") end end },
         { "quest items", function() if c.questitems then c.questitems("") end end },
         { "quest bags", function() if c.questbags then c.questbags("") end end },

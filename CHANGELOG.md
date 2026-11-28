@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.446
+
+- **A try-out for above and below: the game's own pin on your next step** (`/flow gamepin
+  on`, off unless you turn it on). An add-on is given no height here, and the little up and
+  down arrows are the game's own. So this hands the game Flow's next step as its map pin and
+  lets it draw its own marker, in the world and on the minimap. Whether that marker shows
+  above and below for such a spot is what it's for finding out. A pin you set yourself is
+  never replaced, Flow's pin isn't treated as your waypoint, and turning it off takes it
+  away. `/flow gamepin` says what it's doing.
 ## 0.35.445
 
 - **The arrow to your corpse says about how long the run is.** It only said the yards; now

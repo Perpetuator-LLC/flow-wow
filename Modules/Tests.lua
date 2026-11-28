@@ -20642,3 +20642,37 @@ ns:Register("test", "arrow: running back to your corpse it says how far and abou
     t:eq(N.CorpseText(1750, 17.5, false), "1750 yd ~1m 40s", "on a faster run: by your real speed")
     t:eq(N.CorpseText(10, 8.75, true), "Here: resurrect", "at your corpse: resurrect")
 end)
+
+-------------------------------------------------------------------------------
+-- 0.35.446: a try-out: the game's own pin on Flow's next step.
+-------------------------------------------------------------------------------
+
+ns:Register("test", "game pin: Flow's pin follows your step, never replaces yours, and isn't your waypoint", function(t)
+    local GP = ns.gamePin
+    local step = { map = 1413, x = 0.491, y = 0.770 }
+    local other = { map = 1413, x = 0.451, y = 0.801 }
+    t:ok(GP.Same(step, { map = 1413, x = 0.4915, y = 0.7702 }), "a hair apart: the same spot")
+    t:ok(not GP.Same(step, other), "another spot")
+    t:ok(not GP.Same(step, { map = 1411, x = 0.491, y = 0.770 }), "another map")
+    t:ok(not GP.Same(nil, step) and not GP.Same(step, nil), "nothing: not the same")
+    t:eq(GP.Decide(true, step, nil, nil), "set", "on, a step, no pin: set it")
+    t:eq(GP.Decide(true, step, step, step), "keep", "Flow's pin is on the step already: nothing to do")
+    t:eq(GP.Decide(true, other, step, step), "set", "the step moved: the pin follows")
+    t:eq(GP.Decide(true, step, other, nil), "leave", "a pin of your own: left alone")
+    t:eq(GP.Decide(true, step, other, step), "leave", "you moved the pin: it's yours now")
+    t:eq(GP.Decide(false, step, step, step), "clear", "turned off: Flow's pin is taken away")
+    t:eq(GP.Decide(true, nil, step, step), "clear", "no step: taken away")
+    t:eq(GP.Decide(false, step, other, nil), "leave", "off, a pin of your own: left alone")
+    t:eq(GP.Decide(false, step, nil, nil), "keep", "off, no pin: nothing to do")
+    -- Flow's pin isn't your waypoint.
+    local was = ns.db.nav.gamePinAt
+    ns.db.nav.gamePinAt = step
+    t:ok(GP.IsOurs(1413, 0.491, 0.770), "the spot Flow pinned is Flow's")
+    t:ok(not GP.IsOurs(1413, 0.451, 0.801), "another spot isn't")
+    ns.db.nav.gamePinAt = nil
+    t:ok(not GP.IsOurs(1413, 0.491, 0.770), "nothing pinned: nothing is Flow's")
+    ns.db.nav.gamePinAt = was
+    t:ok(not GP.On() or ns.db.nav.gamePin == true, "it's off unless you turned it on")
+    t:ok(pcall(GP.Lines), "/flow gamepin builds")
+    t:ok(type(ns.commands.gamepin) == "function", "/flow gamepin")
+end)
